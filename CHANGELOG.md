@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-09-02
+
+### Added
+
+- A download's message shows where it has got to: a bar, a percentage, a speed and an estimate,
+  and the number of seeds it is connected to. A slow download is visible as slow rather than
+  indistinguishable from a broken one, and none connected says why.
+
+### Changed
+
+- Every message about a download is built from one definition, used by the command that starts
+  one, the updater that keeps it current and the announcement when it is ready.
+
 ## [1.4.0] - 2026-09-02
 
 ### Added

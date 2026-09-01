@@ -94,6 +94,11 @@ builder.Services.AddHostedService<DiscordBotService>();
 // service because it has to keep running between commands, which is the whole point of it.
 builder.Services.AddHostedService<DownloadWatcher>();
 
+// Keeps each download's own message showing where it has got to. Separate from the announcement
+// because editing a message notifies nobody: this is for whoever checks back, the announcement is
+// what reaches whoever walked away.
+builder.Services.AddHostedService<DownloadProgressUpdater>();
+
 await builder.Build().RunAsync();
 
 static bool IsWebAddress(string? value) =>

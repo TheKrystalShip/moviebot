@@ -214,17 +214,15 @@ public sealed class DiscordBotService(
                 return;
             }
 
-            var release = result.Release;
-            var embed = new EmbedBuilder()
-                .WithTitle(release.Year is { } year ? $"{release.Title} ({year})" : release.Title)
-                .WithDescription(release.ReleaseName)
-                .AddField("Quality", release.Summary, inline: false)
-                .AddField("Status", result.Message, inline: false)
-                .WithColor(Color.Blue)
-                .WithCurrentTimestamp()
-                .Build();
+            var posted = await command.FollowupAsync(
+                embed: DownloadEmbed.Starting(result.Release),
+                allowedMentions: AllowedMentions.None);
 
-            await command.FollowupAsync(embed: embed, allowedMentions: AllowedMentions.None);
+            // Recorded after the message exists, because the message is what is being recorded.
+            // The download is already running; this only decides whether it reports itself.
+            if (result.Hash is { } hash)
+                await find.RecordProgressMessageAsync(
+                    hash, command.ChannelId ?? 0, posted.Id, CancellationToken.None);
         }
         catch (Exception ex)
         {

@@ -54,6 +54,25 @@ public sealed class FindCommand(
     AcquisitionService acquisition,
     ILogger<FindCommand> logger)
 {
+    /// <summary>
+    /// Records which message shows this download's progress, so whatever keeps it current can
+    /// find it again. Kept on the torrent rather than here: a download outlives a restart and the
+    /// message should not be left saying whatever it last said.
+    /// </summary>
+    public async Task RecordProgressMessageAsync(
+        string hash, ulong channelId, ulong messageId, CancellationToken ct)
+    {
+        try
+        {
+            await acquisition.TagAsync(hash, TorrentTags.Progress(channelId, messageId), ct);
+        }
+        catch (QBittorrentException ex)
+        {
+            // The download is running either way; it just will not report itself.
+            logger.LogWarning(ex, "Could not record the progress message for {Hash}.", hash);
+        }
+    }
+
     public async Task<FindResult> ExecuteAsync(FindRequest request, CancellationToken ct)
     {
         // Somebody can always type over the suggestion instead of picking one, and what they

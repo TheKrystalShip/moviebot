@@ -106,27 +106,8 @@ public sealed class DownloadWatcher(
                 return true;
             }
 
-            // A film that arrived but could not be made watchable is reported as itself. Silence
-            // would be indistinguishable from a transcode still running, and nobody would ever
-            // find out.
-            var embed = failed
-                ? new EmbedBuilder()
-                    .WithTitle("Downloaded, but it could not be prepared")
-                    .WithDescription(download.Name)
-                    .AddField("What happened",
-                        "The film downloaded, but converting it for the player failed. "
-                        + "It is on disk and can be retried.", inline: false)
-                    .WithColor(Color.Red)
-                    .WithCurrentTimestamp()
-                    .Build()
-                : new EmbedBuilder()
-                    .WithTitle("Ready to watch")
-                    .WithDescription(download.Name)
-                    .AddField("Size", Describe(download.SizeBytes), inline: true)
-                    .AddField("Watch it with", $"/{Discord.WatchSlashCommand.Name}", inline: true)
-                    .WithColor(Color.Green)
-                    .WithCurrentTimestamp()
-                    .Build();
+            // Built from the one definition every other message about a download uses.
+            var embed = failed ? DownloadEmbed.Failed(download) : DownloadEmbed.Ready(download);
 
             // The mention has to be in the message itself: text inside an embed renders as a
             // mention and notifies nobody.
