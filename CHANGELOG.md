@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-02
+
+### Added
+
+- `/find` searches a tracker for a film that is not in the library yet and starts it downloading,
+  with the results offered as you type. It is answered by the repository beside this one, which is
+  referenced as a library.
+- A film is announced in the channel it was asked for once it has finished downloading. What to
+  announce and where is kept on the torrent rather than in the bot, so a restart in the middle of
+  a long download still announces it.
+
+### Changed
+
+- Both slash commands autocomplete a title and mean opposite things by it, so the autocomplete
+  handler routes on the command name. `/watch` searches films already on disk; `/find` searches
+  for ones that by definition are not.
+- The bot unit reads `/home` rather than having it masked. The disk budget is measured off the
+  filesystem, and a masked directory reads as zero used — a ceiling that never stops anything.
+
 ## [1.0.0] - 2026-09-01
 
 ### Security

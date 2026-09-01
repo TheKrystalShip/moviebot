@@ -9,6 +9,8 @@ using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Configuration;
 using TheKrystalShip.MovieBot.Bot.Discord;
+using TheKrystalShip.MovieBot.Bot.Find;
+using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Bot.Launch;
 using TheKrystalShip.MovieBot.Bot.Watch;
 
@@ -80,7 +82,17 @@ builder.Services.AddSingleton<ILaunchPresenter>(sp => new ActivityLaunchPresente
     sp.GetRequiredService<LinkLaunchPresenter>(),
     sp.GetRequiredService<ILogger<ActivityLaunchPresenter>>()));
 builder.Services.AddSingleton<WatchCommand>();
+
+// The acquiring half. It brings its own options, its tracker client and its torrent client, and
+// it is reflection-free, so it adds nothing to this project's startup beyond what it is asked.
+builder.Services.AddAcquire(builder.Configuration);
+builder.Services.AddSingleton<FindCommand>();
+
 builder.Services.AddHostedService<DiscordBotService>();
+
+// Announces a finished download in the channel it was asked for. Separate from the gateway
+// service because it has to keep running between commands, which is the whole point of it.
+builder.Services.AddHostedService<DownloadWatcher>();
 
 await builder.Build().RunAsync();
 

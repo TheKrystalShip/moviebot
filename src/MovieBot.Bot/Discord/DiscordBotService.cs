@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Configuration;
+using TheKrystalShip.MovieBot.Bot.Find;
 using TheKrystalShip.MovieBot.Bot.Library;
 using TheKrystalShip.MovieBot.Bot.Watch;
 
@@ -22,6 +23,8 @@ public sealed class DiscordBotService(
     DiscordSocketClient client,
     MovieBotApiClient api,
     WatchCommand watch,
+    FindCommand find,
+    TheKrystalShip.MovieBot.Acquire.Search.AutocompleteSearch suggestions,
     IOptions<DiscordOptions> options,
     ILogger<DiscordBotService> logger) : BackgroundService
 {
@@ -91,8 +94,13 @@ public sealed class DiscordBotService(
                     continue;
                 }
 
-                await guild.BulkOverwriteApplicationCommandAsync([WatchSlashCommand.Build()]);
-                logger.LogInformation("Registered /{Command} in {GuildName}", WatchSlashCommand.Name, guild.Name);
+                // The overwrite is the whole command set, so every command has to be in this
+                // one call: registering them separately leaves only the last one standing.
+                await guild.BulkOverwriteApplicationCommandAsync(
+                    [WatchSlashCommand.Build(), FindSlashCommand.Build()]);
+
+                logger.LogInformation("Registered /{Watch} and /{Find} in {GuildName}",
+                    WatchSlashCommand.Name, FindSlashCommand.Name, guild.Name);
             }
             catch (Exception ex)
             {
@@ -106,7 +114,13 @@ public sealed class DiscordBotService(
     // or logs why it could not.
     private Task OnSlashCommand(SocketSlashCommand command)
     {
-        _ = HandleWatchAsync(command);
+        _ = command.CommandName switch
+        {
+            WatchSlashCommand.Name => HandleWatchAsync(command),
+            FindSlashCommand.Name => HandleFindAsync(command),
+            _ => Task.CompletedTask,
+        };
+
         return Task.CompletedTask;
     }
 
@@ -163,6 +177,61 @@ public sealed class DiscordBotService(
         }
     }
 
+    /// <summary>
+    /// Answers the person who asked, then starts the download.
+    ///
+    /// The reply is deliberately not a live progress bar. A film takes minutes at best, an
+    /// interaction token expires long before that, and an edited message nobody is looking at is
+    /// worth less than a clear sentence saying to come back.
+    /// </summary>
+    private async Task HandleFindAsync(SocketSlashCommand command)
+    {
+        try
+        {
+            if (command.GuildId is not { } guildId || !_guilds.Contains(guildId))
+            {
+                await command.RespondAsync(
+                    "This bot only answers in the server it is configured for.", ephemeral: true);
+                return;
+            }
+
+            var chosen = command.Data.Options
+                .FirstOrDefault(o => o.Name == FindSlashCommand.TitleOption)?.Value as string ?? "";
+
+            await command.DeferAsync();
+
+            var result = await find.ExecuteAsync(new FindRequest
+            {
+                Chosen = chosen,
+                ChannelId = command.ChannelId ?? 0,
+                RequestedBy = (command.User as IGuildUser)?.DisplayName ?? command.User.Username,
+            }, CancellationToken.None);
+
+            if (result.Status != FindStatus.Started || result.Release is null)
+            {
+                await command.FollowupAsync(result.Message, allowedMentions: AllowedMentions.None);
+                return;
+            }
+
+            var release = result.Release;
+            var embed = new EmbedBuilder()
+                .WithTitle(release.Year is { } year ? $"{release.Title} ({year})" : release.Title)
+                .WithDescription(release.ReleaseName)
+                .AddField("Quality", release.Summary, inline: false)
+                .AddField("Status", result.Message, inline: false)
+                .WithColor(Color.Blue)
+                .WithCurrentTimestamp()
+                .Build();
+
+            await command.FollowupAsync(embed: embed, allowedMentions: AllowedMentions.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "The /{Command} command failed", FindSlashCommand.Name);
+            await TryReportFailure(command);
+        }
+    }
+
     private async Task HandleAutocompleteAsync(SocketAutocompleteInteraction interaction)
     {
         try
@@ -174,6 +243,21 @@ public sealed class DiscordBotService(
             }
 
             var typed = interaction.Data.Current.Value?.ToString() ?? "";
+
+            // Both commands autocomplete a title and they mean entirely different things by it:
+            // one searches films already on disk, the other searches the tracker. Answering
+            // without checking which was asked offers the library to somebody trying to
+            // download something that is by definition not in it.
+            if (interaction.Data.CommandName == FindSlashCommand.Name)
+            {
+                var found = await suggestions.SuggestAsync(
+                    typed, interaction.User.Id.ToString(), CancellationToken.None);
+
+                await interaction.RespondAsync(found
+                    .Select(c => new AutocompleteResult(c.Label, c.TorrentId.ToString())));
+                return;
+            }
+
             var library = await api.ListTitlesAsync(CancellationToken.None);
 
             await interaction.RespondAsync(TitleMatcher.Suggest(library, typed)

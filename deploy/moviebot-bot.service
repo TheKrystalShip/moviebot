@@ -24,7 +24,11 @@ RestartSec=10s
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
+
+# The download directory has to be readable, because the disk budget is measured off the
+# filesystem. Masked away entirely, the budget reads zero used and the ceiling never stops
+# anything — a wrong answer that looks exactly like plenty of room.
+ProtectHome=read-only
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
