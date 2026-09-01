@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MovieBot.Core/MovieBot.Core.csproj" />
+    <Project Path="src/MovieBot.Ingest/MovieBot.Ingest.csproj" />
+  </Folder>
+</Solution>

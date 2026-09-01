@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Records plus a source-generated JSON context: no reflection, so the manifest
+         contract is equally usable from the ingest worker, the API and any future
+         trimmed or AOT consumer. -->
+    <IsAotCompatible>true</IsAotCompatible>
+
+    <RootNamespace>TheKrystalShip.MovieBot.Core</RootNamespace>
+    <AssemblyName>TheKrystalShip.MovieBot.Core</AssemblyName>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+</Project>
