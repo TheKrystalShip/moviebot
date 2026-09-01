@@ -16,6 +16,7 @@ Ingest, the API and the player are built and run. The Discord bot is built but h
 | `MovieBot.Api` — sessions, SignalR hub, media serving | built |
 | `MovieBot.Bot` — Discord.Net slash command, launch link | built, never run against a live guild |
 | `web/activity` — the player | built |
+| `MovieBot.Handoff` — carries a finished download into the library | built |
 
 ## Requirements
 

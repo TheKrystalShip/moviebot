@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-09-02
+
+### Added
+
+- A finished download is turned into something the player can open, without anybody running the
+  ingest by hand. It runs as its own service: it writes where the bot may not, it takes minutes
+  where a bot restart would abandon it, and it holds the GPU.
+- A film is announced the moment it becomes playable rather than when its transcode ends, which
+  on a feature is a quarter of an hour earlier.
+- A download that arrives but cannot be prepared says so, rather than being indistinguishable
+  from one still being worked on.
+
 ## [1.1.0] - 2026-09-02
 
 ### Added

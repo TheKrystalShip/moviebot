@@ -48,15 +48,6 @@ public sealed class FindCommand(
     AcquisitionService acquisition,
     ILogger<FindCommand> logger)
 {
-    /// <summary>
-    /// The tag a download carries so it can be announced in the right place later. It lives on
-    /// the torrent rather than in this process, which is what lets a bot restarted mid-download
-    /// still announce it.
-    /// </summary>
-    public const string NotifyTagPrefix = "notify:";
-
-    public static string NotifyTag(ulong channelId) => $"{NotifyTagPrefix}{channelId}";
-
     public async Task<FindResult> ExecuteAsync(FindRequest request, CancellationToken ct)
     {
         // Somebody can always type over the suggestion instead of picking one, and what they
@@ -73,8 +64,13 @@ public sealed class FindCommand(
 
         try
         {
+            // Two notes, both on the torrent rather than in this process: where to announce it,
+            // and that it is not watchable until something has transcoded it. A download wearing
+            // neither is one nobody is waiting on.
             var result = await acquisition.StartAsync(
-                release, [NotifyTag(request.ChannelId)], ct);
+                release,
+                [TorrentTags.Notify(request.ChannelId), TorrentTags.NeedsIngest],
+                ct);
 
             if (!result.Started)
                 return new FindResult(FindStatus.Refused, result.Refusal!, release);

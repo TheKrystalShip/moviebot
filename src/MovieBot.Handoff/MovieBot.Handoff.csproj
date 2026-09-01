@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <RootNamespace>TheKrystalShip.MovieBot.Handoff</RootNamespace>
+    <AssemblyName>moviebot-handoff</AssemblyName>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The only place these two meet. The transcoder knows nothing about torrents and the
+         acquiring library knows nothing about ffmpeg; this carries a finished download from one
+         to the other. -->
+    <ProjectReference Include="../MovieBot.Ingest/MovieBot.Ingest.csproj" />
+    <ProjectReference Include="../../../moviebot-acquire/src/MovieBot.Acquire/MovieBot.Acquire.csproj" />
+  </ItemGroup>
+
+</Project>

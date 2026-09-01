@@ -1,0 +1,43 @@
+[Unit]
+Description=MovieBot hand-off — turns a finished download into something the player can open
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heisen
+Group=heisen
+WorkingDirectory=/opt/moviebot/handoff
+ExecStart=/opt/moviebot/handoff/moviebot-handoff
+
+EnvironmentFile=/etc/moviebot/moviebot.env
+Environment=Handoff__MediaRoot=/home/heisen/tks/moviebot/media
+Environment=DOTNET_EnableDiagnostics=0
+
+Restart=on-failure
+RestartSec=10s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+
+# It reads what the torrent client wrote and writes what the API serves, so the two directories
+# are named rather than the whole of the home being opened.
+ProtectHome=read-only
+ReadWritePaths=/home/heisen/tks/moviebot/media
+
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# The transcode decodes and encodes on the GPU, so the devices stay visible. PrivateDevices would
+# hide them and drop the pipeline onto the CPU, where a feature costs hours instead of minutes.
+DeviceAllow=/dev/nvidia0 rw
+DeviceAllow=/dev/nvidiactl rw
+DeviceAllow=/dev/nvidia-modeset rw
+DeviceAllow=/dev/nvidia-uvm rw
+DeviceAllow=/dev/nvidia-uvm-tools rw
+DeviceAllow=/dev/dri rw
+
+[Install]
+WantedBy=multi-user.target

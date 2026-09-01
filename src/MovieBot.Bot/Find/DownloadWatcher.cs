@@ -7,7 +7,12 @@ using TheKrystalShip.MovieBot.Acquire.Download;
 namespace TheKrystalShip.MovieBot.Bot.Find;
 
 /// <summary>
-/// Announces a film in the channel it was asked for, once it has finished downloading.
+/// Announces a film in the channel it was asked for, once there is something to watch.
+///
+/// Downloaded is not watchable. The file has to be transcoded before the player can open it, so
+/// this waits for the hand-off to finish rather than for the download to: announcing at the end
+/// of the download would tell a room a film is ready and have the command that plays it find
+/// nothing.
 ///
 /// It holds nothing. What to announce and where is read from the torrent's own tags on every
 /// pass, so a bot restarted in the middle of a three-hour download still announces it — which is
@@ -60,23 +65,30 @@ public sealed class DownloadWatcher(
         foreach (var download in downloads.Where(d => d.IsFinished))
         {
             var tag = download.Tags.FirstOrDefault(
-                t => t.StartsWith(FindCommand.NotifyTagPrefix, StringComparison.Ordinal));
+                t => t.StartsWith(TorrentTags.NotifyPrefix, StringComparison.Ordinal));
 
             if (tag is null) continue;
 
-            if (!ulong.TryParse(tag[FindCommand.NotifyTagPrefix.Length..], out var channelId))
+            // Still owed a transcode, so there is nothing to watch yet. Left alone rather than
+            // announced, and found again on the next pass.
+            if (download.Tags.Contains(TorrentTags.NeedsIngest)) continue;
+
+            if (TorrentTags.ReadNotifyChannel(tag) is not { } channelId)
             {
                 logger.LogWarning("A download carries an unreadable notify tag: {Tag}", tag);
                 await acquisition.ClearTagAsync(download.Hash, tag, ct);
                 continue;
             }
 
-            if (await TryAnnounceAsync(channelId, download))
+            var failed = download.Tags.Contains(TorrentTags.IngestFailed);
+
+            if (await TryAnnounceAsync(channelId, download, failed))
                 await acquisition.ClearTagAsync(download.Hash, tag, ct);
         }
     }
 
-    private async Task<bool> TryAnnounceAsync(ulong channelId, DownloadStatus download)
+    private async Task<bool> TryAnnounceAsync(
+        ulong channelId, DownloadStatus download, bool failed)
     {
         try
         {
@@ -90,14 +102,27 @@ public sealed class DownloadWatcher(
                 return true;
             }
 
-            var embed = new EmbedBuilder()
-                .WithTitle("Ready to watch")
-                .WithDescription(download.Name)
-                .AddField("Size", Describe(download.SizeBytes), inline: true)
-                .AddField("Watch it with", $"/{Discord.WatchSlashCommand.Name}", inline: true)
-                .WithColor(Color.Green)
-                .WithCurrentTimestamp()
-                .Build();
+            // A film that arrived but could not be made watchable is reported as itself. Silence
+            // would be indistinguishable from a transcode still running, and nobody would ever
+            // find out.
+            var embed = failed
+                ? new EmbedBuilder()
+                    .WithTitle("Downloaded, but it could not be prepared")
+                    .WithDescription(download.Name)
+                    .AddField("What happened",
+                        "The film downloaded, but converting it for the player failed. "
+                        + "It is on disk and can be retried.", inline: false)
+                    .WithColor(Color.Red)
+                    .WithCurrentTimestamp()
+                    .Build()
+                : new EmbedBuilder()
+                    .WithTitle("Ready to watch")
+                    .WithDescription(download.Name)
+                    .AddField("Size", Describe(download.SizeBytes), inline: true)
+                    .AddField("Watch it with", $"/{Discord.WatchSlashCommand.Name}", inline: true)
+                    .WithColor(Color.Green)
+                    .WithCurrentTimestamp()
+                    .Build();
 
             await channel.SendMessageAsync(embed: embed, allowedMentions: AllowedMentions.None);
 

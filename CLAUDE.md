@@ -94,6 +94,29 @@ These are measured against real Blu-ray rips, not assumed. Changing one means re
 - **The GOP is pinned to the segment length** and `-force_key_frames` guarantees a keyframe on
   every boundary whatever the frame rate, so a seek lands on the frame it asked for.
 
+## Hand-off invariants
+
+`MovieBot.Handoff` carries a finished download into the library. It runs as its own service, and
+each of the three reasons is a constraint rather than a preference: it writes into the media root,
+which the bot is not permitted to do; a transcode takes minutes, so a bot restart would abandon it
+halfway; and it holds the GPU, which has no business inside a gateway connection.
+
+- **A film is announced when it becomes playable, not when the transcode ends.** The playlists
+  grow as segments land, so a film is watchable seconds in against roughly ten times realtime.
+  Waiting for the whole transcode holds a room for a quarter of an hour in front of a film that
+  was already playing.
+- **Playable means the manifest carries a head**, or reports itself ready. Announcing at the end
+  of the *download* instead is too early by the other margin: the transcode has not started, so
+  the manifest does not exist and `/watch` finds nothing.
+- **The feature is the largest video file above a floor**, with samples and trailers excluded by
+  name. Without the floor, a torrent holding only a sample yields the sample and the room watches
+  ninety seconds of a film.
+- **The library id comes from the same parser the search uses.** A second name parser written
+  here would not disagree loudly; it would give one film two ids and nobody would notice until
+  the library held both.
+- **The unit keeps the GPU devices visible.** `PrivateDevices` would hide them and drop the
+  pipeline onto the CPU, where a feature costs hours instead of minutes.
+
 ## Track labelling
 
 Driven entirely by what the container says, because the sample film makes every shortcut fail:

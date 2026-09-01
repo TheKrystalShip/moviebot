@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/MovieBot.Api/MovieBot.Api.csproj" />
     <ProjectReference Include="../../src/MovieBot.Bot/MovieBot.Bot.csproj" />
+    <ProjectReference Include="../../src/MovieBot.Handoff/MovieBot.Handoff.csproj" />
   </ItemGroup>
 
 </Project>
