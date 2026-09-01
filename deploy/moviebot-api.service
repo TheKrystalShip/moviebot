@@ -1,0 +1,35 @@
+[Unit]
+Description=MovieBot API — library, media and the room's shared timeline
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heisen
+Group=heisen
+WorkingDirectory=/opt/moviebot/api
+ExecStart=/opt/moviebot/api/moviebot-api
+
+# Credentials and configuration. systemd does not read /etc/environment, so anything the service
+# needs is named here or in the file below; relying on the ambient environment gives a service
+# that starts empty and fails as though the network were down.
+EnvironmentFile=/etc/moviebot/moviebot.env
+Environment=Media__Root=/home/heisen/tks/moviebot/media
+Environment=ASPNETCORE_URLS=http://127.0.0.1:8099
+Environment=DOTNET_EnableDiagnostics=0
+
+Restart=on-failure
+RestartSec=5s
+
+# It serves files it is given and talks to nobody but nginx and the media root.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadOnlyPaths=/home/heisen/tks/moviebot/media
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

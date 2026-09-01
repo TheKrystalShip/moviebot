@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { BASE, launch } from './harness.mjs';
 import { headSuite } from './head.mjs';
+import { launchSuite } from './launch.mjs';
 import { playerSuite } from './player.mjs';
 import { roomSuite } from './room.mjs';
 
@@ -14,6 +15,7 @@ let failed = 0;
 try {
   for (const suite of [
     () => playerSuite(browser),
+    () => launchSuite(browser),
     () => roomSuite(browser),
     () => headSuite(browser, manifestPath)
   ]) {

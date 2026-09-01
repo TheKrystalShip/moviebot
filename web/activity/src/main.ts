@@ -14,8 +14,10 @@ const ManifestPollMs = 5000;
 
 async function boot(): Promise<void> {
   const env = environment();
-  const identity = await env.identity();
+  // The room is named before the viewer is, so the link in the address bar is shareable while
+  // the person is still typing their name into it.
   const sessionId = env.sessionId();
+  const identity = await env.identity();
 
   let controller: SyncController | null = null;
   let manifest: Manifest | null = null;
@@ -131,6 +133,14 @@ async function boot(): Promise<void> {
   const joined = await hub.start();
   controller.applyPush(joined);
   shell.setParticipants(await api.participants(sessionId));
+
+  // A launch link names the film. The room is told once, by whoever arrives while it is showing
+  // something else; a viewer joining a room that already holds the title says nothing, because
+  // loading it again would send everyone back to the beginning.
+  const launched = env.titleId();
+  if (launched !== null && joined.state.titleId !== launched) {
+    await hub.loadTitle(launched);
+  }
 }
 
 void boot();

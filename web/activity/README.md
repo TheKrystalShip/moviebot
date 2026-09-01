@@ -27,8 +27,26 @@ interface and no other change.
 
 The browser implementation resolves the API base from `?api=`, then `VITE_API_BASE`, then the
 page's own origin — with the dev server's port 5173 pointing at `127.0.0.1:8099`, since the dev
-server serves the page and not the API. `?session=` names the room and defaults to `lounge`;
-`?user=` and `?name=` set the viewer, who otherwise persists in `localStorage`.
+server serves the page and not the API.
+
+## The launch link
+
+```
+https://<player-origin>/?session=<sessionId>&title=<titleId>
+```
+
+`session` is the room to join, and is opaque: never parsed, never validated. A page opened
+without one names its own and writes it into the address bar, so whoever opened it has a link to
+hand to somebody else.
+
+`title` is optional. When it names a title the player loads it — once, by whoever arrives while
+the room is showing something else. A viewer joining a room that already holds that title says
+nothing, because loading it again would send everyone back to the beginning. Without a `title`
+the library is shown and the person picks.
+
+The link carries **no identity**. A first-time viewer is asked what to call them, and the name
+and a stable id are kept in this browser under `moviebot.identity.v1`. The link is unguessable
+and nothing more than that.
 
 ## Shared, and not shared
 
@@ -74,11 +92,14 @@ Built from the manifest rather than from what the media element exposes, split i
 Commentary, and labelled from the manifest's `label`. A track with `available: false` is listed
 disabled with its reason: a language simply absent from the menu reads as a bug.
 
-Ingest writes one media playlist per rendition and no master, so `src/player/masterPlaylist.ts`
-composes one and hands it to hls.js as a blob. That master is what binds the audio renditions to
-the video; without it the film plays silently with no track to switch to. Blobs have no base to
-resolve against, so every URI in it is absolute. Subtitles are whole WebVTT files rather than an
-HLS rendition, so the chosen one — and only the chosen one — is fetched and attached as a track.
+The master playlist is what binds the audio renditions to the video; without one the film plays
+silently with no track to switch to. A manifest that names a `master` is loaded from it. A
+manifest that names none gets one composed by `src/player/masterPlaylist.ts` and handed to hls.js
+as a blob, which has no base to resolve against, so every URI in that one is absolute. Renditions
+are listed in manifest order either way, which is how a chosen track is found again.
+
+Subtitles are whole WebVTT files rather than an HLS rendition, so the chosen one — and only the
+chosen one — is fetched and attached as a track.
 
 ## Verifying
 

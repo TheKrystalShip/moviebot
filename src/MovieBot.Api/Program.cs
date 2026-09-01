@@ -47,6 +47,12 @@ var app = builder.Build();
 
 app.UseCors();
 
+// The player is served from this origin, which is what lets a Discord Activity reach the page,
+// the API, the media and the hub through a single declared URL mapping instead of a set of them.
+// Static files sit under wwwroot and never shadow /api, /media or /hub, which are explicit routes.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 app.MapGet("/api/titles", (TitleLibrary library) => Results.Ok(library.List()));

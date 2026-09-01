@@ -54,8 +54,15 @@ export const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * A viewer. Outbound hub frames are recorded so a check can assert what did and did not go on
  * the wire, and inbound frames are kept so one can be handed back to prove it gets discarded.
  */
-export async function openViewer(browser, name, session) {
+export async function openViewer(browser, name, session, title = null) {
   const context = await browser.newContext();
+
+  // The launch link carries no identity, so a viewer is seeded the way a person who has already
+  // given their name is: the stored entry is what the player reads.
+  await context.addInitScript((viewer) => {
+    window.localStorage.setItem('moviebot.identity.v1', JSON.stringify(viewer));
+  }, { userId: name, displayName: name });
+
   await context.addInitScript(() => {
     window.__sent = [];
     const send = WebSocket.prototype.send;
@@ -83,9 +90,8 @@ export async function openViewer(browser, name, session) {
 
   // MOVIEBOT_WEB may carry query parameters of its own, such as an api override.
   const url = new URL(BASE);
-  url.searchParams.set('session', session);
-  url.searchParams.set('user', name);
-  url.searchParams.set('name', name);
+  if (session !== null) url.searchParams.set('session', session);
+  if (title !== null) url.searchParams.set('title', title);
   await page.goto(url.toString());
   await page.waitForSelector('#connection[data-status="connected"]', { timeout: 15000 });
   return page;

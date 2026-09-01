@@ -1,0 +1,33 @@
+[Unit]
+Description=MovieBot Discord bot
+After=network-online.target moviebot-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heisen
+Group=heisen
+WorkingDirectory=/opt/moviebot/bot
+ExecStart=/opt/moviebot/bot/moviebot-bot
+
+EnvironmentFile=/etc/moviebot/moviebot.env
+Environment=Discord__GuildIds__0=385730677141929985
+Environment=Api__BaseUrl=http://127.0.0.1:8099
+Environment=Api__PublicBaseUrl=https://movies.thekrystalship.com
+Environment=Player__BaseUrl=https://movies.thekrystalship.com
+Environment=DOTNET_EnableDiagnostics=0
+
+# A dropped gateway connection is normal; the bot reconnects, and a crash should not need a person.
+Restart=always
+RestartSec=10s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

@@ -12,7 +12,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Core</RootNamespace>
     <AssemblyName>TheKrystalShip.MovieBot.Core</AssemblyName>
-    <Version>0.4.0</Version>
+    <Version>0.5.0</Version>
   </PropertyGroup>
 
 </Project>

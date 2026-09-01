@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-01
+
+### Added
+
+- The API serves the player from `wwwroot`, so one origin carries the page, the API, the media
+  and the hub — a Discord Activity then needs one URL mapping rather than several.
+- `scripts/build-player.sh` builds the player and installs it there.
+- `deploy/`: systemd units for the API and the bot, and the nginx vhost. Secrets come from a
+  mode-600 `EnvironmentFile`, because systemd does not read `/etc/environment` and that file is
+  world-readable.
+- A name gate: the plain link carries no identity, so the player asks once and remembers.
+
+### Fixed
+
+- A launch link naming a film the room is already showing no longer reloads it. Loading a title
+  resets the position, so a friend clicking the link mid-film sent everyone back to the start.
+- The invite URL the bot logs omitted `CREATE_INSTANT_INVITE`. Installing from it produced a bot
+  that could not create Activity invites, failing later as though Discord were at fault.
+
 ## [0.4.0] - 2026-09-01
 
 ### Added
@@ -84,6 +103,7 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `comment` disposition.
 - `--dry-run`, which prints the manifest a source would produce without transcoding it.
 
+[0.5.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.5.0
 [0.4.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.4.0
 [0.3.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.3.0
 [0.2.1]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.2.1

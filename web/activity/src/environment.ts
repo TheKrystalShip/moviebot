@@ -1,11 +1,13 @@
+import { askForDisplayName } from './ui/nameGate';
+
 /**
  * The seam between the player and whatever front door it is served through.
  *
  * Everything that differs between a plain browser page and an embedded surface lives here:
- * where the API is, how a media path becomes a URL, which session this is, and who the viewer
- * is. The rest of the app asks the environment and never reads `location` or builds a URL of
- * its own, so a front door with rewritten paths and an externally supplied identity is a
- * different implementation of this interface and nothing else.
+ * where the API is, how a media path becomes a URL, which room this is, which title the launch
+ * named, and who the viewer is. The rest of the app asks the environment and never reads
+ * `location` or builds a URL of its own, so a front door with rewritten paths and an externally
+ * supplied identity is a different implementation of this interface and nothing else.
  */
 export interface Identity {
   userId: string;
@@ -20,15 +22,22 @@ export interface Environment {
   mediaUrl(titleId: string, relative: string): string;
   /** Absolute URL of the SignalR hub. */
   hubUrl(): string;
-  /** Which room this viewer is joining. */
+  /** Which room this viewer is joining. Opaque: never parsed, never validated. */
   sessionId(): string;
+  /** The title the launch named, or null when the person picks from the library. */
+  titleId(): string | null;
   identity(): Promise<Identity>;
 }
 
 const IdentityKey = 'moviebot.identity.v1';
 
 function query(name: string): string | null {
-  return new URLSearchParams(window.location.search).get(name);
+  const value = new URLSearchParams(window.location.search).get(name);
+  return value === null || value === '' ? null : value;
+}
+
+function token(): string {
+  return crypto.randomUUID().replaceAll('-', '').slice(0, 10);
 }
 
 function defaultApiBase(): string {
@@ -45,25 +54,37 @@ function defaultApiBase(): string {
 }
 
 /**
- * Identity for a plain page: a name from the query string when one is given, otherwise a
- * viewer that persists across reloads so returning to a room does not double a person in the
- * participant list.
+ * The room, from the launch link. A page opened without one names its own and writes it into the
+ * address bar, so the person who opened it has a link to hand to somebody else.
  */
-function localIdentity(): Identity {
-  const named = query('name');
-  const asked = query('user');
+function resolveSessionId(): string {
+  const named = query('session');
+  if (named !== null) return named;
 
+  const generated = `room-${token()}`;
+  const url = new URL(window.location.href);
+  url.searchParams.set('session', generated);
+  window.history.replaceState(null, '', url.toString());
+  return generated;
+}
+
+/**
+ * Who this viewer is. The link deliberately carries no identity, so the name is asked for once
+ * and kept in this browser along with a stable id.
+ */
+async function localIdentity(): Promise<Identity> {
   const stored = window.localStorage.getItem(IdentityKey);
-  const existing = stored ? (JSON.parse(stored) as Identity) : null;
-
-  const identity: Identity = {
-    userId: asked ?? existing?.userId ?? `viewer-${Math.random().toString(36).slice(2, 8)}`,
-    displayName: named ?? existing?.displayName ?? 'Viewer'
-  };
-
-  if (named || asked || !existing) {
-    window.localStorage.setItem(IdentityKey, JSON.stringify(identity));
+  if (stored !== null) {
+    try {
+      const identity = JSON.parse(stored) as Identity;
+      if (identity.userId && identity.displayName) return identity;
+    } catch {
+      // A corrupt entry is worth no more than an absent one.
+    }
   }
+
+  const identity: Identity = { userId: `viewer-${token()}`, displayName: await askForDisplayName() };
+  window.localStorage.setItem(IdentityKey, JSON.stringify(identity));
   return identity;
 }
 
@@ -72,8 +93,9 @@ export const browserEnvironment: Environment = {
   apiUrl: (path) => `${defaultApiBase()}${path.startsWith('/') ? path : `/${path}`}`,
   mediaUrl: (titleId, relative) => `${defaultApiBase()}/media/${titleId}/${relative}`,
   hubUrl: () => `${defaultApiBase()}/hub/session`,
-  sessionId: () => query('session') ?? 'lounge',
-  identity: async () => localIdentity()
+  sessionId: resolveSessionId,
+  titleId: () => query('title'),
+  identity: localIdentity
 };
 
 let current: Environment = browserEnvironment;

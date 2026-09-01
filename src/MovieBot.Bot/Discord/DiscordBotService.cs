@@ -56,7 +56,13 @@ public sealed class DiscordBotService(
                 "Invite this application with https://discord.com/oauth2/authorize"
                 + "?client_id={ApplicationId}&scope=bot+applications.commands&permissions={Permissions}",
                 applicationId,
-                (ulong)(GuildPermission.SendMessages | GuildPermission.EmbedLinks));
+                // CreateInstantInvite is what an Activity launch is made of, so it belongs in
+                // the link that installs the bot rather than being discovered missing the first
+                // time somebody asks for a film in a voice channel.
+                (ulong)(GuildPermission.CreateInstantInvite
+                        | GuildPermission.ViewChannel
+                        | GuildPermission.SendMessages
+                        | GuildPermission.EmbedLinks));
 
         await client.LoginAsync(TokenType.Bot, options.Value.Token);
         await client.StartAsync();
