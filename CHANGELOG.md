@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-09-01
+
+### Added
+
+- `MasterPlaylist`: ingest writes an HLS master playlist binding the audio renditions to the
+  video, and the manifest points at it. Without one a player handed a bare video rendition plays
+  the film silently with no audio track to switch to.
+
+### Fixed
+
+- `docs/api-contract.md` described echo suppression as a flag cleared when the expected media
+  event arrives. A seek interrupted by a second seek raises no `seeked` at all, so such a flag
+  stays set and swallows the next thing the viewer does. The rule is now to compare against the
+  position that was applied.
+
 ## [0.2.0] - 2026-09-01
 
 ### Added
@@ -39,5 +54,6 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `comment` disposition.
 - `--dry-run`, which prints the manifest a source would produce without transcoding it.
 
+[0.2.1]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.2.1
 [0.2.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.2.0
 [0.1.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.1.0

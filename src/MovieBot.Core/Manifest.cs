@@ -67,6 +67,12 @@ public sealed class Manifest
 
     public string? Poster { get; init; }
 
+    /// <summary>
+    /// The HLS master playlist binding audio to video. A player should load this rather than a
+    /// bare video rendition, which plays silently and offers no audio track to switch to.
+    /// </summary>
+    public string? Master { get; init; }
+
     public required VideoInfo Video { get; init; }
     public required IReadOnlyList<AudioTrack> Audio { get; init; }
     public required IReadOnlyList<SubtitleTrack> Subtitles { get; init; }

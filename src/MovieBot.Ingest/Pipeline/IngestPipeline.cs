@@ -63,6 +63,10 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         var manifestPath = Path.Combine(outputDirectory, "manifest.json");
         ManifestJson.WriteAtomic(manifestPath, manifest);
 
+        // Written before the transcode starts, so the master exists for as long as the title is
+        // discoverable at all. Its media playlists appear moments later as ffmpeg opens them.
+        MasterPlaylist.Write(outputDirectory, manifest);
+
         try
         {
             if (textSubtitles.Count > 0)
@@ -367,6 +371,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             Status = TitleStatus.Transcoding,
             HeadSeconds = 0,
             Poster = hasPoster ? "poster.jpg" : null,
+            Master = MasterPlaylist.FileName,
             Video = new VideoInfo
             {
                 Width = video.Width ?? 0,
