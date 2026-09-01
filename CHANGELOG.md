@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-09-02
+
+### Added
+
+- The person who asked for a film is mentioned when it arrives, so nobody has to watch a channel
+  waiting for it. Only that one account can be notified by the message: it is named by id rather
+  than by allowing mentions generally, so nothing composed from what somebody typed can ping
+  anyone.
+
 ## [1.3.0] - 2026-09-02
 
 ### Added

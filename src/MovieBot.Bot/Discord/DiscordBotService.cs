@@ -204,6 +204,7 @@ public sealed class DiscordBotService(
             {
                 Chosen = chosen,
                 ChannelId = command.ChannelId ?? 0,
+                RequesterId = command.User.Id,
                 RequestedBy = (command.User as IGuildUser)?.DisplayName ?? command.User.Username,
             }, CancellationToken.None);
 

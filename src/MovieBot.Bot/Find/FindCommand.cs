@@ -19,6 +19,12 @@ public sealed record FindRequest
     public required ulong ChannelId { get; init; }
 
     public required string RequestedBy { get; init; }
+
+    /// <summary>
+    /// Who asked, so they can be told when the film arrives rather than having to watch a
+    /// channel for it.
+    /// </summary>
+    public required ulong RequesterId { get; init; }
 }
 
 public enum FindStatus
@@ -69,7 +75,11 @@ public sealed class FindCommand(
             // neither is one nobody is waiting on.
             var result = await acquisition.StartAsync(
                 release,
-                [TorrentTags.Notify(request.ChannelId), TorrentTags.NeedsIngest],
+                [
+                    TorrentTags.Notify(request.ChannelId),
+                    TorrentTags.Requester(request.RequesterId),
+                    TorrentTags.NeedsIngest,
+                ],
                 ct);
 
             if (!result.Started)

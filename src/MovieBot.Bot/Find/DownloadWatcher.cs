@@ -82,13 +82,17 @@ public sealed class DownloadWatcher(
 
             var failed = download.Tags.Contains(TorrentTags.IngestFailed);
 
-            if (await TryAnnounceAsync(channelId, download, failed))
+            var requester = download.Tags
+                .Select(TorrentTags.ReadRequester)
+                .FirstOrDefault(id => id is not null);
+
+            if (await TryAnnounceAsync(channelId, download, failed, requester))
                 await acquisition.ClearTagAsync(download.Hash, tag, ct);
         }
     }
 
     private async Task<bool> TryAnnounceAsync(
-        ulong channelId, DownloadStatus download, bool failed)
+        ulong channelId, DownloadStatus download, bool failed, ulong? requester)
     {
         try
         {
@@ -124,7 +128,19 @@ public sealed class DownloadWatcher(
                     .WithCurrentTimestamp()
                     .Build();
 
-            await channel.SendMessageAsync(embed: embed, allowedMentions: AllowedMentions.None);
+            // The mention has to be in the message itself: text inside an embed renders as a
+            // mention and notifies nobody.
+            var content = requester is { } accountId ? MentionUtils.MentionUser(accountId) : null;
+
+            // Exactly one account, named by id, rather than allowing mentions generally. Nothing
+            // here is composed from anything a person typed, and it stays that way by being unable
+            // to notify anyone this did not choose.
+            var mentions = requester is { } allowed
+                ? new AllowedMentions { UserIds = [allowed] }
+                : AllowedMentions.None;
+
+            await channel.SendMessageAsync(
+                text: content, embed: embed, allowedMentions: mentions);
 
             logger.LogInformation("Announced {Name} in {ChannelId}.", download.Name, channelId);
             return true;
