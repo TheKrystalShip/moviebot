@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using TheKrystalShip.MovieBot.Core;
@@ -32,7 +33,9 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         if (audioStreams.Count == 0)
             throw new InvalidOperationException("No audio stream found.");
 
-        var title = probe.Format.Title ?? Path.GetFileNameWithoutExtension(options.SourcePath);
+        var title = options.Title
+                    ?? probe.Format.Title
+                    ?? Path.GetFileNameWithoutExtension(options.SourcePath);
         var id = options.Id ?? Slug(title);
         var outputDirectory = options.OutputDirectory(id);
         var dynamicRange = TrackClassifier.DescribeDynamicRange(video);
@@ -49,7 +52,8 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             + $"{(bitmapSubtitles.Count > 0 ? $", {bitmapSubtitles.Count} bitmap (need OCR)" : "")}");
 
         var manifest = BuildManifest(id, title, probe, video, dynamicRange,
-            audioStreams, textSubtitles, bitmapSubtitles, attachedPicture is not null);
+            audioStreams, textSubtitles, bitmapSubtitles, attachedPicture is not null,
+            deferSubtitles: options.Availability is not null);
 
         if (options.DryRun)
         {
@@ -69,21 +73,61 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
         try
         {
-            if (textSubtitles.Count > 0)
-            {
-                log($"Extracting {textSubtitles.Count} subtitle tracks");
-                await ExtractSubtitlesAsync(textSubtitles, outputDirectory, ct);
-            }
+            ReadAheadGuard? guard = null;
 
-            if (attachedPicture is not null)
+            if (options.Availability is null)
             {
-                log("Extracting cover art");
-                await ExtractPosterAsync(attachedPicture, outputDirectory, ct);
+                // The whole file is present. Everything that reads it end to end is done before
+                // the main pass, so no output is ever appended to while a player reads it.
+                if (textSubtitles.Count > 0)
+                {
+                    log($"Extracting {textSubtitles.Count} subtitle tracks");
+                    await ExtractSubtitlesAsync(textSubtitles, outputDirectory, ct);
+                }
+
+                if (attachedPicture is not null)
+                {
+                    log("Extracting cover art");
+                    await ExtractPosterAsync(attachedPicture, outputDirectory, ct);
+                }
+            }
+            else
+            {
+                // The file is still arriving, so nothing that has to reach its end can run yet.
+                // The main pass can, because it reads forwards and can be held back.
+                guard = new ReadAheadGuard(
+                    options.Availability, options.SourcePath, options.ReadAheadMarginBytes, log);
             }
 
             log("Transcoding — playback opens as soon as the first segments land");
             await RunMainPassAsync(video, audioStreams, outputDirectory, toneMap,
-                manifest, manifestPath, probe.Format.DurationSeconds, ct);
+                manifest, manifestPath, probe.Format.DurationSeconds, ct, guard);
+
+            if (guard is not null)
+            {
+                if (guard.Pauses > 0)
+                    log($"  held back {guard.Pauses} times waiting for the download");
+
+                // The main pass is held behind the download, so by the time it ends the file is
+                // usually whole already. Usually is not always: a short film on a slow torrent
+                // finishes transcoding what has arrived and gets here first.
+                while (!await options.Availability!.IsCompleteAsync(ct))
+                    await Task.Delay(TimeSpan.FromSeconds(2), ct);
+
+                if (textSubtitles.Count > 0)
+                {
+                    log($"Extracting {textSubtitles.Count} subtitle tracks");
+                    await ExtractSubtitlesAsync(textSubtitles, outputDirectory, ct);
+                }
+
+                if (attachedPicture is not null)
+                {
+                    log("Extracting cover art");
+                    await ExtractPosterAsync(attachedPicture, outputDirectory, ct);
+                }
+
+                manifest.Subtitles = Advertise(manifest.Subtitles, textSubtitles);
+            }
 
             manifest.Status = TitleStatus.Ready;
             manifest.HeadSeconds = null;
@@ -158,7 +202,8 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         Manifest manifest,
         string manifestPath,
         double durationSeconds,
-        CancellationToken ct)
+        CancellationToken ct,
+        ReadAheadGuard? guard = null)
     {
         var arguments = BuildMainPassArguments(video, audioStreams, outputDirectory, toneMap);
 
@@ -169,7 +214,38 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         using var polling = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var speed = 0d;
 
-        var transcode = FfmpegProcess.RunAsync(arguments, p => speed = p.Speed, ct);
+        Task? guarding = null;
+
+        // The guard is attached the moment the process exists, because what it protects against
+        // begins with the first read. A guard that cannot do its job kills the transcode rather
+        // than letting it run on unwatched: the output of an unwatched run over a part-downloaded
+        // file is a film with silence and stillness in it and nothing to say so.
+        var transcode = FfmpegProcess.RunAsync(arguments, p => speed = p.Speed, ct,
+            onStarted: process =>
+            {
+                if (guard is not null) guarding = GuardAsync(guard, process);
+            });
+
+        async Task GuardAsync(ReadAheadGuard watching, Process process)
+        {
+            try
+            {
+                await watching.WatchAsync(process, ct);
+            }
+            catch
+            {
+                try
+                {
+                    if (!process.HasExited) process.Kill(entireProcessTree: true);
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+                {
+                    // Already gone, which is the outcome that was wanted.
+                }
+
+                throw;
+            }
+        }
 
         var headWatcher = Task.Run(async () =>
         {
@@ -206,6 +282,11 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         {
             await polling.CancelAsync();
             await headWatcher;
+
+            // Awaited last and deliberately allowed to replace whatever the transcode reported.
+            // When the guard is the reason the transcode died, its message is the one that says
+            // what actually happened; ffmpeg's is that it was killed.
+            if (guarding is not null) await guarding;
         }
     }
 
@@ -302,7 +383,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
     private Manifest BuildManifest(
         string id, string title, ProbeResult probe, ProbeStream video, string dynamicRange,
         List<ProbeStream> audioStreams, List<ProbeStream> textSubtitles,
-        List<ProbeStream> bitmapSubtitles, bool hasPoster)
+        List<ProbeStream> bitmapSubtitles, bool hasPoster, bool deferSubtitles = false)
     {
         var audio = new List<AudioTrack>();
         var primaryAssigned = false;
@@ -339,8 +420,13 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                 HearingImpaired = stream.IsHearingImpaired,
                 Forced = stream.IsForced,
                 Source = SubtitleSource.EmbeddedText,
-                Available = true,
-                Uri = SubtitleFileName(stream)
+
+                // A track is advertised only once its file is whole. Offering one that is still
+                // being written gives subtitles that stop partway through the film, which is the
+                // reason they are not extracted alongside the transcode in the first place.
+                Available = !deferSubtitles,
+                Reason = deferSubtitles ? "extracting" : null,
+                Uri = deferSubtitles ? null : SubtitleFileName(stream)
             });
         }
 
@@ -387,6 +473,20 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             Subtitles = subtitles
         };
     }
+
+    /// <summary>
+    /// Turns the deferred subtitle entries into advertised ones, now that their files are whole.
+    /// Bitmap tracks are left as they are: theirs is a permanent absence, not a wait.
+    /// </summary>
+    private static IReadOnlyList<SubtitleTrack> Advertise(
+        IReadOnlyList<SubtitleTrack> tracks, List<ProbeStream> textSubtitles) =>
+        tracks.Select(track =>
+        {
+            var stream = textSubtitles.FirstOrDefault(s => $"s{s.Index}" == track.Id);
+            return stream is null
+                ? track
+                : track with { Available = true, Reason = null, Uri = SubtitleFileName(stream) };
+        }).ToList();
 
     private static string SubtitleFileName(ProbeStream stream) => $"s{stream.Index}.vtt";
 

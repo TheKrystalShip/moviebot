@@ -18,6 +18,19 @@ public sealed class HandoffOptions
     public int PollSeconds { get; set; } = 30;
 
     /// <summary>
+    /// How much of a download must have arrived before transcoding starts, as a fraction.
+    ///
+    /// Transcoding alongside the download is what removes the wait for it to finish, and the
+    /// head start is only there so the first pieces and the container's own index are present
+    /// before anything tries to read them. The reader is held behind the arrived bytes from then
+    /// on, so this being too small costs a pause rather than a broken film.
+    ///
+    /// Zero waits for the whole download, which is the older behaviour and the safer one if a
+    /// transcode ever has to be reasoned about in isolation.
+    /// </summary>
+    public double StartAtProgress { get; set; } = 0.05;
+
+    /// <summary>
     /// The smallest file worth treating as the film, in mebibytes. A torrent carries samples,
     /// trailers and extras, and picking the largest file is only right if there is a floor under
     /// what counts at all.

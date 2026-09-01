@@ -15,6 +15,8 @@ public class LibraryIdTests
     [InlineData("Heat.1995.1080p.BluRay.DD5.1.x264-EbP", "heat-1995")]
     [InlineData("Blade.Runner.2049.2017.1080p.BluRay.DD5.1.x264-playHD", "blade-runner-2049-2017")]
     [InlineData("The.Thing.1982.1080p.BluRay.x264-GROUP", "the-thing-1982")]
+    [InlineData("The.Devil.Wears.Prada.2006.720p.BluRay.DD5.1.x264-playHD",
+        "the-devil-wears-prada-2006")]
     public void Names_a_film_by_what_it_is_rather_than_how_it_was_encoded(
         string release, string expected) =>
         Assert.Equal(expected, LibraryId.For(release));
@@ -27,6 +29,18 @@ public class LibraryIdTests
         Assert.Equal(
             LibraryId.For("Heat.1995.720p.BluRay.DD5.1.x264-ZQ"),
             LibraryId.For("Heat.1995.1080p.BluRay.DD+5.1.x264-playHD"));
+    }
+
+    [Theory]
+    [InlineData("The.Devil.Wears.Prada.2006.720p.BluRay.DD5.1.x264-playHD",
+        "The Devil Wears Prada (2006)")]
+    [InlineData("Heat.1995.1080p.BluRay.DD5.1.x264-EbP", "Heat (1995)")]
+    [InlineData("Blade.Runner.2049.2017.1080p.BluRay.x264-playHD", "Blade Runner 2049 (2017)")]
+    public void Names_a_film_for_a_person_rather_than_for_a_muxer(string release, string expected)
+    {
+        // The container's own title tag is routinely the release name again, so the library shows
+        // resolution, source, codec and group in a list somebody is choosing a film from.
+        Assert.Equal(expected, LibraryId.TitleFor(release));
     }
 
     [Fact]

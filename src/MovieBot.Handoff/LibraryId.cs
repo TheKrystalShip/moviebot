@@ -11,6 +11,20 @@ namespace TheKrystalShip.MovieBot.Handoff;
 public static class LibraryId
 {
     /// <summary>
+    /// What the film is called, from the release it arrived as.
+    ///
+    /// Passed to the ingest so the library shows a film's name rather than its release name. A
+    /// container's own title tag is routinely the release name again, so it is not an answer.
+    /// </summary>
+    public static string TitleFor(string releaseName)
+    {
+        var release = ReleaseParser.Parse(new TrackerTorrent { Name = releaseName });
+        if (string.IsNullOrWhiteSpace(release.Title)) return releaseName;
+
+        return release.Year is { } year ? $"{release.Title} ({year})" : release.Title;
+    }
+
+    /// <summary>
     /// The library id for a release, from its name.
     ///
     /// The release name is parsed by the same parser the search uses rather than a second one

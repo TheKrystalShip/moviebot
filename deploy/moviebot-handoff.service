@@ -12,6 +12,7 @@ ExecStart=/opt/moviebot/handoff/moviebot-handoff
 
 EnvironmentFile=/etc/moviebot/moviebot.env
 Environment=Handoff__MediaRoot=/home/heisen/tks/moviebot/media
+Environment=Download__Root=/home/heisen/Downloads/Movies
 Environment=DOTNET_EnableDiagnostics=0
 
 Restart=on-failure

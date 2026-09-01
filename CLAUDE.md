@@ -116,6 +116,33 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
   the library held both.
 - **The unit keeps the GPU devices visible.** `PrivateDevices` would hide them and drop the
   pipeline onto the CPU, where a feature costs hours instead of minutes.
+- **A transcode starts before the download finishes**, once enough has arrived for the container's
+  index to be readable. The head start only covers the opening; the reader is held behind the
+  arrived bytes from then on, so too small a threshold costs a pause rather than a broken film.
+- **A whole file is ingested exactly as it always was.** `IngestOptions.Availability` is supplied
+  only while a source is still arriving, so the ordinary path keeps the behaviour measured
+  against it and nothing about the CLI changes.
+
+## Reading a source that is still arriving
+
+Transcoding a file while it downloads is only safe while the reader stays behind the writer, and
+nothing enforces that on its own.
+
+- **Reading past what has arrived returns zeros, not an error and not the end of the file.** Space
+  for the whole file is claimed when the download starts. ffmpeg encodes the zeros, and the result
+  is a film with stillness and silence in it and nothing anywhere to say so.
+- **`ReadAheadGuard` watches rather than trusts.** The reader's position comes from the kernel
+  (`/proc/<pid>/fdinfo`), the arrived length from whoever is fetching the file. When the gap
+  closes the process is stopped and resumed when it opens.
+- **The guard fails closed.** If it cannot find the descriptor, it refuses rather than running on:
+  a position it cannot read pauses, and one it never found at all aborts the transcode. Running
+  unguarded produces corruption that looks like success, which is worse than a failure that says so.
+- **A guard that cannot do its job kills the transcode.** It is awaited after the transcode so its
+  message replaces ffmpeg's, which would only report that it was killed.
+- **The order of the work changes, not the invariants.** Subtitles still have to be demuxed from a
+  whole file to be complete, so they are extracted after the main pass instead of before it, and a
+  track is advertised in the manifest only once its file is whole. That is the same rule as before
+  — never serve a `.vtt` that is still being written — reached from the other side.
 
 ## Track labelling
 

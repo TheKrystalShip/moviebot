@@ -65,7 +65,7 @@ public sealed class HandoffWorker(
         var downloads = await acquisition.ListAsync(ct);
 
         var owed = downloads
-            .Where(d => d.IsFinished && d.Tags.Contains(TorrentTags.NeedsIngest))
+            .Where(d => d.Tags.Contains(TorrentTags.NeedsIngest) && IsFarEnoughAlong(d))
             .ToList();
 
         // One at a time. Two transcodes share one GPU and finish no sooner together than in
@@ -76,6 +76,14 @@ public sealed class HandoffWorker(
             await IngestAsync(download, ct);
         }
     }
+
+    /// <summary>
+    /// Whether there is enough of a download to start reading it. A finished one always is; an
+    /// unfinished one needs its first pieces and its index, which the head start covers.
+    /// </summary>
+    private bool IsFarEnoughAlong(DownloadStatus download) =>
+        download.IsFinished
+        || (_options.StartAtProgress > 0 && download.Progress >= _options.StartAtProgress);
 
     private async Task IngestAsync(DownloadStatus download, CancellationToken ct)
     {
@@ -93,14 +101,24 @@ public sealed class HandoffWorker(
         }
 
         var id = LibraryId.For(download.Name);
-        logger.LogInformation("Ingesting {Name} from {Source} as {Id}.",
-            download.Name, Path.GetFileName(source), id);
+        var title = LibraryId.TitleFor(download.Name);
+        logger.LogInformation(
+            "Ingesting {Name} from {Source} as {Id} ({Title}), download at {Progress:P0}.",
+            download.Name, Path.GetFileName(source), id, title, download.Progress);
+
+        // Supplied only while the file is still arriving. A whole file is ingested exactly as
+        // it always was, so the ordinary path keeps the behaviour that was measured against it.
+        var availability = download.IsFinished
+            ? null
+            : new TorrentAvailability(acquisition, download.Hash, source);
 
         var options = new IngestOptions
         {
             SourcePath = source,
             OutputRoot = _options.MediaRoot,
             Id = id,
+            Title = title,
+            Availability = availability,
 
             // Reaching here means the previous attempt did not finish, since the tag is removed
             // as soon as one becomes watchable. Whatever it left behind is incomplete.

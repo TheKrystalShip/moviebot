@@ -12,6 +12,10 @@ ExecStart=/opt/moviebot/bot/moviebot-bot
 
 EnvironmentFile=/etc/moviebot/moviebot.env
 Environment=Discord__GuildIds__0=385730677141929985
+# Named rather than left to resolve from the environment. A service inherits none of a desktop
+# session's variables, so a fallback that reads them agrees with the torrent client only for as
+# long as both happen to be launched the same way.
+Environment=Download__Root=/home/heisen/Downloads/Movies
 Environment=Api__BaseUrl=http://127.0.0.1:8099
 Environment=Api__PublicBaseUrl=https://movies.thekrystalship.com
 Environment=Player__BaseUrl=https://movies.thekrystalship.com

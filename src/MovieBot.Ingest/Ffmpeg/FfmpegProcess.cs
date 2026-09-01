@@ -14,10 +14,16 @@ public sealed class FfmpegException(string message) : Exception(message);
 /// </summary>
 public static class FfmpegProcess
 {
+    /// <param name="onStarted">
+    /// Called once with the running process. It exists so a caller can watch the process while it
+    /// runs — reading its position, or holding it back — which nothing outside can do without a
+    /// handle on it.
+    /// </param>
     public static async Task RunAsync(
         IEnumerable<string> arguments,
         Action<FfmpegProgress>? onProgress = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        Action<Process>? onStarted = null)
     {
         var info = new ProcessStartInfo("ffmpeg")
         {
@@ -44,6 +50,8 @@ public static class FfmpegProcess
 
         using var process = Process.Start(info)
             ?? throw new FfmpegException("Could not start ffmpeg. Is it on PATH?");
+
+        onStarted?.Invoke(process);
 
         var stderrTail = new Queue<string>();
         var stderrTask = Task.Run(async () =>

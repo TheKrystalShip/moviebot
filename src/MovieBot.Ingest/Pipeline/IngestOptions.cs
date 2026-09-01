@@ -9,6 +9,15 @@ public sealed record IngestOptions
     public string? Id { get; init; }
 
     /// <summary>
+    /// What the film is called, for anyone choosing one from a list.
+    ///
+    /// Takes precedence over the container's own title tag. A muxer writes whatever it was given,
+    /// which for a release is routinely the release name — resolution, source, codec and group —
+    /// and a caller that knows the film's actual name knows better than that.
+    /// </summary>
+    public string? Title { get; init; }
+
+    /// <summary>
     /// Target video bitrate. 9 Mbps H.264 High is generous for a 1080p film and, on a symmetric
     /// gigabit link, there is no reason to go lower and little visible reason to go higher.
     /// </summary>
@@ -33,6 +42,25 @@ public sealed record IngestOptions
 
     /// <summary>Replaces an existing output directory instead of refusing to touch it.</summary>
     public bool Force { get; init; }
+
+    /// <summary>
+    /// How much of the source has arrived, when it is still arriving. Null means the file is
+    /// whole, which is the ordinary case and behaves exactly as it always has.
+    ///
+    /// Supplying it changes the order of the work. The main pass runs first and is held back to
+    /// stay behind what has arrived; the subtitles, which have to be demuxed from the whole file
+    /// to be complete, wait until it is.
+    /// </summary>
+    public ISourceAvailability? Availability { get; init; }
+
+    /// <summary>
+    /// How far behind the arrived bytes the reader is kept, in bytes.
+    ///
+    /// ffmpeg reads ahead of what it has decoded, and the arrived length is sampled rather than
+    /// watched, so the two are both approximate in the same direction. The margin is what stops
+    /// the pair of approximations meeting.
+    /// </summary>
+    public long ReadAheadMarginBytes { get; init; } = 64L << 20;
 
     /// <summary>
     /// Probe and build the manifest, then stop. Inspecting what a film offers is worth doing

@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-02
+
+### Added
+
+- A film starts transcoding while it is still downloading, so it is watchable within seconds of
+  being asked for rather than after the download. Measured on a slow torrent: the transcode began
+  at 7 percent downloaded.
+- The transcoder is held behind the part of the download that has arrived, and stopped when it
+  catches up. On that same torrent it was held back seventeen times; without it the film would
+  have been encoded partly from unwritten file, with nothing to show anything was wrong.
+
+### Changed
+
+- Subtitles are extracted after the main pass when the source is still arriving, since they have
+  to be demuxed from a whole file to be complete. A track is advertised only once its file is
+  whole, which is the same rule as before reached from the other side.
+- A film is named for what it is rather than for how it was encoded. A container's title tag is
+  routinely the release name again, so the name comes from the same parse that builds the id.
+
 ## [1.2.0] - 2026-09-02
 
 ### Added

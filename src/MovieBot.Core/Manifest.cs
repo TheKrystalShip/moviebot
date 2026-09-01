@@ -75,7 +75,12 @@ public sealed class Manifest
 
     public required VideoInfo Video { get; init; }
     public required IReadOnlyList<AudioTrack> Audio { get; init; }
-    public required IReadOnlyList<SubtitleTrack> Subtitles { get; init; }
+    /// <summary>
+    /// Settable, like <see cref="Status"/> and <see cref="HeadSeconds"/>, because a track can
+    /// become available after the manifest is first written: a source that is still arriving
+    /// cannot have its subtitles demuxed until it has.
+    /// </summary>
+    public required IReadOnlyList<SubtitleTrack> Subtitles { get; set; }
 }
 
 public sealed record VideoInfo
