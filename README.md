@@ -8,14 +8,14 @@ Playback starts seconds after the request, while the film is still being transco
 
 ## Status
 
-The ingest pipeline and the API are built and run. The bot and the player are not started.
+Ingest, the API and the player are built and run. The Discord bot is built but has never connected to a live guild.
 
 | Piece | State |
 |---|---|
 | `MovieBot.Ingest` — probe, extract, transcode, manifest | built |
 | `MovieBot.Api` — sessions, SignalR hub, media serving | built |
 | `MovieBot.Bot` — Discord.Net slash command, Activity invite | not started |
-| `web/activity` — the player | not started |
+| `web/activity` — the player | built |
 
 ## Requirements
 

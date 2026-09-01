@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>MovieBot</title>
+  </head>
+  <body>
+    <div class="app">
+      <header class="app__bar">
+        <span class="app__brand">MovieBot</span>
+        <span class="app__session" id="session-label"></span>
+        <span class="app__status" id="connection">connecting</span>
+      </header>
+
+      <main class="app__main">
+        <section class="stage">
+          <div class="stage__frame">
+            <div class="stage__player" id="player"></div>
+            <div class="gate" id="gate" hidden>
+              <button type="button" class="gate__button" id="gate-button">Join playback</button>
+            </div>
+          </div>
+          <div class="stage__meta">
+            <span class="stage__title" id="film-title">No film loaded</span>
+            <span class="stage__actor" id="actor"></span>
+          </div>
+          <div class="stage__notices" id="notices"></div>
+        </section>
+
+        <aside class="side">
+          <section class="side__block">
+            <h2 class="side__heading">Library</h2>
+            <ul class="library" id="library"></ul>
+          </section>
+          <section class="side__block">
+            <h2 class="side__heading">Watching</h2>
+            <ul class="participants" id="participants"></ul>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
