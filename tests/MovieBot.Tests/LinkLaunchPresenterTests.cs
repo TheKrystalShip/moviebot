@@ -1,0 +1,164 @@
+using Xunit;
+using Microsoft.Extensions.Options;
+using TheKrystalShip.MovieBot.Bot.Api;
+using TheKrystalShip.MovieBot.Bot.Configuration;
+using TheKrystalShip.MovieBot.Bot.Launch;
+using TheKrystalShip.MovieBot.Core;
+
+namespace TheKrystalShip.MovieBot.Tests;
+
+/// <summary>
+/// The message the room actually sees. The link inside it is the entire handover, so it is
+/// checked character by character rather than by whether a reply came back.
+/// </summary>
+public sealed class LinkLaunchPresenterTests
+{
+    private const string Player = "https://movies.example.com/watch";
+    private const string PublicApi = "https://movies.example.com/api";
+
+    private static LinkLaunchPresenter Presenter(string player = Player, string? publicApi = PublicApi) =>
+        new(Options.Create(new PlayerOptions { BaseUrl = player }),
+            Options.Create(new ApiOptions { BaseUrl = "http://127.0.0.1:8099", PublicBaseUrl = publicApi }));
+
+    private static LaunchRequest Request(LibraryTitle? title = null, string? loaded = null) => new()
+    {
+        SessionId = "918273645",
+        Title = title ?? Ready,
+        VoiceChannelId = 918273645,
+        VoiceChannelName = "Movie Night",
+        RequestedBy = "Alice",
+        LoadedTitleId = loaded
+    };
+
+    private static readonly LibraryTitle Ready = new()
+    {
+        Id = "gladiator-2000-extended",
+        Title = "Gladiator 2000 Extended Cut",
+        DurationSeconds = 10260.5,
+        Status = TitleStatus.Ready,
+        Poster = "poster.jpg"
+    };
+
+    [Fact]
+    public async Task The_link_carries_the_room_and_the_film()
+    {
+        var reply = await Presenter().PresentAsync(Request(), CancellationToken.None);
+
+        Assert.Equal(
+            "https://movies.example.com/watch?session=918273645&title=gladiator-2000-extended",
+            reply.Embed.Url);
+    }
+
+    [Fact]
+    public async Task A_player_address_that_already_carries_a_query_keeps_it()
+    {
+        var reply = await Presenter(player: "https://movies.example.com/watch?debug=1")
+            .PresentAsync(Request(), CancellationToken.None);
+
+        Assert.Equal(
+            "https://movies.example.com/watch?debug=1&session=918273645&title=gladiator-2000-extended",
+            reply.Embed.Url);
+    }
+
+    [Fact]
+    public async Task The_poster_is_offered_only_when_an_address_Discord_can_reach_is_configured()
+    {
+        var withPoster = await Presenter().PresentAsync(Request(), CancellationToken.None);
+        Assert.Equal(
+            "https://movies.example.com/api/media/gladiator-2000-extended/poster.jpg",
+            withPoster.Embed.Image?.Url);
+
+        // Discord fetches embed images itself, so a loopback-only API means no poster at all
+        // rather than an embed with a hole in it.
+        var noPublicAddress = await Presenter(publicApi: null)
+            .PresentAsync(Request(), CancellationToken.None);
+        Assert.Null(noPublicAddress.Embed.Image);
+
+        var noArtwork = await Presenter()
+            .PresentAsync(Request(Ready with { Poster = null }), CancellationToken.None);
+        Assert.Null(noArtwork.Embed.Image);
+    }
+
+    [Fact]
+    public async Task A_ready_film_and_a_transcoding_one_promise_different_things()
+    {
+        var ready = await Presenter().PresentAsync(Request(), CancellationToken.None);
+        Assert.Contains("seekable", ready.Embed.Description);
+        Assert.DoesNotContain("transcoding", ready.Embed.Description);
+
+        var cooking = await Presenter().PresentAsync(
+            Request(Ready with { Status = TitleStatus.Transcoding, HeadSeconds = 1284 }),
+            CancellationToken.None);
+
+        Assert.Contains("Still transcoding", cooking.Embed.Description);
+        Assert.Contains("Playback starts now", cooking.Embed.Description);
+        Assert.Contains("21m 24s", cooking.Embed.Description);
+    }
+
+    [Fact]
+    public async Task The_reply_names_the_film_the_room_and_who_asked()
+    {
+        var reply = await Presenter().PresentAsync(Request(), CancellationToken.None);
+
+        Assert.Equal("Gladiator 2000 Extended Cut", reply.Embed.Title);
+        Assert.Contains("Alice", reply.Text);
+        Assert.Contains("Movie Night", reply.Text);
+        Assert.Equal("Movie Night", Field(reply, "Voice channel"));
+        Assert.Equal("2h 51m", Field(reply, "Length"));
+        Assert.Contains("Alice", reply.Embed.Footer?.Text);
+    }
+
+    [Fact]
+    public async Task A_film_already_loaded_in_the_room_is_stated_and_only_when_it_differs()
+    {
+        var switching = await Presenter().PresentAsync(Request(loaded: "heat-1995"), CancellationToken.None);
+        Assert.Equal("heat-1995", Field(switching, "Already loaded in this room"));
+
+        var fresh = await Presenter().PresentAsync(Request(), CancellationToken.None);
+        Assert.Null(Field(fresh, "Already loaded in this room"));
+    }
+
+    [Fact]
+    public async Task The_button_opens_the_same_link_the_embed_does()
+    {
+        var reply = await Presenter().PresentAsync(Request(), CancellationToken.None);
+
+        var row = Assert.IsType<Discord.ActionRowComponent>(Assert.Single(reply.Components!.Components));
+        var button = Assert.IsType<Discord.ButtonComponent>(Assert.Single(row.Components));
+
+        Assert.Equal(reply.Embed.Url, button.Url);
+        Assert.Equal(Discord.ButtonStyle.Link, button.Style);
+    }
+
+    [Fact]
+    public async Task Nothing_the_bot_writes_carries_an_emoji()
+    {
+        var reply = await Presenter().PresentAsync(
+            Request(Ready with { Status = TitleStatus.Transcoding, HeadSeconds = 1284 }, loaded: "heat-1995"),
+            CancellationToken.None);
+
+        string?[] written =
+        [
+            reply.Text, reply.Embed.Title, reply.Embed.Description, reply.Embed.Footer?.Text,
+            .. reply.Embed.Fields.SelectMany(f => new[] { f.Name, f.Value })
+        ];
+
+        foreach (var text in written)
+            Assert.DoesNotContain(text ?? "", c => IsEmoji(c));
+    }
+
+    private static string? Field(LaunchReply reply, string name) =>
+        reply.Embed.Fields.Where(f => f.Name == name).Select(f => f.Value).FirstOrDefault();
+
+    /// <summary>
+    /// Emoji live above the basic plane or in the symbol and dingbat blocks, and the variation
+    /// selector is what promotes a symbol into one. The arrows, dashes, ellipses and pass/fail
+    /// marks this ecosystem does use are typography and stay.
+    /// </summary>
+    private static bool IsEmoji(char c) =>
+        !"\u2713\u2717".Contains(c)
+        && (char.IsSurrogate(c)
+            || c is >= '\u2600' and <= '\u27BF'
+            || c is >= '\u2B00' and <= '\u2BFF'
+            || c is '\uFE0F');
+}

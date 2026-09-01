@@ -1,0 +1,74 @@
+using Discord;
+using Discord.WebSocket;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Memory;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using TheKrystalShip.MovieBot.Bot.Api;
+using TheKrystalShip.MovieBot.Bot.Configuration;
+using TheKrystalShip.MovieBot.Bot.Discord;
+using TheKrystalShip.MovieBot.Bot.Launch;
+using TheKrystalShip.MovieBot.Bot.Watch;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+// The host publishes the two credentials under their own names. They go in underneath every
+// other source, so a developer who cannot read them can still put a token in user-secrets and
+// have it win.
+builder.Configuration.Sources.Insert(0, new MemoryConfigurationSource
+{
+    InitialData = new Dictionary<string, string?>
+    {
+        ["Discord:Token"] = Environment.GetEnvironmentVariable("MOVIEBOT_TOKEN"),
+        ["Discord:ApplicationId"] = Environment.GetEnvironmentVariable("MOVIEBOT_CLIENTID")
+    }.Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
+     .ToDictionary(pair => pair.Key, pair => pair.Value)
+});
+
+builder.Services.AddOptions<DiscordOptions>()
+    .Bind(builder.Configuration.GetSection(DiscordOptions.Section));
+
+builder.Services.AddOptions<ApiOptions>()
+    .Bind(builder.Configuration.GetSection(ApiOptions.Section))
+    .Validate(o => IsWebAddress(o.BaseUrl),
+        "Api:BaseUrl must be an absolute http or https address.")
+    .Validate(o => o.PublicBaseUrl is null or "" || IsWebAddress(o.PublicBaseUrl),
+        "Api:PublicBaseUrl must be an absolute http or https address when it is set.")
+    .ValidateOnStart();
+
+// Checked at startup rather than when somebody asks for a film: the launch link is the entire
+// point of the reply, and a bad one is only discovered by the room.
+builder.Services.AddOptions<PlayerOptions>()
+    .Bind(builder.Configuration.GetSection(PlayerOptions.Section))
+    .Validate(o => IsWebAddress(o.BaseUrl),
+        "Player:BaseUrl must be an absolute http or https address. It is the link people are handed.")
+    .ValidateOnStart();
+
+builder.Services.AddHttpClient<MovieBotApiClient>((sp, http) =>
+{
+    var api = sp.GetRequiredService<IOptions<ApiOptions>>().Value;
+
+    // A relative request against a base address without a trailing slash silently drops the
+    // last path segment, so the slash is not optional.
+    http.BaseAddress = new Uri(api.BaseUrl.TrimEnd('/') + "/");
+    http.Timeout = TimeSpan.FromSeconds(10);
+});
+
+builder.Services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
+{
+    // Guilds carries the channel graph and GuildVoiceStates says who is in which voice channel,
+    // which is the whole of what the bot needs to know about a server. Both are unprivileged.
+    GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildVoiceStates,
+    AlwaysDownloadUsers = false
+}));
+
+builder.Services.AddSingleton<ILaunchPresenter, LinkLaunchPresenter>();
+builder.Services.AddSingleton<WatchCommand>();
+builder.Services.AddHostedService<DiscordBotService>();
+
+await builder.Build().RunAsync();
+
+static bool IsWebAddress(string? value) =>
+    Uri.TryCreate(value, UriKind.Absolute, out var uri)
+    && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);

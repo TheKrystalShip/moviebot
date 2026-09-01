@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <RootNamespace>TheKrystalShip.MovieBot.Bot</RootNamespace>
+    <AssemblyName>moviebot-bot</AssemblyName>
+    <Version>0.3.0</Version>
+
+    <!-- The token is supplied by the environment in production and by user-secrets in
+         development. Nothing about it is ever written into the repository. -->
+    <UserSecretsId>moviebot-bot</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The console SDK copies no content by default, and the host reads its settings from the
+         directory it runs in. -->
+    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Discord.Net" Version="3.20.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../MovieBot.Core/MovieBot.Core.csproj" />
+  </ItemGroup>
+
+</Project>

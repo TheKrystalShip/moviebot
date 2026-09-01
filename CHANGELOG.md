@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-01
+
+### Added
+
+- `MovieBot.Bot`: a Discord.Net bot with a slash command that resolves a film, opens the room's
+  session and replies with a launch link and a poster embed. It holds no state: the session is
+  named by the voice channel, so two people asking in the same channel reach the same room with
+  nothing remembering that the first one asked.
+- `ILaunchPresenter`, the seam between resolving a film and handing someone into the player. The
+  link presenter is what exists; an Activity presenter replaces it without the command changing.
+- A guild allow-list, because a verified application cannot stop being addable.
+- The poster is attached only when an address Discord's own servers can reach is configured. An
+  unreachable image renders as a broken embed, which reads as a broken bot.
+
 ## [0.3.0] - 2026-09-01
 
 ### Added
@@ -70,6 +84,7 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `comment` disposition.
 - `--dry-run`, which prints the manifest a source would produce without transcoding it.
 
+[0.4.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.4.0
 [0.3.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.3.0
 [0.2.1]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.2.1
 [0.2.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.2.0

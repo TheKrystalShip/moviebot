@@ -3,6 +3,7 @@
     <Project Path="src/MovieBot.Core/MovieBot.Core.csproj" />
     <Project Path="src/MovieBot.Ingest/MovieBot.Ingest.csproj" />
     <Project Path="src/MovieBot.Api/MovieBot.Api.csproj" />
+    <Project Path="src/MovieBot.Bot/MovieBot.Bot.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MovieBot.Tests/MovieBot.Tests.csproj" />
