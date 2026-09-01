@@ -15,6 +15,7 @@ interface TitlePrefs {
 
 interface Prefs {
   volume: number;
+  sideOpen: boolean;
   muted: boolean;
   byTitle: Record<string, TitlePrefs>;
 }
@@ -22,7 +23,7 @@ interface Prefs {
 // Half volume to start. A film mastered for a cinema is punishing at full on laptop speakers,
 // and the first thing a new viewer would otherwise do is scramble for the control. Anyone who
 // has already set their own volume keeps it: this is only the starting point.
-const fallback: Prefs = { volume: 0.5, muted: false, byTitle: {} };
+const fallback: Prefs = { volume: 0.5, muted: false, sideOpen: true, byTitle: {} };
 
 function read(): Prefs {
   try {
@@ -31,6 +32,7 @@ function read(): Prefs {
     const parsed = JSON.parse(raw) as Partial<Prefs>;
     return {
       volume: typeof parsed.volume === 'number' ? parsed.volume : fallback.volume,
+      sideOpen: typeof parsed.sideOpen === 'boolean' ? parsed.sideOpen : fallback.sideOpen,
       muted: parsed.muted === true,
       byTitle: parsed.byTitle ?? {}
     };
@@ -49,6 +51,12 @@ function write(prefs: Prefs): void {
 
 export const prefs = {
   volume: () => read().volume,
+  sideOpen: () => read().sideOpen,
+  setSideOpen(open: boolean): void {
+    const next = read();
+    next.sideOpen = open;
+    write(next);
+  },
   muted: () => read().muted,
 
   setVolume(volume: number, muted: boolean): void {

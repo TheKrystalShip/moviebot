@@ -7,29 +7,41 @@
     <title>MovieBot</title>
   </head>
   <body>
-    <div class="app">
-      <header class="app__bar">
-        <span class="app__brand">MovieBot</span>
-        <span class="app__session" id="session-label"></span>
-        <span class="app__status" id="connection">connecting</span>
-      </header>
-
+    <div class="app" id="app">
       <main class="app__main">
         <section class="stage">
           <div class="stage__frame">
             <div class="stage__player" id="player"></div>
+
+            <!-- Small enough to ignore while a film is playing, present enough to answer
+                 "is it just me" without opening a console. -->
+            <span class="stage__status" id="connection">connecting</span>
+
             <div class="gate" id="gate" hidden>
               <button type="button" class="gate__button" id="gate-button">Join playback</button>
             </div>
           </div>
-          <div class="stage__meta">
-            <span class="stage__title" id="film-title">No film loaded</span>
-            <span class="stage__actor" id="actor"></span>
-          </div>
           <div class="stage__notices" id="notices"></div>
         </section>
 
-        <aside class="side">
+        <button
+          type="button"
+          class="side__toggle"
+          id="side-toggle"
+          aria-controls="side"
+          aria-expanded="true"
+          title="Show or hide the library"
+        >Library</button>
+
+        <aside class="side" id="side">
+          <section class="side__block">
+            <h2 class="side__heading">Now playing</h2>
+            <div class="playing">
+              <span class="playing__title" id="film-title">No film loaded</span>
+              <span class="playing__actor" id="actor"></span>
+              <span class="playing__session" id="session-label"></span>
+            </div>
+          </section>
           <section class="side__block">
             <h2 class="side__heading">Library</h2>
             <ul class="library" id="library"></ul>

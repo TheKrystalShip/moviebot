@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-09-01
+
+### Changed
+
+- The page gives its room to the film. The top banner and the strip under the player are gone;
+  the film's name and who last touched playback moved into the side panel, and the connection
+  state became a marker on the frame that shows itself only when something is wrong.
+- The side panel collapses, and stays collapsed — the choice is a viewer's own, kept like volume.
+
+### Added
+
+- A control that fills the frame with the film. Discord's iframe withholds the Fullscreen API, so
+  a real fullscreen button cannot work inside an Activity and is offered only on a plain page;
+  what can be reclaimed is the page around the player. Escape gives it back.
+
 ## [0.6.0] - 2026-09-01
 
 ### Added
@@ -125,6 +140,7 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `comment` disposition.
 - `--dry-run`, which prints the manifest a source would produce without transcoding it.
 
+[0.7.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.7.0
 [0.6.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.6.0
 [0.5.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.5.0
 [0.4.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.4.0
