@@ -20,6 +20,8 @@ builder.Services.AddSingleton(sp => new TitleLibrary(
         ?? Path.Combine(Directory.GetCurrentDirectory(), "media"),
     sp.GetRequiredService<ILogger<TitleLibrary>>()));
 builder.Services.AddSingleton<SessionStore>();
+builder.Services.AddOptions<RoomOptions>().Bind(builder.Configuration.GetSection(RoomOptions.Section));
+builder.Services.AddHostedService<SessionReaper>();
 
 builder.Services.AddOptions<DiscordAuthOptions>()
     .Bind(builder.Configuration.GetSection(DiscordAuthOptions.Section));

@@ -421,3 +421,54 @@ body {
 
 @media (max-width: 900px) {
   }
+
+/* ---- Volume ----------------------------------------------------------
+   The slider holds the loudness a person asked for; the amplitude given to the media element is
+   the 5/3 power of it, so half the track really is about half as loud. */
+
+.mb-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.mb-volume__mute {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px;
+}
+
+.mb-volume__mute::before {
+  content: "\1F50A";
+}
+
+.mb-volume__mute[data-state="muted"]::before {
+  content: "\1F507";
+}
+
+.mb-volume__mute:focus-visible,
+.mb-volume__track:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mb-volume__track {
+  position: relative;
+  width: 72px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+}
+
+.mb-volume__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--accent);
+}

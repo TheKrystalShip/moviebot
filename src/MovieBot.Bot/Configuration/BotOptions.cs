@@ -48,6 +48,21 @@ public sealed class ApiOptions
 /// <summary>
 /// Where the player is served from. The reply is a link into it.
 /// </summary>
+/// <summary>How long a launch stays usable.</summary>
+public sealed class LaunchOptions
+{
+    public const string Section = "Launch";
+
+    /// <summary>
+    /// How long the Discord invite an Activity launch produces remains valid, in seconds.
+    ///
+    /// It gates joining and nothing else: people already watching are unaffected when it lapses.
+    /// Matching it to the API's idle timeout means a link left lying around stops being a way in
+    /// at roughly the moment the room behind it is forgotten.
+    /// </summary>
+    public int InviteMaxAgeSeconds { get; set; } = 1800;
+}
+
 public sealed class PlayerOptions
 {
     public const string Section = "Player";

@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-09-01
+
+### Fixed
+
+- The volume slider is proportional to loudness. `HTMLMediaElement.volume` is a linear amplitude
+  multiplier and hearing is not linear in amplitude, so half the slider was about -6 dB and
+  sounded closer to two thirds as loud. The slider now holds the loudness asked for and the media
+  element is given its 5/3 power, which puts half the slider at -10 dB — half as loud. It replaces
+  the player library's volume panel, which has no way to hold a position different from the
+  amplitude it sets.
+
+### Added
+
+- Rooms are forgotten after 30 minutes with nobody in them, so a link handed out for one evening
+  stops being a way back into it. The window starts when the last person leaves, so a film
+  playing to a full room is never at risk however long it runs, and an old link opens a room with
+  nothing in it rather than resuming what was playing. Configured by `Rooms:IdleTimeout`.
+- The Discord invite an Activity launch produces expires on the same schedule. It gates joining
+  only, so people already watching are unaffected when it lapses.
+
 ## [0.8.0] - 2026-09-01
 
 ### Fixed
@@ -163,6 +183,7 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `comment` disposition.
 - `--dry-run`, which prints the manifest a source would produce without transcoding it.
 
+[0.9.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.9.0
 [0.8.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.8.0
 [0.7.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.7.0
 [0.6.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.6.0

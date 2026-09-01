@@ -9,6 +9,7 @@ import { buildMasterPlaylist, masterPlaylistUrl, type MasterPlaylist } from './m
 import { ScrubBar } from './scrubBar';
 import { TrackMenu } from './trackMenu';
 import { audioGroups, defaultAudioId, findSubtitle, subtitleGroups } from './tracks';
+import { VolumeControl, amplitudeFor } from './volume';
 
 export interface FilmPlayerHooks {
   /** The media element holds the title and can be driven. */
@@ -46,6 +47,7 @@ export class FilmPlayer {
   private subtitleUrl: string | null = null;
   private subtitleToken = 0;
   private ticker: number | null = null;
+  private readonly volume: VolumeControl;
 
   constructor(container: HTMLElement, private readonly hooks: FilmPlayerHooks) {
     this.video = document.createElement('video');
@@ -54,6 +56,13 @@ export class FilmPlayer {
     container.replaceChildren(this.video);
 
     this.scrub = new ScrubBar((seconds) => this.hooks.onSeekIntent(seconds));
+    this.volume = new VolumeControl({
+      onChange: (position, muted) => {
+        this.player.volume(amplitudeFor(position));
+        this.player.muted(muted);
+        prefs.setVolume(position, muted);
+      }
+    });
     const lock = (open: boolean) => this.player.toggleClass('mb-controls-locked', open);
     this.audioMenu = new TrackMenu(
       'Audio',
@@ -78,10 +87,14 @@ export class FilmPlayer {
       preload: 'auto',
       fill: true,
       playsinline: true,
-      controlBar: { children: ['playToggle', 'volumePanel'] }
+      // The library's own volume panel is replaced: it writes the slider position straight to
+      // the media element's amplitude, and those have to be different numbers for the slider to
+      // be proportional to loudness.
+      controlBar: { children: ['playToggle'] }
     });
 
     const bar = this.player.getChild('ControlBar');
+    bar?.addChild('Component', { el: this.volume.el });
     bar?.addChild('Component', { el: this.scrub.el });
     bar?.addChild('Component', { el: this.audioMenu.el });
     bar?.addChild('Component', { el: this.subtitleMenu.el });
@@ -94,9 +107,11 @@ export class FilmPlayer {
     // which is what the control would have been for.
     if (document.fullscreenEnabled) bar?.addChild('FullscreenToggle', {});
 
-    this.player.volume(prefs.volume());
+    // The stored number is the loudness that was asked for; the element is given the amplitude
+    // that produces it.
+    this.volume.set(prefs.volume(), prefs.muted());
+    this.player.volume(amplitudeFor(prefs.volume()));
     this.player.muted(prefs.muted());
-    this.player.on('volumechange', () => prefs.setVolume(this.player.volume() ?? 1, this.player.muted() === true));
 
     this.ticker = window.setInterval(() => this.scrub.setPosition(this.video.currentTime), PositionTickMs);
   }

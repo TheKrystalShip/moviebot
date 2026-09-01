@@ -30,6 +30,9 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         public readonly Lock Gate = new();
         public SessionState State = null!;
         public readonly ConcurrentDictionary<string, Participant> Participants = new();
+
+        /// <summary>When somebody last did something here. Opening the room to look does not count.</summary>
+        public DateTimeOffset LastActivityUtc;
     }
 
     public SessionState GetOrCreate(string sessionId)
@@ -43,7 +46,8 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
                 PositionSeconds = 0,
                 AnchorUtc = clock.GetUtcNow(),
                 Revision = 0
-            }
+            },
+            LastActivityUtc = clock.GetUtcNow()
         });
 
         lock (entry.Gate)
@@ -121,6 +125,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     {
         var entry = Entry(sessionId);
         entry.Participants[connectionId] = participant;
+        entry.LastActivityUtc = clock.GetUtcNow();
         return [.. entry.Participants.Values];
     }
 
@@ -128,6 +133,8 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     {
         if (!_sessions.TryGetValue(sessionId, out var entry)) return [];
         entry.Participants.TryRemove(connectionId, out _);
+        // The clock on an empty room starts when the last person leaves it.
+        entry.LastActivityUtc = clock.GetUtcNow();
         return [.. entry.Participants.Values];
     }
 
@@ -143,8 +150,38 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     }
 
     /// <summary>Stamps the next revision and who caused it. Every mutation goes through here.</summary>
-    private static SessionState Advance(SessionState state, Actor actor) =>
-        state with { Revision = state.Revision + 1, UpdatedBy = actor };
+    private SessionState Advance(SessionState state, Actor actor)
+    {
+        if (_sessions.TryGetValue(state.SessionId, out var entry))
+            entry.LastActivityUtc = clock.GetUtcNow();
+
+        return state with { Revision = state.Revision + 1, UpdatedBy = actor };
+    }
+
+    /// <summary>
+    /// Forgets rooms nobody is in and nobody has touched.
+    ///
+    /// A launch hands out a link, and a link that outlives the evening is a way back into
+    /// somebody's film. A room with no one in it and nothing happening for the idle window is
+    /// dropped, so the same link opens an empty room rather than resuming what was playing.
+    ///
+    /// Presence is what keeps a room alive: a film playing to a room full of people is activity
+    /// even when hours pass without anyone touching a control.
+    /// </summary>
+    public IReadOnlyList<string> Sweep(TimeSpan idleFor)
+    {
+        var cutoff = clock.GetUtcNow() - idleFor;
+        var dropped = new List<string>();
+
+        foreach (var (id, entry) in _sessions)
+        {
+            if (!entry.Participants.IsEmpty) continue;
+            if (entry.LastActivityUtc > cutoff) continue;
+            if (_sessions.TryRemove(id, out _)) dropped.Add(id);
+        }
+
+        return dropped;
+    }
 
     private SessionState WithCurrentHead(SessionState state) =>
         state with { TranscodeHead = library.HeadOf(state.TitleId) };

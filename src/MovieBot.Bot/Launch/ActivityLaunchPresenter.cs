@@ -19,6 +19,7 @@ public sealed class ActivityLaunchPresenter(
     DiscordSocketClient client,
     IOptions<DiscordOptions> discord,
     IOptions<ApiOptions> api,
+    IOptions<LaunchOptions> launch,
     ILaunchPresenter fallback,
     ILogger<ActivityLaunchPresenter> logger) : ILaunchPresenter
 {
@@ -45,7 +46,7 @@ public sealed class ActivityLaunchPresenter(
             // built-ins. This is what sets target_type 2 with this application's id.
             invite = await channel.CreateInviteToApplicationAsync(
                 applicationId: applicationId,
-                maxAge: 86400,
+                maxAge: launch.Value.InviteMaxAgeSeconds,
                 maxUses: null,
                 isTemporary: false,
                 isUnique: true,
