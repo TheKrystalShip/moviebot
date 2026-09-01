@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Configuration;
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Tests;
@@ -36,9 +37,36 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
             Directory.Delete(MediaRoot, recursive: true);
     }
 
+    /// <summary>Discord is the only door, and these are the keys that door is locked with.</summary>
+    public const string SigningKey = "a-test-signing-key-of-at-least-thirty-two-characters";
+    public const string ServiceKey = "a-test-service-key";
+
     protected override void ConfigureWebHost(IWebHostBuilder builder) =>
         builder.ConfigureAppConfiguration((_, config) =>
-            config.AddInMemoryCollection(new Dictionary<string, string?> { ["Media:Root"] = MediaRoot }));
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Media:Root"] = MediaRoot,
+                ["Auth:SigningKey"] = SigningKey,
+                ["Auth:ServiceKey"] = ServiceKey
+            }));
+
+    /// <summary>What the Activity would have been given after signing in with Discord.</summary>
+    public string TokenFor(string roomId, string userId = "u", string displayName = "Someone") =>
+        RoomToken.Issue(new RoomTokenPayload
+        {
+            UserId = userId,
+            DisplayName = displayName,
+            RoomId = roomId,
+            ExpiresAtUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds()
+        }, new AuthOptions { SigningKey = SigningKey });
+
+    /// <summary>A client that proves itself the way the bot does.</summary>
+    public HttpClient CreateServiceClient()
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add("X-MovieBot-Service", ServiceKey);
+        return client;
+    }
 
     private void WriteManifest(string id, TitleStatus status, double? head)
     {
@@ -79,6 +107,7 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
             {
                 o.HttpMessageHandlerFactory = _ => Server.CreateHandler();
                 o.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
+                o.AccessTokenProvider = () => Task.FromResult<string?>(TokenFor(sessionId, userId, displayName));
             })
             .Build();
 

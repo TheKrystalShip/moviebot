@@ -156,7 +156,17 @@ export class FilmPlayer {
     });
 
     if (Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: false, backBufferLength: 90 });
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 90,
+        // Playlists and segments are closed like everything else, and hls.js does its own
+        // fetching, so the proof has to be attached to its requests rather than ours.
+        xhrSetup: (xhr) => {
+          const token = environment().authToken();
+          if (token !== null) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
+      });
       this.hls = hls;
       hls.on(Hls.Events.ERROR, (_event, data) => this.onHlsError(data));
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -230,7 +240,9 @@ export class FilmPlayer {
     if (!track || !track.available || track.uri === undefined) return;
 
     try {
-      const response = await fetch(environment().mediaUrl(manifest.id, track.uri));
+      const authToken = environment().authToken();
+      const response = await fetch(environment().mediaUrl(manifest.id, track.uri),
+        authToken === null ? undefined : { headers: { authorization: `Bearer ${authToken}` } });
       if (!response.ok) throw new Error(`subtitle answered ${response.status}`);
       const blob = await response.blob();
       if (token !== this.subtitleToken) return;

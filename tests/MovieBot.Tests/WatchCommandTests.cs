@@ -35,7 +35,7 @@ public sealed class WatchCommandTests(SessionFixture fixture) : IClassFixture<Se
         new(api, presenter, NullLogger<WatchCommand>.Instance);
 
     private WatchCommand Live(ILaunchPresenter presenter) =>
-        Command(new MovieBotApiClient(fixture.CreateClient()), presenter);
+        Command(new MovieBotApiClient(fixture.CreateServiceClient()), presenter);
 
     private static WatchRequest Ask(string query, ulong? voiceChannel = VoiceChannel) => new()
     {

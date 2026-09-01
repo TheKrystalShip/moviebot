@@ -472,3 +472,33 @@ body {
   border-radius: 999px;
   background: var(--accent);
 }
+
+/* ---- Opened outside Discord ------------------------------------------
+   There is no browser door. This is what a person sees if they find the address anyway. */
+
+.closed {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 24px;
+}
+
+.closed__line {
+  margin: 0;
+  font-size: 20px;
+}
+
+.closed__hint {
+  margin: 0;
+  color: var(--muted);
+}
+
+.closed__hint code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 6px;
+  border-radius: 4px;
+}

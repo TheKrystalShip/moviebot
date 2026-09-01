@@ -38,6 +38,12 @@ public sealed class ApiOptions
     public string BaseUrl { get; set; } = "http://127.0.0.1:8099";
 
     /// <summary>
+    /// Shared with the API. The bot has no Discord user to authenticate as when it loads a film
+    /// into a room on somebody's behalf, so it proves itself with a key instead.
+    /// </summary>
+    public string ServiceKey { get; set; } = "";
+
+    /// <summary>
     /// Where Discord's own servers reach the API, used for the poster in the embed. Discord
     /// fetches an embed image itself, so a loopback address produces an embed with a hole in
     /// it; when this is unset the poster is left off rather than pointing somewhere unreachable.

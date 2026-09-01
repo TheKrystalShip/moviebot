@@ -24,8 +24,13 @@ export interface Environment {
   hubUrl(): string;
   /** Which room this viewer is joining. Opaque: never parsed, never validated. */
   sessionId(): string;
-  /** The title the launch named, or null when the person picks from the library. */
+  /** The title the launch named, or null when nothing was named. */
   titleId(): string | null;
+  /**
+   * What this viewer presents to the server as proof they came through Discord, or null when
+   * there is nothing to present. Every closed route refuses a request without one.
+   */
+  authToken(): string | null;
   identity(): Promise<Identity>;
 }
 
@@ -90,6 +95,9 @@ async function localIdentity(): Promise<Identity> {
 
 export const browserEnvironment: Environment = {
   name: 'browser',
+  // A plain page has no way to prove anyone came through Discord, so it holds nothing and every
+  // closed route refuses it. It exists to say so.
+  authToken: () => null,
   apiUrl: (path) => `${defaultApiBase()}${path.startsWith('/') ? path : `/${path}`}`,
   mediaUrl: (titleId, relative) => `${defaultApiBase()}/media/${titleId}/${relative}`,
   hubUrl: () => `${defaultApiBase()}/hub/session`,

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Media;
@@ -21,6 +22,15 @@ builder.Services.AddSingleton(sp => new TitleLibrary(
     sp.GetRequiredService<ILogger<TitleLibrary>>()));
 builder.Services.AddSingleton<SessionStore>();
 builder.Services.AddOptions<RoomOptions>().Bind(builder.Configuration.GetSection(RoomOptions.Section));
+
+// Without a signing key nothing can be minted or checked, and the films would be served to
+// anybody who knows the hostname. Refusing to start is the only safe reading of a missing key.
+builder.Services.AddOptions<AuthOptions>()
+    .Bind(builder.Configuration.GetSection(AuthOptions.Section))
+    .Validate(o => o.SigningKey.Length >= 32,
+        "Auth:SigningKey must be set to at least 32 characters. Discord is the only way in, and "
+        + "that is enforced with a signed token.")
+    .ValidateOnStart();
 builder.Services.AddHostedService<SessionReaper>();
 
 builder.Services.AddOptions<DiscordAuthOptions>()
@@ -55,6 +65,9 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
 var app = builder.Build();
 
 app.UseCors();
+
+// Everything below this line is closed unless the caller came through Discord.
+app.UseMiddleware<RequireTokenMiddleware>();
 
 // The player is served from this origin, which is what lets a Discord Activity reach the page,
 // the API, the media and the hub through a single declared URL mapping instead of a set of them.
@@ -115,6 +128,7 @@ app.MapPost("/api/auth/discord/callback", async (
     DiscordCodeRequest request,
     IOptions<DiscordAuthOptions> options,
     DiscordAuthClient discord,
+    IOptions<AuthOptions> authOptions,
     CancellationToken ct) =>
 {
     if (!options.Value.IsConfigured)
@@ -131,12 +145,52 @@ app.MapPost("/api/auth/discord/callback", async (
     if (user is null)
         return Results.BadRequest(new { error = "Discord issued a token it then would not answer for." });
 
+    var auth = authOptions.Value;
+    var roomToken = RoomToken.Issue(new RoomTokenPayload
+    {
+        UserId = user.Id,
+        DisplayName = user.DisplayName,
+        RoomId = request.SessionId ?? "",
+        ExpiresAtUnix = DateTimeOffset.UtcNow.Add(auth.TokenLifetime).ToUnixTimeSeconds()
+    }, auth);
+
     // The access token goes back so the SDK can complete authenticate(); it is the browser's own
     // token and is scoped to the Activity, unlike the secret that redeemed the code.
     return Results.Ok(new
     {
         accessToken,
+        roomToken,
         user = new { user.Id, user.Username, displayName = user.DisplayName }
+    });
+});
+
+// For the bot and for the browser checks: a caller that already proves itself with the service
+// key can be handed a token, because there is no Discord user for it to be.
+app.MapPost("/api/auth/service-token", (
+    ServiceTokenRequest request,
+    HttpContext context,
+    IOptions<AuthOptions> authOptions) =>
+{
+    var auth = authOptions.Value;
+    var offered = context.Request.Headers["X-MovieBot-Service"].ToString();
+
+    if (auth.ServiceKey.Length == 0
+        || !System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+               System.Text.Encoding.UTF8.GetBytes(offered),
+               System.Text.Encoding.UTF8.GetBytes(auth.ServiceKey)))
+    {
+        return Results.Unauthorized();
+    }
+
+    return Results.Ok(new
+    {
+        roomToken = RoomToken.Issue(new RoomTokenPayload
+        {
+            UserId = request.UserId,
+            DisplayName = request.DisplayName,
+            RoomId = request.RoomId,
+            ExpiresAtUnix = DateTimeOffset.UtcNow.Add(auth.TokenLifetime).ToUnixTimeSeconds()
+        }, auth)
     });
 });
 
@@ -149,7 +203,10 @@ app.Logger.LogInformation("Serving media from {MediaRoot}",
 app.Run();
 
 /// <summary>What the Activity posts after Discord hands it an authorization code.</summary>
-public sealed record DiscordCodeRequest(string Code, string? RedirectUri);
+public sealed record DiscordCodeRequest(string Code, string? RedirectUri, string? SessionId);
+
+/// <summary>A token for a caller that has no Discord user of its own.</summary>
+public sealed record ServiceTokenRequest(string RoomId, string UserId, string DisplayName);
 
 /// <summary>Exposed so the test project can drive the app in-process.</summary>
 public partial class Program;

@@ -36,7 +36,11 @@ export class SessionHub {
     private readonly handlers: HubHandlers
   ) {
     this.connection = new HubConnectionBuilder()
-      .withUrl(environment().hubUrl())
+      // The WebSocket transport cannot set headers, so SignalR puts the token on the query
+      // string itself. The server reads it from there for hub routes only.
+      .withUrl(environment().hubUrl(), {
+        accessTokenFactory: () => environment().authToken() ?? ''
+      })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Warning)
       .build();

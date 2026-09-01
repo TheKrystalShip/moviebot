@@ -54,6 +54,9 @@ builder.Services.AddHttpClient<MovieBotApiClient>((sp, http) =>
     // last path segment, so the slash is not optional.
     http.BaseAddress = new Uri(api.BaseUrl.TrimEnd('/') + "/");
     http.Timeout = TimeSpan.FromSeconds(10);
+
+    if (api.ServiceKey.Length > 0)
+        http.DefaultRequestHeaders.Add("X-MovieBot-Service", api.ServiceKey);
 });
 
 builder.Services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig

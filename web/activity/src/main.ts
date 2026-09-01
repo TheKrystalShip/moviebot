@@ -17,6 +17,17 @@ async function boot(): Promise<void> {
   await adoptDiscordEnvironmentIfEmbedded();
 
   const env = environment();
+
+  // Discord is the only surface. A plain page has nothing to prove anyone came through it, so
+  // rather than letting it fail one request at a time against a black screen, it says so.
+  if (env.authToken() === null) {
+    document.getElementById('app')!.innerHTML =
+      '<div class="closed">'
+      + '<p class="closed__line">MovieBot is watched inside Discord.</p>'
+      + '<p class="closed__hint">Join a voice channel and ask the bot for a film with <code>/watch</code>.</p>'
+      + '</div>';
+    return;
+  }
   // The room is named before the viewer is, so the link in the address bar is shareable while
   // the person is still typing their name into it.
   const sessionId = env.sessionId();

@@ -13,7 +13,7 @@ namespace TheKrystalShip.MovieBot.Tests;
 /// </summary>
 public sealed class MovieBotApiClientTests(SessionFixture fixture) : IClassFixture<SessionFixture>
 {
-    private MovieBotApiClient Client() => new(fixture.CreateClient());
+    private MovieBotApiClient Client() => new(fixture.CreateServiceClient());
 
     /// <summary>Nothing listens here, so it stands in for an API that is not running.</summary>
     private static MovieBotApiClient Unreachable() => new(new HttpClient

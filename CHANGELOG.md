@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-09-01
+
+### Security
+
+- Discord is the only way in. The library, the films, the rooms and the hub were reachable by
+  anyone who knew the hostname: `/api/titles` listed the collection, `/media` served the segments,
+  and a stranger could read any room and change what it was playing. All of it now requires a
+  token, and a token is issued only after Discord has confirmed who somebody is.
+- The API refuses to start without `Auth:SigningKey`, because a missing key would otherwise mean
+  a server that quietly lets everybody in.
+- The bot proves itself with `Auth:ServiceKey`, having no Discord user of its own to be.
+- A plain browser says where to go rather than failing one request at a time against a black
+  screen. Cover art stays open: Discord's servers fetch it to render an embed and carry no token,
+  and a poster is not the film.
+
 ## [0.9.0] - 2026-09-01
 
 ### Fixed
@@ -183,6 +198,7 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `comment` disposition.
 - `--dry-run`, which prints the manifest a source would produce without transcoding it.
 
+[1.0.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v1.0.0
 [0.9.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.9.0
 [0.8.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.8.0
 [0.7.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.7.0

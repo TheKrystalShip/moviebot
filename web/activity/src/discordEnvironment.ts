@@ -18,6 +18,8 @@ export function isDiscordActivity(): boolean {
 
 interface AuthResult {
   accessToken: string;
+  /** What this server accepts afterwards. Discord's own token proves nothing to it. */
+  roomToken: string;
   user: { id: string; username: string; displayName: string };
 }
 
@@ -37,10 +39,12 @@ export async function createDiscordEnvironment(clientId: string): Promise<Enviro
 
   // The secret that redeems this code lives on the server. The player only ever handles the code
   // and the token that comes back, which is its own.
+  const sessionId = sdk.channelId ?? sdk.instanceId;
+
   const response = await fetch('/api/auth/discord/callback', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ code })
+    body: JSON.stringify({ code, sessionId })
   });
 
   if (!response.ok) {
@@ -71,7 +75,8 @@ export async function createDiscordEnvironment(clientId: string): Promise<Enviro
     // The voice channel is the room, exactly as the bot names it. The instance id would also be
     // shared by everyone in this Activity, but the bot cannot know one — so keying on it puts the
     // two halves in different rooms and the film the bot was asked for never arrives.
-    sessionId: () => sdk.channelId ?? sdk.instanceId,
+    sessionId: () => sessionId,
+    authToken: () => auth.roomToken,
     titleId: () => new URLSearchParams(window.location.search).get('title'),
     identity: async () => identity
   };

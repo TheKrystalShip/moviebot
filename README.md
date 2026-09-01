@@ -131,3 +131,11 @@ tests/MovieBot.Tests/   hub integration tests
 ## Licence
 
 GPL-3.0-or-later. The repository ships code only: it plays films you already have.
+
+## Access
+
+Discord is the only surface. Everything except the sign-in, the page itself and cover art requires
+a token, and a token is issued only after Discord confirms who somebody is — so a browser pointed
+at the hostname can list nothing, fetch nothing and join no room. Two keys are required:
+`Auth:SigningKey`, without which the API refuses to start, and `Auth:ServiceKey`, shared with the
+bot, which has no Discord user of its own to authenticate as.
