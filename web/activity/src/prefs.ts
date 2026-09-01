@@ -19,7 +19,10 @@ interface Prefs {
   byTitle: Record<string, TitlePrefs>;
 }
 
-const fallback: Prefs = { volume: 1, muted: false, byTitle: {} };
+// Half volume to start. A film mastered for a cinema is punishing at full on laptop speakers,
+// and the first thing a new viewer would otherwise do is scramble for the control. Anyone who
+// has already set their own volume keeps it: this is only the starting point.
+const fallback: Prefs = { volume: 0.5, muted: false, byTitle: {} };
 
 function read(): Prefs {
   try {

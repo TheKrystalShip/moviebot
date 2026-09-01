@@ -4,6 +4,28 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-01
+
+### Added
+
+- `POST /api/auth/discord/callback`: the Activity's sign-in exchange. The client secret redeems
+  the code here because a secret shipped to a browser is not a secret; the player handles only
+  the code and the token that comes back, which is its own.
+- `GET /api/config`: serves the application id, which is public, so the player needs no
+  build-time configuration and no rebuild when it changes.
+- `discordEnvironment.ts`: the player as an Activity. Two things differ from the browser page and
+  they are the two the environment seam exists to hold — the room is the SDK's instance and the
+  viewer is who Discord says they are. The API, media and hub are the same relative paths, since
+  a root mapping forwards them.
+- `ActivityLaunchPresenter`: the bot opens the film in the voice channel. When it cannot — no
+  application id, a channel it cannot see, a missing Create Instant Invite — it says which and
+  falls back to the browser link rather than failing quietly.
+
+### Changed
+
+- Playback starts at half volume. A film mastered for a cinema is punishing at full on laptop
+  speakers. It is a starting point, not a shared setting: anyone who has set their own keeps it.
+
 ## [0.5.0] - 2026-09-01
 
 ### Added
@@ -103,6 +125,7 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `comment` disposition.
 - `--dry-run`, which prints the manifest a source would produce without transcoding it.
 
+[0.6.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.6.0
 [0.5.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.5.0
 [0.4.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.4.0
 [0.3.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.3.0

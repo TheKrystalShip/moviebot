@@ -2,7 +2,8 @@ import 'video.js/dist/video-js.css';
 import './styles.css';
 
 import { api } from './api';
-import { environment } from './environment';
+import { createDiscordEnvironment, isDiscordActivity } from './discordEnvironment';
+import { environment, setEnvironment } from './environment';
 import { FilmPlayer } from './player/filmPlayer';
 import { prefs } from './prefs';
 import { SessionHub } from './session/hub';
@@ -13,6 +14,8 @@ import { Shell } from './ui/shell';
 const ManifestPollMs = 5000;
 
 async function boot(): Promise<void> {
+  await adoptDiscordEnvironmentIfEmbedded();
+
   const env = environment();
   // The room is named before the viewer is, so the link in the address bar is shareable while
   // the person is still typing their name into it.
@@ -141,6 +144,24 @@ async function boot(): Promise<void> {
   if (launched !== null && joined.state.titleId !== launched) {
     await hub.loadTitle(launched);
   }
+}
+
+/**
+ * Inside Discord, the room and the viewer come from the Activity rather than from a link and a
+ * typed name. Failing to sign in there is fatal and says so: falling back to the browser
+ * environment would put someone in a room named by a query parameter Discord never set, alone
+ * and wondering why nobody else is there.
+ */
+async function adoptDiscordEnvironmentIfEmbedded(): Promise<void> {
+  if (!isDiscordActivity()) return;
+
+  const response = await fetch('/api/config');
+  if (!response.ok) throw new Error(`The server would not say which application this is (${response.status}).`);
+
+  const { discordClientId } = (await response.json()) as { discordClientId: string };
+  if (!discordClientId) throw new Error('This server has no Discord application configured.');
+
+  setEnvironment(await createDiscordEnvironment(discordClientId));
 }
 
 void boot();

@@ -8,7 +8,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Ingest</RootNamespace>
     <AssemblyName>moviebot-ingest</AssemblyName>
-    <Version>0.5.0</Version>
+    <Version>0.6.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

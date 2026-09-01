@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Configuration;
@@ -63,7 +64,16 @@ builder.Services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
     AlwaysDownloadUsers = false
 }));
 
-builder.Services.AddSingleton<ILaunchPresenter, LinkLaunchPresenter>();
+// The Activity is the front door; the link is what answers when it cannot be opened — no
+// application id, a channel the bot cannot see, or a missing Create Instant Invite. Registering
+// the link presenter as the concrete fallback keeps that path exercised rather than theoretical.
+builder.Services.AddSingleton<LinkLaunchPresenter>();
+builder.Services.AddSingleton<ILaunchPresenter>(sp => new ActivityLaunchPresenter(
+    sp.GetRequiredService<DiscordSocketClient>(),
+    sp.GetRequiredService<IOptions<DiscordOptions>>(),
+    sp.GetRequiredService<IOptions<ApiOptions>>(),
+    sp.GetRequiredService<LinkLaunchPresenter>(),
+    sp.GetRequiredService<ILogger<ActivityLaunchPresenter>>()));
 builder.Services.AddSingleton<WatchCommand>();
 builder.Services.AddHostedService<DiscordBotService>();
 

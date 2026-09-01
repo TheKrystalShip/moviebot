@@ -11,14 +11,15 @@
     "verify": "node verify/run.mjs"
   },
   "dependencies": {
+    "@discord/embedded-app-sdk": "^2.5.0",
     "@microsoft/signalr": "^8.0.7",
     "hls.js": "^1.5.20",
     "video.js": "^8.23.3"
   },
   "devDependencies": {
+    "playwright-core": "^1.62.1",
     "typescript": "^5.7.3",
-    "vite": "^6.0.11",
-    "playwright-core": "^1.62.1"
+    "vite": "^6.0.11"
   },
   "allowScripts": {
     "esbuild@0.25.12": true
