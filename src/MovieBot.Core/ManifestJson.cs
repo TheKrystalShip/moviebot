@@ -4,9 +4,9 @@ using System.Text.Json.Serialization;
 namespace TheKrystalShip.MovieBot.Core;
 
 /// <summary>
-/// The serializer for <see cref="Manifest"/>, shipped beside the shapes so a consumer cannot
-/// hold the right types under the wrong naming policy. Every root that crosses the wire is
-/// registered here; a type reached only by reflection would throw at runtime.
+/// The serializer for everything that crosses the wire, shipped beside the shapes so a consumer
+/// cannot hold the right types under the wrong naming policy. Every root is registered here; a
+/// type reached only by reflection would throw at runtime.
 /// </summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
@@ -14,6 +14,10 @@ namespace TheKrystalShip.MovieBot.Core;
     UseStringEnumConverter = true,
     WriteIndented = true)]
 [JsonSerializable(typeof(Manifest))]
+[JsonSerializable(typeof(SessionState))]
+[JsonSerializable(typeof(SessionStatePush))]
+[JsonSerializable(typeof(SeekClamped))]
+[JsonSerializable(typeof(IReadOnlyList<Participant>))]
 public partial class ManifestJsonContext : JsonSerializerContext;
 
 public static class ManifestJson

@@ -1,18 +1,21 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <RootNamespace>TheKrystalShip.MovieBot.Ingest</RootNamespace>
-    <AssemblyName>moviebot-ingest</AssemblyName>
+    <RootNamespace>TheKrystalShip.MovieBot.Api</RootNamespace>
+    <AssemblyName>moviebot-api</AssemblyName>
     <Version>0.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../MovieBot.Core/MovieBot.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MovieBot.Tests" />
   </ItemGroup>
 
 </Project>

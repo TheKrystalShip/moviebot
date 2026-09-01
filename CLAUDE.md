@@ -29,6 +29,7 @@ premise, and most of the design falls out of it:
 
 ```bash
 dotnet build moviebot.slnx -c Release
+dotnet test                        # hub integration tests, two real SignalR clients
 
 # inspect a source without spending a GPU on it
 dotnet run --project src/MovieBot.Ingest -c Release -- "<file>" --dry-run
@@ -37,7 +38,31 @@ dotnet run --project src/MovieBot.Ingest -c Release -- "<file>" --dry-run
 dotnet run --project src/MovieBot.Ingest -c Release -- "<file>" --out ./media
 ```
 
+```bash
+# the API, over an absolute media root
+Media__Root=/absolute/path/to/media dotnet run --project src/MovieBot.Api -c Release
+```
+
 `media/` is generated and gitignored. Nothing under it is ever committed.
+
+## API invariants
+
+- **The server is authoritative and there is no host.** Clients send intent; the store decides,
+  stamps the server clock and assigns the next revision. A client never pushes state.
+- **Clamp seeks on the server, never in the client.** A client's head is always slightly stale,
+  so client-side clamping yields a seek half the room accepts and half rejects.
+- **`SeekClamped` goes to the caller alone.** Broadcasting it would show the whole room an error
+  nobody else triggered.
+- **Resolve configuration inside the DI factory, not at the top of `Program.cs`.** Reading
+  `builder.Configuration` while the builder is still being assembled misses sources added later —
+  a test host's media root, for one — and the service silently points somewhere else.
+- **Playlists for a transcoding title are `no-store`.** A cached growing playlist makes the film
+  appear to end early, which looks exactly like a broken transcode.
+- **Media answers HEAD as well as GET.** Browsers probe a URL before fetching it, and a 405 there
+  reads as the file being unavailable.
+- **CORS reflects the origin rather than enumerating one.** The Activity is served from Discord's
+  proxy under an origin that is not known ahead of time, and a failed preflight is invisible: no
+  status, no log, just a request that never happens.
 
 ## Ingest invariants
 

@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-09-01
+
+### Added
+
+- `MovieBot.Api`: the library, media and session surface. Serves manifests and HLS with the
+  content types hls.js requires, holds shared session state, and pushes it over SignalR.
+- Server-authoritative sessions with monotonic revisions and a server-clock timestamp on every
+  push, so reordered or duplicated pushes and skewed client clocks are all harmless.
+- Head-aware seek clamping. A seek past what has been transcoded is granted short of the head
+  and answered with `SeekClamped` to the caller alone.
+- `no-store` on playlists for a title still transcoding; segments served immutable.
+- `MovieBot.Tests`: two real SignalR clients against the app in-process, covering propagation,
+  revision ordering, clamping, participant broadcast and position derivation.
+
 ## [0.1.0] - 2026-09-01
 
 ### Added
@@ -25,4 +39,5 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `comment` disposition.
 - `--dry-run`, which prints the manifest a source would produce without transcoding it.
 
+[0.2.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.2.0
 [0.1.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.1.0

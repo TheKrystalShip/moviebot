@@ -8,12 +8,12 @@ Playback starts seconds after the request, while the film is still being transco
 
 ## Status
 
-The ingest pipeline is built and runs. Nothing else exists yet.
+The ingest pipeline and the API are built and run. The bot and the player are not started.
 
 | Piece | State |
 |---|---|
 | `MovieBot.Ingest` — probe, extract, transcode, manifest | built |
-| `MovieBot.Api` — sessions, SignalR hub, media serving | not started |
+| `MovieBot.Api` — sessions, SignalR hub, media serving | built |
 | `MovieBot.Bot` — Discord.Net slash command, Activity invite | not started |
 | `web/activity` — the player | not started |
 
@@ -81,11 +81,51 @@ Bitmap subtitles — PGS and VobSub — are pictures of text and cannot become W
 They are listed in the manifest as `available: false` with `reason: "needs-ocr"`, so a missing
 language is explained rather than silently absent.
 
+## API
+
+```bash
+Media__Root=/absolute/path/to/media dotnet run --project src/MovieBot.Api -c Release
+```
+
+Listens on `http://127.0.0.1:8099`.
+
+| Route | Purpose |
+|---|---|
+| `GET /api/titles` | the library |
+| `GET /api/titles/{id}` | one manifest, including the live transcode head |
+| `GET /api/sessions/{id}` | current shared state |
+| `GET,HEAD /media/{id}/**` | playlists, segments, subtitles, poster |
+| `/hub/session` | SignalR: `Join`, `LoadTitle`, `Play`, `Pause`, `Seek` |
+
+The server is authoritative and there is no host — anyone in a session can drive it, and the
+state records who did. Every push carries the server clock and a monotonic revision, so a client
+discards anything it has already seen and derives the position from the anchor rather than being
+told a ticking number.
+
+**Seeks past the transcode head are refused by the server**, which grants a position short of the
+head and sends `SeekClamped` to the caller alone. Clamping in the client instead would let a
+stale head produce a seek half the room accepts and half rejects.
+
+Playlists for a title still transcoding are served `no-store`; segments never change once written
+and are immutable for a year.
+
+## Tests
+
+```bash
+dotnet test
+```
+
+The session tests drive two real SignalR clients against the app in-process, because the failures
+worth catching — a push that never arrives, a clamp delivered to the wrong client — live in the
+wiring rather than the logic.
+
 ## Layout
 
 ```
-src/MovieBot.Core/      manifest contract and its serializer
+src/MovieBot.Core/      manifest and session contracts, and their serializer
 src/MovieBot.Ingest/    the ingest CLI
+src/MovieBot.Api/       library, media, sessions, SignalR hub
+tests/MovieBot.Tests/   hub integration tests
 ```
 
 ## Licence
