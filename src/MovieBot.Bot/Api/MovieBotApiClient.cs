@@ -56,6 +56,31 @@ public sealed class MovieBotApiClient(HttpClient http)
     /// Whether the API is answering. Used at startup so an unreachable backend is reported once,
     /// on the log, rather than for the first time in front of a room.
     /// </summary>
+    /// <summary>
+    /// Puts the film into the room before anyone opens it.
+    ///
+    /// An Activity is launched by Discord from a URL the bot never writes, so there is no query
+    /// string to carry the choice in. The session carries it instead, and whoever joins finds the
+    /// film already loaded.
+    /// </summary>
+    public async Task<SessionState> SetSessionTitleAsync(
+        string sessionId, string titleId, string requestedBy, CancellationToken ct)
+    {
+        using var response = await http.PostAsJsonAsync(
+            $"api/sessions/{Uri.EscapeDataString(sessionId)}/title",
+            new SetTitleRequest(titleId, requestedBy, requestedBy),
+            ManifestJsonContext.Default.SetTitleRequest, ct);
+
+        if (!response.IsSuccessStatusCode)
+            throw new MovieBotApiException($"The API refused to load {titleId}: {(int)response.StatusCode}.");
+
+        var push = await response.Content.ReadFromJsonAsync(
+                       ManifestJsonContext.Default.SessionStatePush, ct)
+            ?? throw new MovieBotApiException("The API returned no session state.");
+
+        return push.State;
+    }
+
     public async Task<bool> IsHealthyAsync(CancellationToken ct)
     {
         try

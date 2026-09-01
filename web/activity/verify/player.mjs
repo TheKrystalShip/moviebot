@@ -1,14 +1,12 @@
-import { Checks, DURATION_SECONDS, loadFirstTitle, menu, hubTargets, openViewer, playhead, scrubTo, wait, wake } from './harness.mjs';
+import { Checks, DURATION_SECONDS, TITLE_ID, loadFirstTitle, menu, hubTargets, openViewer, playhead, scrubTo, wait, wake } from './harness.mjs';
 
-/** One viewer: the library, the menus the manifest describes, playback, and what stays local. */
+/** One viewer: the menus the manifest describes, playback, and what stays local. */
 export async function playerSuite(browser) {
   const checks = new Checks('One viewer');
   const media = [];
-  const page = await openViewer(browser, 'alice', 'verify-player-' + Date.now());
+  const page = await openViewer(browser, 'alice', 'verify-player-' + Date.now(), TITLE_ID);
   page.on('request', (r) => { if (r.url().includes('/media/')) media.push(r.url()); });
 
-  const titles = await page.$$eval('.library__name', (e) => e.map((x) => x.textContent));
-  checks.add('the library comes from GET /api/titles', titles.length > 0, titles.join(', '));
 
   await loadFirstTitle(page);
   checks.add('the chosen title loads into the media element', true);

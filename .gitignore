@@ -505,3 +505,6 @@ src/Api/kgsm-api.db-wal
 # Ingest output: transcoded renditions, extracted subtitles, manifests. Regenerated
 # from the source films, never committed.
 media/
+
+# Fixture media for the browser checks. Kept out of the live library so it is never suggested.
+.testmedia/

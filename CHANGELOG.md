@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-01
+
+### Fixed
+
+- The film chosen with the slash command reaches the Activity. The bot named the room after the
+  voice channel and the Activity named it after the SDK instance, so the two were never in the
+  same room and the choice arrived nowhere. Both now key on the channel, and the bot loads the
+  title through `POST /api/sessions/{id}/title` — an Activity opens at a URL the bot never wrote,
+  so a query string cannot carry it the way a browser link does.
+
+### Changed
+
+- The page is the player. The library, the participant list, the panel and its toggle are gone,
+  and the frame takes the whole viewport, which is what maximising was for. A room with no film
+  says how to fill one instead of showing a library to pick from.
+- The browser checks reach a film the way the product does — named at launch — rather than by
+  clicking a library that no longer exists.
+
+### Removed
+
+- The forty-second test clip is out of the media library, so it is never offered by autocomplete.
+  It stays as a fixture for the browser checks, which run against their own media root.
+
 ## [0.7.0] - 2026-09-01
 
 ### Changed
@@ -140,6 +163,7 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `comment` disposition.
 - `--dry-run`, which prints the manifest a source would produce without transcoding it.
 
+[0.8.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.8.0
 [0.7.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.7.0
 [0.6.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.6.0
 [0.5.0]: https://github.com/TheKrystalShip/MovieBot/releases/tag/v0.5.0

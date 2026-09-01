@@ -5,6 +5,8 @@ import { chromium } from 'playwright-core';
 
 export const BASE = process.env.MOVIEBOT_WEB ?? 'http://localhost:5173';
 export const DURATION_SECONDS = 43.501;
+/** The fixture film. Named at launch, because there is no library to pick from. */
+export const TITLE_ID = process.env.MOVIEBOT_TITLE ?? 'clip';
 
 /**
  * A browser that decodes H.264 and AAC. Playwright's own download is used when it is there;
@@ -105,9 +107,11 @@ export async function wake(page) {
   await page.waitForTimeout(200);
 }
 
+/**
+ * Waits for the film the launch named to be in the media element. There is no library to click:
+ * a film is chosen with the slash command, and the room is told before anyone opens it.
+ */
 export async function loadFirstTitle(page) {
-  await page.waitForSelector('.library__item');
-  await page.click('.library__button');
   await page.waitForFunction(() => document.querySelector('video')?.readyState >= 1, null, { timeout: 20000 });
 }
 

@@ -5,10 +5,10 @@ export async function launchSuite(browser) {
   const checks = new Checks('The launch link');
   const session = 'verify-launch-' + Date.now();
 
-  // session and title together: the film is playing without anybody touching the library.
+  // session and title together: the launch names the film and it is simply playing.
   const invited = await openViewer(browser, 'alice', session, 'clip');
   await invited.waitForFunction(() => document.querySelector('video')?.readyState >= 1, null, { timeout: 20000 });
-  checks.add('a link naming a title loads it without a trip through the library',
+  checks.add('a link naming a title loads it',
     (await invited.textContent('#film-title')).includes('Gladiator'));
   checks.add('and the room was told, once', (await hubTargets(invited)).includes('LoadTitle'));
 
@@ -33,8 +33,8 @@ export async function launchSuite(browser) {
   const generated = await opened.evaluate(() => new URL(location.href).searchParams.get('session'));
   checks.add('a page opened with no room names one and writes it into the address bar',
     typeof generated === 'string' && generated.length > 4, String(generated));
-  checks.add('and shows the library rather than a film',
-    (await opened.textContent('#film-title')) === 'No film loaded');
+  checks.add('and an empty room says how to fill it',
+    (await opened.isVisible('#empty')) && (await opened.textContent('#empty')).includes('/watch'));
 
   const shared = await openViewer(browser, 'dana', generated);
   await shared.waitForFunction(() => document.querySelectorAll('.participants__item').length === 2, null, { timeout: 10000 });

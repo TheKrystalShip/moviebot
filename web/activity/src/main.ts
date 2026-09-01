@@ -48,7 +48,6 @@ async function boot(): Promise<void> {
     onAudioSelected: (trackId) => {
       if (manifest) prefs.setAudioTrack(manifest.id, trackId);
     },
-    onToggleMaximise: () => shell.setMaximised(!shell.isMaximised()),
     onSubtitleSelected: (trackId) => {
       if (manifest) prefs.setSubtitleTrack(manifest.id, trackId);
     }

@@ -68,9 +68,10 @@ export async function createDiscordEnvironment(clientId: string): Promise<Enviro
     apiUrl: (path) => `${origin}${path.startsWith('/') ? path : `/${path}`}`,
     mediaUrl: (titleId, relative) => `${origin}/media/${titleId}/${relative}`,
     hubUrl: () => `${origin}/hub/session`,
-    // The instance is the room: everyone Discord put in this Activity, in this voice channel,
-    // shares it. It is the same idea as the bot naming a session after the channel.
-    sessionId: () => sdk.instanceId,
+    // The voice channel is the room, exactly as the bot names it. The instance id would also be
+    // shared by everyone in this Activity, but the bot cannot know one — so keying on it puts the
+    // two halves in different rooms and the film the bot was asked for never arrives.
+    sessionId: () => sdk.channelId ?? sdk.instanceId,
     titleId: () => new URLSearchParams(window.location.search).get('title'),
     identity: async () => identity
   };

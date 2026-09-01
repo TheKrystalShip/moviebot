@@ -107,6 +107,21 @@ public sealed class WatchCommand(
                 "The session could not be opened. Start the API, then run the command again.");
         }
 
+        // The room is told which film before anyone opens it. An Activity arrives at a URL the bot
+        // never wrote, so this is the only way the choice reaches the player; the browser link
+        // carries it in a query string too, and both end up in the same session either way.
+        var alreadyLoaded = session.TitleId;
+        try
+        {
+            session = await api.SetSessionTitleAsync(session.SessionId, title.Id, request.RequestedBy, ct);
+        }
+        catch (MovieBotApiException ex)
+        {
+            logger.LogWarning(ex, "Could not load {TitleId} into session {SessionId}", title.Id, session.SessionId);
+            return new WatchResult(WatchStatus.BackendUnavailable,
+                "The film could not be loaded into the room. Try the command again.");
+        }
+
         var reply = await presenter.PresentAsync(new LaunchRequest
         {
             SessionId = session.SessionId,
@@ -114,7 +129,7 @@ public sealed class WatchCommand(
             VoiceChannelId = voiceChannelId,
             VoiceChannelName = request.VoiceChannelName ?? "the voice channel",
             RequestedBy = request.RequestedBy,
-            LoadedTitleId = session.TitleId is { } loaded && loaded != title.Id ? loaded : null
+            LoadedTitleId = alreadyLoaded is { } loaded && loaded != title.Id ? loaded : null
         }, ct);
 
         logger.LogInformation("{RequestedBy} launched {TitleId} into session {SessionId}",

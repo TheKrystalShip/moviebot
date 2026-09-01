@@ -1,17 +1,12 @@
-import { Checks, hubTargets, openViewer, playhead, scrubTo, wait, wake } from './harness.mjs';
+import { Checks, TITLE_ID, hubTargets, openViewer, playhead, scrubTo, wait, wake } from './harness.mjs';
 
 /** Two viewers on one timeline: what each does to the other, and what neither sends back. */
 export async function roomSuite(browser) {
   const checks = new Checks('Two viewers');
   const session = 'verify-room-' + Date.now();
-  const alice = await openViewer(browser, 'alice', session);
+  const alice = await openViewer(browser, 'alice', session, TITLE_ID);
   const bob = await openViewer(browser, 'bob', session);
 
-  await bob.waitForFunction(() => document.querySelectorAll('.participants__item').length === 2, null, { timeout: 10000 });
-  const watching = await bob.$$eval('.participants__item', (e) => e.map((x) => x.textContent).sort());
-  checks.add('both viewers appear in the participant list', watching.join(',') === 'alice,bob', watching.join(','));
-
-  await alice.click('.library__button');
   await Promise.all([alice, bob].map((page) =>
     page.waitForFunction(() => document.querySelector('video')?.readyState >= 1, null, { timeout: 20000 })));
   checks.add('a title loaded by one viewer loads for the other', true);

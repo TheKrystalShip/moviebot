@@ -1,6 +1,5 @@
 import type { ConnectionStatus } from '../session/hub';
 import type { Participant, SeekClamped, SessionState, TitleSummary } from '../types';
-import { prefs } from '../prefs';
 import { formatTime } from './format';
 
 export interface ShellHandlers {
@@ -22,9 +21,7 @@ export class Shell {
   private readonly filmTitle = document.getElementById('film-title') as HTMLElement;
   private readonly actor = document.getElementById('actor') as HTMLElement;
   private readonly gate = document.getElementById('gate') as HTMLElement;
-  private readonly app = document.getElementById('app') as HTMLElement;
-  private readonly side = document.getElementById('side') as HTMLElement;
-  private readonly sideToggle = document.getElementById('side-toggle') as HTMLButtonElement;
+  private readonly empty = document.getElementById('empty') as HTMLElement;
 
   private titles: TitleSummary[] = [];
   private currentTitleId: string | null = null;
@@ -35,42 +32,10 @@ export class Shell {
       this.handlers.onJoinPlayback();
     });
 
-    this.setSideOpen(prefs.sideOpen());
-    this.sideToggle.addEventListener('click', () => this.setSideOpen(this.side.hidden));
-
-    // Escape leaves the maximised player. The Fullscreen API is unavailable inside Discord's
-    // iframe, so nothing else is listening for it and the habit is worth honouring.
-    window.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && this.isMaximised()) this.setMaximised(false);
-    });
   }
 
-  /**
-   * The library and who is watching, folded away.
-   *
-   * A film is the point of the page and the panel beside it is not, so it collapses and stays
-   * collapsed: the choice is this viewer's and is remembered like their volume.
-   */
-  setSideOpen(open: boolean): void {
-    this.side.hidden = !open;
-    this.app.classList.toggle('app--side-open', open);
-    this.sideToggle.setAttribute('aria-expanded', String(open));
-    prefs.setSideOpen(open);
-  }
 
-  isMaximised(): boolean {
-    return this.app.classList.contains('app--maximised');
-  }
 
-  /**
-   * Fills the frame with the film.
-   *
-   * Discord's iframe does not grant the Fullscreen API, so a real fullscreen button cannot work
-   * there. This gives up the surrounding page instead, which is the part worth reclaiming.
-   */
-  setMaximised(maximised: boolean): void {
-    this.app.classList.toggle('app--maximised', maximised);
-  }
 
   setSession(sessionId: string, displayName: string): void {
     this.sessionLabel.textContent = `${sessionId} · ${displayName}`;
@@ -89,6 +54,8 @@ export class Shell {
   setCurrentTitle(titleId: string | null, name: string | null): void {
     this.currentTitleId = titleId;
     this.filmTitle.textContent = name ?? 'No film loaded';
+    // The only thing on an otherwise black page: say what to do about it.
+    this.empty.hidden = name !== null;
     this.renderLibrary();
   }
 

@@ -18,8 +18,6 @@ export interface FilmPlayerHooks {
   onSeekIntent(seconds: number): void;
   onAudioSelected(trackId: string): void;
   onSubtitleSelected(trackId: string | null): void;
-  /** Give the whole frame over to the film, or hand the page back. */
-  onToggleMaximise(): void;
 }
 
 const PositionTickMs = 200;
@@ -48,7 +46,6 @@ export class FilmPlayer {
   private subtitleUrl: string | null = null;
   private subtitleToken = 0;
   private ticker: number | null = null;
-  private readonly maximiseButton = document.createElement('button');
 
   constructor(container: HTMLElement, private readonly hooks: FilmPlayerHooks) {
     this.video = document.createElement('video');
@@ -92,12 +89,9 @@ export class FilmPlayer {
     // The Embedded App SDK has no fullscreen command and whether the browser API survives an
     // embedded frame depends on a permissions policy nobody documents, so the control appears
     // only where it works.
-    // Fills the frame with the film. This is not fullscreen and cannot be: Discord's iframe does
-    // not grant the Fullscreen API, so the real control is absent there. What can be reclaimed is
-    // the page around the player, and that is what this does.
-    bar?.addChild('Component', { el: this.buildMaximiseButton() });
-
-    // Real fullscreen only where the browser allows it, which is a plain page and not an Activity.
+    // Real fullscreen where the browser allows it. Inside Discord's iframe it never does — the
+    // Fullscreen API is not granted to an Activity — and there the player already fills the frame,
+    // which is what the control would have been for.
     if (document.fullscreenEnabled) bar?.addChild('FullscreenToggle', {});
 
     this.player.volume(prefs.volume());
@@ -280,15 +274,6 @@ export class FilmPlayer {
       return;
     }
     this.hooks.onError(`Playback failed: ${data.details}`);
-  }
-  private buildMaximiseButton(): HTMLElement {
-    const button = this.maximiseButton;
-    button.type = 'button';
-    button.className = 'vjs-control vjs-button mb-maximise';
-    button.title = 'Fill the frame';
-    button.setAttribute('aria-label', 'Fill the frame');
-    button.addEventListener('click', () => this.hooks.onToggleMaximise());
-    return button;
   }
 
 }

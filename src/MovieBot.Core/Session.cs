@@ -72,6 +72,12 @@ public sealed record SeekClamped
     public required double HeadSeconds { get; init; }
 }
 
+/// <summary>
+/// Puts a film into a room from outside it. The bot uses this because an Activity is launched
+/// from a URL it never writes, so a query string cannot carry the choice.
+/// </summary>
+public sealed record SetTitleRequest(string TitleId, string? UserId, string? DisplayName);
+
 public sealed record Participant
 {
     public required string UserId { get; init; }

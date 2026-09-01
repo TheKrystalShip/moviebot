@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { Checks, DURATION_SECONDS, openViewer, playhead, scrubTo, wait } from './harness.mjs';
+import { Checks, DURATION_SECONDS, TITLE_ID, openViewer, playhead, scrubTo, wait } from './harness.mjs';
 
 /**
  * A title that is still transcoding: the bar at the film's real length with the written region
@@ -16,12 +16,9 @@ export async function headSuite(browser, manifestPath) {
     const manifest = JSON.parse(original);
     writeFileSync(manifestPath, JSON.stringify({ ...manifest, status: 'transcoding', headSeconds: 20.0 }, null, 2));
 
-    const page = await openViewer(browser, 'head', 'verify-head-' + Date.now());
+    const page = await openViewer(browser, 'head', 'verify-head-' + Date.now(), TITLE_ID);
 
-    const meta = await page.textContent('.library__meta');
-    checks.add('the library says how much is ready', meta === '0:43 · 0:20 ready', meta);
 
-    await page.click('.library__button');
     await page.waitForFunction(() => document.querySelector('video')?.readyState >= 1, null, { timeout: 20000 });
 
     const ready = await page.evaluate(() => document.querySelector('.mb-scrub__ready').style.width);
