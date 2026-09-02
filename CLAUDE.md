@@ -168,6 +168,29 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
   rows all reading "English" and no way to choose between them, which is the same failure the
   track labelling rules avoid for embedded tracks.
 
+## Confirming a subtitle fits
+
+- **A person watching is the only ground truth.** Frame rate, release name and hash are proxies
+  for whether a subtitle looks right on screen. Somebody confirming one answers that directly, so
+  a confirmation outranks every measurement — including a later one of ours that disagrees, which
+  is why a confirmed track is never re-fetched or re-shifted.
+- **How far in it was confirmed is recorded, because drift only shows up late.** A track confirmed
+  two minutes in has not been cleared of drift; one confirmed near the end has. Without the
+  position the weaker claim reads as the stronger one.
+- **Anyone may confirm and anyone may undo it, and the row says who did.** A wrong confirmation is
+  fixed by one click from whoever notices, which beats deciding who is allowed to.
+- **A confirmation that names a track the film no longer has is dropped, not honoured.** Ids come
+  from stream indices and a re-ingest can hand the same number to a different track.
+- **A confirmed track stops the menu searching the index.** There is nothing to interrupt anyone
+  for once somebody has settled it, so the search waits to be asked for.
+- **Nothing is claimed about a track that came out of the film.** There is no frame rate to
+  disagree with and no release to mismatch, so an unconfirmed embedded track says nothing at all.
+  A quality mark there would be inventing the one answer that matters.
+- **Silence is the ordinary answer in the picker.** Most uploads declare nothing useful. Marking
+  every one of them leaves the whole list flagged and the flags meaning nothing, so only a strong
+  claim or a real problem earns a word — and the words carry it, with colour agreeing rather than
+  standing alone.
+
 ## Telling somebody about a download
 
 - **Editing a message notifies nobody.** Discord sends no notification for an edit, so a progress

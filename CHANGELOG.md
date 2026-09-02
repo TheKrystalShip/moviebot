@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-09-02
+
+### Added
+
+- The subtitle picker. What the room already has is listed first and renders at once; what the
+  index offers is fetched underneath it, and choosing one both adds it for everyone and switches
+  the person who asked to it.
+- A track can be confirmed by whoever watched with it. That is the only ground truth there is —
+  frame rate, release name and hash are all proxies for whether a subtitle looks right on screen,
+  and a person watching is that question answered directly. A confirmation outranks every
+  measurement, including one of our own that disagrees with it.
+- A confirmation records how much of the film had been watched. Drift only shows up late, so a
+  track confirmed near the end has been cleared of it where one confirmed two minutes in has not,
+  and the menu says which.
+- A film with a confirmed track does not search the index when its menu is opened. There is
+  nothing worth interrupting anyone for once somebody has settled it, so the search waits to be
+  asked for.
+
 ## [1.9.0] - 2026-09-02
 
 ### Added

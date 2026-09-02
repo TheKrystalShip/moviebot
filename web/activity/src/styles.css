@@ -9,6 +9,7 @@
   --accent: #4cc9c0;
   --accent-dim: #2c6b66;
   --danger: #e0685c;
+  --warn: #d9a441;
   --ready: #38414c;
   --radius: 4px;
   color-scheme: dark;
@@ -501,4 +502,111 @@ body {
   background: rgba(255, 255, 255, 0.08);
   padding: 1px 6px;
   border-radius: 4px;
+}
+
+
+/* The subtitle picker.
+   Wider than the audio menu because its rows carry release names, which are long and are the
+   whole point: three rows reading "English" cannot be chosen between. */
+.mb-subs .mb-menu__popup {
+  min-width: 340px;
+  max-width: min(440px, 90vw);
+}
+
+.mb-subs .mb-menu__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mb-subs__quota {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.mb-subs__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 3px;
+}
+
+.mb-subs__row.is-busy {
+  opacity: 0.5;
+}
+
+.mb-subs__pick {
+  flex: 1;
+  min-width: 0;
+}
+
+.mb-subs__pick .mb-menu__item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Kept out of the way until it is wanted. A confirm control on every row at all times is noise
+   on the many rows nobody is going to vouch for. */
+.mb-subs__pin {
+  flex: none;
+  margin-right: 6px;
+  padding: 3px 7px;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  visibility: hidden;
+}
+
+.mb-subs__row:hover .mb-subs__pin,
+.mb-subs__pin:focus-visible,
+.mb-subs__pin.is-pinned {
+  visibility: visible;
+}
+
+.mb-subs__pin:hover {
+  color: var(--text);
+  border-color: var(--dim);
+}
+
+.mb-subs__pin.is-pinned {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+/* The words carry the meaning and the colour agrees with them, because a marker that differs only
+   by hue is one part of the room cannot read. */
+.mb-subs__note.is-good { color: var(--accent); }
+.mb-subs__note.is-warn { color: var(--warn); }
+.mb-subs__note.is-bad { color: var(--danger); }
+
+.mb-subs__message {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.mb-subs__ask {
+  margin: 2px 10px 6px;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.mb-subs__ask:hover {
+  border-color: var(--dim);
 }

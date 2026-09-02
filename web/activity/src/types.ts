@@ -37,6 +37,14 @@ export interface AudioTrack {
   uri: string;
 }
 
+/** Somebody watched the film with this track and confirmed it fits. The only ground truth there is. */
+export interface SubtitlePin {
+  pinnedBy: string;
+  pinnedAt: string;
+  /** How far in it had been watched. Drift only shows late, so a pin near the end says more. */
+  watchedFraction?: number;
+}
+
 export interface SubtitleTrack {
   id: string;
   kind: TrackKind;
@@ -48,6 +56,11 @@ export interface SubtitleTrack {
   available: boolean;
   reason?: string;
   uri?: string;
+  pin?: SubtitlePin;
+  /** Only a fetched track carries these; one that came out of the film needed nothing done to it. */
+  appliedShiftSeconds?: number;
+  alignedFraction?: number;
+  addedBy?: string;
 }
 
 /**

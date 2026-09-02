@@ -36,6 +36,12 @@ public sealed record SubtitleSearchView
 
 public sealed record AddSubtitleRequest(long FileId, string? AddedBy);
 
+/// <summary>
+/// Confirming a track fits. The position is how far in the film had been watched, because drift
+/// only shows up late: a track pinned two minutes in has not been cleared of it.
+/// </summary>
+public sealed record PinSubtitleRequest(string? PinnedBy, double? PositionSeconds);
+
 public static class SubtitleEndpoints
 {
     /// <summary>Enough candidates to choose from, few enough to read.</summary>
@@ -85,6 +91,7 @@ public static class SubtitleEndpoints
             AddSubtitleRequest request,
             TitleLibrary library,
             SubtitleStore store,
+            PinStore pins,
             OpenSubtitlesClient index,
             ILoggerFactory loggers,
             CancellationToken ct) =>
@@ -93,6 +100,16 @@ public static class SubtitleEndpoints
 
             if (library.Get(id) is not { } manifest) return Results.NotFound();
             if (request.FileId <= 0) return Results.BadRequest(new { error = "No subtitle was named." });
+
+            // Fetching a track somebody has already confirmed would re-measure and re-shift a file
+            // a person has watched and approved. A later measurement disagreeing with them is the
+            // measurement being wrong, so the existing file stands and no allowance is spent.
+            var existingId = $"os{request.FileId}";
+            if (pins.For(id).ContainsKey(existingId))
+            {
+                var already = manifest.Subtitles.FirstOrDefault(t => t.Id == existingId);
+                if (already is not null) return Results.Ok(new { track = already, alreadyPinned = true });
+            }
 
             try
             {
@@ -149,7 +166,45 @@ public static class SubtitleEndpoints
                 return Results.Json(new { error = ex.Message }, statusCode: 502);
             }
         });
+
+        app.MapPost("/api/titles/{id}/subtitles/{trackId}/pin", (
+            string id,
+            string trackId,
+            PinSubtitleRequest request,
+            TitleLibrary library,
+            PinStore pins) =>
+        {
+            if (library.Get(id) is not { } manifest) return Results.NotFound();
+            if (!PinStore.IsSafeTrackId(trackId)) return Results.NotFound();
+
+            // Only a track the film actually offers can be confirmed, so a pin can never be left
+            // pointing at something that was never there.
+            if (manifest.Subtitles.All(t => t.Id != trackId)) return Results.NotFound();
+
+            var pin = new SubtitlePin
+            {
+                PinnedBy = string.IsNullOrWhiteSpace(request.PinnedBy) ? "someone" : request.PinnedBy,
+                PinnedAt = DateTimeOffset.UtcNow,
+                WatchedFraction = Watched(request.PositionSeconds, manifest.DurationSeconds)
+            };
+
+            pins.Pin(id, trackId, pin);
+            return Results.Ok(pin);
+        });
+
+        app.MapDelete("/api/titles/{id}/subtitles/{trackId}/pin", (
+            string id, string trackId, TitleLibrary library, PinStore pins) =>
+        {
+            if (library.Get(id) is null || !PinStore.IsSafeTrackId(trackId)) return Results.NotFound();
+
+            pins.Unpin(id, trackId);
+            return Results.NoContent();
+        });
     }
+
+    /// <summary>How much of the film had been watched, or null when the position is not usable.</summary>
+    private static double? Watched(double? position, double duration) =>
+        position is > 0 && duration > 0 ? Math.Clamp(position.Value / duration, 0, 1) : null;
 
     /// <summary>
     /// Asks the narrowest question first. A hash search is exact and almost always empty; an IMDb

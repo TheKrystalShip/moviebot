@@ -4,11 +4,12 @@ import type Player from 'video.js/dist/types/player';
 
 import { environment } from '../environment';
 import { prefs } from '../prefs';
-import type { Manifest } from '../types';
+import type { Manifest, SubtitleSearch, SubtitleTrack } from '../types';
 import { buildMasterPlaylist, masterPlaylistUrl, type MasterPlaylist } from './masterPlaylist';
 import { ScrubBar } from './scrubBar';
 import { TrackMenu } from './trackMenu';
-import { audioGroups, defaultAudioId, findSubtitle, subtitleGroups } from './tracks';
+import { audioGroups, defaultAudioId, findSubtitle } from './tracks';
+import { SubtitleMenu } from './subtitleMenu';
 import { VolumeControl, amplitudeFor } from './volume';
 
 export interface FilmPlayerHooks {
@@ -19,6 +20,15 @@ export interface FilmPlayerHooks {
   onSeekIntent(seconds: number): void;
   onAudioSelected(trackId: string): void;
   onSubtitleSelected(trackId: string | null): void;
+
+  /** Costs no allowance, so the picker may call it whenever it is opened. */
+  searchSubtitles(): Promise<SubtitleSearch>;
+  /** Spends one of the day's downloads and adds the track for everyone in the room. */
+  fetchSubtitle(fileId: number): Promise<SubtitleTrack>;
+  pinSubtitle(trackId: string, positionSeconds: number): Promise<void>;
+  unpinSubtitle(trackId: string): Promise<void>;
+  /** Re-reads the film after the room's subtitles change, so the picker sees the new list. */
+  refreshManifest(): Promise<Manifest | null>;
 }
 
 const PositionTickMs = 200;
@@ -35,7 +45,7 @@ export class FilmPlayer {
   readonly video: HTMLVideoElement;
   readonly scrub: ScrubBar;
   readonly audioMenu: TrackMenu;
-  readonly subtitleMenu: TrackMenu;
+  readonly subtitleMenu: SubtitleMenu;
 
   private readonly player: Player;
   private hls: Hls | null = null;
@@ -46,6 +56,7 @@ export class FilmPlayer {
   private subtitleTrackEl: HTMLTrackElement | null = null;
   private subtitleUrl: string | null = null;
   private subtitleToken = 0;
+  private subtitleId: string | null = null;
   private ticker: number | null = null;
   private readonly volume: VolumeControl;
 
@@ -73,14 +84,23 @@ export class FilmPlayer {
       },
       lock
     );
-    this.subtitleMenu = new TrackMenu(
-      'Subtitles',
-      (id) => {
+    this.subtitleMenu = new SubtitleMenu({
+      select: (id) => {
         void this.selectSubtitle(id);
         this.hooks.onSubtitleSelected(id);
       },
-      lock
-    );
+      toggle: lock,
+      search: () => this.hooks.searchSubtitles(),
+      fetch: (fileId) => this.hooks.fetchSubtitle(fileId).then(async (track) => {
+        await this.refreshSubtitles();
+        return track;
+      }),
+      // The moment matters: drift only shows up late, so what is recorded is how much of the film
+      // this person had actually watched before saying the track fits.
+      pin: (trackId) =>
+        this.hooks.pinSubtitle(trackId, this.video.currentTime).then(() => this.refreshSubtitles()),
+      unpin: (trackId) => this.hooks.unpinSubtitle(trackId).then(() => this.refreshSubtitles())
+    });
 
     this.player = videojs(this.video, {
       controls: true,
@@ -139,7 +159,8 @@ export class FilmPlayer {
     const subtitleId = stored.subtitleTrackId ?? null;
 
     this.audioMenu.setGroups(audioGroups(manifest), audioId ?? null);
-    this.subtitleMenu.setGroups(subtitleGroups(manifest), subtitleId);
+    this.subtitleId = subtitleId;
+    this.subtitleMenu.setTracks(manifest.subtitles, subtitleId);
 
     // A source that never reaches metadata would otherwise leave the caller waiting forever,
     // so the wait ends either way and the error path reports what happened.
@@ -195,6 +216,21 @@ export class FilmPlayer {
     this.hooks.onReady();
   }
 
+  /**
+   * Re-reads the film's tracks after the room's subtitles change.
+   *
+   * Only the subtitle list is taken. Everything else about the manifest is the transcode's to
+   * report, and adopting a fresh copy wholesale would quietly move the head a seek is judged
+   * against as a side effect of somebody picking a subtitle.
+   */
+  private async refreshSubtitles(): Promise<void> {
+    const fresh = await this.hooks.refreshManifest();
+    if (fresh === null || this.manifest === null || fresh.id !== this.manifest.id) return;
+
+    this.manifest.subtitles = fresh.subtitles;
+    this.subtitleMenu.setTracks(fresh.subtitles, this.subtitleId);
+  }
+
   /** How far the transcode has reached, or null once the whole film is written. */
   setTranscodeHead(seconds: number | null): void {
     this.scrub.setReady(seconds);
@@ -233,8 +269,9 @@ export class FilmPlayer {
     if (!manifest) return;
 
     const token = ++this.subtitleToken;
+    this.subtitleId = trackId;
     this.clearSubtitle();
-    this.subtitleMenu.setGroups(subtitleGroups(manifest), trackId);
+    this.subtitleMenu.setTracks(manifest.subtitles, trackId);
 
     const track = findSubtitle(manifest, trackId);
     if (!track || !track.available || track.uri === undefined) return;

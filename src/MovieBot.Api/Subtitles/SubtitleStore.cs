@@ -129,6 +129,9 @@ public sealed class SubtitleStore(string root, ILogger<SubtitleStore> logger)
         HearingImpaired = subtitle.HearingImpaired,
         Source = SubtitleSource.Sidecar,
         Available = true,
-        Uri = UriPrefix + subtitle.Id + ".vtt"
+        Uri = UriPrefix + subtitle.Id + ".vtt",
+        AppliedShiftSeconds = subtitle.AppliedShiftSeconds,
+        AlignedFraction = subtitle.AlignedFraction,
+        AddedBy = subtitle.AddedBy
     };
 }

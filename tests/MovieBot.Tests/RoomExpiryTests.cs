@@ -29,6 +29,7 @@ public sealed class RoomExpiryTests : IDisposable
         var library = new TitleLibrary(
             _mediaRoot,
             new SubtitleStore(Path.Combine(_mediaRoot, "..", "subtitles"), NullLogger<SubtitleStore>.Instance),
+            new PinStore(Path.Combine(_mediaRoot, "..", "subtitles"), NullLogger<PinStore>.Instance),
             NullLogger<TitleLibrary>.Instance);
         _sessions = new SessionStore(library, _clock);
     }

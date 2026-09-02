@@ -23,7 +23,10 @@ public sealed record TitleSummary
 /// costs nothing next to being wrong.
 /// </summary>
 public sealed class TitleLibrary(
-    string mediaRoot, Subtitles.SubtitleStore subtitles, ILogger<TitleLibrary> logger)
+    string mediaRoot,
+    Subtitles.SubtitleStore subtitles,
+    Subtitles.PinStore pins,
+    ILogger<TitleLibrary> logger)
 {
     private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
 
@@ -95,14 +98,18 @@ public sealed class TitleLibrary(
     {
         var fetched = subtitles.For(id);
         var embedded = manifest.Subtitles.Where(t => t.Source != SubtitleSource.Sidecar).ToList();
+        var pinned = pins.For(id);
 
-        if (fetched.Count == 0)
-        {
-            if (embedded.Count != manifest.Subtitles.Count) manifest.Subtitles = embedded;
-            return manifest;
-        }
+        List<SubtitleTrack> tracks = fetched.Count == 0
+            ? embedded
+            : [.. embedded, .. fetched.Select(Subtitles.SubtitleStore.AsTrack)];
 
-        manifest.Subtitles = [.. embedded, .. fetched.Select(Subtitles.SubtitleStore.AsTrack)];
+        // A pin naming a track that is no longer here is simply not applied, which is how a stale
+        // one disappears rather than attaching itself to whatever now holds that id.
+        manifest.Subtitles = pinned.Count == 0
+            ? tracks
+            : tracks.Select(t => pinned.TryGetValue(t.Id, out var pin) ? t with { Pin = pin } : t).ToList();
+
         return manifest;
     }
 

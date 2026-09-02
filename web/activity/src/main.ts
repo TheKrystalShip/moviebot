@@ -61,8 +61,23 @@ async function boot(): Promise<void> {
     },
     onSubtitleSelected: (trackId) => {
       if (manifest) prefs.setSubtitleTrack(manifest.id, trackId);
-    }
+    },
+
+    // Fetching and confirming both act on the film rather than on the viewer: one person doing
+    // either does it for the whole room. Which track each person then watches with stays theirs.
+    searchSubtitles: () => api.searchSubtitles(requireTitle()),
+    fetchSubtitle: async (fileId) =>
+      (await api.addSubtitle(requireTitle(), fileId, identity.displayName)).track,
+    pinSubtitle: (trackId, positionSeconds) =>
+      api.pinSubtitle(requireTitle(), trackId, identity.displayName, positionSeconds).then(() => undefined),
+    unpinSubtitle: (trackId) => api.unpinSubtitle(requireTitle(), trackId),
+    refreshManifest: () => (manifest === null ? Promise.resolve(null) : api.manifest(manifest.id))
   });
+
+  function requireTitle(): string {
+    if (manifest === null) throw new Error('No film is loaded.');
+    return manifest.id;
+  }
 
   controller = new SyncController(player.video, hub.clock, {
     play: (at) => void hub.play(at),

@@ -218,6 +218,29 @@ public sealed record AudioTrack
     public required string Uri { get; init; }
 }
 
+/// <summary>
+/// Somebody watched a film with this track and said it was right.
+///
+/// It is the only ground truth there is. Frame rate, release name and hash are all proxies for
+/// whether a subtitle looks right on screen; a person watching is that question answered directly,
+/// so a pin outranks every measurement including our own.
+/// </summary>
+public sealed record SubtitlePin
+{
+    public required string PinnedBy { get; init; }
+
+    public required DateTimeOffset PinnedAt { get; init; }
+
+    /// <summary>
+    /// How far into the film it had been watched when it was pinned, as a fraction.
+    ///
+    /// Drift only shows up late. A track pinned two minutes in has not been cleared of it; one
+    /// pinned near the end has. Without this the two are indistinguishable, and the weaker claim
+    /// would be read as the stronger one.
+    /// </summary>
+    public double? WatchedFraction { get; init; }
+}
+
 public sealed record SubtitleTrack
 {
     public required string Id { get; init; }
@@ -236,4 +259,19 @@ public sealed record SubtitleTrack
 
     /// <summary>Null when <see cref="Available"/> is false.</summary>
     public string? Uri { get; init; }
+
+    /// <summary>Set once somebody has watched with this track and confirmed it fits.</summary>
+    public SubtitlePin? Pin { get; init; }
+
+    /// <summary>
+    /// The offset measured against a track from the film and already applied to this one. Only a
+    /// fetched track carries it; one that came out of the file needed nothing done to it.
+    /// </summary>
+    public double? AppliedShiftSeconds { get; init; }
+
+    /// <summary>How much of it lined up at that offset. Null when nothing could be measured.</summary>
+    public double? AlignedFraction { get; init; }
+
+    /// <summary>Who fetched it, for a track that came from outside the film.</summary>
+    public string? AddedBy { get; init; }
 }

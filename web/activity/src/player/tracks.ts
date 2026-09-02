@@ -19,16 +19,6 @@ const GroupTitles: Record<TrackKind, string> = {
   commentary: 'Commentary'
 };
 
-const Reasons: Record<string, string> = {
-  'needs-ocr': 'picture-based, needs OCR'
-};
-
-function reasonText(track: SubtitleTrack): string | undefined {
-  if (track.available) return undefined;
-  const reason = track.reason ?? 'unavailable';
-  return Reasons[reason] ?? reason;
-}
-
 function group<T extends { kind: TrackKind }>(tracks: T[], kind: TrackKind): T[] {
   return tracks.filter((track) => track.kind === kind);
 }
@@ -43,28 +33,8 @@ function audioEntry(track: AudioTrack): TrackEntry {
   return { id: track.id, label: track.label, available: true };
 }
 
-function subtitleEntry(track: SubtitleTrack): TrackEntry {
-  return {
-    id: track.id,
-    label: track.forced ? `${track.label} (forced)` : track.label,
-    detail: reasonText(track),
-    available: track.available
-  };
-}
-
 export function audioGroups(manifest: Manifest): TrackGroup[] {
   return grouped(manifest.audio, audioEntry);
-}
-
-/**
- * A track that cannot be played is listed rather than dropped: a language simply missing from
- * the menu reads as a bug, while one shown with its reason reads as an answer.
- */
-export function subtitleGroups(manifest: Manifest): TrackGroup[] {
-  return [
-    { title: '', entries: [{ id: null, label: 'Off', available: true }] },
-    ...grouped(manifest.subtitles, subtitleEntry)
-  ];
 }
 
 export function defaultAudioId(manifest: Manifest): string | undefined {

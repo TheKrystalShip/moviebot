@@ -23,10 +23,15 @@ builder.Services.AddSingleton(sp => new SubtitleStore(
     sp.GetRequiredService<IConfiguration>()["Subtitles:Root"]
         ?? Path.Combine(Directory.GetCurrentDirectory(), "subtitles"),
     sp.GetRequiredService<ILogger<SubtitleStore>>()));
+builder.Services.AddSingleton(sp => new PinStore(
+    sp.GetRequiredService<IConfiguration>()["Subtitles:Root"]
+        ?? Path.Combine(Directory.GetCurrentDirectory(), "subtitles"),
+    sp.GetRequiredService<ILogger<PinStore>>()));
 builder.Services.AddSingleton(sp => new TitleLibrary(
     sp.GetRequiredService<IConfiguration>()["Media:Root"]
         ?? Path.Combine(Directory.GetCurrentDirectory(), "media"),
     sp.GetRequiredService<SubtitleStore>(),
+    sp.GetRequiredService<PinStore>(),
     sp.GetRequiredService<ILogger<TitleLibrary>>()));
 builder.Services.AddSingleton<SessionStore>();
 
