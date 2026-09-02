@@ -160,7 +160,7 @@ export class FilmPlayer {
 
     this.audioMenu.setGroups(audioGroups(manifest), audioId ?? null);
     this.subtitleId = subtitleId;
-    this.subtitleMenu.setTracks(manifest.subtitles, subtitleId);
+    this.subtitleMenu.setTracks(manifest.subtitles, subtitleId, manifest.otherLanguages ?? []);
 
     // A source that never reaches metadata would otherwise leave the caller waiting forever,
     // so the wait ends either way and the error path reports what happened.
@@ -228,7 +228,7 @@ export class FilmPlayer {
     if (fresh === null || this.manifest === null || fresh.id !== this.manifest.id) return;
 
     this.manifest.subtitles = fresh.subtitles;
-    this.subtitleMenu.setTracks(fresh.subtitles, this.subtitleId);
+    this.subtitleMenu.setTracks(fresh.subtitles, this.subtitleId, fresh.otherLanguages ?? []);
   }
 
   /** How far the transcode has reached, or null once the whole film is written. */
@@ -271,7 +271,7 @@ export class FilmPlayer {
     const token = ++this.subtitleToken;
     this.subtitleId = trackId;
     this.clearSubtitle();
-    this.subtitleMenu.setTracks(manifest.subtitles, trackId);
+    this.subtitleMenu.setTracks(manifest.subtitles, trackId, manifest.otherLanguages ?? []);
 
     const track = findSubtitle(manifest, trackId);
     if (!track || !track.available || track.uri === undefined) return;

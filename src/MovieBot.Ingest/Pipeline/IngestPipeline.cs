@@ -42,19 +42,36 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         var dynamicRange = TrackClassifier.DescribeDynamicRange(video);
         var toneMap = options.ForceToneMap ?? TrackClassifier.NeedsToneMapping(dynamicRange);
 
-        var textSubtitles = subtitleStreams.Where(TrackClassifier.IsTextSubtitle).ToList();
-        var bitmapSubtitles = subtitleStreams.Where(TrackClassifier.IsBitmapSubtitle).ToList();
+        var allText = subtitleStreams.Where(TrackClassifier.IsTextSubtitle).ToList();
+        var allBitmap = subtitleStreams.Where(TrackClassifier.IsBitmapSubtitle).ToList();
+
+        var textSubtitles = allText
+            .Where(t => LanguageFilter.Wanted(t.Language, options.SubtitleLanguages)).ToList();
+        var bitmapSubtitles = allBitmap
+            .Where(t => LanguageFilter.Wanted(t.Language, options.SubtitleLanguages)).ToList();
+
+        // Named rather than merely counted: a language absent from a film that plainly has it
+        // reads as a fault, and this is what lets the menu answer that in one line.
+        var otherLanguages = allText.Concat(allBitmap)
+            .Where(t => !LanguageFilter.Wanted(t.Language, options.SubtitleLanguages))
+            .Select(t => LanguageFilter.Normalise(t.Language))
+            .Where(l => l.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
 
         log($"  {title}");
         log($"  {video.Width}x{video.Height} {video.CodecName} {dynamicRange}"
             + $" · {TimeSpan.FromSeconds(probe.Format.DurationSeconds):h\\:mm\\:ss}"
             + $" · tone-map {(toneMap ? "on" : "off")}");
         log($"  {audioStreams.Count} audio, {textSubtitles.Count} text subtitles"
-            + $"{(bitmapSubtitles.Count > 0 ? $", {bitmapSubtitles.Count} bitmap (need OCR)" : "")}");
+            + $"{(bitmapSubtitles.Count > 0 ? $", {bitmapSubtitles.Count} bitmap (need OCR)" : "")}"
+            + $"{(otherLanguages.Count > 0 ? $", {otherLanguages.Count} other languages left out" : "")}");
 
         var manifest = BuildManifest(id, title, probe, video, dynamicRange,
             audioStreams, textSubtitles, bitmapSubtitles, attachedPicture is not null,
             sourceStillArriving: options.Availability is not null);
+        manifest.OtherLanguages = otherLanguages;
 
         if (options.DryRun)
         {

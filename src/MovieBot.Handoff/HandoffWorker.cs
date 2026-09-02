@@ -119,6 +119,7 @@ public sealed class HandoffWorker(
             Id = id,
             Title = title,
             ImdbId = download.Tags.Select(TorrentTags.ReadImdb).FirstOrDefault(i => i is not null),
+            SubtitleLanguages = _options.SubtitleLanguages,
             Availability = availability,
 
             // Reaching here means the previous attempt did not finish, since the tag is removed

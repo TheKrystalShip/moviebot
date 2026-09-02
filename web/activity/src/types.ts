@@ -120,6 +120,8 @@ export interface Manifest {
   poster?: string;
   film?: FilmIdentity;
   source?: SourceFingerprint;
+  /** Languages the source carries that were not extracted, so an absent one is explained. */
+  otherLanguages?: string[];
   /** The HLS master playlist binding audio to video, when the ingest wrote one. */
   master?: string;
   video: VideoInfo;

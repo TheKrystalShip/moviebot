@@ -93,6 +93,15 @@ public sealed class Manifest
     /// cannot have its subtitles demuxed until it has.
     /// </summary>
     public required IReadOnlyList<SubtitleTrack> Subtitles { get; set; }
+
+    /// <summary>
+    /// Languages the source carries that were not extracted, as a single line the menu can show.
+    ///
+    /// A room that reads one language does not want thirty rows, but a language simply missing
+    /// from a film that plainly has it reads as a fault. Naming what was left behind answers that
+    /// in one row instead of thirty, and says what is there to go back for.
+    /// </summary>
+    public IReadOnlyList<string> OtherLanguages { get; set; } = [];
 }
 
 /// <summary>

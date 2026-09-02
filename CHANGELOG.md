@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-09-02
+
+### Added
+
+- Only the subtitle languages a room reads are extracted from a download. A disc carries thirty
+  and the three rows anybody wants cannot be found among forty-eight, so the hand-off keeps English
+  and the ingest run by hand still keeps everything.
+- What was left behind is named in one line rather than thirty rows, so a language missing from a
+  film that plainly has it is answered instead of reading as a fault.
+
 ## [1.10.0] - 2026-09-02
 
 ### Added

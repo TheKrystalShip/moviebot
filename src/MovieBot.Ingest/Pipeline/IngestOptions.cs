@@ -25,6 +25,16 @@ public sealed record IngestOptions
     public string? ImdbId { get; init; }
 
     /// <summary>
+    /// Which subtitle languages to extract. Empty keeps every one of them, which is what a run by
+    /// hand against an unfamiliar film should do.
+    ///
+    /// A track with no language tag survives whatever this says. Releases ship one untagged
+    /// subtitle often enough, it is usually the one worth having, and dropping it would leave a
+    /// film with none and nothing to explain it.
+    /// </summary>
+    public IReadOnlyList<string> SubtitleLanguages { get; init; } = [];
+
+    /// <summary>
     /// Target video bitrate. 9 Mbps H.264 High is generous for a 1080p film and, on a symmetric
     /// gigabit link, there is no reason to go lower and little visible reason to go higher.
     /// </summary>

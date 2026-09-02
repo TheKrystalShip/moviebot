@@ -98,6 +98,17 @@ These are measured against real Blu-ray rips, not assumed. Changing one means re
   and the hash covers the last 64 KiB of the file. Space for a download is reserved before the bytes
   land, so hashing an arriving source reads zeroes and returns a confident wrong answer that nothing
   downstream can question. It is computed where the subtitles are, after the file is complete.
+- **Only the languages a room reads are extracted, and what is left behind is named.** A disc
+  carries thirty subtitle languages and the three anybody wants cannot be found among forty-eight
+  rows. They are not a resource problem — every track comes out of a single demux pass either way —
+  so this is a menu decision. The languages skipped are recorded on the manifest, because one that
+  is simply absent from a film that plainly has it reads as a fault.
+- **Matching a language accepts every spelling of it.** A container writes Romanian as `rum`,
+  `ron` or `ro` depending on who muxed it, and the same holds for twenty-odd others. Matching one
+  spelling and not another keeps nothing, which produces a film with no subtitles and no error.
+- **A track with no language tag is always kept.** Releases ship one untagged subtitle often
+  enough and it is usually the one worth having; dropping it on a filter leaves a film with none
+  and nothing anywhere to explain why.
 - **Playlists are `EVENT`, not `VOD`.** That is the whole mechanism behind playback starting
   seconds in. ffmpeg appends `#EXT-X-ENDLIST` on completion, so the playlist becomes a normal
   VOD by itself.

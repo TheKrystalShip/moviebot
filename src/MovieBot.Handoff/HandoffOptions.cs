@@ -36,4 +36,16 @@ public sealed class HandoffOptions
     /// what counts at all.
     /// </summary>
     public int MinimumFilmSizeMiB { get; set; } = 200;
+
+    /// <summary>
+    /// Which subtitle languages to keep from a download. Empty keeps every one of them.
+    ///
+    /// A disc carries thirty and a room reads one. They cost nothing to extract — they come out of
+    /// a single pass either way — but a menu forty-eight rows long is one in which the three rows
+    /// anybody wants cannot be found.
+    ///
+    /// Widening this later is recoverable: the source file stays on disk for seeding, so a
+    /// language left behind can be extracted again from it.
+    /// </summary>
+    public string[] SubtitleLanguages { get; set; } = ["eng"];
 }

@@ -37,6 +37,7 @@ export class SubtitleMenu {
   private readonly popup: HTMLElement;
 
   private tracks: SubtitleTrack[] = [];
+  private others: string[] = [];
   private selected: string | null = null;
   private found: SubtitleSearch | null = null;
   private searching = false;
@@ -73,9 +74,10 @@ export class SubtitleMenu {
     });
   }
 
-  setTracks(tracks: SubtitleTrack[], selected: string | null): void {
+  setTracks(tracks: SubtitleTrack[], selected: string | null, otherLanguages: string[] = []): void {
     this.tracks = tracks;
     this.selected = selected;
+    this.others = otherLanguages;
     this.render();
   }
 
@@ -172,6 +174,15 @@ export class SubtitleMenu {
 
       if (track.available) row.appendChild(this.pinControl(track));
       section.appendChild(row);
+    }
+
+    // A film that plainly carries thirty languages and offers three would otherwise read as
+    // broken. One line answers it, where thirty rows would be the thing being avoided.
+    if (this.others.length > 0) {
+      const line = this.message(
+        `${this.others.length} other ${this.others.length === 1 ? 'language' : 'languages'} in the source, not extracted`);
+      line.title = this.others.join(', ');
+      section.appendChild(line);
     }
 
     return section;
