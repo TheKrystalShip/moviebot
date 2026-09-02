@@ -54,7 +54,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
         var manifest = BuildManifest(id, title, probe, video, dynamicRange,
             audioStreams, textSubtitles, bitmapSubtitles, attachedPicture is not null,
-            deferSubtitles: options.Availability is not null);
+            sourceStillArriving: options.Availability is not null);
 
         if (options.DryRun)
         {
@@ -128,6 +128,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                 }
 
                 manifest.Subtitles = Advertise(manifest.Subtitles, textSubtitles);
+                manifest.Source = Fingerprint(video);
             }
 
             manifest.Status = TitleStatus.Ready;
@@ -426,7 +427,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
     private Manifest BuildManifest(
         string id, string title, ProbeResult probe, ProbeStream video, string dynamicRange,
         List<ProbeStream> audioStreams, List<ProbeStream> textSubtitles,
-        List<ProbeStream> bitmapSubtitles, bool hasPoster, bool deferSubtitles = false)
+        List<ProbeStream> bitmapSubtitles, bool hasPoster, bool sourceStillArriving = false)
     {
         var audio = new List<AudioTrack>();
         var primaryAssigned = false;
@@ -467,9 +468,9 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                 // A track is advertised only once its file is whole. Offering one that is still
                 // being written gives subtitles that stop partway through the film, which is the
                 // reason they are not extracted alongside the transcode in the first place.
-                Available = !deferSubtitles,
-                Reason = deferSubtitles ? "extracting" : null,
-                Uri = deferSubtitles ? null : SubtitleFileName(stream)
+                Available = !sourceStillArriving,
+                Reason = sourceStillArriving ? "extracting" : null,
+                Uri = sourceStillArriving ? null : SubtitleFileName(stream)
             });
         }
 
@@ -513,6 +514,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                 ]
             },
             Audio = audio,
+            Source = sourceStillArriving ? null : Fingerprint(video),
             Subtitles = subtitles
         };
     }
@@ -532,6 +534,24 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         }).ToList();
 
     private static string SubtitleFileName(ProbeStream stream) => $"s{stream.Index}.vtt";
+
+    /// <summary>
+    /// What a subtitle found elsewhere is matched against. Read from the source rather than from
+    /// the transcode, because that is what an uploaded subtitle was timed to.
+    /// </summary>
+    private SourceFingerprint? Fingerprint(ProbeStream video)
+    {
+        var file = new FileInfo(options.SourcePath);
+        if (!file.Exists) return null;
+
+        return new SourceFingerprint
+        {
+            Release = Path.GetFileNameWithoutExtension(options.SourcePath),
+            SizeBytes = file.Length,
+            MovieHash = SourceHash.Compute(options.SourcePath),
+            FrameRate = video.FrameRate()
+        };
+    }
 
     private static int ParseBitrate(string value)
     {

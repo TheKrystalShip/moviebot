@@ -73,6 +73,13 @@ public sealed class Manifest
     /// </summary>
     public string? Master { get; init; }
 
+    /// <summary>
+    /// Settable for the same reason as <see cref="Subtitles"/>, and null until it is known. A
+    /// source that is still arriving cannot be fingerprinted: the hash covers the end of the file,
+    /// and the space reserved for the end reads as zeroes until it lands.
+    /// </summary>
+    public SourceFingerprint? Source { get; set; }
+
     public required VideoInfo Video { get; init; }
     public required IReadOnlyList<AudioTrack> Audio { get; init; }
     /// <summary>
@@ -81,6 +88,35 @@ public sealed class Manifest
     /// cannot have its subtitles demuxed until it has.
     /// </summary>
     public required IReadOnlyList<SubtitleTrack> Subtitles { get; set; }
+}
+
+/// <summary>
+/// What identifies the file a title was made from, kept so a subtitle found elsewhere can be
+/// matched against it long after the source itself is gone.
+///
+/// Each field answers something a viewer would otherwise have to discover by watching: whether a
+/// subtitle was timed against this exact release, and whether it will drift.
+/// </summary>
+public sealed record SourceFingerprint
+{
+    /// <summary>The release the file arrived as, which is what an uploaded subtitle names.</summary>
+    public required string Release { get; init; }
+
+    public required long SizeBytes { get; init; }
+
+    /// <summary>
+    /// OpenSubtitles' hash of the source: its length folded together with its first and last 64 KiB.
+    /// Subtitles are uploaded against it, so a match means timed against this file rather than
+    /// against another cut of the same film. Null for a source too small to hash.
+    /// </summary>
+    public string? MovieHash { get; init; }
+
+    /// <summary>
+    /// Frames per second of the source. A subtitle timed at a different rate drifts further out of
+    /// sync the longer the film runs, which is the fault people describe as the second half being
+    /// worse than the first.
+    /// </summary>
+    public required double FrameRate { get; init; }
 }
 
 public sealed record VideoInfo

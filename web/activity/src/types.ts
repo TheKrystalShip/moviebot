@@ -50,6 +50,17 @@ export interface SubtitleTrack {
   uri?: string;
 }
 
+/**
+ * What the film was made from, used to judge whether a subtitle found elsewhere was timed against
+ * this exact release or against some other one. Absent while a source is still arriving.
+ */
+export interface SourceFingerprint {
+  release: string;
+  sizeBytes: number;
+  movieHash?: string;
+  frameRate: number;
+}
+
 export interface Manifest {
   id: string;
   title: string;
@@ -58,6 +69,7 @@ export interface Manifest {
   headSeconds?: number;
   error?: string;
   poster?: string;
+  source?: SourceFingerprint;
   /** The HLS master playlist binding audio to video, when the ingest wrote one. */
   master?: string;
   video: VideoInfo;

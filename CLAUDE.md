@@ -93,6 +93,11 @@ These are measured against real Blu-ray rips, not assumed. Changing one means re
   strict pass already repairs everything a looser one would, and it would cost the Portuguese and
   Romanian tracks it currently leaves untouched: the characters a looser pass would act on are the
   ones those languages are spelled with.
+- **The source is fingerprinted once it is whole, never while it is arriving.** Its release name,
+  size, frame rate and OpenSubtitles hash are what an externally found subtitle is judged against,
+  and the hash covers the last 64 KiB of the file. Space for a download is reserved before the bytes
+  land, so hashing an arriving source reads zeroes and returns a confident wrong answer that nothing
+  downstream can question. It is computed where the subtitles are, after the file is complete.
 - **Playlists are `EVENT`, not `VOD`.** That is the whole mechanism behind playback starting
   seconds in. ffmpeg appends `#EXT-X-ENDLIST` on completion, so the playlist becomes a normal
   VOD by itself.
