@@ -31,6 +31,8 @@ const DwellSlopPx = 4;
 const LaneWindowSeconds = 180;
 const LaneTickSeconds = 10;
 const LaneLabelSeconds = 30;
+/** Narrower than this and a frame is too small to recognise a scene in, whatever the sheet holds. */
+const LaneNarrowestFramePx = 90;
 /** Below this the bar is already precise enough that a second bar would only be in the way. */
 const LaneShortestFilmSeconds = 240;
 
@@ -50,7 +52,8 @@ export class ScrubBar {
   private readonly marks: HTMLElement;
   private readonly lane: HTMLElement;
   private readonly laneTrack: HTMLElement;
-  private readonly laneReady: HTMLElement;
+  private readonly laneStrip: HTMLElement;
+  private readonly laneUnready: HTMLElement;
   private readonly lanePlayed: HTMLElement;
   private readonly laneTicks: HTMLElement;
   private readonly laneScale: HTMLElement;
@@ -63,6 +66,7 @@ export class ScrubBar {
   private dragSeconds: number | null = null;
   private chapters: Chapter[] = [];
   private strip: ThumbnailStrip | null = null;
+  private stripUrl: string | null = null;
   private showRemaining = false;
   private laneFrom = 0;
   private laneTo = 0;
@@ -96,8 +100,9 @@ export class ScrubBar {
         </div>
         <div class="mb-lane" aria-hidden="true" hidden>
           <div class="mb-lane__track">
-            <div class="mb-lane__ready"></div>
+            <div class="mb-lane__strip"></div>
             <div class="mb-lane__played"></div>
+            <div class="mb-lane__unready" hidden></div>
             <div class="mb-lane__ticks"></div>
             <div class="mb-lane__handle" hidden></div>
             <div class="mb-lane__caret" hidden></div>
@@ -121,7 +126,8 @@ export class ScrubBar {
     this.marks = this.el.querySelector('.mb-scrub__marks') as HTMLElement;
     this.lane = this.el.querySelector('.mb-lane') as HTMLElement;
     this.laneTrack = this.el.querySelector('.mb-lane__track') as HTMLElement;
-    this.laneReady = this.el.querySelector('.mb-lane__ready') as HTMLElement;
+    this.laneStrip = this.el.querySelector('.mb-lane__strip') as HTMLElement;
+    this.laneUnready = this.el.querySelector('.mb-lane__unready') as HTMLElement;
     this.lanePlayed = this.el.querySelector('.mb-lane__played') as HTMLElement;
     this.laneTicks = this.el.querySelector('.mb-lane__ticks') as HTMLElement;
     this.laneScale = this.el.querySelector('.mb-lane__scale') as HTMLElement;
@@ -175,6 +181,7 @@ export class ScrubBar {
   /** The sheet of preview frames, and where it is served from. */
   setThumbnails(strip: ThumbnailStrip | null, url: string | null): void {
     this.strip = strip;
+    this.stripUrl = url;
 
     if (strip === null || url === null) {
       this.previewFrame.hidden = true;
@@ -258,7 +265,7 @@ export class ScrubBar {
    * better answer than explaining it after.
    */
   private showPreview(clientX: number, over: HTMLElement = this.track, from = 0,
-                      to = this.durationSeconds): void {
+                      to = this.durationSeconds, withFrame = true): void {
     if (this.durationSeconds <= 0) return;
 
     const box = over.getBoundingClientRect();
@@ -272,7 +279,10 @@ export class ScrubBar {
     this.previewChapter.textContent = chapter?.title ?? '';
     this.previewChapter.hidden = chapter?.title === undefined;
 
-    if (this.strip !== null) {
+    // The lane draws its own frames, and a second copy of the nearest one laid over them hides the
+    // very thing somebody opened the lane to look at.
+    this.previewFrame.hidden = true;
+    if (this.strip !== null && withFrame) {
       // The window over the sheet, rather than a frame fetched for the moment under the pointer.
       const index = Math.min(this.strip.count - 1, Math.max(0, Math.floor(at / this.strip.intervalSeconds)));
       const column = index % this.strip.columns;
@@ -400,8 +410,24 @@ export class ScrubBar {
 
     this.laneFrom = Math.min(this.durationSeconds - span, Math.max(0, centre - span / 2));
     this.laneTo = this.laneFrom + span;
+    this.place();
+    this.renderLaneStrip();
     this.renderLaneScale();
     this.renderLane();
+  }
+
+  /**
+   * Puts the lane over the part of the bar it is magnifying. It is narrower than the bar — a strip
+   * of frames across a whole screen is a wall rather than a thing to read — so where it sits says
+   * which minutes of the film are in it.
+   */
+  private place(): void {
+    const trackWidth = this.track.clientWidth;
+    const laneWidth = this.lane.offsetWidth;
+    const centre = ((this.laneFrom + this.laneTo) / 2 / this.durationSeconds) * trackWidth;
+
+    this.lane.style.left =
+      `${Math.min(trackWidth - laneWidth, Math.max(0, centre - laneWidth / 2))}px`;
   }
 
   private closeLane(): void {
@@ -443,7 +469,7 @@ export class ScrubBar {
   private overLane(clientX: number): void {
     this.laneCaret.hidden = true;
     this.movePreview(this.lane);
-    this.showPreview(clientX, this.laneTrack, this.laneFrom, this.laneTo);
+    this.showPreview(clientX, this.laneTrack, this.laneFrom, this.laneTo, false);
   }
 
   /** The lane's fills and its playhead, which are the bar's own drawn over a minute of it. */
@@ -454,12 +480,64 @@ export class ScrubBar {
     const place = (at: number) =>
       `${Math.min(100, Math.max(0, ((at - this.laneFrom) / span) * 100))}%`;
 
-    this.laneReady.style.width = this.readySeconds === null ? '100%' : place(this.readySeconds);
     this.lanePlayed.style.width = place(this.shown);
+
+    // The part of the window the transcode has not written, which a seek into is refused.
+    this.laneUnready.hidden = this.readySeconds === null || this.readySeconds >= this.laneTo;
+    if (!this.laneUnready.hidden) this.laneUnready.style.left = place(this.readySeconds ?? 0);
 
     const inside = this.shown >= this.laneFrom && this.shown <= this.laneTo;
     this.laneHandle.hidden = !inside;
     if (inside) this.laneHandle.style.left = place(this.shown);
+  }
+
+  /**
+   * The frames of the window, side by side.
+   *
+   * The sheet holds one frame every twenty or thirty seconds, so this is a sample of the window
+   * rather than every moment in it — which is what a filmstrip is. It is the reason the lane is
+   * worth opening: a ruler says which second is under the pointer, and only a picture says whether
+   * that second is the one somebody is looking for.
+   */
+  private renderLaneStrip(): void {
+    this.laneStrip.replaceChildren();
+
+    const strip = this.strip;
+    const width = this.laneTrack.clientWidth;
+    if (strip === null || this.stripUrl === null || width <= 0) {
+      this.laneTrack.style.removeProperty('height');
+      return;
+    }
+
+    const span = this.laneTo - this.laneFrom;
+    // As many as the sheet actually has in the window. Drawing more only repeats one, and drawing
+    // fewer throws away the only frames there are.
+    const count = Math.max(3, Math.min(8,
+      Math.min(Math.round(span / strip.intervalSeconds), Math.floor(width / LaneNarrowestFramePx))));
+    const cell = width / count;
+    const cellHeight = Math.round((cell * strip.height) / strip.width);
+
+    // The track is as tall as the frames in it: the sheet's shape decides this, not a number here
+    // that would letterbox one aspect ratio to suit another.
+    this.laneTrack.style.height = `${cellHeight}px`;
+
+    for (let i = 0; i < count; i += 1) {
+      const at = this.laneFrom + ((i + 0.5) / count) * span;
+      const index = Math.min(strip.count - 1,
+        Math.max(0, Math.floor(at / strip.intervalSeconds)));
+
+      const frame = document.createElement('div');
+      frame.className = 'mb-lane__frame';
+      frame.style.left = `${i * cell}px`;
+      frame.style.width = `${cell}px`;
+      frame.style.height = `${cellHeight}px`;
+      frame.style.backgroundImage = `url("${this.stripUrl}")`;
+      frame.style.backgroundSize = `${strip.columns * cell}px ${strip.rows * cellHeight}px`;
+      frame.style.backgroundPosition =
+        `-${(index % strip.columns) * cell}px -${Math.floor(index / strip.columns) * cellHeight}px`;
+
+      this.laneStrip.appendChild(frame);
+    }
   }
 
   /**

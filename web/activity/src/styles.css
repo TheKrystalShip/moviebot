@@ -540,9 +540,8 @@ button.mb-scrub__time:hover {
    them is a place the pointer can be in neither. */
 .mb-lane {
   position: absolute;
-  left: 0;
-  right: 0;
   bottom: 100%;
+  width: min(920px, 55vw);
   z-index: 6;
   padding: 10px 12px 12px;
   background: var(--glass);
@@ -555,6 +554,8 @@ button.mb-scrub__time:hover {
   touch-action: none;
 }
 
+/* As tall as the frames in it, which the sheet's own shape decides. The height here is only what
+   a film with no sheet gets. */
 .mb-lane__track {
   position: relative;
   height: 34px;
@@ -563,26 +564,37 @@ button.mb-scrub__time:hover {
   overflow: hidden;
 }
 
-.mb-lane__ready,
-.mb-lane__played {
+/* The window's frames, side by side. A ruler says which second is under the pointer; only this
+   says whether it is the second somebody wanted. */
+.mb-lane__strip {
   position: absolute;
-  inset: 0 auto 0 0;
+  inset: 0;
   pointer-events: none;
 }
 
-/* Only while there is a difference between the film's length and how much of it has been written.
-   Once the whole thing exists, shading all three minutes of the window says nothing. */
-.mb-lane__ready {
-  background: var(--ready);
-  opacity: 0;
+.mb-lane__frame {
+  position: absolute;
+  top: 0;
+  background-repeat: no-repeat;
 }
 
-.mb-scrub--transcoding .mb-lane__ready {
-  opacity: 1;
-}
-
+/* Laid over the frames rather than drawn instead of them: what has been watched is still worth
+   looking at, which is the whole reason somebody is scrubbing back into it. */
 .mb-lane__played {
-  background: var(--accent-dim);
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: rgba(76, 201, 192, 0.22);
+  border-right: 1px solid var(--accent);
+  pointer-events: none;
+}
+
+/* Past the transcode head, where a seek is refused. */
+.mb-lane__unready {
+  position: absolute;
+  inset: 0 0 0 auto;
+  right: 0;
+  background: rgba(10, 12, 15, 0.66);
+  pointer-events: none;
 }
 
 .mb-lane__ticks {
@@ -591,19 +603,19 @@ button.mb-scrub__time:hover {
   pointer-events: none;
 }
 
+/* Short, and at the bottom edge. Over pictures a full-height rule is a scratch across them. */
 .mb-lane__tick {
   position: absolute;
   bottom: 0;
   width: 1px;
-  height: 8px;
-  background: rgba(255, 255, 255, 0.30);
+  height: 6px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
 }
 
-/* The ones a time is written under, drawn the full height so the number has something to sit on. */
 .mb-lane__tick.is-major {
-  top: 0;
-  height: auto;
-  background: rgba(255, 255, 255, 0.45);
+  height: 11px;
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .mb-lane__chapter {
@@ -613,6 +625,7 @@ button.mb-scrub__time:hover {
   width: 2px;
   margin-left: -1px;
   background: var(--warn);
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
 }
 
 /* Where the film actually is, when that is inside the window. */
@@ -623,6 +636,7 @@ button.mb-scrub__time:hover {
   width: 3px;
   margin-left: -1px;
   background: var(--accent);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.7);
   pointer-events: none;
 }
 
@@ -635,6 +649,7 @@ button.mb-scrub__time:hover {
   width: 2px;
   margin-left: -1px;
   background: var(--text);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
   pointer-events: none;
 }
 

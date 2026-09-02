@@ -8,13 +8,16 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- A zoom lane on the scrub bar. Resting a pointer on the bar for a moment opens a second bar above
-  it holding three minutes of the film, ruled every ten seconds and named every thirty, with the
-  chapters and the playhead that fall inside those minutes drawn where they belong. It is a
-  control of its own: clicking or dragging inside it seeks. Two hours across a bar puts several
-  seconds under every pixel, which finds a scene and cannot find a moment inside one; the lane is
-  the same materials at roughly a fiftieth of that, so a second is a distance rather than a
-  rounding error.
+- A zoom lane on the scrub bar. Resting a pointer on the bar for a moment opens a panel above it
+  holding the three minutes of film around that point as a strip of frames, ruled every ten
+  seconds and named every thirty, with the chapters and the playhead that fall inside those
+  minutes drawn where they belong. It is a control of its own: clicking or dragging inside it
+  seeks. Two hours across a bar puts several seconds under every pixel, which finds a scene and
+  cannot find a moment inside one; the lane is worth about thirty times that, so a second is a
+  distance rather than a rounding error — and the frames are what make it a magnifier rather than
+  a ruler, since only a picture says whether the second under the pointer is the wanted one.
+- It draws as many frames as the sheet actually holds for those minutes, so none is repeated and
+  none thrown away, and the strip's own shape sets how tall the lane is.
 - The bar below never changes what a pixel is worth while the lane is open, so a long move is
   never trapped behind a precise one. A caret in the lane says which part of the window the coarse
   bar is pointing at, the window moves when the pointer leaves it, and pointing away from both
