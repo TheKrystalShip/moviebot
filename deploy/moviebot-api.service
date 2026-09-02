@@ -24,10 +24,12 @@ RestartSec=5s
 
 # It serves files it is given and talks to nobody but nginx, the media root and its own state.
 #
-# The media root stays read-only. Subtitles fetched from outside are the one thing this writes,
-# and they go to their own directory: everything under the media root is regenerable from the
-# source file, a re-ingest replaces a title's directory wholesale, and the transcode rewrites the
-# manifest inside it every few seconds. None of that is true of a subtitle that cost a download.
+# The media root stays read-only. What this writes goes to its own state directory, which systemd
+# makes and hands over in the environment: subtitles fetched from outside, and the rooms. Neither
+# belongs under the media root — everything there is regenerable from the source file, a re-ingest
+# replaces a title's directory wholesale, and the transcode rewrites the manifest inside it every
+# few seconds. A subtitle that cost a download and a room somebody is sitting in are neither
+# regenerable nor replaceable.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

@@ -35,6 +35,19 @@ builder.Services.AddSingleton(sp => new TitleLibrary(
     sp.GetRequiredService<ILogger<TitleLibrary>>()));
 builder.Services.AddSingleton<SessionStore>();
 
+// What a room is watching and where it has got to exists nowhere but in memory, so a restart used
+// to take the film out from under everybody in it. The journal is the only copy.
+builder.Services.AddSingleton(sp => new SessionJournal(
+    sp.GetRequiredService<IConfiguration>()["Rooms:Journal"]
+        // The directory systemd makes for this service and hands over in the environment. A unit
+        // that names one is the only reason anything here may write outside the media root.
+        ?? Path.Combine(
+            Environment.GetEnvironmentVariable("STATE_DIRECTORY")
+                ?? Directory.GetCurrentDirectory(), "rooms.json"),
+    sp.GetRequiredService<ILogger<SessionJournal>>()));
+builder.Services.AddSingleton<SessionKeeper>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SessionKeeper>());
+
 // The subtitle index. Searching costs nothing and only a download spends the day's allowance, so
 // the client is a plain singleton with its own pacing rather than anything rationed here.
 builder.Services.AddOptions<OpenSubtitlesOptions>()
@@ -83,6 +96,10 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
 
 var app = builder.Build();
 
+// Before anything can serve a request. A room restored after the first client has joined is a
+// room that client was already told did not exist.
+app.Services.GetRequiredService<SessionKeeper>().Restore();
+
 app.UseCors();
 
 // Everything below this line is closed unless the caller came through Discord.
@@ -94,7 +111,19 @@ app.UseMiddleware<RequireTokenMiddleware>();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+// Occupancy, and no names: it is open, so what it may say is how many rooms are being watched and
+// nothing about who is in them. It is what makes a restart something that can be looked at first
+// rather than something to find out about afterwards.
+app.MapGet("/health", (SessionStore sessions) =>
+{
+    var rooms = sessions.Occupied();
+    return Results.Ok(new
+    {
+        status = "ok",
+        rooms = rooms.Count,
+        watching = rooms.Sum(r => r.Participants)
+    });
+});
 
 // The application id is not a secret — it is in every invite link and in the Activity's own URL.
 // Serving it means the player needs no build-time configuration and no rebuild when it changes.

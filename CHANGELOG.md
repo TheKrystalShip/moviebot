@@ -4,6 +4,28 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0] - 2026-09-02
+
+### Added
+
+- Rooms survive a restart. What a room is watching and where it has got to lived in memory and
+  nowhere else, so restarting the API took the film out from under everybody in it: the player
+  carried on playing against a server that no longer knew what it was, the screen said nothing was
+  playing, and seeking stopped working. Every room is now written to the state directory and read
+  back before the server begins listening, keeping its epoch and its revision — so it is the same
+  run of the same room, a connected client goes on applying pushes rather than discarding them,
+  and nothing about the restart reaches a person watching. Position needs no special handling: it
+  is a place at an instant rather than a number that ticks, so a room that was playing is still
+  playing, at the right place, however long the restart took.
+- `/health` reports how many rooms are occupied and by how many people, so a restart is something
+  that can be looked at first rather than found out about afterwards. No names: the route is open.
+
+### Fixed
+
+- A client that finds its room holding nothing offers the film it is already showing. It offered
+  the one named in the page's address, which an Activity never has — it is launched from an invite
+  that names nothing — so the recovery was inert in the only place it was needed.
+
 ## [1.19.1] - 2026-09-02
 
 ### Fixed

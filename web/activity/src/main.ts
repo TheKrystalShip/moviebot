@@ -106,12 +106,18 @@ async function boot(): Promise<void> {
     // what arrives is undefined and never the null it is compared against.
     const titleId = state.titleId ?? null;
     if (titleId !== loadedTitleId) {
+      // What this viewer was watching until this state arrived, which is the only record of it
+      // left once the room says it is showing nothing.
+      const held = loadedTitleId ?? null;
       void loadTitle(titleId);
 
-      // A room holding nothing, while the link that opened this page names a film, is a room
-      // nobody has told yet: a fresh link, or one the server has built again after forgetting it.
-      // Only the empty case, because a room already showing something was told by somebody.
-      if (launched !== null && titleId === null) void hub.loadTitle(launched);
+      // A room holding nothing, while this page is holding a film, is a room nobody has told yet:
+      // a fresh link, or one the server built again after forgetting it. The link names the film
+      // where there is a link; inside the Activity there is only an invite, which names nothing,
+      // so what this viewer already has open is the answer. Only the empty case, because a room
+      // showing something else was told by somebody.
+      const restore = launched ?? held;
+      if (restore !== null && titleId === null) void hub.loadTitle(restore);
       return;
     }
 

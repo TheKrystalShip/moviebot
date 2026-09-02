@@ -17,6 +17,13 @@ public sealed record MutationResult(SessionState State, SeekClamped? Clamped);
 public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
 {
     /// <summary>
+    /// Raised whenever a room changes, so whatever keeps rooms between runs of the server knows
+    /// there is something to keep. An event rather than a write from in here: what a store does is
+    /// decide what happened, and how often that reaches a disk is somebody else's judgement.
+    /// </summary>
+    public event Action? Changed;
+
+    /// <summary>
     /// How far short of the transcode head a clamped seek lands. Seeking exactly to the head
     /// puts the playhead on the last written segment with nothing after it, which stalls
     /// immediately; a few seconds back leaves something to play into.
@@ -129,6 +136,10 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         var entry = Entry(sessionId);
         entry.Participants[connectionId] = participant;
         entry.LastActivityUtc = clock.GetUtcNow();
+
+        // Somebody arriving puts the room's idle clock back, which is worth keeping: a room being
+        // watched must not be swept on the next start for having last been touched hours ago.
+        Changed?.Invoke();
         return [.. entry.Participants.Values];
     }
 
@@ -138,6 +149,8 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         entry.Participants.TryRemove(connectionId, out _);
         // The clock on an empty room starts when the last person leaves it.
         entry.LastActivityUtc = clock.GetUtcNow();
+
+        Changed?.Invoke();
         return [.. entry.Participants.Values];
     }
 
@@ -158,7 +171,55 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         if (_sessions.TryGetValue(state.SessionId, out var entry))
             entry.LastActivityUtc = clock.GetUtcNow();
 
+        Changed?.Invoke();
         return state with { Revision = state.Revision + 1, UpdatedBy = actor };
+    }
+
+    /// <summary>How busy each room with somebody in it is. No names: this is read by open routes.</summary>
+    public IReadOnlyList<(string SessionId, int Participants)> Occupied() =>
+        [.. _sessions
+            .Where(s => !s.Value.Participants.IsEmpty)
+            .Select(s => (s.Key, s.Value.Participants.Count))];
+
+    /// <summary>Every room as it stands, for writing down.</summary>
+    public IReadOnlyList<PersistedSession> Snapshot()
+    {
+        var rooms = new List<PersistedSession>();
+
+        foreach (var (_, entry) in _sessions)
+        {
+            lock (entry.Gate)
+                rooms.Add(new PersistedSession
+                {
+                    State = entry.State,
+                    LastActivityUtc = entry.LastActivityUtc
+                });
+        }
+
+        return rooms;
+    }
+
+    /// <summary>
+    /// Puts back rooms kept from a previous run, before anybody has joined one.
+    ///
+    /// A restored room keeps its revision and its epoch, so it is the same run of the same room
+    /// rather than a new one wearing its name: a client that was connected across the restart
+    /// finds the room it already had, and its revision gate never notices.
+    ///
+    /// Participants are not restored. Membership is a live connection, and every one of them was
+    /// dropped when the server stopped; they come back by rejoining, which is what puts the room's
+    /// idle clock back where it belongs.
+    /// </summary>
+    public void Restore(IReadOnlyList<PersistedSession> rooms)
+    {
+        foreach (var room in rooms)
+        {
+            _sessions[room.State.SessionId] = new SessionEntry
+            {
+                State = room.State,
+                LastActivityUtc = room.LastActivityUtc
+            };
+        }
     }
 
     /// <summary>
@@ -183,6 +244,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
             if (_sessions.TryRemove(id, out _)) dropped.Add(id);
         }
 
+        if (dropped.Count > 0) Changed?.Invoke();
         return dropped;
     }
 

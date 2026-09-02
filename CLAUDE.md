@@ -312,6 +312,32 @@ A release name is what a film arrives as. It is not what the film is called.
 - **A source that shipped its own cover art keeps it.** It came with the release, and the
   catalogue's is only ever a stand-in for a film that has none.
 
+## Keeping a room
+
+A room is the only thing in the system that exists nowhere else. The films are on disk and the
+subtitles are on disk; what a room is watching and where it has got to lived in memory alone, so
+restarting the API took the film out from under everybody in it.
+
+- **A room is written down, and put back.** `SessionJournal` holds every room in the state
+  directory systemd hands over. It is read before the server begins listening — a room restored
+  after the first client has joined is a room that client was already told did not exist.
+- **A restored room keeps its epoch and its revision.** It is the same run of the same room rather
+  than a new one wearing its name, so a client connected across the restart goes on applying
+  pushes instead of discarding every one of them, and its reconnect resync hands back what it
+  already had. Nothing about the restart reaches a person watching.
+- **Position survives for free**, because it is a place at an instant rather than a number that
+  ticks. A room that was playing when the server stopped is playing, at the right place, when it
+  starts again — however long that took.
+- **Nobody is restored into a room.** Membership is a live connection and every one of them died
+  with the server. Restoring the names would leave a room reporting people who are connected to
+  nothing, which the reaper would then never forget.
+- **The journal does not resurrect what the reaper would have forgotten.** A room idle past the
+  window is dropped on the way back in, because a link into a room is supposed to stop working.
+- **Writing is on a two-second delay.** A drag along the scrub bar is a burst of changes and each
+  would be a whole file. A planned stop writes on the way out and loses nothing.
+- **`/health` says how many rooms are occupied and by how many people, and no names.** It is what
+  makes restarting something that can be looked at first rather than found out about afterwards.
+
 ## Reading a source that is still arriving
 
 Transcoding a file while it downloads is only safe while the reader stays behind the writer, and
