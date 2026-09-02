@@ -12,6 +12,24 @@
   --warn: #d9a441;
   --ready: #38414c;
   --radius: 4px;
+
+  /* The player's one surface. Anything that floats over the film is this: the frame dimmed and
+     blurred behind it rather than covered, so what is being watched stays visible under what is
+     being read. A panel that opts out of it is the thing that looks out of place. */
+  --glass: rgba(12, 14, 18, 0.82);
+  /* The far end of a surface that fades into the film rather than ending at an edge. */
+  --glass-fade: rgba(12, 14, 18, 0.38);
+  --glass-blur: blur(20px) saturate(130%);
+  --glass-edge: rgba(255, 255, 255, 0.10);
+  --glass-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  --glass-radius: 10px;
+  /* A fill that reads on glass: light laid over it, never a colour of its own. */
+  --glass-wash: rgba(255, 255, 255, 0.08);
+  --glass-hover: rgba(255, 255, 255, 0.12);
+  /* What covers the film when something has to be answered before it plays. */
+  --scrim: rgba(0, 0, 0, 0.55);
+  --scrim-blur: blur(8px) saturate(110%);
+
   color-scheme: dark;
 }
 
@@ -47,7 +65,9 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--muted);
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   padding: 2px 7px;
   border-radius: 999px;
   pointer-events: none;
@@ -110,6 +130,80 @@ body {
   .mb-spinner { animation-duration: 2.4s; }
 }
 
+/* ---- Seek flash ------------------------------------------------------ */
+
+/* What an arrow key did to the playhead. A jump of a few seconds routinely lands inside the shot
+   it started in, and the scrub bar is at the bottom of a screen nobody is watching, so without
+   this a key that worked and a key that did nothing look the same.
+
+   It is gone inside half a second. Anything that outlasts the seek it describes is something to
+   read rather than something to notice, and there is a film underneath it. */
+.mb-seek {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  color: var(--text);
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-shadow);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+}
+
+/* The hidden attribute only removes an element through the user agent's display:none, which the
+   rule above beats. */
+.mb-seek[hidden] {
+  display: none;
+}
+
+.mb-seek__arrows {
+  width: 44px;
+  height: 44px;
+}
+
+/* One glyph, pointed whichever way the film went. */
+.mb-seek[data-direction="back"] .mb-seek__arrows {
+  transform: scaleX(-1);
+}
+
+.mb-seek__amount {
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mb-seek.is-on {
+  animation: mb-seek-flash 460ms ease-out forwards;
+}
+
+/* Arrives at once and leaves gradually: the press is the event, and the fade is what keeps it
+   from reading as a thing the player has put on screen. */
+@keyframes mb-seek-flash {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(0.92); }
+  12% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  45% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes mb-seek-flash {
+    0% { opacity: 1; }
+    45% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+}
+
 .stage__player .video-js {
   width: 100%;
   height: 100%;
@@ -164,17 +258,20 @@ body {
 }
 
 .empty__hint code {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--glass-wash);
   padding: 1px 6px;
   border-radius: 4px;
 }
 
 .notice {
   padding: 10px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-edge);
   border-left: 2px solid var(--accent);
-  border-radius: 0 var(--radius) var(--radius) 0;
-  background: var(--surface);
+  border-radius: 0 var(--glass-radius) var(--glass-radius) 0;
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
   font-size: 14px;
 }
 
@@ -191,7 +288,9 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(0, 0, 0, 0.62);
+  background: var(--scrim);
+  backdrop-filter: var(--scrim-blur);
+  -webkit-backdrop-filter: var(--scrim-blur);
   z-index: 3;
 }
 
@@ -222,9 +321,12 @@ body {
   gap: 12px;
   width: min(360px, calc(100vw - 40px));
   padding: 24px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
 }
 
 .name-gate__label {
@@ -236,8 +338,8 @@ body {
   padding: 10px 12px;
   font: inherit;
   color: var(--text);
-  background: var(--raised);
-  border: 1px solid var(--border);
+  background: var(--glass-wash);
+  border: 1px solid var(--glass-edge);
   border-radius: var(--radius);
 }
 
@@ -389,25 +491,14 @@ button.mb-scrub__time:hover {
   line-height: 1.3;
   white-space: nowrap;
   color: var(--text);
-  background: rgba(14, 16, 19, 0.97);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
   transform: translateX(-50%);
   pointer-events: none;
-}
-
-.mb-scrub__preview::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  width: 7px;
-  height: 7px;
-  margin: -4px 0 0 -4px;
-  background: rgba(14, 16, 19, 0.97);
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  transform: rotate(45deg);
 }
 
 /* A window over the sheet of frames rather than one fetched for this moment. */
@@ -459,17 +550,17 @@ button.mb-scrub__time:hover {
   overflow-y: auto;
   margin-bottom: 8px;
   padding: 8px;
-  background: rgba(12, 14, 18, 0.82);
-  backdrop-filter: blur(20px) saturate(130%);
-  -webkit-backdrop-filter: blur(20px) saturate(130%);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 10px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
 }
 
 .mb-menu__group + .mb-menu__group {
   margin-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--glass-edge);
   padding-top: 10px;
 }
 
@@ -499,7 +590,7 @@ button.mb-scrub__time:hover {
 }
 
 .mb-menu__item:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--glass-hover);
 }
 
 .mb-menu__item.is-selected {
@@ -616,10 +707,10 @@ button.mb-scrub__time:hover {
   gap: 2px;
   height: 3.2em;
   padding: 0 0.6em;
-  background: linear-gradient(to top, rgba(10, 12, 15, 0.72), rgba(10, 12, 15, 0.34));
-  backdrop-filter: blur(14px) saturate(120%);
-  -webkit-backdrop-filter: blur(14px) saturate(120%);
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  background: linear-gradient(to top, var(--glass), var(--glass-fade));
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-top: 1px solid var(--glass-edge);
 }
 
 /* The library's own controls: a square, and its glyph in the middle of it. */
@@ -767,13 +858,13 @@ button.mb-scrub__time:hover {
   color: var(--text);
   background: transparent;
   border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--glass-edge);
   border-radius: 7px 7px 0 0;
   cursor: pointer;
 }
 
 .mb-settings__back:hover {
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--glass-hover);
 }
 
 .mb-settings__back .mb-settings__chevron {
@@ -810,7 +901,7 @@ button.mb-scrub__time:hover {
 }
 
 .closed__hint code {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--glass-wash);
   padding: 1px 6px;
   border-radius: 4px;
 }
@@ -916,13 +1007,13 @@ button.mb-scrub__time:hover {
   font: inherit;
   font-size: 14px;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--glass-wash);
+  border: 1px solid var(--glass-edge);
   border-radius: 7px;
   cursor: pointer;
 }
 
 .mb-subs__ask:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--glass-hover);
   border-color: var(--dim);
 }

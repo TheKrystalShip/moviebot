@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] - 2026-09-02
+
+### Added
+
+- A seek from the keyboard says so. An arrow key puts a round badge in the middle of the film
+  reading how far the playhead moved, and takes it away again inside half a second. Five seconds
+  inside a scene routinely passes without a visible cut, so before this a key that worked and a
+  key that never registered looked the same. Presses inside one window are one gesture and are
+  summed, so a held key reads as a single growing number.
+
+### Changed
+
+- Glass is the player's one surface. The control bar, every menu, the scrub preview, notices, the
+  connection pill, the name card and the badge above are all the same blurred, translucent panel
+  from the same handful of tokens, so the film stays visible under whatever is being read and a
+  new panel is the right thing by default rather than by being written out again.
+
 ## [1.15.1] - 2026-09-02
 
 ### Changed

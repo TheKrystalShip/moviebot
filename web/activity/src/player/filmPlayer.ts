@@ -12,6 +12,7 @@ import { SubtitleMenu } from './subtitleMenu';
 import { AudioPanel } from './audioPanel';
 import { SettingsMenu } from './settingsMenu';
 import { bindShortcuts } from './shortcuts';
+import { SeekFlash } from './seekFlash';
 import { VolumeControl, amplitudeFor } from './volume';
 
 export interface FilmPlayerHooks {
@@ -68,6 +69,7 @@ export class FilmPlayer {
   private thumbnailUrl: string | null = null;
   private releaseShortcuts: (() => void) | null = null;
   private readonly spinner: HTMLElement;
+  private readonly seekFlash: SeekFlash;
   private readonly volume: VolumeControl;
 
   constructor(container: HTMLElement, private readonly hooks: FilmPlayerHooks) {
@@ -83,7 +85,11 @@ export class FilmPlayer {
     this.spinner.setAttribute('role', 'status');
     this.spinner.setAttribute('aria-label', 'Waiting for the film');
 
-    container.replaceChildren(this.video, this.spinner);
+    // What a key press did to the playhead. Nothing else reports a seek that lands inside the
+    // scene it started in.
+    this.seekFlash = new SeekFlash();
+
+    container.replaceChildren(this.video, this.spinner, this.seekFlash.el);
 
     this.video.addEventListener('waiting', () => this.stalled(true));
     this.video.addEventListener('stalled', () => this.stalled(true));
@@ -169,8 +175,11 @@ export class FilmPlayer {
     this.releaseShortcuts = bindShortcuts({
       togglePlay: () => this.togglePlay(),
       // Through the same route the scrub bar takes: the server decides where the room lands.
-      seekBy: (seconds) => this.hooks.onSeekIntent(
-        Math.min(this.scrubDuration, Math.max(0, this.video.currentTime + seconds))),
+      seekBy: (seconds) => {
+        const to = Math.min(this.scrubDuration, Math.max(0, this.video.currentTime + seconds));
+        this.seekFlash.show(to - this.video.currentTime);
+        this.hooks.onSeekIntent(to);
+      },
       toggleFullscreen: () => this.toggleFullscreen(),
       toggleMute: () => this.volume.toggleMute(),
       toggleSubtitles: () => this.toggleSubtitles()
