@@ -4,6 +4,28 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.1] - 2026-09-02
+
+### Fixed
+
+- Scrub previews are the frames they claim to be. The sheet was built by asking the decoder to
+  skip everything but keyframes, which is several times faster and silently wrong on some files:
+  on the one HEVC source here it returned smeared frames belonging to no moment in the film, which
+  reached the scrub bar looking like a corrupt encode of a film that plays perfectly. Every frame
+  is decoded now, on the card where there is one — thirteen seconds per ten minutes of film
+  against thirty-five, and a thirtieth of the processor time, which is time the transcode wants.
+  A machine with no card, or one whose driver refuses the file, decodes it itself.
+- Artwork is checked rather than trusted for a year. A poster and a preview sheet keep their names
+  and are rewritten in place, so serving them as immutable left whoever had already looked at a
+  broken one holding it until the file name changed, which it never does. Segments, which really
+  never change, are untouched.
+
+### Added
+
+- `moviebot-ingest <source> --thumbnails` rebuilds the previews for a title already in the
+  library. Everything a preview is made from is in the source file, so correcting a sheet costs
+  four minutes rather than re-encoding the film behind it.
+
 ## [1.19.0] - 2026-09-02
 
 ### Added

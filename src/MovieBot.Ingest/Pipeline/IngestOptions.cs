@@ -46,6 +46,13 @@ public sealed record IngestOptions
     public string? PosterSource { get; init; }
 
     /// <summary>
+    /// Rebuilds only the scrub previews for a title already in the library, and leaves everything
+    /// else where it is. What a preview is made from is the source file and nothing the transcode
+    /// produced, so there is no reason to spend an hour re-encoding a film to correct a sheet.
+    /// </summary>
+    public bool ThumbnailsOnly { get; init; }
+
+    /// <summary>
     /// Which subtitle languages to extract. Empty keeps every one of them, which is what a run by
     /// hand against an unfamiliar film should do.
     ///

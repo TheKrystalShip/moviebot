@@ -63,10 +63,17 @@ public static class MediaEndpoints
             // A growing EVENT playlist must never be cached: a client holding a stale copy sees
             // the film end early and stalls, which looks exactly like a broken transcode.
             // Segments never change once written, so they are immutable.
+            //
+            // Artwork is neither. A poster and a sheet of scrub previews keep their names and are
+            // rewritten in place — by a catalogue lookup, or by rebuilding a sheet that came out
+            // wrong — so serving them as immutable leaves whoever already looked at the broken one
+            // holding it for a year. They are checked instead, which costs a request answered 304
+            // and is what makes a correction reach anybody.
             var cacheControl = (isPlaylist, transcoding) switch
             {
                 (true, true) => "no-store, no-cache, must-revalidate",
                 (true, false) => "public, max-age=300",
+                _ when IsArtwork(requested) => "public, max-age=0, must-revalidate",
                 _ => "public, max-age=31536000, immutable"
             };
 
@@ -74,6 +81,10 @@ public static class MediaEndpoints
                 .WithCacheControl(cacheControl);
         });
     }
+
+    /// <summary>What a title's directory holds that is rewritten under the same name.</summary>
+    private static bool IsArtwork(string path) =>
+        Path.GetFileName(path) is "poster.jpg" or "thumbs.jpg";
 
     private static IResult WithCacheControl(this IResult inner, string value) =>
         new CacheHeaderResult(inner, value);

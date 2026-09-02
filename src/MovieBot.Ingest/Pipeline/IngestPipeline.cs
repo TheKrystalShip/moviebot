@@ -72,6 +72,11 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             + $"{(bitmapSubtitles.Count > 0 ? $", {bitmapSubtitles.Count} bitmap (need OCR)" : "")}"
             + $"{(otherLanguages.Count > 0 ? $", {otherLanguages.Count} other languages left out" : "")}");
 
+        // Only the previews, for a title already in the library. Everything a preview is made from
+        // is in the source file, so a sheet is corrected without re-encoding the film behind it.
+        if (options.ThumbnailsOnly)
+            return await RebuildThumbnailsAsync(id, video, probe.Format.DurationSeconds, log, ct);
+
         var manifest = BuildManifest(id, title, probe, video, dynamicRange,
             audioStreams, textSubtitles, bitmapSubtitles,
             attachedPicture is not null || options.PosterSource is { Length: > 0 },
@@ -250,6 +255,29 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
     /// <summary>ffprobe reports ISO 639-2, and a disc occasionally carries the two-letter code.</summary>
     private static bool IsEnglish(ProbeStream stream) => stream.Language is "eng" or "en";
+
+    /// <summary>
+    /// Puts a new sheet of previews under a title that already exists, and says so in its manifest.
+    /// </summary>
+    private async Task<Manifest> RebuildThumbnailsAsync(
+        string id, ProbeStream video, double durationSeconds, Action<string> log, CancellationToken ct)
+    {
+        var outputDirectory = options.OutputDirectory(id);
+        var manifestPath = Path.Combine(outputDirectory, "manifest.json");
+
+        if (!File.Exists(manifestPath))
+            throw new InvalidOperationException($"No title at {outputDirectory} to rebuild previews for.");
+
+        var manifest = ManifestJson.Deserialize(await File.ReadAllTextAsync(manifestPath, ct))
+                       ?? throw new InvalidOperationException($"The manifest at {manifestPath} is unreadable.");
+
+        manifest.Thumbnails = await ThumbnailSheet.WriteAsync(
+            options.SourcePath, video, durationSeconds, outputDirectory, log, ct);
+
+        ManifestJson.WriteAtomic(manifestPath, manifest);
+        log($"Previews rebuilt: {outputDirectory}");
+        return manifest;
+    }
 
     /// <summary>
     /// The poster for a source that carries none, which is most of them. Never throws: a film

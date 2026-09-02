@@ -74,6 +74,7 @@ public static class Program
         bool? toneMap = null;
         var force = false;
         var dryRun = false;
+        var thumbnailsOnly = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -111,6 +112,9 @@ public static class Program
                 case "--dry-run":
                     dryRun = true;
                     break;
+                case "--thumbnails":
+                    thumbnailsOnly = true;
+                    break;
                 default:
                     if (arg.StartsWith('-'))
                         throw new ArgumentException($"unknown option '{arg}'.");
@@ -134,7 +138,8 @@ public static class Program
             SegmentSeconds = segment,
             ForceToneMap = toneMap,
             Force = force,
-            DryRun = dryRun
+            DryRun = dryRun,
+            ThumbnailsOnly = thumbnailsOnly
         };
     }
 
@@ -165,6 +170,7 @@ public static class Program
               --tonemap <mode>   auto|on|off. Default: auto, from the source transfer function
               --force            Replace an existing output directory
               --dry-run          Probe and print the manifest, transcode nothing
+              --thumbnails       Rebuild the scrub previews for a title already ingested
           -h, --help             Show this help
 
         Requires ffmpeg and ffprobe on PATH, with h264_nvenc for encoding and, for HDR sources,
