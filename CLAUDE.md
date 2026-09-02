@@ -74,6 +74,13 @@ These are measured against real Blu-ray rips, not assumed. Changing one means re
 - **Subtitles and the poster are extracted before the main pass, never alongside it.** A
   monolithic `.vtt` being appended to while a player fetches it once gives subtitles that stop
   partway through the film.
+- **Subtitles are repaired against double-encoding as they are extracted.** Releases ship tracks
+  that were written as UTF-8, read back as Windows-1252 and written again, so a right single quote
+  arrives as three characters. Nothing downstream can detect it: the file is valid UTF-8, valid
+  WebVTT, and every byte survives the transcode intact. The repair works one run of non-ASCII
+  characters at a time and keeps only what decodes strictly, which is what lets it leave a
+  Portuguese `NÃO` or a Romanian diacritic alone — legitimate text almost never forms valid UTF-8
+  when re-encoded that way, and the same characters are exactly what the corruption produces.
 - **Playlists are `EVENT`, not `VOD`.** That is the whole mechanism behind playback starting
   seconds in. ffmpeg appends `#EXT-X-ENDLIST` on completion, so the playlist becomes a normal
   VOD by itself.

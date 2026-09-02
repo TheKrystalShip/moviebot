@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-09-02
+
+### Added
+
+- Subtitle tracks are repaired on extraction when the release shipped them written as UTF-8, read
+  back as Windows-1252 and written again, which turns a right single quote into three characters.
+  Nothing downstream can spot it, because the file is valid UTF-8 and valid WebVTT and every byte
+  survives the transcode. The repair works one run of non-ASCII characters at a time and keeps only
+  what decodes strictly, so the same characters occurring legitimately in Portuguese, Romanian or
+  Vietnamese are left exactly as they are.
+
 ## [1.5.0] - 2026-09-02
 
 ### Added

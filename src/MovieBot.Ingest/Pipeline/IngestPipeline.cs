@@ -4,6 +4,7 @@ using System.Text;
 using TheKrystalShip.MovieBot.Core;
 using TheKrystalShip.MovieBot.Ingest.Ffmpeg;
 using TheKrystalShip.MovieBot.Ingest.Probe;
+using TheKrystalShip.MovieBot.Ingest.Subtitles;
 
 namespace TheKrystalShip.MovieBot.Ingest.Pipeline;
 
@@ -178,6 +179,29 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         }
 
         await FfmpegProcess.RunAsync(args, ct: ct);
+
+        foreach (var stream in textSubtitles)
+            await RepairSubtitleAsync(Path.Combine(outputDirectory, SubtitleFileName(stream)), ct);
+    }
+
+    /// <summary>
+    /// Some releases ship a subtitle track that was already mangled when the file was built, and
+    /// the transcode carries it through untouched because nothing about it is malformed: it is
+    /// valid UTF-8 and valid WebVTT, just wrong. Undo it here, where the track is whole and on
+    /// disk, because a player has no way to tell that it should.
+    /// </summary>
+    private async Task RepairSubtitleAsync(string path, CancellationToken ct)
+    {
+        if (!File.Exists(path)) return;
+
+        var result = MojibakeRepair.Repair(await File.ReadAllTextAsync(path, Encoding.UTF8, ct));
+        if (!result.Changed) return;
+
+        await File.WriteAllTextAsync(path, result.Text, new UTF8Encoding(false), ct);
+        log($"  {Path.GetFileName(path)}: repaired {result.Repaired} mangled characters"
+            + (result.Unrepairable > 0
+                ? $", left {result.Unrepairable} that could not be read back"
+                : string.Empty));
     }
 
     private async Task ExtractPosterAsync(ProbeStream attachedPicture, string outputDirectory, CancellationToken ct)
