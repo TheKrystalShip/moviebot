@@ -50,7 +50,12 @@ public enum SubtitleSource
 public sealed class Manifest
 {
     public required string Id { get; init; }
-    public required string Title { get; init; }
+    /// <summary>
+    /// What the film is called. Settable because it is not always known when the manifest is
+    /// first written: a film identified later is renamed from whatever its release said to
+    /// whatever it is actually called.
+    /// </summary>
+    public required string Title { get; set; }
     public required double DurationSeconds { get; init; }
 
     public TitleStatus Status { get; set; }
@@ -65,7 +70,12 @@ public sealed class Manifest
     /// <summary>Set when the transcode fails, so a stalled player can say why.</summary>
     public string? Error { get; set; }
 
-    public string? Poster { get; init; }
+    /// <summary>
+    /// A file under the title's own directory, or null while the film has no artwork. Settable
+    /// for the same reason as <see cref="Title"/>: a source carrying no cover art can be given
+    /// one from the catalogue long after it was ingested.
+    /// </summary>
+    public string? Poster { get; set; }
 
     /// <summary>
     /// The HLS master playlist binding audio to video. A player should load this rather than a
@@ -206,6 +216,37 @@ public sealed record FilmIdentity
 {
     /// <summary>The IMDb id in its canonical form, <c>tt0458352</c>.</summary>
     public string? ImdbId { get; init; }
+
+    /// <summary>
+    /// The film's name as the database has it.
+    ///
+    /// A title parsed out of a release name is a good guess and no more: it keeps the edition
+    /// words a release carries, loses the punctuation a name has, and is whatever the person who
+    /// packed the file typed. This is the name, and it is what anything showing the film to a
+    /// person uses.
+    /// </summary>
+    public string? Name { get; init; }
+
+    /// <summary>The year the film came out, which is what separates a remake from what it remade.</summary>
+    public int? Year { get; init; }
+
+    /// <summary>Top-billed cast, as one line.</summary>
+    public string? Starring { get; init; }
+
+    /// <summary>
+    /// Where the artwork was taken from, so a later pass can tell a poster that is still the
+    /// current one from a poster that was the current one when it was fetched.
+    /// </summary>
+    public string? PosterUrl { get; init; }
+
+    /// <summary>The film's page, for a message that wants somewhere to send a person.</summary>
+    public string? Url => ImdbId is { Length: > 0 } id ? $"https://www.imdb.com/title/{id}/" : null;
+
+    /// <summary>What to call the film: its name and year where they are known, and nothing invented.</summary>
+    public string? Display =>
+        Name is not { Length: > 0 } name ? null
+        : Year is { } year ? $"{name} ({year})"
+        : name;
 }
 
 /// <summary>

@@ -66,18 +66,60 @@ public sealed class LinkLaunchPresenterTests
         var withPoster = await Presenter().PresentAsync(Request(), CancellationToken.None);
         Assert.Equal(
             "https://movies.example.com/api/media/gladiator-2000-extended/poster.jpg",
-            withPoster.Embed.Image?.Url);
+            withPoster.Embed.Thumbnail?.Url);
 
         // Discord fetches embed images itself, so a loopback-only API means no poster at all
         // rather than an embed with a hole in it.
         var noPublicAddress = await Presenter(publicApi: null)
             .PresentAsync(Request(), CancellationToken.None);
-        Assert.Null(noPublicAddress.Embed.Image);
+        Assert.Null(noPublicAddress.Embed.Thumbnail);
 
         var noArtwork = await Presenter()
             .PresentAsync(Request(Ready with { Poster = null }), CancellationToken.None);
-        Assert.Null(noArtwork.Embed.Image);
+        Assert.Null(noArtwork.Embed.Thumbnail);
     }
+
+    /// <summary>
+    /// The film's name, not the release's. A release title keeps whichever edition words were
+    /// typed into it and loses the punctuation a name has, and it is the only thing there is
+    /// until the catalogue has been asked.
+    /// </summary>
+    [Fact]
+    public async Task A_film_is_named_by_the_catalogue_where_the_catalogue_knows_it()
+    {
+        var unknown = await Presenter().PresentAsync(Request(), CancellationToken.None);
+        Assert.Equal("Gladiator 2000 Extended Cut", unknown.Embed.Title);
+
+        var known = await Presenter().PresentAsync(Request(Identified), CancellationToken.None);
+        Assert.Equal("Gladiator (2000)", known.Embed.Title);
+    }
+
+    [Fact]
+    public async Task What_the_catalogue_answered_is_shown_and_what_it_did_not_is_left_out()
+    {
+        var known = (await Presenter().PresentAsync(Request(Identified), CancellationToken.None)).Embed;
+
+        Assert.Equal("Russell Crowe, Joaquin Phoenix",
+            known.Fields.Single(f => f.Name == "Starring").Value);
+        Assert.Equal("[tt0172495](https://www.imdb.com/title/tt0172495/)",
+            known.Fields.Single(f => f.Name == "On IMDb").Value);
+
+        var unknown = (await Presenter().PresentAsync(Request(), CancellationToken.None)).Embed;
+
+        Assert.DoesNotContain(unknown.Fields, f => f.Name == "Starring");
+        Assert.DoesNotContain(unknown.Fields, f => f.Name == "On IMDb");
+    }
+
+    private static readonly LibraryTitle Identified = Ready with
+    {
+        Film = new FilmIdentity
+        {
+            ImdbId = "tt0172495",
+            Name = "Gladiator",
+            Year = 2000,
+            Starring = "Russell Crowe, Joaquin Phoenix"
+        }
+    };
 
     [Fact]
     public async Task A_ready_film_and_a_transcoding_one_promise_different_things()

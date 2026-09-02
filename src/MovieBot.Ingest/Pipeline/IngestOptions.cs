@@ -1,3 +1,5 @@
+using TheKrystalShip.MovieBot.Core;
+
 namespace TheKrystalShip.MovieBot.Ingest.Pipeline;
 
 public sealed record IngestOptions
@@ -23,6 +25,25 @@ public sealed record IngestOptions
     /// name is a guess where the tracker's answer is a fact.
     /// </summary>
     public string? ImdbId { get; init; }
+
+    /// <summary>
+    /// What the film is, as far as anything that catalogues films is concerned: its name, its
+    /// year, its billing and where its artwork came from.
+    ///
+    /// Resolved before the ingest rather than after it, because the manifest is written before
+    /// the transcode starts and rewritten as it runs — a film is watchable, and announced, long
+    /// before the last segment lands, and metadata added afterwards would arrive after everything
+    /// that shows it.
+    /// </summary>
+    public FilmIdentity? Film { get; init; }
+
+    /// <summary>
+    /// A poster on disk to use when the source carries no cover art of its own.
+    ///
+    /// A path rather than an address: fetching it belongs to whoever knows where films are
+    /// catalogued, and the ingest's whole job is turning one directory into another.
+    /// </summary>
+    public string? PosterSource { get; init; }
 
     /// <summary>
     /// Which subtitle languages to extract. Empty keeps every one of them, which is what a run by

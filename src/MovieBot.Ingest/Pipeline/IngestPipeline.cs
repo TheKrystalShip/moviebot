@@ -34,7 +34,11 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         if (audioStreams.Count == 0)
             throw new InvalidOperationException("No audio stream found.");
 
-        var title = options.Title
+        // The film's own name where it is known. A title parsed out of a release keeps that
+        // release's edition words and loses the punctuation a name has; the container's title tag
+        // is routinely the release name again, so it is the last thing tried rather than the first.
+        var title = options.Film?.Display
+                    ?? options.Title
                     ?? probe.Format.Title
                     ?? Path.GetFileNameWithoutExtension(options.SourcePath);
         var id = options.Id ?? Slug(title);
@@ -69,7 +73,8 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             + $"{(otherLanguages.Count > 0 ? $", {otherLanguages.Count} other languages left out" : "")}");
 
         var manifest = BuildManifest(id, title, probe, video, dynamicRange,
-            audioStreams, textSubtitles, bitmapSubtitles, attachedPicture is not null,
+            audioStreams, textSubtitles, bitmapSubtitles,
+            attachedPicture is not null || options.PosterSource is { Length: > 0 },
             sourceStillArriving: options.Availability is not null);
         manifest.OtherLanguages = otherLanguages;
 
@@ -108,6 +113,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                     log("Extracting cover art");
                     await ExtractPosterAsync(attachedPicture, outputDirectory, ct);
                 }
+                else CopyPoster(outputDirectory, log);
             }
             else
             {
@@ -143,6 +149,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                     log("Extracting cover art");
                     await ExtractPosterAsync(attachedPicture, outputDirectory, ct);
                 }
+                else CopyPoster(outputDirectory, log);
 
                 manifest.Subtitles = Advertise(manifest.Subtitles, textSubtitles);
                 manifest.Source = Fingerprint(video);
@@ -243,6 +250,25 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
     /// <summary>ffprobe reports ISO 639-2, and a disc occasionally carries the two-letter code.</summary>
     private static bool IsEnglish(ProbeStream stream) => stream.Language is "eng" or "en";
+
+    /// <summary>
+    /// The poster for a source that carries none, which is most of them. Never throws: a film
+    /// without artwork is worse than one with it, and better than an ingest that failed over it.
+    /// </summary>
+    private void CopyPoster(string outputDirectory, Action<string> log)
+    {
+        if (options.PosterSource is not { Length: > 0 } source || !File.Exists(source)) return;
+
+        try
+        {
+            File.Copy(source, Path.Combine(outputDirectory, "poster.jpg"), overwrite: true);
+            log("  poster from the title index");
+        }
+        catch (Exception ex)
+        {
+            log($"  no poster: {ex.Message}");
+        }
+    }
 
     private async Task ExtractPosterAsync(ProbeStream attachedPicture, string outputDirectory, CancellationToken ct)
     {
@@ -540,9 +566,10 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                 .Where(c => c.EndSeconds > c.StartSeconds)
                 .Select(c => new Chapter { StartSeconds = c.StartSeconds, Title = c.Title })
                 .ToList(),
-            Film = options.ImdbId is { Length: > 0 } imdbId
-                ? new FilmIdentity { ImdbId = imdbId }
-                : null,
+            Film = options.Film
+                   ?? (options.ImdbId is { Length: > 0 } imdbId
+                       ? new FilmIdentity { ImdbId = imdbId }
+                       : null),
             Source = sourceStillArriving ? null : Fingerprint(video),
             Subtitles = subtitles
         };

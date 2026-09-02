@@ -19,7 +19,7 @@ public static class DownloadEmbed
     /// <summary>The message as it first appears, before there is any progress to report.</summary>
     public static Embed Starting(Release release) =>
         new EmbedBuilder()
-            .WithTitle(release.Year is { } year ? $"{release.Title} ({year})" : release.Title)
+            .WithTitle(release.Display)
             .WithDescription(release.ReleaseName)
             .AddField("Quality", release.Summary, inline: false)
             .AddField("Progress", $"{Bar(0)}  starting", inline: false)
@@ -56,9 +56,14 @@ public static class DownloadEmbed
             .Build();
     }
 
+    /// <summary>
+    /// A film that has arrived is a film, not a file. By the time this is sent the name has been
+    /// read out of the release, so the message says what was watched for rather than what it was
+    /// packed as — and keeps the release beside it, because which encode arrived is worth knowing.
+    /// </summary>
     public static Embed Ready(DownloadStatus download) =>
         new EmbedBuilder()
-            .WithTitle("Ready to watch")
+            .WithTitle($"{Film(download)} is ready to watch")
             .WithDescription(download.Name)
             .AddField("Size", Size(download.SizeBytes), inline: true)
             .AddField("Watch it with", "/watch", inline: true)
@@ -68,7 +73,7 @@ public static class DownloadEmbed
 
     public static Embed Failed(DownloadStatus download) =>
         new EmbedBuilder()
-            .WithTitle("Downloaded, but it could not be prepared")
+            .WithTitle($"{Film(download)} downloaded, but could not be prepared")
             .WithDescription(download.Name)
             .AddField("What happened",
                 "The film downloaded, but converting it for the player failed. "
@@ -87,6 +92,15 @@ public static class DownloadEmbed
         : download.IsFinished && preparing ? "preparing"
         : download.IsFinished ? "ready"
         : $"{download.Progress:P0}|{Rate(download)}|{download.Seeds}|{download.State}";
+
+    /// <summary>
+    /// The film's name, read from the release the same way every other part of the pipeline reads
+    /// it. This holds no manifest and cannot ask the catalogue, so it is the name a release name
+    /// gives up and nothing more — which is always available and is what the library will be
+    /// called until the catalogue improves on it.
+    /// </summary>
+    private static string Film(DownloadStatus download) =>
+        ReleaseParser.ParseName(download.Name).Display;
 
     private static string Rate(DownloadStatus download)
     {

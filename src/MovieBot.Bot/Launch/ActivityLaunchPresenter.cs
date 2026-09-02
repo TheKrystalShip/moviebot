@@ -63,17 +63,13 @@ public sealed class ActivityLaunchPresenter(
 
         var url = $"https://discord.gg/{invite.Code}";
 
-        var embed = new EmbedBuilder()
-            .WithTitle(request.Title.Title)
+        var embed = FilmCard.Build(request.Title, PosterUrl(request.Title))
             .WithUrl(url)
             .WithDescription(Availability(request.Title))
             .WithColor(Accent)
             .AddField("Voice channel", request.VoiceChannelName, inline: true)
             .AddField("Length", Humanize(request.Title.DurationSeconds), inline: true)
             .WithFooter($"Requested by {request.RequestedBy}");
-
-        if (PosterUrl(request.Title) is { } poster)
-            embed.WithImageUrl(poster.ToString());
 
         if (request.LoadedTitleId is { } loaded)
             embed.AddField("Already loaded in this room", loaded);

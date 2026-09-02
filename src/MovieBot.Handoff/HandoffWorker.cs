@@ -24,6 +24,7 @@ namespace TheKrystalShip.MovieBot.Handoff;
 /// </summary>
 public sealed class HandoffWorker(
     AcquisitionService acquisition,
+    FilmMetadata metadata,
     IOptions<HandoffOptions> options,
     ILogger<HandoffWorker> logger) : BackgroundService
 {
@@ -112,13 +113,32 @@ public sealed class HandoffWorker(
             ? null
             : new TorrentAvailability(acquisition, download.Hash, source);
 
+        var imdbId = download.Tags.Select(TorrentTags.ReadImdb).FirstOrDefault(i => i is not null);
+
+        // Before the transcode rather than after it. A film is watchable, and announced, long
+        // before the last segment lands, so anything added afterwards arrives after every message
+        // that would have shown it.
+        var release = ReleaseParser.ParseName(download.Name);
+        var film = await metadata.ResolveAsync(imdbId, release.Title, release.Year, ct);
+
+        string? poster = null;
+        if (film is not null)
+        {
+            logger.LogInformation(
+                "{Name} is {Film} ({Imdb}).", download.Name, film.Title, film.ImdbId);
+            poster = await metadata.WritePosterAsync(
+                film, Path.Combine(Path.GetTempPath(), "moviebot-posters", id), ct);
+        }
+
         var options = new IngestOptions
         {
             SourcePath = source,
             OutputRoot = _options.MediaRoot,
             Id = id,
             Title = title,
-            ImdbId = download.Tags.Select(TorrentTags.ReadImdb).FirstOrDefault(i => i is not null),
+            ImdbId = imdbId,
+            Film = film is null ? null : FilmMetadata.Identify(film),
+            PosterSource = poster,
             SubtitleLanguages = _options.SubtitleLanguages,
             Availability = availability,
 

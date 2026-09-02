@@ -50,7 +50,8 @@ public static class TitleMatcher
             is { } byId)
             return TitleMatch.Resolved(byId);
 
-        if (library.FirstOrDefault(t => Normalize(t.Title) == needle) is { } byTitle)
+        if (library.FirstOrDefault(t => Normalize(t.Name) == needle || Normalize(t.Title) == needle)
+            is { } byTitle)
             return TitleMatch.Resolved(byTitle);
 
         var matches = Search(library, needle);
@@ -59,7 +60,10 @@ public static class TitleMatcher
 
         // "gladiator" against a director's cut and an extended cut is a real ambiguity; the same
         // word against one film whose title merely begins with it is not.
-        var leading = matches.Where(t => Normalize(t.Title).StartsWith(needle, StringComparison.Ordinal)).ToList();
+        var leading = matches
+            .Where(t => Normalize(t.Name).StartsWith(needle, StringComparison.Ordinal)
+                        || Normalize(t.Title).StartsWith(needle, StringComparison.Ordinal))
+            .ToList();
         if (leading.Count == 1) return TitleMatch.Resolved(leading[0]);
 
         return new TitleMatch(TitleMatchKind.Ambiguous, null, Shortlist(matches));
@@ -87,7 +91,9 @@ public static class TitleMatcher
         var words = needle.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return [.. library.Where(t =>
         {
-            var haystack = Normalize($"{t.Id} {t.Title}");
+            // Both names, because either is a reasonable thing for somebody to type: the
+            // catalogue's, and whatever the release called it before the catalogue was asked.
+            var haystack = Normalize($"{t.Id} {t.Title} {t.Name}");
             return words.All(w => StartsAWord(haystack, w));
         })];
     }

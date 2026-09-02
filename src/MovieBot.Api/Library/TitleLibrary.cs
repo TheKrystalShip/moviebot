@@ -12,6 +12,13 @@ public sealed record TitleSummary
     public required TitleStatus Status { get; init; }
     public double? HeadSeconds { get; init; }
     public string? Poster { get; init; }
+
+    /// <summary>
+    /// Which film this is, as far as anything that catalogues films is concerned. Carried on the
+    /// summary rather than left to the manifest, so a surface listing the library can show a film
+    /// properly without fetching each one.
+    /// </summary>
+    public FilmIdentity? Film { get; init; }
 }
 
 /// <summary>
@@ -51,7 +58,8 @@ public sealed class TitleLibrary(
                 DurationSeconds = manifest.DurationSeconds,
                 Status = manifest.Status,
                 HeadSeconds = manifest.HeadSeconds,
-                Poster = manifest.Poster
+                Poster = manifest.Poster,
+                Film = manifest.Film
             });
         }
 

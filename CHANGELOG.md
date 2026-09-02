@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.0] - 2026-09-02
+
+### Added
+
+- Films are named by the catalogue rather than by the file they arrived in. The hand-off resolves
+  the film before the transcode starts — by the IMDb id the tracker supplies, or by the name and
+  year parsed out of the release — and keeps its name, year, top billing and poster in the
+  manifest. Before the transcode rather than after it, because a film is watchable and announced
+  within seconds of the first segments landing, and metadata added at the end arrives a quarter of
+  an hour after every message that would have shown it.
+- Every film has artwork. A source that shipped its own cover art keeps it; every other film gets
+  the catalogue's poster, fetched at the width it will be seen at and written beside the film.
+- `moviebot-handoff --backfill` gives films already in the library what a film ingested from now
+  on gets on the way in. The four already here are done.
+
+### Changed
+
+- Every message and link about a film shows the film's name. The launch card leads with it and
+  carries the billing, the poster and a link to the film's page; the announcement that a download
+  is ready names the film rather than the release; picking a film by name matches either. The
+  release name is still shown beside the name, because which encode arrived is worth knowing — it
+  is just not what the film is called.
+- The two places that still lead with the release name are the search results and a download in
+  progress. Neither has been through the catalogue, and both are about a file rather than a film.
+- The poster is an embed's small image rather than its large one. Posters are portrait, and a
+  large one fills a message with artwork nobody asked to look at.
+
 ## [1.18.0] - 2026-09-02
 
 ### Fixed

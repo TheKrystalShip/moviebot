@@ -284,6 +284,34 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
   announcement. A second spelling would not disagree loudly, it would just produce two messages
   about one film that look like they came from different programs.
 
+## Naming a film
+
+A release name is what a film arrives as. It is not what the film is called.
+
+- **A film is named by the catalogue wherever the catalogue has been asked.** `FilmMetadata`
+  resolves an IMDb id — the tracker supplies one, and a parsed name and year are searched when it
+  did not — and what comes back is the name, the year, the billing and the poster. `manifest.Title`
+  becomes that name, and `manifest.Film` keeps the rest. Which cut arrived stays in
+  `source.release`, which is the only place it was ever a fact.
+- **It is resolved before the transcode, never after.** A film is watchable, and announced, within
+  seconds of the first segments landing. Metadata added when the transcode finishes arrives a
+  quarter of an hour after every message that would have shown it.
+- **A film named wrongly is worse than a film not named.** Everything downstream believes it, so a
+  search that cannot be sure returns nothing: a year given and matched by nothing finds nothing
+  rather than the closest thing.
+- **There is one spelling of a name and a year written together**, `Release.Display`, because
+  three of them is how the message that starts a download and the message that says it is ready
+  end up disagreeing about what film they are talking about.
+- **A release name is still shown, beside the name and never instead of it.** Which encode arrived
+  is worth knowing; it is just not what the film is called.
+- **The two places that keep the release name as the headline are the search results and a
+  download in progress.** Neither has been through the catalogue, and both are about a file rather
+  than about a film.
+- **The poster is the small image in an embed, not the large one.** Posters are portrait, and a
+  large one fills a message with artwork nobody asked to look at.
+- **A source that shipped its own cover art keeps it.** It came with the release, and the
+  catalogue's is only ever a stand-in for a film that has none.
+
 ## Reading a source that is still arriving
 
 Transcoding a file while it downloads is only safe while the reader stays behind the writer, and

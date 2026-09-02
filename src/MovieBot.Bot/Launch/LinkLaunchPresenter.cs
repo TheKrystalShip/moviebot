@@ -23,17 +23,13 @@ public sealed class LinkLaunchPresenter(
     {
         var url = PlayerUrl(request.SessionId, request.Title.Id);
 
-        var embed = new EmbedBuilder()
-            .WithTitle(request.Title.Title)
+        var embed = FilmCard.Build(request.Title, PosterUrl(request.Title))
             .WithUrl(url.ToString())
             .WithDescription(Availability(request.Title))
             .WithColor(Accent)
             .AddField("Voice channel", request.VoiceChannelName, inline: true)
             .AddField("Length", Humanize(request.Title.DurationSeconds), inline: true)
             .WithFooter($"Requested by {request.RequestedBy}");
-
-        if (PosterUrl(request.Title) is { } poster)
-            embed.WithImageUrl(poster.ToString());
 
         // Stated rather than acted on: the room's session already holds a film, and whoever
         // opens this link changes what everyone in it is watching.

@@ -274,7 +274,7 @@ public sealed class DiscordBotService(
 
     /// <summary>Autocomplete labels are capped at 100 characters by Discord.</summary>
     private static string Choice(LibraryTitle title) =>
-        title.Title.Length <= 100 ? title.Title : title.Title[..99] + "…";
+        title.Name.Length <= 100 ? title.Name : title.Name[..99] + "…";
 
     private async Task TryReportFailure(SocketSlashCommand command)
     {

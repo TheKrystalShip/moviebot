@@ -20,8 +20,17 @@ public sealed record LibraryTitle
     /// <summary>Seconds of the film that are playable now. Null once the title is ready.</summary>
     public double? HeadSeconds { get; init; }
 
-    /// <summary>A file name under the title's media directory, absent when the source carried no cover art.</summary>
+    /// <summary>A file name under the title's media directory, absent when the film has no artwork.</summary>
     public string? Poster { get; init; }
+
+    /// <summary>Which film this is: its name, its year, its billing and its page.</summary>
+    public FilmIdentity? Film { get; init; }
+
+    /// <summary>
+    /// What to call the film. The catalogue's name where there is one, and the title the ingest
+    /// derived from the release otherwise — never the release itself where anything better exists.
+    /// </summary>
+    public string Name => Film?.Display ?? Title;
 }
 
 /// <summary>

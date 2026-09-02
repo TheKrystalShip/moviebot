@@ -90,7 +90,7 @@ public sealed class WatchCommand(
         var title = match.Title!;
         if (title.Status == TitleStatus.Failed)
             return new WatchResult(WatchStatus.TitleFailed,
-                $"The transcode for \"{title.Title}\" failed, so there is nothing to play. "
+                $"The transcode for \"{title.Name}\" failed, so there is nothing to play. "
                 + "Ingest it again, then run the command again.");
 
         var sessionId = RoomSession.IdFor(voiceChannelId);
@@ -144,5 +144,5 @@ public sealed class WatchCommand(
     /// near miss.
     /// </summary>
     private static string Names(IReadOnlyList<LibraryTitle> titles) =>
-        string.Join(", ", titles.Take(5).Select(t => $"{t.Title} ({t.Id})"));
+        string.Join(", ", titles.Take(5).Select(t => $"{t.Name} ({t.Id})"));
 }

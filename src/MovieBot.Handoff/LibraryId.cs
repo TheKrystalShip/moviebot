@@ -16,13 +16,8 @@ public static class LibraryId
     /// Passed to the ingest so the library shows a film's name rather than its release name. A
     /// container's own title tag is routinely the release name again, so it is not an answer.
     /// </summary>
-    public static string TitleFor(string releaseName)
-    {
-        var release = ReleaseParser.Parse(new TrackerTorrent { Name = releaseName });
-        if (string.IsNullOrWhiteSpace(release.Title)) return releaseName;
-
-        return release.Year is { } year ? $"{release.Title} ({year})" : release.Title;
-    }
+    public static string TitleFor(string releaseName) =>
+        ReleaseParser.ParseName(releaseName).Display;
 
     /// <summary>
     /// The library id for a release, from its name.
@@ -33,7 +28,7 @@ public static class LibraryId
     /// </summary>
     public static string For(string releaseName)
     {
-        var release = ReleaseParser.Parse(new TrackerTorrent { Name = releaseName });
+        var release = ReleaseParser.ParseName(releaseName);
 
         var basis = release.Year is { } year
             ? $"{release.Title} {year}"
