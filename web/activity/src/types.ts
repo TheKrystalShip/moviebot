@@ -51,6 +51,14 @@ export interface SubtitleTrack {
 }
 
 /**
+ * Which film this is, as opposed to which file it came from. Separate from the fingerprint
+ * because an id for the film stays true across every copy of it, where a hash describes one.
+ */
+export interface FilmIdentity {
+  imdbId?: string;
+}
+
+/**
  * What the film was made from, used to judge whether a subtitle found elsewhere was timed against
  * this exact release or against some other one. Absent while a source is still arriving.
  */
@@ -61,6 +69,34 @@ export interface SourceFingerprint {
   frameRate: number;
 }
 
+/** One thing that was compared between a subtitle and the film, as the picker shows it. */
+export interface SubtitleCheck {
+  name: string;
+  /** Nothing to compare is its own answer and never counts against a candidate. */
+  result: 'unknown' | 'match' | 'mismatch';
+  detail: string;
+}
+
+/** A subtitle on offer. Everything here is free to look at; only fetching one costs an allowance. */
+export interface SubtitleCandidate {
+  fileId: number;
+  release: string;
+  language: string;
+  fps?: number;
+  downloadCount: number;
+  hearingImpaired: boolean;
+  trusted: boolean;
+  score: number;
+  checks: SubtitleCheck[];
+}
+
+export interface SubtitleSearch {
+  candidates: SubtitleCandidate[];
+  remainingDownloads?: number;
+  /** Why the list is empty, when it is. An empty menu otherwise reads as a broken search. */
+  explanation?: string;
+}
+
 export interface Manifest {
   id: string;
   title: string;
@@ -69,6 +105,7 @@ export interface Manifest {
   headSeconds?: number;
   error?: string;
   poster?: string;
+  film?: FilmIdentity;
   source?: SourceFingerprint;
   /** The HLS master playlist binding audio to video, when the ingest wrote one. */
   master?: string;

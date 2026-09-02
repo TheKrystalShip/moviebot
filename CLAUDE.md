@@ -147,6 +147,27 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
   only while a source is still arriving, so the ordinary path keeps the behaviour measured
   against it and nothing about the CLI changes.
 
+## Fetching a subtitle from outside
+
+- **One person fetches, the whole room gets it.** A fetched subtitle is stored against the film,
+  not the viewer, and appears in everyone's menu. Which track each viewer selects stays their own
+  choice, as every subtitle choice always has been.
+- **They live outside the media root.** Everything under that root is regenerable from the source
+  file and these are not: each cost one of a limited daily allowance. A re-ingest replaces a
+  title's directory wholesale, the transcode rewrites the manifest inside it every few seconds,
+  and the API holds that root read-only. All three point the same way.
+- **The manifest on disk never mentions them.** They are folded in as it is served, so a subtitle
+  fetched while a manifest sits unchanged in the cache still appears without a restart.
+- **The offset is applied before the file is written, not by the viewer.** Where the film carries
+  a track that came out of it, a fetched subtitle is measured against that and shifted to match,
+  so what lands on disk already fits.
+- **The reference has to be a track that came out of the file.** It fits by construction; a
+  previously fetched one might be wrong, and measuring against a wrong one propagates its error
+  confidently.
+- **A menu row names the release, not the language.** Three fetched subtitles otherwise give three
+  rows all reading "English" and no way to choose between them, which is the same failure the
+  track labelling rules avoid for embedded tracks.
+
 ## Telling somebody about a download
 
 - **Editing a message notifies nobody.** Discord sends no notification for an edit, so a progress

@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using TheKrystalShip.MovieBot.Core;
+using TheKrystalShip.MovieBot.Core.Subtitles;
 using TheKrystalShip.MovieBot.Ingest.Ffmpeg;
 using TheKrystalShip.MovieBot.Ingest.Probe;
-using TheKrystalShip.MovieBot.Ingest.Subtitles;
 
 namespace TheKrystalShip.MovieBot.Ingest.Pipeline;
 
@@ -514,6 +514,11 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                 ]
             },
             Audio = audio,
+            // Known from the moment the film was chosen, so unlike the fingerprint it does not
+            // wait on the file being whole.
+            Film = options.ImdbId is { Length: > 0 } imdbId
+                ? new FilmIdentity { ImdbId = imdbId }
+                : null,
             Source = sourceStillArriving ? null : Fingerprint(video),
             Subtitles = subtitles
         };

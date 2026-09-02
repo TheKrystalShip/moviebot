@@ -5,6 +5,9 @@ using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Api.Library;
+using TheKrystalShip.MovieBot.Api.Subtitles;
+using TheKrystalShip.MovieBot.Acquire.Configuration;
+using TheKrystalShip.MovieBot.Acquire.Subtitles;
 using TheKrystalShip.MovieBot.Api.Media;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
@@ -16,11 +19,22 @@ builder.Services.AddSingleton(TimeProvider.System);
 // Configuration is resolved when the library is first asked for, not while the builder is still
 // being assembled: a source added after this line — as a test host does — would otherwise be
 // read too late and the service would quietly point somewhere else.
+builder.Services.AddSingleton(sp => new SubtitleStore(
+    sp.GetRequiredService<IConfiguration>()["Subtitles:Root"]
+        ?? Path.Combine(Directory.GetCurrentDirectory(), "subtitles"),
+    sp.GetRequiredService<ILogger<SubtitleStore>>()));
 builder.Services.AddSingleton(sp => new TitleLibrary(
     sp.GetRequiredService<IConfiguration>()["Media:Root"]
         ?? Path.Combine(Directory.GetCurrentDirectory(), "media"),
+    sp.GetRequiredService<SubtitleStore>(),
     sp.GetRequiredService<ILogger<TitleLibrary>>()));
 builder.Services.AddSingleton<SessionStore>();
+
+// The subtitle index. Searching costs nothing and only a download spends the day's allowance, so
+// the client is a plain singleton with its own pacing rather than anything rationed here.
+builder.Services.AddOptions<OpenSubtitlesOptions>()
+    .Bind(builder.Configuration.GetSection(OpenSubtitlesOptions.Section));
+builder.Services.AddHttpClient<OpenSubtitlesClient>();
 builder.Services.AddOptions<RoomOptions>().Bind(builder.Configuration.GetSection(RoomOptions.Section));
 
 // Without a signing key nothing can be minted or checked, and the films would be served to
@@ -86,6 +100,8 @@ app.MapGet("/api/titles", (TitleLibrary library) => Results.Ok(library.List()));
 
 app.MapGet("/api/titles/{id}", (string id, TitleLibrary library) =>
     library.Get(id) is { } manifest ? Results.Ok(manifest) : Results.NotFound());
+
+app.MapSubtitles();
 
 app.MapGet("/api/sessions/{sessionId}", (string sessionId, SessionStore sessions) =>
     Results.Ok(new SessionStatePush

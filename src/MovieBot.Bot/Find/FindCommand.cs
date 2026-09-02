@@ -89,17 +89,21 @@ public sealed class FindCommand(
 
         try
         {
-            // Two notes, both on the torrent rather than in this process: where to announce it,
-            // and that it is not watchable until something has transcoded it. A download wearing
-            // neither is one nobody is waiting on.
-            var result = await acquisition.StartAsync(
-                release,
-                [
-                    TorrentTags.Notify(request.ChannelId),
-                    TorrentTags.Requester(request.RequesterId),
-                    TorrentTags.NeedsIngest,
-                ],
-                ct);
+            // Notes left on the torrent rather than held in this process: where to announce it,
+            // that it is not watchable until something has transcoded it, and which film it is.
+            // A download wearing none of them is one nobody is waiting on.
+            var tags = new List<string>
+            {
+                TorrentTags.Notify(request.ChannelId),
+                TorrentTags.Requester(request.RequesterId),
+                TorrentTags.NeedsIngest,
+            };
+
+            // The tracker states the film outright. Recording it here is the only chance to keep
+            // a fact rather than something re-guessed from a release name later on.
+            if (release.ImdbId is { Length: > 0 } imdbId) tags.Add(TorrentTags.Imdb(imdbId));
+
+            var result = await acquisition.StartAsync(release, tags, ct);
 
             if (!result.Started)
                 return new FindResult(FindStatus.Refused, result.Refusal!, release);

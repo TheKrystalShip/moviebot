@@ -1,4 +1,4 @@
-namespace TheKrystalShip.MovieBot.Ingest.Subtitles;
+namespace TheKrystalShip.MovieBot.Core.Subtitles;
 
 /// <summary>
 /// A last look at a track once the repair has finished with it, so a track that is still wrong says

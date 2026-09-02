@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-09-02
+
+### Added
+
+- Subtitles can be fetched from an outside index when the ones a film shipped with do not fit it.
+  Searching is free and only fetching spends the day's allowance, so every candidate is judged
+  first and what was compared is shown rather than summarised: whether it was indexed against this
+  exact file, whether its frame rate matches, and whether it came off the same kind of source.
+- A fetched subtitle is measured against a track that came out of the film itself, and the offset
+  that comes back is applied before it is written. What lands on disk already fits.
+- A title records which film it is. Kept apart from the fingerprint of the file it was made from,
+  because an id for the film stays true across every copy of it where a hash describes only one.
+
+### Changed
+
+- One person fetching a subtitle adds it for the whole room; which track each viewer selects stays
+  their own choice. They are stored outside the media root, so a re-ingest that replaces a title's
+  directory cannot take with it the one thing in the pipeline that is not regenerable for free.
+
 ## [1.8.0] - 2026-09-02
 
 ### Added

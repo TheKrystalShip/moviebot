@@ -74,6 +74,11 @@ public sealed class Manifest
     public string? Master { get; init; }
 
     /// <summary>
+    /// Which film this is, as opposed to which file it came from. Null when nothing identified it.
+    /// </summary>
+    public FilmIdentity? Film { get; set; }
+
+    /// <summary>
     /// Settable for the same reason as <see cref="Subtitles"/>, and null until it is known. A
     /// source that is still arriving cannot be fingerprinted: the hash covers the end of the file,
     /// and the space reserved for the end reads as zeroes until it lands.
@@ -88,6 +93,64 @@ public sealed class Manifest
     /// cannot have its subtitles demuxed until it has.
     /// </summary>
     public required IReadOnlyList<SubtitleTrack> Subtitles { get; set; }
+}
+
+/// <summary>
+/// A subtitle fetched from outside and kept beside the film rather than inside it.
+///
+/// It lives outside the media root on purpose. Everything under that root is regenerable from the
+/// source file; this is not — it cost one of a limited number of daily downloads — so a re-ingest
+/// that replaces a title's directory must not be able to take it with it. Keeping it elsewhere
+/// also means the transcode and this can never write to the same place.
+///
+/// One person fetching a subtitle adds it for the whole room. Which track each viewer then
+/// selects stays their own choice, as it always was.
+/// </summary>
+public sealed record SidecarSubtitle
+{
+    /// <summary>Stable and derived from where it came from, so fetching it twice replaces it.</summary>
+    public required string Id { get; init; }
+
+    public required string Language { get; init; }
+
+    /// <summary>
+    /// What the menu shows. It names the release the subtitle was timed for, because a room that
+    /// has fetched three of these otherwise sees three rows all reading "English".
+    /// </summary>
+    public required string Label { get; init; }
+
+    public bool HearingImpaired { get; init; }
+
+    /// <summary>The release it was timed against, as its uploader stated it.</summary>
+    public string? Release { get; init; }
+
+    /// <summary>Who fetched it, so a room can tell who to ask about a bad one.</summary>
+    public string? AddedBy { get; init; }
+
+    public DateTimeOffset AddedAt { get; init; }
+
+    /// <summary>
+    /// The offset measured against a track already known to fit the film, and already applied to
+    /// the file on disk. Null means nothing could be measured, not that no shift was needed.
+    /// </summary>
+    public double? AppliedShiftSeconds { get; init; }
+
+    /// <summary>How much of it lined up at that offset, as a fraction.</summary>
+    public double? AlignedFraction { get; init; }
+}
+
+/// <summary>
+/// Which film a title is, independently of the file it was made from.
+///
+/// Separate from <see cref="SourceFingerprint"/> because the two answer different questions and
+/// age differently. A hash and a frame rate describe one encode and are meaningless for another;
+/// an IMDb id describes the film itself, so it stays true across every copy of it and is what
+/// anything describing the film — its genres, its cast, its artwork — hangs from.
+/// </summary>
+public sealed record FilmIdentity
+{
+    /// <summary>The IMDb id in its canonical form, <c>tt0458352</c>.</summary>
+    public string? ImdbId { get; init; }
 }
 
 /// <summary>

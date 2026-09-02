@@ -1,4 +1,4 @@
-using TheKrystalShip.MovieBot.Ingest.Subtitles;
+using TheKrystalShip.MovieBot.Core.Subtitles;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;

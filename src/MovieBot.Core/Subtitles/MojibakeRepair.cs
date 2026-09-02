@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace TheKrystalShip.MovieBot.Ingest.Subtitles;
+namespace TheKrystalShip.MovieBot.Core.Subtitles;
 
 /// <summary>
 /// Undoes text that was written as UTF-8, read back as Windows-1252, and written as UTF-8 again.
@@ -18,21 +18,6 @@ public static class MojibakeRepair
     {
         public bool Changed => Repaired > 0;
     }
-
-    /// <summary>
-    /// The characters Windows-1252 puts in 0x80-0x9F, which is the whole difference between it and
-    /// Latin-1 and the reason this corruption is recognisable at all.
-    /// </summary>
-    private static readonly (char Char, byte Byte)[] Cp1252High =
-    [
-        ('€', 0x80), ('‚', 0x82), ('ƒ', 0x83), ('„', 0x84),
-        ('…', 0x85), ('†', 0x86), ('‡', 0x87), ('ˆ', 0x88),
-        ('‰', 0x89), ('Š', 0x8A), ('‹', 0x8B), ('Œ', 0x8C),
-        ('Ž', 0x8E), ('‘', 0x91), ('’', 0x92), ('“', 0x93),
-        ('”', 0x94), ('•', 0x95), ('–', 0x96), ('—', 0x97),
-        ('˜', 0x98), ('™', 0x99), ('š', 0x9A), ('›', 0x9B),
-        ('œ', 0x9C), ('ž', 0x9E), ('Ÿ', 0x9F),
-    ];
 
     /// <summary>
     /// Five bytes have no character in Windows-1252. An encoder that discards them rather than
@@ -133,27 +118,7 @@ public static class MojibakeRepair
 
     private static bool TryEncodeChar(char c, out byte b)
     {
-        // Latin-1 and Windows-1252 agree everywhere except the block from 0x80 to 0x9F, so any
-        // character that fits in a byte is that byte. What sits inside the block is either one of
-        // the characters below, or a control that a Latin-1 read carried through unchanged --
-        // which is why mangling through either encoding comes back the same way.
-        if (c <= '\u00ff')
-        {
-            b = (byte)c;
-            return true;
-        }
-
-        foreach (var (mapped, value) in Cp1252High)
-        {
-            if (mapped == c)
-            {
-                b = value;
-                return true;
-            }
-        }
-
-        b = 0;
-        return false;
+        return Windows1252.TryEncode(c, out b);
     }
 
     private static int Count(string s, char c)

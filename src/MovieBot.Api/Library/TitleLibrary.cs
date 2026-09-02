@@ -22,7 +22,8 @@ public sealed record TitleSummary
 /// the head that is actually on disk, and re-reading a small JSON file when its timestamp moves
 /// costs nothing next to being wrong.
 /// </summary>
-public sealed class TitleLibrary(string mediaRoot, ILogger<TitleLibrary> logger)
+public sealed class TitleLibrary(
+    string mediaRoot, Subtitles.SubtitleStore subtitles, ILogger<TitleLibrary> logger)
 {
     private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
 
@@ -63,7 +64,7 @@ public sealed class TitleLibrary(string mediaRoot, ILogger<TitleLibrary> logger)
 
         var lastWrite = File.GetLastWriteTimeUtc(path);
         if (_cache.TryGetValue(id, out var cached) && cached.LastWriteUtc == lastWrite)
-            return cached.Manifest;
+            return Merge(id, cached.Manifest);
 
         try
         {
@@ -71,7 +72,7 @@ public sealed class TitleLibrary(string mediaRoot, ILogger<TitleLibrary> logger)
             if (manifest is null) return null;
 
             _cache[id] = new CacheEntry(manifest, lastWrite);
-            return manifest;
+            return Merge(id, manifest);
         }
         catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
         {
@@ -80,6 +81,29 @@ public sealed class TitleLibrary(string mediaRoot, ILogger<TitleLibrary> logger)
             logger.LogWarning(ex, "Could not read manifest for {TitleId}", id);
             return _cache.TryGetValue(id, out var stale) ? stale.Manifest : null;
         }
+    }
+
+    /// <summary>
+    /// Folds in the subtitles fetched from outside, which live under their own root and so are
+    /// invisible to the manifest on disk.
+    ///
+    /// Done on the way out rather than at the point the manifest is read, because a subtitle added
+    /// while a manifest sits unchanged in the cache still has to appear. Replacing the whole
+    /// sidecar half each time is what makes calling it repeatedly harmless.
+    /// </summary>
+    private Manifest Merge(string id, Manifest manifest)
+    {
+        var fetched = subtitles.For(id);
+        var embedded = manifest.Subtitles.Where(t => t.Source != SubtitleSource.Sidecar).ToList();
+
+        if (fetched.Count == 0)
+        {
+            if (embedded.Count != manifest.Subtitles.Count) manifest.Subtitles = embedded;
+            return manifest;
+        }
+
+        manifest.Subtitles = [.. embedded, .. fetched.Select(Subtitles.SubtitleStore.AsTrack)];
+        return manifest;
     }
 
     /// <summary>

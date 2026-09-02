@@ -18,6 +18,13 @@ public sealed record IngestOptions
     public string? Title { get; init; }
 
     /// <summary>
+    /// Which film this is, as <c>tt0458352</c>, when something already knew. Recorded rather than
+    /// derived: everything downstream that describes the film hangs from this id, and a release
+    /// name is a guess where the tracker's answer is a fact.
+    /// </summary>
+    public string? ImdbId { get; init; }
+
+    /// <summary>
     /// Target video bitrate. 9 Mbps H.264 High is generous for a 1080p film and, on a symmetric
     /// gigabit link, there is no reason to go lower and little visible reason to go higher.
     /// </summary>

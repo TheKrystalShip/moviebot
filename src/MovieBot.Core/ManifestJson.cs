@@ -14,6 +14,7 @@ namespace TheKrystalShip.MovieBot.Core;
     UseStringEnumConverter = true,
     WriteIndented = true)]
 [JsonSerializable(typeof(Manifest))]
+[JsonSerializable(typeof(SidecarSubtitle))]
 [JsonSerializable(typeof(SessionState))]
 [JsonSerializable(typeof(SessionStatePush))]
 [JsonSerializable(typeof(SeekClamped))]

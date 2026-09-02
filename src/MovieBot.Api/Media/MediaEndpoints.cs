@@ -25,9 +25,23 @@ public static class MediaEndpoints
     {
         // HEAD as well as GET: browsers and some players probe a media URL before fetching it,
         // and a 405 there reads to the client as the file being unavailable.
-        app.MapMethods("/media/{id}/{**path}", ["GET", "HEAD"], (string id, string path, TitleLibrary library) =>
+        app.MapMethods("/media/{id}/{**path}", ["GET", "HEAD"],
+            (string id, string path, TitleLibrary library, Subtitles.SubtitleStore subtitles) =>
         {
             if (!TitleLibrary.IsSafeId(id)) return Results.NotFound();
+
+            // Subtitles fetched from outside sit under their own root, so that a re-ingest
+            // replacing a title's directory cannot take them with it. They are served from the
+            // same URL space regardless, because a player has no reason to know the difference.
+            if (path.StartsWith(Subtitles.SubtitleStore.UriPrefix, StringComparison.Ordinal))
+            {
+                var fetched = subtitles.Resolve(id, path[Subtitles.SubtitleStore.UriPrefix.Length..]);
+
+                return fetched is null
+                    ? Results.NotFound()
+                    : Results.File(fetched, "text/vtt", enableRangeProcessing: true)
+                        .WithCacheControl("public, max-age=60");
+            }
 
             var titleRoot = Path.Combine(library.MediaRoot, id);
             var requested = Path.GetFullPath(Path.Combine(titleRoot, path));
