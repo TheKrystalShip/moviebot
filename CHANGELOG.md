@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0] - 2026-09-02
+
+### Added
+
+- A zoom lane on the scrub bar. Resting a pointer on the bar for a moment opens a second bar above
+  it holding three minutes of the film, ruled every ten seconds and named every thirty, with the
+  chapters and the playhead that fall inside those minutes drawn where they belong. It is a
+  control of its own: clicking or dragging inside it seeks. Two hours across a bar puts several
+  seconds under every pixel, which finds a scene and cannot find a moment inside one; the lane is
+  the same materials at roughly a fiftieth of that, so a second is a distance rather than a
+  rounding error.
+- The bar below never changes what a pixel is worth while the lane is open, so a long move is
+  never trapped behind a precise one. A caret in the lane says which part of the window the coarse
+  bar is pointing at, the window moves when the pointer leaves it, and pointing away from both
+  closes it.
+
+### Changed
+
+- The control bar is held up by a count of what is being read on it rather than a flag, so a menu
+  closing no longer drops the bar out from under the zoom lane, or the other way round.
+
 ## [1.16.0] - 2026-09-02
 
 ### Added

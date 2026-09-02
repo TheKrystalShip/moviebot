@@ -16,6 +16,24 @@ import { formatTime } from '../ui/format';
  */
 const KeyboardStepSeconds = 5;
 
+/** How long a pointer has to rest on the bar before the film is worth magnifying. */
+const DwellMs = 380;
+/** A hand never holds a mouse perfectly still, and it has not moved on until it moves this far. */
+const DwellSlopPx = 4;
+
+/**
+ * What the lane spans.
+ *
+ * Wide enough that a point made at the coarse scale lands inside it — three seconds of pointing
+ * error on a two-hour bar is a couple of minutes — and narrow enough that one second is a visible
+ * distance rather than a rounding error.
+ */
+const LaneWindowSeconds = 180;
+const LaneTickSeconds = 10;
+const LaneLabelSeconds = 30;
+/** Below this the bar is already precise enough that a second bar would only be in the way. */
+const LaneShortestFilmSeconds = 240;
+
 export class ScrubBar {
   readonly el: HTMLElement;
 
@@ -30,6 +48,14 @@ export class ScrubBar {
   private readonly previewFrame: HTMLElement;
   private readonly previewChapter: HTMLElement;
   private readonly marks: HTMLElement;
+  private readonly lane: HTMLElement;
+  private readonly laneTrack: HTMLElement;
+  private readonly laneReady: HTMLElement;
+  private readonly lanePlayed: HTMLElement;
+  private readonly laneTicks: HTMLElement;
+  private readonly laneScale: HTMLElement;
+  private readonly laneHandle: HTMLElement;
+  private readonly laneCaret: HTMLElement;
 
   private durationSeconds = 0;
   private readySeconds: number | null = null;
@@ -38,8 +64,21 @@ export class ScrubBar {
   private chapters: Chapter[] = [];
   private strip: ThumbnailStrip | null = null;
   private showRemaining = false;
+  private laneFrom = 0;
+  private laneTo = 0;
+  private laneDragging = false;
+  private dwellTimer: number | null = null;
+  private dwellAtX = Number.NaN;
+  private watchOutside: ((event: PointerEvent) => void) | null = null;
 
-  constructor(private readonly onSeek: (seconds: number) => void) {
+  /**
+   * The lane is a thing to stop and read, and a control bar that fades when nobody is moving would
+   * take it away mid-read, so whoever owns the bar is told to hold it up.
+   */
+  constructor(
+    private readonly onSeek: (seconds: number) => void,
+    private readonly onMagnify: (open: boolean) => void = () => {}
+  ) {
     this.el = document.createElement('div');
     this.el.className = 'mb-scrub';
     this.el.innerHTML = `
@@ -54,6 +93,16 @@ export class ScrubBar {
           <div class="mb-scrub__preview-frame" hidden></div>
           <span class="mb-scrub__preview-chapter" hidden></span>
           <span class="mb-scrub__preview-time"></span>
+        </div>
+        <div class="mb-lane" aria-hidden="true" hidden>
+          <div class="mb-lane__track">
+            <div class="mb-lane__ready"></div>
+            <div class="mb-lane__played"></div>
+            <div class="mb-lane__ticks"></div>
+            <div class="mb-lane__handle" hidden></div>
+            <div class="mb-lane__caret" hidden></div>
+          </div>
+          <div class="mb-lane__scale"></div>
         </div>
       </div>
       <button type="button" class="mb-scrub__time mb-scrub__time--total"
@@ -70,6 +119,14 @@ export class ScrubBar {
     this.previewFrame = this.el.querySelector('.mb-scrub__preview-frame') as HTMLElement;
     this.previewChapter = this.el.querySelector('.mb-scrub__preview-chapter') as HTMLElement;
     this.marks = this.el.querySelector('.mb-scrub__marks') as HTMLElement;
+    this.lane = this.el.querySelector('.mb-lane') as HTMLElement;
+    this.laneTrack = this.el.querySelector('.mb-lane__track') as HTMLElement;
+    this.laneReady = this.el.querySelector('.mb-lane__ready') as HTMLElement;
+    this.lanePlayed = this.el.querySelector('.mb-lane__played') as HTMLElement;
+    this.laneTicks = this.el.querySelector('.mb-lane__ticks') as HTMLElement;
+    this.laneScale = this.el.querySelector('.mb-lane__scale') as HTMLElement;
+    this.laneHandle = this.el.querySelector('.mb-lane__handle') as HTMLElement;
+    this.laneCaret = this.el.querySelector('.mb-lane__caret') as HTMLElement;
 
     this.total.addEventListener('click', () => {
       this.showRemaining = !this.showRemaining;
@@ -83,11 +140,26 @@ export class ScrubBar {
     // Where a seek would land, before it is made. It matters more here than in a player somebody
     // watches alone: a seek moves the whole room, so being able to read the time under the pointer
     // is the difference between choosing a moment and discovering one.
-    this.track.addEventListener('pointermove', (event) => this.showPreview(event.clientX));
-    this.track.addEventListener('pointerleave', () => this.hidePreview());
+    this.track.addEventListener('pointermove', (event) => this.overBar(event.clientX));
+    this.track.addEventListener('pointerleave', () => {
+      this.cancelDwell();
+      this.hidePreview();
+    });
+
+    // The lane is its own control over its own span, which is the whole point of it: the same
+    // pointer movement is worth a fraction of the time it is worth on the bar below.
+    this.laneTrack.addEventListener('pointermove', (event) => {
+      event.stopPropagation();
+      this.overLane(event.clientX);
+    });
+    this.laneTrack.addEventListener('pointerdown', (event) => this.beginLaneDrag(event));
+    this.laneTrack.addEventListener('pointerleave', () => {
+      if (!this.laneDragging) this.hidePreview();
+    });
   }
 
   setDuration(seconds: number): void {
+    this.closeLane();
     this.durationSeconds = seconds;
     this.track.setAttribute('aria-valuemax', seconds.toFixed(0));
     this.renderMarks();
@@ -175,6 +247,7 @@ export class ScrubBar {
       : formatTime(this.durationSeconds);
     this.track.setAttribute('aria-valuenow', this.shown.toFixed(0));
     this.track.setAttribute('aria-valuetext', formatTime(this.shown));
+    this.renderLane();
   }
 
   /**
@@ -184,11 +257,12 @@ export class ScrubBar {
    * server and the refusal reaches only the person who tried. Saying so before the click is a
    * better answer than explaining it after.
    */
-  private showPreview(clientX: number): void {
+  private showPreview(clientX: number, over: HTMLElement = this.track, from = 0,
+                      to = this.durationSeconds): void {
     if (this.durationSeconds <= 0) return;
 
-    const box = this.track.getBoundingClientRect();
-    const at = this.secondsAt(clientX);
+    const box = over.getBoundingClientRect();
+    const at = this.secondsIn(over, clientX, from, to);
 
     this.previewTime.textContent = formatTime(at);
     this.preview.classList.toggle(
@@ -209,9 +283,12 @@ export class ScrubBar {
       this.previewFrame.hidden = false;
     }
 
-    // Clamped to the bar so the bubble never hangs off either end of it.
+    // Clamped to whichever bar it is being drawn against, so it never hangs off either end, and
+    // offset from that bar's own left edge rather than the element the bubble hangs in.
+    const host = (this.preview.offsetParent as HTMLElement | null) ?? this.track;
     const half = this.preview.offsetWidth / 2;
-    const offset = Math.min(box.width - half, Math.max(half, clientX - box.left));
+    const inside = Math.min(box.width - half, Math.max(half, clientX - box.left));
+    const offset = inside + box.left - host.getBoundingClientRect().left;
 
     this.preview.style.left = `${offset}px`;
     this.preview.hidden = false;
@@ -222,15 +299,257 @@ export class ScrubBar {
     if (this.dragSeconds === null) this.preview.hidden = true;
   }
 
-  private secondsAt(clientX: number): number {
-    const box = this.track.getBoundingClientRect();
+  /** Where a horizontal position falls in the span some bar is drawn over. */
+  private secondsIn(over: HTMLElement, clientX: number, from: number, to: number): number {
+    const box = over.getBoundingClientRect();
     const ratio = box.width === 0 ? 0 : (clientX - box.left) / box.width;
-    return Math.min(this.durationSeconds, Math.max(0, ratio * this.durationSeconds));
+    return Math.min(to, Math.max(from, from + ratio * (to - from)));
+  }
+
+  private secondsAt(clientX: number): number {
+    return this.secondsIn(this.track, clientX, 0, this.durationSeconds);
+  }
+
+  /**
+   * The pointer over the coarse bar, which is where the lane is asked for.
+   *
+   * While the lane is open the bar's job is to say which part of those three minutes it is
+   * pointing at, and to move the window when it is pointing outside them. The window holds still
+   * inside itself deliberately: a lane that slid under every pixel of travel would be a thing to
+   * chase rather than a thing to read.
+   */
+  private overBar(clientX: number): void {
+    if (this.laneOpen) {
+      const at = this.secondsAt(clientX);
+
+      // Out of the neighbourhood it was opened over, and magnifying somewhere nobody is looking.
+      if (at < this.laneFrom || at > this.laneTo) this.centreLane(at);
+
+      this.hidePreview();
+      this.markCaret(at);
+      return;
+    }
+
+    this.armDwell(clientX);
+    this.showPreview(clientX);
+  }
+
+  private get laneOpen(): boolean {
+    return !this.lane.hidden;
+  }
+
+  /**
+   * Arms the rest that opens the lane.
+   *
+   * A pointer crossing the bar on its way somewhere else never rests, and one being aimed always
+   * does, which is what makes resting the thing to watch for rather than a button to press.
+   */
+  private armDwell(clientX: number): void {
+    if (this.dragSeconds !== null) return;
+    if (this.durationSeconds < LaneShortestFilmSeconds) return;
+
+    // Still resting: leave the timer that is already running alone, or it never finishes.
+    if (this.dwellTimer !== null && Math.abs(clientX - this.dwellAtX) <= DwellSlopPx) return;
+
+    this.cancelDwell();
+    this.dwellAtX = clientX;
+    this.dwellTimer = window.setTimeout(() => {
+      this.dwellTimer = null;
+      this.openLane(this.secondsAt(this.dwellAtX));
+    }, DwellMs);
+  }
+
+  private cancelDwell(): void {
+    if (this.dwellTimer === null) return;
+
+    window.clearTimeout(this.dwellTimer);
+    this.dwellTimer = null;
+    this.dwellAtX = Number.NaN;
+  }
+
+  /**
+   * Opens the lane over the minutes around a moment.
+   *
+   * It is a second bar rather than the first one rescaled. The bar below never changes what a
+   * pixel is worth, so nothing anybody already knows how to do behaves differently while this is
+   * on screen, and there is no state to be caught in: leave the neighbourhood and it is gone.
+   */
+  private openLane(centre: number): void {
+    if (this.durationSeconds < LaneShortestFilmSeconds) return;
+
+    this.lane.hidden = false;
+    this.el.classList.add('mb-scrub--magnified');
+    this.onMagnify(true);
+    this.hidePreview();
+    this.centreLane(centre);
+    this.markCaret(centre);
+
+    // Leaving upward crosses out of the bar and into nothing the bar hears about, so where the
+    // pointer actually is decides this rather than which element it left.
+    this.watchOutside = (event) => {
+      if (this.laneDragging) return;
+      if (this.within(this.track, event) || this.within(this.lane, event)) return;
+      this.closeLane();
+    };
+    document.addEventListener('pointermove', this.watchOutside);
+  }
+
+  /** Puts the window around a moment, clamped so it always describes film that exists. */
+  private centreLane(centre: number): void {
+    const span = Math.min(LaneWindowSeconds, this.durationSeconds);
+
+    this.laneFrom = Math.min(this.durationSeconds - span, Math.max(0, centre - span / 2));
+    this.laneTo = this.laneFrom + span;
+    this.renderLaneScale();
+    this.renderLane();
+  }
+
+  private closeLane(): void {
+    if (!this.laneOpen) return;
+
+    this.lane.hidden = true;
+    this.laneCaret.hidden = true;
+    this.el.classList.remove('mb-scrub--magnified');
+    this.onMagnify(false);
+    this.movePreview(this.track);
+    this.hidePreview();
+
+    if (this.watchOutside !== null) {
+      document.removeEventListener('pointermove', this.watchOutside);
+      this.watchOutside = null;
+    }
+  }
+
+  private within(el: HTMLElement, event: PointerEvent): boolean {
+    const box = el.getBoundingClientRect();
+    return event.clientX >= box.left && event.clientX <= box.right
+      && event.clientY >= box.top && event.clientY <= box.bottom;
+  }
+
+  /** The bubble hangs in whichever bar the pointer is over, so it is always the nearer one. */
+  private movePreview(host: HTMLElement): void {
+    if (this.preview.parentElement === host) return;
+
+    this.preview.hidden = true;
+    host.appendChild(this.preview);
+  }
+
+  /** Which part of the magnified minute the coarse bar is pointing at. */
+  private markCaret(at: number): void {
+    this.laneCaret.hidden = false;
+    this.laneCaret.style.left = `${((at - this.laneFrom) / (this.laneTo - this.laneFrom)) * 100}%`;
+  }
+
+  private overLane(clientX: number): void {
+    this.laneCaret.hidden = true;
+    this.movePreview(this.lane);
+    this.showPreview(clientX, this.laneTrack, this.laneFrom, this.laneTo);
+  }
+
+  /** The lane's fills and its playhead, which are the bar's own drawn over a minute of it. */
+  private renderLane(): void {
+    if (!this.laneOpen) return;
+
+    const span = this.laneTo - this.laneFrom;
+    const place = (at: number) =>
+      `${Math.min(100, Math.max(0, ((at - this.laneFrom) / span) * 100))}%`;
+
+    this.laneReady.style.width = this.readySeconds === null ? '100%' : place(this.readySeconds);
+    this.lanePlayed.style.width = place(this.shown);
+
+    const inside = this.shown >= this.laneFrom && this.shown <= this.laneTo;
+    this.laneHandle.hidden = !inside;
+    if (inside) this.laneHandle.style.left = place(this.shown);
+  }
+
+  /**
+   * The ruler: a tick every ten seconds, a time every thirty, and the chapters that begin inside
+   * the window. It is what makes the lane a magnification rather than a wider bar.
+   */
+  private renderLaneScale(): void {
+    this.laneTicks.replaceChildren();
+    this.laneScale.replaceChildren();
+
+    const span = this.laneTo - this.laneFrom;
+    if (span <= 0) return;
+
+    for (let at = Math.ceil(this.laneFrom / LaneTickSeconds) * LaneTickSeconds;
+         at <= this.laneTo; at += LaneTickSeconds) {
+      const left = ((at - this.laneFrom) / span) * 100;
+      const major = at % LaneLabelSeconds === 0;
+
+      const tick = document.createElement('div');
+      tick.className = major ? 'mb-lane__tick is-major' : 'mb-lane__tick';
+      tick.style.left = `${left}%`;
+      this.laneTicks.appendChild(tick);
+
+      // A time centred on the very edge is drawn half outside the lane, and the two beside it say
+      // where that end is anyway.
+      if (!major || left < 4 || left > 96) continue;
+
+      const label = document.createElement('span');
+      label.className = 'mb-lane__label';
+      label.style.left = `${left}%`;
+      label.textContent = formatTime(at);
+      this.laneScale.appendChild(label);
+    }
+
+    for (const chapter of this.chapters) {
+      if (chapter.startSeconds <= this.laneFrom || chapter.startSeconds >= this.laneTo) continue;
+
+      const mark = document.createElement('div');
+      mark.className = 'mb-lane__chapter';
+      mark.style.left = `${((chapter.startSeconds - this.laneFrom) / span) * 100}%`;
+      this.laneTicks.appendChild(mark);
+    }
+  }
+
+  /**
+   * A drag inside the lane. It publishes the same intent the bar does and the server answers it
+   * the same way; the only difference is how much of the film a pixel of it was worth.
+   */
+  private beginLaneDrag(event: PointerEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.cancelDwell();
+    this.laneDragging = true;
+    this.laneTrack.setPointerCapture(event.pointerId);
+    this.dragSeconds = this.secondsIn(this.laneTrack, event.clientX, this.laneFrom, this.laneTo);
+    this.el.classList.add('mb-scrub--dragging');
+    this.overLane(event.clientX);
+    this.render();
+
+    const move = (moved: PointerEvent) => {
+      this.dragSeconds = this.secondsIn(this.laneTrack, moved.clientX, this.laneFrom, this.laneTo);
+      this.overLane(moved.clientX);
+      this.render();
+    };
+
+    const finish = (ended: PointerEvent) => {
+      this.laneTrack.removeEventListener('pointermove', move);
+      this.laneTrack.removeEventListener('pointerup', finish);
+      this.laneTrack.removeEventListener('pointercancel', finish);
+      this.laneTrack.releasePointerCapture(ended.pointerId);
+
+      const target = this.secondsIn(this.laneTrack, ended.clientX, this.laneFrom, this.laneTo);
+      this.dragSeconds = null;
+      this.laneDragging = false;
+      this.el.classList.remove('mb-scrub--dragging');
+      this.closeLane();
+      this.render();
+      this.onSeek(target);
+    };
+
+    this.laneTrack.addEventListener('pointermove', move);
+    this.laneTrack.addEventListener('pointerup', finish);
+    this.laneTrack.addEventListener('pointercancel', finish);
   }
 
   private beginDrag(event: PointerEvent): void {
     if (this.durationSeconds <= 0) return;
     event.preventDefault();
+    this.cancelDwell();
+    this.closeLane();
     this.track.setPointerCapture(event.pointerId);
     this.dragSeconds = this.secondsAt(event.clientX);
     this.el.classList.add('mb-scrub--dragging');

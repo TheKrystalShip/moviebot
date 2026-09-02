@@ -365,12 +365,11 @@ body {
 .mb-scrub {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex: 1 1 auto;
   min-width: 0;
   padding: 0 14px;
   height: 100%;
-  gap: 12px;
 }
 
 .mb-scrub__time {
@@ -526,6 +525,144 @@ button.mb-scrub__time:hover {
 .mb-scrub__preview--unreachable .mb-scrub__preview-time::after {
   content: "\00a0\00b7\00a0not ready";
   font-size: 11px;
+}
+
+/* ---- Zoom lane ------------------------------------------------------- */
+
+/* A second bar over three minutes of the film, opened by resting a pointer on the first one.
+   Two hours across a bar puts several seconds under every pixel, which is fine for finding a
+   scene and useless for finding a moment inside one. This is the same materials at a scale where
+   a second is a visible distance, and it is a control of its own rather than the bar rescaled:
+   nothing below it changes what a pixel is worth while it is open, so a long move is never
+   trapped behind a precise one.
+
+   It touches the bar. The gesture is to leave the bar upward and land in this, and a gap between
+   them is a place the pointer can be in neither. */
+.mb-lane {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  z-index: 6;
+  padding: 10px 12px 12px;
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.mb-lane__track {
+  position: relative;
+  height: 34px;
+  border-radius: 6px;
+  background: var(--glass-wash);
+  overflow: hidden;
+}
+
+.mb-lane__ready,
+.mb-lane__played {
+  position: absolute;
+  inset: 0 auto 0 0;
+  pointer-events: none;
+}
+
+/* Only while there is a difference between the film's length and how much of it has been written.
+   Once the whole thing exists, shading all three minutes of the window says nothing. */
+.mb-lane__ready {
+  background: var(--ready);
+  opacity: 0;
+}
+
+.mb-scrub--transcoding .mb-lane__ready {
+  opacity: 1;
+}
+
+.mb-lane__played {
+  background: var(--accent-dim);
+}
+
+.mb-lane__ticks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mb-lane__tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.30);
+}
+
+/* The ones a time is written under, drawn the full height so the number has something to sit on. */
+.mb-lane__tick.is-major {
+  top: 0;
+  height: auto;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.mb-lane__chapter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--warn);
+}
+
+/* Where the film actually is, when that is inside the window. */
+.mb-lane__handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  margin-left: -1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+/* Where the bar below is pointing, so the two are legibly the same place. It has to be told apart
+   from the ruler it stands among, which is what the notch under it is for. */
+.mb-lane__caret {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text);
+  pointer-events: none;
+}
+
+.mb-lane__caret::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  border: 5px solid transparent;
+  border-bottom-color: var(--text);
+  transform: translateX(-50%);
+}
+
+.mb-lane__scale {
+  position: relative;
+  height: 16px;
+  margin-top: 4px;
+  pointer-events: none;
+}
+
+.mb-lane__label {
+  position: absolute;
+  top: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+  white-space: nowrap;
+  transform: translateX(-50%);
 }
 
 /* ---- Track menus ---------------------------------------------------- */

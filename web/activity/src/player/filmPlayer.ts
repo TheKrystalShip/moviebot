@@ -70,6 +70,7 @@ export class FilmPlayer {
   private releaseShortcuts: (() => void) | null = null;
   private readonly spinner: HTMLElement;
   private readonly seekFlash: SeekFlash;
+  private holds = 0;
   private readonly volume: VolumeControl;
 
   constructor(container: HTMLElement, private readonly hooks: FilmPlayerHooks) {
@@ -97,7 +98,8 @@ export class FilmPlayer {
       this.video.addEventListener(settled, () => this.stalled(false));
     }
 
-    this.scrub = new ScrubBar((seconds) => this.hooks.onSeekIntent(seconds));
+    this.scrub = new ScrubBar(
+      (seconds) => this.hooks.onSeekIntent(seconds), (magnified) => this.holdControls(magnified));
     this.volume = new VolumeControl({
       onChange: (position, muted) => {
         this.player.volume(amplitudeFor(position));
@@ -105,7 +107,7 @@ export class FilmPlayer {
         prefs.setVolume(position, muted);
       }
     });
-    const lock = (open: boolean) => this.player.toggleClass('mb-controls-locked', open);
+    const lock = (held: boolean) => this.holdControls(held);
     this.audioPanel = new AudioPanel((id) => {
       this.selectAudio(id);
       this.hooks.onAudioSelected(id);
@@ -325,6 +327,18 @@ export class FilmPlayer {
 
     URL.revokeObjectURL(this.thumbnailUrl);
     this.thumbnailUrl = null;
+  }
+
+  /**
+   * Keeps the control bar up while something on it is being read.
+   *
+   * Counted rather than set, because a menu and the scrub bar's zoom lane both ask for it and
+   * either can end while the other is still open. A boolean would let whichever finished first
+   * drop the bar out from under the other.
+   */
+  private holdControls(held: boolean): void {
+    this.holds = Math.max(0, this.holds + (held ? 1 : -1));
+    this.player.toggleClass('mb-controls-locked', this.holds > 0);
   }
 
   private get scrubDuration(): number {
