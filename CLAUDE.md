@@ -225,6 +225,14 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
   the room every time one person's playhead moves.
 - **A seek is never issued while one is running.** The second abandons the first, and during the
   opening buffer that restarts the load.
+- **The library answers a click on the film, and nothing else does.** It has toggled playback on
+  a click since before any of this was written, and it knows not to when the click was on a
+  control. A second handler behind it toggles the film back, which reads as playback refusing to
+  start.
+- **Everything except the poster needs the token, including anything CSS fetches.** A background
+  image is fetched by the browser and carries no header of ours, so it is fetched in code and drawn
+  from a blob. The poster is open because Discord's servers draw embeds with it; a sheet of frames
+  from the film is not that.
 - **No control offers a press before anything can answer one.** Waiting is shown as waiting. The
   only button a person is asked for is the one that appears when the browser wants a gesture.
 - **A message that answers a question waits until the question is answered.** Whether the room

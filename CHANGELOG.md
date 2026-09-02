@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.3] - 2026-09-02
+
+### Fixed
+
+- Playback starts on the first click and stays started. A click was being answered twice: once by
+  the library, which has toggled playback on a click all along, and once more by a timer behind it
+  waiting to find out whether a double click was coming. The film played for the length of that
+  wait and then stopped.
+- Double clicking does nothing. It asked for fullscreen, and the player already is the screen.
+- The scrub bar's preview shows the film rather than a grey box. A background image is fetched by
+  the browser, which carries none of this Activity's token, so the sheet of frames was answering
+  401. It is fetched with the token and drawn from what comes back, the same way subtitles are.
+
 ## [1.14.2] - 2026-09-02
 
 ### Fixed

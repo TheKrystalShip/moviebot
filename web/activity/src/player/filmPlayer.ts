@@ -36,9 +36,6 @@ export interface FilmPlayerHooks {
 const PositionTickMs = 200;
 const LoadTimeoutMs = 30_000;
 
-/** Long enough to tell a click from the first half of a double click, short enough not to lag. */
-const DoubleClickGraceMs = 220;
-
 /** A stall shorter than this is a stutter, and flashing a spinner at it is worse than ignoring it. */
 const StallGraceMs = 400;
 
@@ -68,7 +65,7 @@ export class FilmPlayer {
   private subtitleId: string | null = null;
   private ticker: number | null = null;
   private stallTimer: number | null = null;
-  private clickTimer: number | null = null;
+  private thumbnailUrl: string | null = null;
   private releaseShortcuts: (() => void) | null = null;
   private readonly spinner: HTMLElement;
   private readonly volume: VolumeControl;
@@ -93,29 +90,6 @@ export class FilmPlayer {
     for (const settled of ['playing', 'canplay', 'seeked', 'pause', 'error']) {
       this.video.addEventListener(settled, () => this.stalled(false));
     }
-
-    // A click on the film is the play button and a double click is fullscreen, so the first has to
-    // wait long enough to find out whether it was the start of the second.
-    container.addEventListener('click', (event) => {
-      if (!(event.target instanceof HTMLElement) || event.target.closest('.vjs-control-bar')) return;
-      if (this.clickTimer !== null) return;
-
-      this.clickTimer = window.setTimeout(() => {
-        this.clickTimer = null;
-        this.togglePlay();
-      }, DoubleClickGraceMs);
-    });
-
-    container.addEventListener('dblclick', (event) => {
-      if (!(event.target instanceof HTMLElement) || event.target.closest('.vjs-control-bar')) return;
-
-      if (this.clickTimer !== null) {
-        window.clearTimeout(this.clickTimer);
-        this.clickTimer = null;
-      }
-
-      this.toggleFullscreen();
-    });
 
     this.scrub = new ScrubBar((seconds) => this.hooks.onSeekIntent(seconds));
     this.volume = new VolumeControl({
@@ -161,6 +135,10 @@ export class FilmPlayer {
       // it during the load is what starts the fight between a play and the corrections behind it.
       // Waiting is shown as waiting; the gate asks for a press only when the browser wants one.
       bigPlayButton: false,
+      // A click toggles playback, which the library does itself and correctly — it knows not to
+      // when the click was on a control. A double click does nothing: it would ask for fullscreen,
+      // and the player already is the screen.
+      userActions: { doubleClick: false },
       // The library's own volume panel is replaced: it writes the slider position straight to
       // the media element's amplitude, and those have to be different numbers for the slider to
       // be proportional to loudness.
@@ -219,11 +197,7 @@ export class FilmPlayer {
     this.player.poster(manifest.poster ? environment().mediaUrl(manifest.id, manifest.poster) : '');
     this.scrub.setDuration(manifest.durationSeconds);
     this.scrub.setChapters(manifest.chapters ?? []);
-    this.scrub.setThumbnails(
-      manifest.thumbnails ?? null,
-      manifest.thumbnails === undefined
-        ? null
-        : environment().mediaUrl(manifest.id, manifest.thumbnails.uri));
+    void this.loadThumbnails(manifest);
     this.setTranscodeHead(manifest.status === 'transcoding' ? (manifest.headSeconds ?? 0) : null);
 
     const stored = prefs.forTitle(manifest.id);
@@ -303,6 +277,45 @@ export class FilmPlayer {
     this.manifest.subtitles = fresh.subtitles;
     this.subtitleMenu.setTracks(fresh.subtitles, this.subtitleId, fresh.otherLanguages ?? []);
     this.settings.refresh();
+  }
+
+  /**
+   * Fetches the sheet of preview frames and hands the bar a blob to draw from.
+   *
+   * It cannot be pointed at the media route directly: a background image is fetched by the
+   * browser, which carries none of this Activity's token, and the answer is a 401 that renders as
+   * an empty grey box. The poster is the one thing that route leaves open, because Discord's own
+   * servers fetch it to draw an embed; a sheet of four hundred frames of the film is not that.
+   */
+  private async loadThumbnails(manifest: Manifest): Promise<void> {
+    this.releaseThumbnails();
+
+    if (manifest.thumbnails === undefined) {
+      this.scrub.setThumbnails(null, null);
+      return;
+    }
+
+    try {
+      const authToken = environment().authToken();
+      const response = await fetch(
+        environment().mediaUrl(manifest.id, manifest.thumbnails.uri),
+        authToken === null ? undefined : { headers: { authorization: `Bearer ${authToken}` } });
+
+      if (!response.ok) throw new Error(`previews answered ${response.status}`);
+
+      this.thumbnailUrl = URL.createObjectURL(await response.blob());
+      this.scrub.setThumbnails(manifest.thumbnails, this.thumbnailUrl);
+    } catch {
+      // A bar that previews nothing is worth strictly more than one that previews a grey box.
+      this.scrub.setThumbnails(null, null);
+    }
+  }
+
+  private releaseThumbnails(): void {
+    if (this.thumbnailUrl === null) return;
+
+    URL.revokeObjectURL(this.thumbnailUrl);
+    this.thumbnailUrl = null;
   }
 
   private get scrubDuration(): number {
@@ -436,8 +449,8 @@ export class FilmPlayer {
   dispose(): void {
     this.releaseShortcuts?.();
     this.releaseShortcuts = null;
+    this.releaseThumbnails();
     if (this.stallTimer !== null) window.clearTimeout(this.stallTimer);
-    if (this.clickTimer !== null) window.clearTimeout(this.clickTimer);
     if (this.ticker !== null) window.clearInterval(this.ticker);
     this.teardownSource();
     this.player.dispose();
