@@ -110,6 +110,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
     "rate": 1.0,
     "updatedBy": { "userId": "u1", "displayName": "Alice" },
     "revision": 7,
+    "epoch": "3f1c...",            // which run of the room the revision belongs to
     "transcodeHead": 300.0         // absent once the title is ready
   },
   "serverTime": "2026-09-01T18:22:07.456+00:00"
@@ -118,8 +119,15 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 
 ## Rules a client must follow
 
-1. **Discard any push whose `revision` is not greater than the last applied.** Revisions are
-   monotonic and server-assigned; this is what makes reordered and duplicated pushes harmless.
+1. **Discard any push whose `revision` is not greater than the last applied, within one
+   `epoch`.** Revisions are monotonic and server-assigned; this is what makes reordered and
+   duplicated pushes harmless. They count within a run of a room and mean nothing across two:
+   rooms live in memory, and one built again — swept for being empty, or lost with the process —
+   counts from zero. A push carrying an epoch you have not seen resets the comparison. Without
+   that a client discards everything a rebuilt room says for as long as its page stays open, and
+   goes on driving the film from a state nothing can correct.
+   A state handed back by `Join` is an answer to "where is the room", not a broadcast that might
+   have overtaken another, so apply it whatever revision it carries.
 2. **Derive the position, never read a ticking number.**
    `paused ? positionSeconds : positionSeconds + (serverNow - anchorUtc) * rate`, where
    `serverNow` is local time corrected by the offset learned from `serverTime`. A client that
@@ -133,8 +141,19 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 4. **Never clamp seeks locally.** Ask for what the person clicked. The server grants a position
    short of the head and answers `SeekClamped` to you alone; show that, do not pre-empt it. A
    client's head is always slightly stale, and local clamping splits the room's timeline.
-5. **Send seeks on `seeked`, never on `seeking`.** Scrubbing otherwise emits a storm.
-6. **A buffering viewer must not pause the room.** A stalled client falls behind and resyncs
+5. **Publish a seek from the control that made it, never from the element's `seeked`.** The
+   media element seeks for reasons of its own — the start position a player picks for a playlist
+   still being written is the end of it — and publishing those drags the whole room to the
+   transcode head the moment somebody opens the film. `seeked` is for recognising the seek you
+   applied, and nothing else.
+6. **Do not extrapolate a state the server has not confirmed.** The anchor keeps running whether
+   or not the film does, so deriving forward from the last thing heard while disconnected returns
+   a position for a film that may have been stopped minutes ago. Hold the last state; derive from
+   it again once the room can be heard from.
+7. **Clamp a derived position to the film.** A room left playing derives a position that keeps
+   growing; the film does not, and a seek past the end of a media element never completes — which
+   blocks every seek after it.
+8. **A buffering viewer must not pause the room.** A stalled client falls behind and resyncs
    itself. "Wait for me" is a button a person presses, never automatic.
 
 ## Shared versus local

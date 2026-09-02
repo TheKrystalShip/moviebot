@@ -45,7 +45,10 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
                 Paused = true,
                 PositionSeconds = 0,
                 AnchorUtc = clock.GetUtcNow(),
-                Revision = 0
+                Revision = 0,
+                // Minted with the room, carried by every state it ever produces, and different
+                // from the one the room before it carried.
+                Epoch = Guid.NewGuid().ToString("n")
             },
             LastActivityUtc = clock.GetUtcNow()
         });

@@ -133,7 +133,8 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
         var anchor = DateTimeOffset.UtcNow;
         var playing = new SessionState
         {
-            SessionId = "s", Paused = false, PositionSeconds = 100, AnchorUtc = anchor, Rate = 1.0
+            SessionId = "s", Epoch = "run", Paused = false, PositionSeconds = 100,
+            AnchorUtc = anchor, Rate = 1.0
         };
 
         // A client that missed thirty seconds of pushes still computes the right answer.

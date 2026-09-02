@@ -28,10 +28,22 @@ public sealed record SessionState
     public Actor? UpdatedBy { get; init; }
 
     /// <summary>
-    /// Server-assigned and monotonic. A client discards any state whose revision is not greater
-    /// than the last it applied, which is what makes reordered or duplicated pushes harmless.
+    /// Server-assigned and monotonic within an <see cref="Epoch"/>. A client discards any state
+    /// whose revision is not greater than the last it applied, which is what makes reordered or
+    /// duplicated pushes harmless.
     /// </summary>
     public long Revision { get; init; }
+
+    /// <summary>
+    /// Which run of this room the revision belongs to.
+    ///
+    /// Rooms live in memory. One the server has forgotten — restarted, or swept for being empty —
+    /// is built again from nothing and counts revisions from zero again, so the numbers either
+    /// side of that are not comparable. Without this a client goes on measuring the new run
+    /// against the old one's revisions, discards every push the server sends it for as long as
+    /// the page stays open, and drives the film off a state nothing can correct.
+    /// </summary>
+    public required string Epoch { get; init; }
 
     /// <summary>
     /// How far the transcode has reached, mirrored from the title's manifest. Null once the film

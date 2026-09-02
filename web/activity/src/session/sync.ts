@@ -12,6 +12,9 @@ const NudgeSeconds = 0.5;
 const SettleSeconds = 0.25;
 const NudgeRate = 0.02;
 const CheckIntervalMs = 2000;
+/** A seek still running after this never took. Later seeks stop waiting for it rather than queue
+ *  behind it forever. */
+const AbandonedSeekMs = 5000;
 
 export interface SyncIntents {
   play(atSeconds: number): void;
@@ -35,6 +38,10 @@ export interface SyncHooks {
  */
 export class SyncController {
   private lastRevision = -1;
+  /** Which run of the room the revision above belongs to. */
+  private epoch: string | null = null;
+  /** Whether the room can be heard from. Nothing is extrapolated from a state nothing confirms. */
+  private live = false;
   /** Where this client's own write put the playhead, so the resulting seek is not republished. */
   private appliedSeek: number | null = null;
   /** Whether the room is believed to be paused, including an intent sent but not yet answered. */
@@ -44,6 +51,7 @@ export class SyncController {
   private correcting = false;
   /** Set when the room wants playback but a seek has to land before it can start. */
   private startAfterSeek = false;
+  private seekStartedMs = 0;
   private timer: number | null = null;
 
   constructor(
@@ -78,20 +86,22 @@ export class SyncController {
       this.intents.pause(this.video.currentTime);
     });
 
-    // On `seeked` and never `seeking`: a scrub otherwise publishes a storm of intents.
+    // A seek is published by whatever a person used to make it — the scrub bar, the arrow keys —
+    // and never from here. The element seeks for reasons of its own as well: the start position
+    // hls.js picks for a playlist still being written is the end of it, and publishing that drags
+    // the whole room to the transcode head the moment somebody opens the film.
     this.video.addEventListener('seeked', () => {
+      if (this.appliedSeek !== null
+          && Math.abs(this.video.currentTime - this.appliedSeek) < SnapSeconds) {
+        this.appliedSeek = null;
+      }
+
       // Playback the room wanted, held until the playhead had arrived. Starting it while the seek
       // was still running is what aborted it.
       if (this.startAfterSeek) {
         this.startAfterSeek = false;
         this.start();
       }
-
-      if (this.appliedSeek !== null && Math.abs(this.video.currentTime - this.appliedSeek) < SnapSeconds) {
-        this.appliedSeek = null;
-        return;
-      }
-      this.intents.seek(this.video.currentTime);
     });
 
     this.timer = window.setInterval(() => this.correctDrift(), CheckIntervalMs);
@@ -99,6 +109,17 @@ export class SyncController {
 
   get state(): SessionState | null {
     return this.latest;
+  }
+
+  /**
+   * Whether the room can currently be heard from.
+   *
+   * While it cannot, the last state stands but nothing is derived forward from it. Its anchor
+   * keeps running whether or not the film does, and correcting to a position nothing has
+   * confirmed is how a paused film comes back minutes ahead of where it stopped.
+   */
+  setLive(live: boolean): void {
+    this.live = live;
   }
 
   /** Where the room is, as opposed to where this viewer's playhead has got to. */
@@ -109,10 +130,23 @@ export class SyncController {
   /**
    * Applies a push, or discards it. A revision no greater than the last applied is a reordered
    * or duplicated message and carries nothing new.
+   *
+   * A resync is not a broadcast. It is the server answering where the room is, so it is applied
+   * whatever number it carries: it is the thing that settles a disagreement rather than one more
+   * message that might have overtaken another.
    */
-  applyPush(push: SessionStatePush): void {
+  applyPush(push: SessionStatePush, resync = false): void {
     const state = push.state;
-    if (state.revision <= this.lastRevision) return;
+
+    // Revisions only count within one run of a room. A room the server has forgotten and built
+    // again starts from zero, and measuring it against the run before discards everything it
+    // says for as long as this page stays open.
+    if (state.epoch !== this.epoch) {
+      this.epoch = state.epoch;
+      this.lastRevision = -1;
+    }
+
+    if (!resync && state.revision <= this.lastRevision) return;
 
     this.lastRevision = state.revision;
     this.latest = state;
@@ -146,7 +180,7 @@ export class SyncController {
   }
 
   private applyToPlayer(state: SessionState): void {
-    const target = derivePosition(state, this.clock.now());
+    const target = this.targetFor(state);
     const seeking = Math.abs(target - this.video.currentTime) > SnapSeconds;
     const pausing = state.paused && !this.video.paused;
     const starting = !state.paused && this.video.paused;
@@ -154,11 +188,10 @@ export class SyncController {
     if (pausing) this.video.pause();
 
     // Not while one is already running. A second seek abandons the first, and abandoning one
-    // during the opening buffer is what makes the film restart loading over and over.
-    if (seeking && !this.video.seeking) {
-      this.appliedSeek = target;
-      this.video.currentTime = target;
-    }
+    // during the opening buffer is what makes the film restart loading over and over. A seek
+    // that never lands is a different thing, and waiting on it forever is what leaves a film
+    // that cannot be moved in either direction.
+    if (seeking && (!this.video.seeking || this.seekAbandoned)) this.applySeek(target);
 
     // Never in the same breath as a seek. A play interrupted by one is rejected, the element goes
     // back to paused, and the pause it then reports is indistinguishable from somebody deciding
@@ -208,19 +241,18 @@ export class SyncController {
     // because it is waiting for data drifts from the room by definition, and seeking it to catch
     // up throws away the buffer it was waiting for — which is the same stall again, further
     // behind. Waiting is the correction.
-    if (state.paused || this.video.paused || this.video.seeking
+    if (!this.live || state.paused || this.video.paused || this.video.seeking
         || this.video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
       if (this.correcting) this.restoreRate(state.rate);
       return;
     }
 
-    const expected = derivePosition(state, this.clock.now());
+    const expected = this.targetFor(state);
     const drift = expected - this.video.currentTime;
     const magnitude = Math.abs(drift);
 
     if (magnitude > HardSeekSeconds) {
-      this.appliedSeek = expected;
-      this.video.currentTime = expected;
+      this.applySeek(expected);
       this.restoreRate(state.rate);
       return;
     }
@@ -237,5 +269,27 @@ export class SyncController {
   private restoreRate(rate: number): void {
     this.video.playbackRate = rate;
     this.correcting = false;
+  }
+
+  /**
+   * Where the room is, as far as this film goes.
+   *
+   * A room left playing derives a position that keeps growing; the film does not. Seeking a media
+   * element past the end of what it holds is a seek that never completes, and one of those blocks
+   * every seek after it.
+   */
+  private targetFor(state: SessionState): number {
+    const at = derivePosition(state, this.clock.now());
+    return Number.isFinite(this.video.duration) ? Math.min(at, this.video.duration) : at;
+  }
+
+  private applySeek(to: number): void {
+    this.appliedSeek = to;
+    this.seekStartedMs = performance.now();
+    this.video.currentTime = to;
+  }
+
+  private get seekAbandoned(): boolean {
+    return this.video.seeking && performance.now() - this.seekStartedMs > AbandonedSeekMs;
   }
 }

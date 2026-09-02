@@ -4,6 +4,35 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0] - 2026-09-02
+
+### Fixed
+
+- A film paused and resumed no longer jumps forward by however long it was paused, and seeking no
+  longer stops working afterwards. Rooms live in memory, so a room the server builds again —
+  restarted, or swept for being empty — counts revisions from zero; a client that kept comparing
+  those against the run before discarded every push it was sent for as long as its page stayed
+  open. It then drove the film from a state nothing could correct: drift correction extrapolated
+  the old anchor across the whole pause and hard-seeked the playhead forward the moment playback
+  resumed, and every seek it published was accepted by the server and thrown away on arrival, so
+  the scrub bar and the arrow keys moved nothing. Each state now carries the run of the room it
+  belongs to, and a client that sees a new one starts counting again.
+- A room the server has built again is told which film it holds, so a restart leaves the player
+  on the film rather than on an empty room it can no longer be moved off.
+- Nothing is derived forward from a room that cannot be heard from. The anchor runs whether or
+  not the film does, so correcting to it while disconnected is a guess about where a film that may
+  have been stopped has got to.
+- A derived position is clamped to the length of the film. A room left playing derives one that
+  keeps growing, and seeking a media element past the end of what it holds never completes —
+  which blocks every seek made after it.
+- Opening a film still being transcoded no longer drags the room to the transcode head. The media
+  element seeks for reasons of its own, and the start position a player picks for a playlist still
+  being written is the end of it; a seek is published by the control that made it and never by the
+  element reporting one.
+- A reconnect resynchronises. What `Join` hands back answers where the room is rather than
+  announcing that it moved, so it is applied whatever revision it carries, and coming back to a
+  backgrounded tab asks the same question.
+
 ## [1.17.0] - 2026-09-02
 
 ### Added

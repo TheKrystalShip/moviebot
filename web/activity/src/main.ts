@@ -40,6 +40,8 @@ async function boot(): Promise<void> {
   let loadedTitleId: string | null | undefined;
   let previousState: SessionState | null = null;
   let pollTimer: number | null = null;
+  /** The film the launch named, which is the only thing that knows what an empty room should hold. */
+  const launched = env.titleId();
 
   const shell = new Shell({
     onPickTitle: (titleId) => void hub.loadTitle(titleId),
@@ -48,10 +50,16 @@ async function boot(): Promise<void> {
   shell.setSession(sessionId, identity.displayName);
 
   const hub = new SessionHub(identity, sessionId, {
-    onState: (push) => controller?.applyPush(push),
+    onState: (push, resync) => controller?.applyPush(push, resync),
     onSeekClamped: (clamp) => shell.clampNotice(clamp),
     onParticipants: (list) => shell.setParticipants(list),
-    onStatus: (status) => shell.setConnection(status)
+    onStatus: (status) => {
+      shell.setConnection(status);
+      // Nothing is derived forward from a room that cannot be heard from. Its anchor runs whether
+      // or not the film does, so a state nothing has confirmed is a guess about where a film that
+      // may have been stopped has got to.
+      controller?.setLive(status === 'connected');
+    }
   });
 
   const player = new FilmPlayer(shell.playerHost, {
@@ -94,8 +102,16 @@ async function boot(): Promise<void> {
     shell.setActor(state, previousState);
     previousState = state;
 
-    if (state.titleId !== loadedTitleId) {
-      void loadTitle(state.titleId ?? null);
+    // Normalised first: a room holding no film leaves the field out of the state altogether, so
+    // what arrives is undefined and never the null it is compared against.
+    const titleId = state.titleId ?? null;
+    if (titleId !== loadedTitleId) {
+      void loadTitle(titleId);
+
+      // A room holding nothing, while the link that opened this page names a film, is a room
+      // nobody has told yet: a fresh link, or one the server has built again after forgetting it.
+      // Only the empty case, because a room already showing something was told by somebody.
+      if (launched !== null && titleId === null) void hub.loadTitle(launched);
       return;
     }
 
@@ -162,14 +178,20 @@ async function boot(): Promise<void> {
   }
 
   const joined = await hub.start();
-  controller.applyPush(joined);
+  controller.applyPush(joined, true);
   shell.setParticipants(await api.participants(sessionId));
+
+  // Coming back to a tab that has been in the background — a floating window, another channel —
+  // is the moment its picture of the room is least likely to be right, and the cheapest moment to
+  // ask.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void hub.resync();
+  });
 
   // A launch link names the film. The room is told once, by whoever arrives while it is showing
   // something else; a viewer joining a room that already holds the title says nothing, because
   // loading it again would send everyone back to the beginning.
-  const launched = env.titleId();
-  if (launched !== null && joined.state.titleId !== launched) {
+  if (launched !== null && (joined.state.titleId ?? null) !== null && joined.state.titleId !== launched) {
     await hub.loadTitle(launched);
   }
 }

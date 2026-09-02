@@ -16,7 +16,8 @@ export function derivePosition(state: SessionState, serverNowMs: number): number
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
 export interface HubHandlers {
-  onState(push: SessionStatePush): void;
+  /** A resync is the server answering where the room is, rather than announcing that it moved. */
+  onState(push: SessionStatePush, resync?: boolean): void;
   onSeekClamped(clamp: SeekClamped): void;
   onParticipants(participants: Participant[]): void;
   onStatus(status: ConnectionStatus): void;
@@ -54,10 +55,18 @@ export class SessionHub {
 
     // A reconnect leaves the server holding no membership for this connection, so rejoining is
     // what puts the viewer back in the participant list and hands back the state it missed.
+    // What comes back settles the room's position rather than joining the queue of broadcasts:
+    // a client that has been away has no standing to judge it against the last thing it heard.
     this.connection.onreconnected(async () => {
       this.handlers.onStatus('connected');
-      this.handlers.onState(await this.join());
+      this.handlers.onState(await this.join(), true);
     });
+  }
+
+  /** Asks the room where it is, and takes the answer as the authority. */
+  async resync(): Promise<void> {
+    if (!this.connected) return;
+    this.handlers.onState(await this.join(), true);
   }
 
   async start(): Promise<SessionStatePush> {

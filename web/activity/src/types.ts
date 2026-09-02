@@ -166,6 +166,8 @@ export interface SessionState {
   rate: number;
   updatedBy?: Actor;
   revision: number;
+  /** Which run of the room the revision belongs to. A room built again counts from zero again. */
+  epoch: string;
   /** How far the transcode has reached. Absent once the title is ready. */
   transcodeHead?: number;
 }

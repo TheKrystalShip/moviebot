@@ -71,6 +71,44 @@ public sealed class RoomExpiryTests : IDisposable
         Assert.Equal(0, reopened.PositionSeconds);
     }
 
+    /// <summary>
+    /// Revisions count within one run of a room and are meaningless across two.
+    ///
+    /// A client discards any push whose revision is not greater than the last it applied. A room
+    /// built again — swept for being empty, or lost with the process — counts from zero, so a
+    /// client still holding the old run's numbers would discard everything the new run ever says,
+    /// for as long as its page stays open: the film then runs on a state nothing can correct, and
+    /// no seek it makes is ever applied. The epoch is what tells the two runs apart.
+    /// </summary>
+    [Fact]
+    public void A_room_built_again_is_a_different_run_of_itself()
+    {
+        _sessions.LoadTitle("room", TitleId, Someone);
+        var before = _sessions.Play("room", 42, Someone).State;
+        Assert.Equal(2, before.Revision);
+
+        _clock.Advance(TimeSpan.FromHours(1));
+        _sessions.Sweep(TimeSpan.FromMinutes(30));
+
+        var after = _sessions.GetOrCreate("room");
+
+        Assert.Equal(0, after.Revision);
+        Assert.NotEqual(before.Epoch, after.Epoch);
+    }
+
+    [Fact]
+    public void Every_state_a_room_produces_carries_the_epoch_it_was_built_with()
+    {
+        var epoch = _sessions.GetOrCreate("room").Epoch;
+        Assert.NotEqual("", epoch);
+
+        Assert.Equal(epoch, _sessions.LoadTitle("room", TitleId, Someone).State.Epoch);
+        Assert.Equal(epoch, _sessions.Play("room", 10, Someone).State.Epoch);
+        Assert.Equal(epoch, _sessions.Pause("room", 20, Someone).State.Epoch);
+        Assert.Equal(epoch, _sessions.Seek("room", 30, Someone).State.Epoch);
+        Assert.Equal(epoch, _sessions.Get("room")?.Epoch);
+    }
+
     [Fact]
     public void A_room_with_somebody_in_it_is_never_forgotten()
     {
