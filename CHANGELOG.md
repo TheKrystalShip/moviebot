@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.1] - 2026-09-02
+
+### Changed
+
+- The settings menu is the same glass as the control bar it rises out of, rather than a panel in
+  front of the film.
+- Its rows have room. Everything in them is a size somebody can read from across a room rather
+  than from arm's length, and the space between them is the difference between a list and a wall
+  of text.
+
 ## [1.15.0] - 2026-09-02
 
 ### Changed
