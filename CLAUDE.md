@@ -250,6 +250,11 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
 - **Fullscreen exists only where the browser grants it.** Inside Discord's iframe the API is not
   given to an Activity, so the key and the double click do nothing there rather than failing — and
   the player already fills the frame, which is what they would have been for.
+- **A preview sheet is bounded by pixels, not by a count of frames.** A browser holds four bytes
+  for every pixel of it for as long as the film is open, so that is the real limit rather than the
+  size of the file — and it means larger frames buy themselves fewer of them. Both of the sheet's
+  dimensions stay inside four thousand pixels, which is what older hardware will hold as one
+  texture.
 - **Previews come from one sheet, not one file each.** A preview is wanted the instant a pointer
   lands on the bar, and a request per frame would spend the whole hover fetching. Only keyframes
   are decoded to build it, which is what keeps it bounded by how fast the file reads rather than by

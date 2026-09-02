@@ -684,6 +684,27 @@ button.mb-scrub__time:hover {
   flex: 0 0 auto;
 }
 
+/* The frame takes focus because the library makes it focusable, not because it is a control.
+   A ring drawn around the whole film says nothing to anybody — there is nothing to move to next
+   and nothing to activate. The controls inside it keep theirs, because there it is the only thing
+   telling somebody navigating by keyboard where they are. */
+.video-js:focus,
+.video-js:focus-visible,
+.video-js .vjs-tech:focus,
+.stage__player:focus {
+  outline: none;
+}
+
+/* Earned by a keyboard rather than by a click. A ring that appears when somebody presses a button
+   with the mouse is the same information they just gave themselves. */
+.video-js .vjs-control:focus:not(:focus-visible),
+.mb-scrub__track:focus:not(:focus-visible),
+.mb-volume__track:focus:not(:focus-visible),
+.mb-volume__mute:focus:not(:focus-visible),
+.mb-settings__button:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* ---- Settings --------------------------------------------------------
    One cog holding what a viewer sets for themselves, rather than a control on the bar for each. */
 

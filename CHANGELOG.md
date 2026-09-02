@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] - 2026-09-02
+
+### Changed
+
+- Scrub previews are twice the size. It is the thing somebody is looking at when they seek, so it
+  is sized to be looked at. How many frames a sheet holds is now a pixel budget rather than a
+  count, since a browser holds four bytes for every pixel of it the whole time a film is open, and
+  larger frames mean fewer of them: a two-hour film gets one every twenty-five seconds or so
+  rather than every seventeen.
+- No focus ring around the film itself. The frame takes focus because the library makes it
+  focusable, not because it is a control, and a ring around the whole picture tells nobody
+  anything. The controls inside it keep theirs, and only when a keyboard put it there.
+
 ## [1.14.3] - 2026-09-02
 
 ### Fixed
