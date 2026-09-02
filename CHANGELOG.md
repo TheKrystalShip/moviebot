@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-09-02
+
+### Added
+
+- The scrub bar shows the time under the pointer before a seek is made. It matters more here than
+  in a player watched alone: a seek moves the whole room, so reading the moment first is the
+  difference between choosing one and discovering one. Past the transcode head it says the film is
+  not ready there, which is otherwise only learned by trying and being refused.
+
 ## [1.11.1] - 2026-09-02
 
 ### Changed

@@ -24,6 +24,8 @@ export class ScrubBar {
   private readonly handle: HTMLElement;
   private readonly current: HTMLElement;
   private readonly total: HTMLElement;
+  private readonly preview: HTMLElement;
+  private readonly previewTime: HTMLElement;
 
   private durationSeconds = 0;
   private readySeconds: number | null = null;
@@ -40,6 +42,9 @@ export class ScrubBar {
         <div class="mb-scrub__ready"></div>
         <div class="mb-scrub__played"></div>
         <div class="mb-scrub__handle"></div>
+        <div class="mb-scrub__preview" aria-hidden="true" hidden>
+          <span class="mb-scrub__preview-time"></span>
+        </div>
       </div>
       <span class="mb-scrub__time mb-scrub__time--total">0:00</span>`;
 
@@ -49,9 +54,17 @@ export class ScrubBar {
     this.handle = this.el.querySelector('.mb-scrub__handle') as HTMLElement;
     this.current = this.el.querySelector('.mb-scrub__time--current') as HTMLElement;
     this.total = this.el.querySelector('.mb-scrub__time--total') as HTMLElement;
+    this.preview = this.el.querySelector('.mb-scrub__preview') as HTMLElement;
+    this.previewTime = this.el.querySelector('.mb-scrub__preview-time') as HTMLElement;
 
     this.track.addEventListener('pointerdown', (event) => this.beginDrag(event));
     this.track.addEventListener('keydown', (event) => this.onKey(event));
+
+    // Where a seek would land, before it is made. It matters more here than in a player somebody
+    // watches alone: a seek moves the whole room, so being able to read the time under the pointer
+    // is the difference between choosing a moment and discovering one.
+    this.track.addEventListener('pointermove', (event) => this.showPreview(event.clientX));
+    this.track.addEventListener('pointerleave', () => this.hidePreview());
   }
 
   setDuration(seconds: number): void {
@@ -89,6 +102,36 @@ export class ScrubBar {
     this.track.setAttribute('aria-valuetext', formatTime(this.shown));
   }
 
+  /**
+   * Draws the time under the pointer.
+   *
+   * Past the transcode head it is drawn as unreachable, because a seek there is refused by the
+   * server and the refusal reaches only the person who tried. Saying so before the click is a
+   * better answer than explaining it after.
+   */
+  private showPreview(clientX: number): void {
+    if (this.durationSeconds <= 0) return;
+
+    const box = this.track.getBoundingClientRect();
+    const at = this.secondsAt(clientX);
+
+    this.previewTime.textContent = formatTime(at);
+    this.preview.classList.toggle(
+      'mb-scrub__preview--unreachable', this.readySeconds !== null && at > this.readySeconds);
+
+    // Clamped to the bar so the bubble never hangs off either end of it.
+    const half = this.preview.offsetWidth / 2;
+    const offset = Math.min(box.width - half, Math.max(half, clientX - box.left));
+
+    this.preview.style.left = `${offset}px`;
+    this.preview.hidden = false;
+  }
+
+  private hidePreview(): void {
+    // A drag holds the pointer, so it keeps the preview even when it leaves the bar.
+    if (this.dragSeconds === null) this.preview.hidden = true;
+  }
+
   private secondsAt(clientX: number): number {
     const box = this.track.getBoundingClientRect();
     const ratio = box.width === 0 ? 0 : (clientX - box.left) / box.width;
@@ -101,10 +144,12 @@ export class ScrubBar {
     this.track.setPointerCapture(event.pointerId);
     this.dragSeconds = this.secondsAt(event.clientX);
     this.el.classList.add('mb-scrub--dragging');
+    this.showPreview(event.clientX);
     this.render();
 
     const move = (moved: PointerEvent) => {
       this.dragSeconds = this.secondsAt(moved.clientX);
+      this.showPreview(moved.clientX);
       this.render();
     };
 
@@ -116,6 +161,7 @@ export class ScrubBar {
       const target = this.secondsAt(ended.clientX);
       this.dragSeconds = null;
       this.el.classList.remove('mb-scrub--dragging');
+      this.hidePreview();
       this.render();
       this.onSeek(target);
     };

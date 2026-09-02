@@ -302,6 +302,51 @@ body {
   opacity: 1;
 }
 
+/* Where a seek would land, read before it is made. It earns its place here more than in a player
+   watched alone: a seek moves the whole room, so the time under the pointer is the difference
+   between choosing a moment and discovering one. */
+.mb-scrub__preview {
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 9px;
+  padding: 3px 7px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  white-space: nowrap;
+  color: var(--text);
+  background: rgba(14, 16, 19, 0.97);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.mb-scrub__preview::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -4px 0 0 -4px;
+  background: rgba(14, 16, 19, 0.97);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  transform: rotate(45deg);
+}
+
+/* Past the transcode head the server refuses the seek, and the refusal reaches only whoever tried.
+   Saying so under the pointer beats explaining it afterwards. */
+.mb-scrub__preview--unreachable {
+  color: var(--muted);
+}
+
+.mb-scrub__preview--unreachable .mb-scrub__preview-time::after {
+  content: "\00a0\00b7\00a0not ready";
+  font-size: 11px;
+}
+
 /* ---- Track menus ---------------------------------------------------- */
 
 .mb-menu {
