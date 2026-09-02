@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.0] - 2026-09-02
+
+### Added
+
+- `/notify` tells a person when a film that cannot be downloaded yet can be. `/notify add` takes
+  the film's name, autocompleted from the catalogue, or a pasted link to its IMDb page; `/notify
+  list` shows what a person is waiting on and `/notify cancel` takes them off it. The bot asks the
+  tracker about every film on the list once an hour and posts a new message, mentioning exactly
+  the people who asked in that channel, naming the release it found and pointing at `/find`. A
+  film counts as available only once a web encode or better is offered: a film in cinemas has
+  camcorder recordings on the tracker within days, and those are not what anybody is waiting for.
+- Asking is refused, with the reason, when the film is already in the library, already
+  downloading, or already on the tracker, so nobody waits on something that is here.
+- The wish list is the one thing the bot writes down, in the state directory systemd hands it.
+  The unit now carries `StateDirectory=moviebot-bot`.
+
 ## [1.24.0] - 2026-09-02
 
 ### Added

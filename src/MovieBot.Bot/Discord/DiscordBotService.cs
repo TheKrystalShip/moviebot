@@ -8,6 +8,7 @@ using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Configuration;
 using TheKrystalShip.MovieBot.Bot.Find;
 using TheKrystalShip.MovieBot.Bot.Library;
+using TheKrystalShip.MovieBot.Bot.Notify;
 using TheKrystalShip.MovieBot.Bot.Watch;
 
 namespace TheKrystalShip.MovieBot.Bot.Discord;
@@ -24,7 +25,9 @@ public sealed class DiscordBotService(
     MovieBotApiClient api,
     WatchCommand watch,
     FindCommand find,
+    NotifyCommand notify,
     TheKrystalShip.MovieBot.Acquire.Search.AutocompleteSearch suggestions,
+    TheKrystalShip.MovieBot.Acquire.Imdb.ImdbClient catalogue,
     IOptions<DiscordOptions> options,
     ILogger<DiscordBotService> logger) : BackgroundService
 {
@@ -101,10 +104,10 @@ public sealed class DiscordBotService(
                 // The overwrite is the whole command set, so every command has to be in this
                 // one call: registering them separately leaves only the last one standing.
                 await guild.BulkOverwriteApplicationCommandAsync(
-                    [WatchSlashCommand.Build(), FindSlashCommand.Build()]);
+                    [WatchSlashCommand.Build(), FindSlashCommand.Build(), NotifySlashCommand.Build()]);
 
-                logger.LogInformation("Registered /{Watch} and /{Find} in {GuildName}",
-                    WatchSlashCommand.Name, FindSlashCommand.Name, guild.Name);
+                logger.LogInformation("Registered /{Watch}, /{Find} and /{Notify} in {GuildName}",
+                    WatchSlashCommand.Name, FindSlashCommand.Name, NotifySlashCommand.Name, guild.Name);
             }
             catch (Exception ex)
             {
@@ -122,6 +125,7 @@ public sealed class DiscordBotService(
         {
             WatchSlashCommand.Name => HandleWatchAsync(command),
             FindSlashCommand.Name => HandleFindAsync(command),
+            NotifySlashCommand.Name => HandleNotifyAsync(command),
             _ => Task.CompletedTask,
         };
 
@@ -235,6 +239,77 @@ public sealed class DiscordBotService(
         }
     }
 
+    /// <summary>
+    /// Puts the person on the list for a film, shows them the list, or takes them off it.
+    ///
+    /// The reply to asking is public, because somebody else in the channel wanting the same film
+    /// is the ordinary case and the reply is how they find out they can ask too. The list is the
+    /// person's own and goes to them alone.
+    /// </summary>
+    private async Task HandleNotifyAsync(SocketSlashCommand command)
+    {
+        try
+        {
+            if (command.GuildId is not { } guildId || !_guilds.Contains(guildId))
+            {
+                await command.RespondAsync(
+                    "This bot only answers in the server it is configured for.", ephemeral: true);
+                return;
+            }
+
+            var subcommand = command.Data.Options.FirstOrDefault();
+            var film = subcommand?.Options?
+                .FirstOrDefault(o => o.Name == NotifySlashCommand.FilmOption)?.Value as string ?? "";
+
+            switch (subcommand?.Name)
+            {
+                case NotifySlashCommand.List:
+                    await command.RespondAsync(
+                        embed: WishEmbed.List(notify.List(command.User.Id)), ephemeral: true);
+                    return;
+
+                case NotifySlashCommand.Cancel:
+                    var cancelled = notify.Cancel(command.User.Id, film);
+                    await command.RespondAsync(
+                        cancelled.Message, ephemeral: true, allowedMentions: AllowedMentions.None);
+                    return;
+
+                case NotifySlashCommand.Add:
+                    break;
+
+                default:
+                    await command.RespondAsync("That is not one of the things /notify does.", ephemeral: true);
+                    return;
+            }
+
+            await command.DeferAsync();
+
+            var result = await notify.SubscribeAsync(new NotifyRequest
+            {
+                Chosen = film,
+                ChannelId = command.ChannelId ?? 0,
+                UserId = command.User.Id,
+                RequestedBy = (command.User as IGuildUser)?.DisplayName ?? command.User.Username,
+            }, CancellationToken.None);
+
+            var embed = result switch
+            {
+                { Status: NotifyStatus.Subscribed or NotifyStatus.AlreadySubscribed, Wish: { } wish }
+                    => WishEmbed.Waiting(wish),
+                { Status: NotifyStatus.AlreadyAvailable, Wish: { } wish, Release: { } release }
+                    => WishEmbed.Available(wish, release),
+                _ => null,
+            };
+
+            await command.FollowupAsync(result.Message, embed: embed, allowedMentions: AllowedMentions.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "The /{Command} command failed", NotifySlashCommand.Name);
+            await TryReportFailure(command);
+        }
+    }
+
     private async Task HandleAutocompleteAsync(SocketAutocompleteInteraction interaction)
     {
         try
@@ -247,10 +322,16 @@ public sealed class DiscordBotService(
 
             var typed = interaction.Data.Current.Value?.ToString() ?? "";
 
-            // Both commands autocomplete a title and they mean entirely different things by it:
-            // one searches films already on disk, the other searches the tracker. Answering
-            // without checking which was asked offers the library to somebody trying to
-            // download something that is by definition not in it.
+            // Every command autocompletes a film and each means something different by it: one
+            // searches films already on disk, one the tracker, one the catalogue of films that
+            // exist at all. Answering without checking which was asked offers the library to
+            // somebody trying to download something that is by definition not in it.
+            if (interaction.Data.CommandName == NotifySlashCommand.Name)
+            {
+                await interaction.RespondAsync(await NotifyChoicesAsync(interaction, typed));
+                return;
+            }
+
             if (interaction.Data.CommandName == FindSlashCommand.Name)
             {
                 var found = await suggestions.SuggestAsync(
@@ -276,9 +357,47 @@ public sealed class DiscordBotService(
         }
     }
 
+    /// <summary>
+    /// What /notify offers as somebody types: the catalogue's films for a wish being made, and
+    /// the person's own wishes for one being cancelled. The options are flattened, so the
+    /// subcommand is found by its type rather than its position.
+    /// </summary>
+    private async Task<IEnumerable<AutocompleteResult>> NotifyChoicesAsync(
+        SocketAutocompleteInteraction interaction, string typed)
+    {
+        var subcommand = interaction.Data.Options
+            .FirstOrDefault(o => o.Type == ApplicationCommandOptionType.SubCommand)?.Name;
+
+        if (subcommand == NotifySlashCommand.Cancel)
+            return notify.List(interaction.User.Id)
+                .Where(w => w.Display.Contains(typed, StringComparison.OrdinalIgnoreCase))
+                .Take(MaximumChoices)
+                .Select(w => new AutocompleteResult(Choice(w.Display), w.ImdbId));
+
+        // A single character matches half the catalogue, and the index answers per keystroke
+        // anyway, so nothing is asked until there is something to ask about.
+        if (typed.Trim().Length < 2) return [];
+
+        var films = await catalogue.SuggestAsync(typed, CancellationToken.None);
+
+        return films
+            .Take(MaximumChoices)
+            .Select(f => new AutocompleteResult(
+                Choice(f.Starring is { Length: > 0 } cast ? $"{Display(f)} — {cast}" : Display(f)),
+                f.ImdbId));
+    }
+
+    /// <summary>Discord shows at most this many autocomplete choices.</summary>
+    private const int MaximumChoices = 25;
+
+    private static string Display(TheKrystalShip.MovieBot.Acquire.Imdb.ImdbTitle film) =>
+        film.Year is { } year ? $"{film.Title} ({year})" : film.Title;
+
     /// <summary>Autocomplete labels are capped at 100 characters by Discord.</summary>
-    private static string Choice(LibraryTitle title) =>
-        title.Name.Length <= 100 ? title.Name : title.Name[..99] + "…";
+    private static string Choice(LibraryTitle title) => Choice(title.Name);
+
+    private static string Choice(string label) =>
+        label.Length <= 100 ? label : label[..99] + "…";
 
     private async Task TryReportFailure(SocketSlashCommand command)
     {

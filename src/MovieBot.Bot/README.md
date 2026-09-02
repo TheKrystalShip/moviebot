@@ -1,18 +1,24 @@
 # MovieBot.Bot
 
-The Discord half. One slash command, `/watch`, which resolves a film, opens the room's session
-on the API and hands the room a launch.
+The Discord half. `/watch` resolves a film, opens the room's session on the API and hands the
+room a launch. `/find` searches the tracker and starts a download. `/notify` watches for a film
+that cannot be downloaded yet and says so when it can.
 
-## It holds no state
+## It holds almost no state
 
-Nothing is remembered between commands. The library is read from the API each time somebody
-asks, and the session is named by the voice channel the requester is standing in, so the same
-channel always reaches the same room: a restarted bot lands the next request in the session that
-is already playing, and there is no table of channels to sessions that could disagree with
-reality.
+Nothing about a room or a download is remembered between commands. The library is read from the
+API each time somebody asks, and the session is named by the voice channel the requester is
+standing in, so the same channel always reaches the same room: a restarted bot lands the next
+request in the session that is already playing, and there is no table of channels to sessions
+that could disagree with reality. A download's own notes live on the torrent.
 
 Everything in a reply was measured while the command ran. The bot never opens a manifest, never
 caches a title and never claims a state it did not read.
+
+The one exception is the wish list: the films people are waiting on and who asked. A film that is
+not on the tracker yet has no torrent to tag and no manifest to write, so a wish for it exists
+nowhere unless the bot writes it down. It is one JSON file in the state directory systemd hands
+the service, written whole and moved into place on every change.
 
 ## Configuration
 
@@ -24,6 +30,9 @@ caches a title and never claims a state it did not read.
 | `Player__BaseUrl` | yes | Where the player is served. The launch link is this address plus its parameters. |
 | `Api__BaseUrl` | no | Where the bot reaches the API. Defaults to `http://127.0.0.1:8099`. |
 | `Api__PublicBaseUrl` | no | Where Discord's servers reach the API. Only the poster needs it, and without it the embed carries no image rather than a broken one. |
+| `Notify__Path` | no | Where the wish list is written. Defaults to `wishes.json` in the directory `STATE_DIRECTORY` names, and to the working directory when there is none. |
+| `Notify__SweepMinutes` | no | How often the tracker is asked about every film on the list. Defaults to 60. |
+| `Notify__MinimumSource` | no | The least a release's source may be for a film to count as available: `Web` by default, so a camcorder recording of a film in cinemas does not announce it. |
 
 The two credentials are read under their own names and sit underneath every other configuration
 source, so `Discord:Token` and `Discord:ApplicationId` from user-secrets or from the environment
@@ -89,3 +98,27 @@ holding it is in the room.
 Which launch the reply carries is the only thing `ILaunchPresenter` decides. A presenter that
 opens the player as an Activity inside the voice channel replaces the one that links to it, and
 the command above it does not change.
+
+## Waiting on a film
+
+```
+/notify add film:<name, or a link to the film's IMDb page>
+/notify list
+/notify cancel film:<one of the films you are waiting on>
+```
+
+`/notify add` is for a film that cannot be downloaded yet: out in cinemas, say, with a digital
+release some months off. The film option autocompletes from the catalogue rather than from the
+tracker, because the tracker has nothing to offer yet, and a pasted IMDb link is recognised
+wherever the id appears in it, so somebody who found the film on IMDb does not search for it
+twice. What is kept is the film's IMDb id and what the catalogue said about it.
+
+Before anything is written down, the places the film might already be are checked: the library,
+in which case the reply points at `/watch`; the torrent client, in which case it is already on
+its way; and the tracker, in which case the reply names the release and points at `/find`.
+
+The tracker is then asked about every film on the list on a slow clock, by IMDb id. A film counts
+as available once a release is offered whose source is a web encode or better. When one is, a
+new message goes to each channel people asked in, mentioning exactly those people, naming the
+release and pointing at `/find`. The wish is forgotten once its people have been told; a channel
+the message could not be sent to keeps its people for the next pass.

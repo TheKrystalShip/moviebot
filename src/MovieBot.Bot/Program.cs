@@ -12,6 +12,7 @@ using TheKrystalShip.MovieBot.Bot.Discord;
 using TheKrystalShip.MovieBot.Bot.Find;
 using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Bot.Launch;
+using TheKrystalShip.MovieBot.Bot.Notify;
 using TheKrystalShip.MovieBot.Bot.Presence;
 using TheKrystalShip.MovieBot.Bot.Watch;
 
@@ -99,6 +100,13 @@ builder.Services.AddSingleton<WatchCommand>();
 builder.Services.AddAcquire(builder.Configuration);
 builder.Services.AddSingleton<FindCommand>();
 
+// The films people are waiting on. The one thing the bot writes down, because a film that is
+// not on the tracker yet exists nowhere else to be remembered.
+builder.Services.AddOptions<NotifyOptions>().Bind(builder.Configuration.GetSection(NotifyOptions.Section));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<WishList>();
+builder.Services.AddSingleton<NotifyCommand>();
+
 builder.Services.AddHostedService<DiscordBotService>();
 
 // Announces a finished download in the channel it was asked for. Separate from the gateway
@@ -112,6 +120,9 @@ builder.Services.AddHostedService<DownloadProgressUpdater>();
 
 // Says what the rooms are watching, beside the bot's name and under each room's voice channel.
 builder.Services.AddHostedService<RoomPresence>();
+
+// Asks the tracker about the films people are waiting on, and tells them when one appears.
+builder.Services.AddHostedService<WishWatcher>();
 
 await builder.Build().RunAsync();
 

@@ -29,6 +29,10 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 
+# The films people are waiting on are the one thing the bot writes down, and this is the only
+# place it may write. systemd makes the directory and names it in STATE_DIRECTORY.
+StateDirectory=moviebot-bot
+
 # The download directory has to be readable, because the disk budget is measured off the
 # filesystem. Masked away entirely, the budget reads zero used and the ceiling never stops
 # anything — a wrong answer that looks exactly like plenty of room.
