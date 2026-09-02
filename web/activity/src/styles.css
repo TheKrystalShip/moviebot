@@ -631,19 +631,57 @@ button.mb-scrub__time:hover {
 /* ---- The control bar -------------------------------------------------
    Glass rather than a panel: the film runs to the bottom of the frame and the controls sit over
    it. Fully transparent was the ask and is nearly right, but a scrub bar over a bright scene
-   disappears, so what is behind it is dimmed and blurred just enough to read against. */
+   disappears, so what is behind it is dimmed and blurred just enough to read against.
+
+   Everything in it is centred by the flex box it sits in. The library positions its glyphs by
+   giving them a line height equal to the bar, which only lines up while those two numbers agree
+   and silently drops a button half a row when they stop agreeing. */
 
 .video-js .vjs-control-bar {
-  height: 3.4em;
+  display: flex;
   align-items: center;
+  gap: 2px;
+  height: 3.2em;
+  padding: 0 0.6em;
   background: linear-gradient(to top, rgba(10, 12, 15, 0.72), rgba(10, 12, 15, 0.34));
   backdrop-filter: blur(14px) saturate(120%);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
   border-top: 1px solid rgba(255, 255, 255, 0.10);
 }
 
+/* The library's own controls: a square, and its glyph in the middle of it. */
+.video-js .vjs-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.6em;
+  height: 2.6em;
+  padding: 0;
+}
+
 .video-js .vjs-button > .vjs-icon-placeholder::before {
-  line-height: 3.4em;
+  position: static;
+  width: auto;
+  height: auto;
+  font-size: 1.7em;
+  line-height: 1;
+}
+
+.video-js .vjs-control:hover {
+  color: var(--accent);
+}
+
+/* Ours, which are laid out by the same box. The bar is the scrub bar; everything else is its
+   own width and stays it. */
+.video-js .vjs-control-bar > .mb-scrub {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.video-js .vjs-control-bar > .mb-volume,
+.video-js .vjs-control-bar > .mb-menu {
+  flex: 0 0 auto;
 }
 
 /* ---- Settings --------------------------------------------------------
@@ -694,15 +732,22 @@ button.mb-scrub__time:hover {
 }
 
 .mb-settings__entry {
-  justify-content: flex-start;
+  gap: 0;
 }
 
+.mb-settings__entry .mb-menu__item-label {
+  flex: 0 0 auto;
+}
+
+/* Pushed to the far side rather than left sitting against the name it belongs to. */
 .mb-settings__value {
+  flex: 0 1 auto;
   margin-left: auto;
+  padding: 0 10px 0 24px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 190px;
+  text-align: right;
   font-size: 13px;
   color: var(--dim);
 }

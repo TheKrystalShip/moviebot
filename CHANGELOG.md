@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.2] - 2026-09-02
+
+### Fixed
+
+- Pressing play no longer stops the film a moment later. A play interrupted by a seek is rejected
+  and the element goes back to paused, and the pause it then reports was published to the room as
+  though somebody had decided to stop it. Playback the room wants now waits for the playhead to
+  arrive instead of racing it, and a pause raised by a seek in flight is machinery rather than
+  anybody's decision.
+- The controls sit on one line. Everything in the bar is centred by the box it is in, rather than
+  by giving each glyph a line height equal to the bar — which lines up only while those two numbers
+  agree and drops a button half a row when they stop.
+- A setting's value sits at the far side of its row rather than against the name it belongs to.
+
+### Added
+
+- Every intent the room receives is logged with who sent it and which connection it came down. A
+  room that pauses itself is either a client publishing a pause or a player stopping without saying
+  so, and those have nothing in common but the symptom.
+
 ## [1.14.1] - 2026-09-02
 
 ### Fixed

@@ -31,22 +31,24 @@ public sealed class SessionHub(SessionStore sessions, ILogger<SessionHub> logger
             new Participant { UserId = userId, DisplayName = displayName });
 
         await Clients.Group(sessionId).SendAsync("ParticipantsChanged", participants);
-        logger.LogInformation("{DisplayName} joined session {SessionId}", displayName, sessionId);
+        logger.LogInformation(
+            "{DisplayName} joined session {SessionId} (connection {Connection}, {Count} in the room)",
+            displayName, sessionId, Context.ConnectionId[..6], participants.Count);
 
         return Push(sessions.GetOrCreate(sessionId));
     }
 
     public Task<SessionStatePush> LoadTitle(string titleId) =>
-        Mutate(actor => sessions.LoadTitle(SessionId(), titleId, actor));
+        Mutate("load", 0, actor => sessions.LoadTitle(SessionId(), titleId, actor));
 
     public Task<SessionStatePush> Play(double atSeconds) =>
-        Mutate(actor => sessions.Play(SessionId(), atSeconds, actor));
+        Mutate("play", atSeconds, actor => sessions.Play(SessionId(), atSeconds, actor));
 
     public Task<SessionStatePush> Pause(double atSeconds) =>
-        Mutate(actor => sessions.Pause(SessionId(), atSeconds, actor));
+        Mutate("pause", atSeconds, actor => sessions.Pause(SessionId(), atSeconds, actor));
 
     public Task<SessionStatePush> Seek(double toSeconds) =>
-        Mutate(actor => sessions.Seek(SessionId(), toSeconds, actor));
+        Mutate("seek", toSeconds, actor => sessions.Seek(SessionId(), toSeconds, actor));
 
     /// <summary>
     /// Answers with the server's clock so a client can estimate its offset. Position is derived
@@ -59,6 +61,10 @@ public sealed class SessionHub(SessionStore sessions, ILogger<SessionHub> logger
         if (Context.Items.TryGetValue(SessionIdKey, out var value) && value is string sessionId)
         {
             var participants = sessions.Leave(sessionId, Context.ConnectionId);
+            logger.LogInformation(
+                "Connection {Connection} left session {SessionId} ({Count} left){Why}",
+                Context.ConnectionId[..6], sessionId, participants.Count,
+                exception is null ? "" : $": {exception.Message}");
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, sessionId);
             await Clients.Group(sessionId).SendAsync("ParticipantsChanged", participants);
         }
@@ -66,10 +72,22 @@ public sealed class SessionHub(SessionStore sessions, ILogger<SessionHub> logger
         await base.OnDisconnectedAsync(exception);
     }
 
-    private async Task<SessionStatePush> Mutate(Func<Actor, MutationResult> mutation)
+    private async Task<SessionStatePush> Mutate(
+        string intent, double atSeconds, Func<Actor, MutationResult> mutation)
     {
-        var result = mutation(CurrentActor());
+        var actor = CurrentActor();
+        var result = mutation(actor);
         var push = Push(result.State);
+
+        // Every intent, with who sent it and which connection it came down. A room that pauses
+        // itself is either a client publishing a pause or a player stopping without saying so,
+        // and those have nothing in common but the symptom — this is what tells them apart.
+        logger.LogInformation(
+            "{Actor} {Intent} at {At:0.00}s -> revision {Revision}, {Paused}, position {Position:0.00}s"
+            + " (connection {Connection}, {Participants} in the room)",
+            actor.DisplayName, intent, atSeconds, result.State.Revision,
+            result.State.Paused ? "paused" : "playing", result.State.PositionSeconds,
+            Context.ConnectionId[..6], sessions.Participants(SessionId()).Count);
 
         // Broadcast to the whole group, the caller included: the caller applies the server's
         // answer rather than its own optimistic guess, so every client runs the same code path.

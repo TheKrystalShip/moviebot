@@ -42,6 +42,8 @@ export class SyncController {
   private latest: SessionState | null = null;
   private playerReady = false;
   private correcting = false;
+  /** Set when the room wants playback but a seek has to land before it can start. */
+  private startAfterSeek = false;
   private timer: number | null = null;
 
   constructor(
@@ -67,12 +69,24 @@ export class SyncController {
     this.video.addEventListener('pause', () => {
       if (this.assumedPaused !== false) return;
       if (this.video.ended) return;
+
+      // A seek in flight pauses the element as machinery, not as anybody's decision. Publishing
+      // it stops the room every time one person's playhead moves.
+      if (this.video.seeking) return;
+
       this.assumedPaused = true;
       this.intents.pause(this.video.currentTime);
     });
 
     // On `seeked` and never `seeking`: a scrub otherwise publishes a storm of intents.
     this.video.addEventListener('seeked', () => {
+      // Playback the room wanted, held until the playhead had arrived. Starting it while the seek
+      // was still running is what aborted it.
+      if (this.startAfterSeek) {
+        this.startAfterSeek = false;
+        this.start();
+      }
+
       if (this.appliedSeek !== null && Math.abs(this.video.currentTime - this.appliedSeek) < SnapSeconds) {
         this.appliedSeek = null;
         return;
@@ -137,14 +151,22 @@ export class SyncController {
     const pausing = state.paused && !this.video.paused;
     const starting = !state.paused && this.video.paused;
 
+    if (pausing) this.video.pause();
+
     // Not while one is already running. A second seek abandons the first, and abandoning one
     // during the opening buffer is what makes the film restart loading over and over.
     if (seeking && !this.video.seeking) {
       this.appliedSeek = target;
       this.video.currentTime = target;
     }
-    if (pausing) this.video.pause();
-    if (starting) this.start();
+
+    // Never in the same breath as a seek. A play interrupted by one is rejected, the element goes
+    // back to paused, and the pause it then reports is indistinguishable from somebody deciding
+    // to stop the film — which is how pressing play stopped the room a moment later.
+    if (starting) {
+      if (this.video.seeking) this.startAfterSeek = true;
+      else this.start();
+    }
 
     if (this.correcting) this.restoreRate(state.rate);
   }
@@ -159,7 +181,16 @@ export class SyncController {
    */
   private start(): void {
     void this.video.play().catch((error: unknown) => {
+      // The element is back to paused and is about to say so. That pause is this play failing,
+      // not a person stopping the film, so the room is not told about it: setting the assumption
+      // back is what the pause handler reads to know the difference.
+      this.assumedPaused = true;
+
+      // Only the browser wanting a gesture is worth asking somebody for one. A play this class
+      // interrupted itself is not, and asking leaves them pressing a button that restarts the
+      // same race.
       if (error instanceof DOMException && error.name === 'AbortError') return;
+
       this.hooks.onPlaybackBlocked();
     });
   }

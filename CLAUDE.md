@@ -218,6 +218,11 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
   from the room by definition. Seeking it to catch up throws away the buffer it was waiting for,
   so the correction produces the stall it was correcting, further behind each time. Waiting is the
   correction.
+- **A play is never issued in the same breath as a seek.** One interrupts the other, the element
+  returns to paused, and the pause it reports is indistinguishable from a person stopping the film.
+  Playback the room wants waits for the playhead to arrive instead.
+- **A pause raised while a seek is in flight is machinery, not a decision.** Publishing it stops
+  the room every time one person's playhead moves.
 - **A seek is never issued while one is running.** The second abandons the first, and during the
   opening buffer that restarts the load.
 - **No control offers a press before anything can answer one.** Waiting is shown as waiting. The
