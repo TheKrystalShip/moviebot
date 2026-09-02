@@ -181,7 +181,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         await FfmpegProcess.RunAsync(args, ct: ct);
 
         foreach (var stream in textSubtitles)
-            await RepairSubtitleAsync(Path.Combine(outputDirectory, SubtitleFileName(stream)), ct);
+            await RepairSubtitleAsync(stream, Path.Combine(outputDirectory, SubtitleFileName(stream)), ct);
     }
 
     /// <summary>
@@ -190,19 +190,38 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
     /// valid UTF-8 and valid WebVTT, just wrong. Undo it here, where the track is whole and on
     /// disk, because a player has no way to tell that it should.
     /// </summary>
-    private async Task RepairSubtitleAsync(string path, CancellationToken ct)
+    private async Task RepairSubtitleAsync(ProbeStream stream, string path, CancellationToken ct)
     {
         if (!File.Exists(path)) return;
 
-        var result = MojibakeRepair.Repair(await File.ReadAllTextAsync(path, Encoding.UTF8, ct));
-        if (!result.Changed) return;
+        var name = Path.GetFileName(path);
+        var english = IsEnglish(stream);
 
-        await File.WriteAllTextAsync(path, result.Text, new UTF8Encoding(false), ct);
-        log($"  {Path.GetFileName(path)}: repaired {result.Repaired} mangled characters"
-            + (result.Unrepairable > 0
-                ? $", left {result.Unrepairable} that could not be read back"
-                : string.Empty));
+        var result = MojibakeRepair.Repair(
+            await File.ReadAllTextAsync(path, Encoding.UTF8, ct), completeDiscardedBytes: english);
+
+        if (result.Changed)
+        {
+            await File.WriteAllTextAsync(path, result.Text, new UTF8Encoding(false), ct);
+            log($"  {name}: repaired {result.Repaired} mangled characters"
+                + (result.Unrepairable > 0
+                    ? $", left {result.Unrepairable} that could not be read back"
+                    : string.Empty));
+        }
+
+        // Only English is inspected afterwards. It is the track that gets selected, and warning
+        // about one nobody opens teaches the reader to skip the warnings that matter.
+        if (!english) return;
+
+        var health = SubtitleHealth.Inspect(result.Text);
+        if (health.Clean) return;
+
+        log($"  {name}: English subtitles still hold {health.Count} suspect sequences"
+            + $" ({string.Join(" ", health.Samples)}) — this track needs looking at");
     }
+
+    /// <summary>ffprobe reports ISO 639-2, and a disc occasionally carries the two-letter code.</summary>
+    private static bool IsEnglish(ProbeStream stream) => stream.Language is "eng" or "en";
 
     private async Task ExtractPosterAsync(ProbeStream attachedPicture, string outputDirectory, CancellationToken ct)
     {

@@ -4,6 +4,28 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-09-02
+
+### Added
+
+- The English subtitle track is checked once it has been repaired, and a track that is still wrong
+  says so at ingest instead of forty minutes into a film. The check is that two non-ASCII
+  characters do not stand next to each other in English, which catches mangling through encodings
+  the repair does not reverse.
+
+### Changed
+
+- English is repaired with the benefit of the doubt on the one case that cannot be decided by
+  decoding: a closing quote whose last byte the encoder discarded is restored even with nothing in
+  the document to prove that is what it was. Every other language keeps the strict reading, where
+  a run that cannot be proven is left as it is.
+
+### Fixed
+
+- Text mangled through Latin-1 is repaired alongside text mangled through Windows-1252. The two
+  encodings differ only in the block the corruption passes through, and the reversal now carries
+  that block back to its bytes rather than refusing it.
+
 ## [1.6.0] - 2026-09-02
 
 ### Added

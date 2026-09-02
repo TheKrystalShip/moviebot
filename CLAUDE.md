@@ -81,6 +81,18 @@ These are measured against real Blu-ray rips, not assumed. Changing one means re
   characters at a time and keeps only what decodes strictly, which is what lets it leave a
   Portuguese `NÃO` or a Romanian diacritic alone — legitimate text almost never forms valid UTF-8
   when re-encoded that way, and the same characters are exactly what the corruption produces.
+- **English is the track that gets checked.** It is the one anybody here selects, so it is
+  repaired with the benefit of the doubt on the single case decoding cannot decide -- a closing
+  quote whose last byte the encoder discarded is restored even with nothing in the document to
+  prove that is what it was -- and it is inspected afterwards. The inspection is adjacency: two
+  non-ASCII characters do not stand next to each other in English, where quotes, dashes and the
+  accented letters of names and loanwords all appear singly between ASCII, while every form of this
+  corruption produces two or three in a row. That catches mangling through an encoding the repair
+  does not reverse, which a list of known-bad sequences would not.
+- **The other languages keep the strict reading.** Relaxing it would gain nothing, because the
+  strict pass already repairs everything a looser one would, and it would cost the Portuguese and
+  Romanian tracks it currently leaves untouched: the characters a looser pass would act on are the
+  ones those languages are spelled with.
 - **Playlists are `EVENT`, not `VOD`.** That is the whole mechanism behind playback starting
   seconds in. ffmpeg appends `#EXT-X-ENDLIST` on completion, so the playlist becomes a normal
   VOD by itself.

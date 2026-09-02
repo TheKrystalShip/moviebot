@@ -43,7 +43,12 @@ public static class MojibakeRepair
 
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
-    public static Result Repair(string text)
+    /// <param name="completeDiscardedBytes">
+    /// Whether to restore a closing double quote whose last byte was thrown away even with nothing
+    /// in the document to prove that is what it was. Worth doing on a track people actually read
+    /// and not on one they never open, because the guess is only nearly always right.
+    /// </param>
+    public static Result Repair(string text, bool completeDiscardedBytes = false)
     {
         var output = new StringBuilder(text.Length);
         var repaired = 0;
@@ -81,10 +86,13 @@ public static class MojibakeRepair
 
         var result = output.ToString();
 
-        // A dropped byte is unrecoverable in general, but not here: the only discarded byte that
-        // yields ordinary text is the one behind a closing double quote, and the document proves the
-        // encoder emitted its opening counterpart. Without that evidence the run is left alone.
-        if (openingQuotes > 0 && result.Contains(TruncatedRightQuote, StringComparison.Ordinal))
+        // A dropped byte is unrecoverable by decoding, so this is the one place the repair guesses.
+        // The guess is narrow: of the five bytes Windows-1252 has no character for, only the one
+        // behind a closing double quote yields ordinary text. Surviving opening quotes prove the
+        // encoder produced them, and without that proof the run is left alone unless the caller
+        // says the track matters more than the risk of being wrong about twelve characters.
+        if ((openingQuotes > 0 || completeDiscardedBytes)
+            && result.Contains(TruncatedRightQuote, StringComparison.Ordinal))
         {
             var truncated = CountOccurrences(result, TruncatedRightQuote);
             result = result.Replace(TruncatedRightQuote, "”", StringComparison.Ordinal);
@@ -125,7 +133,11 @@ public static class MojibakeRepair
 
     private static bool TryEncodeChar(char c, out byte b)
     {
-        if (c is >= ' ' and <= 'ÿ')
+        // Latin-1 and Windows-1252 agree everywhere except the block from 0x80 to 0x9F, so any
+        // character that fits in a byte is that byte. What sits inside the block is either one of
+        // the characters below, or a control that a Latin-1 read carried through unchanged --
+        // which is why mangling through either encoding comes back the same way.
+        if (c <= '\u00ff')
         {
             b = (byte)c;
             return true;
