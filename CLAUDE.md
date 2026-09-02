@@ -338,6 +338,30 @@ restarting the API took the film out from under everybody in it.
 - **`/health` says how many rooms are occupied and by how many people, and no names.** It is what
   makes restarting something that can be looked at first rather than found out about afterwards.
 
+## Getting a film watchable
+
+Transcoding alongside the download exists so a film can be watched while it arrives. Everything
+here is about not losing that.
+
+- **Films are ingested concurrently, up to a ceiling.** A film is watchable seconds after its own
+  transcode starts and not before, so one taken strictly in turn does not exist yet: not in the
+  library, not by name, however much of it has arrived. They share one card and each runs slower
+  for it — around twelve times realtime alone, six apiece with two — and every one of them still
+  outruns a person watching several times over, which is the only rate that matters.
+- **A sweep never restarts what it is already running.** Sweeps carry on while a transcode does,
+  and an ingest replaces a title's directory wholesale, so a second start would delete what the
+  first is writing. The in-flight set keyed by download hash is what prevents it.
+- **A film owing a transcode and a film being watchable are different facts with different tags.**
+  `ingest` survives until the transcode finishes; `watchable` is set seconds into it and is what
+  the announcement waits for. One tag answering both is what made an interrupted transcode
+  unrecoverable — cleared to let the announcement out, it was no longer there to say the rest was
+  owed.
+- **A poster is put on disk before the manifest names it.** A manifest is read the moment it
+  exists, and a surface that fetches artwork on its own servers caches the 404 rather than trying
+  again. The catalogue's poster is already a local file and waits for nothing; a source's own
+  cover art has to be demuxed out of it, so for a film still downloading it is named only once it
+  has been extracted.
+
 ## Reading a source that is still arriving
 
 Transcoding a file while it downloads is only safe while the reader stays behind the writer, and

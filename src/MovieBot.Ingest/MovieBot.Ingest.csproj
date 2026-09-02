@@ -12,6 +12,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="MovieBot.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../MovieBot.Core/MovieBot.Core.csproj" />
   </ItemGroup>
 

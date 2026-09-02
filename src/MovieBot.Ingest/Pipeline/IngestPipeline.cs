@@ -77,20 +77,32 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         if (options.ThumbnailsOnly)
             return await RebuildThumbnailsAsync(id, video, probe.Format.DurationSeconds, log, ct);
 
+        var embeddedPosterIsReady = EmbeddedPosterIsReady(
+            hasCoverArt: attachedPicture is not null, sourceIsWhole: options.Availability is null);
+
         var manifest = BuildManifest(id, title, probe, video, dynamicRange,
             audioStreams, textSubtitles, bitmapSubtitles,
-            attachedPicture is not null || options.PosterSource is { Length: > 0 },
+            hasPoster: false,
             sourceStillArriving: options.Availability is not null);
         manifest.OtherLanguages = otherLanguages;
 
         if (options.DryRun)
         {
+            manifest.Poster = embeddedPosterIsReady || options.PosterSource is { Length: > 0 }
+                ? "poster.jpg" : null;
             log(string.Empty);
             log(ManifestJson.Serialize(manifest));
             return manifest;
         }
 
         PrepareOutputDirectory(outputDirectory, audioStreams.Count, options.Force);
+
+        // Put down before the manifest names it. A manifest is read the moment it exists — a film
+        // is announced within seconds of the first segments landing, and an embed asking for a
+        // poster that is not there yet gets a 404 which the surface then caches.
+        if (!embeddedPosterIsReady) CopyPoster(outputDirectory, log);
+        if (embeddedPosterIsReady || File.Exists(Path.Combine(outputDirectory, "poster.jpg")))
+            manifest.Poster = "poster.jpg";
 
         var manifestPath = Path.Combine(outputDirectory, "manifest.json");
         ManifestJson.WriteAtomic(manifestPath, manifest);
@@ -118,7 +130,6 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                     log("Extracting cover art");
                     await ExtractPosterAsync(attachedPicture, outputDirectory, ct);
                 }
-                else CopyPoster(outputDirectory, log);
             }
             else
             {
@@ -149,12 +160,14 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                     await ExtractSubtitlesAsync(textSubtitles, outputDirectory, ct);
                 }
 
+                // A source that shipped its own cover art keeps it, so this replaces whatever the
+                // catalogue stood in with while the film was arriving.
                 if (attachedPicture is not null)
                 {
                     log("Extracting cover art");
                     await ExtractPosterAsync(attachedPicture, outputDirectory, ct);
+                    manifest.Poster = "poster.jpg";
                 }
-                else CopyPoster(outputDirectory, log);
 
                 manifest.Subtitles = Advertise(manifest.Subtitles, textSubtitles);
                 manifest.Source = Fingerprint(video);
@@ -278,6 +291,18 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         log($"Previews rebuilt: {outputDirectory}");
         return manifest;
     }
+
+    /// <summary>
+    /// Whether a source's own cover art can be had before the transcode rather than after it.
+    ///
+    /// It has to be demuxed out of the file, so for a file still arriving it cannot be had until
+    /// the download is. That is the whole reason a manifest cannot simply assume a poster: it is
+    /// read the moment it exists — a film is announced within seconds of the first segments
+    /// landing — and naming artwork that arrives an hour later is a message with a hole in it and
+    /// a 404 that whatever fetched it goes on to cache.
+    /// </summary>
+    internal static bool EmbeddedPosterIsReady(bool hasCoverArt, bool sourceIsWhole) =>
+        hasCoverArt && sourceIsWhole;
 
     /// <summary>
     /// The poster for a source that carries none, which is most of them. Never throws: a film

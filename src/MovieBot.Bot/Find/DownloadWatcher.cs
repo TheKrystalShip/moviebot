@@ -69,9 +69,15 @@ public sealed class DownloadWatcher(
 
             if (tag is null) continue;
 
-            // Still owed a transcode, so there is nothing to watch yet. Left alone rather than
-            // announced, and found again on the next pass.
-            if (download.Tags.Contains(TorrentTags.NeedsIngest)) continue;
+            // Nothing to watch yet. A transcode owed, running, or interrupted all look the same
+            // from here and none of them is worth telling anybody about; what is worth telling is
+            // that the film can be opened, which is its own mark and arrives seconds into a
+            // transcode rather than at the end of it.
+            if (!download.Tags.Contains(TorrentTags.Watchable)
+                && !download.Tags.Contains(TorrentTags.IngestFailed))
+            {
+                continue;
+            }
 
             if (TorrentTags.ReadNotifyChannel(tag) is not { } channelId)
             {

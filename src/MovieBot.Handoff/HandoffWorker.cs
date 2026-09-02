@@ -30,6 +30,15 @@ public sealed class HandoffWorker(
 {
     private readonly HandoffOptions _options = options.Value;
 
+    /// <summary>
+    /// What is being ingested right now, by download hash.
+    ///
+    /// Sweeps carry on every half minute while a transcode runs, so without this the next one
+    /// would start the same film again — and the ingest replaces a title's directory wholesale,
+    /// so the second start would delete what the first was still writing into.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _inFlight = new();
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (string.IsNullOrWhiteSpace(_options.MediaRoot))
@@ -67,14 +76,37 @@ public sealed class HandoffWorker(
 
         var owed = downloads
             .Where(d => d.Tags.Contains(TorrentTags.NeedsIngest) && IsFarEnoughAlong(d))
+            .Where(d => !_inFlight.ContainsKey(d.Hash))
             .ToList();
 
-        // One at a time. Two transcodes share one GPU and finish no sooner together than in
-        // turn, and the person waiting on the first would wait through both.
+        // Started rather than awaited, up to the ceiling. A film is watchable seconds after its
+        // own transcode starts and not before, so a film held behind another's is a film that
+        // does not exist yet — not in the library, not by name, not however much of it has
+        // arrived. They share one card and each runs slower for it; every one of them still
+        // outruns a person watching it several times over, which is the only rate that matters.
         foreach (var download in owed)
         {
             if (ct.IsCancellationRequested) return;
-            await IngestAsync(download, ct);
+            if (_inFlight.Count >= Math.Max(1, _options.MaxConcurrentIngests))
+            {
+                logger.LogInformation(
+                    "{Name} waits: {Running} already transcoding.", download.Name, _inFlight.Count);
+                continue;
+            }
+
+            if (!_inFlight.TryAdd(download.Hash, 0)) continue;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await IngestAsync(download, ct);
+                }
+                finally
+                {
+                    _inFlight.TryRemove(download.Hash, out _);
+                }
+            }, ct);
         }
     }
 
@@ -159,12 +191,18 @@ public sealed class HandoffWorker(
             await ReleaseWhenPlayableAsync(download, options.OutputDirectory(id), transcode, ct);
 
             var manifest = await transcode;
+
+            // Only now. Everything up to here — playable, announced, most of the film written —
+            // is work in progress, and a process that stops during it leaves the rest owed.
+            await acquisition.ClearTagAsync(download.Hash, TorrentTags.NeedsIngest, ct);
+
             logger.LogInformation(
                 "{Title} finished transcoding as {Id}.", manifest.Title, manifest.Id);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            // Left tagged, so the next start picks it up again.
+            // Left tagged, so the next start picks it up again — which is now true rather than
+            // merely intended.
             logger.LogInformation("Stopped mid-transcode of {Name}; it stays owed.", download.Name);
             throw;
         }
@@ -176,7 +214,7 @@ public sealed class HandoffWorker(
     }
 
     /// <summary>
-    /// Clears the tag that holds the announcement back, the moment there is something to watch.
+    /// Marks the film watchable, the moment there is something to watch.
     ///
     /// The manifest is written before the main pass starts and gains a head as segments land, so
     /// what is waited on is a head rather than the transcode: the head is the point at which the
@@ -192,7 +230,9 @@ public sealed class HandoffWorker(
         {
             if (IsPlayable(manifestPath))
             {
-                await acquisition.ClearTagAsync(download.Hash, TorrentTags.NeedsIngest, ct);
+                // Marked, not unmarked. What is owed is still owed — an hour of transcoding is
+                // still to come, and something has to say so if this process stops before it ends.
+                await acquisition.TagAsync(download.Hash, TorrentTags.Watchable, ct);
                 logger.LogInformation("{Name} is watchable; announcing it.", download.Name);
                 return;
             }

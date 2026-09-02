@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0] - 2026-09-02
+
+### Fixed
+
+- Films no longer wait a whole transcode each for their turn. The hand-off took them strictly in
+  turn, so the second and third films anybody asked for were invisible until the ones ahead
+  finished — not in `/watch`, not announced, not openable, however much had downloaded. Since a
+  film is watchable seconds after its own transcode starts, that cost exactly what transcoding
+  alongside the download was for. Up to three now run at once, which still leaves each of them
+  running several times faster than anyone can watch.
+- An interrupted transcode is picked up again. Becoming watchable cleared the tag that recorded
+  the work as owed, so anything stopping the hand-off after that point — a crash, a deploy — left
+  the film marked failed with nothing to retry it, while the log claimed it stayed owed. The two
+  facts are separate tags now: what is owed survives until the transcode finishes, and what is
+  watchable is its own mark.
+- A poster is on disk before the manifest names one. The manifest advertised artwork from the
+  moment it was written and the file only arrived when the download completed, so every film
+  ingested while downloading served a 404 for its whole download — and a surface that fetches
+  artwork on its own servers caches that.
+
 ## [1.20.0] - 2026-09-02
 
 ### Added

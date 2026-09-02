@@ -31,6 +31,22 @@ public sealed class HandoffOptions
     public double StartAtProgress { get; set; } = 0.05;
 
     /// <summary>
+    /// How many films may be transcoding at once.
+    ///
+    /// A film is watchable seconds after its own transcode starts and not before, so a film
+    /// waiting its turn is a film that does not exist: it is in no library, answers to no name and
+    /// cannot be opened, however much of it has downloaded. Taking them strictly in turn made the
+    /// second and third films somebody asked for arrive a transcode late each, which is the whole
+    /// of what transcoding alongside the download was for.
+    ///
+    /// They share one card, so each runs slower — measured here at roughly twelve times realtime
+    /// alone and six apiece with two. What matters is that each stays ahead of a person watching
+    /// it, and the margin at this ceiling is large: three at once is around four times realtime,
+    /// against the one time realtime a viewer needs.
+    /// </summary>
+    public int MaxConcurrentIngests { get; set; } = 3;
+
+    /// <summary>
     /// The smallest file worth treating as the film, in mebibytes. A torrent carries samples,
     /// trailers and extras, and picking the largest file is only right if there is a floor under
     /// what counts at all.
