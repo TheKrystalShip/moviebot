@@ -245,8 +245,25 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
   the film for everybody rather than for whoever pressed it. That is the premise, not a hazard, but
   it is why nothing is bound that a hand resting on a keyboard could trigger and why the scrub bar
   shows where a seek would land before it is made.
-- **A control that already answers a key keeps it.** The scrub bar handles the arrows itself when
-  focused; taking them globally as well moves the film twice for one press.
+- **A control that already answers a key keeps it.** The scrub bar and the volume slider each
+  handle the arrows themselves when focused; taking them globally as well moves the film, or the
+  volume, twice for one press.
+- **Volume is the one key that moves nobody else, and it is still shown in the middle of the
+  screen.** Up and down step this viewer's loudness by five points, as does a wheel turned over
+  the volume control, and each step flashes where the volume landed in the same place a seek
+  flashes what it did. The slider is on a bar nobody is looking at while the film plays, and one
+  step is not something an ear can be sure it heard.
+- **What somebody else did to the room is said on screen, to everyone but them.** A pause looks
+  like a stall and a seek inside the scene looks like nothing, so the bubble names who did what
+  and, for a seek, where the film went. Only a state that advanced the room's revision counts: a
+  resync hands back a state already seen, and announcing it would report an act nobody took. One
+  function, `describeChange`, words it for the bubble and for the line under the player.
+- **The subtitle menu belongs to one film.** What the index offered is forgotten when the film
+  changes, and a search that lands after the change is dropped, or the menu shows the last film's
+  subtitles under the next one. The film's own tracks are read again every time the panel is
+  opened: what a film gains is pushed to the room as it lands, and the re-read is the guarantee
+  behind the push, so a track that became available is shown available whatever reached the page
+  in between.
 - **Fullscreen exists only where the browser grants it.** Inside Discord's iframe the API is not
   given to an Activity, so the key and the double click do nothing there rather than failing — and
   the player already fills the frame, which is what they would have been for.

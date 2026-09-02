@@ -12,7 +12,7 @@ import { SubtitleMenu } from './subtitleMenu';
 import { AudioPanel } from './audioPanel';
 import { SettingsMenu } from './settingsMenu';
 import { bindShortcuts } from './shortcuts';
-import { SeekFlash } from './seekFlash';
+import { KeyFlash } from './keyFlash';
 import { VolumeControl, amplitudeFor } from './volume';
 
 export interface FilmPlayerHooks {
@@ -69,7 +69,7 @@ export class FilmPlayer {
   private thumbnailUrl: string | null = null;
   private releaseShortcuts: (() => void) | null = null;
   private readonly spinner: HTMLElement;
-  private readonly seekFlash: SeekFlash;
+  private readonly flash: KeyFlash;
   private holds = 0;
   private readonly volume: VolumeControl;
 
@@ -86,11 +86,11 @@ export class FilmPlayer {
     this.spinner.setAttribute('role', 'status');
     this.spinner.setAttribute('aria-label', 'Waiting for the film');
 
-    // What a key press did to the playhead. Nothing else reports a seek that lands inside the
-    // scene it started in.
-    this.seekFlash = new SeekFlash();
+    // What a key press did to the playhead or the volume. Nothing else reports a seek that
+    // lands inside the scene it started in, or a step the ear cannot be sure it heard.
+    this.flash = new KeyFlash();
 
-    container.replaceChildren(this.video, this.spinner, this.seekFlash.el);
+    container.replaceChildren(this.video, this.spinner, this.flash.el);
 
     this.video.addEventListener('waiting', () => this.stalled(true));
     this.video.addEventListener('stalled', () => this.stalled(true));
@@ -105,7 +105,8 @@ export class FilmPlayer {
         this.player.volume(amplitudeFor(position));
         this.player.muted(muted);
         prefs.setVolume(position, muted);
-      }
+      },
+      onNudge: (step, position, muted) => this.flash.volume(step, position, muted)
     });
     const lock = (held: boolean) => this.holdControls(held);
     this.audioPanel = new AudioPanel((id) => {
@@ -121,6 +122,10 @@ export class FilmPlayer {
       },
       close: () => this.settings.close(),
       search: () => this.hooks.searchSubtitles(),
+      // The list is read again whenever it is looked at. What the film gains is pushed to the
+      // room as it lands, and this is the guarantee behind the push: a menu opened after a
+      // subtitle became available shows it available, whatever reached this page in between.
+      refresh: () => this.refreshSubtitles(),
       fetch: (fileId) => this.hooks.fetchSubtitle(fileId).then(async (track) => {
         await this.refreshSubtitles();
         return track;
@@ -179,9 +184,10 @@ export class FilmPlayer {
       // Through the same route the scrub bar takes: the server decides where the room lands.
       seekBy: (seconds) => {
         const to = Math.min(this.scrubDuration, Math.max(0, this.video.currentTime + seconds));
-        this.seekFlash.show(to - this.video.currentTime);
+        this.flash.seek(to - this.video.currentTime);
         this.hooks.onSeekIntent(to);
       },
+      volumeBy: (step) => this.volume.nudge(step),
       toggleFullscreen: () => this.toggleFullscreen(),
       toggleMute: () => this.volume.toggleMute(),
       toggleSubtitles: () => this.toggleSubtitles()
@@ -217,6 +223,9 @@ export class FilmPlayer {
 
     this.audioPanel.setGroups(audioGroups(manifest), audioId ?? null);
     this.subtitleId = subtitleId;
+    // A different film is a different search. What the index offered for the last one is
+    // forgotten with it, or the menu goes on showing the old film's subtitles under the new one.
+    this.subtitleMenu.reset();
     this.subtitleMenu.setTracks(manifest.subtitles, subtitleId, manifest.otherLanguages ?? []);
     this.settings.refresh();
 
@@ -423,6 +432,11 @@ export class FilmPlayer {
       this.stallTimer = null;
       this.spinner.hidden = false;
     }, StallGraceMs);
+  }
+
+  /** What somebody else did to the room, said in the middle of the screen for a moment. */
+  announce(text: string): void {
+    this.flash.action(text);
   }
 
   /** How far the transcode has reached, or null once the whole film is written. */

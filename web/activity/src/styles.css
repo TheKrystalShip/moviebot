@@ -138,7 +138,7 @@ body {
 
    It is gone inside half a second. Anything that outlasts the seek it describes is something to
    read rather than something to notice, and there is a film underneath it. */
-.mb-seek {
+.mb-flash {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -162,34 +162,70 @@ body {
   transform: translate(-50%, -50%);
 }
 
-/* The hidden attribute only removes an element through the user agent's display:none, which the
-   rule above beats. */
-.mb-seek[hidden] {
+/* A sentence rather than a number: a pill wide enough for a name, not a disc. */
+.mb-flash[data-kind="action"] {
+  width: auto;
+  height: auto;
+  max-width: min(80%, 520px);
+  padding: 14px 26px;
+  border-radius: 999px;
+  text-align: center;
+}
+
+.mb-flash[data-kind="action"] .mb-flash__amount {
+  font-size: 20px;
+}
+
+.mb-flash[data-kind="action"] .mb-flash__icon,
+.mb-flash[data-kind="action"] .mb-flash__level {
   display: none;
 }
 
-.mb-seek__arrows {
+.mb-flash[data-kind="action"].is-on {
+  animation-duration: 1400ms;
+}
+
+/* The hidden attribute only removes an element through the user agent's display:none, which the
+   rule above beats. */
+.mb-flash[hidden] {
+  display: none;
+}
+
+.mb-flash__arrows {
   width: 44px;
   height: 44px;
 }
 
 /* One glyph, pointed whichever way the film went. */
-.mb-seek[data-direction="back"] .mb-seek__arrows {
+.mb-flash[data-direction="back"] .mb-flash__arrows {
   transform: scaleX(-1);
 }
 
-.mb-seek__amount {
+.mb-flash__amount {
   font-size: 24px;
   font-variant-numeric: tabular-nums;
 }
 
-.mb-seek.is-on {
-  animation: mb-seek-flash 460ms ease-out forwards;
+.mb-flash__speaker {
+  width: 40px;
+  height: 40px;
+}
+
+/* The step taken, under where the volume landed. Empty for a seek, whose number is the step. */
+.mb-flash__level {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+  min-height: 1em;
+}
+
+.mb-flash.is-on {
+  animation: mb-flash-in 460ms ease-out forwards;
 }
 
 /* Arrives at once and leaves gradually: the press is the event, and the fade is what keeps it
    from reading as a thing the player has put on screen. */
-@keyframes mb-seek-flash {
+@keyframes mb-flash-in {
   0% { opacity: 1; transform: translate(-50%, -50%) scale(0.92); }
   12% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   45% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
@@ -197,7 +233,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  @keyframes mb-seek-flash {
+  @keyframes mb-flash-in {
     0% { opacity: 1; }
     45% { opacity: 1; }
     100% { opacity: 0; }

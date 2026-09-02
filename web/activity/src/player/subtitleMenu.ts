@@ -7,6 +7,8 @@ export interface SubtitleMenuHooks {
   close(): void;
   /** Costs no allowance, so it runs whenever the panel is shown without a confirmed track. */
   search(): Promise<SubtitleSearch>;
+  /** Re-reads the film's own tracks, so a panel being looked at shows what the film has now. */
+  refresh(): Promise<void>;
   /** Spends one of the day's downloads and adds the track for the whole room. */
   fetch(fileId: number): Promise<SubtitleTrack>;
   pin(trackId: string): Promise<void>;
@@ -48,6 +50,8 @@ export class SubtitleMenu {
   private searching = false;
   private failure: string | null = null;
   private busy: number | null = null;
+  /** Which film the search belongs to. A search that lands after the film changed is dropped. */
+  private film = 0;
 
   constructor(private readonly hooks: SubtitleMenuHooks) {
     this.el = document.createElement('div');
@@ -67,13 +71,29 @@ export class SubtitleMenu {
   }
 
   /**
+   * Forgets what the index offered, because the film changed. The search is about one film, and
+   * a list found for the last one shown under the next is a list of subtitles that do not fit.
+   */
+  reset(): void {
+    this.film += 1;
+    this.found = null;
+    this.searching = false;
+    this.failure = null;
+    this.busy = null;
+  }
+
+  /**
    * Called when the panel comes into view.
    *
-   * Nothing to look for when somebody has already confirmed a track for this film, and nothing to
-   * look for twice: the answer is held for as long as the player is.
+   * The film's own tracks are read again first, so what is looked at is current. Nothing to look
+   * for in the index when somebody has already confirmed a track for this film, and nothing to
+   * look for twice: the answer is held for as long as the film is.
    */
   shown(): void {
     this.render();
+    void this.hooks.refresh().catch(() => {
+      /* The list already on screen stands. */
+    });
     if (this.found === null && !this.searching && !this.pinnedExists) void this.look();
   }
 
@@ -82,17 +102,23 @@ export class SubtitleMenu {
   }
 
   private async look(): Promise<void> {
+    const film = this.film;
     this.searching = true;
     this.failure = null;
     this.render();
 
     try {
-      this.found = await this.hooks.search();
+      const found = await this.hooks.search();
+      if (film !== this.film) return;
+      this.found = found;
     } catch (error) {
+      if (film !== this.film) return;
       this.failure = error instanceof Error ? error.message : 'The subtitle index did not answer.';
     } finally {
-      this.searching = false;
-      this.render();
+      if (film === this.film) {
+        this.searching = false;
+        this.render();
+      }
     }
   }
 

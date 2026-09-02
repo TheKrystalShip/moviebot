@@ -1,3 +1,4 @@
+import { describeChange } from '../session/changes';
 import type { ConnectionStatus } from '../session/hub';
 import type { Participant, SeekClamped, SessionState, TitleSummary } from '../types';
 import { formatTime } from './format';
@@ -72,22 +73,7 @@ export class Shell {
 
   /** Who moved the room last, and how. The state records it so nobody has to ask. */
   setActor(state: SessionState, previous: SessionState | null): void {
-    const who = state.updatedBy?.displayName;
-    if (who === undefined) {
-      this.actor.textContent = '';
-      return;
-    }
-
-    const what =
-      previous === null || previous.titleId !== state.titleId
-        ? 'loaded the film'
-        : previous.paused !== state.paused
-          ? state.paused
-            ? 'paused'
-            : 'started playback'
-          : `jumped to ${formatTime(state.positionSeconds)}`;
-
-    this.actor.textContent = `${who} ${what}`;
+    this.actor.textContent = describeChange(state, previous) ?? '';
   }
 
   showGate(show: boolean): void {

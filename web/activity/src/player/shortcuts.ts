@@ -1,6 +1,10 @@
+import { VolumeStep } from './volume';
+
 export interface ShortcutHooks {
   togglePlay(): void;
   seekBy(seconds: number): void;
+  /** This viewer's own loudness, which is the one thing here that moves nobody else. */
+  volumeBy(step: number): void;
   toggleFullscreen(): void;
   toggleMute(): void;
   toggleSubtitles(): void;
@@ -18,8 +22,9 @@ const LargeStepSeconds = 10;
  * the bindings stop at what somebody would deliberately reach for.
  *
  * Nothing is bound while a person is typing, and nothing is bound over a control that already
- * answers the same key: the scrub bar handles the arrows itself when it has focus, and taking
- * them here as well would move the film twice for one press.
+ * answers the same key: the scrub bar and the volume slider each handle the arrows themselves
+ * when they have focus, and taking them here as well would move the film, or the volume, twice
+ * for one press.
  */
 export function bindShortcuts(hooks: ShortcutHooks): () => void {
   const onKey = (event: KeyboardEvent): void => {
@@ -50,6 +55,12 @@ function dispatch(key: string, hooks: ShortcutHooks): boolean {
       return true;
     case 'ArrowLeft':
       hooks.seekBy(-SmallStepSeconds);
+      return true;
+    case 'ArrowUp':
+      hooks.volumeBy(VolumeStep);
+      return true;
+    case 'ArrowDown':
+      hooks.volumeBy(-VolumeStep);
       return true;
     case 'l':
     case 'L':
@@ -88,5 +99,5 @@ function isTyping(target: EventTarget | null): boolean {
 
 /** A control that already answers the key it was given keeps it. */
 function answeredElsewhere(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && target.closest('.mb-scrub, .mb-menu') !== null;
+  return target instanceof HTMLElement && target.closest('.mb-scrub, .mb-menu, .mb-volume') !== null;
 }

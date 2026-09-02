@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.0] - 2026-09-02
+
+### Added
+
+- The up and down arrows step the volume by five points, and so does the wheel turned over the
+  volume control. Each step flashes where the volume landed, with the step beside it, in the
+  middle of the screen where a seek from the keyboard flashes what it did.
+- What somebody else did to the room is said in the same place, to everyone in it: who paused,
+  who resumed, who moved the film and to where, for long enough to read. The person who did it
+  is not told, since they pressed the key. The line under the player uses the same words.
+
+### Fixed
+
+- The subtitle menu's search results followed the room from one film to the next. Changing the
+  film with `/watch` left the OpenSubtitles list showing what it had found for the previous film;
+  the list is forgotten with the film now, and a search that lands after the change is dropped.
+- Subtitles a film carries are shown available once they are, for a viewer who opened the film
+  while it was still transcoding. The film's own tracks are read again every time the subtitle
+  panel is opened, so the menu is right whatever reached the page while it was closed.
+
 ## [1.26.0] - 2026-09-02
 
 ### Changed

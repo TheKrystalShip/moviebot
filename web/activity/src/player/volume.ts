@@ -31,7 +31,15 @@ export function positionFor(amplitude: number): number {
 export interface VolumeHooks {
   /** The loudness the person asked for, and whether they silenced it. */
   onChange(position: number, muted: boolean): void;
+  /**
+   * A step taken blind — a key or a wheel turn rather than a hand on the slider — so whoever
+   * took it can be shown where it landed.
+   */
+  onNudge(step: number, position: number, muted: boolean): void;
 }
+
+/** One key press or one notch of the wheel. */
+export const VolumeStep = 0.05;
 
 /**
  * Replaces the player library's own volume panel, which has no way to hold a position that
@@ -91,13 +99,21 @@ export class VolumeControl {
     });
 
     this.track.addEventListener('keydown', (event) => {
-      const step = event.key === 'ArrowRight' || event.key === 'ArrowUp' ? 0.05
-        : event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -0.05
+      const step = event.key === 'ArrowRight' || event.key === 'ArrowUp' ? VolumeStep
+        : event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -VolumeStep
         : 0;
       if (step === 0) return;
       event.preventDefault();
-      this.apply(this.position + step, false);
+      this.nudge(step);
     });
+
+    // A wheel over the control, button or slider, is the same gesture as the arrow keys: one
+    // notch is one step. The page does not scroll, so the wheel is not left to it.
+    this.el.addEventListener('wheel', (event) => {
+      if (event.deltaY === 0) return;
+      event.preventDefault();
+      this.nudge(event.deltaY < 0 ? VolumeStep : -VolumeStep);
+    }, { passive: false });
 
     this.render();
   }
@@ -112,6 +128,22 @@ export class VolumeControl {
   /** Reported back as a fresh choice, because it is one — it just came from a key.  */
   toggleMute(): void {
     this.setMuted(!this.muted);
+  }
+
+  /**
+   * One step up or down, from a key or a wheel. Reported as a nudge as well as a change, so the
+   * player can say where it landed: the slider is on a bar nobody is looking at while the film
+   * plays, and one step is not something an ear can be sure it heard.
+   */
+  nudge(step: number): void {
+    const before = this.position;
+
+    // Kept on whole points, so five steps up read as 25 rather than as 25.000000000000004.
+    this.apply(Math.round((this.position + step) * 100) / 100, false);
+
+    // What moved rather than what was asked: at the top of the range a step moves nothing, and
+    // saying it did is the one thing worse than saying nothing.
+    this.hooks.onNudge(this.position - before, this.position, this.muted);
   }
 
   private setMuted(muted: boolean): void {

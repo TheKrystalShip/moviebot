@@ -6,6 +6,7 @@ import { createDiscordEnvironment, isDiscordActivity } from './discordEnvironmen
 import { environment, setEnvironment } from './environment';
 import { FilmPlayer } from './player/filmPlayer';
 import { prefs } from './prefs';
+import { describeChange } from './session/changes';
 import { SessionHub } from './session/hub';
 import { SyncController } from './session/sync';
 import type { Manifest, Participant, SessionState } from './types';
@@ -111,6 +112,17 @@ async function boot(): Promise<void> {
 
   function onState(state: SessionState): void {
     shell.setActor(state, previousState);
+
+    // Said on screen to everyone but the person who did it: they pressed the key or the button,
+    // and the badge for their own seek is already up. Only a state that moved the room on from
+    // the last one counts; the first state is the room being joined, and a resync hands back a
+    // state already seen, and neither is anybody acting on it.
+    const advanced = previousState !== null
+      && state.epoch === previousState.epoch
+      && state.revision > previousState.revision;
+    const change = advanced ? describeChange(state, previousState) : null;
+    if (change !== null && state.updatedBy?.userId !== identity.userId) player.announce(change);
+
     previousState = state;
     void showPresence();
 
