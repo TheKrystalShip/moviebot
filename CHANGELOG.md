@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.1] - 2026-09-02
+
+### Fixed
+
+- Starting a film no longer needs anybody to fight it. A play interrupted by one of this client's
+  own corrective seeks was being read as the browser refusing to play without a gesture, so a
+  button appeared asking for one — and pressing it started the same race again, which is what made
+  playback take several attempts to begin.
+- Nothing is corrected while the film cannot play forward. A playhead waiting for data drifts from
+  the room by definition, and seeking it to catch up throws away the buffer it was waiting for,
+  which is the same stall again and further behind.
+- A seek is not issued while one is already running. Abandoning a seek mid-flight during the
+  opening buffer restarts the load.
+- "Nothing playing yet" appears only once the room is known to hold no film. Whether it holds one
+  takes a round trip to answer, and the message was being shown while that was still in the air —
+  telling everybody arriving to a film that there wasn't one.
+- There is no play button before there is something to play. Waiting is shown as waiting, and the
+  only button a person is asked to press is the one that appears when the browser genuinely wants
+  a gesture.
+
 ## [1.14.0] - 2026-09-02
 
 ### Changed

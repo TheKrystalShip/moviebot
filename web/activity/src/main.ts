@@ -35,7 +35,9 @@ async function boot(): Promise<void> {
 
   let controller: SyncController | null = null;
   let manifest: Manifest | null = null;
-  let loadedTitleId: string | null = null;
+  // Undefined until the room has said, so that the first state is always acted on. Starting at
+  // null makes an empty room indistinguishable from one nothing has been heard about yet.
+  let loadedTitleId: string | null | undefined;
   let previousState: SessionState | null = null;
   let pollTimer: number | null = null;
 

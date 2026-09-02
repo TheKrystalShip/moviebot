@@ -157,6 +157,10 @@ export class FilmPlayer {
       preload: 'auto',
       fill: true,
       playsinline: true,
+      // The library's big play button offers a press before anything can answer one, and pressing
+      // it during the load is what starts the fight between a play and the corrections behind it.
+      // Waiting is shown as waiting; the gate asks for a press only when the browser wants one.
+      bigPlayButton: false,
       // The library's own volume panel is replaced: it writes the slider position straight to
       // the media element's amplitude, and those have to be different numbers for the slider to
       // be proportional to loudness.
@@ -200,6 +204,9 @@ export class FilmPlayer {
     this.teardownSource();
 
     this.manifest = manifest;
+
+    // Held up until something can be played, rather than left blank with a button over it.
+    this.spinner.hidden = false;
     this.master = buildMasterPlaylist(manifest);
 
     // The ingest writes a master when it can, and that one is authoritative. Composing one here

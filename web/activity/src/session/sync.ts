@@ -137,16 +137,31 @@ export class SyncController {
     const pausing = state.paused && !this.video.paused;
     const starting = !state.paused && this.video.paused;
 
-    if (seeking) {
+    // Not while one is already running. A second seek abandons the first, and abandoning one
+    // during the opening buffer is what makes the film restart loading over and over.
+    if (seeking && !this.video.seeking) {
       this.appliedSeek = target;
       this.video.currentTime = target;
     }
     if (pausing) this.video.pause();
-    if (starting) {
-      void this.video.play().catch(() => this.hooks.onPlaybackBlocked());
-    }
+    if (starting) this.start();
 
     if (this.correcting) this.restoreRate(state.rate);
+  }
+
+  /**
+   * Starts playback, and tells apart the two reasons it might not.
+   *
+   * A play interrupted by a seek rejects, and the seek is usually one this class issued a moment
+   * earlier to put the playhead where the room is. That is not the browser refusing to play
+   * without a gesture, and asking somebody to press a button for it leaves them pressing one
+   * repeatedly while the film loads, each press starting the same race again.
+   */
+  private start(): void {
+    void this.video.play().catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      this.hooks.onPlaybackBlocked();
+    });
   }
 
   /**
@@ -158,7 +173,12 @@ export class SyncController {
     const state = this.latest;
     if (state === null || !this.playerReady) return;
 
-    if (state.paused || this.video.paused || this.video.seeking || this.video.readyState < 2) {
+    // Nothing is corrected while the film cannot play forward. A playhead that is not moving
+    // because it is waiting for data drifts from the room by definition, and seeking it to catch
+    // up throws away the buffer it was waiting for — which is the same stall again, further
+    // behind. Waiting is the correction.
+    if (state.paused || this.video.paused || this.video.seeking
+        || this.video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
       if (this.correcting) this.restoreRate(state.rate);
       return;
     }

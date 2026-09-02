@@ -14,9 +14,11 @@
         <!-- Invisible while connected; red and readable when it is not. -->
         <span class="stage__status" id="connection">connecting</span>
 
-        <!-- Shown until the bot puts a film in the room. There is no library here on purpose:
-             a film is chosen with the slash command, where autocomplete already knows them. -->
-        <div class="empty" id="empty">
+        <!-- Shown once the room is known to hold no film, and not before: whether there is one
+             takes a round trip to answer, and answering early tells everybody arriving to a film
+             that there isn't one. There is no library here on purpose — a film is chosen with the
+             slash command, where autocomplete already knows them. -->
+        <div class="empty" id="empty" hidden>
           <p class="empty__line">Nothing playing yet.</p>
           <p class="empty__hint">Ask the bot for a film with <code>/watch</code>.</p>
         </div>

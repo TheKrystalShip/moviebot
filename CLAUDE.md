@@ -208,6 +208,24 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
 - **The menu has to fit without being scrolled.** The candidate list is ranked, so showing more of
   it only adds worse answers underneath the good ones while pushing the good ones off screen.
 
+## Starting playback
+
+- **A rejected play is two different things and they are not treated alike.** The browser refusing
+  one for want of a gesture is a person's problem to solve; a play abandoned because this client
+  seeked underneath it is this client's. Asking somebody to press a button for the second leaves
+  them pressing it repeatedly, each press starting the same race again.
+- **Nothing is corrected while the film cannot play forward.** A playhead waiting for data drifts
+  from the room by definition. Seeking it to catch up throws away the buffer it was waiting for,
+  so the correction produces the stall it was correcting, further behind each time. Waiting is the
+  correction.
+- **A seek is never issued while one is running.** The second abandons the first, and during the
+  opening buffer that restarts the load.
+- **No control offers a press before anything can answer one.** Waiting is shown as waiting. The
+  only button a person is asked for is the one that appears when the browser wants a gesture.
+- **A message that answers a question waits until the question is answered.** Whether the room
+  holds a film takes a round trip, and saying it holds none while that is in the air tells
+  everybody arriving to a film that there isn't one.
+
 ## The player's controls
 
 - **Every control moves the whole room.** There is one playhead and no host, so a space bar pauses
