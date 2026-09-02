@@ -65,6 +65,10 @@ builder.Services.AddOptions<AuthOptions>()
     .ValidateOnStart();
 builder.Services.AddHostedService<SessionReaper>();
 
+// What a film gains while people are watching it reaches them down the connection they hold.
+builder.Services.AddSingleton<TitleChanges>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<TitleChanges>());
+
 builder.Services.AddOptions<DiscordAuthOptions>()
     .Bind(builder.Configuration.GetSection(DiscordAuthOptions.Section));
 builder.Services.AddHttpClient<DiscordAuthClient>(http => http.Timeout = TimeSpan.FromSeconds(10));

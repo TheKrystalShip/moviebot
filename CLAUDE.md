@@ -404,6 +404,15 @@ here is about not losing that.
   the announcement waits for. One tag answering both is what made an interrupted transcode
   unrecoverable — cleared to let the announcement out, it was no longer there to say the rest was
   owed.
+- **What a film gains while people are watching it is pushed to them.** The preview sheet is
+  written after the main pass, and so are the subtitles of a source that was still arriving, so
+  the manifest that marks a film ready is the first to name them. The API watches the manifests
+  of the titles occupied rooms hold and sends the fresh copy down the hub as `TitleChanged`, and
+  the player adopts what changed: the head, the sheet, the subtitle list. There is no poll in
+  the player; a page that could not be heard from asks once on the way back. It goes over the
+  hub rather than a second channel because every viewer already holds an authenticated
+  connection, and a subtitle fetched from outside is announced by its route, since the file lives
+  beside the manifest and the manifest's timestamp says nothing happened.
 - **A poster is put on disk before the manifest names it.** A manifest is read the moment it
   exists, and a surface that fetches artwork on its own servers caches the 404 rather than trying
   again. The catalogue's poster is already a local file and waits for nothing; a source's own

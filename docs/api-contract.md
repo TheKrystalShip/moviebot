@@ -104,6 +104,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `StateChanged` | `SessionStatePush` — sent to everyone including the caller |
 | `SeekClamped` | `{requestedSeconds, grantedSeconds, headSeconds}` — sent to the caller only |
 | `ParticipantsChanged` | `Participant[]` = `{userId, displayName}[]` |
+| `TitleChanged` | `Manifest` — the manifest of the title this room holds changed: head, preview sheet, subtitles, status. Sent to every room holding the title, within a couple of seconds of the write |
 
 ```jsonc
 // SessionStatePush

@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.0] - 2026-09-02
+
+### Added
+
+- What a film gains while people are watching it reaches them without a reload. The API watches
+  the manifests of the titles occupied rooms hold and pushes the fresh copy over the hub as
+  `TitleChanged`; the player adopts the head, the preview sheet and the subtitle list from it.
+  A subtitle fetched or confirmed by one person is announced the same way, so the whole room's
+  menu changes at once. The player's five-second manifest poll is gone.
+
+### Fixed
+
+- Preview thumbnails appear for a film opened while it was still transcoding. The sheet is written
+  after the main pass and the manifest names it only once the film is ready, and the player took
+  nothing but the head from a fresh manifest, so everyone who opened a film early scrubbed a bar
+  that previewed nothing for the whole film. The subtitles a source that was still downloading
+  gains at the same point were lost the same way.
+
 ## [1.23.0] - 2026-09-02
 
 ### Changed

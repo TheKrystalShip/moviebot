@@ -96,6 +96,7 @@ public static class SubtitleEndpoints
             SubtitleStore store,
             PinStore pins,
             OpenSubtitlesClient index,
+            Library.TitleChanges changes,
             ILoggerFactory loggers,
             CancellationToken ct) =>
         {
@@ -139,6 +140,10 @@ public static class SubtitleEndpoints
 
                 store.Save(id, subtitle, converted.WebVtt);
 
+                // One person fetched it and the whole room gets it: the file lives beside the
+                // manifest rather than in it, so the manifest's timestamp says nothing happened.
+                changes.Announce(id);
+
                 log.LogInformation(
                     "Added {Subtitle} to {Title}: {Cues} cues, {Repaired} characters repaired, "
                     + "shift {Shift}, {Remaining} downloads left today.",
@@ -175,7 +180,8 @@ public static class SubtitleEndpoints
             string trackId,
             PinSubtitleRequest request,
             TitleLibrary library,
-            PinStore pins) =>
+            PinStore pins,
+            Library.TitleChanges changes) =>
         {
             if (library.Get(id) is not { } manifest) return Results.NotFound();
             if (!PinStore.IsSafeTrackId(trackId)) return Results.NotFound();
@@ -192,15 +198,17 @@ public static class SubtitleEndpoints
             };
 
             pins.Pin(id, trackId, pin);
+            changes.Announce(id);
             return Results.Ok(pin);
         });
 
         app.MapDelete("/api/titles/{id}/subtitles/{trackId}/pin", (
-            string id, string trackId, TitleLibrary library, PinStore pins) =>
+            string id, string trackId, TitleLibrary library, PinStore pins, Library.TitleChanges changes) =>
         {
             if (library.Get(id) is null || !PinStore.IsSafeTrackId(trackId)) return Results.NotFound();
 
             pins.Unpin(id, trackId);
+            changes.Announce(id);
             return Results.NoContent();
         });
     }

@@ -1,6 +1,6 @@
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { environment, type Identity } from '../environment';
-import type { Participant, SeekClamped, SessionState, SessionStatePush } from '../types';
+import type { Manifest, Participant, SeekClamped, SessionState, SessionStatePush } from '../types';
 import { ServerClock } from './clock';
 
 /**
@@ -20,6 +20,8 @@ export interface HubHandlers {
   onState(push: SessionStatePush, resync?: boolean): void;
   onSeekClamped(clamp: SeekClamped): void;
   onParticipants(participants: Participant[]): void;
+  /** The manifest of a title this room holds changed on the server: head, sheet, subtitles, status. */
+  onTitle(manifest: Manifest): void;
   onStatus(status: ConnectionStatus): void;
 }
 
@@ -49,6 +51,7 @@ export class SessionHub {
     this.connection.on('StateChanged', (push: SessionStatePush) => this.handlers.onState(push));
     this.connection.on('SeekClamped', (clamp: SeekClamped) => this.handlers.onSeekClamped(clamp));
     this.connection.on('ParticipantsChanged', (list: Participant[]) => this.handlers.onParticipants(list));
+    this.connection.on('TitleChanged', (manifest: Manifest) => this.handlers.onTitle(manifest));
 
     this.connection.onreconnecting(() => this.handlers.onStatus('reconnecting'));
     this.connection.onclose(() => this.handlers.onStatus('disconnected'));

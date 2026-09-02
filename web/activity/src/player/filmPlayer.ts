@@ -275,6 +275,28 @@ export class FilmPlayer {
   }
 
   /**
+   * Takes what the film gained since it was loaded.
+   *
+   * A manifest read while the film is still transcoding is missing what the transcode writes
+   * after its main pass: the preview sheet always, and the subtitles too when the source was
+   * still arriving. A viewer who opened the film early and is handed only the head from each
+   * poll keeps a scrub bar that previews nothing and a subtitle menu with nothing in it, for the
+   * length of the film. The head is the caller's to move; this takes the rest.
+   */
+  follow(fresh: Manifest): void {
+    if (this.manifest === null || fresh.id !== this.manifest.id) return;
+
+    if (this.manifest.thumbnails === undefined && fresh.thumbnails !== undefined) {
+      this.manifest.thumbnails = fresh.thumbnails;
+      void this.loadThumbnails(fresh);
+    }
+
+    if (JSON.stringify(fresh.subtitles) !== JSON.stringify(this.manifest.subtitles)) {
+      this.adoptSubtitles(fresh);
+    }
+  }
+
+  /**
    * Re-reads the film's tracks after the room's subtitles change.
    *
    * Only the subtitle list is taken. Everything else about the manifest is the transcode's to
@@ -284,6 +306,12 @@ export class FilmPlayer {
   private async refreshSubtitles(): Promise<void> {
     const fresh = await this.hooks.refreshManifest();
     if (fresh === null || this.manifest === null || fresh.id !== this.manifest.id) return;
+
+    this.adoptSubtitles(fresh);
+  }
+
+  private adoptSubtitles(fresh: Manifest): void {
+    if (this.manifest === null) return;
 
     this.manifest.subtitles = fresh.subtitles;
     this.subtitleMenu.setTracks(fresh.subtitles, this.subtitleId, fresh.otherLanguages ?? []);

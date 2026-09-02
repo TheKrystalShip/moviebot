@@ -11,8 +11,6 @@ import { SyncController } from './session/sync';
 import type { Manifest, Participant, SessionState } from './types';
 import { Shell } from './ui/shell';
 
-const ManifestPollMs = 5000;
-
 async function boot(): Promise<void> {
   await adoptDiscordEnvironmentIfEmbedded();
 
@@ -40,7 +38,6 @@ async function boot(): Promise<void> {
   let loadedTitleId: string | null | undefined;
   let previousState: SessionState | null = null;
   let participants: Participant[] = [];
-  let pollTimer: number | null = null;
   /** The film the launch named, which is the only thing that knows what an empty room should hold. */
   const launched = env.titleId();
 
@@ -58,12 +55,21 @@ async function boot(): Promise<void> {
       shell.setParticipants(list);
       void showPresence();
     },
+    onTitle: (fresh) => followTitle(fresh),
     onStatus: (status) => {
       shell.setConnection(status);
       // Nothing is derived forward from a room that cannot be heard from. Its anchor runs whether
       // or not the film does, so a state nothing has confirmed is a guess about where a film that
       // may have been stopped has got to.
       controller?.setLive(status === 'connected');
+
+      // What the title gained while this page could not be heard from was pushed to nobody here.
+      // A film still transcoding is the one that changes, so it is asked for again on the way back.
+      if (status === 'connected' && manifest?.status === 'transcoding') {
+        void api.manifest(manifest.id).then(followTitle).catch(() => {
+          /* The next push carries it. */
+        });
+      }
     }
   });
 
@@ -158,7 +164,6 @@ async function boot(): Promise<void> {
   async function loadTitle(titleId: string | null): Promise<void> {
     loadedTitleId = titleId;
     controller?.setPlayerReady(false);
-    stopPolling();
 
     if (titleId === null) {
       manifest = null;
@@ -182,30 +187,18 @@ async function boot(): Promise<void> {
     }
 
     await player.load(manifest);
-    if (manifest.status === 'transcoding') startPolling(manifest.id);
   }
 
   /**
-   * The shaded region has to grow while the film plays, and the head only rides along on a
-   * state push — which happens when somebody acts, not while the encoder works.
+   * The film as the server now has it, pushed whenever its manifest changes. The shaded region
+   * grows as the transcode does, and the manifest that marks the film ready is the one that
+   * names the preview sheet, and the subtitles when the source was still arriving.
    */
-  function startPolling(titleId: string): void {
-    pollTimer = window.setInterval(async () => {
-      try {
-        const fresh = await api.manifest(titleId);
-        if (loadedTitleId !== titleId) return;
-        manifest = fresh;
-        player.setTranscodeHead(fresh.status === 'transcoding' ? (fresh.headSeconds ?? 0) : null);
-        if (fresh.status !== 'transcoding') stopPolling();
-      } catch {
-        // A missed poll leaves the last known head standing until the next one.
-      }
-    }, ManifestPollMs);
-  }
-
-  function stopPolling(): void {
-    if (pollTimer !== null) window.clearInterval(pollTimer);
-    pollTimer = null;
+  function followTitle(fresh: Manifest): void {
+    if (loadedTitleId !== fresh.id || manifest === null) return;
+    manifest = fresh;
+    player.setTranscodeHead(fresh.status === 'transcoding' ? (fresh.headSeconds ?? 0) : null);
+    player.follow(fresh);
   }
 
   try {

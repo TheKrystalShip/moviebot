@@ -121,6 +121,14 @@ public sealed class TitleLibrary(
         return manifest;
     }
 
+    /// <summary>When the manifest on disk was last written, or null when there is none.</summary>
+    public DateTime? LastWriteOf(string id)
+    {
+        if (!IsSafeId(id)) return null;
+        var path = Path.Combine(MediaRoot, id, "manifest.json");
+        return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : null;
+    }
+
     /// <summary>
     /// The head a seek is judged against: how far the transcode has reached, or null when the
     /// title is complete and the whole film is seekable.

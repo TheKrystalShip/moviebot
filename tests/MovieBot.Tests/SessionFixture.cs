@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Core;
@@ -109,6 +110,9 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
                 o.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
                 o.AccessTokenProvider = () => Task.FromResult<string?>(TokenFor(sessionId, userId, displayName));
             })
+            // The player reads enums as the strings the server writes, so this client does too.
+            .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(
+                new System.Text.Json.Serialization.JsonStringEnumConverter()))
             .Build();
 
         await connection.StartAsync();
