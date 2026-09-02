@@ -7,9 +7,10 @@ import { prefs } from '../prefs';
 import type { Manifest, SubtitleSearch, SubtitleTrack } from '../types';
 import { buildMasterPlaylist, masterPlaylistUrl, type MasterPlaylist } from './masterPlaylist';
 import { ScrubBar } from './scrubBar';
-import { TrackMenu } from './trackMenu';
 import { audioGroups, defaultAudioId, findSubtitle } from './tracks';
 import { SubtitleMenu } from './subtitleMenu';
+import { AudioPanel } from './audioPanel';
+import { SettingsMenu } from './settingsMenu';
 import { bindShortcuts } from './shortcuts';
 import { VolumeControl, amplitudeFor } from './volume';
 
@@ -51,8 +52,9 @@ const StallGraceMs = 400;
 export class FilmPlayer {
   readonly video: HTMLVideoElement;
   readonly scrub: ScrubBar;
-  readonly audioMenu: TrackMenu;
+  readonly audioPanel: AudioPanel;
   readonly subtitleMenu: SubtitleMenu;
+  readonly settings: SettingsMenu;
 
   private readonly player: Player;
   private hls: Hls | null = null;
@@ -124,21 +126,18 @@ export class FilmPlayer {
       }
     });
     const lock = (open: boolean) => this.player.toggleClass('mb-controls-locked', open);
-    this.audioMenu = new TrackMenu(
-      'Audio',
-      (id) => {
-        if (id === null) return;
-        this.selectAudio(id);
-        this.hooks.onAudioSelected(id);
-      },
-      lock
-    );
+    this.audioPanel = new AudioPanel((id) => {
+      this.selectAudio(id);
+      this.hooks.onAudioSelected(id);
+      this.settings.close();
+    });
+
     this.subtitleMenu = new SubtitleMenu({
       select: (id) => {
         void this.selectSubtitle(id);
         this.hooks.onSubtitleSelected(id);
       },
-      toggle: lock,
+      close: () => this.settings.close(),
       search: () => this.hooks.searchSubtitles(),
       fetch: (fileId) => this.hooks.fetchSubtitle(fileId).then(async (track) => {
         await this.refreshSubtitles();
@@ -150,6 +149,8 @@ export class FilmPlayer {
         this.hooks.pinSubtitle(trackId, this.video.currentTime).then(() => this.refreshSubtitles()),
       unpin: (trackId) => this.hooks.unpinSubtitle(trackId).then(() => this.refreshSubtitles())
     });
+
+    this.settings = new SettingsMenu(this.audioPanel, this.subtitleMenu, lock);
 
     this.player = videojs(this.video, {
       controls: true,
@@ -165,8 +166,7 @@ export class FilmPlayer {
     const bar = this.player.getChild('ControlBar');
     bar?.addChild('Component', { el: this.volume.el });
     bar?.addChild('Component', { el: this.scrub.el });
-    bar?.addChild('Component', { el: this.audioMenu.el });
-    bar?.addChild('Component', { el: this.subtitleMenu.el });
+    bar?.addChild('Component', { el: this.settings.el });
 
     // The Embedded App SDK has no fullscreen command and whether the browser API survives an
     // embedded frame depends on a permissions policy nobody documents, so the control appears
@@ -223,9 +223,10 @@ export class FilmPlayer {
     const audioId = stored.audioTrackId ?? defaultAudioId(manifest);
     const subtitleId = stored.subtitleTrackId ?? null;
 
-    this.audioMenu.setGroups(audioGroups(manifest), audioId ?? null);
+    this.audioPanel.setGroups(audioGroups(manifest), audioId ?? null);
     this.subtitleId = subtitleId;
     this.subtitleMenu.setTracks(manifest.subtitles, subtitleId, manifest.otherLanguages ?? []);
+    this.settings.refresh();
 
     // A source that never reaches metadata would otherwise leave the caller waiting forever,
     // so the wait ends either way and the error path reports what happened.
@@ -294,6 +295,7 @@ export class FilmPlayer {
 
     this.manifest.subtitles = fresh.subtitles;
     this.subtitleMenu.setTracks(fresh.subtitles, this.subtitleId, fresh.otherLanguages ?? []);
+    this.settings.refresh();
   }
 
   private get scrubDuration(): number {
@@ -377,7 +379,8 @@ export class FilmPlayer {
       }
     }
 
-    if (this.manifest) this.audioMenu.setGroups(audioGroups(this.manifest), trackId);
+    if (this.manifest) this.audioPanel.setGroups(audioGroups(this.manifest), trackId);
+    this.settings.refresh();
   }
 
   /**
@@ -393,6 +396,7 @@ export class FilmPlayer {
     this.subtitleId = trackId;
     this.clearSubtitle();
     this.subtitleMenu.setTracks(manifest.subtitles, trackId, manifest.otherLanguages ?? []);
+    this.settings.refresh();
 
     const track = findSubtitle(manifest, trackId);
     if (!track || !track.available || track.uri === undefined) return;

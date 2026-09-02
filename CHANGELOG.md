@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] - 2026-09-02
+
+### Changed
+
+- Audio and subtitles sit behind one settings cog rather than a control each. The lists inside it
+  render lists and nothing else: opening, closing, the lock that holds the control bar open and the
+  way back out belong to the menu hosting them.
+- The control bar is glass over the film rather than a panel beneath it, with a hairline along its
+  top edge.
+- Everything is a quarter larger, and the scrub bar and volume slider are grabbed by targets far
+  taller than the lines they draw. Aiming at a six-pixel bar is a test of precision; the target
+  around it is nearer thirty.
+- The mute control is an icon rather than an emoji.
+
+### Fixed
+
+- The scrub bar's preview bubble disappears when the pointer leaves it. It never did: the hidden
+  attribute works through a user agent display rule, and the one that laid the bubble out beat it,
+  so the bubble stayed until the whole control bar faded.
+
 ## [1.13.0] - 2026-09-02
 
 ### Added

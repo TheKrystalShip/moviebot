@@ -113,8 +113,9 @@ body {
 .stage__player .video-js {
   width: 100%;
   height: 100%;
-  /* Sizes the control bar, which video.js lays out in em. */
-  font-size: 12px;
+  /* Sizes the control bar, which video.js lays out in em. Larger than a desktop player would
+     need, because the room watches this on a television across a couch. */
+  font-size: 15px;
 }
 
 /* Over the film, not below it: transient and out of the way once read. */
@@ -265,12 +266,13 @@ body {
   gap: 10px;
   flex: 1 1 auto;
   min-width: 0;
-  padding: 0 12px;
+  padding: 0 14px;
   height: 100%;
+  gap: 12px;
 }
 
 .mb-scrub__time {
-  font-size: 12px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
   flex: 0 0 auto;
@@ -291,7 +293,7 @@ button.mb-scrub__time:hover {
 .mb-scrub__track {
   position: relative;
   flex: 1 1 auto;
-  height: 5px;
+  height: 6px;
   min-width: 40px;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.18);
@@ -299,9 +301,17 @@ button.mb-scrub__time:hover {
   touch-action: none;
 }
 
+/* The bar is drawn thin and grabbed thick. Scrubbing a six-pixel line is a test of aim; the
+   target around it is nearer thirty, which is what makes it usable from a sofa. */
+.mb-scrub__track::before {
+  content: "";
+  position: absolute;
+  inset: -12px 0;
+}
+
 .mb-scrub__track:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 4px;
+  outline-offset: 6px;
 }
 
 .mb-scrub__ready,
@@ -323,9 +333,9 @@ button.mb-scrub__time:hover {
 .mb-scrub__handle {
   position: absolute;
   top: 50%;
-  width: 11px;
-  height: 11px;
-  margin-left: -5.5px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
   border-radius: 50%;
   background: var(--accent);
   transform: translateY(-50%);
@@ -359,6 +369,12 @@ button.mb-scrub__time:hover {
 /* Where a seek would land, read before it is made. It earns its place here more than in a player
    watched alone: a seek moves the whole room, so the time under the pointer is the difference
    between choosing a moment and discovering one. */
+/* The hidden attribute only removes an element through the user agent's display:none, which any
+   author display rule beats. Saying it again here is what actually hides this. */
+.mb-scrub__preview[hidden] {
+  display: none;
+}
+
 .mb-scrub__preview {
   position: absolute;
   bottom: 100%;
@@ -470,8 +486,8 @@ button.mb-scrub__time:hover {
   bottom: 100%;
   right: 0;
   z-index: 5;
-  min-width: 260px;
-  max-height: 60vh;
+  min-width: 280px;
+  max-height: 62vh;
   overflow-y: auto;
   padding: 6px;
   background: rgba(14, 16, 19, 0.97);
@@ -498,9 +514,9 @@ button.mb-scrub__time:hover {
   align-items: baseline;
   gap: 8px;
   width: 100%;
-  padding: 6px 10px;
+  padding: 7px 12px;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   text-align: left;
   color: var(--text);
   background: transparent;
@@ -554,21 +570,34 @@ button.mb-scrub__time:hover {
 }
 
 .mb-volume__mute {
+  display: flex;
+  align-items: center;
+  padding: 5px;
   border: 0;
   background: none;
-  color: inherit;
+  color: var(--text);
   cursor: pointer;
-  font-size: 15px;
-  line-height: 1;
-  padding: 4px;
 }
 
-.mb-volume__mute::before {
-  content: "\1F50A";
+.mb-volume__mute svg {
+  width: 20px;
+  height: 20px;
 }
 
-.mb-volume__mute[data-state="muted"]::before {
-  content: "\1F507";
+.mb-volume__mute:hover {
+  color: var(--accent);
+}
+
+.mb-volume__mute .mb-volume__off {
+  display: none;
+}
+
+.mb-volume__mute[data-state="muted"] .mb-volume__on {
+  display: none;
+}
+
+.mb-volume__mute[data-state="muted"] .mb-volume__off {
+  display: inline;
 }
 
 .mb-volume__mute:focus-visible,
@@ -579,11 +608,17 @@ button.mb-scrub__time:hover {
 
 .mb-volume__track {
   position: relative;
-  width: 72px;
-  height: 4px;
+  width: 90px;
+  height: 5px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.25);
   cursor: pointer;
+}
+
+.mb-volume__track::before {
+  content: "";
+  position: absolute;
+  inset: -12px -4px;
 }
 
 .mb-volume__fill {
@@ -591,6 +626,122 @@ button.mb-scrub__time:hover {
   inset: 0 auto 0 0;
   border-radius: 999px;
   background: var(--accent);
+}
+
+/* ---- The control bar -------------------------------------------------
+   Glass rather than a panel: the film runs to the bottom of the frame and the controls sit over
+   it. Fully transparent was the ask and is nearly right, but a scrub bar over a bright scene
+   disappears, so what is behind it is dimmed and blurred just enough to read against. */
+
+.video-js .vjs-control-bar {
+  height: 3.4em;
+  align-items: center;
+  background: linear-gradient(to top, rgba(10, 12, 15, 0.72), rgba(10, 12, 15, 0.34));
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.video-js .vjs-button > .vjs-icon-placeholder::before {
+  line-height: 3.4em;
+}
+
+/* ---- Settings --------------------------------------------------------
+   One cog holding what a viewer sets for themselves, rather than a control on the bar for each. */
+
+.mb-settings__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--text);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.mb-settings__button svg {
+  width: 21px;
+  height: 21px;
+  transition: transform 0.25s ease;
+}
+
+.mb-settings__button:hover {
+  color: var(--accent);
+}
+
+.mb-settings__button:hover svg,
+.mb-menu--open .mb-settings__button svg {
+  transform: rotate(40deg);
+}
+
+.mb-settings__button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.mb-settings .mb-menu__popup {
+  min-width: 300px;
+}
+
+/* Wide enough for release names, which is what the subtitle list is made of. */
+.mb-settings .mb-menu__popup:has(.mb-subs) {
+  min-width: 380px;
+  max-width: min(460px, 90vw);
+}
+
+.mb-settings__entry {
+  justify-content: flex-start;
+}
+
+.mb-settings__value {
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 190px;
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.mb-settings__chevron {
+  flex: none;
+  color: var(--muted);
+}
+
+/* The way back out, and the name of where you are, in one row. */
+.mb-settings__back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 2px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 3px 3px 0 0;
+  cursor: pointer;
+}
+
+.mb-settings__back:hover {
+  background: var(--raised);
+}
+
+.mb-settings__back .mb-settings__chevron {
+  font-size: 16px;
+}
+
+/* A panel is a list and nothing else. What surrounds it belongs to the menu hosting it. */
+.mb-panel {
+  display: block;
 }
 
 /* ---- Opened outside Discord ------------------------------------------

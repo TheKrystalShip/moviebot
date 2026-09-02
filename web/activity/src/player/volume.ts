@@ -52,7 +52,14 @@ export class VolumeControl {
     this.el = document.createElement('div');
     this.el.className = 'mb-volume';
     this.el.innerHTML = `
-      <button type="button" class="mb-volume__mute" aria-label="Mute"></button>
+      <button type="button" class="mb-volume__mute" aria-label="Mute">
+        <svg class="mb-volume__on" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 2.2v2.1a7.7 7.7 0 0 1 0 15.4v2.1a9.8 9.8 0 0 0 0-19.6z"/>
+        </svg>
+        <svg class="mb-volume__off" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M4 9v6h4l5 4V5L8 9H4zm15.5 3 2.3-2.3-1.2-1.2-2.3 2.3-2.3-2.3-1.2 1.2 2.3 2.3-2.3 2.3 1.2 1.2 2.3-2.3 2.3 2.3 1.2-1.2z"/>
+        </svg>
+      </button>
       <div class="mb-volume__track" role="slider" tabindex="0" aria-label="Volume"
            aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
         <div class="mb-volume__fill"></div>

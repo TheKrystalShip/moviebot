@@ -3,9 +3,9 @@ import type { SubtitleCandidate, SubtitleSearch, SubtitleTrack } from '../types'
 export interface SubtitleMenuHooks {
   /** Null turns subtitles off. */
   select(id: string | null): void;
-  /** Held open, the player must not hide its controls. */
-  toggle(open: boolean): void;
-  /** Costs no allowance, so it runs whenever the menu opens without one. */
+  /** Closes the menu around this panel, once a choice has been made in it. */
+  close(): void;
+  /** Costs no allowance, so it runs whenever the panel is shown without a confirmed track. */
   search(): Promise<SubtitleSearch>;
   /** Spends one of the day's downloads and adds the track for the whole room. */
   fetch(fileId: number): Promise<SubtitleTrack>;
@@ -28,11 +28,11 @@ interface Note {
 }
 
 /**
- * The subtitle picker.
+ * The subtitle list, as one panel inside the settings menu.
  *
- * Its own component rather than the shared track menu, because what it does is a different thing:
- * it searches, waits, fails, spends a limited allowance and records a judgement. The audio menu
- * needs none of that and would carry all of it.
+ * Its own component rather than the audio list with more branches, because what it does is a
+ * different thing: it searches, waits, fails, spends a limited allowance and records a judgement.
+ * The audio list needs none of that and would carry all of it.
  *
  * Two sections. What the room already has is rendered at once and never waits on the network.
  * What the index offers is fetched underneath it, and only when nobody has confirmed a track for
@@ -40,9 +40,6 @@ interface Note {
  */
 export class SubtitleMenu {
   readonly el: HTMLElement;
-
-  private readonly button: HTMLButtonElement;
-  private readonly popup: HTMLElement;
 
   private tracks: SubtitleTrack[] = [];
   private others: string[] = [];
@@ -54,32 +51,12 @@ export class SubtitleMenu {
 
   constructor(private readonly hooks: SubtitleMenuHooks) {
     this.el = document.createElement('div');
-    this.el.className = 'mb-menu mb-subs';
-    this.el.innerHTML = `
-      <button type="button" class="mb-menu__button" aria-haspopup="true" aria-expanded="false">
-        <span class="mb-menu__title">Subtitles</span>
-        <span class="mb-menu__value"></span>
-      </button>
-      <div class="mb-menu__popup" hidden></div>`;
+    this.el.className = 'mb-panel mb-subs';
+  }
 
-    this.button = this.el.querySelector('.mb-menu__button') as HTMLButtonElement;
-    this.popup = this.el.querySelector('.mb-menu__popup') as HTMLElement;
-
-    this.button.addEventListener('click', (event) => {
-      event.stopPropagation();
-      this.open(this.popup.hidden);
-    });
-
-    document.addEventListener('click', (event) => {
-      if (!this.el.contains(event.target as Node)) this.open(false);
-    });
-
-    this.el.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
-        this.open(false);
-        this.button.focus();
-      }
-    });
+  /** What the settings menu shows beside the word Subtitles. */
+  get value(): string {
+    return this.tracks.find((track) => track.id === this.selected)?.label ?? 'Off';
   }
 
   setTracks(tracks: SubtitleTrack[], selected: string | null, otherLanguages: string[] = []): void {
@@ -89,21 +66,19 @@ export class SubtitleMenu {
     this.render();
   }
 
-  private get pinnedExists(): boolean {
-    return this.tracks.some((track) => track.pin !== undefined);
+  /**
+   * Called when the panel comes into view.
+   *
+   * Nothing to look for when somebody has already confirmed a track for this film, and nothing to
+   * look for twice: the answer is held for as long as the player is.
+   */
+  shown(): void {
+    this.render();
+    if (this.found === null && !this.searching && !this.pinnedExists) void this.look();
   }
 
-  private open(open: boolean): void {
-    if (this.popup.hidden === !open) return;
-
-    this.popup.hidden = !open;
-    this.button.setAttribute('aria-expanded', String(open));
-    this.el.classList.toggle('mb-menu--open', open);
-    this.hooks.toggle(open);
-
-    // Nothing to look for when somebody has already confirmed a track for this film, and nothing
-    // to look for twice: the answer is held for as long as the menu exists.
-    if (open && this.found === null && !this.searching && !this.pinnedExists) void this.look();
+  private get pinnedExists(): boolean {
+    return this.tracks.some((track) => track.pin !== undefined);
   }
 
   private async look(): Promise<void> {
@@ -130,7 +105,7 @@ export class SubtitleMenu {
       // One click does both: the room gains the subtitle and whoever asked is switched to it.
       const track = await this.hooks.fetch(candidate.fileId);
       this.hooks.select(track.id);
-      this.open(false);
+      this.hooks.close();
     } catch (error) {
       this.failure = error instanceof Error ? error.message : 'That subtitle could not be fetched.';
     } finally {
@@ -140,22 +115,17 @@ export class SubtitleMenu {
   }
 
   private render(): void {
-    this.popup.replaceChildren();
+    this.el.replaceChildren();
 
-    this.popup.appendChild(this.row({
+    this.el.appendChild(this.row({
       id: null,
       label: 'Off',
       selected: this.selected === null,
       enabled: true
     }));
 
-    this.popup.appendChild(this.available());
-    this.popup.appendChild(this.fromIndex());
-
-    const value = this.el.querySelector('.mb-menu__value') as HTMLElement;
-    const chosen = this.tracks.find((track) => track.id === this.selected);
-    value.textContent = chosen?.label ?? 'Off';
-    this.button.setAttribute('aria-label', `Subtitles: ${value.textContent}`);
+    this.el.appendChild(this.available());
+    this.el.appendChild(this.fromIndex());
   }
 
   private available(): HTMLElement {
@@ -354,8 +324,8 @@ export class SubtitleMenu {
           return;
         }
 
-        this.open(false);
         this.hooks.select(options.id);
+        this.hooks.close();
       });
     }
 
