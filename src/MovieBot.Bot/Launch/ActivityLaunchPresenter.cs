@@ -71,15 +71,15 @@ public sealed class ActivityLaunchPresenter(
             .AddField("Length", Humanize(request.Title.DurationSeconds), inline: true)
             .WithFooter($"Requested by {request.RequestedBy}");
 
-        if (request.LoadedTitleId is { } loaded)
-            embed.AddField("Already loaded in this room", loaded);
+        if (request.Replaced is { } replaced)
+            embed.AddField("Replaced", replaced.Name);
 
         var components = new ComponentBuilder()
             .WithButton("Watch together", style: ButtonStyle.Link, url: url)
             .Build();
 
         return new LaunchReply(
-            $"{request.RequestedBy} started a session in {request.VoiceChannelName}.",
+            request.Headline,
             embed.Build(),
             components);
     }

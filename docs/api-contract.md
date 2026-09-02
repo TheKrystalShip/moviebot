@@ -91,7 +91,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | Method | Signature | Notes |
 |---|---|---|
 | `Join` | `(sessionId, userId, displayName) → SessionStatePush` | call first; everything else throws until you do |
-| `LoadTitle` | `(titleId) → SessionStatePush` | resets to paused at 0 |
+| `LoadTitle` | `(titleId) → SessionStatePush` | from 0; a playing room keeps playing, a paused one stays paused |
 | `Play` | `(atSeconds) → SessionStatePush` | |
 | `Pause` | `(atSeconds) → SessionStatePush` | |
 | `Seek` | `(toSeconds) → SessionStatePush` | may be clamped |

@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using Xunit;
 using Discord;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -61,7 +62,9 @@ public sealed class WatchCommandTests(SessionFixture fixture) : IClassFixture<Se
         Assert.Equal(SessionFixture.ReadyTitle, launch.Title.Id);
         Assert.Equal("Movie Night", launch.VoiceChannelName);
         Assert.Equal("Alice", launch.RequestedBy);
-        Assert.Null(launch.LoadedTitleId);
+        Assert.Null(launch.Replaced);
+        Assert.False(launch.AlreadyWatching);
+        Assert.StartsWith("Alice started ", launch.Headline);
     }
 
     [Fact]
@@ -160,19 +163,55 @@ public sealed class WatchCommandTests(SessionFixture fixture) : IClassFixture<Se
     }
 
     [Fact]
-    public async Task A_room_already_watching_something_says_so_without_being_asked()
+    public async Task A_room_watching_something_else_is_switched_and_keeps_playing()
     {
         const ulong channel = 555000111;
         var sessionId = channel.ToString();
 
         await using var viewer = await fixture.ConnectAsync(sessionId, "u1", "Bob");
         await viewer.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle);
+        await viewer.InvokeAsync<SessionStatePush>("Play", 1200.0);
 
         var presenter = new RecordingPresenter();
         var result = await Live(presenter).ExecuteAsync(
             Ask(SessionFixture.TranscodingTitle, channel), CancellationToken.None);
 
         Assert.Equal(WatchStatus.Launched, result.Status);
-        Assert.Equal(SessionFixture.ReadyTitle, presenter.Seen!.LoadedTitleId);
+        Assert.Equal(SessionFixture.ReadyTitle, presenter.Seen!.Replaced?.Id);
+        Assert.False(presenter.Seen.AlreadyWatching);
+        Assert.Contains("switched Movie Night from", presenter.Seen.Headline);
+
+        // The room was playing, so it goes on playing: the new film, from its start.
+        var state = (await fixture.CreateServiceClient().GetFromJsonAsync(
+            $"api/sessions/{sessionId}", ManifestJsonContext.Default.SessionStatePush))!.State;
+        Assert.Equal(SessionFixture.TranscodingTitle, state.TitleId);
+        Assert.False(state.Paused);
+        Assert.InRange(state.PositionAt(DateTimeOffset.UtcNow), 0, 5);
+    }
+
+    [Fact]
+    public async Task Asking_for_the_film_the_room_already_holds_leaves_it_where_it_is()
+    {
+        const ulong channel = 555000222;
+        var sessionId = channel.ToString();
+
+        await using var viewer = await fixture.ConnectAsync(sessionId, "u1", "Bob");
+        await viewer.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle);
+        var before = (await viewer.InvokeAsync<SessionStatePush>("Play", 1200.0)).State;
+
+        var presenter = new RecordingPresenter();
+        var result = await Live(presenter).ExecuteAsync(
+            Ask(SessionFixture.ReadyTitle, channel), CancellationToken.None);
+
+        Assert.Equal(WatchStatus.Launched, result.Status);
+        Assert.True(presenter.Seen!.AlreadyWatching);
+        Assert.Null(presenter.Seen.Replaced);
+        Assert.StartsWith("Movie Night is already watching ", presenter.Seen.Headline);
+
+        var after = (await fixture.CreateServiceClient().GetFromJsonAsync(
+            $"api/sessions/{sessionId}", ManifestJsonContext.Default.SessionStatePush))!.State;
+        Assert.Equal(before.Revision, after.Revision);
+        Assert.False(after.Paused);
+        Assert.InRange(after.PositionAt(DateTimeOffset.UtcNow), 1200, 1210);
     }
 }

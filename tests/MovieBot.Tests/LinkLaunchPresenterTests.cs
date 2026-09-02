@@ -20,14 +20,23 @@ public sealed class LinkLaunchPresenterTests
         new(Options.Create(new PlayerOptions { BaseUrl = player }),
             Options.Create(new ApiOptions { BaseUrl = "http://127.0.0.1:8099", PublicBaseUrl = publicApi }));
 
-    private static LaunchRequest Request(LibraryTitle? title = null, string? loaded = null) => new()
+    private static LaunchRequest Request(LibraryTitle? title = null, LibraryTitle? replaced = null) => new()
     {
         SessionId = "918273645",
         Title = title ?? Ready,
         VoiceChannelId = 918273645,
         VoiceChannelName = "Movie Night",
         RequestedBy = "Alice",
-        LoadedTitleId = loaded
+        Replaced = replaced
+    };
+
+    private static readonly LibraryTitle Heat = new()
+    {
+        Id = "heat-1995",
+        Title = "Heat 1995",
+        DurationSeconds = 10218,
+        Status = TitleStatus.Ready,
+        Film = new FilmIdentity { Name = "Heat", Year = 1995 }
     };
 
     private static readonly LibraryTitle Ready = new()
@@ -151,13 +160,19 @@ public sealed class LinkLaunchPresenterTests
     }
 
     [Fact]
-    public async Task A_film_already_loaded_in_the_room_is_stated_and_only_when_it_differs()
+    public async Task A_switch_names_the_film_it_replaced_and_a_fresh_start_names_none()
     {
-        var switching = await Presenter().PresentAsync(Request(loaded: "heat-1995"), CancellationToken.None);
-        Assert.Equal("heat-1995", Field(switching, "Already loaded in this room"));
+        var switching = await Presenter().PresentAsync(Request(replaced: Heat), CancellationToken.None);
+        Assert.Equal("Heat (1995)", Field(switching, "Replaced"));
+        Assert.Equal("Alice switched Movie Night from Heat (1995) to Gladiator 2000 Extended Cut.", switching.Text);
 
         var fresh = await Presenter().PresentAsync(Request(), CancellationToken.None);
-        Assert.Null(Field(fresh, "Already loaded in this room"));
+        Assert.Null(Field(fresh, "Replaced"));
+        Assert.Equal("Alice started Gladiator 2000 Extended Cut in Movie Night.", fresh.Text);
+
+        var again = await Presenter().PresentAsync(
+            Request() with { AlreadyWatching = true }, CancellationToken.None);
+        Assert.Equal("Movie Night is already watching Gladiator 2000 Extended Cut. Alice asked for it again.", again.Text);
     }
 
     [Fact]
@@ -176,7 +191,7 @@ public sealed class LinkLaunchPresenterTests
     public async Task Nothing_the_bot_writes_carries_an_emoji()
     {
         var reply = await Presenter().PresentAsync(
-            Request(Ready with { Status = TitleStatus.Transcoding, HeadSeconds = 1284 }, loaded: "heat-1995"),
+            Request(Ready with { Status = TitleStatus.Transcoding, HeadSeconds = 1284 }, replaced: Heat),
             CancellationToken.None);
 
         string?[] written =

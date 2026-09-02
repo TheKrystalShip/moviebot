@@ -21,10 +21,25 @@ public sealed record LaunchRequest
     public required string RequestedBy { get; init; }
 
     /// <summary>
-    /// What the session already had loaded, when it is a different film. Reported as a fact so
-    /// a room that is already watching something is not surprised by the switch.
+    /// The film the room was watching before this one, when it was watching a different one.
+    /// The switch has already happened for everyone in the room by the time this is presented,
+    /// so the message says what was replaced rather than asking.
     /// </summary>
-    public string? LoadedTitleId { get; init; }
+    public LibraryTitle? Replaced { get; init; }
+
+    /// <summary>
+    /// Whether the room already held this very film. It was left exactly where it was, and the
+    /// message is a way in rather than an announcement.
+    /// </summary>
+    public bool AlreadyWatching { get; init; }
+
+    /// <summary>The one sentence above the card, worded by what the command did to the room.</summary>
+    public string Headline =>
+        AlreadyWatching
+            ? $"{VoiceChannelName} is already watching {Title.Name}. {RequestedBy} asked for it again."
+            : Replaced is { } replaced
+                ? $"{RequestedBy} switched {VoiceChannelName} from {replaced.Name} to {Title.Name}."
+                : $"{RequestedBy} started {Title.Name} in {VoiceChannelName}.";
 }
 
 /// <summary>What the bot posts back to the channel.</summary>

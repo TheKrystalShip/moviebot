@@ -338,6 +338,24 @@ restarting the API took the film out from under everybody in it.
 - **`/health` says how many rooms are occupied and by how many people, and no names.** It is what
   makes restarting something that can be looked at first rather than found out about afterwards.
 
+## Changing the film
+
+`/watch` in a room that is already watching something is how the film is changed, for everyone.
+
+- **The switch is one act.** The room is handed the new film from its start, and whether it is
+  playing is left as it was: a room that was playing goes on playing the new film, a paused one
+  stays paused. Loading a film paused and waiting for somebody to press play is a change followed
+  by a wait, and the wait is what made it feel like nothing had happened.
+- **Asking for the film the room already holds leaves it where it is.** Loading it again would
+  send everyone back to the beginning, and the person asking almost always wants the way in.
+  The reply says the room is already watching it and hands over the launch.
+- **The reply says what it did to the room.** Started, switched from what to what, or already
+  watching: three headlines from one place, so the two presenters cannot describe the same act
+  differently. A switch names the film it replaced by its name, never its id.
+- **Nothing in the player changes for a switch.** A state naming a different title is the same
+  push the library click has always produced, and the player follows it: the old source is torn
+  down, the new one loaded, and the room's state applied once the film is in the element.
+
 ## Saying what a room is watching
 
 Discord shows it in three places, and each is a different surface with a different reach.

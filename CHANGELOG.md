@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.0] - 2026-09-02
+
+### Changed
+
+- `/watch` changes the film for a room that is already watching one, and the room keeps playing.
+  The new film is loaded from its start and whether the room is playing is left as it was, so a
+  room mid-film goes straight on into the next one rather than sitting paused until somebody
+  presses play. The reply says it switched, and names the film it replaced.
+- Asking for the film the room already holds no longer restarts it. The room is left exactly
+  where it is and the reply hands over the way in.
+- The hub's `LoadTitle` follows the same rule: from the start, playing if the room was playing.
+
 ## [1.22.0] - 2026-09-02
 
 ### Added

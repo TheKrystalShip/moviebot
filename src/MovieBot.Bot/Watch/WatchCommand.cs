@@ -110,16 +110,25 @@ public sealed class WatchCommand(
         // The room is told which film before anyone opens it. An Activity arrives at a URL the bot
         // never wrote, so this is the only way the choice reaches the player; the browser link
         // carries it in a query string too, and both end up in the same session either way.
-        var alreadyLoaded = session.TitleId;
-        try
+        //
+        // A room already holding this film is left exactly where it is. Loading it again would
+        // send everyone back to the beginning, and the person asking almost always wants the way
+        // in rather than a restart.
+        var alreadyWatching = session.TitleId == title.Id;
+        var replaced = alreadyWatching ? null : library.FirstOrDefault(t => t.Id == session.TitleId);
+
+        if (!alreadyWatching)
         {
-            session = await api.SetSessionTitleAsync(session.SessionId, title.Id, request.RequestedBy, ct);
-        }
-        catch (MovieBotApiException ex)
-        {
-            logger.LogWarning(ex, "Could not load {TitleId} into session {SessionId}", title.Id, session.SessionId);
-            return new WatchResult(WatchStatus.BackendUnavailable,
-                "The film could not be loaded into the room. Try the command again.");
+            try
+            {
+                session = await api.SetSessionTitleAsync(session.SessionId, title.Id, request.RequestedBy, ct);
+            }
+            catch (MovieBotApiException ex)
+            {
+                logger.LogWarning(ex, "Could not load {TitleId} into session {SessionId}", title.Id, session.SessionId);
+                return new WatchResult(WatchStatus.BackendUnavailable,
+                    "The film could not be loaded into the room. Try the command again.");
+            }
         }
 
         var reply = await presenter.PresentAsync(new LaunchRequest
@@ -129,11 +138,14 @@ public sealed class WatchCommand(
             VoiceChannelId = voiceChannelId,
             VoiceChannelName = request.VoiceChannelName ?? "the voice channel",
             RequestedBy = request.RequestedBy,
-            LoadedTitleId = alreadyLoaded is { } loaded && loaded != title.Id ? loaded : null
+            Replaced = replaced,
+            AlreadyWatching = alreadyWatching
         }, ct);
 
-        logger.LogInformation("{RequestedBy} launched {TitleId} into session {SessionId}",
-            request.RequestedBy, title.Id, session.SessionId);
+        logger.LogInformation("{RequestedBy} {Verb} {TitleId} in session {SessionId}",
+            request.RequestedBy,
+            alreadyWatching ? "rejoined" : replaced is null ? "started" : $"switched from {replaced.Id} to",
+            title.Id, session.SessionId);
 
         return new WatchResult(WatchStatus.Launched, reply.Text, reply);
     }

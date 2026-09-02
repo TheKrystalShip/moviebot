@@ -31,17 +31,15 @@ public sealed class LinkLaunchPresenter(
             .AddField("Length", Humanize(request.Title.DurationSeconds), inline: true)
             .WithFooter($"Requested by {request.RequestedBy}");
 
-        // Stated rather than acted on: the room's session already holds a film, and whoever
-        // opens this link changes what everyone in it is watching.
-        if (request.LoadedTitleId is { } loaded)
-            embed.AddField("Already loaded in this room", loaded);
+        if (request.Replaced is { } replaced)
+            embed.AddField("Replaced", replaced.Name);
 
         var components = new ComponentBuilder()
             .WithButton("Open the player", style: ButtonStyle.Link, url: url.ToString())
             .Build();
 
         return Task.FromResult(new LaunchReply(
-            $"{request.RequestedBy} started a session in {request.VoiceChannelName}.",
+            request.Headline,
             embed.Build(),
             components));
     }

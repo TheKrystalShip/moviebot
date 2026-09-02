@@ -67,6 +67,14 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     public SessionState? Get(string sessionId) =>
         _sessions.TryGetValue(sessionId, out var entry) ? WithCurrentHead(entry.State) : null;
 
+    /// <summary>
+    /// Puts a film into the room, from the start.
+    ///
+    /// Whether the room is playing is left as it was. A room that was watching one film and is
+    /// handed another goes on playing, from the beginning of the new one, so changing the film
+    /// is one act rather than a change followed by everyone waiting for somebody to press play.
+    /// A room that was paused stays paused.
+    /// </summary>
     public MutationResult LoadTitle(string sessionId, string titleId, Actor actor)
     {
         var entry = Entry(sessionId);
@@ -75,7 +83,6 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
             entry.State = Advance(entry.State, actor) with
             {
                 TitleId = titleId,
-                Paused = true,
                 PositionSeconds = 0,
                 AnchorUtc = clock.GetUtcNow()
             };
