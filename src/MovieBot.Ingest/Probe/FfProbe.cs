@@ -31,7 +31,7 @@ public static class FfProbe
                      "-v", "error",
                      "-probesize", ProbeWindow,
                      "-analyzeduration", ProbeWindow,
-                     "-show_format", "-show_streams",
+                     "-show_format", "-show_streams", "-show_chapters",
                      "-print_format", "json",
                      sourcePath
                  })

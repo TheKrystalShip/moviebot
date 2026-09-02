@@ -81,8 +81,33 @@ body {
 }
 
 .stage__player {
+  position: relative;
   height: 100%;
   width: 100%;
+}
+
+/* Shown only once playback has been waiting long enough that it is not a stutter. Playback can
+   outrun a transcode here, and a stall otherwise looks like nothing happening at all. */
+.mb-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border: 3px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: mb-spin 0.9s linear infinite;
+}
+
+@keyframes mb-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mb-spinner { animation-duration: 2.4s; }
 }
 
 .stage__player .video-js {
@@ -251,6 +276,18 @@ body {
   flex: 0 0 auto;
 }
 
+button.mb-scrub__time {
+  padding: 0;
+  font-family: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+button.mb-scrub__time:hover {
+  color: var(--accent);
+}
+
 .mb-scrub__track {
   position: relative;
   flex: 1 1 auto;
@@ -302,12 +339,33 @@ body {
   opacity: 1;
 }
 
+/* Ticks where the chapters begin, from what the container already records. Drawn over the played
+   region rather than under it, so they stay visible as the film passes them. */
+.mb-scrub__marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mb-scrub__mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(14, 16, 19, 0.85);
+}
+
 /* Where a seek would land, read before it is made. It earns its place here more than in a player
    watched alone: a seek moves the whole room, so the time under the pointer is the difference
    between choosing a moment and discovering one. */
 .mb-scrub__preview {
   position: absolute;
   bottom: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
   margin-bottom: 9px;
   padding: 3px 7px;
   font-size: 12px;
@@ -334,6 +392,22 @@ body {
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   transform: rotate(45deg);
+}
+
+/* A window over the sheet of frames rather than one fetched for this moment. */
+.mb-scrub__preview-frame {
+  margin: -1px -4px 2px;
+  border-radius: 2px;
+  background-repeat: no-repeat;
+}
+
+.mb-scrub__preview-chapter {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--dim);
 }
 
 /* Past the transcode head the server refuses the seek, and the refusal reaches only whoever tried.

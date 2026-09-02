@@ -10,6 +10,7 @@ import { ScrubBar } from './scrubBar';
 import { TrackMenu } from './trackMenu';
 import { audioGroups, defaultAudioId, findSubtitle } from './tracks';
 import { SubtitleMenu } from './subtitleMenu';
+import { bindShortcuts } from './shortcuts';
 import { VolumeControl, amplitudeFor } from './volume';
 
 export interface FilmPlayerHooks {
@@ -33,6 +34,12 @@ export interface FilmPlayerHooks {
 
 const PositionTickMs = 200;
 const LoadTimeoutMs = 30_000;
+
+/** Long enough to tell a click from the first half of a double click, short enough not to lag. */
+const DoubleClickGraceMs = 220;
+
+/** A stall shorter than this is a stutter, and flashing a spinner at it is worse than ignoring it. */
+const StallGraceMs = 400;
 
 /**
  * The rendering surface, and nothing more.
@@ -58,13 +65,55 @@ export class FilmPlayer {
   private subtitleToken = 0;
   private subtitleId: string | null = null;
   private ticker: number | null = null;
+  private stallTimer: number | null = null;
+  private clickTimer: number | null = null;
+  private releaseShortcuts: (() => void) | null = null;
+  private readonly spinner: HTMLElement;
   private readonly volume: VolumeControl;
 
   constructor(container: HTMLElement, private readonly hooks: FilmPlayerHooks) {
     this.video = document.createElement('video');
     this.video.className = 'video-js vjs-big-play-centered';
     this.video.setAttribute('playsinline', '');
-    container.replaceChildren(this.video);
+    // Shown when playback has stopped waiting for data rather than because anybody asked it to.
+    // It matters more here than in most players: playback can outrun a transcode, and a stall
+    // otherwise looks like nothing happening at all.
+    this.spinner = document.createElement('div');
+    this.spinner.className = 'mb-spinner';
+    this.spinner.hidden = true;
+    this.spinner.setAttribute('role', 'status');
+    this.spinner.setAttribute('aria-label', 'Waiting for the film');
+
+    container.replaceChildren(this.video, this.spinner);
+
+    this.video.addEventListener('waiting', () => this.stalled(true));
+    this.video.addEventListener('stalled', () => this.stalled(true));
+    for (const settled of ['playing', 'canplay', 'seeked', 'pause', 'error']) {
+      this.video.addEventListener(settled, () => this.stalled(false));
+    }
+
+    // A click on the film is the play button and a double click is fullscreen, so the first has to
+    // wait long enough to find out whether it was the start of the second.
+    container.addEventListener('click', (event) => {
+      if (!(event.target instanceof HTMLElement) || event.target.closest('.vjs-control-bar')) return;
+      if (this.clickTimer !== null) return;
+
+      this.clickTimer = window.setTimeout(() => {
+        this.clickTimer = null;
+        this.togglePlay();
+      }, DoubleClickGraceMs);
+    });
+
+    container.addEventListener('dblclick', (event) => {
+      if (!(event.target instanceof HTMLElement) || event.target.closest('.vjs-control-bar')) return;
+
+      if (this.clickTimer !== null) {
+        window.clearTimeout(this.clickTimer);
+        this.clickTimer = null;
+      }
+
+      this.toggleFullscreen();
+    });
 
     this.scrub = new ScrubBar((seconds) => this.hooks.onSeekIntent(seconds));
     this.volume = new VolumeControl({
@@ -134,6 +183,16 @@ export class FilmPlayer {
     this.player.muted(prefs.muted());
 
     this.ticker = window.setInterval(() => this.scrub.setPosition(this.video.currentTime), PositionTickMs);
+
+    this.releaseShortcuts = bindShortcuts({
+      togglePlay: () => this.togglePlay(),
+      // Through the same route the scrub bar takes: the server decides where the room lands.
+      seekBy: (seconds) => this.hooks.onSeekIntent(
+        Math.min(this.scrubDuration, Math.max(0, this.video.currentTime + seconds))),
+      toggleFullscreen: () => this.toggleFullscreen(),
+      toggleMute: () => this.volume.toggleMute(),
+      toggleSubtitles: () => this.toggleSubtitles()
+    });
   }
 
   /** Loads a title. Resolves once the media element holds it. */
@@ -152,6 +211,12 @@ export class FilmPlayer {
 
     this.player.poster(manifest.poster ? environment().mediaUrl(manifest.id, manifest.poster) : '');
     this.scrub.setDuration(manifest.durationSeconds);
+    this.scrub.setChapters(manifest.chapters ?? []);
+    this.scrub.setThumbnails(
+      manifest.thumbnails ?? null,
+      manifest.thumbnails === undefined
+        ? null
+        : environment().mediaUrl(manifest.id, manifest.thumbnails.uri));
     this.setTranscodeHead(manifest.status === 'transcoding' ? (manifest.headSeconds ?? 0) : null);
 
     const stored = prefs.forTitle(manifest.id);
@@ -231,6 +296,62 @@ export class FilmPlayer {
     this.subtitleMenu.setTracks(fresh.subtitles, this.subtitleId, fresh.otherLanguages ?? []);
   }
 
+  private get scrubDuration(): number {
+    return this.manifest?.durationSeconds ?? 0;
+  }
+
+  /**
+   * Play and pause are published as intent like everything else. The controller watches the media
+   * element and tells the room, so driving the element is what drives the film.
+   */
+  private togglePlay(): void {
+    if (this.video.paused) void this.video.play().catch(() => {});
+    else this.video.pause();
+  }
+
+  /**
+   * Fullscreen only where the browser grants it. Inside Discord's iframe the API is not given to
+   * an Activity, and the player already fills the frame, so this does nothing rather than failing.
+   */
+  private toggleFullscreen(): void {
+    if (!document.fullscreenEnabled) return;
+
+    if (this.player.isFullscreen()) void this.player.exitFullscreen();
+    else void this.player.requestFullscreen();
+  }
+
+  /** Back to whatever was last chosen, or the first track the film offers. */
+  private toggleSubtitles(): void {
+    if (this.subtitleId !== null) {
+      void this.selectSubtitle(null);
+      this.hooks.onSubtitleSelected(null);
+      return;
+    }
+
+    const first = this.manifest?.subtitles.find((track) => track.available && track.uri !== undefined);
+    if (first === undefined) return;
+
+    void this.selectSubtitle(first.id);
+    this.hooks.onSubtitleSelected(first.id);
+  }
+
+  private stalled(waiting: boolean): void {
+    if (this.stallTimer !== null) {
+      window.clearTimeout(this.stallTimer);
+      this.stallTimer = null;
+    }
+
+    if (!waiting) {
+      this.spinner.hidden = true;
+      return;
+    }
+
+    this.stallTimer = window.setTimeout(() => {
+      this.stallTimer = null;
+      this.spinner.hidden = false;
+    }, StallGraceMs);
+  }
+
   /** How far the transcode has reached, or null once the whole film is written. */
   setTranscodeHead(seconds: number | null): void {
     this.scrub.setReady(seconds);
@@ -302,6 +423,10 @@ export class FilmPlayer {
   }
 
   dispose(): void {
+    this.releaseShortcuts?.();
+    this.releaseShortcuts = null;
+    if (this.stallTimer !== null) window.clearTimeout(this.stallTimer);
+    if (this.clickTimer !== null) window.clearTimeout(this.clickTimer);
     if (this.ticker !== null) window.clearInterval(this.ticker);
     this.teardownSource();
     this.player.dispose();

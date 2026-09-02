@@ -208,6 +208,27 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
 - **The menu has to fit without being scrolled.** The candidate list is ranked, so showing more of
   it only adds worse answers underneath the good ones while pushing the good ones off screen.
 
+## The player's controls
+
+- **Every control moves the whole room.** There is one playhead and no host, so a space bar pauses
+  the film for everybody rather than for whoever pressed it. That is the premise, not a hazard, but
+  it is why nothing is bound that a hand resting on a keyboard could trigger and why the scrub bar
+  shows where a seek would land before it is made.
+- **A control that already answers a key keeps it.** The scrub bar handles the arrows itself when
+  focused; taking them globally as well moves the film twice for one press.
+- **Fullscreen exists only where the browser grants it.** Inside Discord's iframe the API is not
+  given to an Activity, so the key and the double click do nothing there rather than failing — and
+  the player already fills the frame, which is what they would have been for.
+- **Previews come from one sheet, not one file each.** A preview is wanted the instant a pointer
+  lands on the bar, and a request per frame would spend the whole hover fetching. Only keyframes
+  are decoded to build it, which is what keeps it bounded by how fast the file reads rather than by
+  the length of the film.
+- **A chapter title that is only a timestamp is no title.** Muxers write the chapter's own start
+  time into its name routinely, and shown beside the time under the pointer that reads as a second
+  clock disagreeing with the first.
+- **The spinner waits before it appears.** A stall shorter than a moment is a stutter, and flashing
+  at one is worse than ignoring it.
+
 ## Telling somebody about a download
 
 - **Editing a message notifies nobody.** Discord sends no notification for an edit, so a progress

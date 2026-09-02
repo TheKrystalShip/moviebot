@@ -11,6 +11,68 @@ public sealed record ProbeResult
 {
     [JsonPropertyName("format")] public ProbeFormat Format { get; init; } = new();
     [JsonPropertyName("streams")] public List<ProbeStream> Streams { get; init; } = [];
+
+    /// <summary>Empty for a source that carries none, which most non-disc releases do.</summary>
+    [JsonPropertyName("chapters")] public List<ProbeChapter> Chapters { get; init; } = [];
+}
+
+/// <summary>
+/// One chapter, as the container records it. Discs carry these already, so nothing has to be
+/// generated or guessed to know where a film's parts begin.
+/// </summary>
+public sealed record ProbeChapter
+{
+    [JsonPropertyName("start_time")] public string? StartTime { get; init; }
+    [JsonPropertyName("end_time")] public string? EndTime { get; init; }
+    [JsonPropertyName("tags")] public Dictionary<string, string>? Tags { get; init; }
+
+    public double StartSeconds => Seconds(StartTime);
+    public double EndSeconds => Seconds(EndTime);
+
+    /// <summary>
+    /// The chapter's name, when it has one worth showing.
+    ///
+    /// Muxers routinely write the chapter's own start time into the title, which names nothing.
+    /// Shown beside the time under the pointer it reads as a second, disagreeing clock, so a title
+    /// that is only a timestamp counts as no title at all.
+    /// </summary>
+    public string? Title
+    {
+        get
+        {
+            if (Tags is null) return null;
+
+            foreach (var (k, v) in Tags)
+            {
+                if (!string.Equals(k, "title", StringComparison.OrdinalIgnoreCase)) continue;
+
+                var title = v?.Trim();
+                return string.IsNullOrEmpty(title) || IsTimestamp(title) ? null : title;
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>Whether a title is nothing but a clock reading, in any of the ways one is written.</summary>
+    public static bool IsTimestamp(string title)
+    {
+        var seen = 0;
+
+        foreach (var c in title)
+        {
+            if (char.IsAsciiDigit(c)) continue;
+            if (c is ':' or '.' or ',') { seen++; continue; }
+            return false;
+        }
+
+        // A run of digits alone is a numbered chapter, which is a name. Separators make it a clock.
+        return seen > 0;
+    }
+
+    private static double Seconds(string? value) =>
+        double.TryParse(value, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0;
 }
 
 public sealed record ProbeFormat

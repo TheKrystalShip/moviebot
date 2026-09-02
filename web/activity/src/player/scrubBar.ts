@@ -1,3 +1,4 @@
+import type { Chapter, ThumbnailStrip } from '../types';
 import { formatTime } from '../ui/format';
 
 /**
@@ -26,11 +27,17 @@ export class ScrubBar {
   private readonly total: HTMLElement;
   private readonly preview: HTMLElement;
   private readonly previewTime: HTMLElement;
+  private readonly previewFrame: HTMLElement;
+  private readonly previewChapter: HTMLElement;
+  private readonly marks: HTMLElement;
 
   private durationSeconds = 0;
   private readySeconds: number | null = null;
   private positionSeconds = 0;
   private dragSeconds: number | null = null;
+  private chapters: Chapter[] = [];
+  private strip: ThumbnailStrip | null = null;
+  private showRemaining = false;
 
   constructor(private readonly onSeek: (seconds: number) => void) {
     this.el = document.createElement('div');
@@ -41,12 +48,16 @@ export class ScrubBar {
            aria-label="Position" aria-valuemin="0" aria-valuenow="0" aria-valuetext="0:00">
         <div class="mb-scrub__ready"></div>
         <div class="mb-scrub__played"></div>
+        <div class="mb-scrub__marks"></div>
         <div class="mb-scrub__handle"></div>
         <div class="mb-scrub__preview" aria-hidden="true" hidden>
+          <div class="mb-scrub__preview-frame" hidden></div>
+          <span class="mb-scrub__preview-chapter" hidden></span>
           <span class="mb-scrub__preview-time"></span>
         </div>
       </div>
-      <span class="mb-scrub__time mb-scrub__time--total">0:00</span>`;
+      <button type="button" class="mb-scrub__time mb-scrub__time--total"
+              title="Show time remaining">0:00</button>`;
 
     this.track = this.el.querySelector('.mb-scrub__track') as HTMLElement;
     this.ready = this.el.querySelector('.mb-scrub__ready') as HTMLElement;
@@ -56,6 +67,15 @@ export class ScrubBar {
     this.total = this.el.querySelector('.mb-scrub__time--total') as HTMLElement;
     this.preview = this.el.querySelector('.mb-scrub__preview') as HTMLElement;
     this.previewTime = this.el.querySelector('.mb-scrub__preview-time') as HTMLElement;
+    this.previewFrame = this.el.querySelector('.mb-scrub__preview-frame') as HTMLElement;
+    this.previewChapter = this.el.querySelector('.mb-scrub__preview-chapter') as HTMLElement;
+    this.marks = this.el.querySelector('.mb-scrub__marks') as HTMLElement;
+
+    this.total.addEventListener('click', () => {
+      this.showRemaining = !this.showRemaining;
+      this.total.title = this.showRemaining ? 'Show the full length' : 'Show time remaining';
+      this.render();
+    });
 
     this.track.addEventListener('pointerdown', (event) => this.beginDrag(event));
     this.track.addEventListener('keydown', (event) => this.onKey(event));
@@ -69,9 +89,61 @@ export class ScrubBar {
 
   setDuration(seconds: number): void {
     this.durationSeconds = seconds;
-    this.total.textContent = formatTime(seconds);
     this.track.setAttribute('aria-valuemax', seconds.toFixed(0));
+    this.renderMarks();
     this.render();
+  }
+
+  /** Where the film's parts begin. Empty for a release that carries none, which is common. */
+  setChapters(chapters: Chapter[]): void {
+    this.chapters = [...chapters].sort((a, b) => a.startSeconds - b.startSeconds);
+    this.renderMarks();
+  }
+
+  /** The sheet of preview frames, and where it is served from. */
+  setThumbnails(strip: ThumbnailStrip | null, url: string | null): void {
+    this.strip = strip;
+
+    if (strip === null || url === null) {
+      this.previewFrame.hidden = true;
+      return;
+    }
+
+    this.previewFrame.style.width = `${strip.width}px`;
+    this.previewFrame.style.height = `${strip.height}px`;
+    this.previewFrame.style.backgroundImage = `url("${url}")`;
+    this.previewFrame.style.backgroundSize =
+      `${strip.columns * strip.width}px ${strip.rows * strip.height}px`;
+  }
+
+  /**
+   * Ticks where the chapters begin.
+   *
+   * The one at the start is left off: every film begins at zero and a mark there only draws the
+   * eye to the one place on the bar nobody needs help finding.
+   */
+  private renderMarks(): void {
+    this.marks.replaceChildren();
+    if (this.durationSeconds <= 0) return;
+
+    for (const chapter of this.chapters) {
+      if (chapter.startSeconds <= 0 || chapter.startSeconds >= this.durationSeconds) continue;
+
+      const mark = document.createElement('div');
+      mark.className = 'mb-scrub__mark';
+      mark.style.left = `${(chapter.startSeconds / this.durationSeconds) * 100}%`;
+      this.marks.appendChild(mark);
+    }
+  }
+
+  /** The chapter a moment falls in, which is the last one to have begun by then. */
+  private chapterAt(seconds: number): Chapter | undefined {
+    let found: Chapter | undefined;
+    for (const chapter of this.chapters) {
+      if (chapter.startSeconds > seconds) break;
+      found = chapter;
+    }
+    return found;
   }
 
   /** How far the transcode has reached, or null once the whole film is written. */
@@ -98,6 +170,9 @@ export class ScrubBar {
     this.played.style.width = fraction(this.shown);
     this.handle.style.left = fraction(this.shown);
     this.current.textContent = formatTime(this.shown);
+    this.total.textContent = this.showRemaining
+      ? `-${formatTime(Math.max(0, this.durationSeconds - this.shown))}`
+      : formatTime(this.durationSeconds);
     this.track.setAttribute('aria-valuenow', this.shown.toFixed(0));
     this.track.setAttribute('aria-valuetext', formatTime(this.shown));
   }
@@ -118,6 +193,21 @@ export class ScrubBar {
     this.previewTime.textContent = formatTime(at);
     this.preview.classList.toggle(
       'mb-scrub__preview--unreachable', this.readySeconds !== null && at > this.readySeconds);
+
+    const chapter = this.chapterAt(at);
+    this.previewChapter.textContent = chapter?.title ?? '';
+    this.previewChapter.hidden = chapter?.title === undefined;
+
+    if (this.strip !== null) {
+      // The window over the sheet, rather than a frame fetched for the moment under the pointer.
+      const index = Math.min(this.strip.count - 1, Math.max(0, Math.floor(at / this.strip.intervalSeconds)));
+      const column = index % this.strip.columns;
+      const row = Math.floor(index / this.strip.columns);
+
+      this.previewFrame.style.backgroundPosition =
+        `-${column * this.strip.width}px -${row * this.strip.height}px`;
+      this.previewFrame.hidden = false;
+    }
 
     // Clamped to the bar so the bubble never hangs off either end of it.
     const half = this.preview.offsetWidth / 2;

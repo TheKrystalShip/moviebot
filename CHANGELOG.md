@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-09-02
+
+### Added
+
+- The scrub bar previews the frame under the pointer, from a sheet written at ingest. One image
+  holds every frame, so a preview appears the instant a pointer lands rather than after a fetch.
+- Chapter ticks on the bar, with the chapter's name in the preview. Nothing is generated or
+  guessed: a disc already records these, and a release that carries none simply has none.
+- The keys a player is expected to answer — space and k to play, the arrows and j and l to seek,
+  f, m and c for fullscreen, mute and subtitles. Every one of them moves the whole room, so
+  nothing is bound that a hand resting on a keyboard could trigger.
+- A click on the film plays or pauses it and a double click goes fullscreen, where the browser
+  grants fullscreen at all.
+- A spinner once playback has been waiting long enough that it is not a stutter. Playback can
+  outrun a transcode here, and a stall otherwise looks like nothing happening.
+- The total time can be clicked to show what is left instead.
+
 ## [1.12.0] - 2026-09-02
 
 ### Added

@@ -102,6 +102,11 @@ export class VolumeControl {
     this.render();
   }
 
+  /** Reported back as a fresh choice, because it is one — it just came from a key.  */
+  toggleMute(): void {
+    this.setMuted(!this.muted);
+  }
+
   private setMuted(muted: boolean): void {
     this.muted = muted;
     this.render();

@@ -102,6 +102,52 @@ public sealed class Manifest
     /// in one row instead of thirty, and says what is there to go back for.
     /// </summary>
     public IReadOnlyList<string> OtherLanguages { get; set; } = [];
+
+    /// <summary>
+    /// Where the film's parts begin, as the container already records them. Nothing is generated
+    /// or guessed: a disc carries these, and a release that does not simply has none.
+    /// </summary>
+    public IReadOnlyList<Chapter> Chapters { get; init; } = [];
+
+    /// <summary>
+    /// The strip of frames the scrub bar previews from. Written after the main pass, because it is
+    /// read from the whole source, so it is null until then and null for a source that has none.
+    /// </summary>
+    public ThumbnailStrip? Thumbnails { get; set; }
+}
+
+/// <summary>One point in the film with a name, taken from the container.</summary>
+public sealed record Chapter
+{
+    public required double StartSeconds { get; init; }
+
+    /// <summary>Null when the container numbered its chapters rather than naming them.</summary>
+    public string? Title { get; init; }
+}
+
+/// <summary>
+/// Every frame the scrub bar previews, in one image.
+///
+/// One image rather than hundreds of files because a preview is wanted the instant a pointer
+/// lands on the bar: a request per frame would spend the whole hover fetching, and a browser
+/// holds one sprite in memory and moves a window over it for nothing.
+/// </summary>
+public sealed record ThumbnailStrip
+{
+    public required string Uri { get; init; }
+
+    /// <summary>Seconds of film between one frame and the next.</summary>
+    public required double IntervalSeconds { get; init; }
+
+    public required int Columns { get; init; }
+    public required int Rows { get; init; }
+
+    /// <summary>The size of one frame within the sheet, in pixels.</summary>
+    public required int Width { get; init; }
+    public required int Height { get; init; }
+
+    /// <summary>How many frames were actually written. The last row is rarely full.</summary>
+    public required int Count { get; init; }
 }
 
 /// <summary>

@@ -148,6 +148,9 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                 manifest.Source = Fingerprint(video);
             }
 
+            manifest.Thumbnails = await ThumbnailSheet.WriteAsync(
+                options.SourcePath, video, probe.Format.DurationSeconds, outputDirectory, log, ct);
+
             manifest.Status = TitleStatus.Ready;
             manifest.HeadSeconds = null;
             ManifestJson.WriteAtomic(manifestPath, manifest);
@@ -533,6 +536,10 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             Audio = audio,
             // Known from the moment the film was chosen, so unlike the fingerprint it does not
             // wait on the file being whole.
+            Chapters = probe.Chapters
+                .Where(c => c.EndSeconds > c.StartSeconds)
+                .Select(c => new Chapter { StartSeconds = c.StartSeconds, Title = c.Title })
+                .ToList(),
             Film = options.ImdbId is { Length: > 0 } imdbId
                 ? new FilmIdentity { ImdbId = imdbId }
                 : null,

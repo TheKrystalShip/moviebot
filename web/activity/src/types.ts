@@ -110,6 +110,26 @@ export interface SubtitleSearch {
   explanation?: string;
 }
 
+/** One point in the film with a name, as the container already records it. */
+export interface Chapter {
+  startSeconds: number;
+  title?: string;
+}
+
+/**
+ * Every preview frame in one image. A request per frame would spend the whole hover fetching;
+ * the browser holds one sheet and moves a window over it for nothing.
+ */
+export interface ThumbnailStrip {
+  uri: string;
+  intervalSeconds: number;
+  columns: number;
+  rows: number;
+  width: number;
+  height: number;
+  count: number;
+}
+
 export interface Manifest {
   id: string;
   title: string;
@@ -122,6 +142,8 @@ export interface Manifest {
   source?: SourceFingerprint;
   /** Languages the source carries that were not extracted, so an absent one is explained. */
   otherLanguages?: string[];
+  chapters?: Chapter[];
+  thumbnails?: ThumbnailStrip;
   /** The HLS master playlist binding audio to video, when the ingest wrote one. */
   master?: string;
   video: VideoInfo;
