@@ -140,21 +140,22 @@ public sealed class RoomPresence(
 
     private async Task<bool> WriteAsync(ulong channelId, string? line, CancellationToken ct)
     {
-        if (_refused.Contains(channelId)) return false;
-
         if (client.GetChannel(channelId) is SocketVoiceChannel channel)
         {
+            // Checked on every pass, because a permission is granted while the bot is running and
+            // the first line after that should follow within a sweep. The refusal is said once.
             var permissions = channel.Guild.CurrentUser.GetPermissions(channel);
             if (!permissions.SetVoiceChannelStatus || !permissions.ManageChannel)
             {
-                // Said once per channel. Discord requires both while the bot is not connected to
-                // the channel, and neither is in the invite of a bot installed before this existed.
-                logger.LogWarning(
-                    "Cannot write under {Channel}: the bot needs Set Voice Channel Status and Manage Channels there.",
-                    channel.Name);
-                _refused.Add(channelId);
+                if (_refused.Add(channelId))
+                    logger.LogWarning(
+                        "Cannot write under {Channel}: the bot needs Set Voice Channel Status and Manage Channels there.",
+                        channel.Name);
                 return false;
             }
+
+            if (_refused.Remove(channelId))
+                logger.LogInformation("The bot can now write under {Channel}.", channel.Name);
         }
 
         var accepted = await voiceStatus.SetAsync(channelId, line, ct);
