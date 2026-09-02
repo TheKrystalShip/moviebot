@@ -41,7 +41,7 @@ public static class WishEmbed
             .WithDescription($"{wish.Display} can be downloaded now.")
             .AddField("Release", release.ReleaseName, inline: false)
             .AddField("Quality", release.Summary, inline: true)
-            .AddField("Download it with", "/find", inline: true)
+            .AddField("Watch it with", "/watch", inline: true)
             .WithColor(Color.Green)
             .WithCurrentTimestamp()
             .Build();

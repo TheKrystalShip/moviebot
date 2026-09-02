@@ -4,6 +4,32 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.0] - 2026-09-02
+
+### Changed
+
+- `/watch` fetches a film that is not here yet, so there is one command. Its menu lists the
+  library while anything in it matches, and once nothing does the same menu shows the tracker's
+  ranked results, with the release's quality, size and seeds beside each name. Picking one starts
+  the download and, because the film is transcoded as it arrives, loads it into the voice channel
+  the person was standing in the moment it can be watched, posting the launch as a new message
+  that mentions them. The reply to the pick is the download's progress message, which names the
+  room the film will play in. A pick from outside a voice channel downloads and announces, as
+  before.
+- The hand-off writes the id a film goes under in the library onto its torrent before the
+  transcode starts, so the bot opens the film by the id it was actually given rather than by a
+  second parse of the release name.
+- The download watcher acts on a film becoming watchable wherever the download has got to. It
+  waited for the download to finish first, which held the announcement of a playable film for the
+  length of the download, and it now looks every ten seconds rather than every thirty, since
+  somebody is waiting in a voice channel for it.
+- A download's progress message says when the film is already watchable.
+- `/notify` points at `/watch` where it pointed at `/find`.
+
+### Removed
+
+- `/find`. Everything it did is reached through `/watch`.
+
 ## [1.25.0] - 2026-09-02
 
 ### Added

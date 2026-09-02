@@ -1,8 +1,9 @@
 # MovieBot.Bot
 
 The Discord half. `/watch` resolves a film, opens the room's session on the API and hands the
-room a launch. `/find` searches the tracker and starts a download. `/notify` watches for a film
-that cannot be downloaded yet and says so when it can.
+room a launch — and when the film is not here, searches the tracker, starts the download and hands
+the room the launch the moment the film can be watched. `/notify` watches for a film that cannot be
+downloaded yet and says so when it can.
 
 ## It holds almost no state
 
@@ -80,11 +81,22 @@ Environment=Discord__GuildIds__0=<guild id>
 /watch title:<name or id>
 ```
 
-The title option autocompletes from the live library, so a person picks a film that exists and
-the command receives its id rather than a guess at its name. Typing it out works too: an id
-matches exactly, a full title matches whatever its case, and otherwise every word has to begin a
-word in the film's id or title, in any order. A query that fits several films is refused with
-the films it could have meant, because the wrong film is worse than being asked again.
+The title option autocompletes from the live library while anything in it matches, so a person
+picks a film that exists and the command receives its id rather than a guess at its name. Typing
+it out works too: an id matches exactly, a full title matches whatever its case, and otherwise
+every word has to begin a word in the film's id or title, in any order. A query that fits several
+films is refused with the films it could have meant, because the wrong film is worse than being
+asked again.
+
+Once nothing in the library matches, the same menu searches the tracker instead, and the rows are
+its ranked results with the release's quality, size and seeds beside the name. Picking one starts
+the download and answers with the message that will show its progress. The film is transcoded as
+it arrives, so it is watchable seconds after the transcode starts; the moment it is, the bot loads
+it into the voice channel the person was standing in and posts the launch as a new message that
+mentions them. Somebody who picks from outside a voice channel gets the download and the
+announcement, and a `/watch` from a voice channel afterwards is the way in. Whichever room a
+download was asked for is written on the torrent, so a bot restarted mid-download still starts the
+film where it was asked for.
 
 The reply is a link into the player carrying the room's session and the film:
 
@@ -115,10 +127,11 @@ twice. What is kept is the film's IMDb id and what the catalogue said about it.
 
 Before anything is written down, the places the film might already be are checked: the library,
 in which case the reply points at `/watch`; the torrent client, in which case it is already on
-its way; and the tracker, in which case the reply names the release and points at `/find`.
+its way; and the tracker, in which case the reply names the release and says to pick it from
+`/watch`'s search results.
 
 The tracker is then asked about every film on the list on a slow clock, by IMDb id. A film counts
 as available once a release is offered whose source is a web encode or better. When one is, a
 new message goes to each channel people asked in, mentioning exactly those people, naming the
-release and pointing at `/find`. The wish is forgotten once its people have been told; a channel
+release and pointing at `/watch`. The wish is forgotten once its people have been told; a channel
 the message could not be sent to keeps its people for the next pass.

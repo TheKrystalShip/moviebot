@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Configuration;
-using TheKrystalShip.MovieBot.Bot.Find;
+using TheKrystalShip.MovieBot.Bot.Download;
 using TheKrystalShip.MovieBot.Bot.Library;
 using TheKrystalShip.MovieBot.Bot.Notify;
 using TheKrystalShip.MovieBot.Bot.Watch;
@@ -16,15 +16,15 @@ namespace TheKrystalShip.MovieBot.Bot.Discord;
 /// <summary>
 /// The gateway connection and the whole of the bot's Discord surface.
 ///
-/// Its only job is translation: a slash command becomes a <see cref="WatchRequest"/>, and the
-/// answer becomes a message. Nothing decided here is remembered, and every fact in a reply was
-/// read from the API while the command ran.
+/// Its only job is translation: a slash command becomes a <see cref="WatchRequest"/> or a
+/// <see cref="DownloadRequest"/>, and the answer becomes a message. Nothing decided here is
+/// remembered, and every fact in a reply was read from the API while the command ran.
 /// </summary>
 public sealed class DiscordBotService(
     DiscordSocketClient client,
     MovieBotApiClient api,
     WatchCommand watch,
-    FindCommand find,
+    DownloadCommand download,
     NotifyCommand notify,
     TheKrystalShip.MovieBot.Acquire.Search.AutocompleteSearch suggestions,
     TheKrystalShip.MovieBot.Acquire.Imdb.ImdbClient catalogue,
@@ -104,10 +104,10 @@ public sealed class DiscordBotService(
                 // The overwrite is the whole command set, so every command has to be in this
                 // one call: registering them separately leaves only the last one standing.
                 await guild.BulkOverwriteApplicationCommandAsync(
-                    [WatchSlashCommand.Build(), FindSlashCommand.Build(), NotifySlashCommand.Build()]);
+                    [WatchSlashCommand.Build(), NotifySlashCommand.Build()]);
 
-                logger.LogInformation("Registered /{Watch}, /{Find} and /{Notify} in {GuildName}",
-                    WatchSlashCommand.Name, FindSlashCommand.Name, NotifySlashCommand.Name, guild.Name);
+                logger.LogInformation("Registered /{Watch} and /{Notify} in {GuildName}",
+                    WatchSlashCommand.Name, NotifySlashCommand.Name, guild.Name);
             }
             catch (Exception ex)
             {
@@ -124,7 +124,6 @@ public sealed class DiscordBotService(
         _ = command.CommandName switch
         {
             WatchSlashCommand.Name => HandleWatchAsync(command),
-            FindSlashCommand.Name => HandleFindAsync(command),
             NotifySlashCommand.Name => HandleNotifyAsync(command),
             _ => Task.CompletedTask,
         };
@@ -138,12 +137,18 @@ public sealed class DiscordBotService(
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Plays the film, or fetches it and then plays it.
+    ///
+    /// One option carries two kinds of answer: a film already in the library, which is loaded into
+    /// the room now, and a release on the tracker, which is started downloading and loaded into the
+    /// room the moment it can be watched. Which one arrived is read from the value alone, because
+    /// the value is all a picked row sends back.
+    /// </summary>
     private async Task HandleWatchAsync(SocketSlashCommand command)
     {
         try
         {
-            if (command.CommandName != WatchSlashCommand.Name) return;
-
             // A verified application cannot be stopped from being added to a server, so the
             // guild it serves is enforced here rather than in the portal.
             if (command.GuildId is not { } guildId || !_guilds.Contains(guildId))
@@ -156,15 +161,22 @@ public sealed class DiscordBotService(
             var voice = (command.User as SocketGuildUser)?.VoiceChannel;
             var query = command.Data.Options
                 .FirstOrDefault(o => o.Name == WatchSlashCommand.TitleOption)?.Value as string ?? "";
+            var requestedBy = (command.User as IGuildUser)?.DisplayName ?? command.User.Username;
 
             await command.DeferAsync();
+
+            if (TrackerPick.Parse(query) is { } torrentId)
+            {
+                await FetchThenWatchAsync(command, torrentId, voice, requestedBy);
+                return;
+            }
 
             var result = await watch.ExecuteAsync(new WatchRequest
             {
                 VoiceChannelId = voice?.Id,
                 VoiceChannelName = voice?.Name,
                 Query = query,
-                RequestedBy = (command.User as IGuildUser)?.DisplayName ?? command.User.Username
+                RequestedBy = requestedBy
             }, CancellationToken.None);
 
             // Display names are whatever a person set them to, so nothing in a reply is allowed
@@ -186,57 +198,41 @@ public sealed class DiscordBotService(
     }
 
     /// <summary>
-    /// Answers the person who asked, then starts the download.
+    /// Starts the download and answers with the message that will show its progress.
     ///
-    /// The reply is deliberately not a live progress bar. A film takes minutes at best, an
-    /// interaction token expires long before that, and an edited message nobody is looking at is
-    /// worth less than a clear sentence saying to come back.
+    /// The reply is the waiting state, not the launch. A film takes at least a minute to become
+    /// watchable and an interaction token does not outlast a slow one, so the launch is a
+    /// separate message, posted by the watcher when the film can be opened — which is also the
+    /// only kind of message that notifies the person who asked.
     /// </summary>
-    private async Task HandleFindAsync(SocketSlashCommand command)
+    private async Task FetchThenWatchAsync(
+        SocketSlashCommand command, long torrentId, SocketVoiceChannel? voice, string requestedBy)
     {
-        try
+        var result = await download.ExecuteAsync(new DownloadRequest
         {
-            if (command.GuildId is not { } guildId || !_guilds.Contains(guildId))
-            {
-                await command.RespondAsync(
-                    "This bot only answers in the server it is configured for.", ephemeral: true);
-                return;
-            }
+            TorrentId = torrentId,
+            ChannelId = command.ChannelId ?? 0,
+            RequesterId = command.User.Id,
+            RequestedBy = requestedBy,
+            RoomId = voice?.Id,
+        }, CancellationToken.None);
 
-            var chosen = command.Data.Options
-                .FirstOrDefault(o => o.Name == FindSlashCommand.TitleOption)?.Value as string ?? "";
-
-            await command.DeferAsync();
-
-            var result = await find.ExecuteAsync(new FindRequest
-            {
-                Chosen = chosen,
-                ChannelId = command.ChannelId ?? 0,
-                RequesterId = command.User.Id,
-                RequestedBy = (command.User as IGuildUser)?.DisplayName ?? command.User.Username,
-            }, CancellationToken.None);
-
-            if (result.Status != FindStatus.Started || result.Release is null)
-            {
-                await command.FollowupAsync(result.Message, allowedMentions: AllowedMentions.None);
-                return;
-            }
-
-            var posted = await command.FollowupAsync(
-                embed: DownloadEmbed.Starting(result.Release),
-                allowedMentions: AllowedMentions.None);
-
-            // Recorded after the message exists, because the message is what is being recorded.
-            // The download is already running; this only decides whether it reports itself.
-            if (result.Hash is { } hash)
-                await find.RecordProgressMessageAsync(
-                    hash, command.ChannelId ?? 0, posted.Id, CancellationToken.None);
-        }
-        catch (Exception ex)
+        if (result.Outcome != DownloadOutcome.Started || result.Release is null)
         {
-            logger.LogError(ex, "The /{Command} command failed", FindSlashCommand.Name);
-            await TryReportFailure(command);
+            await command.FollowupAsync(result.Message, allowedMentions: AllowedMentions.None);
+            return;
         }
+
+        var posted = await command.FollowupAsync(
+            result.Message,
+            embed: DownloadEmbed.Starting(result.Release, voice?.Name),
+            allowedMentions: AllowedMentions.None);
+
+        // Recorded after the message exists, because the message is what is being recorded.
+        // The download is already running; this only decides whether it reports itself.
+        if (result.Hash is { } hash)
+            await download.RecordProgressMessageAsync(
+                hash, command.ChannelId ?? 0, posted.Id, CancellationToken.None);
     }
 
     /// <summary>
@@ -322,30 +318,17 @@ public sealed class DiscordBotService(
 
             var typed = interaction.Data.Current.Value?.ToString() ?? "";
 
-            // Every command autocompletes a film and each means something different by it: one
-            // searches films already on disk, one the tracker, one the catalogue of films that
-            // exist at all. Answering without checking which was asked offers the library to
-            // somebody trying to download something that is by definition not in it.
+            // Both commands autocomplete a film and each means something different by it: one
+            // the films that can be watched, one the catalogue of films that exist at all.
+            // Answering without checking which was asked offers the library to somebody waiting
+            // on a film that is by definition not in it.
             if (interaction.Data.CommandName == NotifySlashCommand.Name)
             {
                 await interaction.RespondAsync(await NotifyChoicesAsync(interaction, typed));
                 return;
             }
 
-            if (interaction.Data.CommandName == FindSlashCommand.Name)
-            {
-                var found = await suggestions.SuggestAsync(
-                    typed, interaction.User.Id.ToString(), CancellationToken.None);
-
-                await interaction.RespondAsync(found
-                    .Select(c => new AutocompleteResult(c.Label, c.TorrentId.ToString())));
-                return;
-            }
-
-            var library = await api.ListTitlesAsync(CancellationToken.None);
-
-            await interaction.RespondAsync(TitleMatcher.Suggest(library, typed)
-                .Select(t => new AutocompleteResult(Choice(t), t.Id)));
+            await interaction.RespondAsync(await WatchChoicesAsync(interaction, typed));
         }
         catch (Exception ex)
         {
@@ -355,6 +338,31 @@ public sealed class DiscordBotService(
             // autocomplete leaves the menu spinning.
             try { await interaction.RespondAsync([]); } catch (Exception inner) { logger.LogDebug(inner, "The autocomplete interaction was already gone"); }
         }
+    }
+
+    /// <summary>
+    /// What /watch offers as somebody types: the library while anything in it matches, and the
+    /// tracker once nothing does.
+    ///
+    /// The library comes first and alone, because a film that is here is the answer and a row
+    /// offering to fetch it again beside it is a way to end up with two. The tracker is asked only
+    /// when the library has nothing, so somebody typing a film that is not here sees the search
+    /// results appear in place of an empty menu — with what each release is beside its name, which
+    /// is how a row that starts a download reads differently from one that starts a film.
+    /// </summary>
+    private async Task<IEnumerable<AutocompleteResult>> WatchChoicesAsync(
+        SocketAutocompleteInteraction interaction, string typed)
+    {
+        var library = await api.ListTitlesAsync(CancellationToken.None);
+        var here = TitleMatcher.Suggest(library, typed);
+
+        if (here.Count > 0 || typed.Trim().Length == 0)
+            return here.Select(t => new AutocompleteResult(Choice(t), t.Id));
+
+        var offered = await suggestions.SuggestAsync(
+            typed, interaction.User.Id.ToString(), CancellationToken.None);
+
+        return offered.Select(c => new AutocompleteResult(c.Label, TrackerPick.Value(c.TorrentId)));
     }
 
     /// <summary>

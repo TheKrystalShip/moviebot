@@ -123,7 +123,7 @@ public sealed class NotifyCommand(
 
         if (await AvailableNowAsync(imdbId, ct) is { } release)
             return new NotifyResult(NotifyStatus.AlreadyAvailable,
-                $"{film.Title} can be downloaded now. Download it with /find.",
+                $"{film.Title} can be downloaded now. Pick it from the search results in /watch.",
                 Wish: Describe(film), Release: release);
 
         var (outcome, wish) = wishes.Add(film, new WishSubscriber

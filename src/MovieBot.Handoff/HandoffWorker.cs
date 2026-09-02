@@ -139,6 +139,12 @@ public sealed class HandoffWorker(
             "Ingesting {Name} from {Source} as {Id} ({Title}), download at {Progress:P0}.",
             download.Name, Path.GetFileName(source), id, title, download.Progress);
 
+        // Written on the torrent before anything else happens, so whatever waits for the film
+        // to become watchable is holding the id it will go under by the time it does. A surface
+        // that had to derive it would be parsing the release name a second time, and two parsers
+        // do not disagree loudly: they open nothing.
+        await acquisition.TagAsync(download.Hash, TorrentTags.Library(id), ct);
+
         // Supplied only while the file is still arriving. A whole file is ingested exactly as
         // it always was, so the ordinary path keeps the behaviour that was measured against it.
         var availability = download.IsFinished

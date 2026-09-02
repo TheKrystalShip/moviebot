@@ -265,6 +265,38 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
 - **The spinner waits before it appears.** A stall shorter than a moment is a stutter, and flashing
   at one is worse than ignoring it.
 
+## Fetching a film through `/watch`
+
+There is one command for watching a film, and a film that is not here yet is fetched through it
+rather than through a second one. Everything here is about the seam between the two.
+
+- **The library answers first, and alone.** The menu offers the tracker only once nothing in the
+  library matches what was typed. A row offering to fetch a film beside the row that plays it is
+  how a library ends up holding the same film twice.
+- **A tracker row is told from a library row by its value alone.** The value is all a picked row
+  sends back, and a library id is a slug that can be entirely digits, so a torrent id is carried
+  under a prefix (`TrackerPick`) rather than bare.
+- **A pick from a voice channel is a request to watch, and the download is the means.** The room
+  is written on the torrent, and whichever pass of the watcher sees the film become watchable
+  loads it into that room exactly as `/watch` loads a film that was already here, then posts the
+  same launch, mentioning the person who asked. A pick from outside a voice channel is a download
+  and an announcement, and nothing more.
+- **The library id a film goes under is written by the hand-off, never derived by the bot.** The
+  hand-off tags the torrent with it before the transcode starts, so the pass that sees the film
+  become watchable is already holding the id it will answer to. Parsing the release name a second
+  time would not disagree loudly; it would open nothing.
+- **The reply to a pick is the waiting state, not the launch.** A film takes at least a minute to
+  become watchable and an interaction token does not outlast a slow download, so the launch is a
+  separate message posted when the film can be opened, which is also the only kind of message
+  that reaches the person who walked away.
+- **Watchable is waited for, not downloaded.** The transcode starts while the file is arriving and
+  the mark that the film can be opened is set seconds into it. The watcher acts on that mark
+  wherever the download has got to; waiting for the download to finish would sit on a playable
+  film for the length of the download.
+- **A room that changed its mind is left alone.** If the room already holds the film by the time
+  it can be watched, it is left where it is; if it holds another, it is switched, because that is
+  what the person asked for and what `/watch` does.
+
 ## Telling somebody about a download
 
 - **Editing a message notifies nobody.** Discord sends no notification for an edit, so a progress

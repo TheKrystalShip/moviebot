@@ -4,7 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.MovieBot.Acquire.Download;
 
-namespace TheKrystalShip.MovieBot.Bot.Find;
+namespace TheKrystalShip.MovieBot.Bot.Download;
 
 /// <summary>
 /// Keeps each download's message showing where that download has got to.
@@ -91,12 +91,14 @@ public sealed class DownloadProgressUpdater(
 
             var preparing = download.Tags.Contains(TorrentTags.NeedsIngest);
             var failed = download.Tags.Contains(TorrentTags.IngestFailed);
-            var rendered = Render(download, preparing, failed);
+            var watchable = download.Tags.Contains(TorrentTags.Watchable);
+            var rendered = Render(download, preparing, failed, watchable);
 
             if (_lastRendered.TryGetValue(download.Hash, out var previous) && previous == rendered)
                 continue;
 
-            if (!await TryEditAsync(target.ChannelId, target.MessageId, download, preparing, failed, ct))
+            if (!await TryEditAsync(
+                    target.ChannelId, target.MessageId, download, preparing, failed, watchable, ct))
                 continue;
 
             _lastRendered[download.Hash] = rendered;
@@ -117,7 +119,7 @@ public sealed class DownloadProgressUpdater(
 
     private async Task<bool> TryEditAsync(
         ulong channelId, ulong messageId, DownloadStatus download,
-        bool preparing, bool failed, CancellationToken ct)
+        bool preparing, bool failed, bool watchable, CancellationToken ct)
     {
         await PaceAsync(ct);
 
@@ -130,7 +132,7 @@ public sealed class DownloadProgressUpdater(
             // through the interaction would simply stop working partway through a long film.
             if (await channel.GetMessageAsync(messageId) is not IUserMessage message) return false;
 
-            var embed = DownloadEmbed.Progress(download, preparing, failed);
+            var embed = DownloadEmbed.Progress(download, preparing, failed, watchable);
             await message.ModifyAsync(m => m.Embed = embed);
 
             return true;
@@ -166,6 +168,6 @@ public sealed class DownloadProgressUpdater(
         }
     }
 
-    private static string Render(DownloadStatus download, bool preparing, bool failed) =>
-        DownloadEmbed.Signature(download, preparing, failed);
+    private static string Render(DownloadStatus download, bool preparing, bool failed, bool watchable) =>
+        DownloadEmbed.Signature(download, preparing, failed, watchable);
 }

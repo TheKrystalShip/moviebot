@@ -14,11 +14,11 @@ public static class WatchSlashCommand
     public static SlashCommandProperties Build() =>
         new SlashCommandBuilder()
             .WithName(Name)
-            .WithDescription("Start a film in your voice channel")
+            .WithDescription("Watch a film in your voice channel, fetching it first if it is not here yet")
             .AddOption(
                 TitleOption,
                 ApplicationCommandOptionType.String,
-                "Which film, by name or id",
+                "Which film. Films already here are listed; anything else is searched for",
                 isRequired: true,
                 isAutocomplete: true)
             .Build();

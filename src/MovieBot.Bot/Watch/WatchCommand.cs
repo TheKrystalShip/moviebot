@@ -78,7 +78,8 @@ public sealed class WatchCommand(
         {
             case TitleMatchKind.NotFound:
                 return new WatchResult(WatchStatus.TitleNotFound,
-                    $"Nothing in the library matches \"{request.Query}\". Ask for one of these: "
+                    $"Nothing in the library matches \"{request.Query}\". Run the command again and "
+                    + "pick it from the search results to fetch it, or ask for one of these: "
                     + Names(match.Candidates));
 
             case TitleMatchKind.Ambiguous:

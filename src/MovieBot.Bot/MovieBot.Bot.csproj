@@ -8,7 +8,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Bot</RootNamespace>
     <AssemblyName>moviebot-bot</AssemblyName>
-    <Version>0.8.0</Version>
+    <Version>0.9.0</Version>
 
     <!-- The token is supplied by the environment in production and by user-secrets in
          development. Nothing about it is ever written into the repository. -->

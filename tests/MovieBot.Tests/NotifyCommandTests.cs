@@ -210,7 +210,7 @@ public sealed class NotifyCommandTests : IDisposable
 
         Assert.Equal(NotifyStatus.AlreadyAvailable, result.Status);
         Assert.Equal("The.Devil.Wears.Prada.2.2026.1080p.WEB-DL-GRP", result.Release?.ReleaseName);
-        Assert.Contains("/find", result.Message);
+        Assert.Contains("/watch", result.Message);
         Assert.Empty(_wishes.All());
     }
 

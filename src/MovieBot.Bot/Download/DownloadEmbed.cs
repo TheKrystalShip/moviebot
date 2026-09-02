@@ -2,7 +2,7 @@ using Discord;
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Search;
 
-namespace TheKrystalShip.MovieBot.Bot.Find;
+namespace TheKrystalShip.MovieBot.Bot.Download;
 
 /// <summary>
 /// Every way a download is shown, in one place.
@@ -16,25 +16,37 @@ public static class DownloadEmbed
 {
     private const int BarWidth = 20;
 
-    /// <summary>The message as it first appears, before there is any progress to report.</summary>
-    public static Embed Starting(Release release) =>
-        new EmbedBuilder()
+    /// <summary>
+    /// The message as it first appears, before there is any progress to report. It names the
+    /// room the film will play in when there is one, because that is the whole of what the
+    /// person is waiting for.
+    /// </summary>
+    public static Embed Starting(Release release, string? roomName = null)
+    {
+        var embed = new EmbedBuilder()
             .WithTitle(release.Display)
             .WithDescription(release.ReleaseName)
             .AddField("Quality", release.Summary, inline: false)
             .AddField("Progress", $"{Bar(0)}  starting", inline: false)
             .WithColor(Color.Blue)
-            .WithCurrentTimestamp()
-            .Build();
+            .WithCurrentTimestamp();
+
+        if (roomName is not null)
+            embed.AddField("Plays in", $"{roomName}, as soon as enough of it has arrived", inline: false);
+
+        return embed.Build();
+    }
 
     /// <summary>The message while the film is on its way, or once it has arrived.</summary>
-    public static Embed Progress(DownloadStatus download, bool preparing, bool failed)
+    public static Embed Progress(DownloadStatus download, bool preparing, bool failed, bool watchable)
     {
         if (failed) return Failed(download);
 
         if (download.IsFinished && preparing)
             return new EmbedBuilder()
-                .WithTitle("Downloaded — preparing it for playback")
+                .WithTitle(watchable
+                    ? "Downloaded — playing while the rest is prepared"
+                    : "Downloaded — preparing it for playback")
                 .WithDescription(download.Name)
                 .AddField("Progress", $"{Bar(1)}  100%", inline: false)
                 .WithColor(Color.Gold)
@@ -42,8 +54,10 @@ public static class DownloadEmbed
 
         if (download.IsFinished) return Ready(download);
 
+        // A film that can already be watched says so above its own bar: the bar is then about
+        // how much of it is here, not about whether anybody can start.
         return new EmbedBuilder()
-            .WithTitle("Downloading")
+            .WithTitle(watchable ? "Downloading — already watchable" : "Downloading")
             .WithDescription(download.Name)
             .AddField("Progress", $"{Bar(download.Progress)}  {download.Progress:P0}", inline: false)
             .AddField("Speed", Rate(download), inline: true)
@@ -87,11 +101,11 @@ public static class DownloadEmbed
     /// Derived from the same values the embed is, so the two cannot disagree about whether
     /// anything changed.
     /// </summary>
-    public static string Signature(DownloadStatus download, bool preparing, bool failed) =>
+    public static string Signature(DownloadStatus download, bool preparing, bool failed, bool watchable) =>
         failed ? "failed"
-        : download.IsFinished && preparing ? "preparing"
+        : download.IsFinished && preparing ? $"preparing|{watchable}"
         : download.IsFinished ? "ready"
-        : $"{download.Progress:P0}|{Rate(download)}|{download.Seeds}|{download.State}";
+        : $"{download.Progress:P0}|{Rate(download)}|{download.Seeds}|{download.State}|{watchable}";
 
     /// <summary>
     /// The film's name, read from the release the same way every other part of the pipeline reads
