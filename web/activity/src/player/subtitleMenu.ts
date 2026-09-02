@@ -13,8 +13,16 @@ export interface SubtitleMenuHooks {
   unpin(trackId: string): Promise<void>;
 }
 
-/** A short note beside a row, and how loudly to say it. */
+/**
+ * A mark beside a row, and what it means.
+ *
+ * A mark rather than a sentence: rows carry release names that are already long, and a phrase
+ * beside each one pushes the list past the height of the menu. The glyphs are typography rather
+ * than pictures, so they inherit the row's colour and size, and the words live on the mark itself
+ * where both a pointer and a screen reader can reach them.
+ */
 interface Note {
+  glyph: string;
   text: string;
   tone: 'good' | 'warn' | 'bad';
 }
@@ -169,7 +177,8 @@ export class SubtitleMenu {
         note: noteFor(track),
         selected: this.selected === track.id,
         enabled: track.available,
-        unavailable: track.available ? undefined : (track.reason ?? 'unavailable')
+        unavailable: track.available ? undefined : (track.reason ?? 'unavailable'),
+        describe: track.available ? describe(track) : undefined
       });
 
       if (track.available) row.appendChild(this.pinControl(track));
@@ -179,9 +188,8 @@ export class SubtitleMenu {
     // A film that plainly carries thirty languages and offers three would otherwise read as
     // broken. One line answers it, where thirty rows would be the thing being avoided.
     if (this.others.length > 0) {
-      const line = this.message(
-        `${this.others.length} other ${this.others.length === 1 ? 'language' : 'languages'} in the source, not extracted`);
-      line.title = this.others.join(', ');
+      const line = this.message(`+${this.others.length} more languages in the source`);
+      line.title = `Not extracted: ${this.others.join(', ')}`;
       section.appendChild(line);
     }
 
@@ -195,10 +203,14 @@ export class SubtitleMenu {
     button.type = 'button';
     button.className = 'mb-subs__pin';
     button.classList.toggle('is-pinned', pinned);
-    button.textContent = pinned ? 'Confirmed' : 'Confirm';
-    button.title = pinned
-      ? 'Remove the confirmation on this track'
-      : 'Say this track fits the film, so the next person sees it first';
+    button.textContent = '\u2713';
+
+    // The control is the state as well as the action, so there is no second mark saying the same
+    // thing. What it means in full is on the control rather than in the row.
+    const said = pinned ? confirmation(track.pin!) : 'Confirm this track fits the film';
+    button.title = pinned ? `${said} — click to undo` : said;
+    button.setAttribute('aria-label', said);
+    button.setAttribute('aria-pressed', String(pinned));
 
     button.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -241,7 +253,8 @@ export class SubtitleMenu {
       if (heading !== null) {
         const left = document.createElement('span');
         left.className = 'mb-subs__quota';
-        left.textContent = `${this.found.remainingDownloads} left today`;
+        left.textContent = `${this.found.remainingDownloads} left`;
+        left.title = `${this.found.remainingDownloads} subtitle downloads left today`;
         heading.appendChild(left);
       }
     }
@@ -252,7 +265,7 @@ export class SubtitleMenu {
     const offered = this.found.candidates.filter((c) => !held.has(`os${c.fileId}`));
 
     if (offered.length === 0) {
-      section.appendChild(this.message(this.found.explanation ?? 'Nothing here the room does not already have.'));
+      section.appendChild(this.message(this.found.explanation ?? 'Nothing new here.'));
       return section;
     }
 
@@ -263,6 +276,7 @@ export class SubtitleMenu {
         note: noteForCandidate(candidate),
         selected: false,
         enabled: this.busy === null,
+        describe: candidate.release === '' ? 'Release not stated' : candidate.release,
         onPick: () => void this.take(candidate)
       });
 
@@ -303,6 +317,7 @@ export class SubtitleMenu {
     selected: boolean;
     enabled: boolean;
     unavailable?: string;
+    describe?: string;
     onPick?: () => void;
   }): HTMLElement {
     const row = document.createElement('div');
@@ -324,10 +339,11 @@ export class SubtitleMenu {
     if (options.unavailable !== undefined) {
       pick.disabled = true;
       pick.classList.add('is-unavailable');
-      pick.appendChild(this.detail({ text: options.unavailable, tone: 'warn' }));
+      pick.appendChild(this.mark({ glyph: '!', text: options.unavailable, tone: 'warn' }));
       pick.title = `${options.label} — ${options.unavailable}`;
     } else {
-      if (options.note !== undefined) pick.appendChild(this.detail(options.note));
+      if (options.note !== undefined) pick.appendChild(this.mark(options.note));
+      if (options.describe !== undefined) pick.title = options.describe;
 
       pick.disabled = !options.enabled;
       pick.addEventListener('click', (event) => {
@@ -347,14 +363,18 @@ export class SubtitleMenu {
     return row;
   }
 
-  private detail(note: Note): HTMLElement {
-    const detail = document.createElement('span');
-    detail.className = `mb-menu__item-detail mb-subs__note is-${note.tone}`;
+  private mark(note: Note): HTMLElement {
+    const mark = document.createElement('span');
+    mark.className = `mb-menu__item-detail mb-subs__mark is-${note.tone}`;
+    mark.textContent = note.glyph;
 
-    // The words carry it and the colour agrees with them. A marker that only differs by hue is
-    // one some of the room cannot read.
-    detail.textContent = note.text;
-    return detail;
+    // The glyph is what is seen and the words are what it means, so both a pointer and a screen
+    // reader reach the same thing. Colour agrees with the glyph rather than carrying it alone:
+    // a marker that differs only by hue is one part of the room cannot read.
+    mark.title = note.text;
+    mark.setAttribute('role', 'img');
+    mark.setAttribute('aria-label', note.text);
+    return mark;
   }
 }
 
@@ -363,53 +383,62 @@ function rank(track: SubtitleTrack): number {
   return track.pin === undefined ? 1 : 0;
 }
 
-/**
- * What to say about a track the room already has.
- *
- * A track that came out of the film says nothing, because nothing about it has been measured:
- * there is no frame rate to disagree with and no release to mismatch, and a green tick on an
- * unmeasured track would be inventing the one answer that matters.
- */
-function noteFor(track: SubtitleTrack): Note | undefined {
-  if (track.pin !== undefined) {
-    const watched = track.pin.watchedFraction;
-    const how = watched === undefined
-      ? ''
-      : watched >= 0.8 ? ', watched to the end' : `, ${Math.round(watched * 100)}% in`;
+/** What a confirmation amounts to, in the words the control carries. */
+function confirmation(pin: NonNullable<SubtitleTrack['pin']>): string {
+  const watched = pin.watchedFraction;
+  const how = watched === undefined
+    ? ''
+    : watched >= 0.8 ? ', watched to the end' : `, ${Math.round(watched * 100)}% in`;
 
-    return { text: `confirmed by ${track.pin.pinnedBy}${how}`, tone: 'good' };
-  }
-
-  if (track.source !== 'sidecar') return undefined;
-
-  if (track.alignedFraction === undefined) {
-    return { text: 'not checked against the film', tone: 'warn' };
-  }
-
-  const shift = track.appliedShiftSeconds ?? 0;
-  return shift === 0
-    ? { text: 'matched to your copy', tone: 'good' }
-    : { text: `shifted ${shift > 0 ? '+' : ''}${shift.toFixed(1)}s to fit`, tone: 'good' };
+  return `Confirmed by ${pin.pinnedBy}${how}`;
 }
 
 /**
- * What to say about a subtitle on offer.
+ * What to mark a track the room already has.
  *
- * Silence is the ordinary answer. Most uploads declare nothing useful, so marking every one of
- * them would leave the whole list flagged and the flags meaning nothing. Only a strong claim or a
- * real problem earns a word.
+ * A confirmation is not marked here: the confirm control is both the state and the action, so a
+ * second mark beside it would say the same thing twice. A track that came out of the film is not
+ * marked either, because nothing about it has been measured — there is no frame rate for it to
+ * disagree with and no release for it to mismatch, and a mark would be inventing the one answer
+ * that matters.
+ */
+function noteFor(track: SubtitleTrack): Note | undefined {
+  if (track.pin !== undefined || track.source !== 'sidecar') return undefined;
+
+  return track.alignedFraction === undefined
+    ? { glyph: '?', text: 'Not checked against the film', tone: 'warn' }
+    : undefined;
+}
+
+/** The full state of a row, for a pointer resting on it. */
+function describe(track: SubtitleTrack): string {
+  if (track.pin !== undefined) return `${track.label} — ${confirmation(track.pin)}`;
+  if (track.source !== 'sidecar') return `${track.label} — came with the film`;
+
+  if (track.alignedFraction === undefined) return `${track.label} — not checked against the film`;
+
+  const shift = track.appliedShiftSeconds ?? 0;
+  return shift === 0
+    ? `${track.label} — matched to your copy`
+    : `${track.label} — shifted ${shift > 0 ? '+' : ''}${shift.toFixed(1)}s to fit your copy`;
+}
+
+/**
+ * What to mark a subtitle on offer.
+ *
+ * Nothing is the ordinary answer. Most uploads declare nothing useful, so marking every one of
+ * them would leave the whole list marked and the marks meaning nothing.
  */
 function noteForCandidate(candidate: SubtitleCandidate): Note | undefined {
   const exact = candidate.checks.find((c) => c.name === 'This file' && c.result === 'match');
-  if (exact !== undefined) return { text: 'timed for your exact copy', tone: 'good' };
-
-  const wrong = candidate.checks.find((c) => c.result === 'mismatch');
-  if (wrong !== undefined) {
-    return {
-      text: wrong.detail,
-      tone: wrong.name === 'Frame rate' ? 'bad' : 'warn'
-    };
+  if (exact !== undefined) {
+    return { glyph: '\u2713', text: 'Timed for your exact copy', tone: 'good' };
   }
 
-  return undefined;
+  const wrong = candidate.checks.find((c) => c.result === 'mismatch');
+  if (wrong === undefined) return undefined;
+
+  return wrong.name === 'Frame rate'
+    ? { glyph: '\u2717', text: wrong.detail, tone: 'bad' }
+    : { glyph: '!', text: wrong.detail, tone: 'warn' };
 }

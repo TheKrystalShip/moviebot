@@ -507,10 +507,16 @@ body {
 
 /* The subtitle picker.
    Wider than the audio menu because its rows carry release names, which are long and are the
-   whole point: three rows reading "English" cannot be chosen between. */
+   whole point: three rows reading "English" cannot be chosen between. Rows are tighter than the
+   audio menu's for the same reason the list is short — the menu has to fit without scrolling. */
 .mb-subs .mb-menu__popup {
   min-width: 340px;
   max-width: min(440px, 90vw);
+  padding: 4px;
+}
+
+.mb-subs .mb-menu__item {
+  padding: 4px 8px;
 }
 
 .mb-subs .mb-menu__heading {
@@ -518,6 +524,7 @@ body {
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
+  padding: 5px 8px 3px;
 }
 
 .mb-subs__quota {
@@ -530,7 +537,7 @@ body {
 .mb-subs__row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   border-radius: 3px;
 }
 
@@ -549,28 +556,41 @@ body {
   white-space: nowrap;
 }
 
-/* Kept out of the way until it is wanted. A confirm control on every row at all times is noise
-   on the many rows nobody is going to vouch for. */
-.mb-subs__pin {
+/* A mark rather than a phrase. It holds one glyph, so it is given a fixed width and the rows line
+   up down the edge of the menu instead of ending wherever their text happens to. */
+.mb-subs__mark {
   flex: none;
-  margin-right: 6px;
-  padding: 3px 7px;
-  font: inherit;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  cursor: pointer;
-  visibility: hidden;
+  width: 1.2em;
+  font-size: 13px;
+  text-align: center;
+  cursor: help;
 }
 
-.mb-subs__row:hover .mb-subs__pin,
-.mb-subs__pin:focus-visible,
-.mb-subs__pin.is-pinned {
-  visibility: visible;
+.mb-subs__mark.is-good { color: var(--accent); }
+.mb-subs__mark.is-warn { color: var(--warn); }
+.mb-subs__mark.is-bad { color: var(--danger); }
+
+/* Always shown, because it is the state as much as the action: whether anybody has confirmed a
+   track has to be readable without hovering every row to find out. */
+.mb-subs__pin {
+  flex: none;
+  width: 22px;
+  margin-right: 4px;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--border);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.mb-subs__row:hover .mb-subs__pin {
+  color: var(--muted);
+  border-color: var(--border);
 }
 
 .mb-subs__pin:hover {
@@ -578,26 +598,21 @@ body {
   border-color: var(--dim);
 }
 
-.mb-subs__pin.is-pinned {
+.mb-subs__pin.is-pinned,
+.mb-subs__row:hover .mb-subs__pin.is-pinned {
   color: var(--accent);
   border-color: var(--accent-dim);
 }
 
-/* The words carry the meaning and the colour agrees with them, because a marker that differs only
-   by hue is one part of the room cannot read. */
-.mb-subs__note.is-good { color: var(--accent); }
-.mb-subs__note.is-warn { color: var(--warn); }
-.mb-subs__note.is-bad { color: var(--danger); }
-
 .mb-subs__message {
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 4px 8px;
+  font-size: 11px;
   color: var(--muted);
 }
 
 .mb-subs__ask {
-  margin: 2px 10px 6px;
-  padding: 5px 10px;
+  margin: 2px 8px 4px;
+  padding: 4px 10px;
   font: inherit;
   font-size: 12px;
   color: var(--text);

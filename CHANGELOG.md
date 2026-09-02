@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.1] - 2026-09-02
+
+### Changed
+
+- The subtitle picker fits without scrolling. Six candidates are offered rather than twelve, since
+  the list is ranked and a longer one only adds worse answers below the good ones, and the rows are
+  tighter.
+- Rows carry a mark rather than a sentence. The words are on the mark, where a pointer and a screen
+  reader both reach them, and the whole state of a row is on the row itself. The confirm control is
+  the confirmation as well as the action, so nothing says it twice.
+
 ## [1.11.0] - 2026-09-02
 
 ### Added

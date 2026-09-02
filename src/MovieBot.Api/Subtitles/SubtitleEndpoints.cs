@@ -44,8 +44,11 @@ public sealed record PinSubtitleRequest(string? PinnedBy, double? PositionSecond
 
 public static class SubtitleEndpoints
 {
-    /// <summary>Enough candidates to choose from, few enough to read.</summary>
-    private const int MostToOffer = 12;
+    /// <summary>
+    /// Enough candidates to choose from, few enough that the menu does not have to be scrolled.
+    /// The list is ranked, so a longer one only adds worse answers below the good ones.
+    /// </summary>
+    private const int MostToOffer = 6;
 
     public static void MapSubtitles(this WebApplication app)
     {

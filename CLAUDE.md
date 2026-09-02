@@ -198,9 +198,15 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
   disagree with and no release to mismatch, so an unconfirmed embedded track says nothing at all.
   A quality mark there would be inventing the one answer that matters.
 - **Silence is the ordinary answer in the picker.** Most uploads declare nothing useful. Marking
-  every one of them leaves the whole list flagged and the flags meaning nothing, so only a strong
-  claim or a real problem earns a word — and the words carry it, with colour agreeing rather than
-  standing alone.
+  every one of them leaves the whole list marked and the marks meaning nothing, so only a strong
+  claim or a real problem earns one.
+- **A row carries a mark, not a sentence.** Rows already hold release names, and a phrase beside
+  each one pushes the list past the height of the menu. The glyphs are typography rather than
+  pictures, so they take the row's colour and size, and what they mean rides on the mark itself
+  where a pointer and a screen reader both reach it. Colour agrees with the glyph rather than
+  carrying the meaning alone.
+- **The menu has to fit without being scrolled.** The candidate list is ranked, so showing more of
+  it only adds worse answers underneath the good ones while pushing the good ones off screen.
 
 ## Telling somebody about a download
 
