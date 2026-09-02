@@ -127,8 +127,14 @@ app.MapGet("/health", (SessionStore sessions) =>
 
 // The application id is not a secret — it is in every invite link and in the Activity's own URL.
 // Serving it means the player needs no build-time configuration and no rebuild when it changes.
-app.MapGet("/api/config", (IOptions<DiscordAuthOptions> discord) =>
-    Results.Ok(new { discordClientId = discord.Value.ClientId }));
+// The public address rides along for the same reason: it is where Discord's own servers fetch a
+// poster from, which the page cannot learn from an origin that is Discord's proxy.
+app.MapGet("/api/config", (IOptions<DiscordAuthOptions> discord, IConfiguration configuration) =>
+    Results.Ok(new
+    {
+        discordClientId = discord.Value.ClientId,
+        publicBaseUrl = configuration["Api:PublicBaseUrl"] is { Length: > 0 } url ? url.TrimEnd('/') : null
+    }));
 
 app.MapGet("/api/titles", (TitleLibrary library) => Results.Ok(library.List()));
 
@@ -136,6 +142,10 @@ app.MapGet("/api/titles/{id}", (string id, TitleLibrary library) =>
     library.Get(id) is { } manifest ? Results.Ok(manifest) : Results.NotFound());
 
 app.MapSubtitles();
+
+// Every room, for the bot: it holds no state of its own, so what to say about rooms it reads
+// from here each time it is about to say it.
+app.MapGet("/api/sessions", (SessionStore sessions) => Results.Ok(sessions.Summaries()));
 
 app.MapGet("/api/sessions/{sessionId}", (string sessionId, SessionStore sessions) =>
     Results.Ok(new SessionStatePush

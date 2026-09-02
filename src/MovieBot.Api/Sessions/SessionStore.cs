@@ -181,6 +181,36 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
             .Where(s => !s.Value.Participants.IsEmpty)
             .Select(s => (s.Key, s.Value.Participants.Count))];
 
+    /// <summary>
+    /// Every room with what it is watching and how many are in it. Names are left out: this is
+    /// what tells the rest of the server about rooms, and who is in one stays inside it.
+    /// </summary>
+    public IReadOnlyList<RoomSummary> Summaries()
+    {
+        var now = clock.GetUtcNow();
+        var rooms = new List<RoomSummary>();
+
+        foreach (var (id, entry) in _sessions)
+        {
+            SessionState state;
+            lock (entry.Gate) state = entry.State;
+
+            var manifest = state.TitleId is { } titleId ? library.Get(titleId) : null;
+            rooms.Add(new RoomSummary
+            {
+                SessionId = id,
+                TitleId = state.TitleId,
+                Name = manifest is null ? null : manifest.Film?.Display ?? manifest.Title,
+                DurationSeconds = manifest?.DurationSeconds,
+                Paused = state.Paused,
+                PositionSeconds = state.PositionAt(now),
+                Participants = entry.Participants.Count
+            });
+        }
+
+        return rooms;
+    }
+
     /// <summary>Every room as it stands, for writing down.</summary>
     public IReadOnlyList<PersistedSession> Snapshot()
     {

@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.0] - 2026-09-02
+
+### Added
+
+- Discord says what is being watched. The bot's status reads "Watching Dune (2021)" while one room
+  is watching a film, counts them when several are, and shows nothing when none is. The line under
+  each room's voice channel names the film and where it has got to, to the minute, or says it is
+  paused, and is cleared when the room empties — including a line left behind by a bot that died
+  mid-film, which it recognises as its own on the next start. Both are read from a new room listing
+  on the API on every pass, so the bot remembers nothing. The bot needs Set Voice Channel Status
+  and Manage Channels for the second, and the invite it logs carries them.
+- Each viewer's own presence comes from the Activity: the film's name and poster beside their
+  name, a bar running from where the room is to the end of the film while it plays, "Paused" when
+  it is not, and how many others are in the room. This is the one place Discord gives real rich
+  presence to, and it costs one more OAuth scope, so the Activity asks once more for consent the
+  first time it is opened after this.
+- `/api/config` carries the API's public address, from `Api__PublicBaseUrl`, which is where
+  Discord's servers fetch a poster from.
+
 ## [1.21.0] - 2026-09-02
 
 ### Fixed

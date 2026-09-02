@@ -52,10 +52,22 @@ public sealed class MovieBotApiClient(HttpClient http)
         }
     }
 
-    /// <summary>
-    /// Whether the API is answering. Used at startup so an unreachable backend is reported once,
-    /// on the log, rather than for the first time in front of a room.
-    /// </summary>
+    /// <summary>Every room, with what it is watching and how many are in it.</summary>
+    public async Task<IReadOnlyList<RoomSummary>> ListRoomsAsync(CancellationToken ct)
+    {
+        try
+        {
+            var rooms = await http.GetFromJsonAsync(
+                "api/sessions", ManifestJsonContext.Default.IReadOnlyListRoomSummary, ct);
+            return rooms ?? [];
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
+                                   && !ct.IsCancellationRequested)
+        {
+            throw new MovieBotApiException("The rooms could not be read.", ex);
+        }
+    }
+
     /// <summary>
     /// Puts the film into the room before anyone opens it.
     ///
@@ -81,6 +93,10 @@ public sealed class MovieBotApiClient(HttpClient http)
         return push.State;
     }
 
+    /// <summary>
+    /// Whether the API is answering. Used at startup so an unreachable backend is reported once,
+    /// on the log, rather than for the first time in front of a room.
+    /// </summary>
     public async Task<bool> IsHealthyAsync(CancellationToken ct)
     {
         try

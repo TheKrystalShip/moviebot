@@ -14,6 +14,23 @@ export interface Identity {
   displayName: string;
 }
 
+/**
+ * What this viewer is watching, for the front door to show beside their name where it can.
+ * Everything here is already known to the page; the front door only puts it into words.
+ */
+export interface Presence {
+  titleId: string;
+  filmName: string;
+  durationSeconds: number;
+  paused: boolean;
+  /** Where the room is, as of now. */
+  positionSeconds: number;
+  /** How many other people are in the room. */
+  others: number;
+  /** The poster's file name under the title's media directory, when the film has one. */
+  poster: string | null;
+}
+
 export interface Environment {
   readonly name: string;
   /** Absolute URL for an API path such as `/api/titles`. */
@@ -32,6 +49,8 @@ export interface Environment {
    */
   authToken(): string | null;
   identity(): Promise<Identity>;
+  /** Shows what this viewer is watching, or nothing when null. A front door with nowhere to show it does nothing. */
+  setPresence(presence: Presence | null): Promise<void>;
 }
 
 const IdentityKey = 'moviebot.identity.v1';
@@ -103,7 +122,8 @@ export const browserEnvironment: Environment = {
   hubUrl: () => `${defaultApiBase()}/hub/session`,
   sessionId: resolveSessionId,
   titleId: () => query('title'),
-  identity: localIdentity
+  identity: localIdentity,
+  setPresence: () => Promise.resolve()
 };
 
 let current: Environment = browserEnvironment;

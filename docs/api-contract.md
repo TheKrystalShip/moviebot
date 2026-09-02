@@ -9,9 +9,11 @@ Default listen address is `http://127.0.0.1:8099`. The media root comes from `Me
 
 | Route | Returns |
 |---|---|
-| `GET /health` | `{"status":"ok"}` |
+| `GET /health` | `{"status":"ok","rooms":n,"watching":n}` — occupied rooms and people, no names |
+| `GET /api/config` | `{discordClientId, publicBaseUrl?}` |
 | `GET /api/titles` | `TitleSummary[]` |
 | `GET /api/titles/{id}` | `Manifest`, or 404 |
+| `GET /api/sessions` | `RoomSummary[]` — every room, what it is watching, how many are in it |
 | `GET /api/sessions/{id}` | `SessionStatePush` — creates the session if new |
 | `GET /api/sessions/{id}/participants` | `Participant[]` |
 | `GET,HEAD /media/{id}/**` | playlists, segments, subtitles, poster |
@@ -74,6 +76,11 @@ A track with `available: false` is listed on purpose — a language that is simp
 menu reads as a bug. Render it disabled with its `reason`, do not hide it.
 
 `TitleSummary` is `{id, title, durationSeconds, status, headSeconds?, poster?}`.
+
+`RoomSummary` is `{sessionId, titleId?, name?, durationSeconds?, paused, positionSeconds,
+participants}`. `name` is what the film is called, `positionSeconds` is where the room was when
+the listing was taken, and `participants` is a count: the people in a room are listed by the room
+itself, never here.
 
 ## Hub
 

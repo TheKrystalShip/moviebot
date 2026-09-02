@@ -61,11 +61,15 @@ public sealed class DiscordBotService(
                 applicationId,
                 // CreateInstantInvite is what an Activity launch is made of, so it belongs in
                 // the link that installs the bot rather than being discovered missing the first
-                // time somebody asks for a film in a voice channel.
+                // time somebody asks for a film in a voice channel. The line under a voice channel
+                // needs both of the last two: Discord asks for Manage Channels as well from a bot
+                // that is not itself connected to the channel.
                 (ulong)(GuildPermission.CreateInstantInvite
                         | GuildPermission.ViewChannel
                         | GuildPermission.SendMessages
-                        | GuildPermission.EmbedLinks));
+                        | GuildPermission.EmbedLinks
+                        | GuildPermission.SetVoiceChannelStatus
+                        | GuildPermission.ManageChannels));
 
         await client.LoginAsync(TokenType.Bot, options.Value.Token);
         await client.StartAsync();

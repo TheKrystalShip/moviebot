@@ -17,6 +17,9 @@ EnvironmentFile=/etc/moviebot/moviebot.env
 Environment=Media__Root=/home/heisen/tks/moviebot/media
 Environment=Subtitles__Root=/var/lib/moviebot/subtitles
 Environment=ASPNETCORE_URLS=http://127.0.0.1:8099
+# Where Discord's own servers reach this API. The Activity builds poster URLs for a viewer's
+# presence from it, because its own origin is Discord's proxy and reachable from nowhere else.
+Environment=Api__PublicBaseUrl=https://movies.thekrystalship.com
 Environment=DOTNET_EnableDiagnostics=0
 
 Restart=on-failure

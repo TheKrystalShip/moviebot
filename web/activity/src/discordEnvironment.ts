@@ -1,5 +1,5 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
-import type { Environment, Identity } from './environment';
+import type { Environment, Identity, Presence } from './environment';
 
 /**
  * The player, as a Discord Activity.
@@ -23,18 +23,25 @@ interface AuthResult {
   user: { id: string; username: string; displayName: string };
 }
 
-export async function createDiscordEnvironment(clientId: string): Promise<Environment> {
+/** Discord's activity type that renders as "Watching {name}". */
+const Watching = 3;
+
+export async function createDiscordEnvironment(
+  clientId: string,
+  publicBaseUrl: string | null
+): Promise<Environment> {
   const sdk = new DiscordSDK(clientId);
   await sdk.ready();
 
-  // identify alone. The Activity needs to know who is watching so the room can attribute a pause;
-  // it has no business reading anyone's guilds, connections or email.
+  // Two scopes and no more. The Activity needs to know who is watching so the room can attribute
+  // a pause, and it writes what they are watching beside their name; it has no business reading
+  // anyone's guilds, connections or email.
   const { code } = await sdk.commands.authorize({
     client_id: clientId,
     response_type: 'code',
     state: '',
     prompt: 'none',
-    scope: ['identify']
+    scope: ['identify', 'rpc.activities.write']
   });
 
   // The secret that redeems this code lives on the server. The player only ever handles the code
@@ -67,6 +74,48 @@ export async function createDiscordEnvironment(clientId: string): Promise<Enviro
 
   const origin = window.location.origin;
 
+  // Where Discord's own servers can fetch a poster from. The page's origin is Discord's proxy,
+  // which is reachable from inside the Activity and from nowhere else.
+  const posterBase = publicBaseUrl ?? origin;
+
+  /**
+   * What the viewer is watching, put beside their name. A film playing is a bar that runs from
+   * where the room is to the end of the film; a paused one says so and carries no clock. Nothing
+   * here is sent again on a timer: the bar is two instants, and Discord draws the rest.
+   */
+  async function setPresence(presence: Presence | null): Promise<void> {
+    try {
+      if (presence === null) {
+        await sdk.commands.setActivity({ activity: null });
+        return;
+      }
+
+      const now = Date.now();
+      const start = now - presence.positionSeconds * 1000;
+      const others = presence.others;
+      const company = others === 0 ? null : others === 1 ? 'With one other person' : `With ${others} others`;
+
+      await sdk.commands.setActivity({
+        activity: {
+          type: Watching,
+          details: presence.filmName,
+          state: presence.paused ? 'Paused' : company,
+          timestamps: presence.paused
+            ? null
+            : { start: Math.floor(start), end: Math.floor(start + presence.durationSeconds * 1000) },
+          assets: presence.poster === null
+            ? null
+            : {
+              large_image: `${posterBase}/media/${presence.titleId}/${presence.poster}`,
+              large_text: presence.filmName
+            }
+        }
+      });
+    } catch {
+      // A client that will not show it is not a reason to interrupt the film.
+    }
+  }
+
   return {
     name: 'discord-activity',
     apiUrl: (path) => `${origin}${path.startsWith('/') ? path : `/${path}`}`,
@@ -78,6 +127,7 @@ export async function createDiscordEnvironment(clientId: string): Promise<Enviro
     sessionId: () => sessionId,
     authToken: () => auth.roomToken,
     titleId: () => new URLSearchParams(window.location.search).get('title'),
-    identity: async () => identity
+    identity: async () => identity,
+    setPresence
   };
 }

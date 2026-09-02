@@ -42,6 +42,7 @@ public sealed record LibraryTitle
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     UseStringEnumConverter = true)]
 [JsonSerializable(typeof(IReadOnlyList<LibraryTitle>))]
+[JsonSerializable(typeof(Presence.VoiceStatusRequest))]
 public partial class BotJsonContext : JsonSerializerContext;
 
 /// <summary>

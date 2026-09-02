@@ -95,3 +95,27 @@ public sealed record Participant
     public required string UserId { get; init; }
     public required string DisplayName { get; init; }
 }
+
+/// <summary>
+/// One room as it stands, for whatever tells people about rooms from outside them: the bot's
+/// status line, a voice channel's. It says what the room is watching and how many are in it, and
+/// never who, because the people in a room are the room's business.
+/// </summary>
+public sealed record RoomSummary
+{
+    public required string SessionId { get; init; }
+
+    public string? TitleId { get; init; }
+
+    /// <summary>What the film is called: the catalogue's name where there is one.</summary>
+    public string? Name { get; init; }
+
+    public double? DurationSeconds { get; init; }
+
+    public bool Paused { get; init; }
+
+    /// <summary>Where the room is, as of the moment the summary was taken.</summary>
+    public double PositionSeconds { get; init; }
+
+    public int Participants { get; init; }
+}

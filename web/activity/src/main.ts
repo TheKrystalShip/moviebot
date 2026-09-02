@@ -8,7 +8,7 @@ import { FilmPlayer } from './player/filmPlayer';
 import { prefs } from './prefs';
 import { SessionHub } from './session/hub';
 import { SyncController } from './session/sync';
-import type { Manifest, SessionState } from './types';
+import type { Manifest, Participant, SessionState } from './types';
 import { Shell } from './ui/shell';
 
 const ManifestPollMs = 5000;
@@ -39,6 +39,7 @@ async function boot(): Promise<void> {
   // null makes an empty room indistinguishable from one nothing has been heard about yet.
   let loadedTitleId: string | null | undefined;
   let previousState: SessionState | null = null;
+  let participants: Participant[] = [];
   let pollTimer: number | null = null;
   /** The film the launch named, which is the only thing that knows what an empty room should hold. */
   const launched = env.titleId();
@@ -52,7 +53,11 @@ async function boot(): Promise<void> {
   const hub = new SessionHub(identity, sessionId, {
     onState: (push, resync) => controller?.applyPush(push, resync),
     onSeekClamped: (clamp) => shell.clampNotice(clamp),
-    onParticipants: (list) => shell.setParticipants(list),
+    onParticipants: (list) => {
+      participants = list;
+      shell.setParticipants(list);
+      void showPresence();
+    },
     onStatus: (status) => {
       shell.setConnection(status);
       // Nothing is derived forward from a room that cannot be heard from. Its anchor runs whether
@@ -101,6 +106,7 @@ async function boot(): Promise<void> {
   function onState(state: SessionState): void {
     shell.setActor(state, previousState);
     previousState = state;
+    void showPresence();
 
     // Normalised first: a room holding no film leaves the field out of the state altogether, so
     // what arrives is undefined and never the null it is compared against.
@@ -126,6 +132,29 @@ async function boot(): Promise<void> {
     }
   }
 
+  /**
+   * What this viewer is watching, beside their name. Derived from what the page already holds
+   * whenever any of it changes, so the front door is told the whole of it each time and keeps
+   * nothing.
+   */
+  async function showPresence(): Promise<void> {
+    const state = previousState;
+    if (manifest === null || state === null || (state.titleId ?? null) !== manifest.id) {
+      await env.setPresence(null);
+      return;
+    }
+
+    await env.setPresence({
+      titleId: manifest.id,
+      filmName: manifest.title,
+      durationSeconds: manifest.durationSeconds,
+      paused: state.paused,
+      positionSeconds: controller?.roomPosition() ?? 0,
+      others: Math.max(0, participants.filter((p) => p.userId !== identity.userId).length),
+      poster: manifest.poster ?? null
+    });
+  }
+
   async function loadTitle(titleId: string | null): Promise<void> {
     loadedTitleId = titleId;
     controller?.setPlayerReady(false);
@@ -134,6 +163,7 @@ async function boot(): Promise<void> {
     if (titleId === null) {
       manifest = null;
       shell.setCurrentTitle(null, null);
+      void showPresence();
       return;
     }
 
@@ -145,6 +175,7 @@ async function boot(): Promise<void> {
     }
 
     shell.setCurrentTitle(manifest.id, manifest.title);
+    void showPresence();
     if (manifest.status === 'failed') {
       shell.notice(manifest.error ?? 'The transcode failed.', 'error');
       return;
@@ -185,7 +216,9 @@ async function boot(): Promise<void> {
 
   const joined = await hub.start();
   controller.applyPush(joined, true);
-  shell.setParticipants(await api.participants(sessionId));
+  participants = await api.participants(sessionId);
+  shell.setParticipants(participants);
+  void showPresence();
 
   // Coming back to a tab that has been in the background — a floating window, another channel —
   // is the moment its picture of the room is least likely to be right, and the cheapest moment to
@@ -214,10 +247,13 @@ async function adoptDiscordEnvironmentIfEmbedded(): Promise<void> {
   const response = await fetch('/api/config');
   if (!response.ok) throw new Error(`The server would not say which application this is (${response.status}).`);
 
-  const { discordClientId } = (await response.json()) as { discordClientId: string };
+  const { discordClientId, publicBaseUrl } = (await response.json()) as {
+    discordClientId: string;
+    publicBaseUrl?: string;
+  };
   if (!discordClientId) throw new Error('This server has no Discord application configured.');
 
-  setEnvironment(await createDiscordEnvironment(discordClientId));
+  setEnvironment(await createDiscordEnvironment(discordClientId, publicBaseUrl ?? null));
 }
 
 void boot();

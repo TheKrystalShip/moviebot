@@ -338,6 +338,36 @@ restarting the API took the film out from under everybody in it.
 - **`/health` says how many rooms are occupied and by how many people, and no names.** It is what
   makes restarting something that can be looked at first rather than found out about afterwards.
 
+## Saying what a room is watching
+
+Discord shows it in three places, and each is a different surface with a different reach.
+
+- **The bot's status names a film only while exactly one room is watching one.** There is one
+  status for the whole bot, so two rooms are counted rather than named, and no room at all is no
+  status at all: a placeholder beside the name never changes, which reads as never having worked.
+  Discord lets a bot set nothing beyond a name and a type here, so the second line stays empty.
+- **The line under a voice channel is per room, and only an occupied room gets one.** It is the
+  one surface the whole server sees without opening anything. The position is written to the
+  minute and every distinct line is one request, so the clock sets the pace of the writes: a
+  playing film changes its line once a minute and a paused one never does. Discord requires
+  Manage Channels as well as Set Voice Channel Status from a bot that is not itself connected to
+  the channel, and both are in the invite the bot logs.
+- **The bot recognises its own lines and clears only those.** It keeps no record of the channels
+  it wrote under across a restart, and a line left standing after the room behind it ended would
+  otherwise stay until the next film in that channel. A person's own channel status has a
+  different shape and is never touched.
+- **What the bot says is read from the API on every pass, never remembered.** The listing carries
+  what each room is watching and how many are in it, and no names: who is in a room is the room's
+  business.
+- **Each viewer's own presence comes from the Activity, not from the bot.** It is the only surface
+  Discord gives real rich presence to: the film's name, a poster, and a bar that runs from where
+  the room is to the end of the film. The bar is two instants and Discord draws the rest, so
+  nothing is sent on a timer; a paused film says so and carries no clock. It needs the
+  `rpc.activities.write` scope, which is the second of exactly two the Activity asks for.
+- **The poster is fetched by Discord's servers, from the public address.** The page's origin is
+  Discord's proxy, which is reachable from inside the Activity and from nowhere else, so the API
+  publishes its public address on `/api/config` and the page builds the poster URL from that.
+
 ## Getting a film watchable
 
 Transcoding alongside the download exists so a film can be watched while it arrives. Everything

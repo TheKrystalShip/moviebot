@@ -12,6 +12,7 @@ using TheKrystalShip.MovieBot.Bot.Discord;
 using TheKrystalShip.MovieBot.Bot.Find;
 using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Bot.Launch;
+using TheKrystalShip.MovieBot.Bot.Presence;
 using TheKrystalShip.MovieBot.Bot.Watch;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -61,6 +62,16 @@ builder.Services.AddHttpClient<MovieBotApiClient>((sp, http) =>
         http.DefaultRequestHeaders.Add("X-MovieBot-Service", api.ServiceKey);
 });
 
+// The one Discord endpoint the client library has no method for. Reached with the same token,
+// directly.
+builder.Services.AddHttpClient<VoiceChannelStatus>((sp, http) =>
+{
+    http.BaseAddress = new Uri("https://discord.com/api/v10/");
+    http.Timeout = TimeSpan.FromSeconds(10);
+    http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+        "Bot", sp.GetRequiredService<IOptions<DiscordOptions>>().Value.Token);
+});
+
 builder.Services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
 {
     // Guilds carries the channel graph and GuildVoiceStates says who is in which voice channel,
@@ -98,6 +109,9 @@ builder.Services.AddHostedService<DownloadWatcher>();
 // because editing a message notifies nobody: this is for whoever checks back, the announcement is
 // what reaches whoever walked away.
 builder.Services.AddHostedService<DownloadProgressUpdater>();
+
+// Says what the rooms are watching, beside the bot's name and under each room's voice channel.
+builder.Services.AddHostedService<RoomPresence>();
 
 await builder.Build().RunAsync();
 
