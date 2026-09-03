@@ -74,6 +74,9 @@ public sealed class ActivityLaunchPresenter(
         if (request.Replaced is { } replaced)
             embed.AddField("Replaced", replaced.Name);
 
+        if (request.OnDisk is { } onDisk)
+            embed.AddField("On disk", onDisk);
+
         var components = new ComponentBuilder()
             .WithButton("Watch together", style: ButtonStyle.Link, url: url)
             .Build();

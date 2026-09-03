@@ -10,6 +10,7 @@ using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Configuration;
 using TheKrystalShip.MovieBot.Bot.Discord;
 using TheKrystalShip.MovieBot.Bot.Download;
+using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Bot.Launch;
 using TheKrystalShip.MovieBot.Bot.Notify;
@@ -94,6 +95,11 @@ builder.Services.AddSingleton<ILaunchPresenter>(sp => new ActivityLaunchPresente
     sp.GetRequiredService<LinkLaunchPresenter>(),
     sp.GetRequiredService<ILogger<ActivityLaunchPresenter>>()));
 builder.Services.AddSingleton<WatchCommand>();
+
+// Keeps a film from being pruned, and says on every launch how long a film has left. The keep is
+// a note on the torrent, read by the hand-off when it decides what goes.
+builder.Services.AddSingleton<KeepCommand>();
+builder.Services.AddSingleton<IFilmRetention>(sp => sp.GetRequiredService<KeepCommand>());
 
 // The acquiring half. It brings its own options, its tracker client and its torrent client, and
 // it is reflection-free, so it adds nothing to this project's startup beyond what it is asked.

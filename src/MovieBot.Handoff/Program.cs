@@ -25,6 +25,19 @@ builder.Services.AddHttpClient<FilmMetadata>(http =>
 
 builder.Services.AddSingleton<Backfill>();
 
+// The one question this asks the API: which films the rooms hold, so none is pruned from under
+// a room. Reached with the service key, because the rooms are behind the same door as the films.
+builder.Services.Configure<ApiOptions>(builder.Configuration.GetSection(ApiOptions.Section));
+builder.Services.AddHttpClient<OccupiedRooms>((sp, http) =>
+{
+    var api = sp.GetRequiredService<IOptions<ApiOptions>>().Value;
+    http.BaseAddress = new Uri(api.BaseUrl.TrimEnd('/') + "/");
+    http.Timeout = TimeSpan.FromSeconds(10);
+
+    if (api.ServiceKey.Length > 0)
+        http.DefaultRequestHeaders.Add("X-MovieBot-Service", api.ServiceKey);
+});
+
 // A one-shot pass over films already in the library, for the ones that arrived before there was
 // anywhere to keep a name or a poster. It is the same resolver the ingest uses, pointed at
 // directories rather than at a download, so the two cannot disagree about what a film is called.
@@ -39,6 +52,7 @@ if (args.Contains("--backfill"))
 }
 
 builder.Services.AddHostedService<HandoffWorker>();
+builder.Services.AddHostedService<RetentionWorker>();
 
 builder.Logging.AddSimpleConsole(o => o.SingleLine = true);
 

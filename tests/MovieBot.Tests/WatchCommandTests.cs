@@ -32,8 +32,15 @@ public sealed class WatchCommandTests(SessionFixture fixture) : IClassFixture<Se
         }
     }
 
+    /// <summary>No download stands behind a title the fixture ingested, so the launch says nothing.</summary>
+    private sealed class NoRetention : TheKrystalShip.MovieBot.Bot.Keep.IFilmRetention
+    {
+        public Task<string?> NoticeForAsync(string libraryId, CancellationToken ct) =>
+            Task.FromResult<string?>(null);
+    }
+
     private static WatchCommand Command(MovieBotApiClient api, ILaunchPresenter presenter) =>
-        new(api, presenter, NullLogger<WatchCommand>.Instance);
+        new(api, presenter, new NoRetention(), NullLogger<WatchCommand>.Instance);
 
     private WatchCommand Live(ILaunchPresenter presenter) =>
         Command(new MovieBotApiClient(fixture.CreateServiceClient()), presenter);

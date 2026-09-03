@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Configuration;
 using TheKrystalShip.MovieBot.Bot.Download;
+using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Bot.Library;
 using TheKrystalShip.MovieBot.Bot.Notify;
 using TheKrystalShip.MovieBot.Bot.Watch;
@@ -26,6 +27,8 @@ public sealed class DiscordBotService(
     WatchCommand watch,
     DownloadCommand download,
     NotifyCommand notify,
+    KeepCommand keep,
+    TheKrystalShip.MovieBot.Acquire.Download.Retention retention,
     TheKrystalShip.MovieBot.Acquire.Search.AutocompleteSearch suggestions,
     TheKrystalShip.MovieBot.Acquire.Imdb.ImdbClient catalogue,
     IOptions<DiscordOptions> options,
@@ -104,10 +107,10 @@ public sealed class DiscordBotService(
                 // The overwrite is the whole command set, so every command has to be in this
                 // one call: registering them separately leaves only the last one standing.
                 await guild.BulkOverwriteApplicationCommandAsync(
-                    [WatchSlashCommand.Build(), NotifySlashCommand.Build()]);
+                    [WatchSlashCommand.Build(), NotifySlashCommand.Build(), KeepSlashCommand.Build()]);
 
-                logger.LogInformation("Registered /{Watch} and /{Notify} in {GuildName}",
-                    WatchSlashCommand.Name, NotifySlashCommand.Name, guild.Name);
+                logger.LogInformation("Registered /{Watch}, /{Notify} and /{Keep} in {GuildName}",
+                    WatchSlashCommand.Name, NotifySlashCommand.Name, KeepSlashCommand.Name, guild.Name);
             }
             catch (Exception ex)
             {
@@ -125,6 +128,7 @@ public sealed class DiscordBotService(
         {
             WatchSlashCommand.Name => HandleWatchAsync(command),
             NotifySlashCommand.Name => HandleNotifyAsync(command),
+            KeepSlashCommand.Name => HandleKeepAsync(command),
             _ => Task.CompletedTask,
         };
 
@@ -306,6 +310,62 @@ public sealed class DiscordBotService(
         }
     }
 
+    /// <summary>
+    /// Keeps a film, lets one go, or lists where every film on disk stands.
+    ///
+    /// Keeping and releasing answer in public, because a film staying or going is the room's
+    /// business and the reply is how the room finds out. The list is for whoever asked.
+    /// </summary>
+    private async Task HandleKeepAsync(SocketSlashCommand command)
+    {
+        try
+        {
+            if (command.GuildId is not { } guildId || !_guilds.Contains(guildId))
+            {
+                await command.RespondAsync(
+                    "This bot only answers in the server it is configured for.", ephemeral: true);
+                return;
+            }
+
+            var subcommand = command.Data.Options.FirstOrDefault();
+            var film = subcommand?.Options?
+                .FirstOrDefault(o => o.Name == KeepSlashCommand.FilmOption)?.Value as string ?? "";
+
+            switch (subcommand?.Name)
+            {
+                case KeepSlashCommand.List:
+                    await command.DeferAsync(ephemeral: true);
+                    await command.FollowupAsync(
+                        embed: KeepEmbed.List(await keep.ListAsync(CancellationToken.None), retention),
+                        ephemeral: true, allowedMentions: AllowedMentions.None);
+                    return;
+
+                case KeepSlashCommand.Add:
+                case KeepSlashCommand.Remove:
+                    break;
+
+                default:
+                    await command.RespondAsync("That is not one of the things /keep does.", ephemeral: true);
+                    return;
+            }
+
+            await command.DeferAsync();
+
+            var result = subcommand.Name == KeepSlashCommand.Add
+                ? await keep.KeepAsync(film, command.User.Id, CancellationToken.None)
+                : await keep.ReleaseAsync(film, command.User.Id, CancellationToken.None);
+
+            // The message names the keeper by mention so the name is always current, and the
+            // mentions are forbidden so that naming them never pings them.
+            await command.FollowupAsync(result.Message, allowedMentions: AllowedMentions.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "The /{Command} command failed", KeepSlashCommand.Name);
+            await TryReportFailure(command);
+        }
+    }
+
     private async Task HandleAutocompleteAsync(SocketAutocompleteInteraction interaction)
     {
         try
@@ -325,6 +385,12 @@ public sealed class DiscordBotService(
             if (interaction.Data.CommandName == NotifySlashCommand.Name)
             {
                 await interaction.RespondAsync(await NotifyChoicesAsync(interaction, typed));
+                return;
+            }
+
+            if (interaction.Data.CommandName == KeepSlashCommand.Name)
+            {
+                await interaction.RespondAsync(await KeepChoicesAsync(interaction, typed));
                 return;
             }
 
@@ -393,6 +459,33 @@ public sealed class DiscordBotService(
             .Select(f => new AutocompleteResult(
                 Choice(f.Starring is { Length: > 0 } cast ? $"{Display(f)} — {cast}" : Display(f)),
                 f.ImdbId));
+    }
+
+    /// <summary>
+    /// What /keep offers as somebody types: the films on disk that are not kept for a keep being
+    /// added, and the kept ones for a keep being removed. The value behind a row is the
+    /// download's hash, which is what the command acts on.
+    /// </summary>
+    private async Task<IEnumerable<AutocompleteResult>> KeepChoicesAsync(
+        SocketAutocompleteInteraction interaction, string typed)
+    {
+        var subcommand = interaction.Data.Options
+            .FirstOrDefault(o => o.Type == ApplicationCommandOptionType.SubCommand)?.Name;
+
+        var removing = subcommand == KeepSlashCommand.Remove;
+        var films = await keep.ListAsync(CancellationToken.None);
+
+        return films
+            .Where(f => f.IsKept == removing)
+            .Where(f => typed.Trim().Length == 0
+                        || f.Name.Contains(typed, StringComparison.OrdinalIgnoreCase)
+                        || f.Release.Contains(typed, StringComparison.OrdinalIgnoreCase))
+            .Take(MaximumChoices)
+            .Select(f => new AutocompleteResult(
+                Choice(removing || !f.IsFinished
+                    ? f.Name
+                    : $"{f.Name} — leaves after {TheKrystalShip.MovieBot.Acquire.Download.Retention.Describe(f.Remaining)}"),
+                f.Hash));
     }
 
     /// <summary>Discord shows at most this many autocomplete choices.</summary>

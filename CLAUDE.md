@@ -362,6 +362,47 @@ when it can.
   to stays on the list for the next pass. A channel the bot can no longer see is treated as told,
   because retrying it would never work.
 
+## Letting a film go
+
+Disk is finite, and a downloaded film that nobody keeps leaves after a week of seeding. The rule
+itself, and the clock it runs on, are `Retention` in the acquire library; this is about who acts
+on it and what is checked first.
+
+- **The clock is the torrent client's seeding time, never the calendar.** The tracker credits
+  seeding only while the client is running and the torrent is active, and the client's own count
+  covers the same stretches and survives its restarts. A week is a week of seeding, and a machine
+  that was off for a month has moved nothing closer to leaving.
+- **Nothing is removed under the tracker's minimum plus a margin, whatever the window says.** The
+  client's clock can only run ahead of the tracker's, by the announces that never landed, so the
+  floor carries a margin and the window sits days above it.
+- **The hand-off prunes, because it is the only process allowed to write the media root.** The bot
+  and the API hold that root read-only, and the torrent's files go through the client rather than
+  being deleted from under it, which would leave the client announcing a file it no longer has.
+- **The title directory goes first, then the torrent.** A failure between the two leaves a torrent
+  that the next pass finds again; the other order leaves a directory nothing points at.
+- **A directory is deleted only when its manifest names the source this download arrived as.** A
+  film fetched twice as two releases lands under one id, the second ingest replacing the first's
+  directory, and the older torrent's turn to go must not take the newer transcode with it. A
+  mismatch removes the download alone and says so.
+- **A film a room holds is not pruned.** The API is asked which titles the rooms hold, whether or
+  not anybody is in them this second, and if it cannot answer the pass removes nothing. The API
+  forgets an idle room on its own, so a room blocks a prune for at most that idle window.
+- **A film still owing its transcode is left alone.** The ingest deletes and rewrites its
+  directory, and two processes doing that to one directory is how a film ends up half written. One
+  owed for a week is a fault to read about in the log, not a film to remove.
+- **A title with no download behind it is on no clock.** A film put in the library by hand owes
+  the tracker nothing and carries no seeding time, so retention does not apply to it and the
+  launch says nothing about how long it stays.
+- **A keep is a tag on the torrent, and it names who set it.** Every process that decides a
+  download's fate already reads its tags. Anyone may keep a film and anyone may let it go, and the
+  row says who did, which beats deciding who is allowed to.
+- **Fetched subtitles and confirmations outlive the film.** They are keyed by the library id, a
+  film fetched again lands under the same id and gets them back, and each cost a daily allowance
+  to obtain.
+- **The launch and the ready announcement say how long a film stays in one sentence**,
+  `KeepCommand.Notice`, so the message that starts a film and the one that announced it cannot
+  disagree about when it leaves. The list is the short form of the same figures.
+
 ## Naming a film
 
 A release name is what a film arrives as. It is not what the film is called.

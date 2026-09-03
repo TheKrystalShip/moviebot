@@ -34,6 +34,9 @@ public sealed class LinkLaunchPresenter(
         if (request.Replaced is { } replaced)
             embed.AddField("Replaced", replaced.Name);
 
+        if (request.OnDisk is { } onDisk)
+            embed.AddField("On disk", onDisk);
+
         var components = new ComponentBuilder()
             .WithButton("Open the player", style: ButtonStyle.Link, url: url.ToString())
             .Build();

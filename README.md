@@ -139,4 +139,4 @@ Discord is the only surface. Everything except the sign-in, the page itself and 
 a token, and a token is issued only after Discord confirms who somebody is — so a browser pointed
 at the hostname can list nothing, fetch nothing and join no room. Two keys are required:
 `Auth:SigningKey`, without which the API refuses to start, and `Auth:ServiceKey`, shared with the
-bot, which has no Discord user of its own to authenticate as.
+bot and the hand-off, neither of which has a Discord user of its own to authenticate as.

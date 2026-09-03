@@ -75,15 +75,20 @@ public static class DownloadEmbed
     /// read out of the release, so the message says what was watched for rather than what it was
     /// packed as — and keeps the release beside it, because which encode arrived is worth knowing.
     /// </summary>
-    public static Embed Ready(DownloadStatus download) =>
-        new EmbedBuilder()
+    public static Embed Ready(DownloadStatus download, string? onDisk = null)
+    {
+        var embed = new EmbedBuilder()
             .WithTitle($"{Film(download)} is ready to watch")
             .WithDescription(download.Name)
             .AddField("Size", Size(download.SizeBytes), inline: true)
             .AddField("Watch it with", "/watch", inline: true)
             .WithColor(Color.Green)
-            .WithCurrentTimestamp()
-            .Build();
+            .WithCurrentTimestamp();
+
+        if (onDisk is not null) embed.AddField("On disk", onDisk);
+
+        return embed.Build();
+    }
 
     public static Embed Failed(DownloadStatus download) =>
         new EmbedBuilder()

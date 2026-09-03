@@ -60,8 +60,8 @@ public sealed class HandoffOptions
     /// a single pass either way — but a menu forty-eight rows long is one in which the three rows
     /// anybody wants cannot be found.
     ///
-    /// Widening this later is recoverable: the source file stays on disk for seeding, so a
-    /// language left behind can be extracted again from it.
+    /// Widening this later is recoverable while the source is still on disk seeding: a language
+    /// left behind can be extracted again from it until retention lets the film go.
     /// </summary>
     public string[] SubtitleLanguages { get; set; } = ["eng"];
 }

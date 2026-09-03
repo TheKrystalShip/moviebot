@@ -33,6 +33,13 @@ public sealed record LaunchRequest
     /// </summary>
     public bool AlreadyWatching { get; init; }
 
+    /// <summary>
+    /// How long the film stays on disk, or null when no download stands behind it. It is on the
+    /// launch because the launch is where somebody who wants the film around is looking when they
+    /// find out it will not be.
+    /// </summary>
+    public string? OnDisk { get; init; }
+
     /// <summary>The one sentence above the card, worded by what the command did to the room.</summary>
     public string Headline =>
         AlreadyWatching

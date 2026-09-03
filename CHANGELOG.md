@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.0] - 2026-09-03
+
+### Added
+
+- A downloaded film is let go after a week of seeding, unless somebody keeps it. The hand-off
+  prunes: the title's directory first, then the torrent and its files through the client. The
+  week is measured on the torrent client's own seeding clock, which counts only while this
+  machine is on and the torrent is active, and nothing is removed under the tracker's minimum plus
+  a margin whatever the window is set to. A film a room holds waits until the room lets go, a film
+  still owing its transcode is left to the log, and a title directory is deleted only when its
+  manifest names the source this download arrived as, so an older release's turn to go cannot take
+  a newer one's transcode with it. `Retention__SeedDays`, `Retention__TrackerMinimumHours` and
+  `Retention__MarginHours` set the figures, and the hand-off reads `Api__ServiceKey` to ask the API
+  which films the rooms hold.
+- `/keep add` keeps a film on disk until somebody runs `/keep remove`, and `/keep list` shows every
+  film on disk with who keeps it or how much more seeding it has before it leaves. The keep is a
+  tag on the torrent and names who set it; anyone may keep a film and anyone may let it go.
+- A launch and a ready announcement say how long the film stays, or who keeps it.
+
 ## [1.27.0] - 2026-09-02
 
 ### Added

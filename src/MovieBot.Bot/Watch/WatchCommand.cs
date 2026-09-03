@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.MovieBot.Bot.Api;
+using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Bot.Launch;
 using TheKrystalShip.MovieBot.Bot.Library;
 using TheKrystalShip.MovieBot.Bot.Sessions;
@@ -47,6 +48,7 @@ public sealed record WatchResult(WatchStatus Status, string Message, LaunchReply
 public sealed class WatchCommand(
     MovieBotApiClient api,
     ILaunchPresenter presenter,
+    IFilmRetention retention,
     ILogger<WatchCommand> logger)
 {
     public async Task<WatchResult> ExecuteAsync(WatchRequest request, CancellationToken ct)
@@ -140,7 +142,8 @@ public sealed class WatchCommand(
             VoiceChannelName = request.VoiceChannelName ?? "the voice channel",
             RequestedBy = request.RequestedBy,
             Replaced = replaced,
-            AlreadyWatching = alreadyWatching
+            AlreadyWatching = alreadyWatching,
+            OnDisk = await retention.NoticeForAsync(title.Id, ct),
         }, ct);
 
         logger.LogInformation("{RequestedBy} {Verb} {TitleId} in session {SessionId}",
