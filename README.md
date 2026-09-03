@@ -8,15 +8,18 @@ Playback starts seconds after the request, while the film is still being transco
 
 ## Status
 
-Ingest, the API and the player are built and run. The Discord bot is built but has never connected to a live guild.
+Every piece is built and running.
 
-| Piece | State |
+| Piece | What it does |
 |---|---|
-| `MovieBot.Ingest` — probe, extract, transcode, manifest | built |
-| `MovieBot.Api` — sessions, SignalR hub, media serving | built |
-| `MovieBot.Bot` — Discord.Net slash command, launch link | built, never run against a live guild |
-| `web/activity` — the player | built |
-| `MovieBot.Handoff` — carries a finished download into the library | built |
+| `MovieBot.Ingest` | probe, extract, transcode, manifest |
+| `MovieBot.Api` | sessions, SignalR hub, media serving |
+| `MovieBot.Bot` | the Discord surface: `/watch`, `/notify`, `/keep` |
+| `MovieBot.Handoff` | carries a finished download into the library |
+| `web/activity` | the player |
+
+`MovieBot.Api`, `MovieBot.Bot` and `MovieBot.Handoff` run as systemd services and are served at
+`movies.thekrystalship.com`. They build against the `moviebot-acquire` checkout beside this one.
 
 ## Requirements
 
@@ -126,6 +129,10 @@ wiring rather than the logic.
 src/MovieBot.Core/      manifest and session contracts, and their serializer
 src/MovieBot.Ingest/    the ingest CLI
 src/MovieBot.Api/       library, media, sessions, SignalR hub
+src/MovieBot.Bot/       the Discord surface
+src/MovieBot.Handoff/   a finished download into the library
+web/activity/           the player
+deploy/                 the systemd units and the nginx front door
 tests/MovieBot.Tests/   hub integration tests
 ```
 

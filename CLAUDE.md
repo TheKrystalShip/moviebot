@@ -5,11 +5,25 @@ Guidance for Claude Code working in this repository.
 ## What this is
 
 MovieBot plays films you already own to everyone in a Discord voice channel, on one shared
-timeline, inside a Discord Activity. It is a standalone project: it shares no code, no
-packages and no deployment with the KGSM ecosystem it sits beside in this workspace.
+timeline, inside a Discord Activity. It stands apart from the KGSM ecosystem it sits beside in
+this workspace, and follows its own conventions throughout.
 
-The build plan — measured transcode figures, the sync protocol, the Discord constraints and the
-phase order — is the authority for what gets built next.
+**It builds against the checkout beside it.** `MovieBot.Api`, `MovieBot.Bot` and
+`MovieBot.Handoff` each take a `ProjectReference` on
+`../../../moviebot-acquire/src/MovieBot.Acquire`, so `moviebot-acquire` has to be checked out as
+a sibling directory for anything here to compile. The reference is by path, which cuts both ways:
+a change to a public type over there breaks the build here in the same pass, and a release of
+that repo is nothing this one is pinned to. `moviebot.slnx` lists this repository's own projects,
+and they compile against one it does not name.
+
+`moviebot-acquire` is the acquiring half of one pipeline: torrents, the tracker, the title index,
+the disk budget, retention and the tag vocabulary all live there and are called from here. This
+repository owns what happens to a file once it exists — probing it, transcoding it, serving it,
+and keeping a room in step.
+
+Three docs beside this one, each the authority for its own half: `docs/api-contract.md` for what
+`MovieBot.Api` serves on the wire, `web/activity/README.md` for the player, and
+`src/MovieBot.Bot/README.md` for the Discord surface.
 
 ## The one idea everything follows from
 
@@ -43,7 +57,49 @@ dotnet run --project src/MovieBot.Ingest -c Release -- "<file>" --out ./media
 Media__Root=/absolute/path/to/media dotnet run --project src/MovieBot.Api -c Release
 ```
 
-`media/` is generated and gitignored. Nothing under it is ever committed.
+The player is its own build, in `web/activity`:
+
+```bash
+cd web/activity
+npm run check      # types only
+npm run build      # -> dist/
+npm run verify     # a real browser against a running API and page
+```
+
+`media/` is generated and gitignored. Nothing under it is ever committed, and the running API
+serves this very directory: `Media__Root` on the deployed unit points at the checkout, so a
+re-ingest with `--force` replaces a title the room may be watching, and what is deleted here is
+deleted from the library people open.
+
+## Deploying
+
+The three services run on this host as systemd units, under `heisen`, out of `/opt/moviebot`.
+Deploying is a publish per service and a restart:
+
+```bash
+./scripts/build-player.sh                                          # player -> the API's wwwroot
+dotnet publish src/MovieBot.Api      -c Release -o /opt/moviebot/api
+dotnet publish src/MovieBot.Bot      -c Release -o /opt/moviebot/bot
+dotnet publish src/MovieBot.Handoff  -c Release -o /opt/moviebot/handoff
+systemctl restart moviebot-api moviebot-bot moviebot-handoff       # no sudo
+```
+
+- **The player reaches people through the API.** `scripts/build-player.sh` installs the built page
+  into `src/MovieBot.Api/wwwroot`, and the API is what serves it, so a change to `web/activity`
+  arrives only once the API is published after that script has run. One origin serves the page,
+  the API, the media and the hub, because a Discord Activity maps one URL.
+- **The units in `/etc/systemd/system/` are root-owned copies of `deploy/*.service`.** Restarting
+  is unprivileged; changing a unit is not. A change to one of those files is copied and reloaded
+  by the user with sudo, so say what changed and hand over the command rather than working around
+  the privilege.
+- **`/etc/moviebot/moviebot.env` holds the credentials** all three units read. Configuration that
+  is not a credential belongs in the unit's own `Environment=` lines, where it is in the
+  repository and reviewable.
+- **The state directories are the two things no re-ingest can rebuild.** systemd hands the API
+  `/var/lib/moviebot` — the rooms and the subtitles fetched from outside, each of which cost one
+  of a limited daily allowance — and the bot `/var/lib/moviebot-bot`, holding the wish list.
+- **nginx fronts it as `movies.thekrystalship.com`**, proxying to `127.0.0.1:8099` with `/hub/`
+  upgraded and buffering off. `deploy/nginx-moviebot.conf` is the repository's copy of it.
 
 ## API invariants
 
@@ -520,9 +576,9 @@ here is about not losing that.
   first is writing. The in-flight set keyed by download hash is what prevents it.
 - **A film owing a transcode and a film being watchable are different facts with different tags.**
   `ingest` survives until the transcode finishes; `watchable` is set seconds into it and is what
-  the announcement waits for. One tag answering both is what made an interrupted transcode
-  unrecoverable — cleared to let the announcement out, it was no longer there to say the rest was
-  owed.
+  the announcement waits for. One tag cannot answer both: clearing it to let the announcement out
+  would leave nothing to say the rest of the transcode is still owed, and an interrupted one
+  unrecoverable.
 - **What a film gains while people are watching it is pushed to them.** The preview sheet is
   written after the main pass, and so are the subtitles of a source that was still arriving, so
   the manifest that marks a film ready is the first to name them. The API watches the manifests
@@ -554,10 +610,10 @@ nothing enforces that on its own.
   unguarded produces corruption that looks like success, which is worse than a failure that says so.
 - **A guard that cannot do its job kills the transcode.** It is awaited after the transcode so its
   message replaces ffmpeg's, which would only report that it was killed.
-- **The order of the work changes, not the invariants.** Subtitles still have to be demuxed from a
-  whole file to be complete, so they are extracted after the main pass instead of before it, and a
-  track is advertised in the manifest only once its file is whole. That is the same rule as before
-  — never serve a `.vtt` that is still being written — reached from the other side.
+- **Subtitles wait for the whole file.** They have to be demuxed from a complete one, so where a
+  source is still arriving they are extracted after the main pass, and a track is advertised in
+  the manifest only once its own file is whole. A `.vtt` that is still being written is never
+  served.
 
 ## Track labelling
 
@@ -580,3 +636,7 @@ Driven entirely by what the container says, because the sample film makes every 
 - No emoji anywhere — not in docs, comments, commit messages or CLI output.
 - Commit per finished piece of work, including the version bump and CHANGELOG entry, and tag
   the bump `v<version>`.
+- **A change that spans both repositories is one commit in each**, describing that repository's
+  half. Address git with `git -C <repo>`: the two checkouts sit side by side, and a `cd` applies
+  to every command after it in the same shell, so a commit or a tag meant for one lands in the
+  other.
