@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Bot.Api;
+using TheKrystalShip.MovieBot.Bot.Discord;
 using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Bot.Launch;
 using TheKrystalShip.MovieBot.Bot.Sessions;
@@ -32,7 +33,9 @@ namespace TheKrystalShip.MovieBot.Bot.Download;
 ///
 /// The tags are removed once the message is sent, and that is what stops a film being announced
 /// on every pass forever. A message that fails to send leaves them alone, so the next pass tries
-/// again rather than losing it.
+/// again rather than losing it — unless Discord refuses the channel itself, which is an answer no
+/// later pass gets past, and the announcement is given up rather than asked for every ten seconds
+/// until the film is deleted.
 /// </summary>
 public sealed class DownloadWatcher(
     DiscordSocketClient client,
@@ -265,6 +268,17 @@ public sealed class DownloadWatcher(
                 text: content, embed: embed, components: launch?.Components, allowedMentions: mentions);
 
             logger.LogInformation("Announced {Name} in {ChannelId}.", download.Name, channelId);
+            return true;
+        }
+        catch (global::Discord.Net.HttpException ex) when (DiscordReach.IsOutOfReach(ex))
+        {
+            // The bot cannot post here, and no number of passes changes that. Giving up costs
+            // the announcement; carrying on costs a refusal every ten seconds for as long as
+            // the download is kept, so the tag goes and the reason is said once.
+            logger.LogWarning(
+                "Cannot announce {Name}: Discord refused channel {ChannelId} ({Reason}). "
+                + "The bot needs View Channel and Send Messages there.",
+                download.Name, channelId, DiscordReach.Explain(ex));
             return true;
         }
         catch (Exception ex)

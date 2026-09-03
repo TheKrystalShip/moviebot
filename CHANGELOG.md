@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.1] - 2026-09-03
+
+### Fixed
+
+- A channel Discord refuses is given up on, rather than asked again every ten seconds. A film
+  announced into a channel the bot cannot see, and a progress message in one, met the same refusal
+  on every pass for as long as the download was kept: thousands of them in an evening, each
+  spending the channel's rate allowance to be told the same thing, and the announcement never
+  arrived either way. A refusal over permission, or about something that is gone, now retires the
+  tag that asked for it and says once which channel was refused and what the bot needs there.
+
 ## [1.28.0] - 2026-09-03
 
 ### Added

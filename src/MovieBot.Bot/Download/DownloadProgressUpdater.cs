@@ -3,6 +3,7 @@ using Discord.WebSocket;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.MovieBot.Acquire.Download;
+using TheKrystalShip.MovieBot.Bot.Discord;
 
 namespace TheKrystalShip.MovieBot.Bot.Download;
 
@@ -97,9 +98,19 @@ public sealed class DownloadProgressUpdater(
             if (_lastRendered.TryGetValue(download.Hash, out var previous) && previous == rendered)
                 continue;
 
-            if (!await TryEditAsync(
-                    target.ChannelId, target.MessageId, download, preparing, failed, watchable, ct))
+            var outcome = await TryEditAsync(
+                target.ChannelId, target.MessageId, download, preparing, failed, watchable, ct);
+
+            if (outcome is EditOutcome.Retry) continue;
+
+            if (outcome is EditOutcome.Gone)
+            {
+                // Nothing left to keep up to date, and no pass will find it again.
+                await acquisition.ClearTagAsync(download.Hash, tag, ct);
+                _lastRendered.Remove(download.Hash);
+                live.Remove(download.Hash);
                 continue;
+            }
 
             _lastRendered[download.Hash] = rendered;
 
@@ -117,7 +128,20 @@ public sealed class DownloadProgressUpdater(
             _lastRendered.Remove(stale);
     }
 
-    private async Task<bool> TryEditAsync(
+    /// <summary>What one pass at one message settled.</summary>
+    private enum EditOutcome
+    {
+        /// <summary>The message now says what this pass rendered.</summary>
+        Edited,
+
+        /// <summary>Said nothing this time. The next pass tries again.</summary>
+        Retry,
+
+        /// <summary>Beyond reach for good, and not worth another pass.</summary>
+        Gone,
+    }
+
+    private async Task<EditOutcome> TryEditAsync(
         ulong channelId, ulong messageId, DownloadStatus download,
         bool preparing, bool failed, bool watchable, CancellationToken ct)
     {
@@ -125,28 +149,35 @@ public sealed class DownloadProgressUpdater(
 
         try
         {
-            if (client.GetChannel(channelId) is not IMessageChannel channel) return false;
+            // A gateway part-way through connecting has no channels yet, which is a moment's
+            // trouble rather than a missing channel, so it is left for the next pass.
+            if (client.GetChannel(channelId) is not IMessageChannel channel) return EditOutcome.Retry;
 
             // Fetched through the channel rather than kept from the interaction that made it.
             // An interaction's token lasts fifteen minutes and a download does not, so editing
             // through the interaction would simply stop working partway through a long film.
-            if (await channel.GetMessageAsync(messageId) is not IUserMessage message) return false;
+            if (await channel.GetMessageAsync(messageId) is not IUserMessage message)
+                return EditOutcome.Retry;
 
             var embed = DownloadEmbed.Progress(download, preparing, failed, watchable);
             await message.ModifyAsync(m => m.Embed = embed);
 
-            return true;
+            return EditOutcome.Edited;
         }
-        catch (global::Discord.Net.HttpException ex) when (ex.HttpCode == System.Net.HttpStatusCode.NotFound)
+        catch (global::Discord.Net.HttpException ex) when (DiscordReach.IsOutOfReach(ex))
         {
-            // Somebody deleted the message. Nothing to keep up to date any more.
-            logger.LogDebug("The progress message {MessageId} is gone.", messageId);
-            return true;
+            // Deleted, or in a channel the bot is not allowed to read. Both are settled somewhere
+            // other than here, and asking again every ten seconds only spends the channel's
+            // allowance to be refused in the same words.
+            logger.LogDebug(
+                "Giving up on the progress message {MessageId}: {Reason}",
+                messageId, DiscordReach.Explain(ex));
+            return EditOutcome.Gone;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Could not update the progress message {MessageId}.", messageId);
-            return false;
+            return EditOutcome.Retry;
         }
     }
 
