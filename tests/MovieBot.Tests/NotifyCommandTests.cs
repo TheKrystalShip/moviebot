@@ -51,6 +51,9 @@ public sealed class NotifyCommandTests : IDisposable
 
     private sealed class StubSearch(IReadOnlyList<Release> offered) : IReleaseSearch
     {
+        public Task<RankedReleases> ByTextAsync(string typed, CancellationToken ct) =>
+            Task.FromResult(new RankedReleases(offered, []));
+
         public Task<RankedReleases> ByTitleAsync(string query, CancellationToken ct) =>
             Task.FromResult(new RankedReleases(offered, []));
 

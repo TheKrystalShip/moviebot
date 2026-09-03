@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.0] - 2026-09-03
+
+### Fixed
+
+- `/watch` finds a film released abroad under another name. The tracker names a film the way the
+  country that made it named it, so searching it for an English title matched no release at all:
+  "The furious 2025" found 45 rows and offered none, while the same film by its id returns nine,
+  every one named `Huo.zhe.yan`. The menu now identifies the film in the title index and asks the
+  tracker for it by id. Pasting an IMDb link works for the same reason, being a film already
+  named.
+- The menu fills in as somebody types. The filter that keeps a search for "Heat" from answering
+  with "Dead Heat" was applied to half a title, which is never equal to one, so every keystroke
+  before the last offered nothing: "eurotri" offered none of six where "eurotrip" offered five.
+- A row saying why nothing is on offer, where the menu came back empty and read exactly like a
+  tracker that had not answered. Picking that row submits the text as typed.
+
+### Changed
+
+- A row shows the film's name beside the name the release carries when the two differ, so
+  `Huo zhe yan` under a search for "The Furious" reads as the film that was asked for.
+
 ## [1.28.1] - 2026-09-03
 
 ### Fixed

@@ -415,6 +415,9 @@ public sealed class DiscordBotService(
     /// when the library has nothing, so somebody typing a film that is not here sees the search
     /// results appear in place of an empty menu — with what each release is beside its name, which
     /// is how a row that starts a download reads differently from one that starts a film.
+    ///
+    /// A search that offers nothing says why on a row of its own. Picking that row submits the
+    /// text as typed, which is what the menu would have left somebody to do anyway.
     /// </summary>
     private async Task<IEnumerable<AutocompleteResult>> WatchChoicesAsync(
         SocketAutocompleteInteraction interaction, string typed)
@@ -428,7 +431,13 @@ public sealed class DiscordBotService(
         var offered = await suggestions.SuggestAsync(
             typed, interaction.User.Id.ToString(), CancellationToken.None);
 
-        return offered.Select(c => new AutocompleteResult(c.Label, TrackerPick.Value(c.TorrentId)));
+        if (offered.Choices.Count > 0)
+            return offered.Choices.Select(
+                c => new AutocompleteResult(c.Label, TrackerPick.Value(c.TorrentId)));
+
+        return offered.Explanation is { Length: > 0 } why
+            ? [new AutocompleteResult(Choice(why), Choice(typed))]
+            : [];
     }
 
     /// <summary>
@@ -457,7 +466,7 @@ public sealed class DiscordBotService(
         return films
             .Take(MaximumChoices)
             .Select(f => new AutocompleteResult(
-                Choice(f.Starring is { Length: > 0 } cast ? $"{Display(f)} — {cast}" : Display(f)),
+                Choice(f.Starring is { Length: > 0 } cast ? $"{f.Display} — {cast}" : f.Display),
                 f.ImdbId));
     }
 
@@ -490,9 +499,6 @@ public sealed class DiscordBotService(
 
     /// <summary>Discord shows at most this many autocomplete choices.</summary>
     private const int MaximumChoices = 25;
-
-    private static string Display(TheKrystalShip.MovieBot.Acquire.Imdb.ImdbTitle film) =>
-        film.Year is { } year ? $"{film.Title} ({year})" : film.Title;
 
     /// <summary>Autocomplete labels are capped at 100 characters by Discord.</summary>
     private static string Choice(LibraryTitle title) => Choice(title.Name);
