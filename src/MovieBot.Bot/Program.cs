@@ -96,6 +96,11 @@ builder.Services.AddSingleton<ILaunchPresenter>(sp => new ActivityLaunchPresente
     sp.GetRequiredService<ILogger<ActivityLaunchPresenter>>()));
 builder.Services.AddSingleton<WatchCommand>();
 
+// The cards already posted, so one can be told it is over. It is the second thing the bot writes
+// down: which message hands out which invite into which room exists in Discord and nowhere else,
+// and the API has never heard of a Discord message.
+builder.Services.AddSingleton<LaunchCards>();
+
 // Keeps a film from being pruned, and says on every launch how long a film has left. The keep is
 // a note on the torrent, read by the hand-off when it decides what goes.
 builder.Services.AddSingleton<KeepCommand>();
@@ -106,8 +111,8 @@ builder.Services.AddSingleton<IFilmRetention>(sp => sp.GetRequiredService<KeepCo
 builder.Services.AddAcquire(builder.Configuration);
 builder.Services.AddSingleton<DownloadCommand>();
 
-// The films people are waiting on. The one thing the bot writes down, because a film that is
-// not on the tracker yet exists nowhere else to be remembered.
+// The films people are waiting on, because a film that is not on the tracker yet exists nowhere
+// else to be remembered.
 builder.Services.AddOptions<NotifyOptions>().Bind(builder.Configuration.GetSection(NotifyOptions.Section));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<WishList>();
@@ -127,6 +132,11 @@ builder.Services.AddHostedService<DownloadProgressUpdater>();
 
 // Says what the rooms are watching, beside the bot's name and under each room's voice channel.
 builder.Services.AddHostedService<RoomPresence>();
+
+// Marks a launch card over once the room behind it has closed, and revokes its invite. Separate
+// from the presence sweep because a card is a message in a text channel rather than a line under
+// a voice one, and the two are kept up to date on their own terms.
+builder.Services.AddHostedService<LaunchExpiry>();
 
 // Asks the tracker about the films people are waiting on, and tells them when one appears.
 builder.Services.AddHostedService<WishWatcher>();

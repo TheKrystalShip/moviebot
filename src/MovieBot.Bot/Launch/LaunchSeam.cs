@@ -49,8 +49,29 @@ public sealed record LaunchRequest
                 : $"{RequestedBy} started {Title.Name} in {VoiceChannelName}.";
 }
 
+/// <summary>
+/// The way into a room that a launch handed out, and what it was handed out for.
+///
+/// Carried back with the reply because the message and the invite are one thing: the card is
+/// only a way in for as long as the room behind it is watching that film, and both halves are
+/// needed to say so once it is not. A launch that opens a browser link carries none, since a
+/// link into the player neither expires nor has to be taken away.
+/// </summary>
+public sealed record LaunchInvite
+{
+    /// <summary>The invite's code, which is the whole of the URL that is not the host.</summary>
+    public required string Code { get; init; }
+
+    /// <summary>The room it opens.</summary>
+    public required string SessionId { get; init; }
+
+    /// <summary>The film the card announces, which is what the room is checked against.</summary>
+    public required string TitleId { get; init; }
+}
+
 /// <summary>What the bot posts back to the channel.</summary>
-public sealed record LaunchReply(string Text, Embed Embed, MessageComponent? Components);
+public sealed record LaunchReply(
+    string Text, Embed Embed, MessageComponent? Components, LaunchInvite? Invite = null);
 
 /// <summary>
 /// How a person gets from a Discord message into the player.

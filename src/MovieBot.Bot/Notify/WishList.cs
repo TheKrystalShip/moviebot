@@ -14,11 +14,11 @@ public enum WishAdded
 /// <summary>
 /// The films people are waiting on, kept on disk.
 ///
-/// This is the one thing the bot remembers. A download is kept as tags on the torrent and a room
-/// as the API's journal, but a film that is not on the tracker yet has no torrent to tag and no
-/// manifest to write: a wish for it exists nowhere unless it is written down here. Losing the
-/// file on a restart would drop every person waiting, silently, with the sweep carrying on over
-/// an empty list.
+/// The bot remembers what exists nowhere else, and this is one of the two. A download is kept as
+/// tags on the torrent and a room as the API's journal, but a film that is not on the tracker yet
+/// has no torrent to tag and no manifest to write: a wish for it exists nowhere unless it is
+/// written down here. Losing the file on a restart would drop every person waiting, silently,
+/// with the sweep carrying on over an empty list.
 ///
 /// Every change is written whole and moved into place. Changes are rare — a person asking, a
 /// film arriving — so there is nothing to batch, and a half-written file read at the next start

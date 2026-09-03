@@ -11,9 +11,13 @@ namespace TheKrystalShip.MovieBot.Bot.Launch;
 /// <summary>
 /// Opens the film as an Activity inside the voice channel people are already sitting in.
 ///
-/// This is the whole of what phase five changes about the bot: resolving the film, opening the
-/// session and every error path above this line are the link presenter's, unchanged. The only
-/// difference is which door the reply opens.
+/// It decides which door the reply opens and nothing else: resolving the film, opening the
+/// session and every error path above this line belong to the command, and the link presenter
+/// answers whenever an Activity cannot be offered.
+///
+/// The invite is made to last the film. Discord counts an invite's life from the moment it is
+/// made rather than from the last person through it, so an invite shorter than what it opens
+/// closes on a room that is still watching, and the card goes on looking like a way in.
 /// </summary>
 public sealed class ActivityLaunchPresenter(
     DiscordSocketClient client,
@@ -46,7 +50,7 @@ public sealed class ActivityLaunchPresenter(
             // built-ins. This is what sets target_type 2 with this application's id.
             invite = await channel.CreateInviteToApplicationAsync(
                 applicationId: applicationId,
-                maxAge: launch.Value.InviteMaxAgeSeconds,
+                maxAge: launch.Value.InviteMaxAgeFor(request.Title.DurationSeconds),
                 maxUses: null,
                 isTemporary: false,
                 isUnique: true,
@@ -84,7 +88,13 @@ public sealed class ActivityLaunchPresenter(
         return new LaunchReply(
             request.Headline,
             embed.Build(),
-            components);
+            components,
+            new LaunchInvite
+            {
+                Code = invite.Code,
+                SessionId = request.SessionId,
+                TitleId = request.Title.Id
+            });
     }
 
     private Uri? PosterUrl(LibraryTitle title)

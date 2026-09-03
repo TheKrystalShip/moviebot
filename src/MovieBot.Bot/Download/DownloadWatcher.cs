@@ -42,6 +42,7 @@ public sealed class DownloadWatcher(
     AcquisitionService acquisition,
     MovieBotApiClient api,
     ILaunchPresenter presenter,
+    LaunchCards cards,
     IFilmRetention retention,
     ILogger<DownloadWatcher> logger) : BackgroundService
 {
@@ -264,8 +265,13 @@ public sealed class DownloadWatcher(
                 ? new AllowedMentions { UserIds = [allowed] }
                 : AllowedMentions.None;
 
-            await channel.SendMessageAsync(
+            var posted = await channel.SendMessageAsync(
                 text: content, embed: embed, components: launch?.Components, allowedMentions: mentions);
+
+            // The announcement is the launch card when the film was asked for in a room, so it is
+            // remembered the same way the command's is: it is a door, and it has to say so when it
+            // stops opening.
+            if (launch?.Invite is { } invite) cards.Add(invite, channelId, posted.Id);
 
             logger.LogInformation("Announced {Name} in {ChannelId}.", download.Name, channelId);
             return true;

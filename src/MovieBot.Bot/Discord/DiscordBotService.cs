@@ -8,6 +8,7 @@ using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Configuration;
 using TheKrystalShip.MovieBot.Bot.Download;
 using TheKrystalShip.MovieBot.Bot.Keep;
+using TheKrystalShip.MovieBot.Bot.Launch;
 using TheKrystalShip.MovieBot.Bot.Library;
 using TheKrystalShip.MovieBot.Bot.Notify;
 using TheKrystalShip.MovieBot.Bot.Watch;
@@ -28,6 +29,7 @@ public sealed class DiscordBotService(
     DownloadCommand download,
     NotifyCommand notify,
     KeepCommand keep,
+    LaunchCards cards,
     TheKrystalShip.MovieBot.Acquire.Download.Retention retention,
     TheKrystalShip.MovieBot.Acquire.Search.AutocompleteSearch suggestions,
     TheKrystalShip.MovieBot.Acquire.Imdb.ImdbClient catalogue,
@@ -186,11 +188,18 @@ public sealed class DiscordBotService(
             // Display names are whatever a person set them to, so nothing in a reply is allowed
             // to notify anyone.
             if (result.Reply is { } reply)
-                await command.FollowupAsync(
+            {
+                var posted = await command.FollowupAsync(
                     reply.Text,
                     embed: reply.Embed,
                     components: reply.Components,
                     allowedMentions: AllowedMentions.None);
+
+                // Recorded after the message exists, because the message is half of what is being
+                // recorded. What it buys is the card saying so once the room behind it closes.
+                if (reply.Invite is { } invite)
+                    cards.Add(invite, command.ChannelId ?? 0, posted.Id);
+            }
             else
                 await command.FollowupAsync(result.Message, allowedMentions: AllowedMentions.None);
         }

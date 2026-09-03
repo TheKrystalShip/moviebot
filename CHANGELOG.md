@@ -4,6 +4,36 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.0] - 2026-09-04
+
+### Fixed
+
+- An Activity invite lasts the film it was made for. Discord counts an invite's life from the
+  moment it is made rather than from the last person through it, so a flat half hour shut the door
+  on every film longer than one: everybody already watching carried on, and the card they came
+  through stopped letting anybody else in, with nothing on either side to say so. The invite is
+  now given the film's running time plus `Launch:InviteGraceSeconds`, which defaults to the half
+  hour the API waits before forgetting an empty room, so the invite and the room behind it run out
+  together. An age of zero reads as never expiring to Discord, so a floor stands under whatever is
+  configured.
+
+### Added
+
+- A launch card says when it has stopped being a way in. The rooms are read from the API every
+  half minute, and a card whose room has closed — or whose room has moved on to another film — is
+  edited where it stands: it goes grey, the button and the link on its title go, and the
+  description says what happened and that `/watch` in a voice channel starts the film again. The
+  film, the poster and the fields stay, because scrolling back to what an evening watched is worth
+  being able to do. A room that closed and a room watching something else are told apart, since
+  one of them is still going.
+- The invite behind an expired card is revoked in the same pass, so a link copied out of a card
+  stops working when the card says it has.
+- The cards still standing are written to `launches.json` in the state directory, configurable
+  with `Launch:CardsPath`. Which message hands out which invite into which room exists in Discord
+  and nowhere else — the API has never heard of a Discord message — so a bot that did not write it
+  down would leave every card it had posted looking live for good. A pass that cannot reach the
+  API does nothing at all: rooms it could not read are not rooms that closed.
+
 ## [1.29.0] - 2026-09-03
 
 ### Fixed

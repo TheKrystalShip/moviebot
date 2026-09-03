@@ -1,4 +1,5 @@
 using TheKrystalShip.MovieBot.Acquire.Search;
+using TheKrystalShip.MovieBot.Bot.Configuration;
 
 namespace TheKrystalShip.MovieBot.Bot.Notify;
 
@@ -29,15 +30,6 @@ public sealed class NotifyOptions
     /// </summary>
     public Source MinimumSource { get; set; } = Source.Web;
 
-    public string ResolvePath()
-    {
-        if (!string.IsNullOrWhiteSpace(Path)) return System.IO.Path.GetFullPath(Path);
-
-        // systemd names the directory it made in this variable, and may name more than one.
-        var state = Environment.GetEnvironmentVariable("STATE_DIRECTORY")?.Split(':').FirstOrDefault();
-
-        return System.IO.Path.GetFullPath(System.IO.Path.Combine(
-            string.IsNullOrWhiteSpace(state) ? Directory.GetCurrentDirectory() : state,
-            "wishes.json"));
-    }
+    public string ResolvePath() =>
+        StatePath.Resolve(Path, "wishes.json");
 }

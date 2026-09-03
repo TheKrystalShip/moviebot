@@ -51,24 +51,49 @@ public sealed class ApiOptions
     public string? PublicBaseUrl { get; set; }
 }
 
-/// <summary>
-/// Where the player is served from. The reply is a link into it.
-/// </summary>
-/// <summary>How long a launch stays usable.</summary>
+/// <summary>How long a launch stays usable, and what is remembered about the ones handed out.</summary>
 public sealed class LaunchOptions
 {
     public const string Section = "Launch";
 
+    /// <summary>Discord refuses an invite asked to live longer than a week.</summary>
+    private const double Ceiling = 604800;
+
     /// <summary>
-    /// How long the Discord invite an Activity launch produces remains valid, in seconds.
-    ///
-    /// It gates joining and nothing else: people already watching are unaffected when it lapses.
-    /// Matching it to the API's idle timeout means a link left lying around stops being a way in
-    /// at roughly the moment the room behind it is forgotten.
+    /// A floor under the life of any invite. Discord reads an age of zero as never expiring, so
+    /// this is what stands between a misconfigured grace and a permanent way into the server.
     /// </summary>
-    public int InviteMaxAgeSeconds { get; set; } = 1800;
+    private const double Floor = 60;
+
+    /// <summary>
+    /// How long the Discord invite an Activity launch produces outlives the film, in seconds.
+    ///
+    /// An invite's life is counted from the moment it is made rather than from the last person
+    /// through it, so a window shorter than a film shuts the door on a room that is still
+    /// watching: everybody already inside carries on, and the card they came through quietly
+    /// stops letting anyone else in. The invite is given the film's running time plus this, which
+    /// is the longest the card can still be a way into what it announces. Matching it to the
+    /// API's <c>Rooms:IdleTimeout</c> lands the invite and the room behind it at the same moment.
+    /// </summary>
+    public int InviteGraceSeconds { get; set; } = 1800;
+
+    /// <summary>
+    /// Where the standing launch cards are written. Empty means the state directory systemd
+    /// hands the service, and the working directory when there is none.
+    /// </summary>
+    public string CardsPath { get; set; } = "";
+
+    /// <summary>How long an invite handed out for a film of this length is good for.</summary>
+    public int InviteMaxAgeFor(double filmSeconds)
+    {
+        var film = double.IsFinite(filmSeconds) && filmSeconds > 0 ? Math.Ceiling(filmSeconds) : 0;
+        return (int)Math.Clamp(film + Math.Max(0, InviteGraceSeconds), Floor, Ceiling);
+    }
+
+    public string ResolveCardsPath() => StatePath.Resolve(CardsPath, "launches.json");
 }
 
+/// <summary>Where the player is served from. The reply is a link into it.</summary>
 public sealed class PlayerOptions
 {
     public const string Section = "Player";

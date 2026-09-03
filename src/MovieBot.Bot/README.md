@@ -16,10 +16,15 @@ that could disagree with reality. A download's own notes live on the torrent.
 Everything in a reply was measured while the command ran. The bot never opens a manifest, never
 caches a title and never claims a state it did not read.
 
-The one exception is the wish list: the films people are waiting on and who asked. A film that is
-not on the tracker yet has no torrent to tag and no manifest to write, so a wish for it exists
-nowhere unless the bot writes it down. It is one JSON file in the state directory systemd hands
-the service, written whole and moved into place on every change.
+Two things are exceptions, and both for the same reason: they exist nowhere else to be read back
+from. The wish list is the films people are waiting on and who asked — a film that is not on the
+tracker yet has no torrent to tag and no manifest to write. The launch cards are the messages
+that hand out a way into a room: which message, in which channel, carrying which invite, for
+which film. The API has never heard of a Discord message, so a bot that did not write this down
+would leave every card it had posted looking live for good.
+
+Each is one JSON file in the state directory systemd hands the service, written whole and moved
+into place on every change.
 
 ## Configuration
 
@@ -31,6 +36,8 @@ the service, written whole and moved into place on every change.
 | `Player__BaseUrl` | yes | Where the player is served. The launch link is this address plus its parameters. |
 | `Api__BaseUrl` | no | Where the bot reaches the API. Defaults to `http://127.0.0.1:8099`. |
 | `Api__PublicBaseUrl` | no | Where Discord's servers reach the API. Only the poster needs it, and without it the embed carries no image rather than a broken one. |
+| `Launch__InviteGraceSeconds` | no | How long an Activity invite outlives the film it was made for. Defaults to 1800, matching the API's `Rooms:IdleTimeout`, which lands the invite and the room behind it at the same moment. |
+| `Launch__CardsPath` | no | Where the standing launch cards are written. Defaults to `launches.json` in the directory `STATE_DIRECTORY` names, and to the working directory when there is none. |
 | `Notify__Path` | no | Where the wish list is written. Defaults to `wishes.json` in the directory `STATE_DIRECTORY` names, and to the working directory when there is none. |
 | `Notify__SweepMinutes` | no | How often the tracker is asked about every film on the list. Defaults to 60. |
 | `Notify__MinimumSource` | no | The least a release's source may be for a film to count as available: `Web` by default, so a camcorder recording of a film in cinemas does not announce it. |
@@ -110,6 +117,24 @@ holding it is in the room.
 Which launch the reply carries is the only thing `ILaunchPresenter` decides. A presenter that
 opens the player as an Activity inside the voice channel replaces the one that links to it, and
 the command above it does not change.
+
+## A card says when it is over
+
+An Activity launch hands out a Discord invite, and Discord counts an invite's life from the moment
+it is made rather than from the last person through it. The invite is therefore made to last the
+film — its running time plus `Launch__InviteGraceSeconds` — so the card goes on being a way in for
+as long as there is something to walk into. A flat window shorter than a film shuts the door while
+the room is still watching, which nobody inside notices and nobody outside can explain.
+
+The card is then kept up to date. Every half minute the rooms are read from the API, and a card
+whose room has closed, or whose room has moved on to another film, is edited where it stands: it
+goes grey, the button and the link on its title go, and the description says what happened and
+that `/watch` in a voice channel starts the film again. The invite behind it is revoked in the
+same pass, so the link somebody copied out of the card stops working when the card says it has.
+
+A pass that cannot reach the API does nothing at all. Rooms it could not read are not rooms that
+closed. Editing a message notifies nobody, which is the point: this is for whoever scrolls back
+and finds the card, not for the room that has already moved on.
 
 ## Waiting on a film
 
