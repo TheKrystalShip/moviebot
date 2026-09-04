@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.0] - 2026-09-04
+
+### Changed
+
+- The hand-off is a native binary. What a long-running .NET process holds is the code the JIT
+  has written and the type data the runtime builds around it, and a process compiled ahead of
+  time has neither: its code and its type system are data in the binary, paged in from the file.
+  Every comparison in the pipeline is ordinal or invariant, so the globalization data is not
+  loaded either. Nothing about what it does changes; it idles at a quarter of what it did.
+
 ## [1.30.1] - 2026-09-04
 
 ### Changed

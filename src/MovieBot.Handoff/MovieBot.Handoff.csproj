@@ -8,13 +8,21 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Handoff</RootNamespace>
     <AssemblyName>moviebot-handoff</AssemblyName>
-    <Version>0.6.1</Version>
+    <Version>0.7.0</Version>
 
-    <!-- The JIT is where this process's memory goes, not the heap, and a method compiled once at
-         full optimisation is held once. Startup time is nothing to a worker that runs for weeks,
-         so there is no tiering to grow the code heap and no PGO to keep copies of hot methods. -->
-    <TieredCompilation>false</TieredCompilation>
-    <TieredPGO>false</TieredPGO>
+    <!-- Compiled ahead of time. What a long-running .NET process holds is not its heap but the
+         code the JIT has written and the type data the runtime built around it, and this
+         process has neither: its code and its type system are data in the binary, paged in from
+         the file. Every string comparison in the pipeline is ordinal or invariant, so the
+         globalization data is not loaded either. -->
+    <PublishAot>true</PublishAot>
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- The ingest is referenced for its pipeline, not run as a program, so the SDK's check that
+         an executable reference is built the same way as the one referencing it has nothing to
+         protect here. -->
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
   </PropertyGroup>
 
   <ItemGroup>
