@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.32.0] - 2026-09-04
+
+### Changed
+
+- The API is a native binary, for the same reason the hand-off is: what it held after a day was
+  the JIT's code and the type data built around it, not the rooms, and a process compiled ahead
+  of time has neither. Its heap is collected on one thread rather than one per core, since it
+  belongs to a handful of rooms and the film itself never touches it, and the globalization data
+  is not loaded, since every comparison is ordinal.
+- Everything the API puts on the wire is named in a serializer context, and the two contexts are
+  the only resolver the hub and the endpoints use. The bodies that were anonymous objects are
+  records now, with the same fields under the same names, and a type left out of the contexts
+  fails a test rather than a request.
+
 ## [1.31.0] - 2026-09-04
 
 ### Changed

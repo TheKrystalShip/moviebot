@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
+using TheKrystalShip.MovieBot.Api;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Api.Library;
@@ -73,19 +74,22 @@ builder.Services.AddOptions<DiscordAuthOptions>()
     .Bind(builder.Configuration.GetSection(DiscordAuthOptions.Section));
 builder.Services.AddHttpClient<DiscordAuthClient>(http => http.Timeout = TimeSpan.FromSeconds(10));
 
+// Every type that crosses the wire is named in a serializer context, and the two contexts are the
+// only resolver the hub and the endpoints have: nothing is reached by reflection, so a type left
+// out fails in the JIT build the tests run exactly as it would in the native one.
 builder.Services.AddSignalR()
     .AddJsonProtocol(o =>
     {
+        o.PayloadSerializerOptions.TypeInfoResolver = ApiJson.Resolver;
         o.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         o.PayloadSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-        o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
 builder.Services.ConfigureHttpJsonOptions(o =>
 {
+    o.SerializerOptions.TypeInfoResolver = ApiJson.Resolver;
     o.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     o.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
 // The Activity is served from Discord's proxy and the standalone page from wherever it is
@@ -121,12 +125,7 @@ app.UseStaticFiles();
 app.MapGet("/health", (SessionStore sessions) =>
 {
     var rooms = sessions.Occupied();
-    return Results.Ok(new
-    {
-        status = "ok",
-        rooms = rooms.Count,
-        watching = rooms.Sum(r => r.Participants)
-    });
+    return Results.Ok(new HealthReport("ok", rooms.Count, rooms.Sum(r => r.Participants)));
 });
 
 // The application id is not a secret — it is in every invite link and in the Activity's own URL.
@@ -134,11 +133,9 @@ app.MapGet("/health", (SessionStore sessions) =>
 // The public address rides along for the same reason: it is where Discord's own servers fetch a
 // poster from, which the page cannot learn from an origin that is Discord's proxy.
 app.MapGet("/api/config", (IOptions<DiscordAuthOptions> discord, IConfiguration configuration) =>
-    Results.Ok(new
-    {
-        discordClientId = discord.Value.ClientId,
-        publicBaseUrl = configuration["Api:PublicBaseUrl"] is { Length: > 0 } url ? url.TrimEnd('/') : null
-    }));
+    Results.Ok(new ClientConfig(
+        discord.Value.ClientId,
+        configuration["Api:PublicBaseUrl"] is { Length: > 0 } url ? url.TrimEnd('/') : null)));
 
 app.MapGet("/api/titles", (TitleLibrary library) => Results.Ok(library.List()));
 
@@ -199,15 +196,15 @@ app.MapPost("/api/auth/discord/callback", async (
         return Results.Problem("Discord OAuth is not configured on this server.", statusCode: 503);
 
     if (string.IsNullOrWhiteSpace(request.Code))
-        return Results.BadRequest(new { error = "A code is required." });
+        return Results.BadRequest(new ErrorReply("A code is required."));
 
     var accessToken = await discord.ExchangeCodeAsync(request.Code, options.Value, request.RedirectUri, ct);
     if (accessToken is null)
-        return Results.BadRequest(new { error = "Discord refused the code." });
+        return Results.BadRequest(new ErrorReply("Discord refused the code."));
 
     var user = await discord.GetUserAsync(accessToken, ct);
     if (user is null)
-        return Results.BadRequest(new { error = "Discord issued a token it then would not answer for." });
+        return Results.BadRequest(new ErrorReply("Discord issued a token it then would not answer for."));
 
     var auth = authOptions.Value;
     var roomToken = RoomToken.Issue(new RoomTokenPayload
@@ -220,12 +217,8 @@ app.MapPost("/api/auth/discord/callback", async (
 
     // The access token goes back so the SDK can complete authenticate(); it is the browser's own
     // token and is scoped to the Activity, unlike the secret that redeemed the code.
-    return Results.Ok(new
-    {
-        accessToken,
-        roomToken,
-        user = new { user.Id, user.Username, displayName = user.DisplayName }
-    });
+    return Results.Ok(new DiscordSignIn(
+        accessToken, roomToken, new SignedInUser(user.Id, user.Username, user.DisplayName)));
 });
 
 // For the bot and for the browser checks: a caller that already proves itself with the service
@@ -246,16 +239,13 @@ app.MapPost("/api/auth/service-token", (
         return Results.Unauthorized();
     }
 
-    return Results.Ok(new
+    return Results.Ok(new ServiceTokenReply(RoomToken.Issue(new RoomTokenPayload
     {
-        roomToken = RoomToken.Issue(new RoomTokenPayload
-        {
-            UserId = request.UserId,
-            DisplayName = request.DisplayName,
-            RoomId = request.RoomId,
-            ExpiresAtUnix = DateTimeOffset.UtcNow.Add(auth.TokenLifetime).ToUnixTimeSeconds()
-        }, auth)
-    });
+        UserId = request.UserId,
+        DisplayName = request.DisplayName,
+        RoomId = request.RoomId,
+        ExpiresAtUnix = DateTimeOffset.UtcNow.Add(auth.TokenLifetime).ToUnixTimeSeconds()
+    }, auth)));
 });
 
 app.MapMedia();

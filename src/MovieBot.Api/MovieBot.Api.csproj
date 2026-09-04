@@ -7,13 +7,18 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Api</RootNamespace>
     <AssemblyName>moviebot-api</AssemblyName>
-    <Version>1.6.1</Version>
+    <Version>1.7.0</Version>
 
-    <!-- The JIT is where this process's memory goes, not the heap: the film is served by
-         sendfile and the room's state is a few kilobytes, while every method PGO finds hot is
-         held three times over, with its counters beside it, and the code heap grows for as long
-         as the service runs. Tiering alone keeps startup quick without the copies. -->
-    <TieredPGO>false</TieredPGO>
+    <!-- Compiled ahead of time. What a long-running .NET process holds is not its heap but the
+         code the JIT has written and the type data the runtime built around it, and this
+         process has neither: its code and its type system are data in the binary, paged in from
+         the file. Every comparison here is ordinal, so the globalization data is not loaded.
+         The heap belongs to a handful of rooms and is collected on one thread: a heap per core
+         is for a server saturating them, and the film itself never touches the heap. -->
+    <PublishAot>true</PublishAot>
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
   </PropertyGroup>
 
   <ItemGroup>

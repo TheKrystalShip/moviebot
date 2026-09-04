@@ -147,22 +147,22 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         // Somebody arriving puts the room's idle clock back, which is worth keeping: a room being
         // watched must not be swept on the next start for having last been touched hours ago.
         Changed?.Invoke();
-        return [.. entry.Participants.Values];
+        return entry.Participants.Values.ToList();
     }
 
     public IReadOnlyList<Participant> Leave(string sessionId, string connectionId)
     {
-        if (!_sessions.TryGetValue(sessionId, out var entry)) return [];
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return new List<Participant>();
         entry.Participants.TryRemove(connectionId, out _);
         // The clock on an empty room starts when the last person leaves it.
         entry.LastActivityUtc = clock.GetUtcNow();
 
         Changed?.Invoke();
-        return [.. entry.Participants.Values];
+        return entry.Participants.Values.ToList();
     }
 
     public IReadOnlyList<Participant> Participants(string sessionId) =>
-        _sessions.TryGetValue(sessionId, out var entry) ? [.. entry.Participants.Values] : [];
+        _sessions.TryGetValue(sessionId, out var entry) ? entry.Participants.Values.ToList() : new List<Participant>();
 
     // ---- Internals ------------------------------------------------------------------
 

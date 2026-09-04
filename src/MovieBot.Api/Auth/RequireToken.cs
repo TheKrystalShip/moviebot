@@ -49,10 +49,9 @@ public sealed class RequireTokenMiddleware(
             logger.LogDebug("Refused {Method} {Path}: no usable token", context.Request.Method, context.Request.Path);
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             context.Response.Headers.WWWAuthenticate = "Bearer";
-            await context.Response.WriteAsJsonAsync(new
-            {
-                error = "This is opened from Discord. Ask the bot for a film with /watch."
-            });
+            await context.Response.WriteAsJsonAsync(
+                new ErrorReply("This is opened from Discord. Ask the bot for a film with /watch."),
+                ApiJsonContext.Default.ErrorReply);
             return;
         }
 

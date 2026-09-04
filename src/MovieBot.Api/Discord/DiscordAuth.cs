@@ -75,7 +75,7 @@ public sealed class DiscordAuthClient(HttpClient http, ILogger<DiscordAuthClient
             return null;
         }
 
-        var token = await response.Content.ReadFromJsonAsync<TokenResponse>(cancellationToken: ct);
+        var token = await response.Content.ReadFromJsonAsync(ApiJsonContext.Default.TokenResponse, ct);
         return string.IsNullOrEmpty(token?.AccessToken) ? null : token.AccessToken;
     }
 
@@ -91,6 +91,6 @@ public sealed class DiscordAuthClient(HttpClient http, ILogger<DiscordAuthClient
             return null;
         }
 
-        return await response.Content.ReadFromJsonAsync<DiscordUser>(cancellationToken: ct);
+        return await response.Content.ReadFromJsonAsync(ApiJsonContext.Default.DiscordUser, ct);
     }
 }

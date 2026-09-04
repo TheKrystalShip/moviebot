@@ -84,6 +84,12 @@ dotnet publish src/MovieBot.Handoff  -c Release -o /opt/moviebot/handoff
 systemctl restart moviebot-api moviebot-bot moviebot-handoff       # no sudo
 ```
 
+- **The API and the hand-off publish as native binaries.** `PublishAot` in each project, so the
+  publish above runs the ahead-of-time compiler, needs `clang`, and takes a minute or two longer
+  than a JIT publish. What lands is one executable beside `appsettings.json` and, for the API,
+  `wwwroot`, with nothing left to compile at run time. A directory that held a JIT publish is
+  cleared first, because a native publish leaves the old assemblies standing beside the new
+  binary. The bot stays on the JIT, with tiering off: Discord.Net is built on reflection.
 - **The player reaches people through the API.** `scripts/build-player.sh` installs the built page
   into `src/MovieBot.Api/wwwroot`, and the API is what serves it, so a change to `web/activity`
   arrives only once the API is published after that script has run. One origin serves the page,
@@ -106,6 +112,13 @@ systemctl restart moviebot-api moviebot-bot moviebot-handoff       # no sudo
 
 - **The server is authoritative and there is no host.** Clients send intent; the store decides,
   stamps the server clock and assigns the next revision. A client never pushes state.
+- **Every type on the wire is named in a serializer context, and the two contexts are the only
+  resolver.** `ApiJsonContext` holds this service's own shapes and `ManifestJsonContext` the Core
+  library's, and nothing falls back to reflection, in the JIT build the tests run as much as in
+  the native one, so an anonymous object or an unregistered type fails a test rather than a
+  request. A list is looked up by the type the endpoint declares and written by the type it
+  holds, so both are registered, and a list bound for the wire is built as a `List<T>`: a
+  collection expression yields a type of the compiler's own that nothing has registered.
 - **Clamp seeks on the server, never in the client.** A client's head is always slightly stale,
   so client-side clamping yields a seek half the room accepts and half rejects.
 - **`SeekClamped` goes to the caller alone.** Broadcasting it would show the whole room an error

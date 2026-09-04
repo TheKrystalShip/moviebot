@@ -37,6 +37,25 @@ public sealed record SubtitleSearchView
 public sealed record AddSubtitleRequest(long FileId, string? AddedBy);
 
 /// <summary>
+/// What adding a subtitle answers. A track somebody has already confirmed comes back as it stands,
+/// marked so; a freshly fetched one says what the conversion did to it and what the day has left.
+/// </summary>
+public sealed record SubtitleAdded
+{
+    public required SubtitleTrack Track { get; init; }
+    public bool? AlreadyPinned { get; init; }
+    public int? Cues { get; init; }
+    public int? Repaired { get; init; }
+    public bool? LooksWrong { get; init; }
+    public double? ShiftSeconds { get; init; }
+    public double? AlignedFraction { get; init; }
+    public int? RemainingDownloads { get; init; }
+}
+
+/// <summary>The allowance is spent, and when it comes back, which is what tells this refusal from the rest.</summary>
+public sealed record QuotaReply(string Error, DateTimeOffset? ResetsAt);
+
+/// <summary>
 /// Confirming a track fits. The position is how far in the film had been watched, because drift
 /// only shows up late: a track pinned two minutes in has not been cleared of it.
 /// </summary>
@@ -103,7 +122,7 @@ public static class SubtitleEndpoints
             var log = loggers.CreateLogger("Subtitles");
 
             if (library.Get(id) is not { } manifest) return Results.NotFound();
-            if (request.FileId <= 0) return Results.BadRequest(new { error = "No subtitle was named." });
+            if (request.FileId <= 0) return Results.BadRequest(new ErrorReply("No subtitle was named."));
 
             // Fetching a track somebody has already confirmed would re-measure and re-shift a file
             // a person has watched and approved. A later measurement disagreeing with them is the
@@ -112,7 +131,7 @@ public static class SubtitleEndpoints
             if (pins.For(id).ContainsKey(existingId))
             {
                 var already = manifest.Subtitles.FirstOrDefault(t => t.Id == existingId);
-                if (already is not null) return Results.Ok(new { track = already, alreadyPinned = true });
+                if (already is not null) return Results.Ok(new SubtitleAdded { Track = already, AlreadyPinned = true });
             }
 
             try
@@ -151,27 +170,27 @@ public static class SubtitleEndpoints
                     measured is null ? "not measured" : $"{measured.ShiftSeconds:+0.00;-0.00;0.00}s",
                     allowed.Remaining);
 
-                return Results.Ok(new
+                return Results.Ok(new SubtitleAdded
                 {
-                    track = SubtitleStore.AsTrack(subtitle),
-                    cues = converted.Cues,
-                    repaired = converted.Repaired,
-                    looksWrong = converted.LooksWrong,
-                    shiftSeconds = measured?.ShiftSeconds,
-                    alignedFraction = measured?.AlignedFraction,
-                    remainingDownloads = allowed.Remaining
+                    Track = SubtitleStore.AsTrack(subtitle),
+                    Cues = converted.Cues,
+                    Repaired = converted.Repaired,
+                    LooksWrong = converted.LooksWrong,
+                    ShiftSeconds = measured?.ShiftSeconds,
+                    AlignedFraction = measured?.AlignedFraction,
+                    RemainingDownloads = allowed.Remaining
                 });
             }
             catch (OpenSubtitlesQuotaException ex)
             {
                 // Distinct from any other failure because it resolves by itself, at a stated time.
                 return Results.Json(
-                    new { error = ex.Message, resetsAt = ex.ResetsAt }, statusCode: 429);
+                    new QuotaReply(ex.Message, ex.ResetsAt), ApiJsonContext.Default.QuotaReply, statusCode: 429);
             }
             catch (OpenSubtitlesException ex)
             {
                 log.LogWarning(ex, "Could not add subtitle {FileId} to {Title}.", request.FileId, id);
-                return Results.Json(new { error = ex.Message }, statusCode: 502);
+                return Results.Json(new ErrorReply(ex.Message), ApiJsonContext.Default.ErrorReply, statusCode: 502);
             }
         });
 

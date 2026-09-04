@@ -43,7 +43,7 @@ public sealed class TitleLibrary(
 
     public IReadOnlyList<TitleSummary> List()
     {
-        if (!Directory.Exists(MediaRoot)) return [];
+        if (!Directory.Exists(MediaRoot)) return new List<TitleSummary>();
 
         var summaries = new List<TitleSummary>();
         foreach (var directory in Directory.EnumerateDirectories(MediaRoot))
