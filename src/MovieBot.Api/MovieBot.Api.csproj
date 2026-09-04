@@ -7,7 +7,13 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Api</RootNamespace>
     <AssemblyName>moviebot-api</AssemblyName>
-    <Version>1.6.0</Version>
+    <Version>1.6.1</Version>
+
+    <!-- The JIT is where this process's memory goes, not the heap: the film is served by
+         sendfile and the room's state is a few kilobytes, while every method PGO finds hot is
+         held three times over, with its counters beside it, and the code heap grows for as long
+         as the service runs. Tiering alone keeps startup quick without the copies. -->
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
 
   <ItemGroup>

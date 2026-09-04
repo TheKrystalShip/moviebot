@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.1] - 2026-09-04
+
+### Changed
+
+- The three services hold less of the JIT. What each process holds is not its heap, which is a
+  few megabytes in every one of them, but the code the JIT has compiled and the type data behind
+  it, and tiered PGO keeps that growing for as long as a service runs: every method it finds hot is
+  held as three copies with counters beside them. PGO is off in all three. The bot and the hand-off
+  also compile each method once, at full optimisation, since a worker that runs for weeks has no
+  startup to protect; the API keeps tiering, so a restart mid-film answers quickly.
+
 ## [1.30.0] - 2026-09-04
 
 ### Fixed

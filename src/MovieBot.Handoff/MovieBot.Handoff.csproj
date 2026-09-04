@@ -8,7 +8,13 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Handoff</RootNamespace>
     <AssemblyName>moviebot-handoff</AssemblyName>
-    <Version>0.6.0</Version>
+    <Version>0.6.1</Version>
+
+    <!-- The JIT is where this process's memory goes, not the heap, and a method compiled once at
+         full optimisation is held once. Startup time is nothing to a worker that runs for weeks,
+         so there is no tiering to grow the code heap and no PGO to keep copies of hot methods. -->
+    <TieredCompilation>false</TieredCompilation>
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
 
   <ItemGroup>
