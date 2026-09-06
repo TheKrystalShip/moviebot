@@ -195,7 +195,7 @@ export class FilmPlayer {
   }
 
   /** Loads a title. Resolves once the media element holds it. */
-  async load(manifest: Manifest): Promise<void> {
+  async load(manifest: Manifest, startPosition?: number): Promise<void> {
     this.teardownSource();
 
     this.manifest = manifest;
@@ -248,6 +248,7 @@ export class FilmPlayer {
         enableWorker: true,
         lowLatencyMode: false,
         backBufferLength: 90,
+        startPosition: startPosition ?? 0,
         // Playlists and segments are closed like everything else, and hls.js does its own
         // fetching, so the proof has to be attached to its requests rather than ours.
         xhrSetup: (xhr) => {
@@ -273,6 +274,11 @@ export class FilmPlayer {
       this.hooks.onError(`${manifest.title} did not start playing.`);
       return;
     }
+
+    // Native HLS has no startPosition config. For hls.js the startPosition is in the config,
+    // but setting it here as well is harmless and covers the native path.
+    if (startPosition !== undefined && startPosition > 0)
+      this.video.currentTime = startPosition;
 
     // The control bar is hidden until video.js believes playback has begun, and this player is
     // driven from the room rather than from its own play button: the film is loaded, so the
@@ -442,6 +448,15 @@ export class FilmPlayer {
   /** How far the transcode has reached, or null once the whole film is written. */
   setTranscodeHead(seconds: number | null): void {
     this.scrub.setReady(seconds);
+  }
+
+  /**
+   * Shows the spinner and locks controls while the player seeks to the room's position.
+   * Cleared by the caller once the seek lands.
+   */
+  setLoading(loading: boolean): void {
+    this.holdControls(loading);
+    this.spinner.hidden = !loading;
   }
 
   selectAudio(trackId: string): void {

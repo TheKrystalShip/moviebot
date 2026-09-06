@@ -107,7 +107,8 @@ async function boot(): Promise<void> {
     seek: (to) => void hub.seek(to)
   }, {
     onState: (state) => onState(state),
-    onPlaybackBlocked: () => shell.showGate(true)
+    onPlaybackBlocked: () => shell.showGate(true),
+    onInitialSeekChanged: (seeking) => player.setLoading(seeking)
   });
 
   function onState(state: SessionState): void {
@@ -198,7 +199,7 @@ async function boot(): Promise<void> {
       return;
     }
 
-    await player.load(manifest);
+    await player.load(manifest, controller?.roomPosition());
   }
 
   /**

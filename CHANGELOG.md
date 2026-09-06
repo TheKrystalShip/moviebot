@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.0] - 2026-09-06
+
+### Changed
+
+- A film opens at the position the room is already at, rather than at its beginning. The player
+  is handed that position as it loads the source, so the first segments it fetches are the ones
+  being watched instead of the opening it would otherwise have to seek away from.
+- The controls stay held, with the spinner up, until that first seek lands. A play issued in
+  that window fires with whatever position the video element is holding, which is zero, and
+  takes the whole room back to the start of the film.
+
 ## [1.32.0] - 2026-09-04
 
 ### Changed

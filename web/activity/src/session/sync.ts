@@ -27,6 +27,8 @@ export interface SyncHooks {
   onState(state: SessionState): void;
   /** The browser refused to start playback without a gesture. */
   onPlaybackBlocked(): void;
+  /** The initial seek to the room's position started or finished. */
+  onInitialSeekChanged(seeking: boolean): void;
 }
 
 /**
@@ -49,6 +51,9 @@ export class SyncController {
   private latest: SessionState | null = null;
   private playerReady = false;
   private correcting = false;
+  /** True while the player is seeking to the room's position after becoming ready. Blocks user
+   *  controls until the seek lands so a play intent cannot fire with a stale position. */
+  private _initialSeekInProgress = false;
   /** Set when the room wants playback but a seek has to land before it can start. */
   private startAfterSeek = false;
   private seekStartedMs = 0;
@@ -96,6 +101,12 @@ export class SyncController {
         this.appliedSeek = null;
       }
 
+      // The initial seek landed: controls may be unblocked.
+      if (this._initialSeekInProgress) {
+        this._initialSeekInProgress = false;
+        this.hooks.onInitialSeekChanged(false);
+      }
+
       // Playback the room wanted, held until the playhead had arrived. Starting it while the seek
       // was still running is what aborted it.
       if (this.startAfterSeek) {
@@ -125,6 +136,11 @@ export class SyncController {
   /** Where the room is, as opposed to where this viewer's playhead has got to. */
   roomPosition(): number {
     return this.latest === null ? 0 : derivePosition(this.latest, this.clock.now());
+  }
+
+  /** True while the player is seeking to the room's position after joining. */
+  get initialSeekInProgress(): boolean {
+    return this._initialSeekInProgress;
   }
 
   /**
@@ -162,7 +178,17 @@ export class SyncController {
    */
   setPlayerReady(ready: boolean): void {
     this.playerReady = ready;
-    if (ready && this.latest !== null) this.applyToPlayer(this.latest);
+    if (ready && this.latest !== null) {
+      // If the player is far from the room's position, the first apply will seek. Mark it so
+      // controls stay blocked until the playhead arrives: a play before then would fire with
+      // whatever position the video element holds, which is usually zero.
+      const target = this.targetFor(this.latest);
+      if (Math.abs(target - this.video.currentTime) > SnapSeconds) {
+        this._initialSeekInProgress = true;
+        this.hooks.onInitialSeekChanged(true);
+      }
+      this.applyToPlayer(this.latest);
+    }
   }
 
   /**
