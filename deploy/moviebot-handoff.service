@@ -11,8 +11,22 @@ WorkingDirectory=/opt/moviebot/handoff
 ExecStart=/opt/moviebot/handoff/moviebot-handoff
 
 EnvironmentFile=/etc/moviebot/moviebot.env
-Environment=Handoff__MediaRoot=/home/heisen/tks/moviebot/media
+Environment=Handoff__MediaRoot=/home/heisen/moviebot/media
 Environment=Download__Root=/home/heisen/Downloads/Movies
+Environment=QBittorrent__BaseUrl=http://127.0.0.1:8081
+
+# The system ffmpeg lists h264_nvenc and cannot run it: it is built against NVENC API 13.1, which
+# requires driver 610 or newer, and this card is Pascal and capped at driver 580 with API 13.0. The
+# skew does not resolve. The build at /opt/ffmpeg-p2000 is made against matching headers and is
+# kept off the global PATH so it shadows nothing else on the host. ffprobe sits in the same
+# directory, so the probe pass and the transcode cannot end up on different builds.
+Environment=PATH=/opt/ffmpeg-p2000/bin:/usr/local/bin:/usr/bin
+
+# The card saturates at roughly 10.6x realtime in aggregate: two films run at 5.3x each, three at
+# 3.6x each for the same total. A third only moves every film in flight closer to the playhead it
+# has to outrun.
+Environment=Handoff__MaxConcurrentIngests=2
+
 Environment=DOTNET_EnableDiagnostics=0
 
 Restart=on-failure
@@ -24,8 +38,14 @@ ProtectSystem=strict
 
 # It reads what the torrent client wrote and writes what the API serves, so the two directories
 # are named rather than the whole of the home being opened.
+#
+# The download root is deliberately not writable here. Retention takes a download off the disk by
+# asking the torrent client to delete it, so qbittorrent-nox does the unlink and this service
+# never needs to: a torrent whose files vanish from under the client is reported as missing files
+# and announced forever. The title directory in the media root is the only thing this deletes
+# itself, which is what the line below is for.
 ProtectHome=read-only
-ReadWritePaths=/home/heisen/tks/moviebot/media
+ReadWritePaths=/home/heisen/moviebot/media
 
 ProtectKernelTunables=true
 ProtectControlGroups=true

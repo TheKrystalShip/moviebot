@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.0] - 2026-09-06
+
+### Changed
+
+- The three services run on hotbox, which holds the media root, the state directories, the
+  torrent client and the GPU that transcodes. They are built on hotrod, which holds the
+  checkouts and the toolchain, and published across by rsync.
+- `movies.thekrystalship.com` is served in two halves on two machines. There is one public
+  address on this network and hotbox does not hold it, so hotrod publishes the name and routes
+  it across the LAN over an https hop made under hotbox's own name: the certificate on the far
+  side is chosen by that SNI while the server block is chosen by the Host header. The two nginx
+  files are `deploy/nginx-moviebot-ingress.conf` and `deploy/nginx-moviebot.conf`.
+- The hand-off reaches ffmpeg through its unit's own `PATH`. Where a card's driver branch is
+  older than the NVENC API the distribution's ffmpeg is built against, that ffmpeg still lists
+  `h264_nvenc` and cannot run it, so a matching build is named by the unit and kept off the
+  global PATH.
+- `Handoff__MaxConcurrentIngests` is set per host, against the aggregate rate the card actually
+  saturates at rather than a figure carried over from another one.
+
 ## [1.33.0] - 2026-09-06
 
 ### Changed
