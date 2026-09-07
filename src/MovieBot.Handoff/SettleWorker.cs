@@ -97,6 +97,12 @@ public sealed class SettleWorker(
 
         cold.SweepIncoming();
 
+        // A film being made again has its settled copy cleared before the transcode starts, but
+        // only if this volume was there at the time. One that was cleared while the volume was
+        // gone would otherwise shadow the film being made for the whole of its transcode, and a
+        // room that asked for the new release would watch the old one until it finished.
+        foreach (var id in BeingMade()) cold.ClearSettled(id);
+
         var finished = Finished().ToList();
         if (finished.Count == 0) return;
 
@@ -156,6 +162,41 @@ public sealed class SettleWorker(
             }
 
             if (manifest?.Status == TitleStatus.Ready) yield return id;
+        }
+    }
+
+    /// <summary>
+    /// The titles on the hot root that are not done being made, and that the cold root also holds.
+    /// Two copies of one id with the hot one unfinished means the settled copy is a film the
+    /// library has replaced.
+    /// </summary>
+    private IEnumerable<string> BeingMade()
+    {
+        if (!Directory.Exists(roots.Hot)) yield break;
+
+        foreach (var directory in Directory.EnumerateDirectories(roots.Hot))
+        {
+            var id = Path.GetFileName(directory);
+            if (!MediaRoots.IsTitleDirectory(id)) continue;
+            if (roots.SettledDirectoryOf(id) is not { } settled) continue;
+            if (!Directory.Exists(settled)) continue;
+
+            Manifest? manifest = null;
+            try
+            {
+                var path = Path.Combine(directory, "manifest.json");
+                if (File.Exists(path)) manifest = ManifestJson.Deserialize(File.ReadAllText(path));
+            }
+            catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+            {
+                logger.LogDebug(ex, "Could not read the manifest under {Directory}.", directory);
+            }
+
+            // A manifest that says the film is being made is the evidence, and nothing else is:
+            // an unreadable one, or a directory that carries none, is not a reason to delete the
+            // only finished copy of a film. A film mid-settle is in both roots with the hot one
+            // finished, which is the overlap this must not act on either.
+            if (manifest is not null && manifest.Status != TitleStatus.Ready) yield return id;
         }
     }
 }

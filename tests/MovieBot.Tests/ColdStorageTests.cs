@@ -40,11 +40,54 @@ public sealed class ColdStorageTests : IDisposable
 
     private ColdStore Store(MediaRoots roots) => new(roots, NullLogger<ColdStore>.Instance);
 
-    private static void WriteTitle(string root, string id, string segment)
+    private static void WriteTitle(
+        string root, string id, string segment, TitleStatus status = TitleStatus.Ready)
     {
         Directory.CreateDirectory(Path.Combine(root, id, "v0"));
-        File.WriteAllText(Path.Combine(root, id, "manifest.json"), $$"""{"id":"{{id}}"}""");
         File.WriteAllText(Path.Combine(root, id, "v0", "0.m4s"), segment);
+        ManifestJson.WriteAtomic(Path.Combine(root, id, "manifest.json"), new Manifest
+        {
+            Id = id,
+            Title = id,
+            DurationSeconds = 600,
+            Status = status,
+            Video = new VideoInfo
+            {
+                Width = 1920,
+                Height = 800,
+                SourceCodec = "hevc",
+                SourceHdr = "sdr",
+                Renditions = [new Rendition { Name = "800p", BitrateKbps = 9000, Uri = "v0/index.m3u8" }]
+            },
+            Audio =
+            [
+                new AudioTrack
+                {
+                    Id = "a0", Kind = TrackKind.Feature, Language = "eng",
+                    Label = "English", Channels = 2, Default = true, Uri = "a0/index.m3u8"
+                }
+            ],
+            Subtitles = []
+        });
+    }
+
+    /// <summary>
+    /// The rule the settle pass applies: a title in both roots whose hot manifest says it is
+    /// being made has a settled copy the library has replaced.
+    /// </summary>
+    private static IEnumerable<string> Superseded(MediaRoots roots)
+    {
+        foreach (var directory in Directory.EnumerateDirectories(roots.Hot))
+        {
+            var id = Path.GetFileName(directory);
+            if (roots.SettledDirectoryOf(id) is not { } settled || !Directory.Exists(settled)) continue;
+
+            var path = Path.Combine(directory, "manifest.json");
+            if (!File.Exists(path)) continue;
+
+            var manifest = ManifestJson.Deserialize(File.ReadAllText(path));
+            if (manifest is not null && manifest.Status != TitleStatus.Ready) yield return id;
+        }
     }
 
     [Fact]
@@ -184,6 +227,39 @@ public sealed class ColdStorageTests : IDisposable
         // And it settles again over nothing.
         Assert.True(await Store(roots).SettleAsync("a-film", CancellationToken.None));
         Assert.Equal("the new one", File.ReadAllText(Path.Combine(Cold, "a-film", "v0", "0.m4s")));
+    }
+
+    /// <summary>
+    /// The settled copy is cleared when the ingest starts. Where the volume was gone at that
+    /// moment, the copy survives and would shadow the film being made for the whole of its
+    /// transcode, so the pass that can see both roots clears it — but only on the evidence of a
+    /// manifest that says so.
+    /// </summary>
+    [Fact]
+    public void A_settled_copy_of_a_film_being_made_again_is_cleared()
+    {
+        Mount();
+        WriteTitle(Cold, "a-film", "the old release");
+        WriteTitle(Hot, "a-film", "still transcoding", TitleStatus.Transcoding);
+
+        var roots = Roots();
+        foreach (var id in Superseded(roots)) Store(roots).ClearSettled(id);
+
+        Assert.Equal(Path.Combine(Hot, "a-film"), roots.DirectoryOf("a-film"));
+    }
+
+    [Fact]
+    public void A_directory_carrying_no_manifest_is_not_evidence_of_anything()
+    {
+        Mount();
+        WriteTitle(Cold, "a-film", "the only copy");
+        Directory.CreateDirectory(Path.Combine(Hot, "a-film"));
+
+        var roots = Roots();
+        foreach (var id in Superseded(roots)) Store(roots).ClearSettled(id);
+
+        Assert.True(Directory.Exists(Path.Combine(Cold, "a-film")));
+        Assert.Equal("the only copy", File.ReadAllText(Path.Combine(Cold, "a-film", "v0", "0.m4s")));
     }
 
     [Fact]

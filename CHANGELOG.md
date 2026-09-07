@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.35.1] - 2026-09-07
+
+### Fixed
+
+- A settled copy of a film that is being made again is cleared by the pass that can see both
+  disks, and not only by the ingest. The ingest clears it as the transcode starts, which does
+  nothing while the cold volume is away, and a copy that survived that would be resolved ahead of
+  the film being made for the whole of its transcode: a room that asked for the new release would
+  watch the old one until it finished. Only a manifest saying the film is being made counts as
+  evidence — a directory carrying none is not a reason to delete the one finished copy of a film.
+
 ## [1.35.0] - 2026-09-07
 
 ### Added
