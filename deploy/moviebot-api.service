@@ -15,6 +15,10 @@ ExecStart=/opt/moviebot/api/moviebot-api
 # that starts empty and fails as though the network were down.
 EnvironmentFile=/etc/moviebot/moviebot.env
 Environment=Media__Root=/home/heisen/moviebot/media
+# The disk finished films are kept on. It is an upgrade rather than a requirement: with it
+# gone the service starts, says so in the log and on /health, and serves everything on the
+# media root exactly as it would with one disk.
+Environment=Media__ColdRoot=/home/heisen/moviebot/cold
 Environment=Subtitles__Root=/var/lib/moviebot/subtitles
 Environment=ASPNETCORE_URLS=http://127.0.0.1:8099
 # Where Discord's own servers reach this API. The Activity builds poster URLs for a viewer's
@@ -37,7 +41,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadOnlyPaths=/home/heisen/moviebot/media
+ReadOnlyPaths=/home/heisen/moviebot/media /home/heisen/moviebot/cold
 StateDirectory=moviebot
 ProtectKernelTunables=true
 ProtectControlGroups=true

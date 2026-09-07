@@ -131,6 +131,11 @@ ssh hotbox 'systemctl restart moviebot-api moviebot-bot moviebot-handoff'   # no
   `/var/lib/moviebot` — the rooms and the subtitles fetched from outside, each of which cost one
   of a limited daily allowance — and the bot `/var/lib/moviebot-bot`, holding the wish list and
   the launch cards still standing.
+- **The cold disk is named by each unit and proved by a marker file.** `Media__ColdRoot` and
+  `Handoff__ColdRoot` point at the volume finished films are kept on, and it is used only while
+  a `.moviebot-cold` file sits at its root. That file is made once per host, as the owning user,
+  on the mounted volume: `touch <cold root>/.moviebot-cold`. Without it both services run on the
+  media root alone and say so.
 - **nginx serves `movies.thekrystalship.com` in two halves, on two machines.** hotbox has no
   public address, so hotrod holds the name and routes it across the LAN by `server_name`, over an
   https hop made under hotbox's own name: the certificate on the far side is chosen by that SNI
@@ -271,6 +276,53 @@ halfway; and it holds the GPU, which has no business inside a gateway connection
 - **A whole file is ingested exactly as it always was.** `IngestOptions.Availability` is supplied
   only while a source is still arriving, so the ordinary path keeps the behaviour measured
   against it and nothing about the CLI changes.
+
+## The two disks a film lives on
+
+A film is made on one disk and kept on another. The transcode writes it in four-second pieces for
+as long as it runs, and the download it was read from seeds beside it for a week; between them
+that is what fills a disk. Reading a finished film back is one playhead at a little over a
+megabyte a second, which any disk serves. So the media root holds the work in progress and the
+cold root holds the library, and the library's capacity is the cold disk's.
+
+- **A title is under exactly one root, and cold is resolved first.** The only moment it is under
+  both is the one between the copy landing and the original being deleted, and both are whole for
+  it, so every reader is already on the copy that is staying. A film made again under an id the
+  library already holds has its settled copy cleared before the transcode starts, or the previous
+  release would outlive the new one and be the one every room opened.
+- **Which disk a film is on changes no URL and appears nowhere on the wire.** `/media/{id}/…` is
+  answered by resolving the id per request, which is also what makes it safe to move a film out
+  from under a room that is watching it.
+- **A film settles when its manifest says it is ready, and not before.** The subtitles, the cover
+  art and the preview sheet are all written before the status turns, so a film that reports itself
+  ready is a directory nothing is going to add to.
+- **The move is a copy, and it is ordered so that every failure before the last step is harmless.**
+  The two roots are different filesystems, so nothing about it is atomic on its own: the film is
+  assembled under `.incoming` on the cold root, checked against what was read, committed to the
+  disk with one `sync -f`, and renamed into place — a rename within one filesystem, which either
+  happened or did not. The copy on the media root goes last. A stop anywhere before that leaves
+  the film exactly where it was and the next pass clears what was half written.
+- **One film at a time.** The copy saturates the disk it writes to, and a second alongside it
+  would divide the same throughput while the transcode this is making room for reads the disk
+  being drained.
+- **Timestamps are carried across.** A poster and a sheet of scrub previews keep their names and
+  are served asking to be revalidated, so a film stamped with the moment it moved would have every
+  viewer fetch all of it again for nothing.
+- **A mount point is an ordinary directory when nothing is mounted on it.** A cold root that is
+  really a directory on the disk being drained would be written to happily — films copied onto the
+  disk they were being moved off, originals deleted, nothing throwing. `Media__ColdRoot` is used
+  only when it holds a `.moviebot-cold` marker, which is made once by hand on the volume itself
+  and is therefore present only when the volume is.
+- **The cold disk is an upgrade, not a requirement.** With none configured, or with its volume
+  gone, both services start and everything on the media root is served exactly as it is with one
+  disk. The fault is reported — an error in the log, and on `/health` — rather than absorbed, and
+  what has settled is missing from the library until the volume is back, which is the honest
+  answer. Nothing is pruned while it is gone: a film on a volume this pass cannot see looks
+  exactly like one already deleted, and removing its torrent would leave the directory to come
+  back with the disk with nothing pointing at it.
+- **Nothing seek-heavy goes on the cold disk.** It is a platter: sequential streaming is well
+  within budget and random IO is a cliff. Large finished media files, and nothing else — no
+  database, no journal, no scratch space.
 
 ## Fetching a subtitle from outside
 

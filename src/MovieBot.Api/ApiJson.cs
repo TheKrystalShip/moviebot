@@ -7,8 +7,14 @@ using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api;
 
-/// <summary>What <c>/health</c> answers: occupancy, and no names.</summary>
-public sealed record HealthReport(string Status, int Rooms, int Watching);
+/// <summary>
+/// What <c>/health</c> answers: occupancy, and no names.
+///
+/// <c>ColdStorage</c> carries what is wrong with the disk films are kept on and is absent when
+/// nothing is, which is also the answer when there is no such disk. Silence is the ordinary
+/// reading, so a line there is always something to act on.
+/// </summary>
+public sealed record HealthReport(string Status, int Rooms, int Watching, string? ColdStorage = null);
 
 /// <summary>What the player needs to know about this host before it can sign anybody in.</summary>
 public sealed record ClientConfig(string? DiscordClientId, string? PublicBaseUrl);

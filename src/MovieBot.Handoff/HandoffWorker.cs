@@ -25,6 +25,8 @@ namespace TheKrystalShip.MovieBot.Handoff;
 public sealed class HandoffWorker(
     AcquisitionService acquisition,
     FilmMetadata metadata,
+    MediaRoots roots,
+    ColdStore cold,
     IOptions<HandoffOptions> options,
     ILogger<HandoffWorker> logger) : BackgroundService
 {
@@ -41,12 +43,8 @@ public sealed class HandoffWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (string.IsNullOrWhiteSpace(_options.MediaRoot))
-            throw new InvalidOperationException(
-                "No media root. Set Handoff__MediaRoot to the directory the API serves from.");
-
         logger.LogInformation(
-            "Watching for finished downloads, writing into {MediaRoot}.", _options.MediaRoot);
+            "Watching for finished downloads, writing into {MediaRoot}.", roots.Hot);
 
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(_options.PollSeconds));
 
@@ -139,6 +137,12 @@ public sealed class HandoffWorker(
             "Ingesting {Name} from {Source} as {Id} ({Title}), download at {Progress:P0}.",
             download.Name, Path.GetFileName(source), id, title, download.Progress);
 
+        // A film made again under an id the library already holds replaces what was there, and
+        // the ingest clears only the directory it writes into. A copy that had settled onto cold
+        // storage would outlive it and, being the one resolved first, be the one every room
+        // opened — the previous release, under the name of the one somebody just asked for.
+        cold.ClearSettled(id);
+
         // Written on the torrent before anything else happens, so whatever waits for the film
         // to become watchable is holding the id it will go under by the time it does. A surface
         // that had to derive it would be parsing the release name a second time, and two parsers
@@ -171,7 +175,7 @@ public sealed class HandoffWorker(
         var options = new IngestOptions
         {
             SourcePath = source,
-            OutputRoot = _options.MediaRoot,
+            OutputRoot = roots.Hot,
             Id = id,
             Title = title,
             ImdbId = imdbId,

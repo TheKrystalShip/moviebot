@@ -17,25 +17,36 @@ namespace TheKrystalShip.MovieBot.Handoff;
 /// </summary>
 public sealed class Backfill(FilmMetadata metadata, ILogger<Backfill> logger)
 {
-    public async Task<int> RunAsync(string mediaRoot, CancellationToken ct)
+    public async Task<int> RunAsync(MediaRoots roots, CancellationToken ct)
     {
-        if (!Directory.Exists(mediaRoot))
+        if (!Directory.Exists(roots.Hot))
         {
-            logger.LogError("No media root at {Root}.", mediaRoot);
+            logger.LogError("No media root at {Root}.", roots.Hot);
+            return 1;
+        }
+
+        // Both roots, because a film that settled onto the disk it is kept on is exactly the one
+        // that has been in the library longest and is likeliest to predate anywhere to put a name.
+        if (roots.Cold is { } cold && !roots.ColdState.Ready)
+        {
+            logger.LogError(
+                "Cold storage at {ColdRoot} is unusable: {Problem} The films kept there cannot be "
+                + "filled in until it is back.", cold, roots.ColdState.Problem);
+
             return 1;
         }
 
         var filled = 0;
         var missed = 0;
 
-        foreach (var directory in Directory.EnumerateDirectories(mediaRoot).OrderBy(d => d))
+        foreach (var id in roots.Ids().Order(StringComparer.Ordinal))
         {
             ct.ThrowIfCancellationRequested();
 
+            if (roots.DirectoryOf(id) is not { } directory) continue;
+
             var path = Path.Combine(directory, "manifest.json");
             if (!File.Exists(path)) continue;
-
-            var id = Path.GetFileName(directory);
 
             Manifest manifest;
             try

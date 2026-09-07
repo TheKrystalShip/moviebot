@@ -3,13 +3,15 @@
 What `MovieBot.Api` serves, as built. Everything is camelCase; enums are lowercase strings.
 
 Default listen address is `http://127.0.0.1:8099`. The media root comes from `Media__Root`
-(or `Media:Root` in configuration) and must be absolute in anything but a demo.
+(or `Media:Root` in configuration) and must be absolute in anything but a demo. `Media__ColdRoot`
+names a second disk that finished films are kept on; a title is under one root or the other and
+which one it is under changes no URL. Left empty, the whole library is the media root.
 
 ## HTTP
 
 | Route | Returns |
 |---|---|
-| `GET /health` | `{"status":"ok","rooms":n,"watching":n}` — occupied rooms and people, no names |
+| `GET /health` | `{"status":"ok","rooms":n,"watching":n,"coldStorage"?}` — occupied rooms and people, no names. `coldStorage` carries what is wrong with the disk films are kept on and is absent when nothing is, which is also the answer when there is no such disk |
 | `GET /api/config` | `{discordClientId, publicBaseUrl?}` |
 | `GET /api/titles` | `TitleSummary[]` |
 | `GET /api/titles/{id}` | `Manifest`, or 404 |

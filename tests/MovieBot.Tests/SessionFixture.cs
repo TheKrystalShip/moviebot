@@ -17,6 +17,10 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
     public string MediaRoot { get; } = Path.Combine(
         Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"));
 
+    /// <summary>The disk finished films are kept on, standing in for a second volume.</summary>
+    public string ColdRoot { get; } = Path.Combine(
+        Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"), "cold");
+
     /// <summary>A title still being written: the head sits here, seeks past it are refused.</summary>
     public const string TranscodingTitle = "still-cooking";
     public const double TranscodingHead = 300;
@@ -25,17 +29,26 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
     public const string ReadyTitle = "all-done";
     public const double TitleDuration = 6000;
 
+    /// <summary>A finished title that has moved to the disk films are kept on.</summary>
+    public const string SettledTitle = "put-away";
+
     public SessionFixture()
     {
-        WriteManifest(TranscodingTitle, TitleStatus.Transcoding, TranscodingHead);
-        WriteManifest(ReadyTitle, TitleStatus.Ready, null);
+        WriteManifest(MediaRoot, TranscodingTitle, TitleStatus.Transcoding, TranscodingHead);
+        WriteManifest(MediaRoot, ReadyTitle, TitleStatus.Ready, null);
+
+        Directory.CreateDirectory(ColdRoot);
+        File.WriteAllText(Path.Combine(ColdRoot, MediaRoots.ColdMarker), "");
+        WriteManifest(ColdRoot, SettledTitle, TitleStatus.Ready, null);
     }
 
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing && Directory.Exists(MediaRoot))
-            Directory.Delete(MediaRoot, recursive: true);
+        if (!disposing) return;
+
+        if (Directory.Exists(MediaRoot)) Directory.Delete(MediaRoot, recursive: true);
+        if (Directory.Exists(ColdRoot)) Directory.Delete(ColdRoot, recursive: true);
     }
 
     /// <summary>Discord is the only door, and these are the keys that door is locked with.</summary>
@@ -47,6 +60,7 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Media:Root"] = MediaRoot,
+                ["Media:ColdRoot"] = ColdRoot,
                 ["Auth:SigningKey"] = SigningKey,
                 ["Auth:ServiceKey"] = ServiceKey
             }));
@@ -69,7 +83,7 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
         return client;
     }
 
-    private void WriteManifest(string id, TitleStatus status, double? head)
+    private static void WriteManifest(string root, string id, TitleStatus status, double? head)
     {
         var manifest = new Manifest
         {
@@ -97,7 +111,7 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
             Subtitles = []
         };
 
-        ManifestJson.WriteAtomic(Path.Combine(MediaRoot, id, "manifest.json"), manifest);
+        ManifestJson.WriteAtomic(Path.Combine(root, id, "manifest.json"), manifest);
     }
 
     /// <summary>A hub connection routed through the in-process test server.</summary>

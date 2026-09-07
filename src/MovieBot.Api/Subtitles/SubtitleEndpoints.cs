@@ -284,7 +284,9 @@ public static class SubtitleEndpoints
 
         if (reference?.Uri is null) return null;
 
-        var path = Path.Combine(library.MediaRoot, manifest.Id, reference.Uri);
+        if (library.DirectoryOf(manifest.Id) is not { } directory) return null;
+
+        var path = Path.Combine(directory, reference.Uri);
         if (!File.Exists(path)) return null;
 
         return SubtitleSync.Against(

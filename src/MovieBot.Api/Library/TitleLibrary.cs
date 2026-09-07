@@ -30,25 +30,29 @@ public sealed record TitleSummary
 /// costs nothing next to being wrong.
 /// </summary>
 public sealed class TitleLibrary(
-    string mediaRoot,
+    MediaRoots roots,
     Subtitles.SubtitleStore subtitles,
     Subtitles.PinStore pins,
     ILogger<TitleLibrary> logger)
 {
     private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
 
-    public string MediaRoot { get; } = Path.GetFullPath(mediaRoot);
+    /// <summary>
+    /// Where a title's files are, or null when the library does not hold it.
+    ///
+    /// Asked per lookup rather than held, because a film moves from the disk it was made on to
+    /// the disk it is kept on while the service is running, and a path resolved once would go on
+    /// naming the copy that was deleted.
+    /// </summary>
+    public string? DirectoryOf(string id) => IsSafeId(id) ? roots.DirectoryOf(id) : null;
 
     private sealed record CacheEntry(Manifest Manifest, DateTime LastWriteUtc);
 
     public IReadOnlyList<TitleSummary> List()
     {
-        if (!Directory.Exists(MediaRoot)) return new List<TitleSummary>();
-
         var summaries = new List<TitleSummary>();
-        foreach (var directory in Directory.EnumerateDirectories(MediaRoot))
+        foreach (var id in roots.Ids())
         {
-            var id = Path.GetFileName(directory);
             if (Get(id) is not { } manifest) continue;
 
             summaries.Add(new TitleSummary
@@ -68,9 +72,9 @@ public sealed class TitleLibrary(
 
     public Manifest? Get(string id)
     {
-        if (!IsSafeId(id)) return null;
+        if (DirectoryOf(id) is not { } directory) return null;
 
-        var path = Path.Combine(MediaRoot, id, "manifest.json");
+        var path = Path.Combine(directory, "manifest.json");
         if (!File.Exists(path)) return null;
 
         var lastWrite = File.GetLastWriteTimeUtc(path);
@@ -124,8 +128,8 @@ public sealed class TitleLibrary(
     /// <summary>When the manifest on disk was last written, or null when there is none.</summary>
     public DateTime? LastWriteOf(string id)
     {
-        if (!IsSafeId(id)) return null;
-        var path = Path.Combine(MediaRoot, id, "manifest.json");
+        if (DirectoryOf(id) is not { } directory) return null;
+        var path = Path.Combine(directory, "manifest.json");
         return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : null;
     }
 

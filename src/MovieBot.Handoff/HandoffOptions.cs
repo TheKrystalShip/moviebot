@@ -6,10 +6,24 @@ public sealed class HandoffOptions
     public const string Section = "Handoff";
 
     /// <summary>
-    /// Where the ingest writes. The same directory the API serves from: a film is in the library
-    /// because it is here, so writing anywhere else produces a transcode nobody can watch.
+    /// Where the ingest writes. One of the two directories the API serves from, and the one every
+    /// film is made in: a film is in the library because it is under a root the API reads, so
+    /// writing anywhere else produces a transcode nobody can watch.
     /// </summary>
     public string MediaRoot { get; set; } = "";
+
+    /// <summary>
+    /// Where a finished film is kept, once there is nothing left to write to it.
+    ///
+    /// The disk a film is made on is the one the transcode writes in four-second pieces to for as
+    /// long as it runs, with the download it reads from seeding beside it; the disk it is kept on
+    /// serves one playhead at a little over a megabyte a second. Separating them is what lets the
+    /// library be larger than the disk the work happens on.
+    ///
+    /// Empty leaves the whole library on the media root, which is what one disk means and what
+    /// every other part of this behaves as though were still true.
+    /// </summary>
+    public string ColdRoot { get; set; } = "";
 
     /// <summary>
     /// How often finished downloads are looked for. A transcode takes minutes and the download

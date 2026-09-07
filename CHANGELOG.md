@@ -4,6 +4,31 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.35.0] - 2026-09-07
+
+### Added
+
+- Films are made on one disk and kept on another. `Media__ColdRoot` and `Handoff__ColdRoot` name
+  a second volume; a finished title moves there and the library is the two roots together, with
+  the cold one resolved first. A title is under exactly one root, which disk it is under changes
+  no URL, and nothing about it appears on the wire.
+- The move is a copy, ordered so that every failure before the last step leaves the film where it
+  was: assembled under `.incoming` on the cold root, checked against what was read, committed with
+  one `sync -f`, renamed into place, and only then deleted from the media root. Timestamps are
+  carried across, so artwork that is served asking to be revalidated is not refetched wholesale.
+- `Media__ColdRoot` is used only while a `.moviebot-cold` marker sits at its root, made by hand on
+  the volume. A mount point is an ordinary directory when nothing is mounted on it, and a cold root
+  that is really a directory on the disk being drained would take films off that disk and put them
+  straight back on it.
+- `/health` carries `coldStorage`, which names what is wrong with that volume and is absent when
+  nothing is.
+
+### Changed
+
+- Both services start whether or not the cold volume is there, report the fault and serve
+  everything on the media root. Nothing is pruned while it is missing: a film on a volume a pass
+  cannot see looks exactly like one already deleted.
+
 ## [1.34.0] - 2026-09-06
 
 ### Changed

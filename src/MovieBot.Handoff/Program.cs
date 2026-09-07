@@ -3,12 +3,23 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Acquire;
+using TheKrystalShip.MovieBot.Core;
 using TheKrystalShip.MovieBot.Handoff;
 
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.Configure<HandoffOptions>(
     builder.Configuration.GetSection(HandoffOptions.Section));
+
+// Everything below resolves a title against this, so a blank one is answered here rather than by
+// a background service dying on its first tick.
+if (string.IsNullOrWhiteSpace(
+        builder.Configuration.GetSection(HandoffOptions.Section)["MediaRoot"]))
+{
+    Console.Error.WriteLine(
+        "No media root. Set Handoff__MediaRoot to the directory the API serves from.");
+    return 1;
+}
 
 // Only the torrent client half of this is used. The tracker half comes along because it is one
 // library, and it costs nothing while nothing calls it.
@@ -24,6 +35,16 @@ builder.Services.AddHttpClient<FilmMetadata>(http =>
 });
 
 builder.Services.AddSingleton<Backfill>();
+
+// The disk films are made on, and the one they are kept on. Resolved here so that every worker
+// asks one thing where a title's files are, rather than each of them combining a root with an id
+// and disagreeing the first time a film moves.
+builder.Services.AddSingleton(sp =>
+{
+    var handoff = sp.GetRequiredService<IOptions<HandoffOptions>>().Value;
+    return new MediaRoots(handoff.MediaRoot, handoff.ColdRoot);
+});
+builder.Services.AddSingleton<ColdStore>();
 
 // The one question this asks the API: which films the rooms hold, so none is pruned from under
 // a room. Reached with the service key, because the rooms are behind the same door as the films.
@@ -46,13 +67,13 @@ if (args.Contains("--backfill"))
     builder.Logging.AddSimpleConsole(o => o.SingleLine = true);
     using var host = builder.Build();
 
-    var root = host.Services.GetRequiredService<IOptions<HandoffOptions>>().Value.MediaRoot;
     return await host.Services.GetRequiredService<Backfill>()
-        .RunAsync(root, CancellationToken.None);
+        .RunAsync(host.Services.GetRequiredService<MediaRoots>(), CancellationToken.None);
 }
 
 builder.Services.AddHostedService<HandoffWorker>();
 builder.Services.AddHostedService<RetentionWorker>();
+builder.Services.AddHostedService<SettleWorker>();
 
 builder.Logging.AddSimpleConsole(o => o.SingleLine = true);
 

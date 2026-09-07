@@ -28,9 +28,14 @@ builder.Services.AddSingleton(sp => new PinStore(
     sp.GetRequiredService<IConfiguration>()["Subtitles:Root"]
         ?? Path.Combine(Directory.GetCurrentDirectory(), "subtitles"),
     sp.GetRequiredService<ILogger<PinStore>>()));
-builder.Services.AddSingleton(sp => new TitleLibrary(
+// The disk films are made on, and the one they are kept on. A cold root is an upgrade: with
+// none configured, or with its volume gone, the library is what the media root holds.
+builder.Services.AddSingleton(sp => new MediaRoots(
     sp.GetRequiredService<IConfiguration>()["Media:Root"]
         ?? Path.Combine(Directory.GetCurrentDirectory(), "media"),
+    sp.GetRequiredService<IConfiguration>()["Media:ColdRoot"]));
+builder.Services.AddSingleton(sp => new TitleLibrary(
+    sp.GetRequiredService<MediaRoots>(),
     sp.GetRequiredService<SubtitleStore>(),
     sp.GetRequiredService<PinStore>(),
     sp.GetRequiredService<ILogger<TitleLibrary>>()));
@@ -122,10 +127,15 @@ app.UseStaticFiles();
 // Occupancy, and no names: it is open, so what it may say is how many rooms are being watched and
 // nothing about who is in them. It is what makes a restart something that can be looked at first
 // rather than something to find out about afterwards.
-app.MapGet("/health", (SessionStore sessions) =>
+app.MapGet("/health", (SessionStore sessions, MediaRoots roots) =>
 {
     var rooms = sessions.Occupied();
-    return Results.Ok(new HealthReport("ok", rooms.Count, rooms.Sum(r => r.Participants)));
+
+    // The cold volume is named only when something is wrong with it. A library short of every
+    // film that has settled looks like films disappearing, and this is the one place somebody
+    // checking on the service would find out why.
+    return Results.Ok(new HealthReport(
+        "ok", rooms.Count, rooms.Sum(r => r.Participants), roots.ColdState.Problem));
 });
 
 // The application id is not a secret — it is in every invite link and in the Activity's own URL.
@@ -251,8 +261,27 @@ app.MapPost("/api/auth/service-token", (
 app.MapMedia();
 app.MapHub<SessionHub>("/hub/session");
 
-app.Logger.LogInformation("Serving media from {MediaRoot}",
-    app.Services.GetRequiredService<TitleLibrary>().MediaRoot);
+var roots = app.Services.GetRequiredService<MediaRoots>();
+app.Logger.LogInformation("Serving media from {MediaRoot}", roots.Hot);
+
+if (roots.Cold is { } coldRoot)
+{
+    if (roots.ColdState.Ready)
+    {
+        app.Logger.LogInformation("Films that have settled are served from {ColdRoot}.", coldRoot);
+    }
+    else
+    {
+        // Reported and carried on with. The cold volume holds capacity rather than the service:
+        // every film on the media root is served exactly as it would be with no cold root at
+        // all, and refusing to start would take those down too over a disk that is only an
+        // upgrade. What has settled is missing from the library until the volume is back.
+        app.Logger.LogError(
+            "Cold storage is unusable: {Problem} Films kept there are out of the library until "
+            + "it is back; everything under {MediaRoot} is served as usual.",
+            roots.ColdState.Problem, roots.Hot);
+    }
+}
 
 app.Run();
 

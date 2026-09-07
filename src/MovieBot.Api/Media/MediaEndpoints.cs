@@ -43,7 +43,12 @@ public static class MediaEndpoints
                         .WithCacheControl("public, max-age=60");
             }
 
-            var titleRoot = Path.Combine(library.MediaRoot, id);
+            // Asked for per request, because a film moves from the disk it was made on to the
+            // disk it is kept on while people are watching it. Both copies are whole for the
+            // moment they overlap and the settled one is resolved first, so a request in flight
+            // is answered from one or the other and never from neither.
+            if (library.DirectoryOf(id) is not { } titleRoot) return Results.NotFound();
+
             var requested = Path.GetFullPath(Path.Combine(titleRoot, path));
 
             // Resolve first, then check containment. A path that merely looks safe can still

@@ -12,6 +12,11 @@ ExecStart=/opt/moviebot/handoff/moviebot-handoff
 
 EnvironmentFile=/etc/moviebot/moviebot.env
 Environment=Handoff__MediaRoot=/home/heisen/moviebot/media
+# Where a film goes once there is nothing left to write to it. The transcode writes the
+# media root in four-second pieces for as long as it runs and the download it reads from
+# seeds beside it; a finished film is read back by one playhead and wants none of that
+# disk. Empty would leave the whole library on the media root.
+Environment=Handoff__ColdRoot=/home/heisen/moviebot/cold
 Environment=Download__Root=/home/heisen/Downloads/Movies
 Environment=QBittorrent__BaseUrl=http://127.0.0.1:8081
 
@@ -45,7 +50,7 @@ ProtectSystem=strict
 # and announced forever. The title directory in the media root is the only thing this deletes
 # itself, which is what the line below is for.
 ProtectHome=read-only
-ReadWritePaths=/home/heisen/moviebot/media
+ReadWritePaths=/home/heisen/moviebot/media /home/heisen/moviebot/cold
 
 ProtectKernelTunables=true
 ProtectControlGroups=true

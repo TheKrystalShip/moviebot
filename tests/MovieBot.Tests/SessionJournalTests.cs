@@ -172,7 +172,7 @@ public sealed class SessionJournalTests : IDisposable
         Directory.CreateDirectory(media);
 
         var library = new TitleLibrary(
-            media,
+            new MediaRoots(media),
             new SubtitleStore(Path.Combine(_root, "subtitles"), NullLogger<SubtitleStore>.Instance),
             new PinStore(Path.Combine(_root, "subtitles"), NullLogger<PinStore>.Instance),
             NullLogger<TitleLibrary>.Instance);

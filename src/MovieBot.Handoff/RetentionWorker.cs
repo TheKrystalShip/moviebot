@@ -24,6 +24,7 @@ public sealed class RetentionWorker(
     AcquisitionService acquisition,
     Retention retention,
     OccupiedRooms rooms,
+    MediaRoots roots,
     IOptions<HandoffOptions> options,
     ILogger<RetentionWorker> logger) : BackgroundService
 {
@@ -63,6 +64,19 @@ public sealed class RetentionWorker(
 
     private async Task SweepAsync(CancellationToken ct)
     {
+        // A film kept on a volume this pass cannot see is a film it cannot find, and a film it
+        // cannot find looks exactly like one already gone: the torrent would be removed and the
+        // directory would come back with the disk, with nothing left pointing at it. The same
+        // rule that stops a pass removing anything it cannot ask about covers this.
+        if (roots.Cold is not null && !roots.ColdState.Ready)
+        {
+            logger.LogWarning(
+                "Cold storage is unusable: {Problem} Nothing is pruned until it is back.",
+                roots.ColdState.Problem);
+
+            return;
+        }
+
         var downloads = await acquisition.ListAsync(ct);
 
         // A film still owing its transcode is left alone however long it has seeded: the ingest
@@ -106,10 +120,10 @@ public sealed class RetentionWorker(
     /// </summary>
     private async Task PruneAsync(DownloadStatus download, string id, CancellationToken ct)
     {
-        var directory = Path.Combine(_options.MediaRoot, id);
+        var directory = roots.DirectoryOf(id);
         var removedTitle = false;
 
-        if (Directory.Exists(directory))
+        if (directory is not null)
         {
             if (IsThisFilm(directory, download))
             {
