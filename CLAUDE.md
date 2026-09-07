@@ -88,7 +88,7 @@ dotnet publish src/MovieBot.Handoff -c Release -o /tmp/mb/handoff
 rsync -a --delete /tmp/mb/api/     hotbox:/opt/moviebot/api/
 rsync -a --delete /tmp/mb/bot/     hotbox:/opt/moviebot/bot/
 rsync -a --delete /tmp/mb/handoff/ hotbox:/opt/moviebot/handoff/
-ssh hotbox 'systemctl restart moviebot-api moviebot-bot moviebot-handoff'   # no sudo
+ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff'
 ```
 
 - **The API and the hand-off publish as native binaries.** `PublishAot` in each project, so the
@@ -120,10 +120,13 @@ ssh hotbox 'systemctl restart moviebot-api moviebot-bot moviebot-handoff'   # no
   into `src/MovieBot.Api/wwwroot`, and the API is what serves it, so a change to `web/activity`
   arrives only once the API is published after that script has run. One origin serves the page,
   the API, the media and the hub, because a Discord Activity maps one URL.
-- **The units in `/etc/systemd/system/` are root-owned copies of `deploy/*.service`.** Restarting
-  is unprivileged; changing a unit is not. A change to one of those files is copied and reloaded
-  with sudo on hotbox, so say what changed and hand over the command rather than working around
-  the privilege.
+- **The units in `/etc/systemd/system/` are root-owned copies of `deploy/*.service`, and every
+  `systemctl` verb against them needs root.** There is no polkit grant on hotbox, so starting,
+  stopping and restarting are as privileged as installing a changed unit: `systemctl restart` as
+  the owning user is refused with *"interactive authentication required"* and nothing happens.
+  Publishing the binaries is unprivileged and the restart that picks them up is not, so a deploy
+  ends by saying what changed and handing over the command rather than working around the
+  privilege.
 - **`/etc/moviebot/moviebot.env` holds the credentials** all three units read. Configuration that
   is not a credential belongs in the unit's own `Environment=` lines, where it is in the
   repository and reviewable.
