@@ -74,9 +74,9 @@ export class FilmPlayer {
   private readonly volume: VolumeControl;
 
   constructor(container: HTMLElement, private readonly hooks: FilmPlayerHooks) {
-    this.video = document.createElement('video');
-    this.video.className = 'video-js vjs-big-play-centered';
-    this.video.setAttribute('playsinline', '');
+    const tag = document.createElement('video');
+    tag.className = 'video-js vjs-big-play-centered';
+    tag.setAttribute('playsinline', '');
     // Shown when playback has stopped waiting for data rather than because anybody asked it to.
     // It matters more here than in most players: playback can outrun a transcode, and a stall
     // otherwise looks like nothing happening at all.
@@ -90,7 +90,37 @@ export class FilmPlayer {
     // lands inside the scene it started in, or a step the ear cannot be sure it heard.
     this.flash = new KeyFlash();
 
-    container.replaceChildren(this.video, this.spinner, this.flash.el);
+    container.replaceChildren(tag);
+
+    this.player = videojs(tag, {
+      controls: true,
+      preload: 'auto',
+      fill: true,
+      playsinline: true,
+      // The library's big play button offers a press before anything can answer one, and pressing
+      // it during the load is what starts the fight between a play and the corrections behind it.
+      // Waiting is shown as waiting; the gate asks for a press only when the browser wants one.
+      bigPlayButton: false,
+      // A click toggles playback, which the library does itself and correctly — it knows not to
+      // when the click was on a control. A double click does nothing: it would ask for fullscreen,
+      // and the player already is the screen.
+      userActions: { doubleClick: false },
+      // The library's own volume panel is replaced: it writes the slider position straight to
+      // the media element's amplitude, and those have to be different numbers for the slider to
+      // be proportional to loudness.
+      controlBar: { children: ['playToggle'] }
+    });
+
+    // The element the library ended up with, which is not always the one it was handed. Where a
+    // media element cannot be moved into the frame the library builds — iOS — it clones the tag,
+    // disposes the original and plays the clone. Everything here drives the media element
+    // directly: the transcode is attached to it, the room's timeline is applied to it, and the
+    // events it raises are what tell the room what somebody did. Holding the tag points all of
+    // that at an element that is no longer in the document, which leaves the frame on its poster
+    // with controls that answer and a film that never arrives.
+    this.video = this.player.el().querySelector('video') as HTMLVideoElement;
+
+    container.append(this.spinner, this.flash.el);
 
     this.video.addEventListener('waiting', () => this.stalled(true));
     this.video.addEventListener('stalled', () => this.stalled(true));
@@ -138,25 +168,6 @@ export class FilmPlayer {
     });
 
     this.settings = new SettingsMenu(this.audioPanel, this.subtitleMenu, lock);
-
-    this.player = videojs(this.video, {
-      controls: true,
-      preload: 'auto',
-      fill: true,
-      playsinline: true,
-      // The library's big play button offers a press before anything can answer one, and pressing
-      // it during the load is what starts the fight between a play and the corrections behind it.
-      // Waiting is shown as waiting; the gate asks for a press only when the browser wants one.
-      bigPlayButton: false,
-      // A click toggles playback, which the library does itself and correctly — it knows not to
-      // when the click was on a control. A double click does nothing: it would ask for fullscreen,
-      // and the player already is the screen.
-      userActions: { doubleClick: false },
-      // The library's own volume panel is replaced: it writes the slider position straight to
-      // the media element's amplitude, and those have to be different numbers for the slider to
-      // be proportional to loudness.
-      controlBar: { children: ['playToggle'] }
-    });
 
     const bar = this.player.getChild('ControlBar');
     bar?.addChild('Component', { el: this.volume.el });

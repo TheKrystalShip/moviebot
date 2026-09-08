@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.35.2] - 2026-09-08
+
+### Fixed
+
+- The player drives the media element video.js ends up with rather than the tag it was handed.
+  Where a media element cannot be moved into the frame the library builds — iOS — the library
+  clones the tag, disposes the original and plays the clone, and everything here reaches the
+  element directly: the transcode is attached to it, the room's timeline is applied to it, and
+  the events it raises are what tell the room somebody pressed play. Holding the tag pointed all
+  of that at an element no longer in the document, leaving an iPhone on the film's poster with
+  controls that answered, a play button that changed shape and a film that never arrived, while
+  every other browser played it.
+
 ## [1.35.1] - 2026-09-07
 
 ### Fixed
