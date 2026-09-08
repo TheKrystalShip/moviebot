@@ -75,7 +75,7 @@ export class FilmPlayer {
 
   constructor(container: HTMLElement, private readonly hooks: FilmPlayerHooks) {
     const tag = document.createElement('video');
-    tag.className = 'video-js vjs-big-play-centered';
+    tag.className = 'video-js';
     tag.setAttribute('playsinline', '');
     // Shown when playback has stopped waiting for data rather than because anybody asked it to.
     // It matters more here than in most players: playback can outrun a transcode, and a stall
@@ -101,6 +101,11 @@ export class FilmPlayer {
       // it during the load is what starts the fight between a play and the corrections behind it.
       // Waiting is shown as waiting; the gate asks for a press only when the browser wants one.
       bigPlayButton: false,
+      // The library's spinner answers one question — is the element waiting for data — and the
+      // one below answers three: a film being loaded, a playhead being moved to where the room
+      // is, and a stall that has lasted long enough to be worth showing. Both would stand in the
+      // middle of the screen at once, in different designs, the moment playback waited.
+      loadingSpinner: false,
       // A click toggles playback, which the library does itself and correctly — it knows not to
       // when the click was on a control. A double click does nothing: it would ask for fullscreen,
       // and the player already is the screen.

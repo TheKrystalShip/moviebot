@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.35.3] - 2026-09-08
+
+### Fixed
+
+- One spinner stands in the middle of the frame. video.js draws its own whenever the element
+  waits for data, in its own design, and the player's own answers three questions rather than
+  that one — a film being loaded, a playhead being moved to where the room is, and a stall that
+  has lasted long enough to be worth showing — so the library's is off and the player's is what
+  a person sees.
+- The control bar appears when the film does. Its styling says how the bar looks and no longer
+  what its display is, so when it arrives is the library's answer again: on screen once the film
+  has started, which is the moment a control can answer a press rather than sit over a frame
+  holding nothing.
+
 ## [1.35.2] - 2026-09-08
 
 ### Fixed

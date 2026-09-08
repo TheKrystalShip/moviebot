@@ -887,10 +887,14 @@ button.mb-scrub__time:hover {
 
    Everything in it is centred by the flex box it sits in. The library positions its glyphs by
    giving them a line height equal to the bar, which only lines up while those two numbers agree
-   and silently drops a button half a row when they stop agreeing. */
+   and silently drops a button half a row when they stop agreeing.
+
+   This says how the bar looks and never whether it is there. When the bar appears is the
+   library's, and it puts it on screen once the film has started, which is the moment a control
+   can answer a press; declaring a display here reads as layout and quietly shows the bar over a
+   frame holding nothing. */
 
 .video-js .vjs-control-bar {
-  display: flex;
   align-items: center;
   gap: 2px;
   height: 3.2em;
