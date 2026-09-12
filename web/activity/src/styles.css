@@ -25,6 +25,8 @@
   --glass-radius: 10px;
   /* A fill that reads on glass: light laid over it, never a colour of its own. */
   --glass-wash: rgba(255, 255, 255, 0.08);
+  /* The same surface, closed: what something pinned over scrolling content is backed with. */
+  --glass-solid: rgba(12, 14, 18, 0.97);
   --glass-hover: rgba(255, 255, 255, 0.12);
   /* What covers the film when something has to be answered before it plays. */
   --scrim: rgba(0, 0, 0, 0.55);
@@ -1008,6 +1010,11 @@ button.mb-scrub__time:hover {
   max-width: min(560px, 92vw);
 }
 
+.mb-settings .mb-menu__popup:has(.mb-style) {
+  min-width: 384px;
+  max-width: min(440px, 92vw);
+}
+
 .mb-settings__entry {
   gap: 0;
 }
@@ -1208,4 +1215,235 @@ button.mb-scrub__time:hover {
 .mb-subs__ask:hover {
   background: var(--glass-hover);
   border-color: var(--dim);
+}
+
+
+/* The subtitle style panel.
+   A sample cue over a stand-in frame, then one row per setting. The sample is drawn by the
+   function that draws a cue over the film, and its frame carries the same rule the renderer
+   uses — text at a twentieth of the frame's height — so what is chosen here is what appears
+   there rather than an impression of it. */
+/* Held at the top while the settings under it scroll: a size or a position being dragged is the
+   moment the sample is worth having, and it is the row furthest from it. Backed by the closed
+   surface rather than the glass, because a translucent one is a sample with the rows passing
+   through it. */
+.mb-style__sample {
+  position: sticky;
+  top: -8px;
+  z-index: 1;
+  margin: -8px -8px 8px;
+  padding: 8px 8px 10px;
+  background: var(--glass-solid);
+  border-bottom: 1px solid var(--glass-edge);
+}
+
+/* A frame to read a caption against: dark enough to be a film, light enough that white on
+   nothing is not a trick question.
+
+   The shape of a film and the renderer's own rule — text at a twentieth of the frame's height —
+   so the sample is the size the cue will be rather than a larger stand-in for it. Small, which is
+   the honest answer: that is how much of a screen a subtitle occupies. */
+.mb-style__frame {
+  container-type: size;
+  position: relative;
+  aspect-ratio: 16 / 9;
+  /* Narrowed rather than squashed where the menu is short, so the sample keeps the shape of a
+     film and leaves the settings it is for something to be read in. */
+  max-width: calc(34vh * 16 / 9);
+  margin-inline: auto;
+  border-radius: 7px;
+  overflow: hidden;
+  border: 1px solid var(--glass-edge);
+  background:
+    linear-gradient(115deg, #2b3a46 0%, #43525c 38%, #6d6357 62%, #2f2a26 100%);
+}
+
+.mb-style__cue {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6%;
+  text-align: center;
+  white-space: pre-line;
+  font: 5cqh sans-serif;
+}
+
+.mb-style__cue-text {
+  display: inline;
+  unicode-bidi: plaintext;
+}
+
+.mb-style__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mb-style__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 34px;
+  padding: 2px 8px;
+}
+
+.mb-style__row.is-disabled {
+  opacity: 0.45;
+}
+
+.mb-style__label {
+  flex: 0 0 82px;
+  font-size: 14px;
+  color: var(--dim);
+}
+
+.mb-style__swatches {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.mb-style__swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--glass-edge);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* No background at all, said the way a colour is said: the frame showing through the swatch. */
+.mb-style__swatch.is-none {
+  background: transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.mb-style__swatch.is-none::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(
+    to bottom right,
+    transparent calc(50% - 1px), var(--dim) calc(50% - 1px),
+    var(--dim) calc(50% + 1px), transparent calc(50% + 1px));
+}
+
+.mb-style__swatch:hover {
+  border-color: var(--dim);
+}
+
+/* The ring sits outside the swatch, so a chosen colour is never drawn over by what marks it. */
+.mb-style__swatch.is-selected {
+  border-color: var(--bg);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.mb-style__swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mb-style__choice {
+  display: flex;
+  margin-left: auto;
+  border: 1px solid var(--glass-edge);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.mb-style__option {
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--dim);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.mb-style__option + .mb-style__option {
+  border-left: 1px solid var(--glass-edge);
+}
+
+.mb-style__option:hover {
+  background: var(--glass-wash);
+  color: var(--text);
+}
+
+.mb-style__option.is-selected {
+  background: var(--glass-hover);
+  color: var(--accent);
+}
+
+.mb-style__slider {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 4px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--glass-wash);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.mb-style__slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+}
+
+.mb-style__slider::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+}
+
+.mb-style__slider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.mb-style__readout {
+  flex: 0 0 52px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--muted);
+}
+
+.mb-style__reset-row {
+  margin-top: 4px;
+  border-top: 1px solid var(--glass-edge);
+  padding-top: 8px;
+}
+
+.mb-style__reset {
+  width: 100%;
+  padding: 8px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--dim);
+  background: transparent;
+  border: 1px solid var(--glass-edge);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.mb-style__reset:hover:not(:disabled) {
+  background: var(--glass-hover);
+  color: var(--text);
+}
+
+.mb-style__reset:disabled {
+  color: var(--muted);
+  cursor: default;
 }

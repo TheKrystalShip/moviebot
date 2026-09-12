@@ -1,10 +1,17 @@
+import {
+  DefaultSubtitleStyle,
+  normaliseSubtitleStyle,
+  type SubtitleStyle
+} from './player/subtitleStyle';
+
 /**
  * Per-viewer preferences.
  *
- * Volume, subtitle choice and audio track are this browser's alone and never reach the hub:
- * shared volume is a way for one person to deafen everyone else, and one person needing
- * subtitles should not put them on five other screens. Track choices are held per title
- * because a track id only means anything inside the film it came from.
+ * Volume, subtitle choice, audio track and how subtitles look are this browser's alone and never
+ * reach the hub: shared volume is a way for one person to deafen everyone else, and one person
+ * needing subtitles, in the size they read at, should not put them on five other screens. Track
+ * choices are held per title because a track id only means anything inside the film it came from;
+ * how subtitles look is held once, because it is about the person reading them.
  */
 const Key = 'moviebot.prefs.v1';
 
@@ -17,27 +24,39 @@ interface Prefs {
   volume: number;
   sideOpen: boolean;
   muted: boolean;
+  subtitleStyle: SubtitleStyle;
   byTitle: Record<string, TitlePrefs>;
 }
 
-// Half volume to start. A film mastered for a cinema is punishing at full on laptop speakers,
-// and the first thing a new viewer would otherwise do is scramble for the control. Anyone who
-// has already set their own volume keeps it: this is only the starting point.
-const fallback: Prefs = { volume: 0.5, muted: false, sideOpen: true, byTitle: {} };
+const fallback: Prefs = {
+  // Half volume to start. A film mastered for a cinema is punishing at full on laptop speakers,
+  // and the first thing a new viewer would otherwise do is scramble for the control. Anyone who
+  // has already set their own volume keeps it: this is only the starting point.
+  volume: 0.5,
+  muted: false,
+  sideOpen: true,
+  subtitleStyle: DefaultSubtitleStyle,
+  byTitle: {}
+};
+
+function empty(): Prefs {
+  return { ...fallback, subtitleStyle: { ...DefaultSubtitleStyle }, byTitle: {} };
+}
 
 function read(): Prefs {
   try {
     const raw = window.localStorage.getItem(Key);
-    if (!raw) return { ...fallback, byTitle: {} };
+    if (!raw) return empty();
     const parsed = JSON.parse(raw) as Partial<Prefs>;
     return {
       volume: typeof parsed.volume === 'number' ? parsed.volume : fallback.volume,
       sideOpen: typeof parsed.sideOpen === 'boolean' ? parsed.sideOpen : fallback.sideOpen,
       muted: parsed.muted === true,
+      subtitleStyle: normaliseSubtitleStyle(parsed.subtitleStyle),
       byTitle: parsed.byTitle ?? {}
     };
   } catch {
-    return { ...fallback, byTitle: {} };
+    return empty();
   }
 }
 
@@ -63,6 +82,14 @@ export const prefs = {
     const next = read();
     next.volume = volume;
     next.muted = muted;
+    write(next);
+  },
+
+  subtitleStyle: (): SubtitleStyle => read().subtitleStyle,
+
+  setSubtitleStyle(style: SubtitleStyle): void {
+    const next = read();
+    next.subtitleStyle = style;
     write(next);
   },
 

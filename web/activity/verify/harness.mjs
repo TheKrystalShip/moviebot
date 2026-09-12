@@ -135,18 +135,66 @@ export const playhead = (page) => page.evaluate(() => {
   };
 });
 
-export const menu = (page, index) => page.evaluate((i) => {
-  const element = document.querySelectorAll('.mb-menu')[i];
-  const items = [...element.querySelectorAll('.mb-menu__item')];
-  return {
-    value: element.querySelector('.mb-menu__value').textContent,
-    groups: [...element.querySelectorAll('.mb-menu__heading')].map((e) => e.textContent),
-    labels: items.map((e) => e.querySelector('.mb-menu__item-label').textContent),
-    disabled: items.filter((e) => e.disabled).length,
-    reasons: [...new Set(items.filter((e) => e.disabled).map((e) => e.querySelector('.mb-menu__item-detail')?.textContent))],
-    total: items.length
-  };
-}, index);
+/**
+ * The cog, open on its root list. Everything a viewer sets for themselves is a row behind it.
+ *
+ * A menu already open is closed and opened again rather than navigated out of: it always reopens
+ * at the top, so that is one step where finding the way back is several and depends on where an
+ * earlier check left it.
+ */
+export async function openSettings(page) {
+  await wake(page);
+  const popup = page.locator('.mb-settings .mb-menu__popup');
+  const button = page.locator('.mb-settings__button');
+  if (await popup.isVisible()) await button.click();
+  await button.click();
+  await popup.waitFor({ state: 'visible' });
+}
+
+/** The row in the root list that opens one panel, found by the name it carries. */
+export const settingsEntry = (page, name) =>
+  page.locator('.mb-settings__entry').filter({ has: page.getByText(name, { exact: true }) });
+
+/**
+ * What one panel behind the cog holds, and the value shown beside its name in the root list.
+ *
+ * The menu is closed again on the way out: a panel left open covers the film the next check is
+ * about to look at, and the menu always reopens at the top anyway.
+ */
+export async function menu(page, name) {
+  await openSettings(page);
+  const entry = settingsEntry(page, name);
+  const value = (await entry.locator('.mb-settings__value').textContent()) ?? '';
+  await entry.click();
+
+  const contents = await page.evaluate(() => {
+    const popup = document.querySelector('.mb-settings .mb-menu__popup');
+    const items = [...popup.querySelectorAll('.mb-menu__item')];
+    // An unavailable row carries its reason on the mark rather than in it: the glyph is what is
+    // seen and the words are what it means, which is what a pointer and a screen reader both read.
+    const detail = (item) => {
+      const mark = item.querySelector('.mb-menu__item-detail');
+      return mark === null ? undefined : (mark.getAttribute('aria-label') ?? mark.textContent);
+    };
+    return {
+      groups: [...popup.querySelectorAll('.mb-menu__heading')].map((e) => e.textContent),
+      labels: items.map((e) => e.querySelector('.mb-menu__item-label').textContent),
+      disabled: items.filter((e) => e.disabled).length,
+      reasons: [...new Set(items.filter((e) => e.disabled).map(detail))],
+      total: items.length
+    };
+  });
+
+  await page.locator('.mb-settings__button').click();
+  return { value, ...contents };
+}
+
+/** Opens one panel and leaves it open, for a check that drives the controls inside it. */
+export async function openPanel(page, name) {
+  await openSettings(page);
+  await settingsEntry(page, name).click();
+  return page.locator('.mb-settings .mb-menu__popup');
+}
 
 export const hubTargets = (page) => page.evaluate(() =>
   [...new Set(window.__sent.join('\n').match(/"target":"(\w+)"/g) ?? [])].map((s) => s.slice(10, -1)));

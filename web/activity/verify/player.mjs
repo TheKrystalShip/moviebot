@@ -1,4 +1,4 @@
-import { Checks, DURATION_SECONDS, TITLE_ID, loadFirstTitle, menu, hubTargets, openViewer, playhead, scrubTo, wait, wake } from './harness.mjs';
+import { Checks, DURATION_SECONDS, TITLE_ID, loadFirstTitle, menu, hubTargets, openPanel, openViewer, playhead, scrubTo, wait, wake } from './harness.mjs';
 
 /** One viewer: the menus the manifest describes, playback, and what stays local. */
 export async function playerSuite(browser) {
@@ -11,14 +11,14 @@ export async function playerSuite(browser) {
   await loadFirstTitle(page);
   checks.add('the chosen title loads into the media element', true);
 
-  const audio = await menu(page, 0);
+  const audio = await menu(page, 'Audio');
   checks.add('the audio menu splits feature from commentary',
     audio.groups.join('|') === 'Feature|Commentary', audio.groups.join('|'));
   checks.add('audio labels are the manifest labels',
     audio.labels[0] === 'English' && audio.labels[1].startsWith('Commentary with director Ridley Scott'),
     audio.labels.join(' / '));
 
-  const subtitles = await menu(page, 1);
+  const subtitles = await menu(page, 'Subtitles');
   checks.add('the subtitle menu lists Off plus both groups',
     subtitles.labels[0] === 'Off' && subtitles.groups.join('|') === 'Feature|Commentary');
   checks.add('every manifest subtitle is listed', subtitles.total === 49, `${subtitles.total} rows including Off`);
@@ -37,19 +37,15 @@ export async function playerSuite(browser) {
     media.some((u) => u.includes('/v0/seg')) && media.some((u) => u.includes('/a0/seg')));
 
   media.length = 0;
-  await wake(page);
-  const audioMenu = page.locator('.mb-menu').nth(0);
-  const subtitleMenu = page.locator('.mb-menu').nth(1);
-  await audioMenu.locator('.mb-menu__button').click();
-  await audioMenu.locator('.mb-menu__item', { hasText: 'Commentary with director' }).click();
+  const audioPanel = await openPanel(page, 'Audio');
+  await audioPanel.locator('.mb-menu__item', { hasText: 'Commentary with director' }).click();
   await wait(2500);
   checks.add('choosing the commentary loads the a1 rendition', media.some((u) => u.includes('/a1/')));
   checks.add('the audio menu shows the chosen track',
-    (await menu(page, 0)).value.startsWith('Commentary with director'));
+    (await menu(page, 'Audio')).value.startsWith('Commentary with director'));
 
-  await wake(page);
-  await subtitleMenu.locator('.mb-menu__button').click();
-  await subtitleMenu.locator('.mb-menu__item', { hasText: 'English SDH' }).click();
+  const subtitlePanel = await openPanel(page, 'Subtitles');
+  await subtitlePanel.locator('.mb-menu__item', { hasText: 'English SDH' }).click();
   await wait(500);
   checks.add('the chosen subtitle file is fetched', media.some((u) => u.endsWith('s4.vtt')));
 
@@ -73,6 +69,50 @@ export async function playerSuite(browser) {
   await wait(1200);
   const shown = await page.textContent('.vjs-text-track-display');
   checks.add('the subtitle cue renders on screen', /CROWD EXCLAIMS/.test(shown ?? ''), JSON.stringify(shown));
+
+  // How subtitles look, asserted against the cue on screen rather than against the setting that
+  // asked for it. The library draws cues itself and writes their appearance onto the elements,
+  // so the cue is the only place an answer exists.
+  const cue = () => page.evaluate(() => {
+    const box = document.querySelector('.vjs-text-track-cue');
+    const text = box?.firstElementChild;
+    if (!text) return null;
+    const style = getComputedStyle(text);
+    return {
+      color: style.color,
+      background: style.backgroundColor,
+      size: parseFloat(style.fontSize),
+      stroke: parseFloat(style.webkitTextStrokeWidth),
+      transform: box.style.transform
+    };
+  });
+
+  const plain = await cue();
+  checks.add('the cue is the library\'s own, which is what a style can be written onto',
+    plain !== null && plain.color === 'rgb(255, 255, 255)' && plain.background === 'rgba(0, 0, 0, 0.8)',
+    JSON.stringify(plain));
+
+  const style = await openPanel(page, 'Subtitle style');
+  await style.locator('.mb-style__swatch[aria-label="Yellow"]').click();
+  await style.locator('.mb-style__option', { hasText: 'Outline' }).click();
+  await style.locator('.mb-style__row', { hasText: 'Size' }).locator('input').fill('1.5');
+  await style.locator('.mb-style__row', { hasText: 'Position' }).locator('input').fill('0.1');
+  await wait(400);
+
+  const styled = await cue();
+  checks.add('a colour chosen in the panel reaches the cue over the film',
+    styled?.color === 'rgb(242, 213, 74)', styled?.color);
+  checks.add('an outline is drawn as a stroke under the glyph', styled?.stroke > 0, `${styled?.stroke}px`);
+  checks.add('size multiplies the size the frame gave the cue',
+    Math.abs(styled.size - plain.size * 1.5) < 0.8, `${styled?.size}px against ${plain?.size}px`);
+  checks.add('position raises the cue off the bottom', /translateY\(-\d/.test(styled?.transform ?? ''),
+    styled?.transform);
+
+  const keptStyle = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('moviebot.prefs.v1')).subtitleStyle);
+  checks.add('how subtitles look is kept once for this browser, not per title',
+    keptStyle.textColor === '#f2d54a' && keptStyle.scale === 1.5 && keptStyle.edge === 'outline',
+    JSON.stringify(keptStyle));
 
   const at = await playhead(page);
   const bar = await page.evaluate(() => ({
@@ -98,9 +138,14 @@ export async function playerSuite(browser) {
   await page.reload();
   await page.waitForFunction(() => document.querySelector('video')?.readyState >= 1, null, { timeout: 20000 });
   await wait(1000);
-  const restored = { audio: (await menu(page, 0)).value, subtitles: (await menu(page, 1)).value };
+  const restored = {
+    audio: (await menu(page, 'Audio')).value,
+    subtitles: (await menu(page, 'Subtitles')).value,
+    style: (await menu(page, 'Subtitle style')).value
+  };
   checks.add('a reload restores this viewer\'s own tracks',
     restored.audio.startsWith('Commentary') && restored.subtitles === 'English SDH', JSON.stringify(restored));
+  checks.add('and the way they are drawn', restored.style === 'Custom', restored.style);
 
   // A push older than the last applied carries nothing new and must not move the playhead.
   await scrubTo(page, 5);

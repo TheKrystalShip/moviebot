@@ -35,9 +35,10 @@ premise, and most of the design falls out of it:
 - A single transcode head has to outrun a single playhead, and it outruns it tenfold — which is
   what makes playback-while-transcoding practical rather than fiddly.
 - **Shared state is small**: title, paused, position at an anchor time, rate, who changed it,
-  revision, transcode head. Volume, subtitle choice, audio track and quality are per-viewer
-  preferences and never go on the wire. Shared volume is a way for one person to deafen
-  everyone else.
+  revision, transcode head. Volume, subtitle choice, how subtitles are drawn, audio track and
+  quality are per-viewer preferences and never go on the wire. Shared volume is a way for one
+  person to deafen everyone else, and one person needing subtitles, at the size they read at,
+  should not put them on five other screens.
 
 ## Commands
 

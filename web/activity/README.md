@@ -51,10 +51,12 @@ and nothing more than that.
 ## Shared, and not shared
 
 Which title, paused, position, rate and who changed it come from the hub. **Volume, subtitle
-selection and audio track are this browser's own**, kept in `localStorage` under
-`moviebot.prefs.v1` and never sent: shared volume is a way for one person to deafen everyone
-else, and one person needing subtitles should not put them on five other screens. Track choices
-are stored per title, because a track id means nothing outside the film it came from.
+selection, audio track and how subtitles are drawn are this browser's own**, kept in
+`localStorage` under `moviebot.prefs.v1` and never sent: shared volume is a way for one person to
+deafen everyone else, and one person needing subtitles, at the size they read at, should not put
+them on five other screens. Track choices are stored per title, because a track id means nothing
+outside the film it came from; an appearance is stored once, because it is about the person
+reading it.
 
 ## How the timeline holds together
 
@@ -100,6 +102,35 @@ are listed in manifest order either way, which is how a chosen track is found ag
 
 Subtitles are whole WebVTT files rather than an HLS rendition, so the chosen one — and only the
 chosen one — is fetched and attached as a track.
+
+## How subtitles look
+
+`src/player/subtitleStyle.ts` holds the setting, paints a cue, and hangs the paint off the redraw;
+`src/player/subtitleStylePanel.ts` is the panel behind the cog that changes it.
+
+Cues are drawn by video.js on every browser, because `nativeTextTracks` is off. A cue the browser
+draws takes the operating system's caption settings and nothing this page can say about it, so the
+one code path holds everywhere rather than everywhere except an iPhone.
+
+What that path leaves is a cue that is an absolutely positioned box holding one inline div, both
+carrying styles written straight onto the element. A stylesheet cannot reach an inline style, and
+`::cue` addresses cues the browser drew, of which there are none — so appearance is written onto
+the elements, on the redraw the library performs whenever the cues change.
+
+- **Colour and background go on the inline div**, where the renderer puts them. An inline box
+  wraps each line of text on its own, so a two-line cue gets a band per line rather than one
+  rectangle with a ragged line inside it.
+- **Size is a multiple of what the layout gave the cue**, set in `em`, so one setting reads the
+  same on a phone-sized Activity frame and on a television — and so nothing compounds when the
+  library reuses a cue's element between redraws.
+- **Size and position are the two settings that invalidate the layout**, which measured the box
+  before either ran. A resized cue gives its stale height back and hangs from the edge it was
+  placed against; a raised one is moved by a transform, because the position on the box is what
+  the next pass measures from. Both are left alone on a cue placed against the top of the frame,
+  where raising it walks it into the picture.
+- **The sample in the panel is a cue**, drawn by the function that draws the ones over the film,
+  in a frame carrying the renderer's own rule of a twentieth of its height. It is small, which is
+  the honest answer: that is how much of a screen a subtitle occupies.
 
 ## Verifying
 

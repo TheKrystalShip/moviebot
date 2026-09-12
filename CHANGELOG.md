@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.36.0] - 2026-09-12
+
+### Added
+
+- A viewer sets how subtitles are drawn for themselves: text colour, the band behind it and how
+  opaque it is, size, how far off the bottom of the frame they sit, an outline or a shadow, the
+  family and the weight. It is a panel behind the same cog as the tracks, answered by a sample cue
+  drawn by the function that draws the ones over the film, and it is one viewer's own — held once
+  per browser rather than per title, because it is about the eyes reading it, and never sent.
+  Untouched it is white on a black band at the size the frame gives it, which is what a cue is
+  drawn as with nothing said about it.
+
+### Changed
+
+- Cues are drawn by the player library on every browser, `nativeTextTracks` off. A cue the browser
+  draws takes the operating system's caption settings and nothing the page can say about it, so
+  the one code path holds everywhere rather than everywhere except an iPhone.
+
+### Fixed
+
+- The player checks reach the menus through the cog that holds them, and read an unavailable
+  track's reason off the mark that carries it.
+
 ## [1.35.3] - 2026-09-08
 
 ### Fixed

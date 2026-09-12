@@ -9,6 +9,8 @@ import { buildMasterPlaylist, masterPlaylistUrl, type MasterPlaylist } from './m
 import { ScrubBar } from './scrubBar';
 import { audioGroups, defaultAudioId, findSubtitle } from './tracks';
 import { SubtitleMenu } from './subtitleMenu';
+import { SubtitleStylePanel } from './subtitleStylePanel';
+import { SubtitleStyler } from './subtitleStyle';
 import { AudioPanel } from './audioPanel';
 import { SettingsMenu } from './settingsMenu';
 import { bindShortcuts } from './shortcuts';
@@ -52,6 +54,7 @@ export class FilmPlayer {
   readonly scrub: ScrubBar;
   readonly audioPanel: AudioPanel;
   readonly subtitleMenu: SubtitleMenu;
+  readonly subtitleStyle: SubtitleStylePanel;
   readonly settings: SettingsMenu;
 
   private readonly player: Player;
@@ -72,6 +75,7 @@ export class FilmPlayer {
   private readonly flash: KeyFlash;
   private holds = 0;
   private readonly volume: VolumeControl;
+  private readonly styler: SubtitleStyler;
 
   constructor(container: HTMLElement, private readonly hooks: FilmPlayerHooks) {
     const tag = document.createElement('video');
@@ -113,7 +117,12 @@ export class FilmPlayer {
       // The library's own volume panel is replaced: it writes the slider position straight to
       // the media element's amplitude, and those have to be different numbers for the slider to
       // be proportional to loudness.
-      controlBar: { children: ['playToggle'] }
+      controlBar: { children: ['playToggle'] },
+      // Cues are drawn by the library on every browser, including the ones that would draw them
+      // themselves. A cue the browser draws takes the operating system's caption settings and
+      // nothing this page can say about it, so leaving that decision to the browser is a player
+      // whose subtitle settings work everywhere except an iPhone.
+      html5: { nativeTextTracks: false }
     });
 
     // The element the library ended up with, which is not always the one it was handed. Where a
@@ -172,7 +181,17 @@ export class FilmPlayer {
       unpin: (trackId) => this.hooks.unpinSubtitle(trackId).then(() => this.refreshSubtitles())
     });
 
-    this.settings = new SettingsMenu(this.audioPanel, this.subtitleMenu, lock);
+    // The styler is what puts a style on screen and the panel is what changes it, so the panel
+    // is handed one function and knows nothing about how a cue is drawn.
+    this.styler = new SubtitleStyler(this.player, prefs.subtitleStyle());
+    this.subtitleStyle = new SubtitleStylePanel(prefs.subtitleStyle(), (style) => {
+      prefs.setSubtitleStyle(style);
+      this.styler.set(style);
+      this.settings.refresh();
+    });
+
+    this.settings = new SettingsMenu(
+      this.audioPanel, this.subtitleMenu, this.subtitleStyle, lock);
 
     const bar = this.player.getChild('ControlBar');
     bar?.addChild('Component', { el: this.volume.el });
@@ -543,6 +562,7 @@ export class FilmPlayer {
   }
 
   dispose(): void {
+    this.styler.dispose();
     this.releaseShortcuts?.();
     this.releaseShortcuts = null;
     this.releaseThumbnails();
