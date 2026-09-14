@@ -15,7 +15,9 @@ using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Bot.Launch;
 using TheKrystalShip.MovieBot.Bot.Notify;
 using TheKrystalShip.MovieBot.Bot.Presence;
+using TheKrystalShip.MovieBot.Bot.Voice;
 using TheKrystalShip.MovieBot.Bot.Watch;
+using TheKrystalShip.Discord.Voice;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -79,8 +81,28 @@ builder.Services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
     // Guilds carries the channel graph and GuildVoiceStates says who is in which voice channel,
     // which is the whole of what the bot needs to know about a server. Both are unprivileged.
     GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildVoiceStates,
-    AlwaysDownloadUsers = false
+    AlwaysDownloadUsers = false,
+
+    // Discord refuses a non-stage voice connection from a client that cannot negotiate DAVE, its
+    // end-to-end encryption, closing it with 4017. It needs libdave resolvable at runtime; without
+    // it only listening fails, and every other command carries on.
+    EnableVoiceDaveEncryption = true
 }));
+
+// Listening. Off unless the host switches it on, because everyone in a channel the bot joins is
+// heard; and even on, the bot joins only when somebody runs /voice join. What the pipeline hears
+// goes to moviebot-speech for words, and the words go to the room-verb gate — there is no model
+// in this process.
+builder.Services.AddOptions<DiscordVoiceOptions>()
+    .Bind(builder.Configuration.GetSection("Voice"));
+builder.Services.AddOptions<SpeechSocketOptions>()
+    .Bind(builder.Configuration.GetSection(SpeechSocketOptions.Section));
+builder.Services.AddSingleton<MovieBotSpeech>();
+builder.Services.AddSingleton<ISpeechEngine>(sp => sp.GetRequiredService<MovieBotSpeech>());
+builder.Services.AddSingleton<ISpeechToText, MovieBotSpeechToText>();
+builder.Services.AddSingleton<RoomVoiceCommandHandler>();
+builder.Services.AddSingleton<IVoiceCommandHandler>(sp => sp.GetRequiredService<RoomVoiceCommandHandler>());
+builder.Services.AddDiscordVoice();
 
 // The Activity is the front door; the link is what answers when it cannot be opened — no
 // application id, a channel the bot cannot see, or a missing Create Instant Invite. Registering

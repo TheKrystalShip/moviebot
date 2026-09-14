@@ -93,6 +93,47 @@ public sealed class MovieBotApiClient(HttpClient http)
         return push.State;
     }
 
+    /// <summary>Starts the room playing from wherever it is.</summary>
+    public Task<RoomChanged> PlayAsync(string sessionId, string userId, string displayName, CancellationToken ct) =>
+        ControlAsync(sessionId, "play",
+            new RoomPlaybackRequest(AtSeconds: null, userId, displayName),
+            ManifestJsonContext.Default.RoomPlaybackRequest, ct);
+
+    /// <summary>Stops the room where it is.</summary>
+    public Task<RoomChanged> PauseAsync(string sessionId, string userId, string displayName, CancellationToken ct) =>
+        ControlAsync(sessionId, "pause",
+            new RoomPlaybackRequest(AtSeconds: null, userId, displayName),
+            ManifestJsonContext.Default.RoomPlaybackRequest, ct);
+
+    /// <summary>
+    /// Moves the room by <paramref name="deltaSeconds"/> from where it is. Relative rather than a
+    /// position computed here, because the film moves during the round trip.
+    /// </summary>
+    public Task<RoomChanged> NudgeAsync(
+        string sessionId, double deltaSeconds, string userId, string displayName, CancellationToken ct) =>
+        ControlAsync(sessionId, "seek-relative",
+            new RoomNudgeRequest(deltaSeconds, userId, displayName),
+            ManifestJsonContext.Default.RoomNudgeRequest, ct);
+
+    /// <summary>
+    /// Sends one room control. No position is ever sent for a play or a pause: the bot is not watching
+    /// and does not know where the film is, and the API resolves "wherever the room is" under the same
+    /// lock as the change.
+    /// </summary>
+    private async Task<RoomChanged> ControlAsync<TRequest>(
+        string sessionId, string control, TRequest request,
+        System.Text.Json.Serialization.Metadata.JsonTypeInfo<TRequest> requestType, CancellationToken ct)
+    {
+        using var response = await http.PostAsJsonAsync(
+            $"api/sessions/{Uri.EscapeDataString(sessionId)}/{control}", request, requestType, ct);
+
+        if (!response.IsSuccessStatusCode)
+            throw new MovieBotApiException($"The API refused {control} in {sessionId}: {(int)response.StatusCode}.");
+
+        return await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.RoomChanged, ct)
+            ?? throw new MovieBotApiException("The API returned no room change.");
+    }
+
     /// <summary>
     /// Whether the API is answering. Used at startup so an unreachable backend is reported once,
     /// on the log, rather than for the first time in front of a room.

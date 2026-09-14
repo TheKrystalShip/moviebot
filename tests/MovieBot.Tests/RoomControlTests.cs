@@ -5,7 +5,6 @@ using System.Text.Json.Serialization;
 
 using Microsoft.AspNetCore.SignalR.Client;
 
-using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
 
 using Xunit;
@@ -129,7 +128,11 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
         var session = NewSession();
         await using var viewer = await fixture.ConnectAsync(session, "u1", "Alice");
 
+        // The load is broadcast too, and over long polling it can land after the next subscription —
+        // so it is waited for first, or the play below would be read off the load's paused state.
+        var loaded = NextPush(viewer, "StateChanged");
         await LoadAsync(client, session);
+        await loaded;
 
         var seen = NextPush(viewer, "StateChanged");
         await PostAsync(client, session, "play", new RoomPlaybackRequest(AtSeconds: 120));

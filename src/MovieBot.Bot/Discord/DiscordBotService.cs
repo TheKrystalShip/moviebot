@@ -12,6 +12,7 @@ using TheKrystalShip.MovieBot.Bot.Launch;
 using TheKrystalShip.MovieBot.Bot.Library;
 using TheKrystalShip.MovieBot.Bot.Notify;
 using TheKrystalShip.MovieBot.Bot.Watch;
+using TheKrystalShip.Discord.Voice;
 
 namespace TheKrystalShip.MovieBot.Bot.Discord;
 
@@ -33,6 +34,8 @@ public sealed class DiscordBotService(
     TheKrystalShip.MovieBot.Acquire.Download.Retention retention,
     TheKrystalShip.MovieBot.Acquire.Search.AutocompleteSearch suggestions,
     TheKrystalShip.MovieBot.Acquire.Imdb.ImdbClient catalogue,
+    IVoiceSessions voiceSessions,
+    VoiceDecryptHealth decryptHealth,
     IOptions<DiscordOptions> options,
     ILogger<DiscordBotService> logger) : BackgroundService
 {
@@ -70,14 +73,17 @@ public sealed class DiscordBotService(
                 // CreateInstantInvite is what an Activity launch is made of, so it belongs in
                 // the link that installs the bot rather than being discovered missing the first
                 // time somebody asks for a film in a voice channel. The line under a voice channel
-                // needs both of the last two: Discord asks for Manage Channels as well from a bot
-                // that is not itself connected to the channel.
+                // needs Set Voice Channel Status and Manage Channels: Discord asks for the second as
+                // well from a bot that is not itself connected to the channel. Listening needs
+                // Connect, and Speak carries the tone that tells somebody the bot is waiting for them.
                 (ulong)(GuildPermission.CreateInstantInvite
                         | GuildPermission.ViewChannel
                         | GuildPermission.SendMessages
                         | GuildPermission.EmbedLinks
                         | GuildPermission.SetVoiceChannelStatus
-                        | GuildPermission.ManageChannels));
+                        | GuildPermission.ManageChannels
+                        | GuildPermission.Connect
+                        | GuildPermission.Speak));
 
         await client.LoginAsync(TokenType.Bot, options.Value.Token);
         await client.StartAsync();
@@ -109,10 +115,10 @@ public sealed class DiscordBotService(
                 // The overwrite is the whole command set, so every command has to be in this
                 // one call: registering them separately leaves only the last one standing.
                 await guild.BulkOverwriteApplicationCommandAsync(
-                    [WatchSlashCommand.Build(), NotifySlashCommand.Build(), KeepSlashCommand.Build()]);
+                    [WatchSlashCommand.Build(), NotifySlashCommand.Build(), KeepSlashCommand.Build(), VoiceSlashCommand.Build()]);
 
-                logger.LogInformation("Registered /{Watch}, /{Notify} and /{Keep} in {GuildName}",
-                    WatchSlashCommand.Name, NotifySlashCommand.Name, KeepSlashCommand.Name, guild.Name);
+                logger.LogInformation("Registered /{Watch}, /{Notify}, /{Keep} and /{Voice} in {GuildName}",
+                    WatchSlashCommand.Name, NotifySlashCommand.Name, KeepSlashCommand.Name, VoiceSlashCommand.Name, guild.Name);
             }
             catch (Exception ex)
             {
@@ -131,10 +137,126 @@ public sealed class DiscordBotService(
             WatchSlashCommand.Name => HandleWatchAsync(command),
             NotifySlashCommand.Name => HandleNotifyAsync(command),
             KeepSlashCommand.Name => HandleKeepAsync(command),
+            VoiceSlashCommand.Name => HandleVoiceAsync(command),
             _ => Task.CompletedTask,
         };
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Brings the bot into a voice channel to listen, sends it away, or says what it is hearing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Listening is never implicit.</b> The bot is in a voice channel because somebody asked it to
+    /// be, and everyone in the channel is heard while it is there — not only whoever asked.
+    /// </para>
+    /// <para>
+    /// <b>The room is told, or the bot does not stay.</b> The reply to whoever ran the command is only
+    /// seen by them; the notice in the channel is the only way anyone else learns they are being
+    /// listened to. A bot that joined and could not post that notice would be listening to people who
+    /// were never told, so it leaves again and says why.
+    /// </para>
+    /// </remarks>
+    private async Task HandleVoiceAsync(SocketSlashCommand command)
+    {
+        try
+        {
+            if (command.GuildId is not { } guildId || !_guilds.Contains(guildId))
+            {
+                await command.RespondAsync(
+                    "This bot only answers in the server it is configured for.", ephemeral: true);
+                return;
+            }
+
+            var subcommand = command.Data.Options.FirstOrDefault()?.Name;
+            await command.DeferAsync(ephemeral: true);
+
+            switch (subcommand)
+            {
+                case VoiceSlashCommand.Join:
+                    await JoinVoiceAsync(command, guildId);
+                    break;
+
+                case VoiceSlashCommand.Leave:
+                    var left = await voiceSessions.LeaveAsync(guildId);
+                    await command.FollowupAsync(
+                        left.IsSuccess ? "Stopped listening and left the voice channel." : left.Error,
+                        ephemeral: true, allowedMentions: AllowedMentions.None);
+                    break;
+
+                case VoiceSlashCommand.Status:
+                    await command.FollowupAsync(VoiceStatus(guildId), ephemeral: true, allowedMentions: AllowedMentions.None);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "The /{Command} command failed", VoiceSlashCommand.Name);
+            await TryReportFailure(command);
+        }
+    }
+
+    private async Task JoinVoiceAsync(SocketSlashCommand command, ulong guildId)
+    {
+        if (!voiceSessions.IsEnabled)
+        {
+            await command.FollowupAsync("Listening is switched off on this bot.", ephemeral: true);
+            return;
+        }
+
+        if ((command.User as SocketGuildUser)?.VoiceChannel is not { } channel)
+        {
+            await command.FollowupAsync(
+                "Join a voice channel first, and I'll come to the one you're in.", ephemeral: true);
+            return;
+        }
+
+        var joined = await voiceSessions.JoinAsync(guildId, channel.Id);
+        if (joined.IsFailure)
+        {
+            await command.FollowupAsync(joined.Error, ephemeral: true, allowedMentions: AllowedMentions.None);
+            return;
+        }
+
+        var name = (command.User as IGuildUser)?.DisplayName ?? command.User.Username;
+        try
+        {
+            await command.Channel.SendMessageAsync(
+                $"Listening in **{channel.Name}**, because {name} asked. Everyone in the channel is heard "
+                + "while I'm there. Say \"hey MovieBot, pause\" to stop the film. `/voice leave` sends me away.",
+                allowedMentions: AllowedMentions.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Voice: could not tell {Channel} it is being listened to, so the bot is leaving again", channel.Name);
+            await voiceSessions.LeaveAsync(guildId);
+            await command.FollowupAsync(
+                "I couldn't post a notice in this channel saying I'm listening, so I've left again. "
+                + "Run this where I can send messages.", ephemeral: true);
+            return;
+        }
+
+        logger.LogInformation("Voice: {User} brought the bot into {Channel}", name, channel.Name);
+        await command.FollowupAsync($"Listening in **{channel.Name}**.", ephemeral: true, allowedMentions: AllowedMentions.None);
+    }
+
+    private string VoiceStatus(ulong guildId)
+    {
+        if (!voiceSessions.IsEnabled) return "Listening is switched off on this bot.";
+        if (voiceSessions.Describe(guildId) is not { } session) return "Not listening in any voice channel.";
+
+        var line = $"Listening in **{session.ChannelName}** for {Math.Floor(session.For.TotalMinutes)} min: "
+            + $"{session.Utterances} things heard from {session.Speakers} "
+            + (session.Speakers == 1 ? "person." : "people.");
+
+        // Connected and sent nothing looks, from inside the channel, exactly like being heard and not
+        // understood — so it is said outright rather than left for somebody to infer.
+        return session.HearsNothing
+            ? line + " No audio has arrived at all. Check the bot is not server-muted or deafened."
+            : line;
     }
 
     private Task OnAutocomplete(SocketAutocompleteInteraction interaction)
@@ -534,6 +656,10 @@ public sealed class DiscordBotService(
 
     private Task OnLog(LogMessage message)
     {
+        // A frame Discord.Net could not decrypt is reported as a log line and nowhere else, so this
+        // handler — which every library message already passes through — is where it is counted.
+        decryptHealth.Observe(message);
+
         // Discord.Net treats a rejected token as a gateway error and reconnects forever, so the
         // reason scrolls past as one 401 among many. Said once, plainly, naming what to fix.
         if (message.Exception is global::Discord.Net.HttpException { HttpCode: HttpStatusCode.Unauthorized }

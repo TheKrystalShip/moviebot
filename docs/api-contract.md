@@ -18,7 +18,7 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET /api/sessions` | `RoomSummary[]` — every room, what it is watching, how many are in it |
 | `GET /api/sessions/{id}` | `SessionStatePush` — creates the session if new |
 | `GET /api/sessions/{id}/participants` | `Participant[]` |
-| `POST /api/sessions/{id}/title` | `RoomChanged` — puts a film in the room, or 404 if the library has no such title |
+| `POST /api/sessions/{id}/title` | `SessionStatePush` — puts a film in the room, or 404 if the library has no such title |
 | `POST /api/sessions/{id}/play` | `RoomChanged` |
 | `POST /api/sessions/{id}/pause` | `RoomChanged` |
 | `POST /api/sessions/{id}/seek` | `RoomChanged` |

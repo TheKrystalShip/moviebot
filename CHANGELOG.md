@@ -4,6 +4,45 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.40.0] - 2026-09-15
+
+### Added
+
+- MovieBot listens. `/voice join` brings the bot into the voice channel you are in, and "hey
+  MovieBot, pause" stops the film for the room — as do "resume", "back fifteen" and "skip forward a
+  minute". There is no model in the bot: what is heard goes to moviebot-speech for words, and the
+  words go to a gate that knows a handful of verbs and reads the whole utterance. "Should we pause?"
+  contains the word and is not the verb. A phrasing that looks like a verb and cannot be read safely
+  — "go back" with no amount, "rewind a bit", "go back 1:30" — is not guessed at, because a misread
+  verb moves the film for everybody.
+
+  The act is silent, because the film stopping is the acknowledgement and the player already says
+  who did it. It is recorded under the speaker's own account, it needs the room to be holding a
+  film, and it is logged with the milliseconds from the moment the speaker stopped talking to the
+  moment the room changed.
+
+  Joining posts a notice in the channel saying the bot is listening, because that notice is the only
+  way anyone but the person who ran the command learns they are heard. If it cannot be posted the
+  bot leaves again.
+
+### Changed
+
+- `RoomChanged` is in the shared contract rather than the API, so the bot reads the type the API
+  writes.
+- The invite the bot logs asks for Connect and Speak as well. A bot already in a server keeps the
+  role it was given.
+
+### Fixed
+
+- The test host journals its rooms somewhere of its own. It had been writing `rooms.json` beside the
+  test binary, and the API restores every room in its journal on start, so one run's rooms turned up
+  in the next.
+- A room-control test listened for the play before the load's own push had arrived, and over long
+  polling the load could land second and be read as the play.
+- The repository names its package feeds. It had been restoring the speech packages through the
+  user-level configuration, which also lists a local folder that could satisfy a package the real
+  feed does not have.
+
 ## [1.39.0] - 2026-09-14
 
 ### Added

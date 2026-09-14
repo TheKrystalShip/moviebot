@@ -91,6 +91,17 @@ public sealed record SeekClamped
 public sealed record SetTitleRequest(string TitleId, string? UserId, string? DisplayName);
 
 /// <summary>
+/// What a room control answers: the state the room was sent, and the clamp when the position asked
+/// for was not the position granted.
+/// </summary>
+/// <remarks>
+/// The clamp rides here rather than being broadcast because the caller that asked is the one thing a
+/// broadcast cannot reach. Carried in the shared contract so the bot reads the same type the API
+/// writes.
+/// </remarks>
+public sealed record RoomChanged(SessionStatePush Push, SeekClamped? Clamped);
+
+/// <summary>
 /// Who is acting on a room from outside it.
 /// </summary>
 /// <remarks>

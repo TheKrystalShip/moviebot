@@ -2,7 +2,6 @@ using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Api.Library;
-using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Subtitles;
 using TheKrystalShip.MovieBot.Core;
 
@@ -55,9 +54,6 @@ public sealed record ServiceTokenReply(string RoomToken);
 [JsonSerializable(typeof(PinSubtitleRequest))]
 [JsonSerializable(typeof(SubtitleAdded))]
 [JsonSerializable(typeof(QuotaReply))]
-// What a room control answers. The clamp rides in the body because the caller that asked is the
-// one thing a broadcast cannot reach.
-[JsonSerializable(typeof(RoomChanged))]
 // A list is looked up by the type the endpoint declares and written by the type it holds, so
 // both are named. The Core context carries the same pair for the participants and the rooms.
 [JsonSerializable(typeof(IReadOnlyList<TitleSummary>))]

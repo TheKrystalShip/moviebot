@@ -75,10 +75,12 @@ that root.
 
 ## Deploying
 
-The three services run on **hotbox**, as systemd units under `heisen`, out of `/opt/moviebot`.
-They are built on hotrod, which is the machine holding the checkouts, the .NET SDK, `clang` and
-node; hotbox carries the .NET runtime and nothing else of the toolchain. So a deploy is a publish
-here, an rsync there, and a restart:
+Five units run on **hotbox**, under `heisen`, out of `/opt/moviebot`: `moviebot-api`,
+`moviebot-bot` and `moviebot-handoff`, which are this repository's .NET services, and
+`moviebot-speech` and `moviebot-llm`, which hold whisper and the language model on the card. All of
+it is built on hotrod, which is the machine holding the checkouts, the .NET SDK, `clang` and node;
+hotbox carries the .NET runtime and nothing else of the toolchain. So a deploy of the three services
+is a publish here, an rsync there, and a restart:
 
 ```bash
 ./scripts/build-player.sh                                    # player -> the API's wwwroot
@@ -92,6 +94,14 @@ rsync -a --delete /tmp/mb/handoff/ hotbox:/opt/moviebot/handoff/
 ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff'
 ```
 
+- **Speech and the model are native builds of their own, made on hotrod for hotbox's CPU.**
+  `deploy/vulkan/build.sh` builds whisper.cpp and llama.cpp against Vulkan with every CPU feature
+  hotbox lacks switched off, and `deploy/vulkan/install.sh` puts them under `/opt/moviebot`; its
+  README is the authority for why a prebuilt runtime cannot be used there. `moviebot-speech` is the
+  .NET host over that whisper build and publishes like the other services.
+- **Listening needs three system libraries on hotbox**: `opus`, `libsodium`, and `libdave`, which is
+  Discord's end-to-end voice encryption and is packaged in tks-agent. Without libdave the bot runs
+  and every voice connection is refused.
 - **The API and the hand-off publish as native binaries.** `PublishAot` in each project, so the
   publish above runs the ahead-of-time compiler, needs `clang`, and takes a minute or two longer
   than a JIT publish. What lands is one executable beside `appsettings.json` and, for the API,
@@ -613,6 +623,29 @@ A release name is what a film arrives as. It is not what the film is called.
   large one fills a message with artwork nobody asked to look at.
 - **A source that shipped its own cover art keeps it.** It came with the release, and the
   catalogue's is only ever a stand-in for a film that has none.
+
+## Listening in a voice channel
+
+`/voice join` brings the bot into a voice channel to listen, and "hey MovieBot, pause" stops the
+film. `src/MovieBot.Bot/README.md` is the authority for the surface; these are the rules it rests on.
+
+- **There is no model in the bot.** What is heard goes to moviebot-speech for words and the words go
+  to `RoomVerbs`, a gate that knows a handful of verbs. A component that moves the room for everyone
+  in it should read the same words the same way every time.
+- **The gate matches the whole utterance and has three answers.** "Should we pause?" contains the
+  word and is not the verb. A phrasing that looks like a verb and cannot be read safely — no amount,
+  a vague one, two acts, or digits joined by punctuation that flattening would fuse — is ambiguous
+  and not guessed at, because a misread verb moves the film for everybody.
+- **A verb needs a room holding a film.** Every write to a room creates one, so the room is read
+  first and a verb in a channel watching nothing does nothing.
+- **A play or a pause from the bot sends no position.** The API resolves "wherever the room is"
+  under the lock that applies the change; a position guessed by something not watching would move
+  the film as well as stopping it.
+- **Listening is announced in the channel, or it does not happen.** The notice is the only way
+  anyone but the person who ran `/voice join` learns they are heard.
+- **The voice pipeline is `TheKrystalShip.Discord.Voice`, shared with kgsm-bot, and it lives under
+  the org's root namespace.** Inside any `TheKrystalShip.*` namespace a bare `Discord.X` resolves to
+  `TheKrystalShip.Discord` first and fails, so Discord.Net types are written `global::Discord.X`.
 
 ## Keeping a room
 

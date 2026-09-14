@@ -3,7 +3,8 @@
 The Discord half. `/watch` resolves a film, opens the room's session on the API and hands the
 room a launch — and when the film is not here, searches the tracker, starts the download and hands
 the room the launch the moment the film can be watched. `/notify` watches for a film that cannot be
-downloaded yet and says so when it can.
+downloaded yet and says so when it can. `/voice join` brings the bot into a voice channel to listen,
+so the film can be paused, resumed and skipped by saying so.
 
 ## It holds almost no state
 
@@ -40,6 +41,11 @@ into place on every change.
 | `Launch__CardsPath` | no | Where the standing launch cards are written. Defaults to `launches.json` in the directory `STATE_DIRECTORY` names, and to the working directory when there is none. |
 | `Notify__Path` | no | Where the wish list is written. Defaults to `wishes.json` in the directory `STATE_DIRECTORY` names, and to the working directory when there is none. |
 | `Notify__SweepMinutes` | no | How often the tracker is asked about every film on the list. Defaults to 60. |
+| `Voice__Enabled` | no | Whether the bot may listen in a voice channel at all. Off by default, because everyone in a channel it joins is heard. On, it still joins only when somebody runs `/voice join`. |
+| `Voice__Triggers` | no | What addresses the bot, comma-separated. `appsettings.json` carries `hey moviebot, hey movie bot`, because the recogniser writes the name both ways. |
+| `Voice__SilenceGapMs` | no | How long somebody has to stop talking before the sentence counts as finished. Defaults to 800, and it is most of the wait between saying "pause" and the film stopping. |
+| `Voice__LogTranscripts` | no | Whether what was heard is written to the log. Off by default: a voice channel is full of things nobody said to the bot. |
+| `Speech__SocketPath` | no | Where moviebot-speech answers. Defaults to `/run/moviebot-speech/speech.sock`, the same key the speech host reads. |
 | `Notify__MinimumSource` | no | The least a release's source may be for a film to count as available: `Web` by default, so a camcorder recording of a film in cinemas does not announce it. |
 
 The two credentials are read under their own names and sit underneath every other configuration
@@ -78,8 +84,10 @@ Environment=Discord__GuildIds__0=<guild id>
 - A bot user, and its token.
 - No privileged intents. The bot uses `Guilds` and `GuildVoiceStates`, both of which are
   unprivileged; the second is what tells it which voice channel somebody is standing in.
-- Invited with the `bot` and `applications.commands` scopes, and with permission to send
-  messages and embed links in the channel the command is used in. The bot logs an invite URL
+- Invited with the `bot` and `applications.commands` scopes, with permission to send messages and
+  embed links in the channel the command is used in, and with Connect and Speak for listening. A bot
+  already in a server keeps the role it was given, so adding a permission to the invite does not
+  add it to that role. The bot logs an invite URL
   carrying exactly those at startup.
 
 ## The launch
@@ -117,6 +125,38 @@ holding it is in the room.
 Which launch the reply carries is the only thing `ILaunchPresenter` decides. A presenter that
 opens the player as an Activity inside the voice channel replaces the one that links to it, and
 the command above it does not change.
+
+## Listening in a voice channel
+
+`/voice join` brings the bot into the voice channel the person running it is in. From then on,
+"hey MovieBot, pause" stops the film for the room. There is no model in this process: what is heard
+goes to moviebot-speech for words, and the words go to a gate that knows a handful of verbs.
+
+- **The gate reads the whole utterance and has three answers.** "Pause", "resume the film", "back
+  fifteen", "skip forward a minute" are verbs. "Should we pause?" and "don't pause it" contain the
+  word and are not the verb. "Go back" with no amount, "rewind a bit", and "go back 1:30" look like
+  verbs and cannot be read safely, so they are not guessed at: a missed verb costs a slower answer,
+  a misread one moves the film for everyone.
+- **Numbers are read before punctuation is stripped.** Recognition writes "1:30" and "1.5", and
+  flattened those become 130 and 15. Digits joined by a colon, point or comma make an utterance
+  ambiguous.
+- **"Go ahead" is not a direction.** It means carry on, and read as "skip ahead" it would move the
+  film the first time somebody agreed with something.
+- **The act is silent.** The film stopping is the acknowledgement, and the player already tells
+  everyone who did it.
+- **A verb needs a room holding a film.** Every write to a room creates it, so the room is looked up
+  first — which does not — and a verb said in a channel watching nothing does nothing.
+- **Whoever spoke is who did it.** The change is recorded under the speaker's account.
+- **A play or a pause sends no position.** The bot is not watching and does not know where the film
+  is; the API resolves "wherever the room is" under the lock that applies the change.
+- **The room is told, or the bot does not stay.** Joining posts a notice in the channel the command
+  ran in, because it is the only way anyone but the person who ran it learns they are being
+  listened to. If that notice cannot be posted, the bot leaves again.
+- **Everything else is heard and left alone.** A question put to the bot out loud is recorded as not
+  a room verb, and nothing on this host answers it.
+- **The log says how long it took.** Every act is logged with the milliseconds from the moment the
+  speaker stopped talking to the moment the room changed. The silence that ends a sentence is inside
+  that number, because the person waited through it.
 
 ## A card says when it is over
 

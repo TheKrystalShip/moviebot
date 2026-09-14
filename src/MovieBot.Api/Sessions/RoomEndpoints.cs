@@ -95,9 +95,3 @@ public static class RoomEndpoints
     private static Actor ActorFor(string? userId, string? displayName) =>
         new(userId ?? "bot", displayName ?? "MovieBot");
 }
-
-/// <summary>
-/// What a room control answers: the state the room was sent, and the clamp when the position asked
-/// for was not the position granted.
-/// </summary>
-public sealed record RoomChanged(SessionStatePush Push, SeekClamped? Clamped);

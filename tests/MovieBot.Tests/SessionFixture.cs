@@ -21,6 +21,14 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
     public string ColdRoot { get; } = Path.Combine(
         Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"), "cold");
 
+    /// <summary>
+    /// Where this run's rooms are journalled. Its own, because the API restores every room it finds in
+    /// its journal on start: a shared one carries one run's rooms into the next, and a test that
+    /// asserts a room does not exist then fails on a room some earlier run made.
+    /// </summary>
+    public string StateRoot { get; } = Path.Combine(
+        Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"), "state");
+
     /// <summary>A title still being written: the head sits here, seeks past it are refused.</summary>
     public const string TranscodingTitle = "still-cooking";
     public const double TranscodingHead = 300;
@@ -49,6 +57,7 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
 
         if (Directory.Exists(MediaRoot)) Directory.Delete(MediaRoot, recursive: true);
         if (Directory.Exists(ColdRoot)) Directory.Delete(ColdRoot, recursive: true);
+        if (Directory.Exists(StateRoot)) Directory.Delete(StateRoot, recursive: true);
     }
 
     /// <summary>Discord is the only door, and these are the keys that door is locked with.</summary>
@@ -61,6 +70,7 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
             {
                 ["Media:Root"] = MediaRoot,
                 ["Media:ColdRoot"] = ColdRoot,
+                ["Rooms:Journal"] = Path.Combine(StateRoot, "rooms.json"),
                 ["Auth:SigningKey"] = SigningKey,
                 ["Auth:ServiceKey"] = ServiceKey
             }));

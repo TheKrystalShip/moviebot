@@ -180,11 +180,11 @@ public sealed class LinkLaunchPresenterTests
     {
         var reply = await Presenter().PresentAsync(Request(), CancellationToken.None);
 
-        var row = Assert.IsType<Discord.ActionRowComponent>(Assert.Single(reply.Components!.Components));
-        var button = Assert.IsType<Discord.ButtonComponent>(Assert.Single(row.Components));
+        var row = Assert.IsType<global::Discord.ActionRowComponent>(Assert.Single(reply.Components!.Components));
+        var button = Assert.IsType<global::Discord.ButtonComponent>(Assert.Single(row.Components));
 
         Assert.Equal(reply.Embed.Url, button.Url);
-        Assert.Equal(Discord.ButtonStyle.Link, button.Style);
+        Assert.Equal(global::Discord.ButtonStyle.Link, button.Style);
     }
 
     [Fact]
