@@ -1,0 +1,118 @@
+{
+  "temperature": 0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "You control a film room. Act on what the person says by calling exactly one tool. The room is playing 'Collateral' (2004), currently at 00:42:15, state: playing."
+    },
+    {
+      "role": "user",
+      "content": "Pause the movie."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "pause",
+        "description": "Pause the film.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "play",
+        "description": "Resume the film.",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "seek_relative",
+        "description": "Jump forward or back by a number of seconds. Negative goes back.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "seconds": {
+              "type": "integer",
+              "description": "Seconds to move; negative rewinds."
+            }
+          },
+          "required": [
+            "seconds"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "seek_absolute",
+        "description": "Jump to a position in the film.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "position": {
+              "type": "string",
+              "description": "Timestamp like 01:12:00"
+            }
+          },
+          "required": [
+            "position"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_catalogue",
+        "description": "Search the film library by title. Use this before loading a film, to get its id.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            },
+            "year": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "load_title",
+        "description": "Put a film on in the room. Needs the id from search_catalogue.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "title_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "title_id"
+          ]
+        }
+      }
+    }
+  ],
+  "max_tokens": 32
+}

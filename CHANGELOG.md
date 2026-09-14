@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.37.0] - 2026-09-14
+
+### Added
+
+- The two pieces of inference a spoken command needs run on hotbox's card: whisper to turn what
+  somebody said into text, gemma to turn that text into a room command. Both are built from
+  source by `deploy/vulkan/build.sh` and installed to `/opt/moviebot` by `install.sh`, and
+  `moviebot-llm.service` holds the model resident so nobody pays a load in front of a room.
+  They are built rather than installed from a repository for three reasons that each cost a
+  measurement to find. hotbox's Athlon has neither AVX2 nor BMI2 while the machine that builds
+  for it has both, and ggml compiles for the builder by default, so the obvious build produces
+  something that dies on the first request that reaches the wrong kernel; the build now pins the
+  instruction set and refuses to ship an object containing an opcode that machine cannot run.
+  The distribution builds ggml's backends as modules loaded from a path compiled into the
+  library, where a backend that is not found is not an error but a silent fall back to the
+  processor at a fortieth of the speed; linked as an ordinary dependency it either resolves at
+  exec or the service does not start. And each build carries the ggml it was built against,
+  rather than meeting a different one at runtime.
+
+  The model is warm before the service is called active. The port opens before the card can
+  compute — Vulkan builds its compute pipelines on the first request that needs them, and the
+  prompt prefix is only cached once something has been prefilled through it — so a warm-up runs
+  as `ExecStartPost` and systemd waits for it. It warms only the shape it sends: replaying its
+  own request takes 241 ms while a first request carrying a different prompt and catalog takes
+  1,093 ms, so the body it sends lives in `warmup.json` and is the catalog the assistant
+  actually asks with.
+
 ## [1.36.0] - 2026-09-12
 
 ### Added

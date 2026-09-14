@@ -1,0 +1,63 @@
+[Unit]
+Description=MovieBot assistant model — gemma on the P2000, for turning speech into room commands
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heisen
+Group=heisen
+WorkingDirectory=/opt/moviebot/llm
+ExecStart=/opt/moviebot/llm/bin/llama-server \
+  --model /opt/moviebot/llm/models/gemma-4-E2B-it-qat-UD-Q4_K_XL.gguf \
+  --host 127.0.0.1 --port 8190 \
+  --jinja --ctx-size 8192 \
+  --cache-type-k q8_0 --cache-type-v q8_0 \
+  --n-gpu-layers 999 --flash-attn on
+
+# The port is open before the card is ready to compute. The Vulkan backend builds its compute
+# pipelines on the first request that needs them, which costs several seconds once per start,
+# and whoever speaks first in the voice channel would otherwise pay it. Running the warm-up as
+# ExecStartPost means systemd does not report the unit active until a request has been all the
+# way through the model.
+ExecStartPost=/opt/moviebot/llm/bin/warm-llm.sh 8190
+TimeoutStartSec=300
+
+# Resident, and deliberately so. kgsm-speech on hotrod exits when idle because it shares a host
+# with a game-server fleet that wants the memory back. hotbox runs MovieBot and nothing else, so
+# the 1.4 GB of video memory this holds has nothing better to be spent on, and giving it back
+# would only mean paying the load and the pipeline compile again in front of a room.
+
+# The driver caches compiled shaders on disk, and ProtectHome below makes the default location
+# under ~/.cache unwritable. Without somewhere to write it, every start recompiles from scratch.
+CacheDirectory=moviebot-llm
+Environment=__GL_SHADER_DISK_CACHE_PATH=/var/cache/moviebot-llm
+
+Restart=on-failure
+RestartSec=10s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+# Loopback only: the model is reached by the bot on this machine and by nothing else. It has no
+# authentication of its own, so the socket boundary is the whole of its access control.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressAllow=localhost
+IPAddressDeny=any
+
+# Vulkan compute runs through the NVIDIA driver, so the device nodes stay visible. PrivateDevices
+# would hide them, and the failure is not an error: llama.cpp would find no Vulkan device and run
+# every token on four Athlon cores instead.
+DeviceAllow=/dev/nvidia0 rw
+DeviceAllow=/dev/nvidiactl rw
+DeviceAllow=/dev/nvidia-modeset rw
+DeviceAllow=/dev/nvidia-uvm rw
+DeviceAllow=/dev/nvidia-uvm-tools rw
+DeviceAllow=/dev/dri rw
+
+[Install]
+WantedBy=multi-user.target

@@ -508,3 +508,6 @@ media/
 
 # Fixture media for the browser checks. Kept out of the live library so it is never suggested.
 .testmedia/
+
+# Built and staged by deploy/vulkan/build.sh
+deploy/vulkan/stage/
