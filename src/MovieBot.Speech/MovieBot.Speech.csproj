@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <RootNamespace>TheKrystalShip.MovieBot.Speech</RootNamespace>
+    <AssemblyName>moviebot-speech</AssemblyName>
+    <Version>0.1.0</Version>
+
+    <!-- The same reasoning as the bot's: this runs for weeks, so a method is compiled once at full
+         optimisation rather than tiered up, and the code heap is held once. -->
+    <TieredCompilation>false</TieredCompilation>
+    <TieredPGO>false</TieredPGO>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TheKrystalShip.Speech" Version="1.0.0" />
+    <PackageReference Include="TheKrystalShip.Speech.Engine" Version="2.5.1" />
+
+    <!-- Whisper.net's managed binding only. The natives it normally brings are deliberately absent:
+         every prebuilt linux-x64 runtime it ships compiles the CPU backend for AVX2, which this
+         host's Athlon cannot execute, and the CUDA one carries no PTX for a Pascal card. The
+         library this loads is built for this machine and installed beside the model — see
+         deploy/vulkan. -->
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

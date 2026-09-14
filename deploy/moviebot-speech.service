@@ -1,0 +1,57 @@
+[Unit]
+Description=MovieBot speech — whisper on the P2000, turning what is said in the voice channel into text
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heisen
+Group=heisen
+WorkingDirectory=/opt/moviebot/speech
+ExecStart=/usr/bin/dotnet /opt/moviebot/speech/moviebot-speech.dll
+
+# The socket every surface on this host reaches speech through. systemd creates and owns the
+# directory, so nothing here needs a privileged step to make it.
+RuntimeDirectory=moviebot-speech
+RuntimeDirectoryMode=0755
+Environment=Speech__SocketPath=/run/moviebot-speech/speech.sock
+
+# Resident, and loaded before anyone speaks. The other host that runs this engine is socket
+# activated and unloads when idle, because it shares a machine with a fleet of game servers that
+# want the memory back. This machine runs MovieBot and nothing else, so the model has nothing better
+# to be spent on — and the daemon puts one request through itself at startup, because a loaded model
+# is not the same as a ready one: the card compiles its compute pipelines the first time a graph
+# runs, which is about three seconds, and without the warm-up that is paid by whoever speaks first.
+
+# The driver caches compiled shaders on disk, and ProtectHome below makes the default location under
+# the home directory unwritable. Without somewhere to write it, every start recompiles from scratch.
+CacheDirectory=moviebot-speech
+Environment=__GL_SHADER_DISK_CACHE_PATH=/var/cache/moviebot-speech
+
+Environment=DOTNET_EnableDiagnostics=0
+
+Restart=on-failure
+RestartSec=10s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+# It hears a voice channel and answers one unix socket; it reaches no network of its own.
+RestrictAddressFamilies=AF_UNIX
+
+# Recognition runs through the NVIDIA driver, so the device nodes stay visible. PrivateDevices would
+# hide them, and the failure would not be an error: whisper would fall back to four Athlon cores,
+# where an utterance takes about three seconds instead of a quarter of one.
+DeviceAllow=/dev/nvidia0 rw
+DeviceAllow=/dev/nvidiactl rw
+DeviceAllow=/dev/nvidia-modeset rw
+DeviceAllow=/dev/nvidia-uvm rw
+DeviceAllow=/dev/nvidia-uvm-tools rw
+DeviceAllow=/dev/dri rw
+
+[Install]
+WantedBy=multi-user.target

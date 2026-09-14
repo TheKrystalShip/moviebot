@@ -4,6 +4,31 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.38.0] - 2026-09-14
+
+### Added
+
+- MovieBot hears. `moviebot-speech` holds one whisper model on hotbox's card and answers a unix
+  socket, so what is said in a voice channel can become text without anything leaving the
+  machine. It listens and never speaks: no synthesiser is registered, which keeps a gigabyte of
+  models and the runtime behind them off this host entirely, and a surface that asks it to speak
+  is told there is nothing to ask — an absence the protocol has always had a word for.
+
+  It runs its own build of whisper rather than a prebuilt one, and both ways a prebuilt fails are
+  invisible until they are expensive. The CUDA build carries no PTX for a Pascal card and would
+  drop to the processor at a fortieth of the speed without a word; the Vulkan build loads on this
+  machine, enumerates the card, and then core-dumps on the first transcription, because its CPU
+  backend is compiled for AVX2 and this Athlon has none. The build in `deploy/vulkan` is made for
+  this processor and links Vulkan as a hard dependency, so it either works or the service refuses
+  to start.
+
+  It is resident and warm before anyone speaks. The model loads at startup rather than on first
+  use, and the daemon puts one request through itself, because a loaded model is not a ready one:
+  the card compiles its compute pipelines the first time a graph actually runs. Whisper also
+  encodes a thirty-second window whatever it is given, so the window is set to four seconds — the
+  difference between 870 ms and 183 ms for the same clip. Measured through the socket on hotbox:
+  285-309 ms for an utterance, and 429 ms for the first one after a restart.
+
 ## [1.37.0] - 2026-09-14
 
 ### Added

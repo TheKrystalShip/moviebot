@@ -5,6 +5,7 @@
     <Project Path="src/MovieBot.Api/MovieBot.Api.csproj" />
     <Project Path="src/MovieBot.Handoff/MovieBot.Handoff.csproj" />
     <Project Path="src/MovieBot.Bot/MovieBot.Bot.csproj" />
+  <Project Path="src/MovieBot.Speech/MovieBot.Speech.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MovieBot.Tests/MovieBot.Tests.csproj" />

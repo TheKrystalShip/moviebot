@@ -141,6 +141,19 @@ assemble() {  # name, build dir
 
 log "assembling into $STAGE"
 assemble whisper "$SRC_ROOT/whisper.cpp/build-vulkan" whisper-cli whisper-server
+
+# Whisper.net finds a native by composing <base>/runtimes/<runtime>/<rid>/lib<name>.so, where <base>
+# is the DIRECTORY of the path it was configured with — it takes that path as a file and reads its
+# parent. So the layout it wants sits beside lib/libwhisper.so, and the speech host names that file.
+#
+# Only libwhisper.so has to be found: the loader checks for its own dependency names first
+# (libggml-base-whisper.so and friends), does not find them, and skips them — and then dlopen of
+# libwhisper.so pulls in the ggml libraries beside it through its own RPATH. The alternative, a
+# prebuilt runtime, loads on this machine and then dies with SIGILL on the first CPU kernel it
+# reaches, because every one of them is compiled for AVX2.
+WHISPER_NET_DIR="$STAGE/whisper/lib/runtimes/vulkan/linux-x64"
+mkdir -p "$WHISPER_NET_DIR"
+cp -a "$STAGE"/whisper/lib/*.so* "$WHISPER_NET_DIR/"
 echo "source: whisper.cpp $WHISPER_REF ($(git -C "$SRC_ROOT/whisper.cpp" rev-parse --short HEAD))" \
   >> "$STAGE/whisper/BUILD-INFO"
 
