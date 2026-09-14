@@ -167,10 +167,22 @@ ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff'
   request. A list is looked up by the type the endpoint declares and written by the type it
   holds, so both are registered, and a list bound for the wire is built as a `List<T>`: a
   collection expression yields a type of the compiler's own that nothing has registered.
+- **Every change to a room goes through one place, whichever door it arrived by.** A player sends
+  intent down the hub; the bot and a spoken command post it over HTTP. Recording who did it and
+  pushing the new state to the room are the same in both cases and are written once, in
+  `RoomControls` — a second spelling would not disagree loudly, it would just let a change reach one
+  door and miss the other.
+- **A position omitted means "wherever the room is", and is resolved where the change is applied.**
+  A player knows where its own playhead sits; a caller that is not watching does not. A missing
+  position read as zero pauses the film *and* sends the room back to the opening titles, which looks
+  like it worked because the film stops. For the same reason "back fifteen" is its own act rather
+  than a read followed by a seek: in a playing room the round trip between the two comes out of the
+  fifteen.
 - **Clamp seeks on the server, never in the client.** A client's head is always slightly stale,
   so client-side clamping yields a seek half the room accepts and half rejects.
-- **`SeekClamped` goes to the caller alone.** Broadcasting it would show the whole room an error
-  nobody else triggered.
+- **`SeekClamped` reaches the caller alone.** Broadcasting it would show the whole room an error
+  nobody else triggered. Down the hub that is a message to the caller; over HTTP it rides in the
+  response body, because the caller that asked is the one thing a broadcast cannot reach.
 - **Resolve configuration inside the DI factory, not at the top of `Program.cs`.** Reading
   `builder.Configuration` while the builder is still being assembled misses sources added later —
   a test host's media root, for one — and the service silently points somewhere else.

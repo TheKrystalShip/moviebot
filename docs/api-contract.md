@@ -18,9 +18,45 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET /api/sessions` | `RoomSummary[]` — every room, what it is watching, how many are in it |
 | `GET /api/sessions/{id}` | `SessionStatePush` — creates the session if new |
 | `GET /api/sessions/{id}/participants` | `Participant[]` |
+| `POST /api/sessions/{id}/title` | `RoomChanged` — puts a film in the room, or 404 if the library has no such title |
+| `POST /api/sessions/{id}/play` | `RoomChanged` |
+| `POST /api/sessions/{id}/pause` | `RoomChanged` |
+| `POST /api/sessions/{id}/seek` | `RoomChanged` |
+| `POST /api/sessions/{id}/seek-relative` | `RoomChanged` |
 | `GET,HEAD /media/{id}/**` | playlists, segments, subtitles, poster |
 
 CORS reflects any origin and allows credentials. Media answers HEAD as well as GET.
+
+### Room controls
+
+The acts the hub carries, for a caller that is not in the room — the bot, and a spoken command.
+Both doors apply the change the same way and the whole room is sent `StateChanged` either way, so
+what a play does cannot come to depend on which door it arrived by.
+
+```jsonc
+// play, pause
+{ "atSeconds": 403.0, "userId": "…", "displayName": "…" }
+// seek
+{ "toSeconds": 1200.0, "userId": "…", "displayName": "…" }
+// seek-relative — negative goes back
+{ "deltaSeconds": -15.0, "userId": "…", "displayName": "…" }
+
+// every one of them answers
+{ "push": SessionStatePush, "clamped": SeekClamped }   // clamped absent unless one was applied
+```
+
+- **`atSeconds` is optional, and omitting it means "wherever the room is".** A player knows where
+  its own playhead sits and says so. A caller that is not watching does not, and a missing position
+  read as zero would pause the film *and* send the room back to the opening titles — which looks
+  like it worked, because the film stops. The position is resolved where the change is applied.
+- **`seek-relative` exists because the film is moving.** Reading the position and then seeking to
+  it minus fifteen spends a round trip in between, and in a playing room that round trip comes out
+  of the fifteen. Asking relatively has the subtraction happen against the position the change
+  lands on. Before the start is the start; past the transcode head is clamped like any seek.
+- **`userId` and `displayName` are optional and name whoever asked.** Absent, the change is
+  recorded as MovieBot itself, which is the honest answer for a room that moved with nobody asking.
+- **The clamp comes back in the body.** Over the hub it goes to the caller alone; an HTTP caller is
+  the one thing a broadcast cannot reach.
 
 `.m3u8` for a title whose status is `transcoding` is served `no-store`; once `ready` it is
 `max-age=300`. Segments, init files, subtitles and posters are `immutable` for a year.

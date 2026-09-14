@@ -10,7 +10,7 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// push state. Every broadcast carries the server clock and a revision, which between them make
 /// reordering, duplication and skewed client clocks all harmless.
 /// </summary>
-public sealed class SessionHub(SessionStore sessions, ILogger<SessionHub> logger) : Hub
+public sealed class SessionHub(SessionStore sessions, RoomControls controls, ILogger<SessionHub> logger) : Hub
 {
     private const string SessionIdKey = "sessionId";
     private const string ActorKey = "actor";
@@ -39,16 +39,16 @@ public sealed class SessionHub(SessionStore sessions, ILogger<SessionHub> logger
     }
 
     public Task<SessionStatePush> LoadTitle(string titleId) =>
-        Mutate("load", 0, actor => sessions.LoadTitle(SessionId(), titleId, actor));
+        Mutate("load", actor => sessions.LoadTitle(SessionId(), titleId, actor));
 
     public Task<SessionStatePush> Play(double atSeconds) =>
-        Mutate("play", atSeconds, actor => sessions.Play(SessionId(), atSeconds, actor));
+        Mutate("play", actor => sessions.Play(SessionId(), atSeconds, actor));
 
     public Task<SessionStatePush> Pause(double atSeconds) =>
-        Mutate("pause", atSeconds, actor => sessions.Pause(SessionId(), atSeconds, actor));
+        Mutate("pause", actor => sessions.Pause(SessionId(), atSeconds, actor));
 
     public Task<SessionStatePush> Seek(double toSeconds) =>
-        Mutate("seek", toSeconds, actor => sessions.Seek(SessionId(), toSeconds, actor));
+        Mutate("seek", actor => sessions.Seek(SessionId(), toSeconds, actor));
 
     /// <summary>
     /// Answers with the server's clock so a client can estimate its offset. Position is derived
@@ -73,32 +73,17 @@ public sealed class SessionHub(SessionStore sessions, ILogger<SessionHub> logger
     }
 
     private async Task<SessionStatePush> Mutate(
-        string intent, double atSeconds, Func<Actor, MutationResult> mutation)
+        string intent, Func<Actor, MutationResult> mutation)
     {
-        var actor = CurrentActor();
-        var result = mutation(actor);
-        var push = Push(result.State);
-
-        // Every intent, with who sent it and which connection it came down. A room that pauses
-        // itself is either a client publishing a pause or a player stopping without saying so,
-        // and those have nothing in common but the symptom — this is what tells them apart.
-        logger.LogInformation(
-            "{Actor} {Intent} at {At:0.00}s -> revision {Revision}, {Paused}, position {Position:0.00}s"
-            + " (connection {Connection}, {Participants} in the room)",
-            actor.DisplayName, intent, atSeconds, result.State.Revision,
-            result.State.Paused ? "paused" : "playing", result.State.PositionSeconds,
-            Context.ConnectionId[..6], sessions.Participants(SessionId()).Count);
-
-        // Broadcast to the whole group, the caller included: the caller applies the server's
-        // answer rather than its own optimistic guess, so every client runs the same code path.
-        await Clients.Group(SessionId()).SendAsync("StateChanged", push);
+        var change = await controls.ApplyAsync(
+            SessionId(), intent, CurrentActor(), mutation, via: Context.ConnectionId[..6]);
 
         // The clamp notice goes only to whoever asked, because only they need to be told why
         // they did not land where they clicked.
-        if (result.Clamped is { } clamped)
+        if (change.Clamped is { } clamped)
             await Clients.Caller.SendAsync("SeekClamped", clamped);
 
-        return push;
+        return change.Push;
     }
 
     private static SessionStatePush Push(SessionState state) =>

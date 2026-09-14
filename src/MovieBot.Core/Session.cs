@@ -90,6 +90,47 @@ public sealed record SeekClamped
 /// </summary>
 public sealed record SetTitleRequest(string TitleId, string? UserId, string? DisplayName);
 
+/// <summary>
+/// Who is acting on a room from outside it.
+/// </summary>
+/// <remarks>
+/// Anyone in a room may move it and the state records who did, so a caller that is not a person —
+/// the bot acting on somebody's behalf — still names one. Absent, the act is attributed to the bot
+/// itself, which is honest about a room that moved with nobody asking.
+/// </remarks>
+public interface IRoomAct
+{
+    string? UserId { get; }
+    string? DisplayName { get; }
+}
+
+/// <summary>
+/// Starts or stops a room.
+/// </summary>
+/// <param name="AtSeconds">
+/// Where the film is, according to whoever is asking. <b>Omitted means "wherever the room is"</b>,
+/// which is the only honest answer from a caller that is not watching: a spoken "pause" knows the
+/// room should stop and has no idea where the playhead sits, and sending a position it guessed
+/// would move the film as well as stopping it.
+/// </param>
+public sealed record RoomPlaybackRequest(
+    double? AtSeconds = null, string? UserId = null, string? DisplayName = null) : IRoomAct;
+
+/// <summary>Moves a room to a position in the film.</summary>
+public sealed record RoomSeekRequest(
+    double ToSeconds, string? UserId = null, string? DisplayName = null) : IRoomAct;
+
+/// <summary>
+/// Moves a room by an amount from where it is — negative to go back.
+/// </summary>
+/// <remarks>
+/// Separate from an absolute seek because the film is moving. A caller that reads the position and
+/// then seeks to it minus fifteen has spent a round trip in between, and in a playing room that
+/// round trip is part of the fifteen.
+/// </remarks>
+public sealed record RoomNudgeRequest(
+    double DeltaSeconds, string? UserId = null, string? DisplayName = null) : IRoomAct;
+
 public sealed record Participant
 {
     public required string UserId { get; init; }

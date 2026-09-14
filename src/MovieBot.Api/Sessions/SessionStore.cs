@@ -90,12 +90,23 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         }
     }
 
-    public MutationResult Play(string sessionId, double atSeconds, Actor actor)
+    /// <summary>
+    /// Starts the room playing.
+    /// </summary>
+    /// <remarks>
+    /// <b>A null <paramref name="atSeconds"/> means "from wherever the room is".</b> A player knows
+    /// where its own playhead sits and says so; a caller that is not in the room — the bot, a spoken
+    /// command — does not, and has no way to find out that is still true by the time it is acted on.
+    /// Resolved in here, under the same lock as the change itself, so the answer cannot go stale
+    /// between reading it and using it.
+    /// </remarks>
+    public MutationResult Play(string sessionId, double? atSeconds, Actor actor)
     {
         var entry = Entry(sessionId);
         lock (entry.Gate)
         {
-            var (granted, clamp) = ClampToHead(entry.State, atSeconds);
+            var from = atSeconds ?? entry.State.PositionAt(clock.GetUtcNow());
+            var (granted, clamp) = ClampToHead(entry.State, from);
             entry.State = Advance(entry.State, actor) with
             {
                 Paused = false,
@@ -106,27 +117,68 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         }
     }
 
-    public MutationResult Pause(string sessionId, double atSeconds, Actor actor)
+    /// <summary>
+    /// Stops the room where it is.
+    /// </summary>
+    /// <remarks>
+    /// <inheritdoc cref="Play" path="/remarks"/>
+    /// </remarks>
+    public MutationResult Pause(string sessionId, double? atSeconds, Actor actor)
     {
         var entry = Entry(sessionId);
         lock (entry.Gate)
         {
+            var at = atSeconds ?? entry.State.PositionAt(clock.GetUtcNow());
             entry.State = Advance(entry.State, actor) with
             {
                 Paused = true,
-                PositionSeconds = Math.Max(0, atSeconds),
+                PositionSeconds = Math.Max(0, at),
                 AnchorUtc = clock.GetUtcNow()
             };
             return new MutationResult(WithCurrentHead(entry.State), null);
         }
     }
 
+    /// <summary>Moves the room to an absolute position.</summary>
     public MutationResult Seek(string sessionId, double toSeconds, Actor actor)
     {
         var entry = Entry(sessionId);
         lock (entry.Gate)
         {
             var (granted, clamp) = ClampToHead(entry.State, toSeconds);
+            entry.State = Advance(entry.State, actor) with
+            {
+                PositionSeconds = granted,
+                AnchorUtc = clock.GetUtcNow()
+            };
+            return new MutationResult(WithCurrentHead(entry.State), clamp);
+        }
+    }
+
+    /// <summary>
+    /// Moves the room by <paramref name="deltaSeconds"/> from where it is now — back fifteen,
+    /// forward a minute.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Relative rather than a position computed by the caller, because the film is moving.</b>
+    /// Reading the position and then seeking to it minus fifteen is two acts with a gap between
+    /// them, and a playing room has moved on by the time the second one lands — so "back fifteen"
+    /// would take back fifteen minus however long the round trip took. Resolved under the lock, the
+    /// subtraction happens against the position the change is applied to.
+    /// </para>
+    /// <para>
+    /// Before zero is zero: asking to go back further than the film has run is a request to go to
+    /// the beginning, not an error. Past the transcode head is clamped like any other seek.
+    /// </para>
+    /// </remarks>
+    public MutationResult SeekRelative(string sessionId, double deltaSeconds, Actor actor)
+    {
+        var entry = Entry(sessionId);
+        lock (entry.Gate)
+        {
+            var from = entry.State.PositionAt(clock.GetUtcNow());
+            var (granted, clamp) = ClampToHead(entry.State, from + deltaSeconds);
             entry.State = Advance(entry.State, actor) with
             {
                 PositionSeconds = granted,

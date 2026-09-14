@@ -22,6 +22,9 @@ namespace TheKrystalShip.MovieBot.Core;
 [JsonSerializable(typeof(SessionStatePush))]
 [JsonSerializable(typeof(SeekClamped))]
 [JsonSerializable(typeof(SetTitleRequest))]
+[JsonSerializable(typeof(RoomPlaybackRequest))]
+[JsonSerializable(typeof(RoomSeekRequest))]
+[JsonSerializable(typeof(RoomNudgeRequest))]
 [JsonSerializable(typeof(IReadOnlyList<Participant>))]
 [JsonSerializable(typeof(IReadOnlyList<RoomSummary>))]
 public partial class ManifestJsonContext : JsonSerializerContext;

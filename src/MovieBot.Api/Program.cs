@@ -41,6 +41,10 @@ builder.Services.AddSingleton(sp => new TitleLibrary(
     sp.GetRequiredService<ILogger<TitleLibrary>>()));
 builder.Services.AddSingleton<SessionStore>();
 
+// Every change to a room, whichever door it arrived by: the hub for a player in the room, HTTP for
+// the bot and for a spoken command.
+builder.Services.AddSingleton<RoomControls>();
+
 // What a room is watching and where it has got to exists nowhere but in memory, so a restart used
 // to take the film out from under everybody in it. The journal is the only copy.
 builder.Services.AddSingleton(sp => new SessionJournal(
@@ -168,30 +172,7 @@ app.MapGet("/api/sessions/{sessionId}", (string sessionId, SessionStore sessions
 app.MapGet("/api/sessions/{sessionId}/participants", (string sessionId, SessionStore sessions) =>
     Results.Ok(sessions.Participants(sessionId)));
 
-// Puts a film into a room from outside it.
-//
-// The bot knows which film was asked for and cannot tell the player directly: an Activity is
-// launched by Discord, from a URL the bot never writes, so nothing can be handed over in a query
-// string the way a browser link does it. Setting the title on the session instead means the
-// Activity finds the film already loaded when it joins, whichever door the viewer came through.
-app.MapPost("/api/sessions/{sessionId}/title", async (
-    string sessionId,
-    SetTitleRequest request,
-    SessionStore sessions,
-    TitleLibrary library,
-    IHubContext<SessionHub> hub,
-    CancellationToken ct) =>
-{
-    if (library.Get(request.TitleId) is null) return Results.NotFound();
-
-    var actor = new Actor(request.UserId ?? "bot", request.DisplayName ?? "MovieBot");
-    var result = sessions.LoadTitle(sessionId, request.TitleId, actor);
-
-    var push = new SessionStatePush { State = result.State, ServerTime = DateTimeOffset.UtcNow };
-    await hub.Clients.Group(sessionId).SendAsync("StateChanged", push, ct);
-
-    return Results.Ok(push);
-});
+app.MapRooms();
 
 // The Activity's authenticate() handshake. The player sends the code it was given; the secret
 // needed to redeem it stays here, because a secret shipped to a browser is not a secret.

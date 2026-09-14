@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.39.0] - 2026-09-14
+
+### Added
+
+- A room can be driven from outside it. `play`, `pause`, `seek` and `seek-relative` are POSTs
+  beside the title endpoint that was already there, so the bot — and, next, something somebody
+  said out loud — can stop a film without holding a connection to the room.
+
+  **A position is optional, and leaving it out means "wherever the room is".** A player knows
+  where its own playhead sits and says so; a caller that is not watching does not, and a missing
+  position read as zero would pause the film *and* send the room back to the opening titles. That
+  failure looks like success, because the film stops either way. The position is resolved where
+  the change is applied, under the same lock.
+
+  **`seek-relative` is its own act because the film is moving.** Reading the position and then
+  seeking to it minus fifteen spends a round trip in between, and in a playing room that round
+  trip comes out of the fifteen. Before the start is the start; past the transcode head is clamped
+  like any other seek, and the clamp comes back in the response body — over the hub it goes to the
+  caller alone, and an HTTP caller is the one thing a broadcast cannot reach.
+
+### Changed
+
+- Every change to a room goes through `RoomControls`, whichever door it arrived by. Recording who
+  did it and pushing the new state to everybody watching are the same act for a player on the hub
+  and for the bot over HTTP, and the title endpoint was already carrying its own copy of half of
+  it. One implementation cannot let a change reach one door and miss the other.
+
 ## [1.38.0] - 2026-09-14
 
 ### Added
