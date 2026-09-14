@@ -42,5 +42,32 @@ ssh "$HOST" "STAGE='$PREFIX' '$PREFIX/fetch-models.sh'"
 echo
 echo "== checking the install on $HOST"
 ssh "$HOST" "'$PREFIX/llm/bin/llama-server' --list-devices 2>&1 | tail -4"
+
+# A running service goes on using the files it started with. The sync replaces them rather than
+# writing through them, so the old inodes stay alive, mapped, and invisible — the unit is active,
+# the binary on disk is the new one, and the process is still the old one. It shows up only as
+# "(deleted)" against /proc/<pid>/exe, which nothing looks at.
+#
+# The tree is rebuilt from scratch each time, so even an unchanged build has new timestamps and is
+# re-synced in full: this happens on a no-op deploy as readily as on a real one.
+echo
+echo "== services running on replaced files"
+for unit in moviebot-llm moviebot-speech; do
+  stale=$(ssh "$HOST" "
+    systemctl is-active --quiet $unit.service || exit 0
+    pid=\$(systemctl show -p MainPID --value $unit.service)
+    [ -n \"\$pid\" ] && [ \"\$pid\" != 0 ] || exit 0
+    if readlink /proc/\$pid/exe 2>/dev/null | grep -q '(deleted)' \
+       || grep -q '$PREFIX/.*(deleted)' /proc/\$pid/maps 2>/dev/null; then
+      echo stale
+    fi")
+  if [[ "$stale" == "stale" ]]; then
+    echo "  $unit is running code this deploy replaced — restart it:"
+    echo "      ssh $HOST sudo systemctl restart $unit.service"
+  else
+    echo "  $unit: current"
+  fi
+done
+
 echo
 echo "next: install the unit files (needs root on $HOST)"
