@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using TheKrystalShip.Discord.Voice;
 using TheKrystalShip.Speech;
 
@@ -17,31 +16,35 @@ namespace TheKrystalShip.MovieBot.Bot.Voice;
 /// is the one thing only this bot knows: what to prime the recogniser with.
 /// </para>
 /// <para>
-/// <b>Primed with the wake phrases.</b> "MovieBot" is not a word a general recogniser has any reason to
-/// produce, and a request whose trigger was misheard is not a request at all — so the phrases are named
-/// to it as though they had just been said.
+/// <b>Primed with the name, and never with the trigger.</b> "MovieBot" is not a word a general
+/// recogniser has any reason to produce, and a request whose trigger was misheard is not a request at
+/// all — so the name is put to it as though it had just been said. The trigger phrase itself is kept
+/// out: given a moment of breath, hiss or a keyboard, whisper hands back whichever sentence it was
+/// primed with, and a priming that is the trigger turns every such noise into somebody addressing the
+/// bot. Measured on hotbox's recogniser against synthetic noise, priming with the trigger phrases came
+/// back as "Hey moviebot." for 21 clips in 72 and priming with the name for none, while both heard all
+/// 30 spoken requests.
 /// </para>
 /// </remarks>
 public sealed class MovieBotSpeechToText : ISpeechToText
 {
+    /// <summary>
+    /// What the recogniser is primed with. Whatever it echoes of this must not address the bot.
+    /// </summary>
+    public const string Priming = "MovieBot.";
+
     private readonly MovieBotSpeech _speech;
     private readonly IVoiceTally _tally;
     private readonly ILogger<MovieBotSpeechToText> _logger;
-    private readonly string _vocabulary;
 
     public MovieBotSpeechToText(
         MovieBotSpeech speech,
-        IOptions<DiscordVoiceOptions> voice,
         IVoiceTally tally,
         ILogger<MovieBotSpeechToText> logger)
     {
         _speech = speech;
         _tally = tally;
         _logger = logger;
-
-        string[] triggers = voice.Value.Triggers
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        _vocabulary = SpokenVocabulary.Compose(triggers, [], []);
     }
 
     public bool IsAvailable => _speech.Available;
@@ -58,7 +61,7 @@ public sealed class MovieBotSpeechToText : ISpeechToText
 
         var timer = Stopwatch.StartNew();
         (SpeechProtocol.Outcome outcome, string text) =
-            await _speech.Client.TranscribeAsync(utterance.Audio, _vocabulary, ifIdle, ct);
+            await _speech.Client.TranscribeAsync(utterance.Audio, Priming, ifIdle, ct);
         timer.Stop();
 
         if (outcome == SpeechProtocol.Outcome.Busy)
@@ -79,7 +82,7 @@ public sealed class MovieBotSpeechToText : ISpeechToText
             utterance.Duration.TotalSeconds, utterance.Partial ? " so far" : string.Empty,
             utterance.SpeakerName, timer.ElapsedMilliseconds);
 
-        if (SpokenVocabulary.IsEchoOf(transcript, _vocabulary))
+        if (SpokenVocabulary.IsEchoOf(transcript, Priming))
         {
             // Whisper continuing the priming instead of admitting it heard nothing. Not counted for a
             // partial, which comes back complete a moment later and would be counted twice.

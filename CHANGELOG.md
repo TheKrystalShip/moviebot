@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.42.1] - 2026-09-15
+
+### Fixed
+
+- Sitting silent in a voice channel no longer sets the bot listening. The recogniser was primed with
+  the trigger phrases, and whisper answers a breath, a keyboard or line hiss with the sentence it was
+  primed with, so noise came back as "Hey moviebot.": a tone, ten seconds of listening without the
+  trigger, and the next noise put to the assistant as a request, often opening the door again. It is
+  primed with the name alone now, which invents no trigger from noise and still hears a spoken one.
+
 ## [1.42.0] - 2026-09-15
 
 ### Added

@@ -48,7 +48,7 @@ model's own unit to replay when it starts.
 | `Notify__Path` | no | Where the wish list is written. Defaults to `wishes.json` in the directory `STATE_DIRECTORY` names, and to the working directory when there is none. |
 | `Notify__SweepMinutes` | no | How often the tracker is asked about every film on the list. Defaults to 60. |
 | `Voice__Enabled` | no | Whether the bot may listen in a voice channel at all. Off by default, because everyone in a channel it joins is heard. On, it still joins only when somebody runs `/voice join`. |
-| `Voice__Triggers` | no | What addresses the bot, comma-separated. `appsettings.json` carries `hey moviebot, hey movie bot`, because the recogniser writes the name both ways. |
+| `Voice__Triggers` | no | What addresses the bot, comma-separated. `appsettings.json` carries `hey moviebot, hey movie bot`, because the recogniser writes the name both ways. The recogniser is primed with the name alone and never with a trigger: whisper answers noise with the sentence it was primed with, so a trigger in the priming makes a breath address the bot. |
 | `Voice__SilenceGapMs` | no | How long somebody has to stop talking before the sentence counts as finished. `appsettings.json` carries 500: it is most of the wait between saying "pause" and the film stopping, and the room verbs are short enough that a shorter pause does not cut anybody off mid-command. At 800 a spoken pause took 1.07 to 1.26 s. |
 | `Voice__LogTranscripts` | no | Whether what was heard is written to the log. Off by default: a voice channel is full of things nobody said to the bot. |
 | `Assistant__Enabled` | no | Whether a spoken request that is not a room verb is put to the model. Off by default; off, those requests are answered by nothing. |
