@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.40.1] - 2026-09-15
+
+### Changed
+
+- A spoken sentence counts as finished after 500 ms of silence rather than 800. That silence is most
+  of the wait between saying "pause" and the film stopping — at 800 ms it was 1.07 to 1.26 s end to
+  end on hotbox — and the room verbs are short enough that the shorter pause does not cut them off.
+
+### Fixed
+
+- libdave no longer fills the bot's journal. It wrote every skipped silent frame straight to standard
+  output, several a second, and on the first voice session that was 363 of 519 lines. Its messages go
+  through the bot's logging now, where only its warnings and errors are shown by default.
+
 ## [1.40.0] - 2026-09-15
 
 ### Added

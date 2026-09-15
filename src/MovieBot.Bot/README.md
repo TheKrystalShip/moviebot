@@ -43,7 +43,7 @@ into place on every change.
 | `Notify__SweepMinutes` | no | How often the tracker is asked about every film on the list. Defaults to 60. |
 | `Voice__Enabled` | no | Whether the bot may listen in a voice channel at all. Off by default, because everyone in a channel it joins is heard. On, it still joins only when somebody runs `/voice join`. |
 | `Voice__Triggers` | no | What addresses the bot, comma-separated. `appsettings.json` carries `hey moviebot, hey movie bot`, because the recogniser writes the name both ways. |
-| `Voice__SilenceGapMs` | no | How long somebody has to stop talking before the sentence counts as finished. Defaults to 800, and it is most of the wait between saying "pause" and the film stopping. |
+| `Voice__SilenceGapMs` | no | How long somebody has to stop talking before the sentence counts as finished. `appsettings.json` carries 500: it is most of the wait between saying "pause" and the film stopping, and the room verbs are short enough that a shorter pause does not cut anybody off mid-command. At 800 a spoken pause took 1.07 to 1.26 s. |
 | `Voice__LogTranscripts` | no | Whether what was heard is written to the log. Off by default: a voice channel is full of things nobody said to the bot. |
 | `Speech__SocketPath` | no | Where moviebot-speech answers. Defaults to `/run/moviebot-speech/speech.sock`, the same key the speech host reads. |
 | `Notify__MinimumSource` | no | The least a release's source may be for a film to count as available: `Web` by default, so a camcorder recording of a film in cinemas does not announce it. |
@@ -154,6 +154,10 @@ goes to moviebot-speech for words, and the words go to a gate that knows a handf
   listened to. If that notice cannot be posted, the bot leaves again.
 - **Everything else is heard and left alone.** A question put to the bot out loud is recorded as not
   a room verb, and nothing on this host answers it.
+- **libdave's own messages are routed through the bot's logging**, under `Discord.LibDave`. Only its
+  warnings and errors reach the journal; `Logging__LogLevel__Discord.LibDave=Debug` brings back its
+  per-interval decrypt statistics, which is the first thing to turn on when a voice connection
+  misbehaves.
 - **The log says how long it took.** Every act is logged with the milliseconds from the moment the
   speaker stopped talking to the moment the room changed. The silence that ends a sentence is inside
   that number, because the person waited through it.
