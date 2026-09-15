@@ -49,11 +49,7 @@ public sealed record ServiceTokenReply(string RoomToken);
 [JsonSerializable(typeof(ServiceTokenRequest))]
 [JsonSerializable(typeof(DiscordUser))]
 [JsonSerializable(typeof(TokenResponse))]
-[JsonSerializable(typeof(SubtitleSearchView))]
-[JsonSerializable(typeof(AddSubtitleRequest))]
 [JsonSerializable(typeof(PinSubtitleRequest))]
-[JsonSerializable(typeof(SubtitleAdded))]
-[JsonSerializable(typeof(QuotaReply))]
 // A list is looked up by the type the endpoint declares and written by the type it holds, so
 // both are named. The Core context carries the same pair for the participants and the rooms.
 [JsonSerializable(typeof(IReadOnlyList<TitleSummary>))]

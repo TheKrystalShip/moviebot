@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.Discord.Voice;
 using TheKrystalShip.MovieBot.Bot.Api;
+using TheKrystalShip.MovieBot.Bot.Assistant;
 using TheKrystalShip.MovieBot.Bot.Sessions;
 using TheKrystalShip.MovieBot.Bot.Voice;
 using Xunit;
@@ -82,6 +83,77 @@ public sealed class RoomVoiceCommandTests(SessionFixture fixture) : IClassFixtur
     }
 
     [Fact]
+    public async Task Speech_that_is_not_a_room_verb_goes_to_the_assistant_when_there_is_one()
+    {
+        var assistant = new RecordingAssistant();
+        var (api, handler) = Create(assistant);
+        var channel = NewChannel();
+        await StartFilmAsync(api, channel);
+        var before = await api.OpenSessionAsync(RoomSession.IdFor(channel), CancellationToken.None);
+
+        var outcome = await handler.HandleAsync(Said(channel, "should we pause?"));
+
+        Assert.Equal(VoiceOutcome.Asked, outcome);
+        Assert.Equal("should we pause?", Assert.Single(assistant.Asked).Text);
+        var after = await api.OpenSessionAsync(RoomSession.IdFor(channel), CancellationToken.None);
+        Assert.Equal(before.Revision, after.Revision);
+    }
+
+    [Fact]
+    public async Task A_room_verb_is_written_into_the_room_conversation_as_the_tool_it_stands_for()
+    {
+        // The model never saw the pause, and "why did it stop?" a minute later has to be answered by
+        // something that knows it happened.
+        var assistant = new RecordingAssistant();
+        var (api, handler) = Create(assistant);
+        var channel = NewChannel();
+        await StartFilmAsync(api, channel);
+
+        await handler.HandleAsync(Said(channel, "go back fifteen seconds"));
+
+        var act = Assert.Single(assistant.Acts);
+        Assert.Equal("seek_relative", act.Tool);
+        Assert.Equal("-15", act.Arguments["seconds"]);
+        Assert.StartsWith("Moved to ", act.Outcome);
+        Assert.Empty(assistant.Asked);
+    }
+
+    [Fact]
+    public async Task A_reply_to_a_proposal_is_read_as_a_reply()
+    {
+        var assistant = new RecordingAssistant();
+        var (_, handler) = Create(assistant);
+
+        var outcome = await handler.HandleAsync(Said(NewChannel(), "yes go ahead") with
+        {
+            Answering = new VoiceWaiting(VoiceWaitingFor.Confirmation, DateTimeOffset.UtcNow.AddSeconds(20), ["t"]),
+        });
+
+        Assert.Equal(VoiceOutcome.Decided, outcome);
+        Assert.Single(assistant.Decided);
+        Assert.Empty(assistant.Asked);
+    }
+
+    [Fact]
+    public async Task A_room_verb_said_while_a_proposal_waits_moves_the_room()
+    {
+        // Somebody who says "pause" while the bot waits on a yes wants the film paused. The proposal
+        // stays under its buttons.
+        var assistant = new RecordingAssistant();
+        var (api, handler) = Create(assistant);
+        var channel = NewChannel();
+        await StartFilmAsync(api, channel);
+
+        var outcome = await handler.HandleAsync(Said(channel, "pause") with
+        {
+            Answering = new VoiceWaiting(VoiceWaitingFor.Confirmation, DateTimeOffset.UtcNow.AddSeconds(20), ["t"]),
+        });
+
+        Assert.Equal(VoiceOutcome.Acted, outcome);
+        Assert.Empty(assistant.Decided);
+    }
+
+    [Fact]
     public async Task The_trigger_on_its_own_does_nothing()
     {
         var (_, handler) = Create();
@@ -96,19 +168,40 @@ public sealed class RoomVoiceCommandTests(SessionFixture fixture) : IClassFixtur
         // would be the surface failing rather than one request.
         var api = new MovieBotApiClient(new HttpClient { BaseAddress = new Uri("http://127.0.0.1:1/") });
         var handler = new RoomVoiceCommandHandler(
-            api, TimeProvider.System, Options.Create(new DiscordVoiceOptions()),
+            api, new NoRoomAssistant(), TimeProvider.System, Options.Create(new DiscordVoiceOptions()),
             NullLogger<RoomVoiceCommandHandler>.Instance);
 
         Assert.Equal(VoiceOutcome.Failed, await handler.HandleAsync(Said(NewChannel(), "pause")));
     }
 
-    private (MovieBotApiClient Api, RoomVoiceCommandHandler Handler) Create()
+    private (MovieBotApiClient Api, RoomVoiceCommandHandler Handler) Create(IRoomAssistant? assistant = null)
     {
         var api = new MovieBotApiClient(fixture.CreateServiceClient());
         var handler = new RoomVoiceCommandHandler(
-            api, TimeProvider.System, Options.Create(new DiscordVoiceOptions()),
+            api, assistant ?? new NoRoomAssistant(), TimeProvider.System, Options.Create(new DiscordVoiceOptions()),
             NullLogger<RoomVoiceCommandHandler>.Instance);
         return (api, handler);
+    }
+
+    private sealed class RecordingAssistant : IRoomAssistant
+    {
+        public List<VoiceCommand> Asked { get; } = [];
+        public List<VoiceCommand> Decided { get; } = [];
+        public List<(string Tool, IReadOnlyDictionary<string, string?> Arguments, string Outcome)> Acts { get; } = [];
+
+        public bool IsEnabled => true;
+        public void Answer(VoiceCommand command) => Asked.Add(command);
+
+        public Task DecideAsync(VoiceCommand command, VoiceWaiting waiting, CancellationToken ct)
+        {
+            Decided.Add(command);
+            return Task.CompletedTask;
+        }
+
+        public void RecordAct(VoiceCommand command, string tool, IReadOnlyDictionary<string, string?> arguments, string outcome) =>
+            Acts.Add((tool, arguments, outcome));
+
+        public Task HandleButtonAsync(global::Discord.WebSocket.SocketMessageComponent component) => Task.CompletedTask;
     }
 
     private static async Task StartFilmAsync(MovieBotApiClient api, ulong channel)

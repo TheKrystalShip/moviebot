@@ -19,6 +19,11 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
   </ItemGroup>
 
+  <!-- The advisory on the native SQLite the bot's conversation store pulls in; see MovieBot.Bot.csproj. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../../src/MovieBot.Api/MovieBot.Api.csproj" />
     <ProjectReference Include="../../src/MovieBot.Bot/MovieBot.Bot.csproj" />

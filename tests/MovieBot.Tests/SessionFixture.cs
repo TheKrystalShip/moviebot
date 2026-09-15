@@ -40,10 +40,18 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
     /// <summary>A finished title that has moved to the disk films are kept on.</summary>
     public const string SettledTitle = "put-away";
 
+    /// <summary>Two finished films the catalogue has named, for anything that reads a library the way a person names a film.</summary>
+    public const string Heat = "heat-1995";
+    public const string Collateral = "collateral-2004";
+
     public SessionFixture()
     {
         WriteManifest(MediaRoot, TranscodingTitle, TitleStatus.Transcoding, TranscodingHead);
         WriteManifest(MediaRoot, ReadyTitle, TitleStatus.Ready, null);
+        WriteManifest(MediaRoot, Heat, TitleStatus.Ready, null,
+            new FilmIdentity { ImdbId = "tt0113277", Name = "Heat", Year = 1995, Starring = "Al Pacino, Robert De Niro" });
+        WriteManifest(MediaRoot, Collateral, TitleStatus.Ready, null,
+            new FilmIdentity { ImdbId = "tt0369339", Name = "Collateral", Year = 2004, Starring = "Tom Cruise, Jamie Foxx" });
 
         Directory.CreateDirectory(ColdRoot);
         File.WriteAllText(Path.Combine(ColdRoot, MediaRoots.ColdMarker), "");
@@ -93,12 +101,13 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
         return client;
     }
 
-    private static void WriteManifest(string root, string id, TitleStatus status, double? head)
+    private static void WriteManifest(string root, string id, TitleStatus status, double? head, FilmIdentity? film = null)
     {
         var manifest = new Manifest
         {
             Id = id,
             Title = id,
+            Film = film,
             DurationSeconds = TitleDuration,
             Status = status,
             HeadSeconds = head,

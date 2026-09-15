@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Bot.Api;
+using TheKrystalShip.MovieBot.Bot.Assistant;
 using TheKrystalShip.MovieBot.Bot.Configuration;
 using TheKrystalShip.MovieBot.Bot.Download;
 using TheKrystalShip.MovieBot.Bot.Keep;
@@ -36,6 +37,7 @@ public sealed class DiscordBotService(
     TheKrystalShip.MovieBot.Acquire.Imdb.ImdbClient catalogue,
     IVoiceSessions voiceSessions,
     VoiceDecryptHealth decryptHealth,
+    IRoomAssistant assistant,
     IOptions<DiscordOptions> options,
     ILogger<DiscordBotService> logger) : BackgroundService
 {
@@ -57,6 +59,7 @@ public sealed class DiscordBotService(
         client.Ready += OnReadyAsync;
         client.SlashCommandExecuted += OnSlashCommand;
         client.AutocompleteExecuted += OnAutocomplete;
+        client.ButtonExecuted += OnButton;
 
         // Reported once, on the log, so an unreachable API is not discovered for the first time
         // in front of a room.
@@ -225,7 +228,9 @@ public sealed class DiscordBotService(
         {
             await command.Channel.SendMessageAsync(
                 $"Listening in **{channel.Name}**, because {name} asked. Everyone in the channel is heard "
-                + "while I'm there. Say \"hey MovieBot, pause\" to stop the film. `/voice leave` sends me away.",
+                + "while I'm there. Say \"hey MovieBot, pause\" to stop the film"
+                + (assistant.IsEnabled ? ", or ask me for something else and I'll answer here" : "")
+                + ". `/voice leave` sends me away.",
                 allowedMentions: AllowedMentions.None);
         }
         catch (Exception ex)
@@ -257,6 +262,34 @@ public sealed class DiscordBotService(
         return session.HearsNothing
             ? line + " No audio has arrived at all. Check the bot is not server-muted or deafened."
             : line;
+    }
+
+    /// <summary>
+    /// A press of one of the buttons under something the assistant proposed. Those are the only
+    /// buttons the bot posts that come back to it; a launch card's button is a link.
+    /// </summary>
+    private Task OnButton(SocketMessageComponent component)
+    {
+        if (component.GuildId is not { } guildId || !_guilds.Contains(guildId)) return Task.CompletedTask;
+
+        var id = component.Data.CustomId;
+        if (!id.StartsWith(RoomAssistantChat.ConfirmPrefix, StringComparison.Ordinal)
+            && !id.StartsWith(RoomAssistantChat.DropPrefix, StringComparison.Ordinal))
+            return Task.CompletedTask;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await assistant.HandleButtonAsync(component);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Assistant: a proposal's button could not be answered");
+            }
+        });
+
+        return Task.CompletedTask;
     }
 
     private Task OnAutocomplete(SocketAutocompleteInteraction interaction)
@@ -423,16 +456,7 @@ public sealed class DiscordBotService(
                 RequestedBy = (command.User as IGuildUser)?.DisplayName ?? command.User.Username,
             }, CancellationToken.None);
 
-            var embed = result switch
-            {
-                { Status: NotifyStatus.Subscribed or NotifyStatus.AlreadySubscribed, Wish: { } wish }
-                    => WishEmbed.Waiting(wish),
-                { Status: NotifyStatus.AlreadyAvailable, Wish: { } wish, Release: { } release }
-                    => WishEmbed.Available(wish, release),
-                _ => null,
-            };
-
-            await command.FollowupAsync(result.Message, embed: embed, allowedMentions: AllowedMentions.None);
+            await command.FollowupAsync(result.Message, embed: WishEmbed.For(result), allowedMentions: AllowedMentions.None);
         }
         catch (Exception ex)
         {

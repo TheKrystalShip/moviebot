@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.Discord.Voice;
 using TheKrystalShip.MovieBot.Bot.Api;
+using TheKrystalShip.MovieBot.Bot.Assistant;
 using TheKrystalShip.MovieBot.Bot.Sessions;
 using TheKrystalShip.MovieBot.Core;
 
@@ -19,8 +20,14 @@ public enum VoiceOutcome
     /// <summary>A room verb in a voice channel whose room holds no film, so there was nothing to move.</summary>
     NoFilm,
 
-    /// <summary>Not a room verb the gate could read. Nothing on this host answers these.</summary>
+    /// <summary>Not a room verb the gate could read, and no assistant on this host to put it to.</summary>
     NotHandled,
+
+    /// <summary>Not a room verb, so it was put to the assistant, which answers in the channel's chat.</summary>
+    Asked,
+
+    /// <summary>A yes, a no, or an unclear answer to something the assistant proposed.</summary>
+    Decided,
 
     /// <summary>A room verb the API refused or could not be reached for.</summary>
     Failed,
@@ -31,10 +38,16 @@ public enum VoiceOutcome
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>The gate first, and only the gate.</b> <see cref="RoomVerbs"/> decides whether an utterance is
-/// one of the room's own verbs. One that is gets carried out; anything else is left alone, because
-/// nothing on this host understands language — a question put to the bot out loud is heard, recorded
-/// as unhandled, and answered by nothing rather than by a guess.
+/// <b>The gate first.</b> <see cref="RoomVerbs"/> decides whether an utterance is one of the room's
+/// own verbs, and one that is gets carried out with no model involved: those are a closed set, and a
+/// component that moves the room for everybody should read the same words the same way every time.
+/// Anything else goes to the assistant, which answers in the voice channel's chat, or to nothing on a
+/// host that runs none.
+/// </para>
+/// <para>
+/// <b>A reply to a proposal is read as a reply</b>, unless it is a room verb: somebody who says
+/// "pause" while the bot waits on a yes wants the film paused, and the proposal stays under its
+/// buttons.
 /// </para>
 /// <para>
 /// <b>The act is silent.</b> The film stopping is the acknowledgement, and the player already tells
@@ -54,6 +67,7 @@ public enum VoiceOutcome
 /// </remarks>
 public sealed class RoomVoiceCommandHandler(
     MovieBotApiClient api,
+    IRoomAssistant assistant,
     TimeProvider clock,
     IOptions<DiscordVoiceOptions> voice,
     ILogger<RoomVoiceCommandHandler> logger) : IVoiceCommandHandler
@@ -67,6 +81,21 @@ public sealed class RoomVoiceCommandHandler(
         if (string.IsNullOrWhiteSpace(command.Text)) return VoiceOutcome.Nothing;
 
         var reading = RoomVerbs.Read(command.Text);
+
+        if (command.Answering is { For: VoiceWaitingFor.Confirmation } waiting && reading.Match != RoomVerbMatch.Match)
+        {
+            try
+            {
+                await assistant.DecideAsync(command, waiting, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Voice: could not read {Speaker}'s reply to a proposal", command.SpeakerName);
+            }
+
+            return VoiceOutcome.Decided;
+        }
+
         if (reading.Match != RoomVerbMatch.Match)
         {
             // What was said is only written down when the operator has asked for transcripts: a voice
@@ -80,7 +109,10 @@ public sealed class RoomVoiceCommandHandler(
                     "Voice: {Speaker} asked for something that is not a room verb ({Reading})",
                     command.SpeakerName, reading.Match);
 
-            return VoiceOutcome.NotHandled;
+            if (!assistant.IsEnabled) return VoiceOutcome.NotHandled;
+
+            assistant.Answer(command);
+            return VoiceOutcome.Asked;
         }
 
         var session = RoomSession.IdFor(command.ChannelId);
@@ -117,6 +149,7 @@ public sealed class RoomVoiceCommandHandler(
                     "Voice: {Speaker} {Verb} -> {Position:0.0}s",
                     command.SpeakerName, Describe(reading), change.Push.State.PositionSeconds);
 
+            Record(command, reading, change);
             return VoiceOutcome.Acted;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -138,4 +171,26 @@ public sealed class RoomVoiceCommandHandler(
         _ when reading.Seconds < 0 => $"go back {-reading.Seconds:0}s",
         _ => $"go forward {reading.Seconds:0}s",
     };
+
+    /// <summary>
+    /// Writes the act into the room's conversation as the tool call the assistant would have made, so
+    /// a question about it later is answered by something that knows it happened.
+    /// </summary>
+    private void Record(VoiceCommand command, RoomVerbReading reading, RoomChanged change)
+    {
+        var at = FilmClock.Format(change.Push.State.PositionSeconds);
+        var (tool, arguments, outcome) = reading.Kind switch
+        {
+            RoomVerbKind.Pause => (RoomTools.Pause, new Dictionary<string, string?>(), $"Paused at {at}."),
+            RoomVerbKind.Play => (RoomTools.Play, new Dictionary<string, string?>(), $"Playing from {at}."),
+            _ => (RoomTools.SeekRelative,
+                new Dictionary<string, string?>
+                {
+                    ["seconds"] = reading.Seconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                },
+                $"Moved to {at}."),
+        };
+
+        assistant.RecordAct(command, tool, arguments, outcome);
+    }
 }

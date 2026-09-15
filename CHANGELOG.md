@@ -4,6 +4,34 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.41.0] - 2026-09-15
+
+### Added
+
+- MovieBot answers. Anything said to it in a voice channel that is not one of the room verbs goes
+  to the model on hotbox's card, with the room and the library in front of it, and the answer is
+  posted in the voice channel's chat. "Go back a bit, I missed that", "jump to an hour in", "put on
+  Collateral instead", "carry on", "what are we watching?" and "why did it stop?" all work, and so
+  does "download Inception", which searches the catalogue and the tracker and proposes the release.
+  The room verbs still go through the gate first, with no model involved, and act exactly as fast.
+
+  Moving the room happens at once, as the person who asked. A download, a fetched subtitle, a wish
+  and a keep are proposals, posted with two buttons; a spoken yes or no straight afterwards is the
+  same answer, and whichever comes first acts. Each is carried out by the same code as `/watch`,
+  `/notify` and `/keep`, so a download started this way reports its progress and starts in the
+  room when it can be watched.
+
+  A room verb is written into the room's conversation, so "why did it stop?" is answered with who
+  paused it. The bot warms the model with its real instructions and catalog when it starts, and
+  leaves that request for the model's unit to replay when it restarts.
+
+  `Assistant__Enabled` switches it on, and the unit sets it.
+
+### Changed
+
+- The subtitle search and fetch shapes are part of the shared contract library, so the bot reads
+  the same types the API writes. Nothing on the wire changed.
+
 ## [1.40.1] - 2026-09-15
 
 ### Changed

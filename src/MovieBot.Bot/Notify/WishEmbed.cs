@@ -17,6 +17,17 @@ public static class WishEmbed
     /// <summary>The width the poster is asked for; a thumbnail is shown far smaller than this.</summary>
     private const int PosterWidth = 300;
 
+    /// <summary>
+    /// The card that goes with the answer to asking, or null when the answer is a sentence alone:
+    /// the film is waited on, or it turned out to be downloadable already.
+    /// </summary>
+    public static Embed? For(NotifyResult result) => result switch
+    {
+        { Status: NotifyStatus.Subscribed or NotifyStatus.AlreadySubscribed, Wish: { } wish } => Waiting(wish),
+        { Status: NotifyStatus.AlreadyAvailable, Wish: { } wish, Release: { } release } => Available(wish, release),
+        _ => null,
+    };
+
     /// <summary>The reply to somebody who has just asked to be told.</summary>
     public static Embed Waiting(Wish wish)
     {

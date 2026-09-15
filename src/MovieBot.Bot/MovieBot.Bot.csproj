@@ -8,7 +8,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Bot</RootNamespace>
     <AssemblyName>moviebot-bot</AssemblyName>
-    <Version>0.12.1</Version>
+    <Version>0.13.0</Version>
 
     <!-- The JIT is where this process's memory goes, not the heap, and a method compiled once at
          full optimisation is held once. Startup time is nothing to a worker that runs for weeks,
@@ -25,6 +25,9 @@
     <!-- The console SDK copies no content by default, and the host reads its settings from the
          directory it runs in. -->
     <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- The assistant's instructions and tool descriptions, read from beside the binary. -->
+    <Content Include="prompts/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -40,8 +43,19 @@
          of a transcript are speech. A few kilobytes and no native code: the model is in the other
          process. -->
     <PackageReference Include="TheKrystalShip.Speech" Version="1.1.0" />
+
+    <!-- The agent loop and its conversation store, for what somebody says that the room verbs do not
+         cover. The model is moviebot-llm, reached over loopback; nothing of it runs in this process. -->
+    <PackageReference Include="TheKrystalShip.Llm" Version="2.4.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+  </ItemGroup>
+
+  <!-- GHSA-2m69-gcr7-jv3q is on the native SQLite the conversation store pulls in, and no build of it
+       fixes the advisory. The database is this bot's own conversation, reached by no SQL anybody else
+       writes and no network. Scoped to that advisory alone. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
   </ItemGroup>
 
   <ItemGroup>

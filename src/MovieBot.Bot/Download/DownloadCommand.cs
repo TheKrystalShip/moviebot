@@ -82,6 +82,17 @@ public sealed class DownloadCommand(
             return new DownloadResult(DownloadOutcome.NoLongerOffered,
                 "That result has gone stale. Run the command again and pick from the fresh list.");
 
+        return await ExecuteAsync(request, release, ct);
+    }
+
+    /// <summary>
+    /// Starts a release the caller already holds — one a search in this process offered, which is
+    /// what the assistant has when somebody agrees to a download it proposed. Everything written on
+    /// the torrent is the same as for a pick from the menu, so the watcher, the progress message and
+    /// the launch treat the two alike.
+    /// </summary>
+    public async Task<DownloadResult> ExecuteAsync(DownloadRequest request, Release release, CancellationToken ct)
+    {
         try
         {
             // Notes left on the torrent rather than held in this process: where to announce it,

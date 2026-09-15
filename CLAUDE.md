@@ -629,9 +629,10 @@ A release name is what a film arrives as. It is not what the film is called.
 `/voice join` brings the bot into a voice channel to listen, and "hey MovieBot, pause" stops the
 film. `src/MovieBot.Bot/README.md` is the authority for the surface; these are the rules it rests on.
 
-- **There is no model in the bot.** What is heard goes to moviebot-speech for words and the words go
-  to `RoomVerbs`, a gate that knows a handful of verbs. A component that moves the room for everyone
-  in it should read the same words the same way every time.
+- **The gate comes before the model.** What is heard goes to moviebot-speech for words and the words
+  go to `RoomVerbs`, a gate that knows a handful of verbs. A component that moves the room for
+  everyone in it should read the same words the same way every time, so the common verbs never
+  depend on a model's judgement. Only what the gate does not read goes to the assistant.
 - **The gate matches the whole utterance and has three answers.** "Should we pause?" contains the
   word and is not the verb. A phrasing that looks like a verb and cannot be read safely — no amount,
   a vague one, two acts, or digits joined by punctuation that flattening would fuse — is ambiguous
@@ -646,6 +647,33 @@ film. `src/MovieBot.Bot/README.md` is the authority for the surface; these are t
 - **The voice pipeline is `TheKrystalShip.Discord.Voice`, shared with kgsm-bot, and it lives under
   the org's root namespace.** Inside any `TheKrystalShip.*` namespace a bare `Discord.X` resolves to
   `TheKrystalShip.Discord` first and fails, so Discord.Net types are written `global::Discord.X`.
+
+## Asking the assistant
+
+Anything said to the bot that the gate does not read is a turn of the agent loop from
+`TheKrystalShip.Llm`, against moviebot-llm, answered in the voice channel's chat.
+`src/MovieBot.Bot/README.md` is the authority for the surface; these are the rules it rests on.
+
+- **The brain runs in the bot, and its tools are the bot's commands.** A download has to post its
+  progress message and a wish lives in the bot's state directory, so the acts it can take are
+  `WatchCommand`, `DownloadCommand`, `NotifyCommand` and `KeepCommand`, called directly. A tool
+  that did its own version would not disagree loudly; it would leave a download without its
+  progress message.
+- **Live state goes in the turn's context, never in the instructions.** The chat template renders
+  the instructions ahead of the tool catalog, so a changing byte there re-reads the catalog and the
+  conversation every turn. `AgentTurn.Context` is sent after the conversation.
+- **`enable_thinking` is sent false on every request.** This model family reasons when the variable
+  is left unset, which triples the time to a tool call.
+- **The instructions stay short.** A long `system.md` naming tools and rules made this 2B model
+  write tool calls out as text. Guidance lives in tool descriptions and in what each tool returns,
+  and `AssistantRoutingTests` against the real model is how a wording change is judged.
+- **What a tool returns is split between the room and the model.** The sentence a person could read
+  is recorded, and what to do next is appended for the model alone. The model often writes nothing
+  after a tool result, and the recorded sentence is then the reply, so it must never name a tool.
+- **Acting on the room is immediate; spending something is proposed.** Proposals wait for a button
+  or a spoken yes, redeem one single-use token, expire, and are carried out as whoever asked.
+- **A room verb is written into the room's conversation** as the tool call it stands for, so the
+  model knows what happened to the room without having done it.
 
 ## Keeping a room
 

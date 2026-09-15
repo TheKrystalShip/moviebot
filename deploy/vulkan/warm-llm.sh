@@ -10,9 +10,10 @@
 #
 # The warm-up only warms the shape it sends. Measured after a restart: replaying the warm-up's
 # own request takes 241 ms, while the first request carrying a different system prompt and tool
-# catalog takes 1,093 ms and the second takes 244 ms. So the body below is not a token request
-# to prove the port works — it has to be the prompt and catalog the service is actually going
-# to be asked for, which is why it lives in a file the assistant owns rather than inline here.
+# catalog takes 1,093 ms and the second takes 244 ms. So the body is not a token request to prove
+# the port works — it is the bot's own instructions and catalog, which the bot writes into its
+# state directory every time it starts. The file installed beside this script stands in only on a
+# host where the bot has never run with the assistant switched on.
 #
 # Run as the unit's ExecStartPost, so systemd does not call the service active until a request
 # of the real shape has been all the way through the model.
@@ -20,7 +21,11 @@
 set -euo pipefail
 
 PORT="${1:-8190}"
-BODY_FILE="${2:-/opt/moviebot/llm/warmup.json}"
+BODY_FILE="${2:-}"
+if [[ -z "$BODY_FILE" ]]; then
+  BODY_FILE=/var/lib/moviebot-bot/llm-warmup.json
+  [[ -f "$BODY_FILE" ]] || BODY_FILE=/opt/moviebot/llm/warmup.json
+fi
 DEADLINE=$(( SECONDS + ${WARM_TIMEOUT:-180} ))
 
 [[ -f "$BODY_FILE" ]] || { echo "no warm-up body at $BODY_FILE" >&2; exit 1; }
@@ -39,4 +44,4 @@ if ! curl -sf "127.0.0.1:$PORT/v1/chat/completions" \
   echo "llama-server answered /health but refused a request on $PORT" >&2
   exit 1
 fi
-echo "warm: first request through in $(( ($(date +%s%N) - start) / 1000000 )) ms"
+echo "warm: $BODY_FILE through in $(( ($(date +%s%N) - start) / 1000000 )) ms"

@@ -29,6 +29,11 @@ Environment=DOTNET_EnableDiagnostics=0
 Environment=Voice__Enabled=true
 Environment=Speech__SocketPath=/run/moviebot-speech/speech.sock
 
+# What is said that the room verbs do not cover goes to the model moviebot-llm holds, over
+# loopback, and is answered in the voice channel's chat. The conversation and the model's warm-up
+# request are written in the state directory below.
+Environment=Assistant__Enabled=true
+
 # A dropped gateway connection is normal; the bot reconnects, and a crash should not need a person.
 Restart=always
 RestartSec=10s
