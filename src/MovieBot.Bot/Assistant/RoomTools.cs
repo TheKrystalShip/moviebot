@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
+using TheKrystalShip.Agent.Replies;
 using TheKrystalShip.Llm.Interfaces;
 using TheKrystalShip.Llm.Models;
 using TheKrystalShip.MovieBot.Acquire;
@@ -126,6 +127,14 @@ public sealed class RoomTools(
     /// <summary>What this turn proposed, in the order it proposed it.</summary>
     public IReadOnlyList<StagedAction> Proposed => _proposed;
 
+    /// <summary>
+    /// Whether this turn did anything to a room or proposed anything — the fact a reply claiming to
+    /// have acted is held against.
+    /// </summary>
+    public bool Acted => _moved || _proposed.Count > 0 || _launched.Count > 0;
+
+    private bool _moved;
+
     /// <summary>The launch cards this turn produced, for the chat to post.</summary>
     public IReadOnlyList<LaunchReply> Launched => _launched;
 
@@ -151,7 +160,19 @@ public sealed class RoomTools(
         return guidance is null ? people : $"{people} {guidance}";
     }
 
+    /// <remarks>
+    /// Every answer is noted for the turn's reply review, here rather than per handler, because a tool's
+    /// answer is what it returns and a handler added later would otherwise go unrecorded — and a figure
+    /// missing from the record reads as one the model invented.
+    /// </remarks>
     public async Task<ToolOutput> ExecuteAsync(LlmToolCall call, CancellationToken ct = default)
+    {
+        var output = await DispatchAsync(call, ct);
+        MeasuredValues.Note(output.Summary);
+        return output;
+    }
+
+    private async Task<ToolOutput> DispatchAsync(LlmToolCall call, CancellationToken ct)
     {
         try
         {
@@ -365,6 +386,7 @@ public sealed class RoomTools(
         var change = pause
             ? await api.PauseAsync(turn.SessionId, turn.SpeakerUserId, turn.SpeakerName, ct)
             : await api.PlayAsync(turn.SessionId, turn.SpeakerUserId, turn.SpeakerName, ct);
+        _moved = true;
 
         var at = FilmClock.Format(change.Push.State.PositionSeconds);
         return Tell(pause ? $"Paused at {at}." : $"Playing from {at}.");
@@ -378,6 +400,7 @@ public sealed class RoomTools(
         if (await RefuseWithoutFilmAsync(ct) is { } refusal) return refusal;
 
         var change = await api.SeekAsync(turn.SessionId, seconds, turn.SpeakerUserId, turn.SpeakerName, ct);
+        _moved = true;
         return Tell(Moved(change));
     }
 
@@ -389,6 +412,7 @@ public sealed class RoomTools(
         if (await RefuseWithoutFilmAsync(ct) is { } refusal) return refusal;
 
         var change = await api.NudgeAsync(turn.SessionId, seconds, turn.SpeakerUserId, turn.SpeakerName, ct);
+        _moved = true;
         return Tell(Moved(change));
     }
 

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using TheKrystalShip.Agent.Prompts;
 using TheKrystalShip.Llm.Models;
 
 namespace TheKrystalShip.MovieBot.Bot.Assistant;
@@ -19,15 +20,11 @@ public sealed class PromptPack(IOptions<AssistantOptions> options)
 {
     public const string FileName = "system.md";
 
+    private readonly PromptDirectory _directory = new(options.Value.ResolvePromptDirectory());
+
     public SystemPrompt Read()
     {
-        var path = Path.Combine(options.Value.ResolvePromptDirectory(), FileName);
-        if (!File.Exists(path))
-            throw new InvalidOperationException(
-                $"The assistant's instructions are not at {path}. Assistant:PromptDirectory names the "
-                + "directory they were installed into.");
-
-        var text = File.ReadAllText(path).Trim();
+        var text = _directory.Require(FileName);
         return new SystemPrompt(text, PromptHash.Short(text));
     }
 }

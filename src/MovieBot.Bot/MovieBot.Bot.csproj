@@ -8,7 +8,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Bot</RootNamespace>
     <AssemblyName>moviebot-bot</AssemblyName>
-    <Version>0.13.0</Version>
+    <Version>0.14.0</Version>
 
     <!-- The JIT is where this process's memory goes, not the heap, and a method compiled once at
          full optimisation is held once. Startup time is nothing to a worker that runs for weeks,
@@ -47,6 +47,11 @@
     <!-- The agent loop and its conversation store, for what somebody says that the room verbs do not
          cover. The model is moviebot-llm, reached over loopback; nothing of it runs in this process. -->
     <PackageReference Include="TheKrystalShip.Llm" Version="2.4.0" />
+
+    <!-- What an assistant needs around the loop and belongs to no product: the prompt directory, the
+         catalog file and its agreement check, the checks a reply is held to, compaction, and the
+         single-use handle a proposal is redeemed by. -->
+    <PackageReference Include="TheKrystalShip.Agent" Version="1.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
   </ItemGroup>

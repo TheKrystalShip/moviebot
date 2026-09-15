@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.42.0] - 2026-09-15
+
+### Added
+
+- The assistant's replies are held to what their turn did. A reply that says it loaded, paused or
+  downloaded something on a turn that did none of it is sent back to the model once, and posted with
+  a correction if it says so again; the same goes for a figure of four digits or more that nothing the
+  turn was given contains. A reply that proposes something without mentioning it gets a line saying
+  it waits for confirmation.
+
+### Changed
+
+- The assistant's prompt reading, tool catalog, proposal tokens and conversation compaction come from
+  `TheKrystalShip.Agent`, shared with kgsm-llm's assistant, rather than from copies of its own. A
+  catalog that disagrees with the tools is refused naming both directions in one message.
+
 ## [1.41.0] - 2026-09-15
 
 ### Added

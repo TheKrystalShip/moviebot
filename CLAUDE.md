@@ -674,6 +674,14 @@ Anything said to the bot that the gate does not read is a turn of the agent loop
   or a spoken yes, redeem one single-use token, expire, and are carried out as whoever asked.
 - **A room verb is written into the room's conversation** as the tool call it stands for, so the
   model knows what happened to the room without having done it.
+- **A written reply is held to what the turn did**, by the checks in `TheKrystalShip.Agent`: a claim
+  of acting on a turn that did nothing, and a figure nothing the turn was given contains, re-prompt
+  once and are then corrected. `RoomTools.Acted` is what a claim is held against, and it must cover
+  every tool that changes something, or an honest "I've paused it" is contradicted.
+- **The harness around the loop is shared, and the room is not.** Reading `system.md` and
+  `tools.json`, the catalog's agreement with `RoomTools.Names`, proposal tokens, the reply checks and
+  compaction come from `TheKrystalShip.Agent` in tks-agent. What the tools do, which of them wait for a
+  person, and the words a room is acted on in are this repository's.
 
 ## Keeping a room
 

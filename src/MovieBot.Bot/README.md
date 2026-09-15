@@ -203,6 +203,13 @@ pick's, a wish is `/notify`'s and a keep is `/keep`'s.
   straight after a tool result more often than not, so an act comes back as "Moved to 29:51." — the
   tool's own words, written for the room — rather than as silence. A proposal or a launch card
   posts its own message and adds nothing.
+- **A written reply is held to what the turn did.** A reply claiming to have acted — "I have loaded
+  Heat" — on a turn that moved no room, launched nothing and proposed nothing, and a figure of four
+  or more digits that nothing the turn was given contains, each send the model back once with what
+  is wrong; a second failure is posted with a correction under it. A reply that leaves a proposal
+  unmentioned gets a line saying it waits for confirmation. The checks are
+  `TheKrystalShip.Agent`'s, and the verbs a claim is recognised by are the room's
+  (`RoomActionClaim`).
 - **The room verbs are in the same conversation.** A pause the gate carried out is written in as the
   tool call it stands for, so a question about it later is answered by something that knows it
   happened.

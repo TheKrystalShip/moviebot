@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using TheKrystalShip.Agent.Conversation;
+using TheKrystalShip.Agent.Replies;
 using TheKrystalShip.Llm.Agent;
 using TheKrystalShip.Llm.Conversation;
 using TheKrystalShip.Llm.Interfaces;
@@ -64,6 +66,18 @@ public sealed class RoomAssistant(
         var agent = new LlmAgent(model, tools, conversations, agentOptions, loggers.CreateLogger<LlmAgent>());
         var wroteNothing = false;
 
+        // Everything the turn is given, for the figure check: what was said, the instructions and the
+        // room, and then every tool's answer as the tools note it.
+        using var given = MeasuredValues.BeginTurn(said, prompt.Text, context);
+        var review = ReplyGuard.Review(
+            [
+                ReplyChecks.FabricatedFigures(),
+                ReplyChecks.UnbackedAction(RoomActionClaim.Check, said, () => tools.Acted),
+            ],
+            (check, fault, resolution) => _logger.LogWarning(
+                "Assistant: {Speaker}'s reply failed the {Check} check ({Detail}); {Resolution}",
+                turn.SpeakerName, check.Name, fault.Detail ?? "no detail", resolution));
+
         var result = await agent.RunAsync(new AgentTurn
         {
             ConversationId = turn.ConversationId,
@@ -77,7 +91,7 @@ public sealed class RoomAssistant(
             Think = false,
             ReviewReply = reply =>
             {
-                if (!string.IsNullOrWhiteSpace(reply)) return ReplyReview.Accept;
+                if (!string.IsNullOrWhiteSpace(reply)) return review(reply);
 
                 // This model ends its turn straight after a tool result more often than not. What the
                 // tools said is then the answer; a proposal or a card posts its own message and needs
@@ -100,14 +114,25 @@ public sealed class RoomAssistant(
         var answer = result.Value!;
         if (wroteNothing && (tools.Proposed.Count > 0 || tools.Launched.Count > 0))
             answer = answer with { Text = "" };
+        else if (!wroteNothing)
+            answer = answer with { Text = Checked(answer.Text, tools) };
         _logger.LogInformation(
             "Assistant: answered {Speaker} in {Elapsed:0}ms ({Proposed} proposed, {Launched} launched, {Used}/{Window} tokens)",
             turn.SpeakerName, clock.GetElapsedTime(started).TotalMilliseconds, tools.Proposed.Count,
             tools.Launched.Count, answer.Usage?.UsedTokens, answer.Usage?.ContextWindow);
 
-        await CompactIfFullAsync(turn.ConversationId, answer.Usage);
+        await ContextCompaction.CompactIfFullAsync(
+            compactor, turn.ConversationId, answer.Usage, conversationOptions.Value.CompactAtPercent, _logger);
         return new RoomAnswer(answer.Text, tools.Proposed, tools.Launched);
     }
+
+    /// <summary>
+    /// The reply the turn ended on, with a proposal it never mentions named. A claim of acting needs no
+    /// second net here: every written reply passes the turn's review, which corrects one on its second
+    /// attempt.
+    /// </summary>
+    private static string Checked(string reply, RoomTools tools) =>
+        PendingConfirmationNote.Noted(reply, tools.Proposed.Count);
 
     /// <summary>
     /// Writes a room verb the gate carried out into the room's conversation, as a turn that called the
@@ -137,34 +162,6 @@ public sealed class RoomAssistant(
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Assistant: could not record {Speaker}'s {Tool}", turn.SpeakerName, tool);
-        }
-    }
-
-    /// <summary>
-    /// Folds the front of a room's conversation into a summary once it fills most of the window. A
-    /// room is one conversation for as long as the channel exists, and nobody talking in it knows a
-    /// window exists, so left alone it grows until the model silently loses the start of it.
-    /// Measured from what the backend reported for the turn that just ran, never estimated.
-    /// </summary>
-    private async Task CompactIfFullAsync(string conversationId, LlmUsage? usage)
-    {
-        var at = conversationOptions.Value.CompactAtPercent;
-        if (at <= 0 || usage is null || usage.ContextWindow <= 0) return;
-        if (usage.UsedTokens * 100 < usage.ContextWindow * at) return;
-
-        try
-        {
-            var compacted = await compactor.CompactAsync(conversationId, CancellationToken.None);
-            if (compacted.IsFailure)
-                _logger.LogWarning("Assistant: could not compact {Conversation}: {Error}", conversationId, compacted.Error);
-            else if (compacted.Value!.Compacted)
-                _logger.LogInformation(
-                    "Assistant: compacted {Conversation} at {Used} of {Window} tokens",
-                    conversationId, usage.UsedTokens, usage.ContextWindow);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Assistant: could not compact {Conversation}", conversationId);
         }
     }
 }

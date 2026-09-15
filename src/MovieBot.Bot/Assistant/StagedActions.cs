@@ -1,7 +1,6 @@
-using System.Collections.Concurrent;
-using System.Security.Cryptography;
 using Discord;
 using Microsoft.Extensions.Options;
+using TheKrystalShip.Agent.Confirmations;
 
 namespace TheKrystalShip.MovieBot.Bot.Assistant;
 
@@ -49,19 +48,18 @@ public sealed class StagedAction
 }
 
 /// <summary>
-/// Proposals waiting for somebody to agree.
+/// Proposals waiting for somebody to agree, held by <see cref="HeldActions{T}"/>.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>A token is a grant, spent once.</b> The buttons and a spoken yes redeem the same token, so
-/// whichever arrives first carries the act out and the other finds nothing to redeem. A token is
-/// 32 hex characters from a cryptographic source, because it rides in a button anyone in the channel
-/// can press and a guessable one is a way to act on somebody else's proposal.
+/// whichever arrives first carries the act out and the other finds nothing to redeem. It rides in a
+/// button anyone in the channel can press, so it is a <see cref="ConfirmationHandle"/>.
 /// </para>
 /// <para>
 /// <b>Anybody may agree.</b> Anyone may act on a room and the record says who did, which is the rule
-/// everywhere else in MovieBot; the act is still done as the person who asked for it, so the download
-/// pings them and the wish is theirs.
+/// everywhere else in MovieBot, so a proposal is held with no owner. The act is still done as the
+/// person who asked for it, so the download pings them and the wish is theirs.
 /// </para>
 /// <para>
 /// <b>Held in memory.</b> A proposal is minutes old at most, and one that outlived a restart would be
@@ -71,41 +69,27 @@ public sealed class StagedAction
 /// </remarks>
 public sealed class StagedActions(IOptions<AssistantOptions> options, TimeProvider clock)
 {
-    private readonly ConcurrentDictionary<string, StagedAction> _waiting = new(StringComparer.Ordinal);
+    private readonly HeldActions<StagedAction> _waiting = new(clock);
 
     public StagedAction Stage(
         string kind, string describes, RoomTurn turn, Func<CancellationToken, Task<StagedOutcome>> run)
     {
-        var now = clock.GetUtcNow();
-        foreach (var (token, expired) in _waiting)
-        {
-            if (expired.Until <= now) _waiting.TryRemove(token, out _);
-        }
-
         var action = new StagedAction
         {
-            Token = RandomNumberGenerator.GetHexString(32, lowercase: true),
+            Token = ConfirmationHandle.New(),
             Kind = kind,
             Describes = describes,
             ChannelId = turn.ChannelId,
             AskedBy = turn.SpeakerId,
             AskedByName = turn.SpeakerName,
-            Until = now + TimeSpan.FromMinutes(Math.Max(1, options.Value.OfferMinutes)),
+            Until = clock.GetUtcNow() + TimeSpan.FromMinutes(Math.Max(1, options.Value.OfferMinutes)),
             Run = run,
         };
 
-        _waiting[action.Token] = action;
+        _waiting.Hold(action.Token, action, action.Until);
         return action;
     }
 
     /// <summary>The proposal, removed so nothing can redeem it again, or null when it is spent, expired or never was.</summary>
-    public StagedAction? Take(string token)
-    {
-        if (!_waiting.TryRemove(token, out var action)) return null;
-        return action.Until > clock.GetUtcNow() ? action : null;
-    }
-
-    /// <summary>A proposal still waiting, left waiting.</summary>
-    public StagedAction? Peek(string token) =>
-        _waiting.TryGetValue(token, out var action) && action.Until > clock.GetUtcNow() ? action : null;
+    public StagedAction? Take(string token) => _waiting.TryTake(token, redeemer: null, out var action) ? action : null;
 }

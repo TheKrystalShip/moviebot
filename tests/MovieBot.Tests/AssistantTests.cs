@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using TheKrystalShip.Agent;
+using TheKrystalShip.Agent.Replies;
 using TheKrystalShip.Llm.Models;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Assistant;
@@ -42,10 +44,10 @@ public sealed class AssistantPartsTests
     {
         const string json = """{ "play": { "description": "Plays.", "params": [] }, "dance": { "description": "Dances.", "params": [] } }""";
 
-        var refused = Assert.Throws<InvalidOperationException>(() => ToolCatalog.Parse(json, ["play", "pause"]));
+        var refused = Assert.Throws<AssistantTextUnavailableException>(() => ToolCatalog.Parse(json, ["play", "pause"]));
 
-        Assert.Contains("Not described: pause", refused.Message);
-        Assert.Contains("Described but not implemented: dance", refused.Message);
+        Assert.Contains("no tool for 1 tool(s) the assistant implements: pause", refused.Message);
+        Assert.Contains("has no handler for: dance", refused.Message);
     }
 
     [Fact]
@@ -53,8 +55,25 @@ public sealed class AssistantPartsTests
     {
         const string json = """{ "seek": { "description": "Seeks.", "params": [ { "name": "at", "description": "Where.", "type": "timestamp" } ] } }""";
 
-        Assert.Throws<InvalidOperationException>(() => ToolCatalog.Parse(json, ["seek"]));
+        Assert.Throws<AssistantTextUnavailableException>(() => ToolCatalog.Parse(json, ["seek"]));
     }
+
+    [Theory]
+    // The live failure: a refusal that mentioned putting a film on, answered as if it had been.
+    [InlineData("I have loaded Heat for you.")]
+    [InlineData("I've paused it.")]
+    [InlineData("I've put Heat on.")]
+    [InlineData("I've downloaded Collateral.")]
+    public void A_claim_of_acting_in_a_room_is_caught(string reply) =>
+        Assert.True(RoomActionClaim.Check.IsPresentIn(reply));
+
+    [Theory]
+    [InlineData("Haru paused it a minute ago.")]
+    [InlineData("I can put Heat on if you like.")]
+    [InlineData("Heat is already in the library, so nothing needs downloading.")]
+    [InlineData("Want me to download it?")]
+    public void An_honest_reply_about_a_room_is_left_alone(string reply) =>
+        Assert.False(RoomActionClaim.Check.IsPresentIn(reply));
 
     [Fact]
     public void A_proposal_is_redeemed_once_by_an_unguessable_token()
@@ -245,6 +264,50 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
 
         Assert.Equal("Inception is ready to download once somebody confirms.", answer.Text);
         Assert.Equal(RoomTools.DownloadFilm, Assert.Single(answer.Proposed).Kind);
+    }
+
+    [Fact]
+    public async Task A_reply_claiming_an_act_nothing_did_is_asked_again_and_then_corrected()
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        host.Model.Answers.Enqueue(LlmResponse.Text("I have loaded Heat for you."));
+        host.Model.Answers.Enqueue(LlmResponse.Text("I have loaded Heat for you."));
+
+        var answer = await host.Assistant.AskAsync(turn, "put heat on", CancellationToken.None);
+
+        Assert.Equal(2, host.Model.Requests.Count);
+        Assert.Contains("\"put heat on\"", host.Model.Requests[1][^1].Content);
+        Assert.Equal("I have loaded Heat for you." + RoomActionClaim.Check.Correction, answer.Text);
+    }
+
+    [Fact]
+    public async Task A_proposal_the_reply_never_mentions_is_named_under_it()
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.SearchTracker, ("query", "Inception"))]));
+        host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.DownloadFilm, ("torrent_id", "41"))]));
+        host.Model.Answers.Enqueue(LlmResponse.Text("Inception it is."));
+
+        var answer = await host.Assistant.AskAsync(turn, "download inception", CancellationToken.None);
+
+        Assert.Equal("Inception it is." + PendingConfirmationNote.For(1), answer.Text);
+    }
+
+    [Fact]
+    public async Task A_reply_about_an_act_the_turn_did_is_left_alone()
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        await StartFilmAsync(host.Api, turn);
+        host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.Pause)]));
+        host.Model.Answers.Enqueue(LlmResponse.Text("I've paused it."));
+
+        var answer = await host.Assistant.AskAsync(turn, "pause", CancellationToken.None);
+
+        Assert.Equal("I've paused it.", answer.Text);
+        Assert.Equal(2, host.Model.Requests.Count);
     }
 
     private AssistantHost Host()
