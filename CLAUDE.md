@@ -683,7 +683,12 @@ Anything said to the bot that the gate does not read is a turn of the agent loop
 - **A written reply is held to what the turn did**, by the checks in `TheKrystalShip.Agent`: a claim
   of acting on a turn that did nothing, and a figure nothing the turn was given contains, re-prompt
   once and are then corrected. `RoomTools.Acted` is what a claim is held against, and it must cover
-  every tool that changes something, or an honest "I've paused it" is contradicted.
+  every tool that changes something, or an honest "I've paused it" is contradicted. `RoomIdRequest`
+  sends back a reply asking the room for an id the tools find themselves: the model repeats such a
+  reply from its own conversation, and a line in the instructions does not stop it on every history.
+- **A room's conversation is part of what is measured.** A request that routes correctly in a fresh
+  conversation can fail in a room's real one, because earlier replies are examples the model copies.
+  A routing failure seen live is reproduced by replaying that room's turns before it is judged fixed.
 - **The harness around the loop is shared, and the room is not.** Reading `system.md` and
   `tools.json`, the catalog's agreement with `RoomTools.Names`, proposal tokens, the reply checks and
   compaction come from `TheKrystalShip.Agent` in tks-agent. What the tools do, which of them wait for a

@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.43.1] - 2026-09-16
+
+### Fixed
+
+- A download asked for in a room whose conversation had once been answered "I need the IMDb ID" is
+  searched for instead of answered the same way again. The model copies its own earlier replies,
+  so the request routed in a fresh conversation and failed in the room's real one. The instructions
+  tell it to find things out with the tools rather than ask, and a reply asking for an IMDb or
+  torrent id is sent back to the model to call them (`RoomIdRequest`).
+
 ## [1.43.0] - 2026-09-16
 
 ### Fixed

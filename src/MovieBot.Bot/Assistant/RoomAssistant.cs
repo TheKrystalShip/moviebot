@@ -73,6 +73,7 @@ public sealed class RoomAssistant(
             [
                 ReplyChecks.FabricatedFigures(),
                 ReplyChecks.UnbackedAction(RoomActionClaim.Check, said, () => tools.Acted),
+                RoomIdRequest.Check(said),
             ],
             (check, fault, resolution) => _logger.LogWarning(
                 "Assistant: {Speaker}'s reply failed the {Check} check ({Detail}); {Resolution}",

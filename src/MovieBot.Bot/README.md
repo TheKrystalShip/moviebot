@@ -212,6 +212,12 @@ pick's, a wish is `/notify`'s and a keep is `/keep`'s.
   unmentioned gets a line saying it waits for confirmation. The checks are
   `TheKrystalShip.Agent`'s, and the verbs a claim is recognised by are the room's
   (`RoomActionClaim`).
+- **A reply asking for an IMDb or torrent id is sent back.** Nobody in a voice channel has one, and
+  the tools find every id from a film's name. The room's conversation is what produces the ask: once
+  a turn has answered "I need the IMDb ID", the model repeats it for the same request in that
+  conversation, where a fresh one searches. `RoomIdRequest` re-prompts the turn to call the tools.
+  `system.md` also tells the model to find things out with the tools rather than asking, which on
+  its own fixed the same measured failure.
 - **The room verbs are in the same conversation.** A pause the gate carried out is written in as the
   tool call it stands for, so a question about it later is answered by something that knows it
   happened.
