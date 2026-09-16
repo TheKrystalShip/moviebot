@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.44.1] - 2026-09-16
+
+### Fixed
+
+- Asking the assistant for a film that is in the library puts it on, even after the room's
+  conversation has taught the model to retype the film's id. In the live room the model asked for
+  `pirates-of-the-caribbean_the_curse_of_the-black-pearl-2004` and similar for the 2003 film, and
+  every one was refused, including when the film was named in full. The matcher now ignores
+  punctuation, and a film named whole under a year nobody said is taken as that film. When somebody
+  did say a number the year may be what picks the film, so it is offered by name instead.
+- A film the assistant cannot pick is answered for the model rather than with `/watch`'s wording:
+  the films it could have been, by name and earliest first, or that it is not in the library. The
+  same list is how a `/watch` for an ambiguous name is now ordered.
+- "Loading Pirates of the Caribbean..." on a turn that put nothing on is sent back to the model and
+  corrected if it happens again (`RoomLoadingClaim`).
+
 ## [1.44.0] - 2026-09-16
 
 ### Changed

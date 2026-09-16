@@ -135,11 +135,73 @@ public sealed class TitleMatcherTests
         Assert.Equal(TitleMatcher.MaxChoices, TitleMatcher.Suggest(many, "film").Count);
     }
 
+    private static readonly IReadOnlyList<LibraryTitle> Series =
+    [
+        Title("pirates-of-the-caribbean-dead-man-s-chest-2006", "Pirates of the Caribbean Dead Mans Chest", "Pirates of the Caribbean: Dead Man's Chest", 2006),
+        Title("pirates-of-the-caribbean-the-curse-of-the-black-pearl-2003", "Pirates of the Caribbean The Curse of the Black Pearl", "Pirates of the Caribbean: The Curse of the Black Pearl", 2003),
+        Title("the-matrix-1999", "The Matrix", "The Matrix", 1999),
+    ];
+
+    [Theory]
+    // What the assistant's model wrote for the Black Pearl in a live room, with the year it is listed under.
+    [InlineData("pirates-of-the-caribbean-the_curse_of_the_black_pearl-2003")]
+    [InlineData("pirates-of-the-caribbean:the_curse_of_the_curse_of_the_pirates_of_the_caribbean_2003")]
+    [InlineData("Pirates of the Caribbean The Curse of the Black Pearl")]
+    [InlineData("pirates of the caribbean the curse of the black pearl 2003")]
+    public void A_film_named_with_other_punctuation_resolves(string query)
+    {
+        var match = TitleMatcher.Resolve(Series, query);
+
+        Assert.Equal(TitleMatchKind.Resolved, match.Kind);
+        Assert.Equal("pirates-of-the-caribbean-the-curse-of-the-black-pearl-2003", match.Title!.Id);
+    }
+
+    [Theory]
+    // The live room's retyped ids, and the model's name for the second film of the series.
+    [InlineData("pirates-of-the-caribbean_the_curse_of_the-black-pearl-2004")]
+    [InlineData("pirates-of-the-caribbean:the_curse_of_the_curse_of_the_the_black_pearl-2023")]
+    [InlineData("Pirates of the Caribbean: The Curse of the Black Pearl (2011)")]
+    public void A_film_named_with_a_wrong_year_is_refused_and_offered(string query)
+    {
+        var match = TitleMatcher.Resolve(Series, query);
+
+        Assert.Equal(TitleMatchKind.NotFound, match.Kind);
+        Assert.Equal("pirates-of-the-caribbean-the-curse-of-the-black-pearl-2003", match.Nearest?.Id);
+    }
+
+    [Theory]
+    [InlineData("pirates 2011")]
+    [InlineData("pirates of the caribbean 2011")]
+    [InlineData("casablanca 1942")]
+    public void Part_of_a_name_with_a_year_offers_nothing(string query)
+    {
+        var match = TitleMatcher.Resolve(Series, query);
+
+        Assert.Equal(TitleMatchKind.NotFound, match.Kind);
+        Assert.Null(match.Nearest);
+    }
+
+    [Fact]
+    public void A_shortlist_of_one_series_is_in_the_order_the_films_came_out()
+    {
+        var match = TitleMatcher.Resolve(Series, "pirates-of-the-caribbean");
+
+        Assert.Equal(TitleMatchKind.Ambiguous, match.Kind);
+        Assert.Equal(
+            ["pirates-of-the-caribbean-the-curse-of-the-black-pearl-2003", "pirates-of-the-caribbean-dead-man-s-chest-2006"],
+            match.Candidates.Select(t => t.Id));
+    }
+
     private static LibraryTitle Title(string id, string title) => new()
     {
         Id = id,
         Title = title,
         DurationSeconds = 6000,
         Status = TitleStatus.Ready
+    };
+
+    private static LibraryTitle Title(string id, string title, string name, int year) => Title(id, title) with
+    {
+        Film = new FilmIdentity { ImdbId = "tt0", Name = name, Year = year },
     };
 }

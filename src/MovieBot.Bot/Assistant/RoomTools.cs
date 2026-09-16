@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.Agent.Replies;
@@ -60,14 +61,16 @@ public sealed class RoomToolbox(
     TimeProvider clock,
     ILogger<RoomTools> logger)
 {
-    public RoomTools For(RoomTurn turn) =>
-        new(turn, api, discord, watch, download, notify, keep, wishes, acquisition, tracker, catalogue,
+    /// <param name="said">What the person said, which is what a tool holds the model's arguments against.</param>
+    public RoomTools For(RoomTurn turn, string said = "") =>
+        new(turn, said, api, discord, watch, download, notify, keep, wishes, acquisition, tracker, catalogue,
             staged, offered, clock, logger);
 }
 
 /// <summary>The tools for one turn: one room, one person, and what the turn proposed and launched.</summary>
-public sealed class RoomTools(
+public sealed partial class RoomTools(
     RoomTurn turn,
+    string said,
     MovieBotApiClient api,
     DiscordSocketClient discord,
     WatchCommand watch,
@@ -438,7 +441,49 @@ public sealed class RoomTools(
     {
         if (string.IsNullOrWhiteSpace(query)) return "load_title needs the film's id or name as title.";
 
-        var result = await watch.ExecuteAsync(new WatchRequest
+        var result = await WatchAsync(query, ct);
+
+        // A film named whole under a year nobody said is the film the model meant with a year it made up:
+        // it writes "…-black-pearl-2004" and "The Curse of the Black Pearl (2023)" for the 2003 film, and
+        // almost never calls again when told so. A number somebody did say may be the only thing saying
+        // which film they meant — "pirates of the caribbean 2" came back as the first film under 2011 —
+        // so then the film is offered and not put on.
+        if (result.Status == WatchStatus.TitleNotFound && result.Match?.Nearest is { } guessed && !SaysANumber().IsMatch(said))
+            result = await WatchAsync(guessed.Id, ct);
+
+        // The command's own wording is written for somebody typing /watch, and a model reads "run the
+        // command again" as nothing it can do. What a film that could not be picked needs is the
+        // films it could have been, by name: the model retypes an id wrongly far more often than a
+        // name.
+        switch (result.Status)
+        {
+            case WatchStatus.TitleAmbiguous:
+                return Tell(
+                    $"Several films in the library match: {string.Join("; ", (result.Match?.Candidates ?? []).Select(t => t.Name))}.",
+                    "Nothing was put on. They are listed earliest first. Call load_title again with the name of the "
+                    + "one they mean, written as it is here.");
+
+            case WatchStatus.TitleNotFound when result.Match?.Nearest is { } nearest:
+                return Tell(
+                    $"The library has {nearest.Name}, which is not the year asked for.",
+                    $"Nothing was put on. If that is the film they asked for, call load_title with \"{nearest.Name}\". "
+                    + "If they meant a different film, search_catalogue and then search_tracker find it to download.");
+
+            case WatchStatus.TitleNotFound:
+                return Tell(
+                    "That film is not in the library.",
+                    "Nothing was put on. Call load_title with a name from the library list you were given, written "
+                    + "as it is there, or search_catalogue and then search_tracker to download a film it does not have.");
+        }
+
+        if (result.Reply is not { } reply) return Tell(result.Message);
+
+        _launched.Add(reply);
+        return reply.Text + " The card with the way in is posted in the chat; do not repeat what it says.";
+    }
+
+    private Task<WatchResult> WatchAsync(string query, CancellationToken ct) =>
+        watch.ExecuteAsync(new WatchRequest
         {
             VoiceChannelId = turn.ChannelId,
             VoiceChannelName = turn.ChannelName,
@@ -446,11 +491,9 @@ public sealed class RoomTools(
             RequestedBy = turn.SpeakerName,
         }, ct);
 
-        if (result.Reply is not { } reply) return Tell(result.Message);
-
-        _launched.Add(reply);
-        return reply.Text + " The card with the way in is posted in the chat; do not repeat what it says.";
-    }
+    [GeneratedRegex(@"\d|\b(?:two|three|four|five|six|seven|eight|nine|ten|second|third|fourth|fifth|sixth|last|latest|newest|oldest|original)\b",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex SaysANumber();
 
     // ── Proposals ────────────────────────────────────────────────────────────────────────────
 

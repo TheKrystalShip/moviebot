@@ -35,9 +35,11 @@ public enum WatchStatus
 
 /// <summary>
 /// The command's answer. <see cref="Reply"/> is set only when there is something to launch;
-/// everything else carries a message that names what to do instead.
+/// everything else carries a message that names what to do instead. <see cref="Match"/> is what the
+/// request was matched to when no one film could be picked, for a caller that words its own answer.
 /// </summary>
-public sealed record WatchResult(WatchStatus Status, string Message, LaunchReply? Reply = null);
+public sealed record WatchResult(
+    WatchStatus Status, string Message, LaunchReply? Reply = null, TitleMatch? Match = null);
 
 /// <summary>
 /// Resolves a film, opens the room's session, and hands the launch to the presenter.
@@ -82,12 +84,12 @@ public sealed class WatchCommand(
                 return new WatchResult(WatchStatus.TitleNotFound,
                     $"Nothing in the library matches \"{request.Query}\". Run the command again and "
                     + "pick it from the search results to fetch it, or ask for one of these: "
-                    + Names(match.Candidates));
+                    + Names(match.Candidates), Match: match);
 
             case TitleMatchKind.Ambiguous:
                 return new WatchResult(WatchStatus.TitleAmbiguous,
                     $"\"{request.Query}\" matches several films. Name the one you want: "
-                    + Names(match.Candidates));
+                    + Names(match.Candidates), Match: match);
         }
 
         var title = match.Title!;

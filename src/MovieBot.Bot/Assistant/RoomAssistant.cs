@@ -68,7 +68,7 @@ public sealed class RoomAssistant(
         StartOverIfIdle(turn);
         var prompt = prompts.Read();
         var context = await facts.DescribeAsync(turn, ct);
-        var tools = toolbox.For(turn);
+        var tools = toolbox.For(turn, said);
 
         // The loop is built per turn because the tools are: they act on this room, as this person,
         // and hold what this turn proposed until the chat has posted it.
@@ -83,6 +83,7 @@ public sealed class RoomAssistant(
                 ReplyChecks.FabricatedFigures(),
                 ReplyChecks.UnbackedAction(RoomActionClaim.Check, said, () => tools.Acted),
                 RoomIdRequest.Check(said),
+                RoomLoadingClaim.Check(said, () => tools.Acted),
             ],
             (check, fault, resolution) => _logger.LogWarning(
                 "Assistant: {Speaker}'s reply failed the {Check} check ({Detail}); {Resolution}",

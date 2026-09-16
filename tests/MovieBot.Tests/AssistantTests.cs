@@ -204,6 +204,37 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         Assert.Equal(SessionFixture.Collateral, state.TitleId);
     }
 
+    [Theory]
+    [InlineData("heat-1994")]
+    [InlineData("Heat (2023)")]
+    public async Task A_film_named_under_a_year_nobody_said_is_put_on(string title)
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        var room = host.Tools.For(turn, "put heat on");
+
+        await room.ExecuteAsync(Call(RoomTools.LoadTitle, ("title", title)));
+
+        Assert.Single(room.Launched);
+        Assert.Equal(SessionFixture.Heat, (await host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).TitleId);
+    }
+
+    [Theory]
+    [InlineData("put heat 2 on")]
+    [InlineData("the second heat")]
+    public async Task A_film_named_under_the_wrong_year_is_offered_and_not_put_on_when_somebody_said_a_number(string said)
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        var room = host.Tools.For(turn, said);
+
+        var told = await room.ExecuteAsync(Call(RoomTools.LoadTitle, ("title", "Heat (1999)")));
+
+        Assert.Empty(room.Launched);
+        Assert.Contains("Heat (1995)", told.Summary);
+        Assert.DoesNotContain(await host.Api.ListRoomsAsync(CancellationToken.None), r => r.SessionId == turn.SessionId);
+    }
+
     [Fact]
     public async Task A_download_of_a_release_nobody_was_shown_is_refused()
     {

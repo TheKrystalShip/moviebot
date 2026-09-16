@@ -1,5 +1,7 @@
 namespace TheKrystalShip.MovieBot.Bot.Library;
 
+using System.Text;
+
 using TheKrystalShip.MovieBot.Bot.Api;
 
 public enum TitleMatchKind
@@ -17,12 +19,14 @@ public enum TitleMatchKind
 /// <summary>
 /// What a query resolved to. <see cref="Candidates"/> carries the titles worth showing back:
 /// the shortlist when the query was ambiguous, and what the library holds when it matched
-/// nothing.
+/// nothing. <see cref="Nearest"/> is the one film a query that matched nothing names once its years
+/// are ignored.
 /// </summary>
 public sealed record TitleMatch(
     TitleMatchKind Kind,
     LibraryTitle? Title,
-    IReadOnlyList<LibraryTitle> Candidates)
+    IReadOnlyList<LibraryTitle> Candidates,
+    LibraryTitle? Nearest = null)
 {
     public static TitleMatch Resolved(LibraryTitle title) => new(TitleMatchKind.Resolved, title, []);
 }
@@ -50,6 +54,41 @@ public static class TitleMatcher
             is { } byId)
             return TitleMatch.Resolved(byId);
 
+        var match = ResolveWords(library, needle);
+        return match.Kind == TitleMatchKind.NotFound
+            ? match with { Nearest = NearestIgnoringYears(library, query, needle) }
+            : match;
+    }
+
+    /// <summary>
+    /// The one film a request names once its years are ignored, or null. It is never taken on its own:
+    /// the year may be wrong, or it may be the only thing saying which film was meant, and the
+    /// assistant's model writes both — "Dead Man's Chest (2008)" for the film listed as 2006, and
+    /// "Curse of the Black Pearl (2011)" for the second film of the series. Offered back, it lets
+    /// whoever asked say it is the one.
+    /// </summary>
+    private static LibraryTitle? NearestIgnoringYears(IReadOnlyList<LibraryTitle> library, string query, string needle)
+    {
+        var withoutYears = WithoutYears(needle);
+        if (withoutYears.Length == 0 || withoutYears == needle) return null;
+
+        if (library.Where(t => WithoutYears(Normalize(t.Name)) == withoutYears
+                               || WithoutYears(Normalize(t.Title)) == withoutYears
+                               || WithoutYears(Normalize(t.Id)) == withoutYears).ToList() is [var named])
+            return named;
+
+        // Something shaped like an id is retyped from one, with words doubled or dropped, so for it the
+        // words have to pick out one film rather than make up its whole name.
+        return LooksLikeAnId(query) && ResolveWords(library, withoutYears) is { Kind: TitleMatchKind.Resolved } retyped
+            ? retyped.Title
+            : null;
+    }
+
+    private static string WithoutYears(string normalized) =>
+        string.Join(' ', normalized.Split(' ').Where(w => !IsYear(w)));
+
+    private static TitleMatch ResolveWords(IReadOnlyList<LibraryTitle> library, string needle)
+    {
         if (library.FirstOrDefault(t => Normalize(t.Name) == needle || Normalize(t.Title) == needle)
             is { } byTitle)
             return TitleMatch.Resolved(byTitle);
@@ -66,8 +105,19 @@ public static class TitleMatcher
             .ToList();
         if (leading.Count == 1) return TitleMatch.Resolved(leading[0]);
 
-        return new TitleMatch(TitleMatchKind.Ambiguous, null, Shortlist(matches));
+        // Earliest first, so "the first one" said of the shortlist means the film that came out first.
+        return new TitleMatch(TitleMatchKind.Ambiguous, null,
+            Shortlist([.. matches.OrderBy(t => t.Film?.Year ?? int.MaxValue)]));
     }
+
+    private static bool LooksLikeAnId(string query)
+    {
+        var trimmed = query.Trim();
+        return !trimmed.Contains(' ') && trimmed.IndexOfAny(['-', '_']) >= 0;
+    }
+
+    private static bool IsYear(string word) =>
+        word.Length == 4 && word.All(char.IsAsciiDigit) && word[0] is '1' or '2';
 
     /// <summary>
     /// The choices offered while somebody is still typing. An empty query offers the library, so
@@ -117,6 +167,17 @@ public static class TitleMatcher
     private static IReadOnlyList<LibraryTitle> Shortlist(IReadOnlyList<LibraryTitle> titles) =>
         [.. titles.Take(MaxChoices)];
 
-    private static string Normalize(string value) =>
-        string.Join(' ', value.ToLowerInvariant().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    /// <summary>
+    /// Lower case, with every run of anything but letters and digits read as one space. An id, a
+    /// catalogue name and what somebody said differ in their punctuation and in nothing that picks a
+    /// film: "pirates-of-the-caribbean", "Pirates of the Caribbean:" and "pirates_of_the_caribbean"
+    /// are the same words.
+    /// </summary>
+    private static string Normalize(string value)
+    {
+        var text = new StringBuilder(value.Length);
+        foreach (var c in value.ToLowerInvariant())
+            text.Append(char.IsLetterOrDigit(c) ? c : ' ');
+        return string.Join(' ', text.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
 }

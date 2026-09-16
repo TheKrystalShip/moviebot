@@ -686,13 +686,23 @@ Anything said to the bot that the gate does not read is a turn of the agent loop
   every tool that changes something, or an honest "I've paused it" is contradicted. `RoomIdRequest`
   sends back a reply asking the room for an id the tools find themselves: the model repeats such a
   reply from its own conversation, and a line in the instructions does not stop it on every history.
+  `RoomLoadingClaim` sends back "Loading Heat..." on a turn that put nothing on, which has no subject
+  for the first-person check to find.
+- **`load_title` reads what the model wrote the way the film is listed, not the way it was typed.**
+  The model retypes ids with the punctuation changed, words doubled and the year invented, so the
+  matcher compares words and ignores punctuation. A film named whole under a year nobody said is put
+  on, because the year is the model's; when the person said a number, the year may be what picks the
+  film, so it is offered by name and not put on. Replies to a film that could not be picked are
+  written for the model: the films it could have been by name, earliest first, never the `/watch`
+  wording.
 - **A room's conversation lasts as long as the room keeps talking.** Once it has been silent for
   `Assistant:IdleResetMinutes`, the next request or room verb starts it over with the store's
   `Reset`, which replays nothing before it and keeps every turn on disk. Requests to a room are
   mostly unrelated, and a follow-up comes within minutes of what it follows.
 - **A room's conversation is part of what is measured.** A request that routes correctly in a fresh
   conversation can fail in a room's real one, because earlier replies are examples the model copies.
-  A routing failure seen live is reproduced by replaying that room's turns before it is judged fixed.
+  A routing failure seen live is reproduced by replaying that room's turns before it is judged fixed;
+  `tests/MovieBot.Tests/Replays` holds those turns and `RoomReplayRoutingTests` replays them.
 - **The harness around the loop is shared, and the room is not.** Reading `system.md` and
   `tools.json`, the catalog's agreement with `RoomTools.Names`, proposal tokens, the reply checks and
   compaction come from `TheKrystalShip.Agent` in tks-agent. What the tools do, which of them wait for a

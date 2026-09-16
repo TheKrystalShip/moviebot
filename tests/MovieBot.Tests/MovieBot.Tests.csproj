@@ -24,6 +24,11 @@
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
   </ItemGroup>
 
+  <!-- Rooms' real conversations, replayed against the live model before a routing failure seen live counts as fixed. -->
+  <ItemGroup>
+    <None Include="Replays/*.jsonl" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../../src/MovieBot.Api/MovieBot.Api.csproj" />
     <ProjectReference Include="../../src/MovieBot.Bot/MovieBot.Bot.csproj" />
