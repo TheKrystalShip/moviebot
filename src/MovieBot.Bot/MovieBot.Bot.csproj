@@ -8,7 +8,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Bot</RootNamespace>
     <AssemblyName>moviebot-bot</AssemblyName>
-    <Version>0.16.1</Version>
+    <Version>0.16.3</Version>
 
     <!-- The JIT is where this process's memory goes, not the heap, and a method compiled once at
          full optimisation is held once. Startup time is nothing to a worker that runs for weeks,
@@ -33,11 +33,16 @@
   <ItemGroup>
     <PackageReference Include="Discord.Net" Version="3.20.1" />
 
+    <!-- Discord.Net's libdave binding, built by tks-agent's packaging/discord-net-dave with user ids
+         NUL-terminated. The release passes them unterminated, and libdave then reads some speakers'
+         ids as users who do not exist and cannot decrypt a word they say. -->
+    <PackageReference Include="Discord.Net.Dave" Version="3.20.2-tks.1" />
+
     <!-- Listening in a voice channel: utterances, the wake word, the silence that ends a sentence.
          The package belongs to no product, and this bot supplies what only it can answer — where
          the recogniser is, and what a spoken request does to a room. It resolves libdave by name at
          runtime for the encryption every voice call requires. -->
-    <PackageReference Include="TheKrystalShip.Discord.Voice" Version="1.4.0" />
+    <PackageReference Include="TheKrystalShip.Discord.Voice" Version="1.4.1" />
 
     <!-- The client and wire contract for moviebot-speech's socket, and the rules about which parts
          of a transcript are speech. A few kilobytes and no native code: the model is in the other

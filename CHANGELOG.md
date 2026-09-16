@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.44.2] - 2026-09-16
+
+### Fixed
+
+- `/voice leave` takes the bot out of the voice channel. It reported leaving while Discord kept the
+  bot listed in the channel, because the connection was closed without telling Discord.
+- A voice session that cannot decrypt anybody's speech rejoins by itself. The silence every client
+  sends after speaking passes through undecrypted, and it kept such a session looking healthy for as
+  long as people talked into it. Both through `TheKrystalShip.Discord.Voice` 1.4.1.
+- The bot hears every speaker in a voice channel. Discord.Net's libdave binding passes user ids
+  without a terminating NUL, so a speaker whose id is shorter than one formatted just before it was
+  read by libdave as a different user, and every frame they sent failed to decrypt while the rest of
+  the room was heard. The bot pins `Discord.Net.Dave` 3.20.2-tks.1, built with the terminator.
+
 ## [1.44.1] - 2026-09-16
 
 ### Fixed
