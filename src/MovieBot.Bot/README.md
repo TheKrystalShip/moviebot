@@ -30,7 +30,9 @@ into place on every change.
 
 The assistant adds a third: `assistant.db`, each voice channel's conversation with the assistant,
 one conversation per room, which is what lets "why did it stop?" be answered a minute after somebody
-said "pause". Beside it the bot writes `llm-warmup.json`, the request that warms the model, for the
+said "pause". A room silent for `Assistant__IdleResetMinutes` starts its conversation over on the
+next thing said in it, so the model is never handed an evening-old exchange to copy; every turn
+stays in the file. Beside it the bot writes `llm-warmup.json`, the request that warms the model, for the
 model's own unit to replay when it starts.
 
 ## Configuration
@@ -56,6 +58,7 @@ model's own unit to replay when it starts.
 | `Assistant__OfferMinutes` | no | How long a proposed download, fetch, wish or keep waits for somebody to agree. Defaults to 10. |
 | `Assistant__ConfirmWindowSeconds` | no | How long the bot listens for a spoken yes or no to a proposal without the trigger. Defaults to 20; 0 leaves the buttons as the only way to agree. |
 | `Assistant__LibraryInContext` | no | The most films of the library written into every turn. Defaults to 60. |
+| `Assistant__IdleResetMinutes` | no | How long a room's conversation sits silent before the next request or room verb starts it over. Defaults to 15; 0 keeps one conversation for the life of the room. |
 | `Llm__Endpoint` | no | Where the model answers. `appsettings.json` carries moviebot-llm's `http://127.0.0.1:8190`, with the model's context window and a temperature of 0. |
 | `Speech__SocketPath` | no | Where moviebot-speech answers. Defaults to `/run/moviebot-speech/speech.sock`, the same key the speech host reads. |
 | `Notify__MinimumSource` | no | The least a release's source may be for a film to count as available: `Web` by default, so a camcorder recording of a film in cinemas does not announce it. |

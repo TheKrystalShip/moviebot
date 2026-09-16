@@ -686,6 +686,10 @@ Anything said to the bot that the gate does not read is a turn of the agent loop
   every tool that changes something, or an honest "I've paused it" is contradicted. `RoomIdRequest`
   sends back a reply asking the room for an id the tools find themselves: the model repeats such a
   reply from its own conversation, and a line in the instructions does not stop it on every history.
+- **A room's conversation lasts as long as the room keeps talking.** Once it has been silent for
+  `Assistant:IdleResetMinutes`, the next request or room verb starts it over with the store's
+  `Reset`, which replays nothing before it and keeps every turn on disk. Requests to a room are
+  mostly unrelated, and a follow-up comes within minutes of what it follows.
 - **A room's conversation is part of what is measured.** A request that routes correctly in a fresh
   conversation can fail in a room's real one, because earlier replies are examples the model copies.
   A routing failure seen live is reproduced by replaying that room's turns before it is judged fixed.

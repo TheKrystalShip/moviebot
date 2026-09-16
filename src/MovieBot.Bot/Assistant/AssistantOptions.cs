@@ -38,6 +38,12 @@ public sealed class AssistantOptions
     public int LibraryInContext { get; set; } = 60;
 
     /// <summary>
+    /// How long a room's conversation may sit silent, in minutes, before the next thing said in it
+    /// starts the conversation over. Zero never starts it over.
+    /// </summary>
+    public int IdleResetMinutes { get; set; } = 15;
+
+    /// <summary>
     /// Where the conversation is written. Empty means the state directory systemd hands the service.
     /// </summary>
     public string DatabasePath { get; set; } = "";

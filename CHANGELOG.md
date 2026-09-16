@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.44.0] - 2026-09-16
+
+### Changed
+
+- A room's conversation with the assistant starts over once the room has been silent for
+  `Assistant:IdleResetMinutes`, 15 by default. The model was replaying every turn since the room's
+  first request, which in the live room was more than half of each request by the next morning and
+  handed it last night's replies to copy. Every turn stays in `assistant.db`; the model is simply
+  not shown what came before the silence. A room verb after the gap starts the conversation over
+  too, so the pause it records is still there for "why did it stop?".
+
 ## [1.43.1] - 2026-09-16
 
 ### Fixed

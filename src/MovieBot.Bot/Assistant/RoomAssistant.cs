@@ -28,6 +28,13 @@ public sealed record RoomAnswer(
 /// about rather than whatever the speaker last said somewhere else.
 /// </para>
 /// <para>
+/// <b>A room that has gone quiet starts over.</b> Requests to a room are mostly unrelated to each
+/// other, and this model copies its own earlier replies: last night's "I need the IMDb ID" comes back
+/// as this morning's answer to a different request. A follow-up comes within minutes of what it
+/// follows, so once the room has been silent for <see cref="AssistantOptions.IdleResetMinutes"/> the
+/// next turn, or the next room verb, replays nothing that came before. The history stays in the store.
+/// </para>
+/// <para>
 /// <b>Thinking is off, and says so.</b> This model reasons when a request leaves the template's
 /// variable unset, which measured 2.19 s to a tool call against 0.77 s with it off. The loop sends the
 /// variable on every request.
@@ -50,6 +57,7 @@ public sealed class RoomAssistant(
     TimeProvider clock,
     IOptions<LlmAgentOptions> agentOptions,
     IOptions<ConversationOptions> conversationOptions,
+    IOptions<AssistantOptions> assistantOptions,
     ILoggerFactory loggers)
 {
     private readonly ILogger _logger = loggers.CreateLogger<RoomAssistant>();
@@ -57,6 +65,7 @@ public sealed class RoomAssistant(
     public async Task<RoomAnswer> AskAsync(RoomTurn turn, string said, CancellationToken ct)
     {
         var started = clock.GetTimestamp();
+        StartOverIfIdle(turn);
         var prompt = prompts.Read();
         var context = await facts.DescribeAsync(turn, ct);
         var tools = toolbox.For(turn);
@@ -136,6 +145,25 @@ public sealed class RoomAssistant(
         PendingConfirmationNote.Noted(reply, tools.Proposed.Count);
 
     /// <summary>
+    /// Starts the room's conversation over when nothing has been written to it for the idle window.
+    /// A room verb counts as something written, so "why did it stop?" after a pause still sees the pause.
+    /// </summary>
+    private void StartOverIfIdle(RoomTurn turn)
+    {
+        var idle = assistantOptions.Value.IdleResetMinutes;
+        if (idle <= 0) return;
+
+        var room = conversations.ListConversations(turn.ConversationId)
+            .FirstOrDefault(c => c.ConversationId == turn.ConversationId);
+        if (room is null || clock.GetUtcNow() - room.LastActivityAt < TimeSpan.FromMinutes(idle)) return;
+
+        conversations.Reset(turn.ConversationId);
+        _logger.LogInformation(
+            "Assistant: {Room} was quiet since {LastActivity:u}, so {Speaker} starts its conversation over",
+            turn.ConversationId, room.LastActivityAt, turn.SpeakerName);
+    }
+
+    /// <summary>
     /// Writes a room verb the gate carried out into the room's conversation, as a turn that called the
     /// tool the model would have called. Best effort: the film has already moved, and a record that
     /// could not be written is not a reason to say otherwise.
@@ -144,6 +172,7 @@ public sealed class RoomAssistant(
     {
         try
         {
+            StartOverIfIdle(turn);
             var now = clock.GetUtcNow();
             conversations.AppendTurn(new ConversationTurnRecord
             {

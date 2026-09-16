@@ -252,6 +252,51 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     }
 
     [Fact]
+    public async Task A_room_that_has_been_quiet_past_the_idle_window_replays_nothing_from_before()
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        Said(host, turn, "download the second one", "I need the IMDb ID.", DateTimeOffset.UtcNow.AddHours(-12));
+        host.Model.Answers.Enqueue(LlmResponse.Text("Nothing is loaded."));
+
+        await host.Assistant.AskAsync(turn, "what are we watching?", CancellationToken.None);
+
+        var sent = Assert.Single(host.Model.Requests);
+        Assert.DoesNotContain(sent, m => m.Content.Contains("IMDb", StringComparison.Ordinal));
+        Assert.Equal(2, host.Conversations.GetHistory(turn.ConversationId).Count(e => e.Kind == ConversationEntryKind.Turn));
+    }
+
+    [Fact]
+    public async Task A_room_still_talking_replays_what_it_just_said()
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        Said(host, turn, "search for heat", "Heat is in the library.", DateTimeOffset.UtcNow.AddMinutes(-2));
+        host.Model.Answers.Enqueue(LlmResponse.Text("Heat is from 1995."));
+
+        await host.Assistant.AskAsync(turn, "what year is it from?", CancellationToken.None);
+
+        var sent = Assert.Single(host.Model.Requests);
+        Assert.Contains(sent, m => m.Content.Contains("Heat is in the library.", StringComparison.Ordinal));
+    }
+
+    private static void Said(AssistantHost host, RoomTurn turn, string prompt, string reply, DateTimeOffset at) =>
+        host.Conversations.AppendTurn(new ConversationTurnRecord
+        {
+            ConversationId = turn.ConversationId,
+            UserDisplay = turn.SpeakerName,
+            StartedAt = at,
+            CompletedAt = at,
+            UserPrompt = prompt,
+            SystemPromptHash = "test",
+            Tools = [],
+            Iterations = 1,
+            Outcome = TurnOutcome.Ok,
+            Think = false,
+            Final = reply,
+        });
+
+    [Fact]
     public async Task A_turn_that_proposes_hands_the_proposal_back_for_the_chat_to_post()
     {
         var host = Host();
