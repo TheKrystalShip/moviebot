@@ -312,8 +312,11 @@ public sealed class RoomTools(
         if (films.Count == 0)
             return Tell($"The catalogue has no film matching \"{query}\"{(year is null ? "" : $" from {year}")}.");
 
+        // In the order the films came out. The index orders them by what people search for now, which
+        // puts the latest sequel above the film it follows, and "the second one" read off that list
+        // is whichever sequel is popular this week.
         var library = await api.ListTitlesAsync(ct);
-        return Tell(string.Join('\n', films.Take(MostRows).Select(f =>
+        return Tell(string.Join('\n', films.Take(MostRows).OrderBy(f => f.Year ?? int.MaxValue).Select(f =>
         {
             var here = library.FirstOrDefault(t =>
                 string.Equals(t.Film?.ImdbId, f.ImdbId, StringComparison.OrdinalIgnoreCase));
@@ -321,7 +324,7 @@ public sealed class RoomTools(
                    + (f.Starring is { Length: > 0 } cast ? $", starring {cast}" : "")
                    + (here is null ? "" : $", already in the library as {here.Id}")
                    + $" (imdb {f.ImdbId})";
-        })));
+        })), "Listed in the order they came out, earliest first.");
     }
 
     private async Task<string> SearchTrackerAsync(string? query, string? imdbId, CancellationToken ct)

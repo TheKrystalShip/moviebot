@@ -28,6 +28,10 @@ Environment=DOTNET_EnableDiagnostics=0
 # voice connection needs from the system.
 Environment=Voice__Enabled=true
 Environment=Speech__SocketPath=/run/moviebot-speech/speech.sock
+# Everything heard is written to the journal, including talk not addressed to the bot. On while the
+# trigger phrases are tuned against how the recogniser actually writes them; the bot warns about it
+# in the log when it starts.
+Environment=Voice__LogTranscripts=true
 
 # What is said that the room verbs do not cover goes to the model moviebot-llm holds, over
 # loopback, and is answered in the voice channel's chat. The conversation and the model's warm-up

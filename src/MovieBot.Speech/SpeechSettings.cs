@@ -43,10 +43,12 @@ public sealed class SpeechSettings
 
     /// <summary>How much of whisper's thirty-second window to encode, in encoder frames.</summary>
     /// <remarks>
-    /// Four seconds, at roughly fifty frames to the second. It is the difference between 183 ms and
-    /// 870 ms on this card, and four seconds is comfortably longer than any command anyone gives a
-    /// film — anything longer is truncated rather than refused, so the number is a ceiling on what
-    /// can be said in one breath rather than on what can be heard.
+    /// Eight seconds, at roughly fifty frames to the second. The whole thirty seconds costs 870 ms an
+    /// utterance on this card and eight costs 220 ms. Four costs 114 ms and is too short: a request to
+    /// the assistant, with the trigger in front of it, runs past four seconds, and whisper given a
+    /// clip longer than its window repeats phrases rather than stopping ("Pirates of the First
+    /// Pirates of the First"). Whatever runs past the window is still lost, so the number is a
+    /// ceiling on what can be said in one breath.
     /// </remarks>
-    public int AudioContextFrames { get; set; } = 200;
+    public int AudioContextFrames { get; set; } = 400;
 }

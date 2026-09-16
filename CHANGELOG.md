@@ -4,6 +4,36 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.43.0] - 2026-09-16
+
+### Fixed
+
+- A transcode no longer runs the host out of memory. The main pass read the source through one
+  demuxer feeding the video and every audio track, which runs at the pace of the fastest consumer
+  and queues the rest without bound: 9 MB a second on a 1080p rip with four audio tracks, so
+  hotbox killed the transcode a third of the way into the film and the hand-off started it again
+  from the beginning, every time. Each rendition now opens the source itself, which holds flat at a
+  few hundred megabytes and runs faster. `ReadAheadGuard` takes the furthest of the open
+  descriptors as the read position.
+- A pause after "hey moviebot," no longer hands the next thing said to the bot. At a 500 ms silence
+  gap that pause ended the sentence, leaving the trigger alone and the door open for whatever came
+  after it. The gap is 800 ms.
+- Remarks made while the bot waits for a yes or no to a proposal are no longer taken as answers and
+  asked about again. Anything that is neither spends the window silently; the buttons stay.
+- Requests longer than four seconds are no longer mangled. moviebot-speech encodes eight seconds of
+  audio (220 ms an utterance on the P2000, against 114 ms for four), and whisper given a clip
+  longer than its window repeated phrases instead of stopping.
+- A trigger heard in the opening of a sentence and misheard in the whole of it is answered, through
+  `TheKrystalShip.Discord.Voice` 1.4.0. The tone had played and nothing answered.
+- "Download the second Pirates of the Caribbean movie" downloads Dead Man's Chest. `search_catalogue`
+  lists films in the order they came out, where the index orders them by popularity and the model
+  took the second row, Dead Men Tell No Tales.
+
+### Changed
+
+- Transcripts of everything heard are logged on hotbox while the triggers are tuned
+  (`Voice__LogTranscripts` in the unit).
+
 ## [1.42.1] - 2026-09-15
 
 ### Fixed

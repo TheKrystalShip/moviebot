@@ -447,16 +447,22 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         }
 
         args.Add("-y");
-        args.Add("-probesize"); args.Add(ProbeWindow);
-        args.Add("-analyzeduration"); args.Add(ProbeWindow);
+
+        // Every rendition reads the source through a demuxer of its own. One demuxer feeding video
+        // and audio runs at the pace of the fastest of them and queues the rest in memory without
+        // limit: measured on a 1080p Blu-ray rip with four audio tracks, 9 MB a second of wall
+        // clock, so a feature exhausts an 8 GB host a third of the way in and is killed. Separate
+        // demuxers each wait on their own consumer and hold flat at a few hundred megabytes, and
+        // the transcode runs faster for no longer copying the backlog around.
+        // Input 0 is the video; input i + 1 is audio rendition i.
 
         // Decode on NVDEC. Software-decoding a 16 Mbps HEVC Main 10 stream costs 35 s of CPU per
         // 40 s of film against 5.5 s here, and saturates every core for the length of a feature
         // while the GPU sits half idle. Frames land in system memory, which is where the OpenCL
         // tone-map filter wants them anyway.
-        args.Add("-hwaccel"); args.Add("cuda");
-
-        args.Add("-i"); args.Add(options.SourcePath);
+        AddSourceInput(args, hardwareDecode: true);
+        foreach (var _ in audioStreams)
+            AddSourceInput(args, hardwareDecode: false);
 
         // --- video ---
         args.Add("-map"); args.Add($"0:{video.Index}");
@@ -487,7 +493,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         for (var i = 0; i < audioStreams.Count; i++)
         {
             var stream = audioStreams[i];
-            args.Add("-map"); args.Add($"0:{stream.Index}");
+            args.Add("-map"); args.Add($"{i + 1}:{stream.Index}");
             args.Add("-c:a"); args.Add("aac");
             args.Add("-b:a"); args.Add(stream.IsCommentary
                 ? options.CommentaryAudioBitrate
@@ -499,6 +505,14 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         }
 
         return args;
+    }
+
+    private void AddSourceInput(List<string> args, bool hardwareDecode)
+    {
+        args.Add("-probesize"); args.Add(ProbeWindow);
+        args.Add("-analyzeduration"); args.Add(ProbeWindow);
+        if (hardwareDecode) { args.Add("-hwaccel"); args.Add("cuda"); }
+        args.Add("-i"); args.Add(options.SourcePath);
     }
 
     private IEnumerable<string> HlsOutput(string directory) =>

@@ -154,10 +154,14 @@ public sealed class ReadAheadGuard(
     ///
     /// The descriptor is found by resolving each of the process's open files rather than assuming
     /// an index: ffmpeg opens the source somewhere among its own pipes and outputs, and which
-    /// number it lands on is not ours to predict.
+    /// number it lands on is not ours to predict. The transcode opens the source once per
+    /// rendition, so every descriptor on it is read and the furthest one is the position: that is
+    /// the reader closest to running past what has arrived.
     /// </summary>
     private long ReadPosition(int pid)
     {
+        var furthest = -1L;
+
         try
         {
             var full = Path.GetFullPath(sourcePath);
@@ -178,10 +182,10 @@ public sealed class ReadAheadGuard(
                 {
                     if (!line.StartsWith("pos:", StringComparison.Ordinal)) continue;
 
-                    return long.TryParse(line[4..].Trim(), NumberStyles.Integer,
-                        CultureInfo.InvariantCulture, out var position)
-                        ? position
-                        : -1;
+                    if (long.TryParse(line[4..].Trim(), NumberStyles.Integer,
+                            CultureInfo.InvariantCulture, out var position))
+                        furthest = Math.Max(furthest, position);
+                    break;
                 }
             }
         }
@@ -189,8 +193,9 @@ public sealed class ReadAheadGuard(
                                    or DirectoryNotFoundException)
         {
             // The process ended between listing and reading, which the caller handles.
+            return -1;
         }
 
-        return -1;
+        return furthest;
     }
 }

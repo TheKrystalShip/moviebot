@@ -49,7 +49,7 @@ model's own unit to replay when it starts.
 | `Notify__SweepMinutes` | no | How often the tracker is asked about every film on the list. Defaults to 60. |
 | `Voice__Enabled` | no | Whether the bot may listen in a voice channel at all. Off by default, because everyone in a channel it joins is heard. On, it still joins only when somebody runs `/voice join`. |
 | `Voice__Triggers` | no | What addresses the bot, comma-separated. `appsettings.json` carries `hey moviebot, hey movie bot`, because the recogniser writes the name both ways. The recogniser is primed with the name alone and never with a trigger: whisper answers noise with the sentence it was primed with, so a trigger in the priming makes a breath address the bot. |
-| `Voice__SilenceGapMs` | no | How long somebody has to stop talking before the sentence counts as finished. `appsettings.json` carries 500: it is most of the wait between saying "pause" and the film stopping, and the room verbs are short enough that a shorter pause does not cut anybody off mid-command. At 800 a spoken pause took 1.07 to 1.26 s. |
+| `Voice__SilenceGapMs` | no | How long somebody has to stop talking before the sentence counts as finished. `appsettings.json` carries 800. It is most of the wait between saying "pause" and the film stopping — a spoken pause takes 1.07 to 1.26 s at 800 — but a shorter gap ends the sentence at the pause people leave after "hey moviebot,", which turns one request into the trigger said alone and hands whatever the speaker says next to the bot as the request. |
 | `Voice__LogTranscripts` | no | Whether what was heard is written to the log. Off by default: a voice channel is full of things nobody said to the bot. |
 | `Assistant__Enabled` | no | Whether a spoken request that is not a room verb is put to the model. Off by default; off, those requests are answered by nothing. |
 | `Assistant__PromptDirectory` | no | Where `system.md` and `tools.json` are read from, relative to the binary. Defaults to `prompts`, which is where the build puts them. |
@@ -194,7 +194,9 @@ pick's, a wish is `/notify`'s and a keep is `/keep`'s.
   film act immediately, as the person who asked. A download, a fetched subtitle, a wish and a keep
   are posted as a proposal with two buttons, and a spoken yes or no within
   `Assistant:ConfirmWindowSeconds` is the same answer. One token backs both, so whichever comes
-  first acts and the other finds it spent. Anyone may agree; the act is done as whoever asked, so
+  first acts and the other finds it spent. The window takes the next thing its speaker says, and
+  anything that is neither a yes nor a no spends it without a word: in a room watching a film that
+  is a remark about the film, and asking again would open a window that takes the next remark too. Anyone may agree; the act is done as whoever asked, so
   the download pings them and the wish is theirs. A proposal is held in memory and expires.
 - **A download is always of a release the model was shown.** A torrent id it writes without a
   search having offered it is refused, and a release of a film the library already holds is refused

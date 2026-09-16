@@ -267,6 +267,12 @@ These are measured against real Blu-ray rips, not assumed. Changing one means re
   source costs 35 s of CPU per 40 s of film against 5.5 s on the GPU, and pins every core for
   the length of a feature. Frames land in system memory, which is where `tonemap_opencl`
   wants them.
+- **Every rendition reads the source through its own demuxer.** The main pass opens the file once
+  for the video and once per audio track. One demuxer shared between them runs at the pace of the
+  fastest consumer and queues packets for the slower ones in memory without bound — measured at
+  9 MB a second on a 1080p rip with four audio tracks, which exhausts hotbox a third of the way
+  into a feature and gets the transcode killed. `ReadAheadGuard` takes the furthest of the
+  descriptors as the read position.
 - **The concurrency ceiling belongs to the card, and is measured rather than reasoned about.**
   `Handoff__MaxConcurrentIngests` is set per host, because a GPU saturates at an aggregate rate
   and jobs past that point only divide the same throughput into thinner slices. What matters is

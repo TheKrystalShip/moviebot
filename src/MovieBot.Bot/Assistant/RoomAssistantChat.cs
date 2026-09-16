@@ -19,7 +19,7 @@ public interface IRoomAssistant
     /// <summary>Starts answering a request and returns without waiting for the answer.</summary>
     void Answer(VoiceCommand command);
 
-    /// <summary>Reads a spoken reply to a proposal: yes carries it out, no drops it, anything else asks again.</summary>
+    /// <summary>Reads a spoken reply to a proposal: yes carries it out, no drops it, anything else leaves it to the buttons.</summary>
     Task DecideAsync(VoiceCommand command, VoiceWaiting waiting, CancellationToken ct);
 
     /// <summary>Writes a room verb the gate carried out into the room's conversation.</summary>
@@ -170,21 +170,10 @@ public sealed class RoomAssistantChat(
                 return;
             }
 
-            if (waiting.Asked < 2)
-            {
-                attention.Expect(command.SpeakerId, command.ChannelId, waiting with
-                {
-                    Until = clock.GetUtcNow() + TimeSpan.FromSeconds(options.Value.ConfirmWindowSeconds),
-                    Asked = waiting.Asked + 1,
-                });
-
-                await chat.SendMessageAsync(
-                    Fit($"{Heard(command)}\nI didn't catch a clear yes or no to {waiting.Describes}. "
-                        + "Say yes to go ahead, or no to drop it. The buttons work too."),
-                    allowedMentions: AllowedMentions.None);
-                await chimes.PlayAsync(command.GuildId, VoiceChime.Listening, ct);
-            }
-
+            // Anything else is the room talking, not an answer: the window takes the next thing its
+            // speaker says, and in a room watching a film that is usually a remark about the film.
+            // It is not asked again, because asking again opens another window that takes the next
+            // remark too. The window is spent, and the buttons stay the way to agree.
             return;
         }
 

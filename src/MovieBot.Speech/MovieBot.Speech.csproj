@@ -8,7 +8,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Speech</RootNamespace>
     <AssemblyName>moviebot-speech</AssemblyName>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
 
     <!-- The same reasoning as the bot's: this runs for weeks, so a method is compiled once at full
          optimisation rather than tiered up, and the code heap is held once. -->

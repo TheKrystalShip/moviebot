@@ -26,6 +26,16 @@ public sealed class LiveModelFactAttribute : FactAttribute
     }
 }
 
+/// <summary>The same condition as <see cref="LiveModelFactAttribute"/>, for a request said several ways.</summary>
+public sealed class LiveModelTheoryAttribute : TheoryAttribute
+{
+    public LiveModelTheoryAttribute()
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(LiveModelFactAttribute.Variable)))
+            Skip = $"{LiveModelFactAttribute.Variable} names no model to route against.";
+    }
+}
+
 /// <summary>
 /// Which tool the model reaches for, given what the room is doing. Each request is one a room verb
 /// does not cover, because those never reach the model.
@@ -105,6 +115,22 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
         Assert.Contains(calls, c => c.Name.Name is RoomTools.SearchTracker);
         Assert.Equal(RoomTools.DownloadFilm, Assert.Single(answer.Proposed).Kind);
         Assert.DoesNotContain(calls, c => RoomTools.RoomMoves.Contains(c.Name.Name));
+    }
+
+    [LiveModelTheory]
+    [InlineData("Download the second Pirates of the Caribbean movie")]
+    [InlineData("get pirates of the caribbean 2")]
+    public async Task A_film_named_by_its_place_in_a_series_is_found_and_proposed(string said)
+    {
+        var turn = await RoomAsync(SessionFixture.Heat, at: 300, paused: false);
+
+        var answer = await _host.Assistant.AskAsync(turn, said, CancellationToken.None);
+
+        output.WriteLine($"{string.Join(", ", Calls(turn).Select(c => $"{c.Name}({string.Join(", ", c.Arguments.Select(a => $"{a.Key}={a.Value}"))})"))}; "
+                         + $"proposed: {string.Join("; ", answer.Proposed.Select(p => p.Describes))}; reply: {answer.Text}");
+        var proposal = Assert.Single(answer.Proposed);
+        Assert.Equal(RoomTools.DownloadFilm, proposal.Kind);
+        Assert.Contains("Dead Man", proposal.Describes);
     }
 
     [LiveModelFact]
