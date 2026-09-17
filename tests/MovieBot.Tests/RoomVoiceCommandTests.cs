@@ -215,6 +215,6 @@ public sealed class RoomVoiceCommandTests(SessionFixture fixture) : IClassFixtur
 
     private static VoiceCommand Said(ulong channel, string text) => new(
         SpeakerId: 4242, SpeakerName: "Haru", GuildId: 1, ChannelId: channel,
-        Text: text, Transcript: "hey moviebot, " + text, Spoken: TimeSpan.FromSeconds(1),
+        Text: text, Transcript: "okay computer, " + text, Spoken: TimeSpan.FromSeconds(1),
         EndedAt: DateTimeOffset.UtcNow);
 }

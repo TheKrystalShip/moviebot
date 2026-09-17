@@ -17,13 +17,12 @@ namespace TheKrystalShip.MovieBot.Bot.Voice;
 /// </para>
 /// <para>
 /// <b>Primed with the name, and never with the trigger.</b> "MovieBot" is not a word a general
-/// recogniser has any reason to produce, and a request whose trigger was misheard is not a request at
-/// all — so the name is put to it as though it had just been said. The trigger phrase itself is kept
-/// out: given a moment of breath, hiss or a keyboard, whisper hands back whichever sentence it was
-/// primed with, and a priming that is the trigger turns every such noise into somebody addressing the
-/// bot. Measured on hotbox's recogniser against synthetic noise, priming with the trigger phrases came
-/// back as "Hey moviebot." for 21 clips in 72 and priming with the name for none, while both heard all
-/// 30 spoken requests.
+/// recogniser has any reason to produce, and people name the bot in what they ask of it, so the name
+/// is put to it as though it had just been said. The trigger phrase itself is kept out: given a moment
+/// of breath, hiss or a keyboard, whisper hands back whichever sentence it was primed with, and a
+/// priming that is the trigger turns every such noise into somebody addressing the bot. Measured on
+/// hotbox's recogniser against synthetic noise, priming with a trigger phrase came back as that trigger
+/// for 21 clips in 72 and priming with the name for none, while both heard all 30 spoken requests.
 /// </para>
 /// </remarks>
 public sealed class MovieBotSpeechToText : ISpeechToText

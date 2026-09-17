@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.48.0] - 2026-09-17
+
+### Changed
+
+- The bot (0.20.0) answers to "okay computer". "Hey MovieBot" went unheard often enough that people
+  repeated simple commands several times: whisper reads the one-syllable "hey" as "A", "Pay" or "K"
+  inside a three-second scan window, and the coined name as "movie box" or "movie bought". Measured on
+  hotrod's recogniser (the same small.en model as hotbox) with fourteen kokoro voices, each command
+  inside open-mic chat and scanned as the listener scans it:
+
+  | trigger | commands found, clean | with room noise | windows found, with noise |
+  |---|---|---|---|
+  | hey moviebot | 12/14 | 10/14 | 35/70 |
+  | okay moviebot | 12/14 | 10/14 | 42/70 |
+  | hey computer | 13/14 | 11/14 | 35/70 |
+  | hey jarvis | 13/14 | 12/14 | 36/70 |
+  | okay popcorn | 14/14 | 13/14 | 55/70 |
+  | **okay computer** | **14/14** | **14/14** | **64/70** |
+
+  Seven near-miss sentences ("okay, come on", "my computer crashed, okay", "okay, compute the total")
+  in every voice, clean and noisy, triggered only where the sentence names the Radiohead album. The
+  command read got all 56 test requests right after the new trigger, primed or not.
+
 ## [1.47.0] - 2026-09-17
 
 ### Changed

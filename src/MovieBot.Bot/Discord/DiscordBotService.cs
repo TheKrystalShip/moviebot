@@ -228,7 +228,7 @@ public sealed class DiscordBotService(
         {
             await command.Channel.SendMessageAsync(
                 $"Listening in **{channel.Name}**, because {name} asked. Everyone in the channel is heard "
-                + "while I'm there. Say \"hey MovieBot, pause\" to stop the film"
+                + "while I'm there. Say \"okay computer, pause\" to stop the film"
                 + (assistant.IsEnabled ? ", or ask me for something else and I'll answer here" : "")
                 + ". `/voice leave` sends me away.",
                 allowedMentions: AllowedMentions.None);

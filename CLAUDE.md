@@ -632,7 +632,7 @@ A release name is what a film arrives as. It is not what the film is called.
 
 ## Listening in a voice channel
 
-`/voice join` brings the bot into a voice channel to listen, and "hey MovieBot, pause" stops the
+`/voice join` brings the bot into a voice channel to listen, and "okay computer, pause" stops the
 film. `src/MovieBot.Bot/README.md` is the authority for the surface; these are the rules it rests on.
 
 - **The trigger is heard mid-conversation, and a verb acts before the room goes quiet.** Each

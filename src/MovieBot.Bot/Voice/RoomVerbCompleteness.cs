@@ -8,7 +8,7 @@ namespace TheKrystalShip.MovieBot.Bot.Voice;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>People watching together do not go quiet after "hey MovieBot, pause".</b> They carry on talking
+/// <b>People watching together do not go quiet after "okay computer, pause".</b> They carry on talking
 /// about the film, and waiting for a pause leaves it playing over the moment somebody wanted it
 /// stopped. The voice pipeline reads a request as it grows and asks this whether it is already whole.
 /// </para>
