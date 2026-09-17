@@ -160,7 +160,12 @@ ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff'
 
   The consequence is worth stating plainly: **hotrod's nginx is in the path for every byte of
   every film.** The services, the GPU, the media and the state are all on hotbox, but the ingress
-  is not, because there is one public address on this network and it is spoken for.
+  is not, because there is one public address on this network and it is spoken for. It also holds
+  the segments, so a synchronised room costs one copy across the switch. That cache is why a film's
+  bytes are opened by a ticket in the URL and never by an `Authorization` header: the header is not
+  part of the cache key, so a response kept from a request carrying one would be handed to the next
+  request for that URL whether or not it proved anything. Segments have their own location because
+  caching needs buffering on and a growing playlist needs it off.
 - **A 502 in the second after an nginx reload is usually the old worker.** A reload lets the
   workers already running drain rather than killing them, so both configurations answer for a
   moment. The error log names the upstream it tried, which is what tells a stale worker apart
@@ -198,6 +203,11 @@ ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff'
   a test host's media root, for one — and the service silently points somewhere else.
 - **Playlists for a transcoding title are `no-store`.** A cached growing playlist makes the film
   appear to end early, which looks exactly like a broken transcode.
+- **A film's bytes are opened by a media ticket, everything else by the room token.** The token says
+  who somebody is, which a segment has no use for; the ticket names one title and an hour, is the
+  same string for every viewer of that film, and so makes their requests one cacheable URL. A client
+  sends one or the other and never both: a shared cache refuses to store a response to a request
+  carrying the header. `docs/api-contract.md` is the authority.
 - **Media answers HEAD as well as GET.** Browsers probe a URL before fetching it, and a 405 there
   reads as the file being unavailable.
 - **CORS reflects the origin rather than enumerating one.** The Activity is served from Discord's
@@ -252,6 +262,25 @@ These are measured against real Blu-ray rips, not assumed. Changing one means re
 - **Playlists are `EVENT`, not `VOD`.** That is the whole mechanism behind playback starting
   seconds in. ffmpeg appends `#EXT-X-ENDLIST` on completion, so the playlist becomes a normal
   VOD by itself.
+- **A film is written at two sizes, and every rung is cut on the same keyframe expression.** A
+  player can only drop to a rung that exists, and a viewer who cannot sustain the top bitrate stops
+  for good at whatever second the buffer empties. `v0` is the source's own size and `v1` is 1280
+  wide, and both are forced to a keyframe on each segment boundary so segment *n* of one opens on
+  the same frame as segment *n* of the other, which is what makes a switch mid-film seamless. A
+  source no wider than the step-down keeps one rung, because upscaling spends a second copy of the
+  film on no more picture. The ladder stops at two: every rung is a full copy on a disk that holds
+  the whole library.
+- **Every rung reads the source through a demuxer of its own**, for the same reason each audio
+  rendition does. One demuxer feeding several outputs runs at the pace of the fastest and queues
+  the rest in memory without limit.
+- **A rung advertises the size it is encoded at**, because a player sizes its buffer from what it
+  is told. A film with a single rung states no size on it, and that rung is read as the source's
+  own size — so a manifest never has to be rewritten to say what it already implies.
+- **Segments are two seconds.** A segment is the unit a stall is measured in: a player abandons one
+  that does not arrive in time and refetches the whole thing, so the length caps how much a slowed
+  path has to carry in one go — around two megabytes at the top rung. Changing it means re-measuring
+  against a real rip, because the GOP is pinned to match and it is also how often a keyframe is paid
+  for.
 - **`headSeconds` is the shortest of the written playlists, read from the `#EXTINF` sums** — not
   ffmpeg's own progress. A frame the encoder has read is not watchable until its segment is
   closed and listed, and video that exists without its audio is not playable at all.

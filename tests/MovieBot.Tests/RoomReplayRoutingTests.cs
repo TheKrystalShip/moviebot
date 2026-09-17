@@ -89,7 +89,7 @@ public sealed class RoomReplayRoutingTests(SessionFixture fixture, ITestOutputHe
                 Height = 800,
                 SourceCodec = "hevc",
                 SourceHdr = "sdr",
-                Renditions = [new Rendition { Name = "800p", BitrateKbps = 9000, Uri = "v0/index.m3u8" }]
+                Renditions = [new Rendition { Name = "800p", BitrateKbps = 9000, Width = 1920, Height = 800, Uri = "v0/index.m3u8" }]
             },
             Audio = [],
             Subtitles = []

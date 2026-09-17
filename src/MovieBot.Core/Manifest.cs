@@ -300,7 +300,27 @@ public sealed record Rendition
 {
     public required string Name { get; init; }
     public required int BitrateKbps { get; init; }
+
+    /// <summary>
+    /// What this rung is encoded at, which is not always what the source is. A player picks a rung
+    /// by bitrate and sizes its buffer by resolution, so each rung states its own dimensions.
+    ///
+    /// Zero where the document carries none, which is how a film with a single rung is described:
+    /// that rung is the source's own size, and <see cref="SizeIn"/> is what reads it. Absent from
+    /// the document when zero, because a manifest is rewritten in place whenever a film gains a
+    /// subtitle and a zero on disk reads as a resolution the film has.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Width { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Height { get; init; }
+
     public required string Uri { get; init; }
+
+    /// <summary>This rung's size: its own where it states one, the source's where it does not.</summary>
+    public (int Width, int Height) SizeIn(VideoInfo video) =>
+        Width > 0 && Height > 0 ? (Width, Height) : (video.Width, video.Height);
 }
 
 public sealed record AudioTrack

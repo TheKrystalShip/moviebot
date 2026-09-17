@@ -51,9 +51,14 @@ export function buildMasterPlaylist(manifest: Manifest): MasterPlaylist {
   const audioAttribute = manifest.audio.length > 0 ? `,AUDIO="${AudioGroupId}"` : '';
 
   for (const rendition of manifest.video.renditions) {
+    // The rung's own size where it states one, since a player sizes its buffer from what it is
+    // told. A film with a single rung states none, and that rung is the source's own size.
+    const width = rendition.width && rendition.height ? rendition.width : manifest.video.width;
+    const height = rendition.width && rendition.height ? rendition.height : manifest.video.height;
+
     lines.push(
       `#EXT-X-STREAM-INF:BANDWIDTH=${Math.round(rendition.bitrateKbps * 1000)},` +
-        `RESOLUTION=${manifest.video.width}x${manifest.video.height}${audioAttribute}`
+        `RESOLUTION=${width}x${height}${audioAttribute}`
     );
     lines.push(media(rendition.uri));
   }

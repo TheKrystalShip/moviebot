@@ -156,6 +156,18 @@ app.MapGet("/api/titles", (TitleLibrary library) => Results.Ok(library.List()));
 app.MapGet("/api/titles/{id}", (string id, TitleLibrary library) =>
     library.Get(id) is { } manifest ? Results.Ok(manifest) : Results.NotFound());
 
+// What a player then carries on the film's own bytes, in place of who it is. Minted per request
+// rather than written into the manifest: the manifest is a file on disk that outlives any key.
+app.MapGet("/api/titles/{id}/ticket", (
+    string id, TitleLibrary library, IOptions<AuthOptions> auth, TimeProvider clock) =>
+{
+    if (library.Get(id) is null) return Results.NotFound();
+
+    var now = clock.GetUtcNow();
+    return Results.Ok(new MediaTicketReply(
+        MediaTicket.Issue(id, auth.Value, now), MediaTicket.ExpiresAt(now)));
+});
+
 app.MapSubtitles();
 
 // Every room, for the bot: it holds no state of its own, so what to say about rooms it reads

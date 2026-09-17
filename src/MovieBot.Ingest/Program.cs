@@ -69,8 +69,9 @@ public static class Program
         var outputRoot = Path.Combine(Directory.GetCurrentDirectory(), "media");
         string? id = null;
         var bitrate = "9M";
+        var stepDown = "4M";
         var cq = 19;
-        var segment = 4;
+        var segment = 2;
         bool? toneMap = null;
         var force = false;
         var dryRun = false;
@@ -90,6 +91,9 @@ public static class Program
                     break;
                 case "--bitrate":
                     bitrate = Next(args, ref i, arg);
+                    break;
+                case "--step-down":
+                    stepDown = Next(args, ref i, arg);
                     break;
                 case "--cq":
                     cq = int.Parse(Next(args, ref i, arg), CultureInfo.InvariantCulture);
@@ -134,6 +138,7 @@ public static class Program
             OutputRoot = outputRoot,
             Id = id,
             VideoBitrate = bitrate,
+            StepDownBitrate = stepDown,
             Cq = cq,
             SegmentSeconds = segment,
             ForceToneMap = toneMap,
@@ -161,12 +166,16 @@ public static class Program
         The playlists are EVENT type, so the film becomes playable within seconds while the
         transcode continues; the manifest carries how far the head has reached.
 
+        Two rungs are written: the source's own size, and a 1280-wide step-down a viewer whose
+        connection dips can fall back to. A source no wider than the step-down gets one rung.
+
         Options:
           -o, --out <dir>        Output root. Default: ./media
               --id <slug>        Output directory and manifest id. Default: derived from the title
-              --bitrate <rate>   Video bitrate, e.g. 9M or 4500k. Default: 9M
+              --bitrate <rate>   Top rung bitrate, e.g. 9M or 4500k. Default: 9M
+              --step-down <rate> Second rung bitrate, at 1280 wide. 0 writes one rung. Default: 4M
               --cq <n>           NVENC constant quality, lower is better. Default: 19
-              --segment <sec>    Segment length; the GOP is pinned to match. Default: 4
+              --segment <sec>    Segment length; the GOP is pinned to match. Default: 2
               --tonemap <mode>   auto|on|off. Default: auto, from the source transfer function
               --force            Replace an existing output directory
               --dry-run          Probe and print the manifest, transcode nothing

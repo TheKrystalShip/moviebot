@@ -31,6 +31,14 @@ public sealed record SignedInUser(string Id, string Username, string DisplayName
 public sealed record ServiceTokenReply(string RoomToken);
 
 /// <summary>
+/// What a player carries on a request for one film's bytes, and when it stops working.
+///
+/// Every viewer of a title is handed the same string, so their segment requests are one URL a
+/// cache can answer once rather than one per person.
+/// </summary>
+public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
+
+/// <summary>
 /// The serializer for everything this service puts on the wire that the Core library does not
 /// already describe. Every root is named here and the two contexts together are the only
 /// resolver the hub and the endpoints use: nothing is reached by reflection, so a type left out
@@ -45,6 +53,7 @@ public sealed record ServiceTokenReply(string RoomToken);
 [JsonSerializable(typeof(ErrorReply))]
 [JsonSerializable(typeof(DiscordSignIn))]
 [JsonSerializable(typeof(ServiceTokenReply))]
+[JsonSerializable(typeof(MediaTicketReply))]
 [JsonSerializable(typeof(DiscordCodeRequest))]
 [JsonSerializable(typeof(ServiceTokenRequest))]
 [JsonSerializable(typeof(DiscordUser))]

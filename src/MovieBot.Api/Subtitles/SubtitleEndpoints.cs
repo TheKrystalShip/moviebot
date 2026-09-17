@@ -27,8 +27,10 @@ public static class SubtitleEndpoints
             string? language,
             TitleLibrary library,
             OpenSubtitlesClient index,
+            ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
+            var logger = loggerFactory.CreateLogger("MovieBot.Api.Subtitles");
             if (library.Get(id) is not { } manifest) return Results.NotFound();
             if (!index.IsConfigured)
                 return Results.Ok(new SubtitleSearchView
@@ -40,7 +42,23 @@ public static class SubtitleEndpoints
             var wanted = string.IsNullOrWhiteSpace(language) ? "en" : language;
             var target = TargetOf(manifest);
 
-            var found = await FindAsync(index, manifest, target, wanted, ct);
+            IReadOnlyList<SubtitleCandidate> found;
+            try
+            {
+                found = await FindAsync(index, manifest, target, wanted, ct);
+            }
+            catch (OpenSubtitlesException ex)
+            {
+                // The index is somebody else's service and answers how it likes. Letting that
+                // reach the host is a 500 with a stack trace where the person asking sees a
+                // picker that spins and never fills, and nothing telling them why.
+                logger.LogWarning(ex, "Subtitle search for {Title} failed at the index", id);
+                return Results.Ok(new SubtitleSearchView
+                {
+                    Candidates = [],
+                    Explanation = "The subtitle index could not be reached. Try again in a moment."
+                });
+            }
 
             var ranked = found
                 .Select(c => SubtitleChecks.For(c, target))

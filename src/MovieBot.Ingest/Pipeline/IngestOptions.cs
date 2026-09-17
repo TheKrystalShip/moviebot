@@ -63,12 +63,26 @@ public sealed record IngestOptions
     public IReadOnlyList<string> SubtitleLanguages { get; init; } = [];
 
     /// <summary>
-    /// Target video bitrate. 9 Mbps H.264 High is generous for a 1080p film and, on a symmetric
-    /// gigabit link, there is no reason to go lower and little visible reason to go higher.
+    /// Target bitrate of the top rung. 9 Mbps H.264 High is generous for a 1080p film and, on a
+    /// symmetric gigabit link, there is no reason to go lower and little visible reason to go
+    /// higher.
     /// </summary>
     public string VideoBitrate { get; init; } = "9M";
-    public string VideoMaxrate { get; init; } = "12M";
-    public string VideoBufsize { get; init; } = "24M";
+
+    /// <summary>
+    /// The width the second rung is scaled to, and the bitrate it is encoded at.
+    ///
+    /// A player can only drop to a rung that exists, and this is the rung it drops to. It is sized
+    /// to carry a path the top rung cannot — a little over a third of its bitrate — because a
+    /// viewer who cannot sustain the top bitrate otherwise has nowhere to go, and a fragment that
+    /// cannot arrive in time stops the film for good at whatever second the buffer empties.
+    ///
+    /// The ladder stops at two, because every rung is a full copy of the film on a disk that holds
+    /// the whole library. A source narrower than this is served by the top rung alone: upscaling
+    /// spends the space and carries no more picture than the source has.
+    /// </summary>
+    public int StepDownWidth { get; init; } = 1280;
+    public string StepDownBitrate { get; init; } = "4M";
 
     /// <summary>NVENC constant-quality target. Lower is better quality and a larger file.</summary>
     public int Cq { get; init; } = 19;
@@ -79,8 +93,13 @@ public sealed record IngestOptions
     /// <summary>
     /// Segment length. The GOP is pinned to match so every segment opens on a keyframe and
     /// seeks land exactly where they were asked to.
+    ///
+    /// A segment is the unit a stall is measured in: a player abandons one that does not arrive in
+    /// time, and retries fetch the whole thing again. Two seconds keeps a top-rung segment near
+    /// two megabytes, small enough to complete over a path that has slowed. The cost is a keyframe
+    /// every two seconds, which the encoder pays for in a few per cent of bitrate.
     /// </summary>
-    public int SegmentSeconds { get; init; } = 4;
+    public int SegmentSeconds { get; init; } = 2;
 
     /// <summary>Overrides HDR auto-detection. Tone-mapping an SDR source washes it out.</summary>
     public bool? ForceToneMap { get; init; }

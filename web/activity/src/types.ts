@@ -16,6 +16,10 @@ export interface TitleSummary {
 export interface Rendition {
   name: string;
   bitrateKbps: number;
+  /** What this rung is encoded at. Absent on a film with a single rung, which is the source's
+   *  own size. */
+  width?: number;
+  height?: number;
   uri: string;
 }
 

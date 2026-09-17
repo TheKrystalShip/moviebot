@@ -43,6 +43,16 @@ public sealed class RequireTokenMiddleware(
             return;
         }
 
+        // A film's bytes are opened by a ticket naming that film. It carries no identity, so
+        // there is nothing to put in Items and nothing downstream reads one.
+        if (TitleOf(context.Request.Path) is { } ticketedTitle
+            && MediaTicket.IsValid(
+                context.Request.Query[MediaTicket.QueryName], ticketedTitle, settings, clock.GetUtcNow()))
+        {
+            await next(context);
+            return;
+        }
+
         var payload = RoomToken.Validate(BearerFrom(context.Request), settings, clock.GetUtcNow());
         if (payload is null)
         {
@@ -70,6 +80,22 @@ public sealed class RequireTokenMiddleware(
         || path.StartsWithSegments("/health")
         // Discord's servers fetch the poster to render an embed and carry no token of ours.
         || (path.StartsWithSegments("/media") && path.Value?.EndsWith("/poster.jpg", StringComparison.OrdinalIgnoreCase) == true);
+
+    /// <summary>
+    /// The title a media path names, or null when the path is not one. Taken from the path rather
+    /// than from the ticket, so a ticket is only ever checked against the film actually asked for.
+    /// </summary>
+    private static string? TitleOf(PathString path)
+    {
+        if (!path.StartsWithSegments("/media", out var rest)) return null;
+
+        var value = rest.Value;
+        if (string.IsNullOrEmpty(value) || value[0] != '/') return null;
+
+        var slash = value.IndexOf('/', 1);
+        var id = slash < 0 ? value[1..] : value[1..slash];
+        return id.Length == 0 ? null : id;
+    }
 
     /// <summary>
     /// SignalR's WebSocket transport cannot set headers, so its token arrives on the query string

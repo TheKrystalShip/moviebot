@@ -15,6 +15,7 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET /api/config` | `{discordClientId, publicBaseUrl?}` |
 | `GET /api/titles` | `TitleSummary[]` |
 | `GET /api/titles/{id}` | `Manifest`, or 404 |
+| `GET /api/titles/{id}/ticket` | `{ticket, expiresAt}` — what a request for this film's bytes carries, or 404 |
 | `GET /api/sessions` | `RoomSummary[]` — every room, what it is watching, how many are in it |
 | `GET /api/sessions/{id}` | `SessionStatePush` — creates the session if new |
 | `GET /api/sessions/{id}/participants` | `Participant[]` |
@@ -23,9 +24,27 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `POST /api/sessions/{id}/pause` | `RoomChanged` |
 | `POST /api/sessions/{id}/seek` | `RoomChanged` |
 | `POST /api/sessions/{id}/seek-relative` | `RoomChanged` |
-| `GET,HEAD /media/{id}/**` | playlists, segments, subtitles, poster |
+| `GET,HEAD /media/{id}/**` | playlists, segments, subtitles, poster. Opened by `?mt=` or the bearer token |
 
 CORS reflects any origin and allows credentials. Media answers HEAD as well as GET.
+
+### Opening a film's bytes
+
+Everything closed is opened by the room token, carried as `Authorization: Bearer`. `/media` also
+takes a **media ticket** on the query string as `?mt=…`, and that is what a player should use for
+the film itself.
+
+The difference is caching. A shared cache will not answer a request that carried an
+`Authorization` header. A ticket says only which film and until when, and **every viewer of a title
+is handed the same string**, so their requests are one URL that one cached copy answers.
+
+- Fetch it from `GET /api/titles/{id}/ticket` before loading the film, and put it on every
+  `/media/{id}/…` request for that title.
+- It is scoped to the one title and expires; `expiresAt` says when. It outlasts a feature.
+- Send the ticket **or** the header, never both: a shared cache refuses to store a response to a
+  request carrying the header.
+- hls.js resolves a segment URI against the playlist that listed it, and relative resolution drops
+  the query string. The ticket has to go on through a loader rather than on the playlist URL.
 
 ### Room controls
 
@@ -82,7 +101,10 @@ segment delivered as `application/octet-stream`: `application/vnd.apple.mpegurl`
     "height": 800,
     "sourceCodec": "hevc",
     "sourceHdr": "hdr10+dovi-p8.1",
-    "renditions": [{ "name": "800p", "bitrateKbps": 9000, "uri": "v0/index.m3u8" }]
+    "renditions": [
+      { "name": "800p", "bitrateKbps": 9000, "width": 1920, "height": 800, "uri": "v0/index.m3u8" },
+      { "name": "536p", "bitrateKbps": 4000, "width": 1280, "height": 536, "uri": "v1/index.m3u8" }
+    ]
   },
   "audio": [
     { "id": "a0", "kind": "feature", "language": "eng", "label": "English",

@@ -4,6 +4,55 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.49.0] - 2026-09-17
+
+### Added
+
+- **A film is encoded at two sizes, and a player can drop to the smaller one.** A viewer whose
+  connection dipped had nowhere to go: one rendition at 9 Mbps meant hls.js could only re-fetch the
+  same five-megabyte fragment over the same path, so playback stopped for good at whatever second
+  the buffer ran dry while everyone else watched on. Measured on Evil Dead Burn, a viewer who had
+  held 9–11 Mbps at a perfect fifteen-segments-a-minute cadence for half an hour was served
+  4,151,808 of a 4,895,827-byte segment over sixty seconds and never recovered, across two attempts.
+  The ingest now writes `v0` at the source's size and `v1` at 1280 wide and 4 Mbps, cut on the same
+  keyframe expression so segment *n* of one rung starts on the same frame as segment *n* of the
+  other. A source no wider than the step-down keeps one rung, and `--step-down 0` writes one.
+  Ingest 1.8.0, Core 1.11.0.
+
+- **A media ticket opens a film's bytes, in place of who is asking** (`GET
+  /api/titles/{id}/ticket`, carried as `?mt=`). A shared cache will not answer a request that
+  carried an `Authorization` header, which is why 6,973 requests at the edge were 6,973 requests at
+  the origin: every viewer pulled every byte of the film the whole way, and a room watching together
+  multiplied that by however many people were in it. A ticket names one title and an hour and
+  nothing else, and every viewer of a film is handed the same string, so their requests are one URL
+  one cached copy answers. The player sends the ticket or the header, never both. API 1.10.0.
+
+### Changed
+
+- **Segments are two seconds rather than four.** A segment is the unit a stall is measured in: at
+  the top rung four seconds is around five megabytes, which a path that slows for a moment cannot
+  finish inside the time a player waits before abandoning it. Half the duration is half the bytes.
+  The cost is a keyframe twice as often.
+
+- **hotrod's nginx holds segments** (`deploy/nginx-moviebot-ingress.conf`), so a room costs one copy
+  across the switch instead of one per person; `proxy_cache_lock` collapses the simultaneous misses
+  a synchronised room produces into a single fetch from hotbox. Segments get their own location
+  because caching needs buffering on and a growing playlist needs it off. A request carrying an
+  `Authorization` header is never stored and never answered from store: that header is not part of
+  the cache key, so keeping its response would hand the film to the next request for that URL
+  whether or not it proved anything. A ticket is safe in that position because it is in the URL.
+
+- **A subtitle search that fails at the index answers with an explanation** rather than reaching
+  Kestrel as an unhandled exception and leaving the picker spinning. The index row that caused it is
+  fixed in moviebot-acquire 0.16.2.
+
+### Fixed
+
+- A rung advertises the size it is encoded at rather than the source's, in the master playlist the
+  ingest writes and the one the player composes. A manifest written when a film had one rung carries
+  no size on it and is read as the source's, so the sixteen films already on the disk keep loading
+  without being re-encoded.
+
 ## [1.48.0] - 2026-09-17
 
 ### Changed

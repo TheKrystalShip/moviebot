@@ -45,6 +45,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         var outputDirectory = options.OutputDirectory(id);
         var dynamicRange = TrackClassifier.DescribeDynamicRange(video);
         var toneMap = options.ForceToneMap ?? TrackClassifier.NeedsToneMapping(dynamicRange);
+        var ladder = VideoLadder.For(video.Width ?? 0, video.Height ?? 0, options);
 
         var allText = subtitleStreams.Where(TrackClassifier.IsTextSubtitle).ToList();
         var allBitmap = subtitleStreams.Where(TrackClassifier.IsBitmapSubtitle).ToList();
@@ -68,6 +69,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         log($"  {video.Width}x{video.Height} {video.CodecName} {dynamicRange}"
             + $" · {TimeSpan.FromSeconds(probe.Format.DurationSeconds):h\\:mm\\:ss}"
             + $" · tone-map {(toneMap ? "on" : "off")}");
+        log("  " + string.Join(" · ", ladder.Select(r => $"{r.Width}x{r.Height} @ {r.Bitrate}")));
         log($"  {audioStreams.Count} audio, {textSubtitles.Count} text subtitles"
             + $"{(bitmapSubtitles.Count > 0 ? $", {bitmapSubtitles.Count} bitmap (need OCR)" : "")}"
             + $"{(otherLanguages.Count > 0 ? $", {otherLanguages.Count} other languages left out" : "")}");
@@ -80,7 +82,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         var embeddedPosterIsReady = EmbeddedPosterIsReady(
             hasCoverArt: attachedPicture is not null, sourceIsWhole: options.Availability is null);
 
-        var manifest = BuildManifest(id, title, probe, video, dynamicRange,
+        var manifest = BuildManifest(id, title, probe, video, dynamicRange, ladder,
             audioStreams, textSubtitles, bitmapSubtitles,
             hasPoster: false,
             sourceStillArriving: options.Availability is not null);
@@ -95,7 +97,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             return manifest;
         }
 
-        PrepareOutputDirectory(outputDirectory, audioStreams.Count, options.Force);
+        PrepareOutputDirectory(outputDirectory, ladder, audioStreams.Count, options.Force);
 
         // Put down before the manifest names it. A manifest is read the moment it exists — a film
         // is announced within seconds of the first segments landing, and an embed asking for a
@@ -140,7 +142,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             }
 
             log("Transcoding — playback opens as soon as the first segments land");
-            await RunMainPassAsync(video, audioStreams, outputDirectory, toneMap,
+            await RunMainPassAsync(video, audioStreams, ladder, outputDirectory, toneMap,
                 manifest, manifestPath, probe.Format.DurationSeconds, ct, guard);
 
             if (guard is not null)
@@ -191,7 +193,8 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         }
     }
 
-    private static void PrepareOutputDirectory(string outputDirectory, int audioCount, bool force)
+    private static void PrepareOutputDirectory(
+        string outputDirectory, IReadOnlyList<VideoRung> ladder, int audioCount, bool force)
     {
         if (Directory.Exists(outputDirectory) && Directory.EnumerateFileSystemEntries(outputDirectory).Any())
         {
@@ -204,7 +207,8 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             Directory.Delete(outputDirectory, recursive: true);
         }
 
-        Directory.CreateDirectory(Path.Combine(outputDirectory, "v0"));
+        foreach (var rung in ladder)
+            Directory.CreateDirectory(Path.Combine(outputDirectory, rung.Directory));
         for (var i = 0; i < audioCount; i++)
             Directory.CreateDirectory(Path.Combine(outputDirectory, $"a{i}"));
     }
@@ -340,6 +344,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
     private async Task RunMainPassAsync(
         ProbeStream video,
         List<ProbeStream> audioStreams,
+        IReadOnlyList<VideoRung> ladder,
         string outputDirectory,
         bool toneMap,
         Manifest manifest,
@@ -348,9 +353,11 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         CancellationToken ct,
         ReadAheadGuard? guard = null)
     {
-        var arguments = BuildMainPassArguments(video, audioStreams, outputDirectory, toneMap);
+        var arguments = BuildMainPassArguments(video, audioStreams, ladder, outputDirectory, toneMap);
 
-        var playlists = new List<string> { Path.Combine(outputDirectory, "v0", "index.m3u8") };
+        var playlists = ladder
+            .Select(r => Path.Combine(outputDirectory, r.Directory, "index.m3u8"))
+            .ToList();
         for (var i = 0; i < audioStreams.Count; i++)
             playlists.Add(Path.Combine(outputDirectory, $"a{i}", "index.m3u8"));
 
@@ -434,7 +441,8 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
     }
 
     private List<string> BuildMainPassArguments(
-        ProbeStream video, List<ProbeStream> audioStreams, string outputDirectory, bool toneMap)
+        ProbeStream video, List<ProbeStream> audioStreams, IReadOnlyList<VideoRung> ladder,
+        string outputDirectory, bool toneMap)
     {
         var args = new List<string>();
 
@@ -454,46 +462,53 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         // clock, so a feature exhausts an 8 GB host a third of the way in and is killed. Separate
         // demuxers each wait on their own consumer and hold flat at a few hundred megabytes, and
         // the transcode runs faster for no longer copying the backlog around.
-        // Input 0 is the video; input i + 1 is audio rendition i.
+        // Input i is video rung i; input ladder.Count + i is audio rendition i.
 
         // Decode on NVDEC. Software-decoding a 16 Mbps HEVC Main 10 stream costs 35 s of CPU per
         // 40 s of film against 5.5 s here, and saturates every core for the length of a feature
         // while the GPU sits half idle. Frames land in system memory, which is where the OpenCL
         // tone-map filter wants them anyway.
-        AddSourceInput(args, hardwareDecode: true);
+        foreach (var _ in ladder)
+            AddSourceInput(args, hardwareDecode: true);
         foreach (var _ in audioStreams)
             AddSourceInput(args, hardwareDecode: false);
 
-        // --- video ---
-        args.Add("-map"); args.Add($"0:{video.Index}");
-        args.Add("-vf"); args.Add(toneMap
-            ? "format=p010le,hwupload,tonemap_opencl=tonemap=hable:desat=0"
-              + ":transfer=bt709:matrix=bt709:primaries=bt709:format=nv12,hwdownload,format=nv12"
-            : "format=yuv420p");
-
+        // --- video, one output per rung ---
         var gop = GopSize(video.FrameRate(), options.SegmentSeconds);
-        args.AddRange([
-            "-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr",
-            "-cq", options.Cq.ToString(CultureInfo.InvariantCulture),
-            "-b:v", options.VideoBitrate,
-            "-maxrate", options.VideoMaxrate,
-            "-bufsize", options.VideoBufsize,
-            "-profile:v", "high", "-level", "4.2",
-            "-g", gop.ToString(CultureInfo.InvariantCulture),
-            "-keyint_min", gop.ToString(CultureInfo.InvariantCulture),
-            "-sc_threshold", "0",
-            // Guarantees a keyframe exactly on each segment boundary whatever the frame rate,
-            // so a seek lands on the frame it was asked for rather than the nearest GOP.
-            "-force_key_frames", $"expr:gte(t,n_forced*{options.SegmentSeconds})",
-            "-an", "-sn"
-        ]);
-        args.AddRange(HlsOutput(Path.Combine(outputDirectory, "v0")));
+
+        for (var i = 0; i < ladder.Count; i++)
+        {
+            var rung = ladder[i];
+
+            args.Add("-map"); args.Add($"{i}:{video.Index}");
+            args.Add("-vf"); args.Add(FilterChain(toneMap, rung.ScaleFilter));
+
+            args.AddRange([
+                "-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr",
+                "-cq", options.Cq.ToString(CultureInfo.InvariantCulture),
+                "-b:v", rung.Bitrate,
+                "-maxrate", rung.Maxrate,
+                "-bufsize", rung.Bufsize,
+                "-profile:v", "high", "-level", "4.2",
+                "-g", gop.ToString(CultureInfo.InvariantCulture),
+                "-keyint_min", gop.ToString(CultureInfo.InvariantCulture),
+                "-sc_threshold", "0",
+                // Guarantees a keyframe exactly on each segment boundary whatever the frame rate,
+                // so a seek lands on the frame it was asked for rather than the nearest GOP. Every
+                // rung is cut on this same expression, which is what lets a player switch between
+                // them mid-film: segment n of one rung opens on the same frame as segment n of
+                // the next.
+                "-force_key_frames", $"expr:gte(t,n_forced*{options.SegmentSeconds})",
+                "-an", "-sn"
+            ]);
+            args.AddRange(HlsOutput(Path.Combine(outputDirectory, rung.Directory)));
+        }
 
         // --- audio, one rendition per source track ---
         for (var i = 0; i < audioStreams.Count; i++)
         {
             var stream = audioStreams[i];
-            args.Add("-map"); args.Add($"{i + 1}:{stream.Index}");
+            args.Add("-map"); args.Add($"{ladder.Count + i}:{stream.Index}");
             args.Add("-c:a"); args.Add("aac");
             args.Add("-b:a"); args.Add(stream.IsCommentary
                 ? options.CommentaryAudioBitrate
@@ -505,6 +520,22 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         }
 
         return args;
+    }
+
+    /// <summary>
+    /// What a rung's frames pass through on the way to the encoder.
+    ///
+    /// Tone-mapping runs before the scale, so the step-down is built from frames already in
+    /// bt709 and the mapping reads the full picture's statistics.
+    /// </summary>
+    private static string FilterChain(bool toneMap, string? scale)
+    {
+        var chain = toneMap
+            ? "format=p010le,hwupload,tonemap_opencl=tonemap=hable:desat=0"
+              + ":transfer=bt709:matrix=bt709:primaries=bt709:format=nv12,hwdownload,format=nv12"
+            : "format=yuv420p";
+
+        return scale is null ? chain : $"{chain},{scale}";
     }
 
     private void AddSourceInput(List<string> args, bool hardwareDecode)
@@ -539,6 +570,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
     private Manifest BuildManifest(
         string id, string title, ProbeResult probe, ProbeStream video, string dynamicRange,
+        IReadOnlyList<VideoRung> ladder,
         List<ProbeStream> audioStreams, List<ProbeStream> textSubtitles,
         List<ProbeStream> bitmapSubtitles, bool hasPoster, bool sourceStillArriving = false)
     {
@@ -604,8 +636,6 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             });
         }
 
-        var bitrateKbps = ParseBitrate(options.VideoBitrate);
-
         return new Manifest
         {
             Id = id,
@@ -621,10 +651,16 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                 Height = video.Height ?? 0,
                 SourceCodec = video.CodecName ?? "unknown",
                 SourceHdr = dynamicRange,
-                Renditions =
-                [
-                    new Rendition { Name = $"{video.Height ?? 0}p", BitrateKbps = bitrateKbps, Uri = "v0/index.m3u8" }
-                ]
+                Renditions = ladder
+                    .Select(r => new Rendition
+                    {
+                        Name = r.Name,
+                        BitrateKbps = r.BitrateKbps,
+                        Width = r.Width,
+                        Height = r.Height,
+                        Uri = r.Uri
+                    })
+                    .ToList()
             },
             Audio = audio,
             // Known from the moment the film was chosen, so unlike the fingerprint it does not
@@ -674,19 +710,6 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             MovieHash = SourceHash.Compute(options.SourcePath),
             FrameRate = video.FrameRate()
         };
-    }
-
-    private static int ParseBitrate(string value)
-    {
-        var trimmed = value.Trim();
-        var multiplier = 1;
-
-        if (trimmed.EndsWith('M') || trimmed.EndsWith('m')) { multiplier = 1000; trimmed = trimmed[..^1]; }
-        else if (trimmed.EndsWith('K') || trimmed.EndsWith('k')) { trimmed = trimmed[..^1]; }
-
-        return int.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
-            ? parsed * multiplier
-            : 0;
     }
 
     private static string Format(double seconds) =>

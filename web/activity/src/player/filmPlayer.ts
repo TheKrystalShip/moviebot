@@ -6,6 +6,7 @@ import { environment } from '../environment';
 import { prefs } from '../prefs';
 import type { Manifest, SubtitleSearch, SubtitleTrack } from '../types';
 import { buildMasterPlaylist, masterPlaylistUrl, type MasterPlaylist } from './masterPlaylist';
+import { ensureTicket, hasTicket, ticketedLoader, ticketedMediaUrl } from './mediaTicket';
 import { ScrubBar } from './scrubBar';
 import { audioGroups, defaultAudioId, findSubtitle } from './tracks';
 import { SubtitleMenu } from './subtitleMenu';
@@ -38,6 +39,20 @@ export interface FilmPlayerHooks {
 
 const PositionTickMs = 200;
 const LoadTimeoutMs = 30_000;
+
+/**
+ * What a media fetch outside hls.js carries.
+ *
+ * A ticket on the URL and nothing else, so the response is one a shared cache will store. The
+ * header is the fallback for a viewer whose ticket never arrived, and is never sent alongside
+ * one: a shared cache refuses to store a response to a request carrying it.
+ */
+function mediaFetchInit(titleId: string): RequestInit | undefined {
+  if (hasTicket(titleId)) return undefined;
+
+  const token = environment().authToken();
+  return token === null ? undefined : { headers: { authorization: `Bearer ${token}` } };
+}
 
 /** A stall shorter than this is a stutter, and flashing a spinner at it is worse than ignoring it. */
 const StallGraceMs = 400;
@@ -237,6 +252,10 @@ export class FilmPlayer {
 
     // Held up until something can be played, rather than left blank with a button over it.
     this.spinner.hidden = false;
+
+    // Before anything asks for a byte of the film, so every request for it carries the ticket.
+    await ensureTicket(manifest.id);
+
     this.master = buildMasterPlaylist(manifest);
 
     // The ingest writes a master when it can, and that one is authoritative. Composing one here
@@ -279,14 +298,22 @@ export class FilmPlayer {
     });
 
     if (Hls.isSupported()) {
+      const titleId = manifest.id;
+
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
         backBufferLength: 90,
         startPosition: startPosition ?? 0,
-        // Playlists and segments are closed like everything else, and hls.js does its own
-        // fetching, so the proof has to be attached to its requests rather than ours.
+        // A film's own bytes are opened by a ticket on the URL, which is what lets a shared cache
+        // answer a whole room from one copy. The loader is where it goes: hls.js resolves a
+        // segment against its playlist, and relative resolution drops the query string, so a
+        // ticket put on the playlist URL reaches none of the segments underneath it.
+        loader: ticketedLoader(titleId),
+        // The fallback, for a viewer whose ticket never arrived. Never sent alongside a ticket: a
+        // shared cache refuses to store a response to a request carrying it.
         xhrSetup: (xhr) => {
+          if (hasTicket(titleId)) return;
           const token = environment().authToken();
           if (token !== null) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         }
@@ -385,10 +412,9 @@ export class FilmPlayer {
     }
 
     try {
-      const authToken = environment().authToken();
       const response = await fetch(
-        environment().mediaUrl(manifest.id, manifest.thumbnails.uri),
-        authToken === null ? undefined : { headers: { authorization: `Bearer ${authToken}` } });
+        ticketedMediaUrl(manifest.id, manifest.thumbnails.uri),
+        mediaFetchInit(manifest.id));
 
       if (!response.ok) throw new Error(`previews answered ${response.status}`);
 
@@ -537,9 +563,8 @@ export class FilmPlayer {
     if (!track || !track.available || track.uri === undefined) return;
 
     try {
-      const authToken = environment().authToken();
-      const response = await fetch(environment().mediaUrl(manifest.id, track.uri),
-        authToken === null ? undefined : { headers: { authorization: `Bearer ${authToken}` } });
+      const response = await fetch(ticketedMediaUrl(manifest.id, track.uri),
+        mediaFetchInit(manifest.id));
       if (!response.ok) throw new Error(`subtitle answered ${response.status}`);
       const blob = await response.blob();
       if (token !== this.subtitleToken) return;

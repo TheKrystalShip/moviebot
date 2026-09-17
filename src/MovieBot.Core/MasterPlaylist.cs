@@ -61,12 +61,14 @@ public static class MasterPlaylist
             // CODECS is deliberately absent: a player reads the real codecs from the fMP4
             // initialisation segments, and a declared string that disagrees with them costs a
             // source buffer for no benefit.
+            var (width, height) = rendition.SizeIn(manifest.Video);
+
             builder.Append("#EXT-X-STREAM-INF:BANDWIDTH=")
                 .Append((rendition.BitrateKbps * 1000).ToString(CultureInfo.InvariantCulture))
                 .Append(",RESOLUTION=")
-                .Append(manifest.Video.Width.ToString(CultureInfo.InvariantCulture))
+                .Append(width.ToString(CultureInfo.InvariantCulture))
                 .Append('x')
-                .Append(manifest.Video.Height.ToString(CultureInfo.InvariantCulture))
+                .Append(height.ToString(CultureInfo.InvariantCulture))
                 .Append(audioAttribute)
                 .AppendLine();
 
