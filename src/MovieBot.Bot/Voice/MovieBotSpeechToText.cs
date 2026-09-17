@@ -49,15 +49,15 @@ public sealed class MovieBotSpeechToText : ISpeechToText
 
     public bool IsAvailable => _speech.Available;
 
-    public Task<string?> TranscribeAsync(VoiceUtterance utterance, CancellationToken ct = default) =>
-        RecogniseAsync(utterance, ifIdle: false, ct);
+    public async Task<string?> TranscribeAsync(VoiceUtterance utterance, CancellationToken ct = default) =>
+        (await RecogniseAsync(utterance, ifIdle: false, ct)).Transcript;
 
-    public Task<string?> TranscribeIfIdleAsync(VoiceUtterance utterance, CancellationToken ct = default) =>
+    public Task<IdleReading> TranscribeIfIdleAsync(VoiceUtterance utterance, CancellationToken ct = default) =>
         RecogniseAsync(utterance, ifIdle: true, ct);
 
-    private async Task<string?> RecogniseAsync(VoiceUtterance utterance, bool ifIdle, CancellationToken ct)
+    private async Task<IdleReading> RecogniseAsync(VoiceUtterance utterance, bool ifIdle, CancellationToken ct)
     {
-        if (!IsAvailable) return null;
+        if (!IsAvailable) return IdleReading.Of(null);
 
         var timer = Stopwatch.StartNew();
         (SpeechProtocol.Outcome outcome, string text) =
@@ -66,14 +66,14 @@ public sealed class MovieBotSpeechToText : ISpeechToText
 
         if (outcome == SpeechProtocol.Outcome.Busy)
         {
-            // Invisible from inside a channel: being addressed while the recogniser is occupied goes
-            // unnoticed until the sentence ends. Logged so contention can be told apart from a trigger
-            // that is not matching.
+            // Invisible from inside a channel: being addressed while the recogniser is occupied only
+            // delays the tone, because the opening is read on a later offer. Logged so contention can
+            // be told apart from a trigger that is not matching.
             _logger.LogDebug("Voice: skipped reading {Speaker} early, the recogniser was busy", utterance.SpeakerName);
-            return null;
+            return IdleReading.Busy;
         }
 
-        if (outcome != SpeechProtocol.Outcome.Done) return null;
+        if (outcome != SpeechProtocol.Outcome.Done) return IdleReading.Of(null);
 
         string transcript = SpokenTranscript.Clean(text);
 
@@ -88,9 +88,9 @@ public sealed class MovieBotSpeechToText : ISpeechToText
             // partial, which comes back complete a moment later and would be counted twice.
             if (!utterance.Partial) _tally.Echoed();
             _logger.LogDebug("Voice: discarded a transcript from {Speaker} that was the priming coming back", utterance.SpeakerName);
-            return null;
+            return IdleReading.Of(null);
         }
 
-        return transcript.Length == 0 ? null : transcript;
+        return IdleReading.Of(transcript.Length == 0 ? null : transcript);
     }
 }

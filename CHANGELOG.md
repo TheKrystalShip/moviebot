@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.46.0] - 2026-09-17
+
+### Fixed
+
+- The listening tone after "hey MovieBot" plays whole. The reading of the finished sentence found
+  the trigger again and stopped the bot talking, and the tone its opening had started was what it
+  stopped.
+- Saying "hey MovieBot" while the recogniser is busy with somebody else still gets the tone, a
+  little later, instead of none. The opening of the sentence is read again when the recogniser
+  frees up.
+
+### Changed
+
+- The listening tone is a short notification sound that starts at once.
+
 ## [1.45.0] - 2026-09-17
 
 ### Changed
