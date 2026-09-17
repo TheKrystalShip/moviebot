@@ -9,8 +9,8 @@ namespace TheKrystalShip.MovieBot.Bot.Assistant;
 /// <remarks>
 /// <para>
 /// Nobody in a voice channel has an IMDb or torrent id to give, and every id the tools take comes out
-/// of another tool: <c>search_catalogue</c> names a film by what it is called, <c>search_tracker</c>
-/// finds its releases. A reply asking for one is the model stopping at a step it could have taken.
+/// of <c>watch_film</c>, which takes a film by what it is called and gives its releases, or its imdb id
+/// when there are none. A reply asking for one is the model stopping at a step it could have taken.
 /// </para>
 /// <para>
 /// <b>The room's history is what produces it, so the instructions cannot prevent it.</b> Measured on
@@ -29,8 +29,8 @@ public static partial class RoomIdRequest
             ? null
             : new ReplyFault(
                 "Your last reply asked for an id. Nobody in the room has one, and the tools find every id "
-                + "from a film's name: search_catalogue takes the name and gives the film's imdb id and year, "
-                + "and search_tracker takes the name or that id and gives the torrent ids. "
+                + "from a film's name: watch_film takes the name and gives the torrent ids, or the imdb id when "
+                + "the tracker has no release. "
                 + $"Answer the request \"{Excerpt(said)}\" again, replying with the tool call itself and no prose.",
                 "",
                 "\n\nNobody needs to find an id for this: saying the film's name is enough."));

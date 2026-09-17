@@ -88,17 +88,19 @@ public sealed partial class RoomTools(
 {
     public const string RoomState = "room_state";
     public const string ListRooms = "list_rooms";
-    public const string SearchLibrary = "search_library";
     public const string GetTitle = "get_title";
-    public const string SearchCatalogue = "search_catalogue";
-    public const string SearchTracker = "search_tracker";
     public const string DownloadStatus = "download_status";
     public const string WishListTool = "wish_list";
-    public const string Play = "play";
+    /// <summary>
+    /// Named for what it does to a room already holding a film, and not "play": given a tool of that name,
+    /// the model answers "play" followed by a film's name with it, passing the name as an argument it
+    /// does not take, and the room carries on with the film it was already watching.
+    /// </summary>
+    public const string Resume = "resume";
     public const string Pause = "pause";
     public const string Seek = "seek";
     public const string SeekRelative = "seek_relative";
-    public const string LoadTitle = "load_title";
+    public const string WatchFilm = "watch_film";
     public const string DownloadFilm = "download_film";
     public const string FetchSubtitle = "fetch_subtitle";
     public const string AddWish = "add_wish";
@@ -108,9 +110,8 @@ public sealed partial class RoomTools(
     /// <summary>Every tool this dispatcher implements, which <see cref="ToolCatalog"/> holds the file to.</summary>
     public static readonly IReadOnlyList<string> Names =
     [
-        RoomState, ListRooms, SearchLibrary, GetTitle, SearchCatalogue, SearchTracker, DownloadStatus,
-        WishListTool, Play, Pause, Seek, SeekRelative, LoadTitle, DownloadFilm, FetchSubtitle, AddWish,
-        KeepFilm, LetGo,
+        RoomState, ListRooms, GetTitle, DownloadStatus, WishListTool, Resume, Pause, Seek, SeekRelative,
+        WatchFilm, DownloadFilm, FetchSubtitle, AddWish, KeepFilm, LetGo,
     ];
 
     /// <summary>The tools that propose rather than act.</summary>
@@ -119,7 +120,7 @@ public sealed partial class RoomTools(
 
     /// <summary>The tools that move the room, which is what a question about why the film stopped is answered from.</summary>
     public static readonly IReadOnlySet<string> RoomMoves =
-        new HashSet<string>(StringComparer.Ordinal) { Play, Pause, Seek, SeekRelative, LoadTitle };
+        new HashSet<string>(StringComparer.Ordinal) { Resume, Pause, Seek, SeekRelative, WatchFilm };
 
     private const int MostRows = 8;
 
@@ -183,17 +184,14 @@ public sealed partial class RoomTools(
             {
                 RoomState => await RoomStateAsync(ct),
                 ListRooms => await ListRoomsAsync(ct),
-                SearchLibrary => await SearchLibraryAsync(call.Arg("query"), ct),
                 GetTitle => await GetTitleAsync(call.Arg("title"), ct),
-                SearchCatalogue => await SearchCatalogueAsync(call.Arg("query"), call.Arg("year"), ct),
-                SearchTracker => await SearchTrackerAsync(call.Arg("query"), call.Arg("imdb_id"), ct),
                 DownloadStatus => await DownloadStatusAsync(ct),
                 WishListTool => WishListing(),
-                Play => await PlaybackAsync(pause: false, ct),
+                Resume => await PlaybackAsync(pause: false, ct),
                 Pause => await PlaybackAsync(pause: true, ct),
                 Seek => await SeekAsync(call.Arg("position"), ct),
                 SeekRelative => await SeekRelativeAsync(call.Arg("seconds"), ct),
-                LoadTitle => await LoadTitleAsync(call.Arg("title"), ct),
+                WatchFilm => await WatchFilmAsync(call.Arg("title"), ct),
                 DownloadFilm => await ProposeDownloadAsync(call.Arg("torrent_id"), ct),
                 FetchSubtitle => await ProposeSubtitleAsync(call.Arg("title"), ct),
                 AddWish => await ProposeWishAsync(call.Arg("imdb_id"), ct),
@@ -260,20 +258,6 @@ public sealed partial class RoomTools(
         return Tell(text.ToString().TrimEnd());
     }
 
-    private async Task<string> SearchLibraryAsync(string? query, CancellationToken ct)
-    {
-        var library = await api.ListTitlesAsync(ct);
-        if (library.Count == 0) return Tell("The library is empty.", "search_tracker finds films that can be downloaded.");
-
-        var found = TitleMatcher.Suggest(library, query ?? "");
-        if (found.Count == 0)
-            return Tell($"Nothing in the library matches \"{query}\".",
-                "search_catalogue identifies the film, and search_tracker finds releases of it to download.");
-
-        return Tell(string.Join('\n', found.Take(MostRows).Select(t => $"- {t.Name}{RoomFacts.StatusNote(t)} (id {t.Id})"))
-               + (found.Count > MostRows ? $"\n({found.Count - MostRows} more match.)" : ""));
-    }
-
     private async Task<string> GetTitleAsync(string? query, CancellationToken ct)
     {
         var (title, refusal) = await ResolveAsync(query, ct);
@@ -302,53 +286,6 @@ public sealed partial class RoomTools(
         if (await keep.NoticeForAsync(title.Id, ct) is { } notice) text.AppendLine(notice);
 
         return Tell(text.ToString().TrimEnd());
-    }
-
-    private async Task<string> SearchCatalogueAsync(string? query, string? year, CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(query)) return "search_catalogue needs the film's name as query.";
-
-        var films = await catalogue.SuggestAsync(query, ct);
-        if (int.TryParse(year, NumberStyles.None, CultureInfo.InvariantCulture, out var wanted))
-            films = films.Where(f => f.Year == wanted).ToList();
-
-        if (films.Count == 0)
-            return Tell($"The catalogue has no film matching \"{query}\"{(year is null ? "" : $" from {year}")}.");
-
-        // In the order the films came out. The index orders them by what people search for now, which
-        // puts the latest sequel above the film it follows, and "the second one" read off that list
-        // is whichever sequel is popular this week.
-        var library = await api.ListTitlesAsync(ct);
-        return Tell(string.Join('\n', films.Take(MostRows).OrderBy(f => f.Year ?? int.MaxValue).Select(f =>
-        {
-            var here = library.FirstOrDefault(t =>
-                string.Equals(t.Film?.ImdbId, f.ImdbId, StringComparison.OrdinalIgnoreCase));
-            return $"- {f.Display}"
-                   + (f.Starring is { Length: > 0 } cast ? $", starring {cast}" : "")
-                   + (here is null ? "" : $", already in the library as {here.Id}")
-                   + $" (imdb {f.ImdbId})";
-        })), "Listed in the order they came out, earliest first.");
-    }
-
-    private async Task<string> SearchTrackerAsync(string? query, string? imdbId, CancellationToken ct)
-    {
-        RankedReleases ranked;
-        if (ImdbId.FromText(imdbId) is { } id)
-            ranked = await tracker.ByImdbAsync(id, ct);
-        else if (!string.IsNullOrWhiteSpace(query))
-            ranked = await tracker.ByTextAsync(query, ct);
-        else
-            return "search_tracker needs query (the film's name) or imdb_id.";
-
-        if (ranked.Candidates.Count == 0)
-            return Tell(ranked.EmptyExplanation ?? "The tracker offered nothing.",
-                "add_wish can wait for the film to appear, given its imdb_id from search_catalogue.");
-
-        var shown = ranked.Candidates.Take(5).ToList();
-        offered.Remember(shown);
-
-        return Tell(string.Join('\n', shown.Select(r => $"- {r.Display} · {r.Summary} (torrent {r.TorrentId})")),
-            "download_film takes the torrent id of the one to download.");
     }
 
     private async Task<string> DownloadStatusAsync(CancellationToken ct)
@@ -434,12 +371,23 @@ public sealed partial class RoomTools(
         var rooms = await api.ListRoomsAsync(ct);
         return rooms.Any(r => r.SessionId == turn.SessionId && r.TitleId is not null)
             ? null
-            : Tell($"No film is loaded in {turn.ChannelName}, so there is nothing to move.", "load_title puts one on.");
+            : Tell($"No film is loaded in {turn.ChannelName}, so there is nothing to move.", "watch_film puts one on.");
     }
 
-    private async Task<string> LoadTitleAsync(string? query, CancellationToken ct)
+    /// <summary>
+    /// Puts the film on when the library has it, and otherwise finds it on the tracker, so a request for
+    /// a film always comes back with something to act on.
+    /// </summary>
+    /// <remarks>
+    /// One tool rather than a search and a load, because given both the model stops at the first
+    /// answer: "not in the library" was said back to a room asking for Twilight, with the tracker never
+    /// asked. The choice between playing and downloading is made here, from what the library holds.
+    /// </remarks>
+    private async Task<string> WatchFilmAsync(string? query, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(query)) return "load_title needs the film's id or name as title.";
+        if (string.IsNullOrWhiteSpace(query)) return "watch_film needs the film's name as title.";
+
+        if (await FilmByPlaceAsync(query, ct) is { } placed) return await PlacedAsync(placed, ct);
 
         var result = await WatchAsync(query, ct);
 
@@ -460,26 +408,175 @@ public sealed partial class RoomTools(
             case WatchStatus.TitleAmbiguous:
                 return Tell(
                     $"Several films in the library match: {string.Join("; ", (result.Match?.Candidates ?? []).Select(t => t.Name))}.",
-                    "Nothing was put on. They are listed earliest first. Call load_title again with the name of the "
+                    "Nothing was put on. They are listed earliest first. Call watch_film again with the name of the "
                     + "one they mean, written as it is here.");
 
-            case WatchStatus.TitleNotFound when result.Match?.Nearest is { } nearest:
-                return Tell(
-                    $"The library has {nearest.Name}, which is not the year asked for.",
-                    $"Nothing was put on. If that is the film they asked for, call load_title with \"{nearest.Name}\". "
-                    + "If they meant a different film, search_catalogue and then search_tracker find it to download.");
-
-            case WatchStatus.TitleNotFound:
-                return Tell(
-                    "That film is not in the library.",
-                    "Nothing was put on. Call load_title with a name from the library list you were given, written "
-                    + "as it is there, or search_catalogue and then search_tracker to download a film it does not have.");
+            case WatchStatus.TitleNotFound or WatchStatus.LibraryEmpty:
+                return await FromTrackerAsync(query, result.Match?.Nearest, ct);
         }
 
+        return Launch(result);
+    }
+
+    /// <summary>
+    /// The film somebody named by its place in a series — "the second Pirates of the Caribbean", "step up
+    /// 2" — counted in the order the films came out, or null when nothing was counted or the count does
+    /// not reach that far.
+    /// </summary>
+    /// <remarks>
+    /// Counted here rather than left to the model, which reads "the second one" off whatever order it is
+    /// shown and names the film it lands on with a year it makes up. The person's own words are read
+    /// first, because the model often drops the number when it writes the name down.
+    /// </remarks>
+    private async Task<ImdbTitle?> FilmByPlaceAsync(string query, CancellationToken ct)
+    {
+        if ((PlaceIn(said) ?? PlaceIn(query)) is not { } place) return null;
+
+        var series = Words(PlaceWords().Replace(query, " "));
+        if (series.Count == 0) return null;
+
+        var films = (await catalogue.SuggestAsync(string.Join(' ', series), ct))
+            .Where(f => series.All(Words(f.Title).Contains))
+            .OrderBy(f => f.Year ?? int.MaxValue)
+            .ToList();
+
+        return films.Count >= place && films.Count > 1 ? films[place - 1] : null;
+    }
+
+    /// <summary>A film picked by its place: put on when the library has it, and otherwise proposed or wished for.</summary>
+    private async Task<string> PlacedAsync(ImdbTitle film, CancellationToken ct)
+    {
+        var library = await api.ListTitlesAsync(ct);
+        if (library.FirstOrDefault(t => string.Equals(t.Film?.ImdbId, film.ImdbId, StringComparison.OrdinalIgnoreCase))
+            is { } here)
+            return Launch(await WatchAsync(here.Id, ct));
+
+        var ranked = await tracker.ByImdbAsync(film.ImdbId, ct) with { Film = film };
+        return await OfferAsync(ranked, $"{film.Display} is not in the library.", others: "", query: film.Title, ct);
+    }
+
+    private static int? PlaceIn(string text)
+    {
+        var found = Place().Match(text);
+        if (!found.Success) return null;
+
+        var word = found.Groups["word"].Value.ToLowerInvariant();
+        return word switch
+        {
+            "first" or "one" or "original" or "1" => 1,
+            "second" or "two" or "2" => 2,
+            "third" or "three" or "3" => 3,
+            "fourth" or "four" or "4" => 4,
+            "fifth" or "five" or "5" => 5,
+            "sixth" or "six" or "6" => 6,
+            "seventh" or "seven" or "7" => 7,
+            "eighth" or "eight" or "8" => 8,
+            "ninth" or "nine" or "9" => 9,
+            _ => null,
+        };
+    }
+
+    private static List<string> Words(string text) =>
+        [.. WordPattern().Matches(text.ToLowerInvariant().Replace("'s", "")).Select(m => m.Value)
+            .Where(w => w is not ("the" or "movie" or "movies" or "film" or "films" or "of" or "a")
+                        && !(w.Length == 4 && w.All(char.IsAsciiDigit)))];
+
+    [GeneratedRegex(@"\b(?:(?<word>first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|original)\b|part\s+(?<word>one|two|three|four|five|six|seven|eight|nine|[1-9])\b|(?<![\d:])(?<word>[1-9])(?![\d:]))",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex Place();
+
+    [GeneratedRegex(@"\b(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|original|part\s+\w+)\b|(?<![\d:])[1-9](?![\d:])",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex PlaceWords();
+
+    [GeneratedRegex(@"[a-z0-9]+", RegexOptions.CultureInvariant)]
+    private static partial Regex WordPattern();
+
+    private string Launch(WatchResult result)
+    {
         if (result.Reply is not { } reply) return Tell(result.Message);
 
         _launched.Add(reply);
         return reply.Text + " The card with the way in is posted in the chat; do not repeat what it says.";
+    }
+
+    /// <summary>What a film the library does not hold under that name can become: a proposed download, a wish, or other films.</summary>
+    private async Task<string> FromTrackerAsync(string query, LibraryTitle? nearest, CancellationToken ct)
+    {
+        // The tracker's search names the film in the title index first, which also knows every other
+        // name a film goes by. A film the library holds under a name the words did not match is found
+        // by its id and put on — unless somebody said a number, which may be what says it is another.
+        var ranked = await tracker.ByTextAsync(query, ct);
+        var library = await api.ListTitlesAsync(ct);
+
+        if (ranked.Film is { } identified && !SaysANumber().IsMatch(said)
+            && library.FirstOrDefault(t => string.Equals(t.Film?.ImdbId, identified.ImdbId, StringComparison.OrdinalIgnoreCase))
+                is { } here)
+            return Launch(await WatchAsync(here.Id, ct));
+
+        var named = ranked.Film?.Display ?? $"\"{query}\"";
+        var lead = nearest is null
+            ? $"{named} is not in the library."
+            : $"{named} is not in the library, which has {nearest.Name}.";
+        var others = await OtherFilmsAsync(query, ranked.Film, ct);
+
+        return await OfferAsync(ranked, lead, others, query, ct);
+    }
+
+    /// <summary>Proposes the best release the tracker found, or says what can be done when there is none.</summary>
+    private async Task<string> OfferAsync(RankedReleases ranked, string lead, string others, string query, CancellationToken ct)
+    {
+        // The best release is proposed here rather than listed for the model to pick from: after a tool
+        // answers, this model ends its turn far more often than it calls the next one, and a list nobody
+        // proposed from is a room told the film exists and offered no way to get it. Nothing starts
+        // until somebody agrees, so proposing the ranker's first choice costs nothing a person cannot
+        // decline, and the other releases stay available to download_film.
+        if (ranked.Candidates.Count > 0)
+        {
+            var shown = ranked.Candidates.Take(5).ToList();
+            offered.Remember(shown);
+
+            var proposed = await ProposeDownloadAsync(
+                shown[0].TorrentId.ToString(CultureInfo.InvariantCulture), ct);
+            var alternatives = shown.Count == 1
+                ? ""
+                : " Other releases, for download_film if they want a different one:\n"
+                  + string.Join('\n', shown.Skip(1).Select(r => $"- {r.Display} · {r.Summary} (torrent {r.TorrentId})"));
+
+            return Tell($"{lead}{others}",
+                $"{proposed}{alternatives}\nIf they meant a different film, call watch_film with its full name.");
+        }
+
+        if (ranked.Film is { } waiting)
+            return Tell($"{lead} {ranked.EmptyExplanation}{others}",
+                $"Nothing was put on or downloaded. add_wish with imdb_id {waiting.ImdbId} waits for it to appear.");
+
+        if (others.Length > 0)
+            return Tell($"The library has nothing called \"{query}\".{others}",
+                "Nothing was put on. Call watch_film with the full name of the one they mean.");
+
+        return Tell($"Neither the library nor the tracker has a film called \"{query}\".",
+            "Nothing was put on. Ask them to say the film's name again.");
+    }
+
+    /// <summary>
+    /// The other films the words could mean, earliest first, or nothing when there are none.
+    /// </summary>
+    /// <remarks>
+    /// The title index answers with its most searched film first, and "Twilight" or "the second Pirates"
+    /// is often not that one. In release order, because the index's order puts the latest sequel above
+    /// the film it follows, and "the second one" read off that list is whichever is popular this week.
+    /// </remarks>
+    private async Task<string> OtherFilmsAsync(string query, ImdbTitle? identified, CancellationToken ct)
+    {
+        var films = await catalogue.SuggestAsync(query, ct);
+        var others = films
+            .Where(f => !string.Equals(f.ImdbId, identified?.ImdbId, StringComparison.OrdinalIgnoreCase))
+            .Take(MostRows - 1)
+            .OrderBy(f => f.Year ?? int.MaxValue)
+            .ToList();
+
+        return others.Count == 0 ? "" : $"\nThe name could also mean: {string.Join("; ", others.Select(f => f.Display))}.";
     }
 
     private Task<WatchResult> WatchAsync(string query, CancellationToken ct) =>
@@ -500,11 +597,11 @@ public sealed partial class RoomTools(
     private async Task<string> ProposeDownloadAsync(string? torrentId, CancellationToken ct)
     {
         if (!long.TryParse(torrentId, NumberStyles.None, CultureInfo.InvariantCulture, out var id))
-            return "download_film needs a torrent id from search_tracker.";
+            return "download_film needs a torrent id from watch_film.";
 
         if (offered.Find(id) is not { } release)
-            return $"Torrent {id} was not offered by search_tracker. Call search_tracker, then download_film with "
-                   + "a torrent id from its results.";
+            return $"Torrent {id} was not offered by watch_film. Call watch_film with the film's name, then "
+                   + "download_film with a torrent id from its results.";
 
         if (release.ImdbId is { Length: > 0 } imdbId)
         {
@@ -571,10 +668,10 @@ public sealed partial class RoomTools(
     private async Task<string> ProposeWishAsync(string? imdbId, CancellationToken ct)
     {
         if (ImdbId.FromText(imdbId) is not { } id)
-            return "add_wish needs the film's imdb_id, which search_catalogue gives.";
+            return "add_wish needs the film's imdb_id, which watch_film gives when the tracker has no release.";
 
         if (await catalogue.LookupAsync(id, ct) is not { } film)
-            return $"The catalogue has nothing under {id}. Call search_catalogue for the right id.";
+            return $"The catalogue has nothing under {id}. Call watch_film with the film's name for the right id.";
 
         if (!film.IsFeature) return Tell($"{film.Title} is not a film, and only films can be fetched here.");
 
@@ -649,13 +746,13 @@ public sealed partial class RoomTools(
                 "Ask which one they mean.")),
             _ => (null, Tell(
                 $"Nothing in the library is called \"{query}\".",
-                "search_catalogue and search_tracker find films that are not here.")),
+                "watch_film finds films that are not here.")),
         };
     }
 }
 
 /// <summary>
-/// The releases search_tracker has shown the model, by torrent id, so a download it proposes is
+/// The releases watch_film has shown the model, by torrent id, so a download it proposes is
 /// always a release it was actually offered.
 /// </summary>
 /// <remarks>

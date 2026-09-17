@@ -1,6 +1,6 @@
 {
-  "play": {
-    "description": "Starts the film playing for everyone in the room, from wherever it is.",
+  "resume": {
+    "description": "Carries on playing the film this room already holds, for everyone, from wherever it is. Never for a film named by title: that is watch_film.",
     "params": []
   },
   "pause": {
@@ -19,10 +19,10 @@
       { "name": "position", "description": "The position as h:mm:ss, m:ss, or seconds." }
     ]
   },
-  "load_title": {
-    "description": "Puts a film from the library on in this room, from its start, and posts the way in. Use when somebody asks to watch or switch to a film.",
+  "watch_film": {
+    "description": "Use whenever somebody asks to watch, play, put on, switch to, find or download a film. If the library has it, puts it on in this room and posts the way in. If not, proposes downloading the best release, which plays here once somebody confirms.",
     "params": [
-      { "name": "title", "description": "The film's id from the library, or its name." }
+      { "name": "title", "description": "The film's name, as they said it." }
     ]
   },
   "room_state": {
@@ -33,30 +33,10 @@
     "description": "Lists every room watching a film, with where each has got to and how many are in it.",
     "params": []
   },
-  "search_library": {
-    "description": "Finds films in the library by name. Use when a film is not in the list you were given.",
-    "params": [
-      { "name": "query", "description": "Words from the film's name." }
-    ]
-  },
   "get_title": {
     "description": "Describes one film in the library: its length, cast, audio tracks, subtitles, and how long it stays on disk.",
     "params": [
       { "name": "title", "description": "The film's id from the library, or its name." }
-    ]
-  },
-  "search_catalogue": {
-    "description": "Identifies a film in the IMDb catalogue, giving its imdb id, year and cast, and whether the library already has it.",
-    "params": [
-      { "name": "query", "description": "The film's name." },
-      { "name": "year", "description": "The year it came out, when somebody said it.", "type": "integer", "required": false }
-    ]
-  },
-  "search_tracker": {
-    "description": "Finds releases of a film that can be downloaded, best first, each with a torrent id.",
-    "params": [
-      { "name": "query", "description": "The film's name, with its year when known.", "required": false },
-      { "name": "imdb_id", "description": "The film's imdb id from search_catalogue. Preferred over query when known.", "required": false }
     ]
   },
   "download_status": {
@@ -68,9 +48,9 @@
     "params": []
   },
   "download_film": {
-    "description": "Proposes downloading a release. It starts only when somebody confirms, and the film then plays in this room as soon as it can be watched.",
+    "description": "Proposes downloading a different release from one watch_film listed. It starts only when somebody confirms, and the film then plays in this room as soon as it can be watched.",
     "params": [
-      { "name": "torrent_id", "description": "The torrent id of a release search_tracker returned.", "type": "integer" }
+      { "name": "torrent_id", "description": "The torrent id of a release watch_film returned.", "type": "integer" }
     ]
   },
   "fetch_subtitle": {
@@ -82,7 +62,7 @@
   "add_wish": {
     "description": "Proposes waiting for a film the tracker does not have yet, and telling the person who asked when it can be downloaded.",
     "params": [
-      { "name": "imdb_id", "description": "The film's imdb id from search_catalogue." }
+      { "name": "imdb_id", "description": "The film's imdb id, which watch_film gives when the tracker has no release." }
     ]
   },
   "keep_film": {

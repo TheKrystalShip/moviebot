@@ -18,7 +18,7 @@ public sealed class RoomIdRequestTests
         var fault = RoomIdRequest.Check("download the second one").Inspect(reply);
 
         Assert.NotNull(fault);
-        Assert.Contains("search_catalogue", fault.Nudge);
+        Assert.Contains("watch_film", fault.Nudge);
         Assert.Contains("download the second one", fault.Nudge);
     }
 

@@ -8,7 +8,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Bot</RootNamespace>
     <AssemblyName>moviebot-bot</AssemblyName>
-    <Version>0.16.3</Version>
+    <Version>0.17.0</Version>
 
     <!-- The JIT is where this process's memory goes, not the heap, and a method compiled once at
          full optimisation is held once. Startup time is nothing to a worker that runs for weeks,

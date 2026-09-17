@@ -126,6 +126,15 @@ internal sealed class AssistantHost : IDisposable
             ImdbId = "tt0383574", SizeBytes = 12L << 30, Seeders = 30,
         };
 
+        /// <summary>The films the title index names from words, one of which the tracker has no release of.</summary>
+        private static readonly ImdbTitle[] Named =
+        [
+            new() { ImdbId = "tt1375666", Title = "Inception", Year = 2010 },
+            new() { ImdbId = "tt0113277", Title = "Heat", Year = 1995 },
+            new() { ImdbId = "tt0383574", Title = "Pirates of the Caribbean: Dead Man's Chest", Year = 2006 },
+            new() { ImdbId = "tt0449088", Title = "Pirates of the Caribbean: At World's End", Year = 2007 },
+        ];
+
         // The real search names the film in the title index before asking the tracker, so the
         // catalogue's spelling of the name finds it as surely as the id does.
         private static Task<RankedReleases> Find(string said) => Task.FromResult(new RankedReleases(
@@ -133,7 +142,13 @@ internal sealed class AssistantHost : IDisposable
                 said.Contains(r.Title, StringComparison.OrdinalIgnoreCase) || said == r.ImdbId
                 || (r == DeadMansChest && said.Contains("Dead Man", StringComparison.OrdinalIgnoreCase)))], []));
 
-        public Task<RankedReleases> ByTextAsync(string typed, CancellationToken ct) => Find(typed);
+        public async Task<RankedReleases> ByTextAsync(string typed, CancellationToken ct) =>
+            await Find(typed) with
+            {
+                Film = Named.FirstOrDefault(f =>
+                    typed.Contains(f.Title.Split(": ")[^1], StringComparison.OrdinalIgnoreCase)),
+            };
+
         public Task<RankedReleases> ByTitleAsync(string query, CancellationToken ct) => Find(query);
         public Task<RankedReleases> ByImdbAsync(string imdbId, CancellationToken ct) => Find(imdbId);
     }

@@ -10,7 +10,7 @@ namespace TheKrystalShip.MovieBot.Bot.Assistant;
 /// <para>
 /// "Loading Pirates of the Caribbean: The Curse of the Black Pearl..." has no subject, so the
 /// first-person claim check reads past it, and the room waits for a film nothing is loading. Measured on
-/// hotbox against a room's real conversation: after <c>load_title</c> answered that several films
+/// hotbox against a room's real conversation: after the tool that loads a film answered that several films
 /// matched, "the first one" came back as that sentence with no second call, every time.
 /// </para>
 /// <para>
@@ -26,10 +26,9 @@ public static partial class RoomLoadingClaim
         acted() || !AnnouncesLoading().IsMatch(reply)
             ? null
             : new ReplyFault(
-                "Your last reply said a film is going on, but nothing was put on: load_title did not load "
-                + "anything this turn. Call load_title with the film's name written exactly as the library "
-                + $"lists it. Answer the request \"{Excerpt(said)}\" again, replying with the tool call itself "
-                + "and no prose.",
+                "Your last reply said a film is going on, but nothing was put on: watch_film did not load "
+                + "anything this turn. Call watch_film with the film's name. "
+                + $"Answer the request \"{Excerpt(said)}\" again, replying with the tool call itself and no prose.",
                 "",
                 "\n\n**Correction:** nothing was put on. Ask again with the film's name."));
 

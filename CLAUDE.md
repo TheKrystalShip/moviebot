@@ -688,13 +688,25 @@ Anything said to the bot that the gate does not read is a turn of the agent loop
   reply from its own conversation, and a line in the instructions does not stop it on every history.
   `RoomLoadingClaim` sends back "Loading Heat..." on a turn that put nothing on, which has no subject
   for the first-person check to find.
-- **`load_title` reads what the model wrote the way the film is listed, not the way it was typed.**
+- **Asking for a film is one tool, `watch_film`, and it always comes back with something to act on.**
+  Given a search and a load as separate tools, the model stops at the first answer and tells the room
+  a film is not in the library without asking the tracker. `watch_film` puts the film on when the
+  library has it. Otherwise it asks the tracker, puts on a library film the title index names under
+  another spelling, and proposes the ranker's best release, because after a tool answers the model
+  ends its turn far more often than it calls the next one. When the tracker has no release it gives
+  the imdb id `add_wish` takes. Other films the words could mean are listed, earliest first.
+- **`watch_film` reads what the model wrote the way the film is listed, not the way it was typed.**
   The model retypes ids with the punctuation changed, words doubled and the year invented, so the
   matcher compares words and ignores punctuation. A film named whole under a year nobody said is put
   on, because the year is the model's; when the person said a number, the year may be what picks the
-  film, so it is offered by name and not put on. Replies to a film that could not be picked are
-  written for the model: the films it could have been by name, earliest first, never the `/watch`
-  wording.
+  film, so it is not put on. Replies to a film that could not be picked are written for the model: the
+  films it could have been by name, earliest first, never the `/watch` wording.
+- **A film named by its place in a series is counted by the bot, in the order the films came out.**
+  "The second Pirates of the Caribbean" and "step up 2" are read from the person's words, which the
+  model often drops when it writes the name down, and the catalogue's films sharing the name are
+  counted by year. The index's own order is what people search for this week.
+- **Carrying on is `resume`, never `play`.** A tool named `play` is what the model calls for "play"
+  followed by a film's name, and the room carries on with the film it already holds.
 - **A room's conversation lasts as long as the room keeps talking.** Once it has been silent for
   `Assistant:IdleResetMinutes`, the next request or room verb starts it over with the store's
   `Reset`, which replays nothing before it and keeps every turn on disk. Requests to a room are

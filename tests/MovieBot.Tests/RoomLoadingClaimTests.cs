@@ -18,7 +18,7 @@ public sealed class RoomLoadingClaimTests
         var fault = RoomLoadingClaim.Check("the first one", () => false).Inspect(reply);
 
         Assert.NotNull(fault);
-        Assert.Contains("load_title", fault.Nudge);
+        Assert.Contains("watch_film", fault.Nudge);
         Assert.Contains("the first one", fault.Nudge);
     }
 

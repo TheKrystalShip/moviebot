@@ -55,7 +55,7 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
 
         var calls = await AskAsync(turn, "ok carry on");
 
-        Assert.Contains(calls, c => c.Name.Name == RoomTools.Play);
+        Assert.Contains(calls, c => c.Name.Name == RoomTools.Resume);
         Assert.False((await _host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).Paused);
     }
 
@@ -99,22 +99,38 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
 
         var calls = await AskAsync(turn, "put on collateral instead");
 
-        var load = Assert.Single(calls, c => c.Name.Name == RoomTools.LoadTitle);
+        var load = Assert.Single(calls, c => c.Name.Name == RoomTools.WatchFilm);
         Assert.Equal(SessionFixture.Collateral, (await _host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).TitleId);
-        output.WriteLine($"load_title title={load.Arg("title")}");
+        output.WriteLine($"watch_film title={load.Arg("title")}");
     }
 
     [LiveModelFact]
-    public async Task Downloading_a_film_that_is_not_here_searches_and_then_proposes()
+    public async Task Downloading_a_film_that_is_not_here_finds_it_and_then_proposes()
     {
         var turn = await RoomAsync(SessionFixture.Heat, at: 300, paused: false);
 
         var answer = await _host.Assistant.AskAsync(turn, "download inception", CancellationToken.None);
         var calls = Calls(turn);
 
-        Assert.Contains(calls, c => c.Name.Name is RoomTools.SearchTracker);
+        Assert.Contains(calls, c => c.Name.Name is RoomTools.WatchFilm);
         Assert.Equal(RoomTools.DownloadFilm, Assert.Single(answer.Proposed).Kind);
-        Assert.DoesNotContain(calls, c => RoomTools.RoomMoves.Contains(c.Name.Name));
+        Assert.Equal(SessionFixture.Heat, (await _host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).TitleId);
+    }
+
+    [LiveModelTheory]
+    [InlineData("Play Inception")]
+    [InlineData("put on inception")]
+    [InlineData("I want to watch inception")]
+    public async Task Asking_to_play_a_film_that_is_not_here_proposes_downloading_it(string said)
+    {
+        // The room that asked for Twilight and Step Up was told "not in the library" and nothing else.
+        var turn = await RoomAsync(SessionFixture.Heat, at: 300, paused: false);
+
+        var answer = await _host.Assistant.AskAsync(turn, said, CancellationToken.None);
+
+        output.WriteLine($"{string.Join(", ", Calls(turn).Select(c => $"{c.Name}({string.Join(", ", c.Arguments.Select(a => $"{a.Key}={a.Value}"))})"))}; "
+                         + $"proposed: {string.Join("; ", answer.Proposed.Select(p => p.Describes))}; reply: {answer.Text}");
+        Assert.Equal(RoomTools.DownloadFilm, Assert.Single(answer.Proposed).Kind);
     }
 
     [LiveModelTheory]
@@ -140,7 +156,7 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
 
         var calls = await AskAsync(turn, "keep going");
 
-        Assert.Contains(calls, c => c.Name.Name == RoomTools.Play);
+        Assert.Contains(calls, c => c.Name.Name == RoomTools.Resume);
     }
 
     [LiveModelFact]
@@ -156,7 +172,7 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
 
         // A refusal that suggested putting the film on was answered "I have loaded Heat" with nothing
         // loaded. A claim of an act the turn did not take is the failure worth pinning.
-        if (Calls(turn).All(c => c.Name.Name != RoomTools.LoadTitle))
+        if (Calls(turn).All(c => c.Name.Name != RoomTools.WatchFilm))
             Assert.DoesNotContain("loaded", answer.Text, StringComparison.OrdinalIgnoreCase);
     }
 

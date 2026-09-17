@@ -35,8 +35,8 @@ public sealed class AssistantPartsTests
         Assert.True(seconds.Required);
         Assert.Equal("integer", seconds.Type);
 
-        var year = catalog.All.Single(t => t.Name == RoomTools.SearchCatalogue).Parameters.Single(p => p.Name == "year");
-        Assert.False(year.Required);
+        var title = catalog.All.Single(t => t.Name == RoomTools.WatchFilm).Parameters.Single();
+        Assert.True(title.Required);
     }
 
     [Fact]
@@ -197,11 +197,83 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         var turn = AssistantPartsTests.Turn(NewChannel());
         var room = host.Tools.For(turn);
 
-        await room.ExecuteAsync(Call(RoomTools.LoadTitle, ("title", "collateral")));
+        await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "collateral")));
 
         Assert.Single(room.Launched);
         var state = await host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None);
         Assert.Equal(SessionFixture.Collateral, state.TitleId);
+    }
+
+    [Fact]
+    public async Task Asking_for_a_film_the_library_lacks_proposes_its_best_release_and_puts_nothing_on()
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        var room = host.Tools.For(turn, "play inception");
+
+        var told = await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "Inception")));
+
+        Assert.Empty(room.Launched);
+        Assert.Contains("Inception (2010) is not in the library", told.Summary);
+        Assert.Contains("Proposed: download Inception (2010)", told.Summary);
+        Assert.DoesNotContain(await host.Api.ListRoomsAsync(CancellationToken.None), r => r.SessionId == turn.SessionId);
+
+        // The model calling download_film for the same release afterwards is asking again, not twice.
+        await room.ExecuteAsync(Call(RoomTools.DownloadFilm, ("torrent_id", "41")));
+        Assert.Equal(RoomTools.DownloadFilm, Assert.Single(room.Proposed).Kind);
+    }
+
+    [Theory]
+    [InlineData("get pirates of the caribbean 2", "Pirates of the Caribbean 2")]
+    [InlineData("download the second pirates of the caribbean movie", "Pirates of the Caribbean")]
+    [InlineData("download pirates of the caribbean part two", "Pirates of the Caribbean")]
+    public async Task A_film_named_by_its_place_in_a_series_is_counted_in_the_order_they_came_out(string said, string title)
+    {
+        // The index lists the series by what people search for now, with the 2017 film second.
+        var host = Host();
+        var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()), said);
+
+        var told = await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", title)));
+
+        Assert.Contains("Dead Man's Chest (2006) is not in the library", told.Summary);
+        Assert.Contains("Dead Mans Chest", Assert.Single(room.Proposed).Describes);
+    }
+
+    [Fact]
+    public async Task A_film_the_tracker_does_not_have_yet_is_named_with_the_id_a_wish_takes()
+    {
+        var host = Host();
+        var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()), "play pirates of the caribbean at worlds end");
+
+        var told = await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "Pirates of the Caribbean: At World's End")));
+
+        Assert.Empty(room.Launched);
+        Assert.Contains("not in the library", told.Summary);
+        Assert.Contains("add_wish with imdb_id tt", told.Summary);
+    }
+
+    [Fact]
+    public async Task Words_that_name_several_films_list_the_others_earliest_first()
+    {
+        var host = Host();
+        var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()), "download pirates of the caribbean");
+
+        var told = await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "Pirates of the Caribbean")));
+
+        var others = told.Summary[told.Summary.IndexOf("could also mean", StringComparison.Ordinal)..];
+        Assert.True(others.IndexOf("(2006)", StringComparison.Ordinal) < others.IndexOf("(2017)", StringComparison.Ordinal), told.Summary);
+    }
+
+    [Fact]
+    public async Task Words_neither_the_library_nor_the_tracker_knows_say_so()
+    {
+        var host = Host();
+        var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()), "play blorptastic");
+
+        var told = await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "blorptastic")));
+
+        Assert.Empty(room.Launched);
+        Assert.Contains("Neither the library nor the tracker", told.Summary);
     }
 
     [Theory]
@@ -213,7 +285,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         var turn = AssistantPartsTests.Turn(NewChannel());
         var room = host.Tools.For(turn, "put heat on");
 
-        await room.ExecuteAsync(Call(RoomTools.LoadTitle, ("title", title)));
+        await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", title)));
 
         Assert.Single(room.Launched);
         Assert.Equal(SessionFixture.Heat, (await host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).TitleId);
@@ -228,7 +300,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         var turn = AssistantPartsTests.Turn(NewChannel());
         var room = host.Tools.For(turn, said);
 
-        var told = await room.ExecuteAsync(Call(RoomTools.LoadTitle, ("title", "Heat (1999)")));
+        var told = await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "Heat (1999)")));
 
         Assert.Empty(room.Launched);
         Assert.Contains("Heat (1995)", told.Summary);
@@ -245,7 +317,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
 
         var said = await room.ExecuteAsync(Call(RoomTools.DownloadFilm, ("torrent_id", "41")));
 
-        Assert.Contains("was not offered by search_tracker", said.Summary);
+        Assert.Contains("was not offered by watch_film", said.Summary);
         Assert.Empty(room.Proposed);
     }
 
@@ -255,7 +327,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         var host = Host();
         var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()));
 
-        await room.ExecuteAsync(Call(RoomTools.SearchTracker, ("query", "Inception")));
+        await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "Inception")));
         var said = await room.ExecuteAsync(Call(RoomTools.DownloadFilm, ("torrent_id", "41")));
         await room.ExecuteAsync(Call(RoomTools.DownloadFilm, ("torrent_id", "41")));
 
@@ -332,7 +404,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     {
         var host = Host();
         var turn = AssistantPartsTests.Turn(NewChannel());
-        host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.SearchTracker, ("query", "Inception"))]));
+        host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.WatchFilm, ("title", "Inception"))]));
         host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.DownloadFilm, ("torrent_id", "41"))]));
         host.Model.Answers.Enqueue(LlmResponse.Text("Inception is ready to download once somebody confirms."));
 
@@ -362,7 +434,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     {
         var host = Host();
         var turn = AssistantPartsTests.Turn(NewChannel());
-        host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.SearchTracker, ("query", "Inception"))]));
+        host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.WatchFilm, ("title", "Inception"))]));
         host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.DownloadFilm, ("torrent_id", "41"))]));
         host.Model.Answers.Enqueue(LlmResponse.Text("Inception it is."));
 

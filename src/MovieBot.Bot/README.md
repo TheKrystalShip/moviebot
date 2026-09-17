@@ -201,8 +201,13 @@ pick's, a wish is `/notify`'s and a keep is `/keep`'s.
   anything that is neither a yes nor a no spends it without a word: in a room watching a film that
   is a remark about the film, and asking again would open a window that takes the next remark too. Anyone may agree; the act is done as whoever asked, so
   the download pings them and the wish is theirs. A proposal is held in memory and expires.
-- **A download is always of a release the model was shown.** A torrent id it writes without a
-  search having offered it is refused, and a release of a film the library already holds is refused
+- **Asking for a film always ends in something to act on.** Watching, playing, finding and
+  downloading a film are one tool. When the library has the film it goes on; when it does not, the
+  best release the tracker offers is proposed, and when the tracker has none the model is given what
+  a wish takes. A film named by its place in a series, "the second one" or "part two", is counted by
+  the bot in the order the films came out.
+- **A download is always of a release the model was shown.** A torrent id it writes without the
+  tool having offered it is refused, and a release of a film the library already holds is refused
   too.
 - **When the model writes nothing, what the tools said is the answer.** This model ends its turn
   straight after a tool result more often than not, so an act comes back as "Moved to 29:51." — the

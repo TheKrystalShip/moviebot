@@ -107,7 +107,7 @@ public sealed class RoomFacts(
             text.AppendLine($"- {title.Id}: {title.Name}{StatusNote(title)}");
 
         if (library.Count > shown)
-            text.AppendLine($"({library.Count - shown} more; search_library finds them.)");
+            text.AppendLine($"({library.Count - shown} more; watch_film finds them.)");
 
         return text.ToString();
     }

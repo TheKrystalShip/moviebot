@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.45.0] - 2026-09-17
+
+### Changed
+
+- Asking the assistant for a film is one tool, `watch_film`, in place of `load_title`,
+  `search_library`, `search_catalogue` and `search_tracker`. It puts the film on when the library has
+  it, and otherwise proposes downloading the best release the tracker offers, which plays in the room
+  once somebody confirms. When the tracker has no release it gives the id a wish takes, and other
+  films the words could mean are named. A room asking for Twilight and Step Up was told only that
+  they were not in the library.
+- A film named by its place in a series — "the second Pirates of the Caribbean", "step up 2",
+  "part two" — is counted by the bot in the order the films came out, whether it is in the library or
+  has to be downloaded.
+- The assistant's tool for carrying on a paused film is `resume`. Named `play`, it was what the model
+  called for "play" followed by a film's name, and the room went on with the film it already held.
+
 ## [1.44.2] - 2026-09-16
 
 ### Fixed

@@ -182,7 +182,7 @@ public sealed class RoomVoiceCommandHandler(
         var (tool, arguments, outcome) = reading.Kind switch
         {
             RoomVerbKind.Pause => (RoomTools.Pause, new Dictionary<string, string?>(), $"Paused at {at}."),
-            RoomVerbKind.Play => (RoomTools.Play, new Dictionary<string, string?>(), $"Playing from {at}."),
+            RoomVerbKind.Play => (RoomTools.Resume, new Dictionary<string, string?>(), $"Playing from {at}."),
             _ => (RoomTools.SeekRelative,
                 new Dictionary<string, string?>
                 {
