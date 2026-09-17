@@ -635,11 +635,17 @@ A release name is what a film arrives as. It is not what the film is called.
 `/voice join` brings the bot into a voice channel to listen, and "hey MovieBot, pause" stops the
 film. `src/MovieBot.Bot/README.md` is the authority for the surface; these are the rules it rests on.
 
+- **The trigger is heard mid-conversation, and a verb acts before the room goes quiet.** Each
+  speaker is scanned for the trigger in three-second windows on moviebot-speech's scan lane, because
+  people watching together never pause for the bot. `RoomVerbCompleteness` tells the pipeline a
+  request is whole as soon as two readings agree it is a room verb, so "pause" stops the film while
+  the room keeps talking. Commands are cut at seven seconds, under moviebot-speech's eight-second
+  command window.
 - **The gate comes before the model.** What is heard goes to moviebot-speech for words and the words
   go to `RoomVerbs`, a gate that knows a handful of verbs. A component that moves the room for
   everyone in it should read the same words the same way every time, so the common verbs never
   depend on a model's judgement. Only what the gate does not read goes to the assistant.
-- **The gate matches the whole utterance and has three answers.** "Should we pause?" contains the
+- **The gate matches the whole request and has three answers.** "Should we pause?" contains the
   word and is not the verb. A phrasing that looks like a verb and cannot be read safely — no amount,
   a vague one, two acts, or digits joined by punctuation that flattening would fuse — is ambiguous
   and not guessed at, because a misread verb moves the film for everybody.

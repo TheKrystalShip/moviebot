@@ -8,7 +8,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Speech</RootNamespace>
     <AssemblyName>moviebot-speech</AssemblyName>
-    <Version>0.1.1</Version>
+    <Version>0.2.0</Version>
 
     <!-- The same reasoning as the bot's: this runs for weeks, so a method is compiled once at full
          optimisation rather than tiered up, and the code heap is held once. -->
@@ -21,8 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="TheKrystalShip.Speech" Version="1.0.0" />
-    <PackageReference Include="TheKrystalShip.Speech.Engine" Version="2.5.1" />
+    <PackageReference Include="TheKrystalShip.Speech" Version="1.2.0" />
+    <PackageReference Include="TheKrystalShip.Speech.Engine" Version="2.6.0" />
 
     <!-- Whisper.net's managed binding only. The natives it normally brings are deliberately absent:
          every prebuilt linux-x64 runtime it ships compiles the CPU backend for AVX2, which this

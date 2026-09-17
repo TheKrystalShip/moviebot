@@ -103,6 +103,7 @@ builder.Services.AddSingleton<ISpeechEngine>(sp => sp.GetRequiredService<MovieBo
 builder.Services.AddSingleton<ISpeechToText, MovieBotSpeechToText>();
 builder.Services.AddSingleton<RoomVoiceCommandHandler>();
 builder.Services.AddSingleton<IVoiceCommandHandler>(sp => sp.GetRequiredService<RoomVoiceCommandHandler>());
+builder.Services.AddSingleton<IVoiceCommandCompleteness, RoomVerbCompleteness>();
 builder.Services.AddDiscordVoice();
 
 // The assistant: what somebody says that is not a room verb goes to moviebot-llm, with the room and

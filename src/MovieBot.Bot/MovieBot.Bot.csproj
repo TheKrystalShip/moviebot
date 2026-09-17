@@ -8,7 +8,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Bot</RootNamespace>
     <AssemblyName>moviebot-bot</AssemblyName>
-    <Version>0.18.0</Version>
+    <Version>0.19.0</Version>
 
     <!-- The JIT is where this process's memory goes, not the heap, and a method compiled once at
          full optimisation is held once. Startup time is nothing to a worker that runs for weeks,
@@ -42,12 +42,12 @@
          The package belongs to no product, and this bot supplies what only it can answer — where
          the recogniser is, and what a spoken request does to a room. It resolves libdave by name at
          runtime for the encryption every voice call requires. -->
-    <PackageReference Include="TheKrystalShip.Discord.Voice" Version="2.0.0" />
+    <PackageReference Include="TheKrystalShip.Discord.Voice" Version="3.0.0" />
 
     <!-- The client and wire contract for moviebot-speech's socket, and the rules about which parts
          of a transcript are speech. A few kilobytes and no native code: the model is in the other
          process. -->
-    <PackageReference Include="TheKrystalShip.Speech" Version="1.1.0" />
+    <PackageReference Include="TheKrystalShip.Speech" Version="1.2.0" />
 
     <!-- The agent loop and its conversation store, for what somebody says that the room verbs do not
          cover. The model is moviebot-llm, reached over loopback; nothing of it runs in this process. -->

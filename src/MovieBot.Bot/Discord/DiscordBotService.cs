@@ -254,7 +254,7 @@ public sealed class DiscordBotService(
         if (voiceSessions.Describe(guildId) is not { } session) return "Not listening in any voice channel.";
 
         var line = $"Listening in **{session.ChannelName}** for {Math.Floor(session.For.TotalMinutes)} min: "
-            + $"{session.Utterances} things heard from {session.Speakers} "
+            + $"{session.Captures} requests heard from {session.Speakers} "
             + (session.Speakers == 1 ? "person." : "people.");
 
         // Connected and sent nothing looks, from inside the channel, exactly like being heard and not

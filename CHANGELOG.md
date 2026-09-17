@@ -4,6 +4,30 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.47.0] - 2026-09-17
+
+### Changed
+
+- "Hey MovieBot, pause" works while the room keeps talking, which is how people watch a film together.
+  A request was a sentence ended by silence, and open microphones are never silent. On hotbox, a
+  pause said inside 12.7 s of unbroken talk got no tone and landed only after the talk ended. The bot
+  (0.19.0, `TheKrystalShip.Discord.Voice` 3.0.0) now reads each person's last three seconds for the
+  trigger every half second, on a scan lane in moviebot-speech (0.2.0, `TheKrystalShip.Speech.Engine`
+  2.6.0). Finding it plays the tone at once and starts taking the request from the word before the
+  trigger. `RoomVerbCompleteness` tells the pipeline a request is whole as soon as two readings agree
+  that everything up to a full stop is a room verb, so the film moves before the speaker stops talking.
+  A request that is not a verb ends when the speaker goes quiet, or at seven seconds, under
+  moviebot-speech's eight-second window.
+- Measured with two bots in an empty channel against hotbox's recogniser, three rounds each:
+  - The trigger five seconds into fourteen of unbroken talk, then "pause it" and more talk: tone at
+    +200 to +395 ms, and "pause it" acted on at +1.35 to +1.74 s while the talk ran on for another nine
+    seconds.
+  - The same with another speaker holding the recogniser: tone at +400 to +660 ms, "pause it" at +1.1 to
+    +1.4 s.
+  - Seventeen seconds of chat: no false trigger.
+- `Voice__SilenceGapMs` no longer exists. `Voice__MaxCommandSeconds`, `Voice__CommandQuietMs`,
+  `Voice__ScanWindowMs` and `Voice__ScanStrideMs` are in the bot's README.
+
 ## [1.46.0] - 2026-09-17
 
 ### Fixed

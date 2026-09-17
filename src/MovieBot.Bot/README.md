@@ -51,8 +51,10 @@ model's own unit to replay when it starts.
 | `Notify__SweepMinutes` | no | How often the tracker is asked about every film on the list. Defaults to 60. |
 | `Voice__Enabled` | no | Whether the bot may listen in a voice channel at all. Off by default, because everyone in a channel it joins is heard. On, it still joins only when somebody runs `/voice join`. |
 | `Voice__Triggers` | no | What addresses the bot, comma-separated. `appsettings.json` carries `hey moviebot, hey movie bot`, because the recogniser writes the name both ways. The recogniser is primed with the name alone and never with a trigger: whisper answers noise with the sentence it was primed with, so a trigger in the priming makes a breath address the bot. |
-| `Voice__SilenceGapMs` | no | How long somebody has to stop talking before the sentence counts as finished. `appsettings.json` carries 800. It is most of the wait between saying "pause" and the film stopping — a spoken pause takes 1.07 to 1.26 s at 800 — but a shorter gap ends the sentence at the pause people leave after "hey moviebot,", which turns one request into the trigger said alone and hands whatever the speaker says next to the bot as the request. |
-| `Voice__LogTranscripts` | no | Whether what was heard is written to the log. Off by default: a voice channel is full of things nobody said to the bot. |
+| `Voice__MaxCommandSeconds` | no | The longest a request may run before it is cut and taken as it stands. `appsettings.json` carries 7, because moviebot-speech reads commands in an eight-second window and audio that fills it makes recognition run away. |
+| `Voice__CommandQuietMs` | no | How long somebody has to stop sounding after the trigger before a request that is not a room verb counts as finished. Defaults to 600. A room verb does not wait for it: "pause" is acted on as soon as two readings agree on it, while the room keeps talking. |
+| `Voice__ScanWindowMs`, `Voice__ScanStrideMs` | no | How much of each person's latest speech is looked through for the trigger, and how often: 3000 and 500 by default. The window must stay under moviebot-speech's four-second scan window. |
+| `Voice__LogTranscripts` | no | Whether what was heard is written to the log: requests at information level, and everything scanned for the trigger at debug. Off by default: a voice channel is full of things nobody said to the bot. |
 | `Assistant__Enabled` | no | Whether a spoken request that is not a room verb is put to the model. Off by default; off, those requests are answered by nothing. |
 | `Assistant__PromptDirectory` | no | Where `system.md` and `tools.json` are read from, relative to the binary. Defaults to `prompts`, which is where the build puts them. |
 | `Assistant__OfferMinutes` | no | How long a proposed download, fetch, wish or keep waits for somebody to agree. Defaults to 10. |
@@ -147,13 +149,21 @@ the command above it does not change.
 "hey MovieBot, pause" stops the film for the room. What is heard goes to moviebot-speech for words,
 and the words go first to a gate that knows a handful of verbs, with no model involved.
 
-- **The gate reads the whole utterance and has three answers.** "Pause", "resume the film", "back
+- **The trigger is heard while people keep talking.** Nobody watching a film with friends goes
+  quiet before addressing the bot, so each person's last three seconds are looked through for the
+  trigger every half second, on moviebot-speech's scan lane. Finding it plays the listening tone and
+  starts taking the request from the word before the trigger.
+- **A room verb is acted on as soon as it is said.** The request is read as it grows, and the moment
+  two readings agree on something the gate calls a verb (`RoomVerbCompleteness`), the film moves —
+  while the room carries on talking. Anything else is taken when the speaker has been quiet for a
+  moment, or at seven seconds.
+- **The gate reads the whole request and has three answers.** "Pause", "resume the film", "back
   fifteen", "skip forward a minute" are verbs. "Should we pause?" and "don't pause it" contain the
   word and are not the verb. "Go back" with no amount, "rewind a bit", and "go back 1:30" look like
   verbs and cannot be read safely, so they are not guessed at: a missed verb costs a slower answer,
   a misread one moves the film for everyone.
 - **Numbers are read before punctuation is stripped.** Recognition writes "1:30" and "1.5", and
-  flattened those become 130 and 15. Digits joined by a colon, point or comma make an utterance
+  flattened those become 130 and 15. Digits joined by a colon, point or comma make a request
   ambiguous.
 - **"Go ahead" is not a direction.** It means carry on, and read as "skip ahead" it would move the
   film the first time somebody agreed with something.
@@ -174,8 +184,8 @@ and the words go first to a gate that knows a handful of verbs, with no model in
   per-interval decrypt statistics, which is the first thing to turn on when a voice connection
   misbehaves.
 - **The log says how long it took.** Every act is logged with the milliseconds from the moment the
-  speaker stopped talking to the moment the room changed. The silence that ends a sentence is inside
-  that number, because the person waited through it.
+  speaker stopped talking to the moment the room changed. For a request that is not a verb, the quiet
+  that ends it is inside that number, because the person waited through it.
 
 ## Asking the assistant
 

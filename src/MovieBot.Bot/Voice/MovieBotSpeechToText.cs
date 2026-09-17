@@ -49,31 +49,16 @@ public sealed class MovieBotSpeechToText : ISpeechToText
 
     public bool IsAvailable => _speech.Available;
 
-    public async Task<string?> TranscribeAsync(VoiceUtterance utterance, CancellationToken ct = default) =>
-        (await RecogniseAsync(utterance, ifIdle: false, ct)).Transcript;
-
-    public Task<IdleReading> TranscribeIfIdleAsync(VoiceUtterance utterance, CancellationToken ct = default) =>
-        RecogniseAsync(utterance, ifIdle: true, ct);
-
-    private async Task<IdleReading> RecogniseAsync(VoiceUtterance utterance, bool ifIdle, CancellationToken ct)
+    public async Task<string?> TranscribeAsync(VoiceUtterance utterance, CancellationToken ct = default)
     {
-        if (!IsAvailable) return IdleReading.Of(null);
+        if (!IsAvailable) return null;
 
         var timer = Stopwatch.StartNew();
         (SpeechProtocol.Outcome outcome, string text) =
-            await _speech.Client.TranscribeAsync(utterance.Audio, Priming, ifIdle, ct);
+            await _speech.Client.TranscribeAsync(utterance.Audio, Priming, ifIdle: false, ct);
         timer.Stop();
 
-        if (outcome == SpeechProtocol.Outcome.Busy)
-        {
-            // Invisible from inside a channel: being addressed while the recogniser is occupied only
-            // delays the tone, because the opening is read on a later offer. Logged so contention can
-            // be told apart from a trigger that is not matching.
-            _logger.LogDebug("Voice: skipped reading {Speaker} early, the recogniser was busy", utterance.SpeakerName);
-            return IdleReading.Busy;
-        }
-
-        if (outcome != SpeechProtocol.Outcome.Done) return IdleReading.Of(null);
+        if (outcome != SpeechProtocol.Outcome.Done) return null;
 
         string transcript = SpokenTranscript.Clean(text);
 
@@ -88,9 +73,25 @@ public sealed class MovieBotSpeechToText : ISpeechToText
             // partial, which comes back complete a moment later and would be counted twice.
             if (!utterance.Partial) _tally.Echoed();
             _logger.LogDebug("Voice: discarded a transcript from {Speaker} that was the priming coming back", utterance.SpeakerName);
-            return IdleReading.Of(null);
+            return null;
         }
 
-        return IdleReading.Of(transcript.Length == 0 ? null : transcript);
+        return transcript.Length == 0 ? null : transcript;
+    }
+
+    public async Task<VoiceScan> ScanAsync(VoiceUtterance window, CancellationToken ct = default)
+    {
+        if (!IsAvailable) return VoiceScan.Failed;
+
+        // Unprimed, and so not echo-checked: a scan looks for the trigger in everything everybody says,
+        // and a recogniser told the bot's name hears it in breath and hiss.
+        (SpeechProtocol.Outcome outcome, SpeechScan scan) = await _speech.Client.ScanAsync(window.Audio, ct);
+
+        return outcome switch
+        {
+            SpeechProtocol.Outcome.Done => VoiceScan.Of(scan),
+            SpeechProtocol.Outcome.Busy => VoiceScan.Busy,
+            _ => VoiceScan.Failed,
+        };
     }
 }
