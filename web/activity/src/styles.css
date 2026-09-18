@@ -124,6 +124,27 @@ body {
   animation: mb-spin 0.9s linear infinite;
 }
 
+/* Why the film is not playing for this viewer, over the poster, until another film is loaded. */
+.mb-unplayable {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+  width: min(88%, 520px);
+  padding: 16px 22px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.mb-unplayable[hidden] {
+  display: none;
+}
+
 @keyframes mb-spin {
   to { transform: rotate(360deg); }
 }

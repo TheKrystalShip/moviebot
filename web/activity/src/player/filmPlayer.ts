@@ -35,10 +35,37 @@ export interface FilmPlayerHooks {
   unpinSubtitle(trackId: string): Promise<void>;
   /** Re-reads the film after the room's subtitles change, so the picker sees the new list. */
   refreshManifest(): Promise<Manifest | null>;
+  /** Where the room is. A relative seek is measured from here while this viewer holds no film. */
+  roomPosition(): number;
+  /** This viewer cannot play the film at all. The player has stopped trying and says why. */
+  onUnplayable(): void;
 }
 
 const PositionTickMs = 200;
 const LoadTimeoutMs = 30_000;
+
+/**
+ * What the ingest writes: H.264 High at level 4.2 and stereo AAC-LC. Asked about before anything
+ * is fetched, because a client with no decoder for them fails every append, and hls.js recovering
+ * from each failure resets the element about ten times a second for as long as the page is open.
+ */
+const VideoCodec = 'video/mp4; codecs="avc1.64002a"';
+const AudioCodec = 'audio/mp4; codecs="mp4a.40.2"';
+
+/**
+ * Fatal media errors recovered from before giving up: one plain recovery, then one that swaps the
+ * audio codec, which is the sequence hls.js recommends. Counted per stretch of playback, so a film
+ * that plays between two hiccups has both recoveries again for the second one.
+ */
+const MediaRecoveries = 2;
+
+/**
+ * Discord's desktop client decodes H.264 only on the graphics card. With hardware acceleration
+ * off it has no decoder at all, and this is the one thing the viewer can do about it.
+ */
+const NoDecoderMessage =
+  'This copy of Discord cannot decode the film. Turn on Hardware Acceleration under '
+  + 'Settings → Advanced, then restart Discord.';
 
 /**
  * What a media fetch outside hls.js carries.
@@ -87,7 +114,13 @@ export class FilmPlayer {
   private thumbnailUrl: string | null = null;
   private releaseShortcuts: (() => void) | null = null;
   private readonly spinner: HTMLElement;
+  private readonly unplayable: HTMLElement;
   private readonly flash: KeyFlash;
+  /** Set once the loaded film reached metadata, and cleared by the next load or by giving up. */
+  private ready = false;
+  private recoveries = 0;
+  /** Ends the wait in `load` early, when the player gives up before metadata ever arrives. */
+  private settleLoad: ((ok: boolean) => void) | null = null;
   private holds = 0;
   private readonly volume: VolumeControl;
   private readonly styler: SubtitleStyler;
@@ -104,6 +137,13 @@ export class FilmPlayer {
     this.spinner.hidden = true;
     this.spinner.setAttribute('role', 'status');
     this.spinner.setAttribute('aria-label', 'Waiting for the film');
+
+    // Why this viewer is looking at a poster, for as long as it stays that way. A notice that
+    // fades leaves the person clicking at a film that will never start.
+    this.unplayable = document.createElement('div');
+    this.unplayable.className = 'mb-unplayable';
+    this.unplayable.hidden = true;
+    this.unplayable.setAttribute('role', 'alert');
 
     // What a key press did to the playhead or the volume. Nothing else reports a seek that
     // lands inside the scene it started in, or a step the ear cannot be sure it heard.
@@ -125,6 +165,10 @@ export class FilmPlayer {
       // is, and a stall that has lasted long enough to be worth showing. Both would stand in the
       // middle of the screen at once, in different designs, the moment playback waited.
       loadingSpinner: false,
+      // The player says what went wrong itself, once and for as long as it holds. The library's
+      // dialog is raised by every failed attempt and cleared by the retry behind it, which during
+      // a recovery is a message flashing faster than it can be read.
+      errorDisplay: false,
       // A click toggles playback, which the library does itself and correctly — it knows not to
       // when the click was on a control. A double click does nothing: it would ask for fullscreen,
       // and the player already is the screen.
@@ -149,8 +193,9 @@ export class FilmPlayer {
     // with controls that answer and a film that never arrives.
     this.video = this.player.el().querySelector('video') as HTMLVideoElement;
 
-    container.append(this.spinner, this.flash.el);
+    container.append(this.spinner, this.unplayable, this.flash.el);
 
+    this.video.addEventListener('playing', () => { this.recoveries = 0; });
     this.video.addEventListener('waiting', () => this.stalled(true));
     this.video.addEventListener('stalled', () => this.stalled(true));
     for (const settled of ['playing', 'canplay', 'seeked', 'pause', 'error']) {
@@ -232,9 +277,13 @@ export class FilmPlayer {
     this.releaseShortcuts = bindShortcuts({
       togglePlay: () => this.togglePlay(),
       // Through the same route the scrub bar takes: the server decides where the room lands.
+      // Measured from the room while this viewer holds no film: an element that never loaded,
+      // or one a recovery has just emptied, sits at zero, and five seconds on from there is the
+      // opening titles for everyone.
       seekBy: (seconds) => {
-        const to = Math.min(this.scrubDuration, Math.max(0, this.video.currentTime + seconds));
-        this.flash.seek(to - this.video.currentTime);
+        const from = this.holdsFilm ? this.video.currentTime : this.hooks.roomPosition();
+        const to = Math.min(this.scrubDuration, Math.max(0, from + seconds));
+        this.flash.seek(to - from);
         this.hooks.onSeekIntent(to);
       },
       volumeBy: (step) => this.volume.nudge(step),
@@ -249,6 +298,9 @@ export class FilmPlayer {
     this.teardownSource();
 
     this.manifest = manifest;
+    this.ready = false;
+    this.recoveries = 0;
+    this.unplayable.hidden = true;
 
     // Held up until something can be played, rather than left blank with a button over it.
     this.spinner.hidden = false;
@@ -286,18 +338,25 @@ export class FilmPlayer {
     // A source that never reaches metadata would otherwise leave the caller waiting forever,
     // so the wait ends either way and the error path reports what happened.
     const ready = new Promise<boolean>((resolve) => {
-      const timer = window.setTimeout(() => resolve(false), LoadTimeoutMs);
-      this.video.addEventListener(
-        'loadedmetadata',
-        () => {
-          window.clearTimeout(timer);
-          resolve(true);
-        },
-        { once: true }
-      );
+      const settle = (ok: boolean) => {
+        window.clearTimeout(timer);
+        this.video.removeEventListener('loadedmetadata', loaded);
+        if (this.settleLoad === settle) this.settleLoad = null;
+        resolve(ok);
+      };
+      const loaded = () => settle(true);
+      const timer = window.setTimeout(() => settle(false), LoadTimeoutMs);
+      this.video.addEventListener('loadedmetadata', loaded);
+      this.settleLoad = settle;
     });
 
-    if (Hls.isSupported()) {
+    const mse = Hls.isSupported();
+    if (mse && !(MediaSource.isTypeSupported(VideoCodec) && MediaSource.isTypeSupported(AudioCodec))) {
+      this.giveUp(NoDecoderMessage);
+      return;
+    }
+
+    if (mse) {
       const titleId = manifest.id;
 
       const hls = new Hls({
@@ -333,7 +392,8 @@ export class FilmPlayer {
     }
 
     if (!(await ready)) {
-      this.hooks.onError(`${manifest.title} did not start playing.`);
+      // Giving up has already said why, and says it for as long as it holds.
+      if (this.unplayable.hidden) this.hooks.onError(`${manifest.title} did not start playing.`);
       return;
     }
 
@@ -348,6 +408,7 @@ export class FilmPlayer {
     this.player.hasStarted(true);
 
     if (subtitleId !== null) await this.selectSubtitle(subtitleId);
+    this.ready = true;
     this.hooks.onReady();
   }
 
@@ -616,6 +677,15 @@ export class FilmPlayer {
     this.masterUrl = null;
   }
 
+  /**
+   * Whether the media element holds the loaded film, so that what it does is somebody acting on
+   * it. An element that never loaded, or one a recovery has just emptied, sits at zero and raises
+   * play and pause as machinery.
+   */
+  get holdsFilm(): boolean {
+    return this.ready && this.video.readyState >= HTMLMediaElement.HAVE_METADATA;
+  }
+
   private onHlsError(data: { fatal: boolean; type: string; details: string }): void {
     if (!data.fatal) return;
 
@@ -623,11 +693,39 @@ export class FilmPlayer {
       this.hls?.startLoad();
       return;
     }
-    if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+    if (data.type === Hls.ErrorTypes.MEDIA_ERROR && this.recoveries < MediaRecoveries) {
+      if (this.recoveries > 0) this.hls?.swapAudioCodec();
+      this.recoveries++;
       this.hls?.recoverMediaError();
       return;
     }
-    this.hooks.onError(`Playback failed: ${data.details}`);
+
+    // A buffer that refuses the codec is a client with no decoder for it. Any other media error
+    // that outlasts both recoveries is the decoder failing on data every other viewer plays, and
+    // on this surface that is most often the same missing decoder, so the fix is named with it.
+    if (data.details === Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR
+        || data.details === Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR) {
+      this.giveUp(NoDecoderMessage);
+    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+      this.giveUp(`The film could not be decoded here (${data.details}). If Hardware Acceleration `
+        + 'is off under Settings → Advanced, turning it on and restarting Discord usually fixes this.');
+    } else {
+      this.giveUp(`The film could not be played here (${data.details}).`);
+    }
+  }
+
+  /**
+   * Stops trying, and says why for as long as it holds. What follows a fatal error is the same
+   * error again, and every attempt resets the element and fetches the film's opening over again.
+   */
+  private giveUp(message: string): void {
+    this.teardownSource();
+    this.ready = false;
+    this.spinner.hidden = true;
+    this.unplayable.textContent = message;
+    this.unplayable.hidden = false;
+    this.settleLoad?.(false);
+    this.hooks.onUnplayable();
   }
 
 }

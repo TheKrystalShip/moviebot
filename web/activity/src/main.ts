@@ -93,7 +93,11 @@ async function boot(): Promise<void> {
     pinSubtitle: (trackId, positionSeconds) =>
       api.pinSubtitle(requireTitle(), trackId, identity.displayName, positionSeconds).then(() => undefined),
     unpinSubtitle: (trackId) => api.unpinSubtitle(requireTitle(), trackId),
-    refreshManifest: () => (manifest === null ? Promise.resolve(null) : api.manifest(manifest.id))
+    refreshManifest: () => (manifest === null ? Promise.resolve(null) : api.manifest(manifest.id)),
+    roomPosition: () => controller?.roomPosition() ?? 0,
+    // Nothing is applied to a film this viewer cannot hold: every push would seek an empty
+    // element and ask for a press to start playback that cannot start.
+    onUnplayable: () => controller?.setPlayerReady(false)
   });
 
   function requireTitle(): string {
@@ -108,7 +112,8 @@ async function boot(): Promise<void> {
   }, {
     onState: (state) => onState(state),
     onPlaybackBlocked: () => shell.showGate(true),
-    onInitialSeekChanged: (seeking) => player.setLoading(seeking)
+    onInitialSeekChanged: (seeking) => player.setLoading(seeking),
+    holdsFilm: () => player.holdsFilm
   });
 
   function onState(state: SessionState): void {

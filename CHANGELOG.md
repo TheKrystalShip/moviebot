@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.50.0] - 2026-09-18
+
+### Fixed
+
+- **A viewer whose client cannot decode the film no longer sends the room back to 0:00.** The
+  player's play and pause published intent from any media element event, including those of an
+  element that never loaded and sat at zero, so a click on the poster paused or started the whole
+  room at the opening titles. They now publish only from a player holding the film, and a key seek
+  from one that is not is measured from the room's position. Player 0.8.0.
+
+- **A client with no H.264 decoder is told so, once, and stops trying.** Discord's desktop client
+  decodes H.264 only on the graphics card, so with hardware acceleration off every append failed
+  and the player recovered from each failure without limit: the element reset about ten times a
+  second, the opening of the film was fetched again each time, and video.js's error dialog flashed
+  too fast to read over a poster that never gave way to the film. Reproduced in a browser without
+  the decoder: fatal `bufferAddCodecError` every ~100 ms, indefinitely. The player now checks
+  `MediaSource.isTypeSupported` before fetching anything and names the setting to change; a fatal
+  media error is recovered from twice, then the source is torn down with a lasting message and the
+  room's state is no longer applied to it. video.js's error dialog is off. Player 0.8.0.
+
 ## [1.49.0] - 2026-09-17
 
 ### Added

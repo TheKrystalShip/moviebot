@@ -29,6 +29,8 @@ export interface SyncHooks {
   onPlaybackBlocked(): void;
   /** The initial seek to the room's position started or finished. */
   onInitialSeekChanged(seeking: boolean): void;
+  /** Whether the element holds the film, which is what makes its play and pause somebody's act. */
+  holdsFilm(): boolean;
 }
 
 /**
@@ -71,7 +73,12 @@ export class SyncController {
     // against what was applied rather than a count of the events an apply should raise, because
     // a seek interrupted by a second seek raises no `seeked` at all and a count left waiting for
     // one goes on to swallow the next thing the person actually does.
+    //
+    // Only an element holding the film speaks for anybody. One that never loaded, or that a
+    // recovery has just emptied, sits at zero: a click on its poster published as intent sends
+    // the whole room back to the opening titles.
     this.video.addEventListener('play', () => {
+      if (!this.hooks.holdsFilm()) return;
       if (this.assumedPaused === false) return;
       this.assumedPaused = false;
       this.intents.play(this.video.currentTime);
@@ -80,6 +87,7 @@ export class SyncController {
     // The end of the film raises a pause on every screen at once. That is the media ending, not
     // a person acting, and publishing it would attribute the room's pause to whoever buffered least.
     this.video.addEventListener('pause', () => {
+      if (!this.hooks.holdsFilm()) return;
       if (this.assumedPaused !== false) return;
       if (this.video.ended) return;
 

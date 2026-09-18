@@ -75,10 +75,28 @@ reading it.
   playhead; the server grants a position and answers `SeekClamped` to that viewer alone, which
   the page shows as a notice naming the head and where it landed.
 - **Seeks publish on `seeked`, never `seeking`.**
+- **Only a player holding the film speaks for anybody.** The element's play and pause publish
+  intent only once the film has reached metadata and while the element still holds it. One that
+  never loaded, or that a recovery has just emptied, sits at zero, and a click on its poster
+  published as intent sends the whole room back to the opening titles. A key seek from such a
+  player is measured from the room's position rather than from the element's.
 - **A viewer that falls behind fixes itself.** Every two seconds the client compares where the
   room is against where its playhead is: over two seconds of drift it seeks, between half a
   second and two it trims `playbackRate` to 1.02 or 0.98 until inside a quarter second. Nothing
   about a stalled viewer reaches the room.
+
+## A viewer who cannot play the film
+
+The player asks `MediaSource.isTypeSupported` for what the ingest writes — H.264 High at level 4.2
+and stereo AAC-LC — before fetching anything. Discord's desktop client decodes H.264 only on the
+graphics card, so with hardware acceleration off it answers no, and the player says so over the
+poster, naming the setting, and loads nothing.
+
+A fatal media error is recovered from twice, the second time swapping the audio codec, and then the
+player stops: it tears the source down, says why over the poster for as long as that holds, and
+the room's state is no longer applied to it. Recovering without a limit resets the element about
+ten times a second and fetches the film's opening each time. video.js's own error dialog is off,
+because it is raised by each failed attempt and cleared by the retry behind it.
 
 ## The scrub bar
 
