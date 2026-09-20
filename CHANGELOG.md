@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.51.0] - 2026-09-20
+
+### Added
+
+- **A film can be fetched without taking the room that is watching something else.** Every door
+  into a download was the means to watching now: `/watch`'s tracker pick and the assistant's
+  proposal both wrote the asker's voice channel onto the torrent, so a room halfway through a film
+  that asked for the next one had the next one loaded over it the moment it became watchable.
+  `/download film:<name>` fetches a film and stops there, and the assistant's `download_only`
+  does the same by voice — "get Inception ready for after this one" leaves the room playing what
+  it is playing, where "put Inception on" still takes it. The pipeline already carried a download
+  with no room, so nothing about the hand-off, the API or the player moved; what moved is that
+  two of the three doors no longer force one. Fetching is its own tool rather than a flag on
+  `watch_film` because which was meant is the whole question and this model picks between two
+  names more reliably than it sets an argument; `AssistantRoutingTests` measures both directions
+  against the real model. `/download` searches the tracker alone and refuses a film the library
+  already holds or is already fetching, reading the film the tracker names rather than the release
+  name, and skipping either check rather than refusing when it cannot be made. Bot 0.21.0.
+
 ## [1.50.0] - 2026-09-18
 
 ### Fixed

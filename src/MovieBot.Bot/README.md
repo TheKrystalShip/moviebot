@@ -2,10 +2,11 @@
 
 The Discord half. `/watch` resolves a film, opens the room's session on the API and hands the
 room a launch — and when the film is not here, searches the tracker, starts the download and hands
-the room the launch the moment the film can be watched. `/notify` watches for a film that cannot be
-downloaded yet and says so when it can. `/voice join` brings the bot into a voice channel to listen,
-so the film can be paused, resumed and skipped by saying so, and anything else said to it is put to
-the assistant, which answers in the channel's chat.
+the room the launch the moment the film can be watched. `/download` fetches a film and stops there,
+so the next one can be got ready while a room watches this one. `/notify` watches for a film that
+cannot be downloaded yet and says so when it can. `/voice join` brings the bot into a voice channel
+to listen, so the film can be paused, resumed and skipped by saying so, and anything else said to it
+is put to the assistant, which answers in the channel's chat.
 
 ## It holds almost no state
 
@@ -143,11 +144,40 @@ Which launch the reply carries is the only thing `ILaunchPresenter` decides. A p
 opens the player as an Activity inside the voice channel replaces the one that links to it, and
 the command above it does not change.
 
+## Fetching a film for later
+
+```
+/download film:<name>
+```
+
+`/watch`'s fetch is the means to watching now, so the film is loaded into the room the moment it
+can be opened. This is the other half of it: a film fetched and nothing else. A room halfway
+through a film goes on watching it while the next one arrives, and the announcement when it is
+ready is how anybody starts it.
+
+- **The menu searches the tracker and never the library.** `/watch` leads with the library because
+  a film that is here is the answer; here a film that is here is the one thing not worth fetching.
+  Picking a row for a film the library already holds is refused, naming the film it is held under,
+  because an autocomplete row has no space to explain itself.
+- **A film already on its way is not fetched twice**, and both checks read the film the tracker
+  says the release is rather than its release name: one film arrives under a dozen encodes and each
+  parses to a different string. Either check being unanswerable — the API down, the torrent client
+  down — skips it rather than refusing, since neither is needed to fetch a film and the worst a
+  skipped check costs is a second copy of something.
+- **It needs no voice channel**, because there is no room in it.
+- **It is on the same clock as any other download.** A film fetched a week before anybody watches
+  it can be pruned before they do; `/keep` is what stops that, and the announcement says how long
+  the film has.
+
+The reply is the progress message, which the same updater keeps current and the same watcher
+announces, because a download fetched for later is a download.
+
 ## Listening in a voice channel
 
 `/voice join` brings the bot into the voice channel the person running it is in. From then on,
 "okay computer, pause" stops the film for the room. What is heard goes to moviebot-speech for words,
 and the words go first to a gate that knows a handful of verbs, with no model involved.
+`../../docs/voice-commands.md` is a showcase of what can be said, with examples.
 
 - **The trigger is heard while people keep talking.** Nobody watching a film with friends goes
   quiet before addressing the bot, so each person's last three seconds are looked through for the
@@ -216,6 +246,14 @@ pick's, a wish is `/notify`'s and a keep is `/keep`'s.
   best release the tracker offers is proposed, and when the tracker has none the model is given what
   a wish takes. A film named by its place in a series, "the second one" or "part two", is counted by
   the bot in the order the films came out.
+- **Asking for a film to be ready is a different tool, and the name is the whole difference.**
+  "Get Inception ready for after this one" fetches it and leaves the room playing what it is
+  playing; "put Inception on" takes the room. Which was meant is the entire question, and this
+  model picks between two tool names far more reliably than it sets a flag on one — so everything
+  `download_only` proposes carries no room however it was reached, and every tool it names in what
+  it hands back is one that keeps the room's fate as it already is. A fetch for later turning into
+  a switch one tool call further on is exactly the failure the split exists to prevent, and
+  `AssistantRoutingTests` measures both directions.
 - **A download is always of a release the model was shown.** A torrent id it writes without the
   tool having offered it is refused, and a release of a film the library already holds is refused
   too.

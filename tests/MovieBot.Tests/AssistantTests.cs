@@ -338,6 +338,102 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     }
 
     [Fact]
+    public async Task Fetching_a_film_for_later_proposes_it_with_no_room_and_leaves_the_film_playing()
+    {
+        // The whole point of the tool: a room halfway through a film gets the next one made ready
+        // without its own being taken away.
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        await StartFilmAsync(host.Api, turn);
+        var room = host.Tools.For(turn, "download inception for later");
+
+        var told = await room.ExecuteAsync(Call(RoomTools.DownloadOnly, ("title", "Inception")));
+
+        Assert.Contains("Proposed: fetch Inception (2010)", told.Summary);
+        Assert.Contains("leaving Cinema as it is", told.Summary);
+        Assert.Equal(RoomTools.DownloadOnly, Assert.Single(room.Proposed).Kind);
+        Assert.Empty(room.Launched);
+
+        var state = await host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None);
+        Assert.Equal(SessionFixture.ReadyTitle, state.TitleId);
+        Assert.False(state.Paused);
+    }
+
+    [Fact]
+    public async Task Fetching_a_film_for_later_names_itself_in_everything_it_tells_the_model_to_call_next()
+    {
+        // A guidance line naming watch_film or download_film is a fetch for later turning into a
+        // switch one tool call further on, which is exactly what this is for.
+        var host = Host();
+        var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()), "grab pirates of the caribbean for tomorrow");
+
+        var told = await room.ExecuteAsync(Call(RoomTools.DownloadOnly, ("title", "Pirates of the Caribbean")));
+
+        Assert.DoesNotContain(RoomTools.WatchFilm, told.Summary);
+        Assert.DoesNotContain(RoomTools.DownloadFilm, told.Summary);
+        Assert.Contains(RoomTools.DownloadOnly, told.Summary);
+    }
+
+    [Fact]
+    public async Task A_film_the_library_already_holds_is_not_fetched_again_for_later()
+    {
+        var host = Host();
+        var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()), "download heat for later");
+
+        var told = await room.ExecuteAsync(Call(RoomTools.DownloadOnly, ("title", "heat")));
+
+        Assert.Contains("already in the library", told.Summary);
+        Assert.Empty(room.Proposed);
+        Assert.Empty(room.Launched);
+    }
+
+    [Fact]
+    public async Task A_different_release_fetched_for_later_still_carries_no_room()
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        await StartFilmAsync(host.Api, turn);
+        var room = host.Tools.For(turn, "get the other inception for later");
+
+        await room.ExecuteAsync(Call(RoomTools.DownloadOnly, ("title", "Inception")));
+        var told = await room.ExecuteAsync(
+            Call(RoomTools.DownloadOnly, ("title", "Inception"), ("torrent_id", "41")));
+
+        // Proposed once: the same release asked for twice is asking again, not a second fetch.
+        var proposal = Assert.Single(room.Proposed);
+        Assert.Equal(RoomTools.DownloadOnly, proposal.Kind);
+        Assert.Contains("leaving Cinema as it is", told.Summary);
+        Assert.Equal(SessionFixture.ReadyTitle,
+            (await host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).TitleId);
+    }
+
+    [Fact]
+    public async Task A_release_nobody_was_shown_is_refused_for_later_too_and_names_the_tool_that_finds_one()
+    {
+        var host = Host();
+        var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()));
+
+        var said = await room.ExecuteAsync(Call(RoomTools.DownloadOnly, ("torrent_id", "41")));
+
+        Assert.Contains($"was not offered by {RoomTools.DownloadOnly}", said.Summary);
+        Assert.Empty(room.Proposed);
+    }
+
+    [Fact]
+    public async Task Asking_to_watch_a_film_that_is_not_here_still_proposes_it_into_the_room()
+    {
+        // The other half of the pair, held still: watch_film is what somebody asking to watch
+        // something now gets, and it has to go on meaning the room.
+        var host = Host();
+        var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()), "put inception on");
+
+        var told = await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "Inception")));
+
+        Assert.Contains("Proposed: download Inception (2010)", told.Summary);
+        Assert.Equal(RoomTools.DownloadFilm, Assert.Single(room.Proposed).Kind);
+    }
+
+    [Fact]
     public async Task What_the_room_verbs_did_is_replayed_to_the_model_as_the_tool_it_stands_for()
     {
         var host = Host();

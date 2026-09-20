@@ -53,6 +53,13 @@
       { "name": "torrent_id", "description": "The torrent id of a release watch_film returned.", "type": "integer" }
     ]
   },
+  "download_only": {
+    "description": "Fetches a film for later and leaves this room playing whatever it is playing. Use whenever they ask for a film to be ready rather than to be put on now: get it ready, have it ready, line it up, queue it up, for later, for afterwards, for tomorrow, for after this one, for when this finishes, or while something else is on. It starts only when somebody confirms, and the film then waits in the library until somebody asks to watch it.",
+    "params": [
+      { "name": "title", "description": "The film's name, as they said it." },
+      { "name": "torrent_id", "description": "Only to fetch a different release from one this tool already listed. Leave it out otherwise.", "type": "integer", "required": false }
+    ]
+  },
   "fetch_subtitle": {
     "description": "Proposes fetching English subtitles for a film in the library, which spends one of the day's subtitle downloads when confirmed.",
     "params": [

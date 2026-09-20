@@ -33,6 +33,7 @@ public sealed class DiscordBotService(
     KeepCommand keep,
     LaunchCards cards,
     TheKrystalShip.MovieBot.Acquire.Download.Retention retention,
+    TheKrystalShip.MovieBot.Acquire.Download.AcquisitionService acquisition,
     TheKrystalShip.MovieBot.Acquire.Search.AutocompleteSearch suggestions,
     TheKrystalShip.MovieBot.Acquire.Imdb.ImdbClient catalogue,
     IVoiceSessions voiceSessions,
@@ -118,10 +119,12 @@ public sealed class DiscordBotService(
                 // The overwrite is the whole command set, so every command has to be in this
                 // one call: registering them separately leaves only the last one standing.
                 await guild.BulkOverwriteApplicationCommandAsync(
-                    [WatchSlashCommand.Build(), NotifySlashCommand.Build(), KeepSlashCommand.Build(), VoiceSlashCommand.Build()]);
+                    [WatchSlashCommand.Build(), DownloadSlashCommand.Build(), NotifySlashCommand.Build(),
+                     KeepSlashCommand.Build(), VoiceSlashCommand.Build()]);
 
-                logger.LogInformation("Registered /{Watch}, /{Notify}, /{Keep} and /{Voice} in {GuildName}",
-                    WatchSlashCommand.Name, NotifySlashCommand.Name, KeepSlashCommand.Name, VoiceSlashCommand.Name, guild.Name);
+                logger.LogInformation("Registered /{Watch}, /{Download}, /{Notify}, /{Keep} and /{Voice} in {GuildName}",
+                    WatchSlashCommand.Name, DownloadSlashCommand.Name, NotifySlashCommand.Name,
+                    KeepSlashCommand.Name, VoiceSlashCommand.Name, guild.Name);
             }
             catch (Exception ex)
             {
@@ -138,6 +141,7 @@ public sealed class DiscordBotService(
         _ = command.CommandName switch
         {
             WatchSlashCommand.Name => HandleWatchAsync(command),
+            DownloadSlashCommand.Name => HandleDownloadAsync(command),
             NotifySlashCommand.Name => HandleNotifyAsync(command),
             KeepSlashCommand.Name => HandleKeepAsync(command),
             VoiceSlashCommand.Name => HandleVoiceAsync(command),
@@ -366,12 +370,8 @@ public sealed class DiscordBotService(
     }
 
     /// <summary>
-    /// Starts the download and answers with the message that will show its progress.
-    ///
-    /// The reply is the waiting state, not the launch. A film takes at least a minute to become
-    /// watchable and an interaction token does not outlast a slow one, so the launch is a
-    /// separate message, posted by the watcher when the film can be opened — which is also the
-    /// only kind of message that notifies the person who asked.
+    /// Starts the download for a room to watch in, and answers with the message that will show
+    /// its progress.
     /// </summary>
     private async Task FetchThenWatchAsync(
         SocketSlashCommand command, long torrentId, SocketVoiceChannel? voice, string requestedBy)
@@ -385,6 +385,148 @@ public sealed class DiscordBotService(
             RoomId = voice?.Id,
         }, CancellationToken.None);
 
+        await PostStartedAsync(command, result, voice?.Name);
+    }
+
+    /// <summary>
+    /// Fetches a film and stops there.
+    ///
+    /// <c>/watch</c>'s fetch is the means to watching now, so the film is loaded into the room
+    /// the moment it can be opened. This is the other half of it: a film fetched for later, which
+    /// touches no room at all. A room halfway through a film goes on watching it while the next
+    /// one arrives, and the announcement when it is ready is how anybody starts it.
+    ///
+    /// It needs no voice channel, because there is no room in it.
+    /// </summary>
+    private async Task HandleDownloadAsync(SocketSlashCommand command)
+    {
+        try
+        {
+            if (command.GuildId is not { } guildId || !_guilds.Contains(guildId))
+            {
+                await command.RespondAsync(
+                    "This bot only answers in the server it is configured for.", ephemeral: true);
+                return;
+            }
+
+            var query = command.Data.Options
+                .FirstOrDefault(o => o.Name == DownloadSlashCommand.FilmOption)?.Value as string ?? "";
+            var requestedBy = (command.User as IGuildUser)?.DisplayName ?? command.User.Username;
+
+            await command.DeferAsync();
+
+            // Only a picked row names a release. Text typed past the menu names an encode no more
+            // than it names a film, and fetching the ranker's guess at both is how the wrong copy
+            // of the wrong cut arrives with nobody having chosen either.
+            if (TrackerPick.Parse(query) is not { } torrentId)
+            {
+                await command.FollowupAsync(
+                    $"Pick a release from the list to fetch \"{query}\". The menu searches the tracker "
+                    + "as you type.",
+                    allowedMentions: AllowedMentions.None);
+                return;
+            }
+
+            // Resolved here rather than left to the command, because what the film is decides
+            // whether it is worth fetching at all and the release is the only thing that says.
+            if (suggestions.Resolve(torrentId) is not { } release)
+            {
+                await command.FollowupAsync(DownloadCommand.Stale, allowedMentions: AllowedMentions.None);
+                return;
+            }
+
+            if (await AlreadyHereAsync(release, CancellationToken.None) is { } instead)
+            {
+                await command.FollowupAsync(instead, allowedMentions: AllowedMentions.None);
+                return;
+            }
+
+            var result = await download.ExecuteAsync(new DownloadRequest
+            {
+                TorrentId = release.TorrentId,
+                ChannelId = command.ChannelId ?? 0,
+                RequesterId = command.User.Id,
+                RequestedBy = requestedBy,
+                RoomId = null,
+            }, release, CancellationToken.None);
+
+            await PostStartedAsync(command, result, roomName: null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "The /{Command} command failed", DownloadSlashCommand.Name);
+            await TryReportFailure(command);
+        }
+    }
+
+    /// <summary>
+    /// Why this release does not need fetching — the film is in the library, or it is already on
+    /// its way — or null when it does.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Both are read by the film the tracker says this is, never by the release name: one film
+    /// arrives under a dozen encodes and each parses to a different string. A release the tracker
+    /// did not identify is fetched rather than refused, because a refusal on a guess is a film
+    /// somebody cannot get.
+    /// </para>
+    /// <para>
+    /// A question that could not be asked is skipped rather than refused, for the same reason.
+    /// Neither the library nor the torrent client is needed to fetch a film, so one of them being
+    /// down costs at worst a second copy of something — where refusing costs the film.
+    /// </para>
+    /// </remarks>
+    private async Task<string?> AlreadyHereAsync(
+        TheKrystalShip.MovieBot.Acquire.Search.Release release, CancellationToken ct)
+    {
+        if (release.ImdbId is not { Length: > 0 } imdbId) return null;
+
+        try
+        {
+            var library = await api.ListTitlesAsync(ct);
+            if (library.FirstOrDefault(
+                    t => string.Equals(t.Film?.ImdbId, imdbId, StringComparison.OrdinalIgnoreCase)) is { } title)
+                return $"**{title.Name}** is already in the library. `/watch` plays it in your voice channel.";
+        }
+        catch (MovieBotApiException ex)
+        {
+            logger.LogDebug(ex, "The library could not say whether {Imdb} is already here.", imdbId);
+        }
+
+        try
+        {
+            var running = await acquisition.ListAsync(ct);
+            if (running.FirstOrDefault(
+                    d => d.Tags.Contains(TheKrystalShip.MovieBot.Acquire.Download.TorrentTags.Imdb(imdbId)))
+                is { } already)
+                return already.IsFinished
+                    ? $"**{release.Display}** has already been fetched and is being prepared. It is announced "
+                      + "here when it can be opened."
+                    : $"**{release.Display}** is already downloading: {already.Summary}.";
+        }
+        catch (TheKrystalShip.MovieBot.Acquire.Download.QBittorrentException ex)
+        {
+            logger.LogDebug(ex, "The torrent client could not say whether {Imdb} is already coming.", imdbId);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Answers a started download with the message that will show its progress, and records which
+    /// message that is.
+    ///
+    /// The reply is the waiting state, never the launch. A film takes at least a minute to become
+    /// watchable and an interaction token does not outlast a slow one, so whatever comes next — a
+    /// launch for a film asked for in a room, an announcement for one fetched on its own — is a
+    /// separate message posted by the watcher, which is also the only kind of message that
+    /// notifies the person who asked.
+    ///
+    /// <paramref name="roomName"/> is the whole difference between the two commands: named, the
+    /// film plays there as soon as it can be watched; null, it is fetched and nothing else happens.
+    /// </summary>
+    private async Task PostStartedAsync(SocketSlashCommand command, DownloadResult result, string? roomName)
+    {
         if (result.Outcome != DownloadOutcome.Started || result.Release is null)
         {
             await command.FollowupAsync(result.Message, allowedMentions: AllowedMentions.None);
@@ -393,7 +535,7 @@ public sealed class DiscordBotService(
 
         var posted = await command.FollowupAsync(
             result.Message,
-            embed: DownloadEmbed.Starting(result.Release, voice?.Name),
+            embed: DownloadEmbed.Starting(result.Release, roomName),
             allowedMentions: AllowedMentions.None);
 
         // Recorded after the message exists, because the message is what is being recorded.
@@ -549,6 +691,12 @@ public sealed class DiscordBotService(
                 return;
             }
 
+            if (interaction.Data.CommandName == DownloadSlashCommand.Name)
+            {
+                await interaction.RespondAsync(await DownloadChoicesAsync(interaction, typed));
+                return;
+            }
+
             await interaction.RespondAsync(await WatchChoicesAsync(interaction, typed));
         }
         catch (Exception ex)
@@ -582,6 +730,32 @@ public sealed class DiscordBotService(
 
         if (here.Count > 0 || typed.Trim().Length == 0)
             return here.Select(t => new AutocompleteResult(Choice(t), t.Id));
+
+        var offered = await suggestions.SuggestAsync(
+            typed, interaction.User.Id.ToString(), CancellationToken.None);
+
+        if (offered.Choices.Count > 0)
+            return offered.Choices.Select(
+                c => new AutocompleteResult(c.Label, TrackerPick.Value(c.TorrentId)));
+
+        return offered.Explanation is { Length: > 0 } why
+            ? [new AutocompleteResult(Choice(why), Choice(typed))]
+            : [];
+    }
+
+    /// <summary>
+    /// What /download offers as somebody types: the tracker's ranked releases, and nothing else.
+    ///
+    /// The library is deliberately absent. /watch leads with it because a film that is here is
+    /// the answer; here a film that is here is the one thing not worth fetching, and a row
+    /// offering it would start a second copy of something already on the disk. A film the library
+    /// holds is refused when its row is picked, which is where the name it is held under can be
+    /// named — an autocomplete row has no room to explain itself.
+    /// </summary>
+    private async Task<IEnumerable<AutocompleteResult>> DownloadChoicesAsync(
+        SocketAutocompleteInteraction interaction, string typed)
+    {
+        if (typed.Trim().Length == 0) return [];
 
         var offered = await suggestions.SuggestAsync(
             typed, interaction.User.Id.ToString(), CancellationToken.None);

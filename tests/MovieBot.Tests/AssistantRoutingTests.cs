@@ -149,6 +149,40 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
         Assert.Contains("Dead Man", proposal.Describes);
     }
 
+    [LiveModelTheory]
+    [InlineData("download inception for later")]
+    [InlineData("can you grab inception for tomorrow, don't stop this")]
+    [InlineData("get inception ready for after this one")]
+    public async Task Asking_for_a_film_for_later_fetches_it_without_taking_the_room(string said)
+    {
+        // The request this tool exists for: a room halfway through a film wants the next one made
+        // ready. Routing it to watch_film would propose a download that replaces what is playing.
+        var turn = await RoomAsync(SessionFixture.Heat, at: 2700, paused: false);
+
+        var answer = await _host.Assistant.AskAsync(turn, said, CancellationToken.None);
+
+        output.WriteLine($"{string.Join(", ", Calls(turn).Select(c => $"{c.Name}({string.Join(", ", c.Arguments.Select(a => $"{a.Key}={a.Value}"))})"))}; "
+                         + $"proposed: {string.Join("; ", answer.Proposed.Select(p => p.Describes))}; reply: {answer.Text}");
+        Assert.Equal(RoomTools.DownloadOnly, Assert.Single(answer.Proposed).Kind);
+        Assert.Equal(SessionFixture.Heat, (await _host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).TitleId);
+    }
+
+    [LiveModelTheory]
+    [InlineData("put on inception")]
+    [InlineData("let's watch inception")]
+    public async Task Asking_to_watch_a_film_now_is_not_read_as_fetching_it_for_later(string said)
+    {
+        // The other direction of the same measurement. A second download tool beside watch_film is
+        // exactly the change that quietly stops "put it on" meaning the room.
+        var turn = await RoomAsync(SessionFixture.Heat, at: 300, paused: false);
+
+        var answer = await _host.Assistant.AskAsync(turn, said, CancellationToken.None);
+
+        output.WriteLine($"{string.Join(", ", Calls(turn).Select(c => $"{c.Name}({string.Join(", ", c.Arguments.Select(a => $"{a.Key}={a.Value}"))})"))}; "
+                         + $"proposed: {string.Join("; ", answer.Proposed.Select(p => p.Describes))}; reply: {answer.Text}");
+        Assert.Equal(RoomTools.DownloadFilm, Assert.Single(answer.Proposed).Kind);
+    }
+
     [LiveModelFact]
     public async Task Keep_going_in_a_paused_room_plays_it()
     {

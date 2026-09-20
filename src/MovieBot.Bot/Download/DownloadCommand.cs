@@ -57,6 +57,15 @@ public sealed class DownloadCommand(
     ILogger<DownloadCommand> logger)
 {
     /// <summary>
+    /// What a picked row whose search has been forgotten is answered with.
+    ///
+    /// One spelling, because both commands that start a download are picked from a menu that can
+    /// go stale, and one of them resolves the row itself to see whether the film is already here.
+    /// </summary>
+    public const string Stale =
+        "That result has gone stale. Run the command again and pick from the fresh list.";
+
+    /// <summary>
     /// Records which message shows this download's progress, so whatever keeps it current can
     /// find it again. Kept on the torrent rather than here: a download outlives a restart and the
     /// message should not be left saying whatever it last said.
@@ -79,8 +88,7 @@ public sealed class DownloadCommand(
     {
         var release = suggestions.Resolve(request.TorrentId);
         if (release is null)
-            return new DownloadResult(DownloadOutcome.NoLongerOffered,
-                "That result has gone stale. Run the command again and pick from the fresh list.");
+            return new DownloadResult(DownloadOutcome.NoLongerOffered, Stale);
 
         return await ExecuteAsync(request, release, ct);
     }
