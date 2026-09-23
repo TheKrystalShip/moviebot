@@ -96,7 +96,11 @@ public sealed class Manifest
     public SourceFingerprint? Source { get; set; }
 
     public required VideoInfo Video { get; init; }
-    public required IReadOnlyList<AudioTrack> Audio { get; init; }
+    /// <summary>
+    /// Settable because a track can be added after the transcode: the dialogue-boost mix is made
+    /// once the main pass is done and is listed only when it is whole.
+    /// </summary>
+    public required IReadOnlyList<AudioTrack> Audio { get; set; }
     /// <summary>
     /// Settable, like <see cref="Status"/> and <see cref="HeadSeconds"/>, because a track can
     /// become available after the manifest is first written: a source that is still arriving

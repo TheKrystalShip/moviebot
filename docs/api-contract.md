@@ -111,7 +111,9 @@ segment delivered as `application/octet-stream`: `application/vnd.apple.mpegurl`
       "channels": 2, "default": true, "uri": "a0/index.m3u8" },
     { "id": "a1", "kind": "commentary", "language": "eng",
       "label": "Commentary with director Ridley Scott and actor Russell Crowe",
-      "channels": 2, "uri": "a1/index.m3u8" }
+      "channels": 2, "uri": "a1/index.m3u8" },
+    { "id": "a2", "kind": "feature", "language": "eng", "label": "English — Dialogue boost",
+      "channels": 2, "uri": "a2/index.m3u8" }
   ],
   "subtitles": [
     { "id": "s3", "kind": "feature", "language": "eng", "label": "English",
@@ -131,6 +133,11 @@ segment delivered as `application/octet-stream`: `application/vnd.apple.mpegurl`
 renditions to the video; a player handed a bare video rendition plays the film silently with no
 audio track to switch to. Subtitles are not in the master — they are standalone WebVTT files
 attached as text tracks from `subtitles[].uri`.
+
+Every feature track has a second mix with the dialogue raised, listed after the source's own
+tracks with the label `"<track> — Dialogue boost"`. It is made after the main pass, so `audio`
+gains those entries once, before `status` turns `ready`, and the master is rewritten with them in
+the same moment. A player that loaded the master earlier offers them after it loads the film again.
 
 A track with `available: false` is listed on purpose — a language that is simply missing from the
 menu reads as a bug. Render it disabled with its `reason`, do not hide it.

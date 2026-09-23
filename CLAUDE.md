@@ -308,6 +308,19 @@ These are measured against real Blu-ray rips, not assumed. Changing one means re
   not the aggregate but the per-film rate, which has to stay well ahead of one playhead.
 - **The GOP is pinned to the segment length** and `-force_key_frames` guarantees a keyframe on
   every boundary whatever the frame rate, so a seek lands on the frame it asked for.
+- **Every feature track gains a dialogue-boost mix, made after the main pass.** A film's dialogue
+  lives in the centre channel, which exists as its own signal only until the downmix, so the mix
+  weights it above the fronts and surrounds there, then compresses and runs `loudnorm`. Measured on
+  a 5.1 feature, the gap between the dialogue and the loudest ten seconds goes from 20 dB to 9. The
+  weights in `DialogueBoost` were chosen by ear against a room's own playback; a layout with more
+  speakers per role shares the weight at equal power so the balance holds.
+- **The boost is its own pass because `loudnorm` is slow.** It oversamples to 192 kHz for true
+  peaks, which puts the chain at 8x realtime on hotbox's CPU against 27x without it, slower than the
+  video. Inside the main pass it would be the laggard every viewer's head waits on. Cheaper riders
+  were measured in its place and each lands on a different sound. The pass runs before the status
+  turns ready, because settling moves the directory it writes into, and a track is listed only
+  once its playlist is whole. The boosted renditions are numbered after the source's own tracks,
+  so a viewer's saved track id names the same track either way.
 
 ## Hand-off invariants
 

@@ -91,6 +91,13 @@ public sealed record IngestOptions
     public string CommentaryAudioBitrate { get; init; } = "128k";
 
     /// <summary>
+    /// Whether each feature track gains a second mix with the dialogue raised over the music and
+    /// effects. It is made after the main pass, so it costs nothing in how soon a film plays and
+    /// only delays the moment the title reports itself ready.
+    /// </summary>
+    public bool DialogueBoost { get; init; } = true;
+
+    /// <summary>
     /// Segment length. The GOP is pinned to match so every segment opens on a keyframe and
     /// seeks land exactly where they were asked to.
     ///

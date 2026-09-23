@@ -4,6 +4,32 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.52.0] - 2026-09-23
+
+### Added
+
+- **Every film gains a dialogue-boost mix of each feature track.** Films are mixed for a cinema,
+  and folded down to stereo by the standard matrix the dialogue lands about 20 dB under the
+  loudest scenes, so a room watching on laptops and headphones rides the volume all night. The
+  dialogue sits in the centre channel, which is its own signal only until the downmix, so the
+  second mix weights it above the fronts and surrounds there, then compresses and normalises the
+  result. It is listed as "English — Dialogue boost" beside the original, which stays the default,
+  and choosing it is each viewer's own, like any audio track. The weights were chosen by ear on
+  Road House (2024) in a live room between two strengths: the milder took the dialogue-to-peak gap
+  from 20.1 dB to 8.8 and was kept, the stronger's 5.8 flattened the action. A layout with more
+  speakers per role shares each weight at equal power; a source with no centre channel gets the
+  ordinary downmix and the dynamics alone.
+
+  The mix is a pass of its own after the video, before the title turns ready. `loudnorm`
+  oversamples to 192 kHz for true peaks, which puts the chain at 8x realtime on hotbox's Athlon
+  against 27x without it, below the main pass's rate, so inside the main pass it would hold back
+  the head every viewer waits on. A slow second compressor and `dynaudnorm` were measured in its
+  place and each landed on a different sound from the one chosen. A film is therefore playable
+  exactly as soon as before, and the boosted track appears in the menu about a quarter of an
+  hour after the transcode of a two-hour film ends. The master playlist is now written through a
+  temp file and a rename, since it is rewritten under players already fetching it.
+  `--no-dialogue-boost` skips the mix. Ingest 1.9.0, Core 1.12.0, Handoff 0.9.0.
+
 ## [1.51.0] - 2026-09-20
 
 ### Added

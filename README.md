@@ -41,7 +41,8 @@ dotnet run --project src/MovieBot.Ingest -c Release -- "/path/to/film.mkv" --out
 ```
 
 `--help` lists every option. The ones that matter: `--bitrate` (default `9M`), `--segment`
-(default 4 s), `--tonemap auto|on|off`, and `--force` to replace existing output.
+(default 2 s), `--tonemap auto|on|off`, `--force` to replace existing output, and
+`--no-dialogue-boost` to skip the second mix.
 
 ### What it produces
 
@@ -53,7 +54,12 @@ media/<id>/
   v0/index.m3u8      video rendition, H.264 High, fMP4 segments
   a0/index.m3u8      primary audio, AAC stereo
   a1/index.m3u8      further audio tracks, one directory each
+  aN/index.m3u8      after the source's own tracks, a dialogue-boost mix of each feature track
 ```
+
+The dialogue-boost mix raises the centre channel, where a film's dialogue lives, over the fronts
+and surrounds, then compresses and normalises the result, so the talking is audible at a volume
+the explosions do not punish. It is made after the main pass and listed once it is whole.
 
 ### Why it is watchable before it is finished
 

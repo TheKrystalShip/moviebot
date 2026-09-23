@@ -78,8 +78,17 @@ public static class MasterPlaylist
         return builder.ToString();
     }
 
-    public static void Write(string outputDirectory, Manifest manifest) =>
-        File.WriteAllText(Path.Combine(outputDirectory, FileName), Build(manifest));
+    /// <summary>
+    /// Written through a temp file and an atomic move. A track added after the transcode rewrites
+    /// the master under players that are already fetching it.
+    /// </summary>
+    public static void Write(string outputDirectory, Manifest manifest)
+    {
+        var path = Path.Combine(outputDirectory, FileName);
+        var temporary = path + ".tmp";
+        File.WriteAllText(temporary, Build(manifest));
+        File.Move(temporary, path, overwrite: true);
+    }
 
     /// <summary>
     /// Attribute values are double-quoted, so an embedded double quote would end the value early.

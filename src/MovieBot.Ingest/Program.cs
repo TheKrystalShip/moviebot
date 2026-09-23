@@ -76,6 +76,7 @@ public static class Program
         var force = false;
         var dryRun = false;
         var thumbnailsOnly = false;
+        var dialogueBoost = true;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -119,6 +120,9 @@ public static class Program
                 case "--thumbnails":
                     thumbnailsOnly = true;
                     break;
+                case "--no-dialogue-boost":
+                    dialogueBoost = false;
+                    break;
                 default:
                     if (arg.StartsWith('-'))
                         throw new ArgumentException($"unknown option '{arg}'.");
@@ -144,7 +148,8 @@ public static class Program
             ForceToneMap = toneMap,
             Force = force,
             DryRun = dryRun,
-            ThumbnailsOnly = thumbnailsOnly
+            ThumbnailsOnly = thumbnailsOnly,
+            DialogueBoost = dialogueBoost
         };
     }
 
@@ -169,6 +174,9 @@ public static class Program
         Two rungs are written: the source's own size, and a 1280-wide step-down a viewer whose
         connection dips can fall back to. A source no wider than the step-down gets one rung.
 
+        Once the film is transcoded, each feature track gains a second mix with the dialogue
+        raised over the music and effects, listed as "<track> — Dialogue boost".
+
         Options:
           -o, --out <dir>        Output root. Default: ./media
               --id <slug>        Output directory and manifest id. Default: derived from the title
@@ -180,6 +188,7 @@ public static class Program
               --force            Replace an existing output directory
               --dry-run          Probe and print the manifest, transcode nothing
               --thumbnails       Rebuild the scrub previews for a title already ingested
+              --no-dialogue-boost  Skip the second, dialogue-boosted mix of each feature track
           -h, --help             Show this help
 
         Requires ffmpeg and ffprobe on PATH, with h264_nvenc for encoding and, for HDR sources,

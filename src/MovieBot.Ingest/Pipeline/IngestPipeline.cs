@@ -178,6 +178,11 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             manifest.Thumbnails = await ThumbnailSheet.WriteAsync(
                 options.SourcePath, video, probe.Format.DurationSeconds, outputDirectory, log, ct);
 
+            // Before the status turns: a film that reports itself ready is one nothing will add
+            // to, and settling it moves the directory this writes into.
+            if (options.DialogueBoost)
+                await AddDialogueBoostAsync(audioStreams, manifest, manifestPath, outputDirectory, ct);
+
             manifest.Status = TitleStatus.Ready;
             manifest.HeadSeconds = null;
             ManifestJson.WriteAtomic(manifestPath, manifest);
@@ -438,6 +443,79 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             // what actually happened; ffmpeg's is that it was killed.
             if (guarding is not null) await guarding;
         }
+    }
+
+    /// <summary>
+    /// Mixes a dialogue-boosted rendition of every feature track and lists each one once its
+    /// playlist is complete.
+    ///
+    /// Listed only when whole: a track offered while it is being written plays until it runs out
+    /// and then stops, partway through a film whose other tracks carry on. The boosted renditions
+    /// are numbered after the source's own, so the ids a viewer's saved choice names stay where
+    /// they are. A mix that fails leaves the film without it: the film is whole, and nothing about
+    /// it is worse for lacking a second mix.
+    /// </summary>
+    private async Task AddDialogueBoostAsync(
+        List<ProbeStream> audioStreams, Manifest manifest, string manifestPath,
+        string outputDirectory, CancellationToken ct)
+    {
+        var feature = audioStreams
+            .Select((stream, i) => (Stream: stream, Track: manifest.Audio[i]))
+            .Where(t => t.Track.Kind == TrackKind.Feature)
+            .ToList();
+        if (feature.Count == 0) return;
+
+        var boosted = new List<AudioTrack>();
+        var args = new List<string> { "-y" };
+
+        // One demuxer each, for the same reason as the main pass's renditions.
+        foreach (var _ in feature)
+            AddSourceInput(args, hardwareDecode: false);
+
+        for (var j = 0; j < feature.Count; j++)
+        {
+            var (stream, track) = feature[j];
+            var id = $"a{audioStreams.Count + j}";
+            var directory = Path.Combine(outputDirectory, id);
+            Directory.CreateDirectory(directory);
+
+            args.Add("-map"); args.Add($"{j}:{stream.Index}");
+            args.Add("-af"); args.Add(DialogueBoost.FilterFor(stream.ChannelLayout));
+            args.Add("-c:a"); args.Add("aac");
+            args.Add("-b:a"); args.Add(options.PrimaryAudioBitrate);
+            args.Add("-ac"); args.Add("2");
+            args.AddRange(HlsOutput(directory));
+
+            boosted.Add(track with
+            {
+                Id = id,
+                Label = track.Label + DialogueBoost.LabelSuffix,
+                Default = false,
+                Uri = $"{id}/index.m3u8"
+            });
+        }
+
+        log($"Mixing a dialogue boost for {feature.Count} feature track{(feature.Count == 1 ? "" : "s")}");
+        var started = Stopwatch.StartNew();
+
+        try
+        {
+            await FfmpegProcess.RunAsync(args, ct: ct);
+        }
+        catch (FfmpegException ex)
+        {
+            log($"  no dialogue boost: {ex.Message}");
+            foreach (var track in boosted)
+                Directory.Delete(Path.Combine(outputDirectory, track.Id), recursive: true);
+            return;
+        }
+
+        manifest.Audio = [.. manifest.Audio, .. boosted];
+
+        // The master first, so the manifest never lists a track the master cannot play.
+        MasterPlaylist.Write(outputDirectory, manifest);
+        ManifestJson.WriteAtomic(manifestPath, manifest);
+        log($"  dialogue boost mixed in {started.Elapsed:m\\:ss}");
     }
 
     private List<string> BuildMainPassArguments(
