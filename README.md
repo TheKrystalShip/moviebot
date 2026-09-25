@@ -145,10 +145,14 @@ Bitmap subtitles (PGS, VobSub) cannot become WebVTT without OCR. They appear in 
 
 ### Run the API and the player
 
+Settings come from `~/.config/moviebot/moviebot.settings.json` (see
+[Configuration](#configuration)), and anything can be overridden in the environment. For a quick
+local run, override the library path and supply the secrets:
+
 ```bash
 Media__Root=/absolute/path/to/media \
 Auth__SigningKey=<at least 32 random characters> \
-Discord__ClientId=<application id> \
+Discord__ApplicationId=<application id> \
 Discord__ClientSecret=<OAuth2 client secret> \
 dotnet run --project src/MovieBot.Api -c Release
 ```
@@ -168,18 +172,36 @@ application's URL mapping pointed at wherever the API is reachable.
 ### Run the bot
 
 The bot needs a Discord application with a bot user, invited with the `bot` and
-`applications.commands` scopes:
+`applications.commands` scopes, and a tracker account:
 
 ```bash
 dotnet user-secrets set "Discord:Token" "<token>" --project src/MovieBot.Bot
 
 Player__BaseUrl=https://movies.example.com \
 Discord__GuildIds__0=<guild id> \
+Tracker__BaseUrl=<tracker address> Tracker__Username=<name> Tracker__Passkey=<passkey> \
+Selection__AllowedCategories__0=<tracker category> \
 dotnet run --project src/MovieBot.Bot -c Release
 ```
 
 Every setting, including voice and the assistant, is documented in
 [`src/MovieBot.Bot/README.md`](src/MovieBot.Bot/README.md#configuration).
+
+## Configuration
+
+Every MovieBot program reads one settings file, [`src/moviebot.settings.json`](src/moviebot.settings.json),
+which declares each setting with its default and ships beside every binary. A host's own copy
+lives in its XDG configuration directory, and is read in place of the defaults key by key:
+
+1. `$XDG_CONFIG_HOME/moviebot/moviebot.settings.json`, which is `~/.config/moviebot/` for the
+   account the services run as, or else
+2. `moviebot/moviebot.settings.json` under each directory in `$XDG_CONFIG_DIRS`, by default
+   `/etc/xdg/moviebot/`.
+
+The environment overrides any single key, written `Section__Key` (`Download__MaximumGiB=500`).
+Secrets go there rather than in the file: the bot token, the OAuth2 client secret, the signing and
+service keys, the tracker account and its category names. Each service logs which files it read
+when it starts.
 
 ## API
 

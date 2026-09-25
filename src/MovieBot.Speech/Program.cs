@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
+using TheKrystalShip.MovieBot.Acquire.Configuration;
 using TheKrystalShip.Speech;
 using TheKrystalShip.Speech.Engine;
 
@@ -33,8 +34,7 @@ internal static class Program
     private static async Task<int> Main(string[] args)
     {
         IConfigurationRoot configuration = new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: true)
+            .AddMovieBotSettings()
             .AddEnvironmentVariables()
             .Build();
 
@@ -48,6 +48,7 @@ internal static class Program
         });
 
         ILogger logger = loggers.CreateLogger("MovieBot.Speech");
+        logger.LogInformation("Settings: {Files}", MovieBotSettings.Describe());
 
         // Proves the socket is bound, that something is listening on it, and that whatever answers
         // has a model loaded — none of which "the unit is active" proves on its own.

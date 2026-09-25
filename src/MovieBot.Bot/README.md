@@ -38,10 +38,16 @@ model's own unit to replay when it starts.
 
 ## Configuration
 
+Settings come from `moviebot.settings.json`, the file every MovieBot program shares: the copy
+beside the binary carries the defaults, and a host's own copy in its XDG configuration directory
+(`~/.config/moviebot/` of the account the bot runs as) overrides them. The table names each
+setting as the environment variable that overrides it; in the file, `Voice__Triggers` is
+`"Triggers"` under `"Voice"`. The top-level README's Configuration section has the full lookup.
+
 | Variable | Required | What it is |
 |---|---|---|
 | `MOVIEBOT_TOKEN` | yes | The bot token. A credential: it comes from the host's environment or from user-secrets, and never from a file under the repository. |
-| `MOVIEBOT_CLIENTID` | no | The application id, which is also its OAuth2 client id. It names the application in the invite the bot writes to the log at startup. |
+| `Discord__ApplicationId` | no | The application id, set as `"ApplicationId"` under `"Discord"` in the settings file, or as `MOVIEBOT_CLIENTID` in the environment. It names the application in the invite the bot writes to the log at startup, and the API uses it as the OAuth2 client id. |
 | `Discord__GuildIds__0` | yes | The server the bot serves. One index per server. Commands are registered per guild and an interaction from anywhere else is refused. |
 | `Player__BaseUrl` | yes | Where the player is served. The launch link is this address plus its parameters. |
 | `Api__BaseUrl` | no | Where the bot reaches the API. Defaults to `http://127.0.0.1:8099`. |
@@ -51,8 +57,8 @@ model's own unit to replay when it starts.
 | `Notify__Path` | no | Where the wish list is written. Defaults to `wishes.json` in the directory `STATE_DIRECTORY` names, and to the working directory when there is none. |
 | `Notify__SweepMinutes` | no | How often the tracker is asked about every film on the list. Defaults to 60. |
 | `Voice__Enabled` | no | Whether the bot may listen in a voice channel at all. Off by default, because everyone in a channel it joins is heard. On, it still joins only when somebody runs `/voice join`. |
-| `Voice__Triggers` | no | What addresses the bot, comma-separated. `appsettings.json` carries `okay computer, ok computer, okay computers, ok computers`, because the recogniser writes "okay" both ways and sometimes adds an s. Two full words carry a trigger through a three-second scan window where a one-syllable "hey" does not: whisper reads "hey" as "A", "Pay" or "K" often enough that, across fourteen synthetic voices with room noise added, "okay computer" was found in every command and "hey moviebot" in ten of fourteen. Near-miss chat ("okay, come on", "my computer crashed, okay") does not trigger; naming the Radiohead album does. The recogniser is primed with the name "MovieBot" and never with a trigger: whisper answers noise with the sentence it was primed with, so a trigger in the priming makes a breath address the bot. |
-| `Voice__MaxCommandSeconds` | no | The longest a request may run before it is cut and taken as it stands. `appsettings.json` carries 7, because moviebot-speech reads commands in an eight-second window and audio that fills it makes recognition run away. |
+| `Voice__Triggers` | no | What addresses the bot, comma-separated. `moviebot.settings.json` carries `okay computer, ok computer, okay computers, ok computers`, because the recogniser writes "okay" both ways and sometimes adds an s. Two full words carry a trigger through a three-second scan window where a one-syllable "hey" does not: whisper reads "hey" as "A", "Pay" or "K" often enough that, across fourteen synthetic voices with room noise added, "okay computer" was found in every command and "hey moviebot" in ten of fourteen. Near-miss chat ("okay, come on", "my computer crashed, okay") does not trigger; naming the Radiohead album does. The recogniser is primed with the name "MovieBot" and never with a trigger: whisper answers noise with the sentence it was primed with, so a trigger in the priming makes a breath address the bot. |
+| `Voice__MaxCommandSeconds` | no | The longest a request may run before it is cut and taken as it stands. `moviebot.settings.json` carries 7, because moviebot-speech reads commands in an eight-second window and audio that fills it makes recognition run away. |
 | `Voice__CommandQuietMs` | no | How long somebody has to stop sounding after the trigger before a request that is not a room verb counts as finished. Defaults to 600. A room verb does not wait for it: "pause" is acted on as soon as two readings agree on it, while the room keeps talking. |
 | `Voice__ScanWindowMs`, `Voice__ScanStrideMs` | no | How much of each person's latest speech is looked through for the trigger, and how often: 3000 and 500 by default. The window must stay under moviebot-speech's four-second scan window. |
 | `Voice__LogTranscripts` | no | Whether what was heard is written to the log: requests at information level, and everything scanned for the trigger at debug. Off by default: a voice channel is full of things nobody said to the bot. |
@@ -62,13 +68,14 @@ model's own unit to replay when it starts.
 | `Assistant__ConfirmWindowSeconds` | no | How long the bot listens for a spoken yes or no to a proposal without the trigger. Defaults to 20; 0 leaves the buttons as the only way to agree. |
 | `Assistant__LibraryInContext` | no | The most films of the library written into every turn. Defaults to 60. |
 | `Assistant__IdleResetMinutes` | no | How long a room's conversation sits silent before the next request or room verb starts it over. Defaults to 15; 0 keeps one conversation for the life of the room. |
-| `Llm__Endpoint` | no | Where the model answers. `appsettings.json` carries moviebot-llm's `http://127.0.0.1:8190`, with the model's context window and a temperature of 0. |
+| `Llm__Endpoint` | no | Where the model answers. `moviebot.settings.json` carries moviebot-llm's `http://127.0.0.1:8190`, with the model's context window and a temperature of 0. |
 | `Speech__SocketPath` | no | Where moviebot-speech answers. Defaults to `/run/moviebot-speech/speech.sock`, the same key the speech host reads. |
 | `Notify__MinimumSource` | no | The least a release's source may be for a film to count as available: `Web` by default, so a camcorder recording of a film in cinemas does not announce it. |
 
-The two credentials are read under their own names and sit underneath every other configuration
-source, so `Discord:Token` and `Discord:ApplicationId` from user-secrets or from the environment
-override them: a developer who cannot read the host's environment still has a way in.
+The two credentials are read under their own names. They sit above the settings files and
+underneath every other source, so `Discord:Token` and `Discord:ApplicationId` from user-secrets or
+from the environment override them: a developer who cannot read the host's environment still has a
+way in.
 
 Every setting is checked at startup, and a missing or malformed value names itself and the
 variable to set. A token Discord rejects is reported once as an error; the gateway then retries
@@ -82,19 +89,15 @@ Discord__GuildIds__0=<guild id> \
 dotnet run --project src/MovieBot.Bot -c Release
 ```
 
-`appsettings.json` in the output directory carries the defaults, and the host reads it from the
-directory it runs in.
-
 ## Running it as a service
 
-**systemd does not read `/etc/environment`.** A unit needs the credentials named explicitly, or
-it starts with no token and fails in the shape of a Discord outage:
+**systemd does not read `/etc/environment`.** A unit names the file holding the credentials, or
+it starts with no token and fails in the shape of a Discord outage. Everything that is not a
+credential belongs in the settings file:
 
 ```ini
 [Service]
-EnvironmentFile=/etc/environment
-Environment=Player__BaseUrl=https://movies.example.com
-Environment=Discord__GuildIds__0=<guild id>
+EnvironmentFile=/etc/moviebot/moviebot.env
 ```
 
 ## What the application needs in the portal

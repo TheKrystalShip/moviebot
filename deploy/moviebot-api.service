@@ -10,20 +10,10 @@ Group=heisen
 WorkingDirectory=/opt/moviebot/api
 ExecStart=/opt/moviebot/api/moviebot-api
 
-# Credentials and configuration. systemd does not read /etc/environment, so anything the service
-# needs is named here or in the file below; relying on the ambient environment gives a service
-# that starts empty and fails as though the network were down.
+# Settings come from /home/heisen/.config/moviebot/moviebot.settings.json (deploy/hotbox.settings.json);
+# credentials and the tracker's identity from the environment file. systemd does not read
+# /etc/environment, so relying on the ambient environment gives a service that starts empty.
 EnvironmentFile=/etc/moviebot/moviebot.env
-Environment=Media__Root=/home/heisen/moviebot/media
-# The disk finished films are kept on. It is an upgrade rather than a requirement: with it
-# gone the service starts, says so in the log and on /health, and serves everything on the
-# media root exactly as it would with one disk.
-Environment=Media__ColdRoot=/home/heisen/moviebot/cold
-Environment=Subtitles__Root=/var/lib/moviebot/subtitles
-Environment=ASPNETCORE_URLS=http://127.0.0.1:8099
-# Where Discord's own servers reach this API. The Activity builds poster URLs for a viewer's
-# presence from it, because its own origin is Discord's proxy and reachable from nowhere else.
-Environment=Api__PublicBaseUrl=https://movies.thekrystalship.com
 Environment=DOTNET_EnableDiagnostics=0
 
 Restart=on-failure

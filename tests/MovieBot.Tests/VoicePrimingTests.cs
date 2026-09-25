@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using TheKrystalShip.Discord.Voice;
+using TheKrystalShip.MovieBot.Acquire.Configuration;
 using TheKrystalShip.MovieBot.Bot.Voice;
 using Xunit;
 
@@ -19,7 +20,7 @@ public sealed class VoicePrimingTests
     public void The_priming_echoed_back_does_not_address_the_bot()
     {
         var shipped = new ConfigurationBuilder()
-            .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "bot.appsettings.json"))
+            .AddJsonFile(MovieBotSettings.ShippedPath)
             .Build()["Voice:Triggers"];
         Assert.False(string.IsNullOrWhiteSpace(shipped));
 

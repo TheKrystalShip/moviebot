@@ -1,0 +1,61 @@
+// hotbox's settings: installed as /home/heisen/.config/moviebot/moviebot.settings.json, the XDG
+// configuration file of the account the services run as. It holds only what hotbox changes; every
+// other setting takes its default from the copy of src/moviebot.settings.json beside each binary.
+// Secrets and the tracker's identity are in /etc/moviebot/moviebot.env.
+{
+  "Discord": {
+    "GuildIds": ["385730677141929985"]
+  },
+
+  "Player": {
+    "BaseUrl": "https://movies.thekrystalship.com"
+  },
+
+  // Where Discord's own servers reach the API. The Activity builds poster URLs for a viewer's
+  // presence from it, because its own origin is Discord's proxy and reachable from nowhere else.
+  "Api": {
+    "PublicBaseUrl": "https://movies.thekrystalship.com"
+  },
+
+  // The cold root is the disk finished films are kept on. It is an upgrade rather than a
+  // requirement: with it gone the API starts, says so in the log and on /health, and serves
+  // everything on the media root, and the hand-off leaves finished films where they are.
+  "Media": {
+    "Root": "/home/heisen/moviebot/media",
+    "ColdRoot": "/home/heisen/moviebot/cold"
+  },
+
+  // The card saturates at roughly 10.6x realtime in aggregate: two films run at 5.3x each, three
+  // at 3.6x each for the same total. A third only moves every film in flight closer to the
+  // playhead it has to outrun.
+  "Handoff": {
+    "MediaRoot": "/home/heisen/moviebot/media",
+    "ColdRoot": "/home/heisen/moviebot/cold",
+    "MaxConcurrentIngests": 2
+  },
+
+  // Named rather than left to resolve from the session: a service inherits none of a desktop
+  // session's variables, so a fallback agrees with the torrent client only for as long as both
+  // happen to be launched the same way.
+  "Download": {
+    "Root": "/home/heisen/Downloads/Movies"
+  },
+
+  "QBittorrent": {
+    "BaseUrl": "http://127.0.0.1:8081"
+  },
+
+  // Listening in a voice channel, through moviebot-speech. The bot joins only when somebody runs
+  // /voice join. LogTranscripts writes everything heard to the journal, including talk not
+  // addressed to the bot; it is on while the trigger phrases are tuned against how the recogniser
+  // actually writes them, and the bot warns about it in the log when it starts.
+  "Voice": {
+    "Enabled": true,
+    "LogTranscripts": true
+  },
+
+  // What is said that the room verbs do not cover goes to the model moviebot-llm holds.
+  "Assistant": {
+    "Enabled": true
+  }
+}

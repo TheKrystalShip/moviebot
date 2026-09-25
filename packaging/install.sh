@@ -4,7 +4,7 @@
 #   sudo ./install.sh
 #
 # Safe to run again: binaries, service files and the nginx example are replaced, while the
-# configuration in /etc/moviebot and everything under /srv/moviebot are kept. Services that are
+# secrets in /etc/moviebot, the settings file and everything else under /srv/moviebot are kept. Services that are
 # already running are restarted onto the new binaries.
 set -euo pipefail
 
@@ -15,6 +15,8 @@ prefix=/opt/moviebot
 data=/srv/moviebot
 etc=/etc/moviebot
 env_file="$etc/moviebot.env"
+# The services' XDG configuration directory: $XDG_CONFIG_HOME of the account they run as.
+settings="$data/.config/moviebot/moviebot.settings.json"
 services=(moviebot-api moviebot-bot moviebot-handoff)
 
 say()  { printf '\033[1m==>\033[0m %s\n' "$*"; }
@@ -63,6 +65,15 @@ fi
 chown root:"$user" "$env_file"
 chmod 0640 "$env_file"
 
+say "Settings in $settings"
+if [[ -f "$settings" ]]; then
+    echo "    kept (already present)"
+else
+    install -d -o "$user" -g "$user" -m 0755 "$data/.config" "$(dirname "$settings")"
+    install -o "$user" -g "$user" -m 0644 "$here/api/moviebot.settings.json" "$settings"
+    echo "    created"
+fi
+
 say "qBittorrent settings"
 qb_conf="$data/.config/qBittorrent/qBittorrent.conf"
 if [[ -f "$qb_conf" ]]; then
@@ -90,5 +101,6 @@ echo "    $etc/examples/nginx-moviebot.conf"
 echo
 say "Installed $(cat "$here/VERSION")."
 if ! grep -q '^MOVIEBOT_TOKEN=.' "$env_file"; then
-    echo "    Next: fill in $env_file, then follow the deployment guide from there."
+    echo "    Next: fill in $settings"
+    echo "    and $env_file, then follow the deployment guide from there."
 fi

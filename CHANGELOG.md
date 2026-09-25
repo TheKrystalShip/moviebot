@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.55.0] - 2026-09-25
+
+### Changed
+
+- **Settings come from one file, `moviebot.settings.json`**, shared by the API, the bot, the
+  hand-off and the speech host. `src/moviebot.settings.json` declares every setting with its default
+  and ships beside each binary; a host's own copy in its XDG configuration directory
+  (`$XDG_CONFIG_HOME/moviebot/`, else `moviebot/` under each of `$XDG_CONFIG_DIRS`) overrides it key
+  by key, and the environment overrides both. Each service logs which files it read when it starts.
+  The per-service `appsettings.json` files are gone.
+- **The environment file holds secrets only**: the bot token, the OAuth2 client secret, the signing
+  and service keys, the tracker account and its category names. Everything else the release's units
+  and hotbox's units set with `Environment=` is in the settings file.
+- **The API takes its OAuth2 client id from `Discord:ApplicationId`** when `Discord:ClientId` is
+  unset, so the settings file names the application once for the bot and the API.
+- The release's `install.sh` puts the settings file at
+  `/srv/moviebot/.config/moviebot/moviebot.settings.json`, the XDG configuration file of the
+  `moviebot` account, and keeps it across upgrades. `deploy/hotbox.settings.json` is hotbox's copy,
+  installed as `/home/heisen/.config/moviebot/moviebot.settings.json`.
+- The deployment guide splits configuration into the settings file and the secrets file.
+
 ## [1.54.0] - 2026-09-25
 
 ### Added

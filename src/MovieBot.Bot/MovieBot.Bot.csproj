@@ -22,9 +22,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The console SDK copies no content by default, and the host reads its settings from the
-         directory it runs in. -->
-    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The shared settings file, shipped beside the binary as the defaults. -->
+    <Content Include="../moviebot.settings.json" Link="moviebot.settings.json" CopyToOutputDirectory="PreserveNewest" />
 
     <!-- The assistant's instructions and tool descriptions, read from beside the binary. -->
     <Content Include="prompts/**" CopyToOutputDirectory="PreserveNewest" />

@@ -10,15 +10,10 @@ Group=heisen
 WorkingDirectory=/opt/moviebot/handoff
 ExecStart=/opt/moviebot/handoff/moviebot-handoff
 
+# Settings come from /home/heisen/.config/moviebot/moviebot.settings.json (deploy/hotbox.settings.json);
+# credentials and the tracker's identity from the environment file. systemd does not read
+# /etc/environment, so relying on the ambient environment gives a service that starts empty.
 EnvironmentFile=/etc/moviebot/moviebot.env
-Environment=Handoff__MediaRoot=/home/heisen/moviebot/media
-# Where a film goes once there is nothing left to write to it. The transcode writes the
-# media root in four-second pieces for as long as it runs and the download it reads from
-# seeds beside it; a finished film is read back by one playhead and wants none of that
-# disk. Empty would leave the whole library on the media root.
-Environment=Handoff__ColdRoot=/home/heisen/moviebot/cold
-Environment=Download__Root=/home/heisen/Downloads/Movies
-Environment=QBittorrent__BaseUrl=http://127.0.0.1:8081
 
 # The system ffmpeg lists h264_nvenc and cannot run it: it is built against NVENC API 13.1, which
 # requires driver 610 or newer, and this card is Pascal and capped at driver 580 with API 13.0. The
@@ -26,11 +21,6 @@ Environment=QBittorrent__BaseUrl=http://127.0.0.1:8081
 # kept off the global PATH so it shadows nothing else on the host. ffprobe sits in the same
 # directory, so the probe pass and the transcode cannot end up on different builds.
 Environment=PATH=/opt/ffmpeg-p2000/bin:/usr/local/bin:/usr/bin
-
-# The card saturates at roughly 10.6x realtime in aggregate: two films run at 5.3x each, three at
-# 3.6x each for the same total. A third only moves every film in flight closer to the playhead it
-# has to outrun.
-Environment=Handoff__MaxConcurrentIngests=2
 
 Environment=DOTNET_EnableDiagnostics=0
 

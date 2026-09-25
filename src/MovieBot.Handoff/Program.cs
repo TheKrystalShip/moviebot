@@ -3,10 +3,12 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Acquire;
+using TheKrystalShip.MovieBot.Acquire.Configuration;
 using TheKrystalShip.MovieBot.Core;
 using TheKrystalShip.MovieBot.Handoff;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Configuration.AddMovieBotSettings();
 
 builder.Services.Configure<HandoffOptions>(
     builder.Configuration.GetSection(HandoffOptions.Section));
@@ -17,7 +19,8 @@ if (string.IsNullOrWhiteSpace(
         builder.Configuration.GetSection(HandoffOptions.Section)["MediaRoot"]))
 {
     Console.Error.WriteLine(
-        "No media root. Set Handoff__MediaRoot to the directory the API serves from.");
+        "No media root. Set Handoff.MediaRoot in moviebot.settings.json to the directory the API "
+        + $"serves from. Settings read: {MovieBotSettings.Describe()}");
     return 1;
 }
 
@@ -77,5 +80,8 @@ builder.Services.AddHostedService<SettleWorker>();
 
 builder.Logging.AddSimpleConsole(o => o.SingleLine = true);
 
-await builder.Build().RunAsync();
+var app = builder.Build();
+app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("MovieBot.Handoff")
+    .LogInformation("Settings: {Files}", MovieBotSettings.Describe());
+await app.RunAsync();
 return 0;

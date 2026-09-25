@@ -10,10 +10,9 @@ Group=moviebot
 WorkingDirectory=/opt/moviebot/bot
 ExecStart=/opt/moviebot/bot/moviebot-bot
 
+# Settings come from ~moviebot/.config/moviebot/moviebot.settings.json; the secrets, and any
+# setting a host overrides without editing that file, from the environment file.
 EnvironmentFile=/etc/moviebot/moviebot.env
-Environment=Download__Root=/srv/moviebot/downloads
-Environment=Api__BaseUrl=http://127.0.0.1:8099
-Environment=QBittorrent__BaseUrl=http://127.0.0.1:8080
 Environment=DOTNET_EnableDiagnostics=0
 
 # The gateway connection drops from time to time; the bot reconnects on its own, and a crash

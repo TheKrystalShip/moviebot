@@ -87,7 +87,8 @@ The installer:
 - puts the programs in `/opt/moviebot`,
 - creates `/srv/moviebot/media` (your film library), `/srv/moviebot/downloads` and
   `/srv/moviebot/incoming` (for films you add yourself),
-- creates the settings file `/etc/moviebot/moviebot.env`, with its internal keys already filled in,
+- creates the settings file `/srv/moviebot/.config/moviebot/moviebot.settings.json`,
+- creates the secrets file `/etc/moviebot/moviebot.env`, with its internal keys already filled in,
 - sets up qBittorrent's settings and the three systemd services.
 
 It does not start anything yet.
@@ -116,7 +117,32 @@ Finally, the ID of your Discord server (value 4): in the Discord app, open **Use
 
 ## Step 4: Fill in the settings
 
-Open the settings file:
+MovieBot reads two files. The **settings file** holds everything that is not secret. The
+**secrets file** holds passwords, tokens and your tracker account, and can also override any
+single setting.
+
+### The settings file
+
+Open it:
+
+```bash
+sudo -u moviebot nano /srv/moviebot/.config/moviebot/moviebot.settings.json
+```
+
+Change these three things, and leave everything else as it is:
+
+| Setting | What to put there |
+|---|---|
+| `"ApplicationId": null` under `"Discord"` | Value 1, in quotes: `"ApplicationId": "123456789012345678"` |
+| `"GuildIds": []` under `"Discord"` | Value 4, in quotes and brackets: `"GuildIds": ["123456789012345678"]` |
+| `"BaseUrl": ""` under `"Player"`, and `"PublicBaseUrl": ""` under `"Api"` | `https://` and your domain, on both lines: `"https://movies.example.com"` |
+
+Lines starting with `//` are explanations and can stay. Save with `Ctrl+O`, `Enter`, then exit with
+`Ctrl+X`.
+
+### The secrets file
+
+Open it:
 
 ```bash
 sudo nano /etc/moviebot/moviebot.env
@@ -128,17 +154,13 @@ quotes.
 | Line | What to put there |
 |---|---|
 | `MOVIEBOT_TOKEN` | Value 2, the bot token |
-| `MOVIEBOT_CLIENTID` and `Discord__ClientId` | Value 1, the application ID, on both lines |
 | `Discord__ClientSecret` | Value 3, the client secret |
-| `Discord__GuildIds__0` | Value 4, your server ID |
-| `Player__BaseUrl` and `Api__PublicBaseUrl` | `https://` and your domain, on both lines, for example `https://movies.example.com` |
 | `Tracker__BaseUrl` | Your tracker's address, for example `https://tracker.example/` |
 | `Tracker__Username`, `Tracker__Passkey` | Your tracker username and passkey |
 | `Selection__AllowedCategories__0` | A tracker category films may come from, spelled exactly as on the tracker. Add `__1`, `__2` and so on for more |
 
 Leave the three keys under "Internal keys" as they are. `OpenSubtitles__ApiKey` is optional.
-
-Save with `Ctrl+O`, `Enter`, then exit with `Ctrl+X`.
+Save and exit the same way.
 
 ## Step 5: Start qBittorrent
 
@@ -245,8 +267,9 @@ options.
 ## Upgrading
 
 Download and unpack the new release as in [step 2](#step-2-download-and-install-moviebot), then run
-`sudo ./install.sh` from its directory. Your settings, films and downloads are kept, and the
-running services restart on the new version.
+`sudo ./install.sh` from its directory. Your settings, secrets, films and downloads are kept, and
+the running services restart on the new version. A setting a new version adds takes its default
+from the copy beside each program, so your settings file does not need to change.
 
 ## Troubleshooting
 
@@ -260,9 +283,10 @@ journalctl -u moviebot-handoff -n 50 --no-pager
 
 | Problem | What to check |
 |---|---|
-| A service keeps restarting | Its journal names the missing or wrong setting. Fix it in `/etc/moviebot/moviebot.env`, then `sudo systemctl restart` that service |
-| The bot is online but `/watch` does not appear | Commands appear only in the server set in `Discord__GuildIds__0`. Check the number, then restart `moviebot-bot` |
-| The player shows "Discord sign-in failed" | `Discord__ClientId` or `Discord__ClientSecret` is wrong, or the redirect from step 3.5 is missing |
+| A service keeps restarting | Its journal names the missing or wrong setting. Fix it in the settings file or the secrets file, then `sudo systemctl restart` that service |
+| A change to the settings file has no effect | Each service logs which files it read when it starts: `journalctl -u moviebot-api \| grep Settings:`. A setting in the secrets file wins over the same setting in the settings file |
+| The bot is online but `/watch` does not appear | Commands appear only in the servers listed in `GuildIds`. Check the number, then restart `moviebot-bot` |
+| The player shows "Discord sign-in failed" | `ApplicationId` or `Discord__ClientSecret` is wrong, or the redirect from step 3.5 is missing |
 | Pressing **Watch together** shows a blank or failed Activity | The URL mapping in step 3.7 must be your domain without `https://`, and `https://YOUR.DOMAIN/health` must work from outside your network |
 | The GPU check in step 1 fails | Run `nvidia-smi` to confirm the driver works. Some distributions ship an ffmpeg built for a newer NVIDIA driver than the card supports; updating the driver, or installing an ffmpeg built for your driver, fixes it |
 | A download finishes but the film never appears | Check the `moviebot-handoff` journal, and that the GPU check in step 1 still passes |
@@ -272,7 +296,8 @@ journalctl -u moviebot-handoff -n 50 --no-pager
 
 | Path | What it holds |
 |---|---|
-| `/etc/moviebot/moviebot.env` | Your settings |
+| `/srv/moviebot/.config/moviebot/moviebot.settings.json` | Your settings |
+| `/etc/moviebot/moviebot.env` | Your secrets, and any setting overridden without editing the settings file |
 | `/opt/moviebot` | The programs, replaced on every upgrade |
 | `/srv/moviebot/media` | Your film library |
 | `/srv/moviebot/downloads` | Downloads, which keep seeding for a week unless someone uses `/keep` |

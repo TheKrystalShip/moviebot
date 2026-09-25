@@ -75,6 +75,11 @@ the build machine's glibc as their floor. `scripts/package-release.sh` builds th
 
 ## Conventions
 
+- **Every setting is declared in `src/moviebot.settings.json`**, with its default. It is one file for
+  every MovieBot program, shipped beside each binary; a host's copy in its XDG configuration
+  directory overrides it, and the environment overrides both. Secrets and the tracker's identity are
+  never in it, only in the environment. `MovieBotSettings` in moviebot-acquire is the lookup.
+
 - C# namespaces are `TheKrystalShip.*`, matching the GitHub org this publishes to.
 - Present-tense canon in every doc and comment: describe how the thing works now. History belongs in
   the CHANGELOG and in commit messages, never in prose or code comments.

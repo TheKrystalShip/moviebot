@@ -17,7 +17,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The shared settings file, shipped beside the binary as the defaults. -->
+    <Content Include="../moviebot.settings.json" Link="moviebot.settings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- For the settings file's location and layering, which every MovieBot program shares. -->
+  <ItemGroup>
+    <ProjectReference Include="../../../moviebot-acquire/src/MovieBot.Acquire/MovieBot.Acquire.csproj" />
   </ItemGroup>
 
   <ItemGroup>

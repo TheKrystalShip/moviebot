@@ -10,15 +10,10 @@ Group=moviebot
 WorkingDirectory=/opt/moviebot/handoff
 ExecStart=/opt/moviebot/handoff/moviebot-handoff
 
+# Settings come from ~moviebot/.config/moviebot/moviebot.settings.json; the secrets, and any
+# setting a host overrides without editing that file, from the environment file.
 EnvironmentFile=/etc/moviebot/moviebot.env
-Environment=Handoff__MediaRoot=/srv/moviebot/media
-Environment=Download__Root=/srv/moviebot/downloads
-Environment=Api__BaseUrl=http://127.0.0.1:8099
-Environment=QBittorrent__BaseUrl=http://127.0.0.1:8080
 Environment=DOTNET_EnableDiagnostics=0
-
-# At most this many films transcode at once. They share the GPU, so each one runs slower.
-Environment=Handoff__MaxConcurrentIngests=2
 
 Restart=on-failure
 RestartSec=10s
@@ -27,7 +22,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-# The library is the one place it writes. Downloads are only read: qBittorrent removes them.
+# The library is the one place it writes, so this names Handoff.MediaRoot from the settings file
+# and changes with it. Downloads are only read: qBittorrent removes them.
 ReadWritePaths=/srv/moviebot/media
 ProtectKernelTunables=true
 ProtectControlGroups=true

@@ -16,9 +16,17 @@ dotnet publish src/MovieBot.Handoff -c Release -o /tmp/mb/handoff
 rsync -a --delete /tmp/mb/api/     hotbox:/opt/moviebot/api/
 rsync -a --delete /tmp/mb/bot/     hotbox:/opt/moviebot/bot/
 rsync -a --delete /tmp/mb/handoff/ hotbox:/opt/moviebot/handoff/
+ssh hotbox 'mkdir -p ~/.config/moviebot'
+rsync deploy/hotbox.settings.json hotbox:.config/moviebot/moviebot.settings.json
 ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff'
 ```
 
+- **Settings are two files and the environment.** Every service reads `moviebot.settings.json`
+  twice: the copy of `src/moviebot.settings.json` published beside its binary holds the defaults,
+  and `/home/heisen/.config/moviebot/moviebot.settings.json` (`deploy/hotbox.settings.json`, which
+  holds only what hotbox changes) overrides them key by key. That second file is `heisen`'s XDG
+  configuration file, so writing it takes no privilege, and a service picks a change up on its next
+  restart. Each service logs `Settings:` with both paths when it starts.
 - **Speech and the model are native builds of their own, made on hotrod for hotbox's CPU.**
   `vulkan/build.sh` builds whisper.cpp and llama.cpp against Vulkan with every CPU feature hotbox
   lacks switched off, and `vulkan/install.sh` puts them under `/opt/moviebot`; its README is the
@@ -29,7 +37,7 @@ ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff'
   and every voice connection is refused.
 - **The API and the hand-off publish as native binaries.** `PublishAot` in each project, so the
   publish above runs the ahead-of-time compiler, needs `clang`, and takes a minute or two longer than
-  a JIT publish. What lands is one executable beside `appsettings.json` and, for the API, `wwwroot`,
+  a JIT publish. What lands is one executable beside `moviebot.settings.json` and, for the API, `wwwroot`,
   with nothing left to compile at run time. `--delete` on the rsync is what keeps a native publish
   from leaving old assemblies standing beside the new binary. The bot stays on the JIT, with tiering
   off: Discord.Net is built on reflection.
@@ -65,15 +73,16 @@ ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff'
 - **`/etc/moviebot/moviebot.env` holds the credentials** all three units read, **and which tracker
   this is**: `Tracker__BaseUrl`, `Tracker__Username`, `Tracker__Passkey` and the tracker's category
   names as `Selection__AllowedCategories__0`, `__1` and so on. The bot and the hand-off refuse to
-  start without the categories. Any other configuration that is not a credential belongs in the
-  unit's own `Environment=` lines, where it is in the repository and reviewable; the tracker's
-  identity is kept out of the repository the same way the passkey is.
+  start without the categories. Any other configuration that is not a credential belongs in
+  `deploy/hotbox.settings.json`, where it is in the repository and reviewable; the tracker's
+  identity is kept out of the repository the same way the passkey is. A unit's own `Environment=`
+  lines are for the process, not for MovieBot: `PATH` and the driver's shader cache.
 - **The state directories are the two things no re-ingest can rebuild.** systemd hands the API
   `/var/lib/moviebot` — the rooms and the subtitles fetched from outside, each of which cost one of a
   limited daily allowance — and the bot `/var/lib/moviebot-bot`, holding the wish list and the launch
   cards still standing.
-- **The cold disk is named by each unit and proved by a marker file.** `Media__ColdRoot` and
-  `Handoff__ColdRoot` point at the volume finished films are kept on, and it is used only while a
+- **The cold disk is named in the settings file and proved by a marker file.** `Media.ColdRoot` and
+  `Handoff.ColdRoot` point at the volume finished films are kept on, and it is used only while a
   `.moviebot-cold` file sits at its root. That file is made once per host, as the owning user, on the
   mounted volume: `touch <cold root>/.moviebot-cold`. Without it both services run on the media root
   alone and say so.

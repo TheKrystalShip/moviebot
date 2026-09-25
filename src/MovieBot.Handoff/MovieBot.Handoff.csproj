@@ -26,7 +26,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The shared settings file, shipped beside the binary as the defaults. -->
+    <Content Include="../moviebot.settings.json" Link="moviebot.settings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

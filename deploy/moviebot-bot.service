@@ -10,33 +10,15 @@ Group=heisen
 WorkingDirectory=/opt/moviebot/bot
 ExecStart=/opt/moviebot/bot/moviebot-bot
 
+# Settings come from /home/heisen/.config/moviebot/moviebot.settings.json (deploy/hotbox.settings.json);
+# credentials and the tracker's identity from the environment file. systemd does not read
+# /etc/environment, so relying on the ambient environment gives a service that starts empty.
 EnvironmentFile=/etc/moviebot/moviebot.env
-Environment=Discord__GuildIds__0=385730677141929985
-# Named rather than left to resolve from the environment. A service inherits none of a desktop
-# session's variables, so a fallback that reads them agrees with the torrent client only for as
-# long as both happen to be launched the same way.
-Environment=Download__Root=/home/heisen/Downloads/Movies
-Environment=Api__BaseUrl=http://127.0.0.1:8099
-Environment=Api__PublicBaseUrl=https://movies.thekrystalship.com
-Environment=Player__BaseUrl=https://movies.thekrystalship.com
-Environment=QBittorrent__BaseUrl=http://127.0.0.1:8081
 Environment=DOTNET_EnableDiagnostics=0
 
-# Listening in a voice channel. Everyone in a channel the bot joins is heard, so it is switched on
-# here rather than defaulted on, and even on the bot joins only when somebody runs /voice join.
-# Recognition is moviebot-speech, reached over its socket; libdave, opus and libsodium are what a
-# voice connection needs from the system.
-Environment=Voice__Enabled=true
-Environment=Speech__SocketPath=/run/moviebot-speech/speech.sock
-# Everything heard is written to the journal, including talk not addressed to the bot. On while the
-# trigger phrases are tuned against how the recogniser actually writes them; the bot warns about it
-# in the log when it starts.
-Environment=Voice__LogTranscripts=true
-
-# What is said that the room verbs do not cover goes to the model moviebot-llm holds, over
-# loopback, and is answered in the voice channel's chat. The conversation and the model's warm-up
-# request are written in the state directory below.
-Environment=Assistant__Enabled=true
+# Listening in a voice channel reaches moviebot-speech over its socket; libdave, opus and libsodium
+# are what a voice connection needs from the system. The assistant's conversation and the model's
+# warm-up request are written in the state directory below.
 
 # A dropped gateway connection is normal; the bot reconnects, and a crash should not need a person.
 Restart=always

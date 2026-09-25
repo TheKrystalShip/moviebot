@@ -7,7 +7,10 @@ public sealed class DiscordAuthOptions
 {
     public const string Section = "Discord";
 
-    /// <summary>The application id, which is also the OAuth2 client id. Not a secret.</summary>
+    /// <summary>
+    /// The application id, which is also the OAuth2 client id. Not a secret. Taken from
+    /// <c>Discord:ApplicationId</c>, the key the settings file names it by, when this is unset.
+    /// </summary>
     public string ClientId { get; set; } = "";
 
     /// <summary>The OAuth2 client secret. A credential: it comes from the environment, never a file in the repo.</summary>

@@ -1,0 +1,136 @@
+// MovieBot settings, read by every MovieBot service.
+//
+// A copy of this file ships beside each program and holds the defaults. The copy a host edits is
+// $XDG_CONFIG_HOME/moviebot/moviebot.settings.json of the account the services run as (by default
+// ~/.config/moviebot/), or /etc/xdg/moviebot/moviebot.settings.json. The environment overrides any
+// single key, as Section__Key, and it is where secrets go: tokens, keys and the tracker account.
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information",
+      "System.Net.Http.HttpClient": "Warning"
+    }
+  },
+
+  // The Discord application. ApplicationId is the number on its General Information page, and
+  // GuildIds the servers the bot answers in, each written as a string: ["123456789012345678"].
+  "Discord": {
+    "ApplicationId": null,
+    "GuildIds": []
+  },
+
+  // Where people reach this host: the https address the Activity is mapped to.
+  "Player": {
+    "BaseUrl": ""
+  },
+
+  // How the bot and the hand-off reach the API, and where Discord's own servers reach it.
+  "Api": {
+    "BaseUrl": "http://127.0.0.1:8099",
+    "PublicBaseUrl": ""
+  },
+
+  // The API's own address. nginx forwards to it; nothing else should.
+  "Kestrel": {
+    "Endpoints": {
+      "Http": { "Url": "http://127.0.0.1:8099" }
+    }
+  },
+
+  // The library the API serves. ColdRoot, when set, is a second disk finished films move to.
+  "Media": {
+    "Root": "/srv/moviebot/media",
+    "ColdRoot": ""
+  },
+
+  "Subtitles": {
+    "Root": "/var/lib/moviebot/subtitles"
+  },
+
+  "Rooms": {
+    "IdleTimeout": "00:30:00",
+    "SweepInterval": "00:01:00"
+  },
+
+  // The hand-off writes films into MediaRoot, which must be the API's Media.Root. Films share the
+  // GPU, so each of MaxConcurrentIngests runs slower than one alone.
+  "Handoff": {
+    "MediaRoot": "/srv/moviebot/media",
+    "ColdRoot": "",
+    "PollSeconds": 30,
+    "MinimumFilmSizeMiB": 200,
+    "StartAtProgress": 0.05,
+    "MaxConcurrentIngests": 2
+  },
+
+  // Where qBittorrent saves downloads, and how much of the disk they may take.
+  "Download": {
+    "Root": "/srv/moviebot/downloads",
+    "MaximumGiB": 300,
+    "WarningGiB": 250
+  },
+
+  "QBittorrent": {
+    "BaseUrl": "http://127.0.0.1:8080",
+    "Category": "moviebot",
+    "SequentialDownload": true,
+    "FirstLastPiecePriority": true
+  },
+
+  // Which releases are offered. The tracker's category names are set in the environment, beside
+  // the tracker account, as Selection__AllowedCategories__0, __1 and so on.
+  "Selection": {
+    "MaximumResolution": "Hd1080",
+    "PreferredResolution": "Hd1080",
+    "MaximumSizeGiB": 25,
+    "MaximumResults": 10,
+    "TierByTrackerFlags": true
+  },
+
+  // How long a downloaded film keeps seeding before it is removed, unless somebody keeps it.
+  "Retention": {
+    "SeedDays": 7,
+    "TrackerMinimumHours": 48,
+    "MarginHours": 12
+  },
+
+  // Listening in a voice channel. Off unless enabled: everyone in a channel the bot joins is heard.
+  "Voice": {
+    "Enabled": false,
+    "Triggers": "okay computer, ok computer, okay computers, ok computers",
+    "MaxCommandSeconds": 7
+  },
+
+  // Answering spoken requests with a local language model. Off unless enabled.
+  "Assistant": {
+    "Enabled": false
+  },
+
+  "Llm": {
+    "Provider": "LlamaCpp",
+    "Endpoint": "http://127.0.0.1:8190",
+    "Model": "gemma-4-E2B-it-qat",
+    "ContextWindow": 8192,
+    "Temperature": 0,
+    "TimeoutSeconds": 60
+  },
+
+  "LlmAgent": {
+    "MaxIterations": 6
+  },
+
+  // Speech recognition for voice commands: the model the speech host loads, and the socket the bot
+  // reaches it on.
+  "Speech": {
+    "ModelPath": "/opt/moviebot/whisper/models/ggml-small.en.bin",
+    "SocketPath": "/run/moviebot-speech/speech.sock",
+    "UseGpu": true,
+    "NativeLibraryPath": "/opt/moviebot/whisper/lib/libwhisper.so",
+    "Accelerators": [
+      "vulkan"
+    ],
+    "AudioContextFrames": 400
+  }
+}

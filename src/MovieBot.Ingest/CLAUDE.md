@@ -107,7 +107,7 @@ Driven entirely by what the container says, because the sample film makes every 
   which exhausts hotbox a third of the way into a feature and gets the transcode killed.
   `ReadAheadGuard` takes the furthest of the descriptors as the read position.
 - **The concurrency ceiling belongs to the card, and is measured rather than reasoned about.**
-  `Handoff__MaxConcurrentIngests` is set per host, because a GPU saturates at an aggregate rate and
+  `Handoff.MaxConcurrentIngests` is set per host in its settings file, because a GPU saturates at an aggregate rate and
   jobs past that point only divide the same throughput into thinner slices. What matters is not the
   aggregate but the per-film rate, which has to stay well ahead of one playhead.
 

@@ -2,8 +2,8 @@
 
 What `MovieBot.Api` serves, as built. Everything is camelCase; enums are lowercase strings.
 
-Default listen address is `http://127.0.0.1:8099`. The media root comes from `Media__Root`
-(or `Media:Root` in configuration) and must be absolute in anything but a demo. `Media__ColdRoot`
+Default listen address is `http://127.0.0.1:8099`. The media root comes from `Media.Root` in
+`moviebot.settings.json` (or `Media__Root` in the environment) and must be absolute in anything but a demo. `Media__ColdRoot`
 names a second disk that finished films are kept on; a title is under one root or the other and
 which one it is under changes no URL. Left empty, the whole library is the media root.
 

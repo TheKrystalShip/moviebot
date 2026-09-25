@@ -13,6 +13,7 @@ using TheKrystalShip.MovieBot.Bot.Discord;
 using TheKrystalShip.MovieBot.Bot.Download;
 using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Acquire;
+using TheKrystalShip.MovieBot.Acquire.Configuration;
 using TheKrystalShip.MovieBot.Bot.Launch;
 using TheKrystalShip.MovieBot.Bot.Notify;
 using TheKrystalShip.MovieBot.Bot.Presence;
@@ -23,8 +24,8 @@ using TheKrystalShip.Discord.Voice;
 var builder = Host.CreateApplicationBuilder(args);
 
 // The host publishes the two credentials under their own names. They go in underneath every
-// other source, so a developer who cannot read them can still put a token in user-secrets and
-// have it win.
+// other source but the settings files, so a developer who cannot read them can still put a token
+// in user-secrets and have it win, and a host that sets them wins over the file.
 builder.Configuration.Sources.Insert(0, new MemoryConfigurationSource
 {
     InitialData = new Dictionary<string, string?>
@@ -34,6 +35,7 @@ builder.Configuration.Sources.Insert(0, new MemoryConfigurationSource
     }.Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
      .ToDictionary(pair => pair.Key, pair => pair.Value)
 });
+builder.Configuration.AddMovieBotSettings();
 
 builder.Services.AddOptions<DiscordOptions>()
     .Bind(builder.Configuration.GetSection(DiscordOptions.Section));
@@ -170,7 +172,10 @@ builder.Services.AddHostedService<LaunchExpiry>();
 // Asks the tracker about the films people are waiting on, and tells them when one appears.
 builder.Services.AddHostedService<WishWatcher>();
 
-await builder.Build().RunAsync();
+var host = builder.Build();
+host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("MovieBot.Bot")
+    .LogInformation("Settings: {Files}", MovieBotSettings.Describe());
+await host.RunAsync();
 
 static bool IsWebAddress(string? value) =>
     Uri.TryCreate(value, UriKind.Absolute, out var uri)

@@ -14,6 +14,7 @@ using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddMovieBotSettings();
 
 builder.Services.AddSingleton(TimeProvider.System);
 
@@ -79,8 +80,15 @@ builder.Services.AddHostedService<SessionReaper>();
 builder.Services.AddSingleton<TitleChanges>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<TitleChanges>());
 
+// The client id is the application id, which the settings file names once for the bot and the
+// API together.
 builder.Services.AddOptions<DiscordAuthOptions>()
-    .Bind(builder.Configuration.GetSection(DiscordAuthOptions.Section));
+    .Bind(builder.Configuration.GetSection(DiscordAuthOptions.Section))
+    .PostConfigure<IConfiguration>((options, configuration) =>
+    {
+        if (options.ClientId.Length == 0 && configuration["Discord:ApplicationId"] is { Length: > 0 } id)
+            options.ClientId = id;
+    });
 builder.Services.AddHttpClient<DiscordAuthClient>(http => http.Timeout = TimeSpan.FromSeconds(10));
 
 // Every type that crosses the wire is named in a serializer context, and the two contexts are the
@@ -112,6 +120,7 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .AllowCredentials()));
 
 var app = builder.Build();
+app.Logger.LogInformation("Settings: {Files}", MovieBotSettings.Describe());
 
 // Before anything can serve a request. A room restored after the first client has joined is a
 // room that client was already told did not exist.

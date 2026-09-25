@@ -26,6 +26,11 @@
     <ProjectReference Include="../../../moviebot-acquire/src/MovieBot.Acquire/MovieBot.Acquire.csproj" />
   </ItemGroup>
 
+  <!-- The shared settings file, shipped beside the binary as the defaults. -->
+  <ItemGroup>
+    <Content Include="../moviebot.settings.json" Link="moviebot.settings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="MovieBot.Tests" />
   </ItemGroup>
