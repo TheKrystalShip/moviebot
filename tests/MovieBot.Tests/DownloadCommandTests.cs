@@ -83,7 +83,10 @@ public sealed class DownloadCommandTests : IDisposable
         var tracker = new TrackerClient(
             Http("https://tracker.invalid/", r =>
                 Task.FromResult(r.RequestUri!.AbsolutePath.EndsWith("download.php") ? TorrentFile : null)),
-            Options.Create(new TrackerOptions { Username = "u", Passkey = "p" }),
+            Options.Create(new TrackerOptions
+            {
+                BaseUrl = "https://tracker.invalid/", Username = "u", Passkey = "p",
+            }),
             NullLogger<TrackerClient>.Instance);
 
         var root = Path.Combine(_dir, "downloads");

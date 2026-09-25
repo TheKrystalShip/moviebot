@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.53.0] - 2026-09-25
+
+### Changed
+
+- **The bot and the hand-off read the tracker from the `Tracker` configuration section**, through
+  moviebot-acquire 0.17.0's `TrackerClient`, and the tracker's address is part of it. Nothing in this
+  repository names the site. Operational: `/etc/moviebot/moviebot.env` carries `Tracker__BaseUrl`,
+  `Tracker__Username` and `Tracker__Passkey` before this version starts.
+
 ## [1.52.0] - 2026-09-23
 
 ### Added
