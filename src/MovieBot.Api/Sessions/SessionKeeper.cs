@@ -68,9 +68,10 @@ public sealed class SessionKeeper(
         _ = journal.WriteAsync(sessions.Snapshot(), _stopping.Token);
     }
 
-    public void Dispose()
-    {
-        _timer?.Dispose();
-        _stopping.Dispose();
-    }
+    /// <remarks>
+    /// The token source is left undisposed. A host can stop this after its container has already
+    /// disposed it, as one stopped twice does, and a source with no timer and no wait handle holds
+    /// nothing that disposing would free: disposing it only turns that late stop into an exception.
+    /// </remarks>
+    public void Dispose() => _timer?.Dispose();
 }

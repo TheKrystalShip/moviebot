@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.55.1] - 2026-09-25
+
+### Fixed
+
+- **Stopping the API after its container is disposed no longer throws.** `SessionKeeper` disposed
+  its cancellation source on `Dispose`, and a host that stops it after that, as a test host stopped
+  twice does, failed in `StopAsync` with `ObjectDisposedException`. The source is left undisposed,
+  since it holds nothing disposal frees. It surfaced as an intermittent class cleanup failure in CI.
+
 ## [1.55.0] - 2026-09-25
 
 ### Changed
