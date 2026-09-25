@@ -1,0 +1,45 @@
+[Unit]
+Description=MovieBot hand-off: turns finished downloads into films the player can open
+After=network-online.target moviebot-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=moviebot
+Group=moviebot
+WorkingDirectory=/opt/moviebot/handoff
+ExecStart=/opt/moviebot/handoff/moviebot-handoff
+
+EnvironmentFile=/etc/moviebot/moviebot.env
+Environment=Handoff__MediaRoot=/srv/moviebot/media
+Environment=Download__Root=/srv/moviebot/downloads
+Environment=Api__BaseUrl=http://127.0.0.1:8099
+Environment=QBittorrent__BaseUrl=http://127.0.0.1:8080
+Environment=DOTNET_EnableDiagnostics=0
+
+# At most this many films transcode at once. They share the GPU, so each one runs slower.
+Environment=Handoff__MaxConcurrentIngests=2
+
+Restart=on-failure
+RestartSec=10s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# The library is the one place it writes. Downloads are only read: qBittorrent removes them.
+ReadWritePaths=/srv/moviebot/media
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# Transcoding runs on the NVIDIA GPU, so its device nodes stay visible to the service.
+DeviceAllow=/dev/nvidia0 rw
+DeviceAllow=/dev/nvidiactl rw
+DeviceAllow=/dev/nvidia-modeset rw
+DeviceAllow=/dev/nvidia-uvm rw
+DeviceAllow=/dev/nvidia-uvm-tools rw
+DeviceAllow=/dev/dri rw
+
+[Install]
+WantedBy=multi-user.target

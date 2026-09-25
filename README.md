@@ -60,7 +60,7 @@ A single transcode serves the whole room because there is only one playhead. On 
 
 | Command | What it does |
 |---|---|
-| `/watch film:<name>` | Loads a film into the room for the voice channel you are in, downloading it first if needed |
+| `/watch title:<name>` | Loads a film into the room for the voice channel you are in, downloading it first if needed |
 | `/download film:<name>` | Fetches a film without playing it, so it is ready later |
 | `/notify add\|list\|cancel` | Waits on a film that cannot be downloaded yet, and announces when it can |
 | `/keep add\|remove\|list` | Keeps a downloaded film past its retention period, or lets it go |
@@ -79,8 +79,10 @@ src/MovieBot.Bot/       the Discord bot
 src/MovieBot.Handoff/   moves finished downloads into the library
 src/MovieBot.Speech/    speech recognition host for voice commands
 web/activity/           the player
-deploy/                 systemd units, nginx configuration, native GPU builds
-docs/                   API contract and voice command reference
+packaging/              the release's installer, systemd units and configuration examples
+deploy/                 the maintainers' host configuration and native GPU builds
+docs/                   deployment guide, API contract, voice command reference
+scripts/                player build, release packaging, version
 tests/MovieBot.Tests/   unit and hub integration tests
 ```
 
@@ -207,13 +209,24 @@ token, and a token is issued only after Discord confirms who somebody is. The AP
 
 ## Deployment
 
-The API, bot and hand-off run as systemd services behind nginx; the units and the nginx
-configuration are in [`deploy/`](deploy/). Voice commands additionally need a speech recognition
-service and a local language model, built natively for the target machine's GPU by
-[`deploy/vulkan/`](deploy/vulkan/README.md).
+Each [release](https://github.com/TheKrystalShip/moviebot/releases) carries
+`moviebot-linux-x64.tar.gz`: every service built for linux-x64, with an installer, systemd units, a
+settings file listing every key to fill in, and an nginx site. **[`docs/deploying.md`](docs/deploying.md)**
+walks through a deployment step by step, from the download to watching a film.
+
+The kit lives in [`packaging/`](packaging/), and `scripts/package-release.sh` builds the same
+archive from a checkout. [`deploy/`](deploy/) holds the maintainers' own host configuration,
+including the GPU builds voice commands run on.
+
+## Releases
+
+Pushing a tag `v<version>` that matches the newest entry in [`CHANGELOG.md`](CHANGELOG.md) builds
+the archive and publishes it as a GitHub release. Every push to `main` and every pull request is
+built and tested, with moviebot-acquire checked out beside this repository.
 
 ## Documentation
 
+- [`docs/deploying.md`](docs/deploying.md): deploying a release, step by step
 - [`docs/api-contract.md`](docs/api-contract.md): what the API serves on the wire
 - [`web/activity/README.md`](web/activity/README.md): the player
 - [`src/MovieBot.Bot/README.md`](src/MovieBot.Bot/README.md): the Discord bot and its configuration

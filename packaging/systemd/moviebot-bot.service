@@ -1,0 +1,35 @@
+[Unit]
+Description=MovieBot Discord bot
+After=network-online.target moviebot-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=moviebot
+Group=moviebot
+WorkingDirectory=/opt/moviebot/bot
+ExecStart=/opt/moviebot/bot/moviebot-bot
+
+EnvironmentFile=/etc/moviebot/moviebot.env
+Environment=Download__Root=/srv/moviebot/downloads
+Environment=Api__BaseUrl=http://127.0.0.1:8099
+Environment=QBittorrent__BaseUrl=http://127.0.0.1:8080
+Environment=DOTNET_EnableDiagnostics=0
+
+# The gateway connection drops from time to time; the bot reconnects on its own, and a crash
+# restarts it.
+Restart=always
+RestartSec=10s
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# The wish list and the launch cards are kept in /var/lib/moviebot-bot.
+StateDirectory=moviebot-bot
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

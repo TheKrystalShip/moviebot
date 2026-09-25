@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.54.0] - 2026-09-25
+
+### Added
+
+- **Releases.** Pushing a tag `v<version>` that matches the newest CHANGELOG entry builds
+  `moviebot-linux-x64.tar.gz` and publishes it, with its checksum, as a GitHub release. The archive
+  holds the API with the player, the bot, the hand-off and the ingest CLI, all published for
+  linux-x64 so a host needs no .NET runtime, together with the packaging kit.
+- **The packaging kit in `packaging/`**: `install.sh`, which creates the `moviebot` account and the
+  library directories, installs the programs to `/opt/moviebot` and the systemd units, and writes
+  `/etc/moviebot/moviebot.env` with fresh internal keys; the three units; an env file naming every
+  setting a deployer fills in; an nginx site for certbot to complete; and qBittorrent's settings.
+- **`docs/deploying.md`**, a step-by-step guide from downloading a release to watching a film.
+- **CI** builds the player, the solution and the tests on every push to `main` and every pull
+  request, with moviebot-acquire checked out beside this repository.
+- `scripts/version.sh` prints the repository's version, and `scripts/package-release.sh` builds the
+  release archive locally exactly as the release workflow does.
+
 ## [1.53.1] - 2026-09-25
 
 ### Changed

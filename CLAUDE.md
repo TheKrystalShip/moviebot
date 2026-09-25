@@ -63,6 +63,16 @@ Everything runs on **hotbox** and is built here; **read `deploy/CLAUDE.md` befor
 units are root-owned and hotbox has no polkit grant, so a deploy publishes and rsyncs unprivileged and
 ends by handing over the `sudo systemctl restart` command rather than working around the privilege.
 
+## Releases
+
+A release is for somebody else's host. `packaging/` is the kit it carries (`install.sh`, generic
+units, the env file naming every setting, nginx and qBittorrent examples) and `docs/deploying.md` is
+the guide a newcomer follows; `deploy/` is hotbox's own configuration. **A change to what a service
+needs to start — a new required setting, a new path, a new device — lands in both**, and in the
+guide. Pushing a tag `v<version>` that matches the newest CHANGELOG heading (`scripts/version.sh`)
+runs `.github/workflows/release.yml`, which builds on Ubuntu 22.04 because the native binaries take
+the build machine's glibc as their floor. `scripts/package-release.sh` builds the same archive here.
+
 ## Conventions
 
 - C# namespaces are `TheKrystalShip.*`, matching the GitHub org this publishes to.

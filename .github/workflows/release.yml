@@ -1,0 +1,116 @@
+# Builds the release archive and publishes it as a GitHub release.
+#
+# Pushing a tag v<version> publishes that version; the tag must match the newest entry in
+# CHANGELOG.md. Running the workflow by hand builds the same archive and keeps it as a run
+# artifact without publishing anything.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      acquire-ref:
+        description: 'moviebot-acquire branch, tag or commit to build against'
+        default: main
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  release:
+    # The API and the hand-off are native executables linked against the build machine's glibc,
+    # so the oldest supported runner sets the oldest system they run on: glibc 2.35, which is
+    # Ubuntu 22.04 and Debian 12.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: moviebot
+
+      - uses: actions/checkout@v7
+        with:
+          repository: TheKrystalShip/moviebot-acquire
+          ref: ${{ inputs.acquire-ref || 'main' }}
+          path: moviebot-acquire
+
+      - name: Read the version
+        id: version
+        working-directory: moviebot
+        run: |
+          version="$(scripts/version.sh)"
+          if [[ "$GITHUB_REF" == refs/tags/* && "${GITHUB_REF_NAME#v}" != "$version" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match CHANGELOG.md, which is at $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "acquire=$(git -C ../moviebot-acquire rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+          cache: npm
+          cache-dependency-path: moviebot/web/activity/package-lock.json
+
+      # The native builds of the API and the hand-off link with clang.
+      - name: Install the native toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Authenticate the package feed
+        working-directory: moviebot
+        run: |
+          dotnet nuget update source github \
+            --username ci \
+            --password "${{ secrets.GITHUB_TOKEN }}" \
+            --store-password-in-clear-text \
+            --configfile nuget.config
+
+      - name: Test
+        working-directory: moviebot
+        run: dotnet test moviebot.slnx -c Release --nologo
+
+      - name: Package
+        working-directory: moviebot
+        run: scripts/package-release.sh "$GITHUB_WORKSPACE/out"
+
+      # The release notes are this version's CHANGELOG entry, followed by the moviebot-acquire
+      # commit the release was built against.
+      - name: Write the release notes
+        working-directory: moviebot
+        run: |
+          awk -v v="${{ steps.version.outputs.version }}" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > "$GITHUB_WORKSPACE/notes.md"
+          {
+            echo
+            echo "Deployment guide: [docs/deploying.md](https://github.com/$GITHUB_REPOSITORY/blob/$GITHUB_REF_NAME/docs/deploying.md)."
+            echo
+            echo "Built against moviebot-acquire ${{ steps.version.outputs.acquire }}."
+          } >> "$GITHUB_WORKSPACE/notes.md"
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --title "MovieBot ${{ steps.version.outputs.version }}" \
+            --notes-file notes.md \
+            out/moviebot-linux-x64.tar.gz out/moviebot-linux-x64.tar.gz.sha256
+
+      - name: Keep the archive as a run artifact
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v7
+        with:
+          name: moviebot-linux-x64
+          path: |
+            out/moviebot-linux-x64.tar.gz
+            out/moviebot-linux-x64.tar.gz.sha256
+            notes.md

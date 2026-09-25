@@ -1,0 +1,65 @@
+# Builds and tests every push to main and every pull request.
+#
+# MovieBot compiles against moviebot-acquire by relative path, so both repositories are checked
+# out side by side, exactly as they sit on a development machine.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: moviebot
+
+      - uses: actions/checkout@v7
+        with:
+          repository: TheKrystalShip/moviebot-acquire
+          path: moviebot-acquire
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+          cache: npm
+          cache-dependency-path: moviebot/web/activity/package-lock.json
+
+      # The TheKrystalShip.* packages come from the organisation's GitHub Packages feed, which
+      # needs a token even to read. The run's own token is enough; it is written into this
+      # checkout's nuget.config, which exists only for the run.
+      - name: Authenticate the package feed
+        working-directory: moviebot
+        run: |
+          dotnet nuget update source github \
+            --username ci \
+            --password "${{ secrets.GITHUB_TOKEN }}" \
+            --store-password-in-clear-text \
+            --configfile nuget.config
+
+      - name: Check and build the player
+        working-directory: moviebot/web/activity
+        run: |
+          npm ci
+          npm run check
+          npm run build
+
+      - name: Build
+        working-directory: moviebot
+        run: dotnet build moviebot.slnx -c Release --nologo
+
+      - name: Test
+        working-directory: moviebot
+        run: dotnet test moviebot.slnx -c Release --no-build --nologo
