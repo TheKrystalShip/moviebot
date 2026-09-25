@@ -29,6 +29,11 @@
     <None Include="Replays/*.jsonl" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- The bot's shipped settings, under a name of their own: every referenced service copies an
+       appsettings.json into this output directory, and which one lands last depends on build order. -->
+  <ItemGroup>
+    <None Include="../../src/MovieBot.Bot/appsettings.json" Link="bot.appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/MovieBot.Api/MovieBot.Api.csproj" />
     <ProjectReference Include="../../src/MovieBot.Bot/MovieBot.Bot.csproj" />

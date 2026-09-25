@@ -19,7 +19,7 @@ public sealed class VoicePrimingTests
     public void The_priming_echoed_back_does_not_address_the_bot()
     {
         var shipped = new ConfigurationBuilder()
-            .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"))
+            .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "bot.appsettings.json"))
             .Build()["Voice:Triggers"];
         Assert.False(string.IsNullOrWhiteSpace(shipped));
 
