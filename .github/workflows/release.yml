@@ -101,9 +101,20 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-            --title "MovieBot ${{ steps.version.outputs.version }}" \
+            --title "$GITHUB_REF_NAME" \
             --notes-file notes.md \
             out/moviebot-linux-x64.tar.gz out/moviebot-linux-x64.tar.gz.sha256
+
+      # GitHub marks whichever release was created last as the latest, so tags pushed together
+      # race for it. Every run ends by pointing it at the highest version, so they all agree.
+      - name: Mark the highest version as the latest release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          highest="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName \
+            -q '.[].tagName' | sort -V | tail -n 1)"
+          gh release edit "$highest" --repo "$GITHUB_REPOSITORY" --latest
 
       - name: Keep the archive as a run artifact
         if: "!startsWith(github.ref, 'refs/tags/')"
