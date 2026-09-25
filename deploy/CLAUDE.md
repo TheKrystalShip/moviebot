@@ -62,9 +62,12 @@ ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff'
   owning user is refused with *"interactive authentication required"* and nothing happens.
   Publishing the binaries is unprivileged and the restart that picks them up is not, so a deploy ends
   by saying what changed and handing over the command rather than working around the privilege.
-- **`/etc/moviebot/moviebot.env` holds the credentials** all three units read. Configuration that is
-  not a credential belongs in the unit's own `Environment=` lines, where it is in the repository and
-  reviewable.
+- **`/etc/moviebot/moviebot.env` holds the credentials** all three units read, **and which tracker
+  this is**: `Tracker__BaseUrl`, `Tracker__Username`, `Tracker__Passkey` and the tracker's category
+  names as `Selection__AllowedCategories__0`, `__1` and so on. The bot and the hand-off refuse to
+  start without the categories. Any other configuration that is not a credential belongs in the
+  unit's own `Environment=` lines, where it is in the repository and reviewable; the tracker's
+  identity is kept out of the repository the same way the passkey is.
 - **The state directories are the two things no re-ingest can rebuild.** systemd hands the API
   `/var/lib/moviebot` — the rooms and the subtitles fetched from outside, each of which cost one of a
   limited daily allowance — and the bot `/var/lib/moviebot-bot`, holding the wish list and the launch
