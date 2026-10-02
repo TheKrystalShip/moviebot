@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.56.0] - 2026-10-03
+
+### Fixed
+
+- **The disk budget measures the download directory's own volume.** moviebot-acquire read the free
+  space of `/` whatever the download directory was mounted on, so a download volume could fill while
+  the budget saw the system disk's room.
+
+### Changed
+
+- **Downloads leave room for their transcode.** `Download.ReservedGiB` (default 30) is declared in
+  `moviebot.settings.json`: moviebot-acquire's disk budget keeps that much free on the download
+  volume once a download lands, so the transcode written beside it on a shared volume finishes
+  instead of stopping with the disk full. The budget now also warns and reads full against the
+  volume when the ceiling sits above the volume's size.
+- **Hi10P releases rank last in a search.** 10-bit H.264 decodes on the processor rather than the
+  GPU, so its transcode runs at under half the usual pace; a menu shows it marked `Hi10P` and below
+  every other release, and still offers it when it is the only one.
+
 ## [1.55.1] - 2026-09-25
 
 ### Fixed

@@ -92,7 +92,11 @@ public sealed class NotifyCommandTests : IDisposable
             Options.Create(new TrackerOptions()),
             NullLogger<TrackerClient>.Instance);
 
-        var download = Options.Create(new DownloadOptions { Root = Path.Combine(_dir, "downloads") });
+        // No reserve: the test directory sits on whatever small volume the runner has.
+        var download = Options.Create(new DownloadOptions
+        {
+            Root = Path.Combine(_dir, "downloads"), ReservedGiB = 0,
+        });
         var acquisition = new AcquisitionService(
             tracker, torrents, new DiskBudget(download, NullLogger<DiskBudget>.Instance),
             download, NullLogger<AcquisitionService>.Instance);

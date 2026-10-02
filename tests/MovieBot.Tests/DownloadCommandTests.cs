@@ -91,7 +91,8 @@ public sealed class DownloadCommandTests : IDisposable
 
         var root = Path.Combine(_dir, "downloads");
         Directory.CreateDirectory(root);
-        var download = Options.Create(new DownloadOptions { Root = root });
+        // No reserve: the test directory sits on whatever small volume the runner has.
+        var download = Options.Create(new DownloadOptions { Root = root, ReservedGiB = 0 });
         var acquisition = new AcquisitionService(
             tracker, torrents, new DiskBudget(download, NullLogger<DiskBudget>.Instance),
             download, NullLogger<AcquisitionService>.Instance);

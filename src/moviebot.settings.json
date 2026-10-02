@@ -65,11 +65,14 @@
     "MaxConcurrentIngests": 2
   },
 
-  // Where qBittorrent saves downloads, and how much of the disk they may take.
+  // Where qBittorrent saves downloads, and how much of the disk they may take. ReservedGiB stays
+  // free on that volume once a download lands, for the transcode written beside it when the media
+  // root shares the volume; 0 when nothing else writes there.
   "Download": {
     "Root": "/srv/moviebot/downloads",
     "MaximumGiB": 300,
-    "WarningGiB": 250
+    "WarningGiB": 250,
+    "ReservedGiB": 30
   },
 
   "QBittorrent": {
