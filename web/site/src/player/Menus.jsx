@@ -146,7 +146,7 @@ function fit(candidate) {
 function trackSource(track) {
   if (!track.available) return track.reason || "unavailable";
   if (track.source === "sidecar") return track.addedBy ? `OpenSubtitles · added by ${track.addedBy}` : "OpenSubtitles";
-  return "in the film";
+  return "built in";
 }
 
 /**

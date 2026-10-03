@@ -50,9 +50,9 @@ export function Leaving() {
 
   return (
     <div className="kc-page">
-      <PageHead title="Leaving soon" sub={`${leaveRule(all[0])}. Keeping a film holds it for everybody until somebody lets it go.`} />
+      <PageHead title="Leaving soon" sub={leaveRule(all[0])} />
       <Failed error={stays.error} onRetry={stays.reload} />
-      {stays.data && all.length === 0 && <Empty icon="hourglass" title="Nothing on the clock">No film has settled in the library yet.</Empty>}
+      {stays.data && all.length === 0 && <Empty icon="hourglass" title="Nothing on the clock" />}
 
       {groups.filter((g) => g.rows.length > 0).map((group) => (
         <section key={group.id} className="kc-shelf">

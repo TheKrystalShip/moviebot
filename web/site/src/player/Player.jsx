@@ -48,7 +48,7 @@ export function Avatar({ person, className = "" }) {
   const waiting = person.buffering ? " is-buffering" : "";
   return (
     <span className={`mp-avatar mp-avatar--${tintFor(person.userId)}${waiting} ${className}`}
-      title={person.buffering ? `${person.displayName} · waiting for the film` : person.displayName}>{initial}</span>
+      title={person.buffering ? `${person.displayName} · buffering` : person.displayName}>{initial}</span>
   );
 }
 
@@ -452,7 +452,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
       {waiting && <div className="mp-spinner" role="status" aria-label="Waiting for the film"><Icon name="loader-circle" size={36} className="mp-spin" /></div>}
       {preparing && <Preparing manifest={manifest} head={view.transcodeHead} />}
       {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} onJoin={() => room.joinPlayback()} />}
-      {view.unplayable && <Message icon="circle-alert" title="This film cannot play here" text={view.unplayable} />}
+      {view.unplayable && <Message icon="circle-alert" title="This cannot play here" text={view.unplayable} />}
       {view.fatal && <Message icon="circle-alert" title={view.fatal} action={!embed && onBack ? { label: "Back", go: onBack } : null} />}
       {/* What the room waits on, over whatever it holds: a film pressed into an empty room, or the
           next episode fetched while the last one is still on screen. */}
@@ -470,7 +470,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
       {!view.fatal && view.state && !titleHeld && !view.state.preparing && (
         <Message icon="clapperboard" title="Nothing playing yet"
           text={embed ? "Ask the bot for a film with /watch." : null}
-          action={!embed && onEmpty ? { label: "Choose a film", go: onEmpty } : null} />
+          action={!embed && onEmpty ? { label: "Choose something to watch", go: onEmpty } : null} />
       )}
 
       {/* ── Bottom controls ── */}
@@ -779,7 +779,7 @@ function Preparing({ manifest, head }) {
   const transcoding = manifest.status === "transcoding";
   const written = transcoding && manifest.durationSeconds > 0 ? Math.min(1, (head ?? 0) / manifest.durationSeconds) : 1;
   const steps = [
-    { label: "Preparing the film", sub: transcoding ? `${Math.floor(written * 100)}% · transcoding live` : "ready", done: true },
+    { label: "Preparing the video", sub: transcoding ? `${Math.floor(written * 100)}% · transcoding live` : "ready", done: true },
     { label: "Starting playback", sub: "as soon as enough is buffered", active: true },
   ];
   return (

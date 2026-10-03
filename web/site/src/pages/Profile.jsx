@@ -68,7 +68,7 @@ function History() {
   return (
     <section className="kc-shelf">
       <Failed error={history.error} onRetry={history.reload} />
-      {history.data && rows.length === 0 && <Empty icon="history" title="Nothing watched yet">The films you watch are listed here.</Empty>}
+      {history.data && rows.length === 0 && <Empty icon="history" title="Nothing watched yet" />}
       <div className="kc-rows">
         {rows.map((row) => {
           const title = byId.get(row.titleId);
@@ -143,7 +143,7 @@ function Requests({ user }) {
       <section className="kc-shelf">
         <div className="kc-shelf__head"><h2>Downloads</h2></div>
         <Failed error={downloads.error} onRetry={downloads.reload} />
-        {downloads.data && rows.length === 0 && <Empty icon="download" title="Nothing downloading">Search for a film to fetch one.</Empty>}
+        {downloads.data && rows.length === 0 && <Empty icon="download" title="Nothing downloading" />}
         <div className="kc-rows">
           {rows.map((d) => (
             <div key={d.hash} className="kc-row">
@@ -355,11 +355,11 @@ function Playback() {
   return (
     <>
       <SettingsSection icon="play" title="Playback">
-        <SettingsRow icon="captions" title="Subtitles" sub="The language a film starts with, when it has one.">
+        <SettingsRow icon="captions" title="Subtitles" sub="The language to start in, when there is one.">
           <Select value={preferences.subtitleLanguage || ""} options={languages(preferences.subtitleLanguage, "Off")}
             aria-label="Subtitle language" onChange={(e) => change({ subtitleLanguage: orNull(e.target.value) })} />
         </SettingsRow>
-        <SettingsRow icon="audio-lines" title="Audio" sub="Original is the film's own language.">
+        <SettingsRow icon="audio-lines" title="Audio" sub="Original is the language it was made in.">
           <Select value={preferences.audioLanguage || ""} options={languages(preferences.audioLanguage, "Original")}
             aria-label="Audio language" onChange={(e) => change({ audioLanguage: orNull(e.target.value) })} />
         </SettingsRow>

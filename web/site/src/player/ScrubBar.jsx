@@ -136,7 +136,7 @@ export function ScrubBar({ duration, position, ready, buffered, thumbnails, chap
       </div>
       {drag !== null && (
         <span className="mp-scrub-row__hint">
-          {unreached(drag) ? "Not ready yet · lands where the film is prepared to" : `Release to jump · ${signed(drag - position)} from current position`}
+          {unreached(drag) ? "Not ready yet · lands as far as is prepared" : `Release to jump · ${signed(drag - position)} from current position`}
         </span>
       )}
     </div>

@@ -39,7 +39,7 @@ export function Search({ query }) {
       <PageHead title="Search" sub="The library first, then everything the tracker can find." />
       <form className="kc-search" onSubmit={submit}>
         <Icon name="search" size={17} />
-        <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="A film's name" />
+        <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Movies and shows" />
         <button type="submit" className="kc-btn kc-btn--primary">Search</button>
       </form>
 
@@ -59,7 +59,7 @@ export function Search({ query }) {
 
           {(films.data || []).length > 0 && (
             <section className="kc-shelf">
-              <div className="kc-shelf__head"><h2>Films</h2></div>
+              <div className="kc-shelf__head"><h2>Movies</h2></div>
               <div className="kc-rows">
                 {films.data.map((f) => {
                   const held = (titles.data || []).find((t) => t.film && t.film.imdbId === f.imdbId && t.kind !== "show");
@@ -106,7 +106,7 @@ export function Search({ query }) {
         </>
       )}
 
-      {!q && <Empty icon="search" title="Name a film">Type its name above. A film that is not here yet can be fetched from the results.</Empty>}
+      {!q && <Empty icon="search" title="Search movies and shows" />}
     </div>
   );
 }

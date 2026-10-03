@@ -67,7 +67,7 @@ export function Home() {
     return (
       <div className="kc-page">
         <PhoneHead />
-        <Empty title="The library is empty">Search for a film to fetch the first one.</Empty>
+        <Empty title="The library is empty" />
       </div>
     );
   }

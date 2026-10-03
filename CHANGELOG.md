@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.83.1] - 2026-10-03
+
+### Fixed
+
+- The site's words cover what the library holds, movies and shows alike, rather than films alone:
+  the sidebar's search, the Search page's field, heading and empty state, the footer, the sign-in
+  card, About, and the player's messages. Empty states say what is empty and no more. The Notify me
+  page, which is for movies, keeps saying so.
+
 ## [1.83.0] - 2026-10-03
 
 ### Changed

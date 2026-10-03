@@ -32,7 +32,7 @@ export function SignIn({ query }) {
       <div className="kc-signin__card">
         <img src={markUrl} width="48" height="48" alt="" />
         <h1>Krystal Cinema</h1>
-        <p>Films for the server, watched together. Sign in with the Discord account you use there.</p>
+        <p>Movies and shows for the server, watched together. Sign in with the Discord account you use there.</p>
         {error && <span className="kc-note kc-note--danger">{error}</span>}
         <button type="button" className="kc-btn kc-btn--primary kc-btn--wide" disabled={busy} onClick={start}>
           <Icon name="log-in" size={18} />{busy ? "Signing in…" : "Sign in with Discord"}

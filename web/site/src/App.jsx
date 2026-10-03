@@ -189,7 +189,7 @@ function SidebarSearch() {
       if (q.trim()) navigate("/search?q=" + encodeURIComponent(q.trim()));
     }}>
       <Icon name="search" size={16} />
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search films" aria-label="Search films" />
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search" />
     </form>
   );
 }
