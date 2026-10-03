@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.64.0] - 2026-10-03
+
+### Added
+
+- **A room's link unfurls.** `/r/<room>` is served with Open Graph and Twitter tags, so a link pasted
+  into Discord, iMessage, WhatsApp or Slack shows the film: "Watch <film> on Krystal Cinema", its year
+  and how far in the room is, and its backdrop (or poster). The card never names or counts the people
+  in the room, because whatever unfurls a link reads it without signing in. A room nobody has opened
+  yet shows the film its link names.
+
 ## [1.63.0] - 2026-10-03
 
 ### Added

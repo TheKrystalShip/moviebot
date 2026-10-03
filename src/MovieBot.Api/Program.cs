@@ -336,7 +336,8 @@ app.MapHub<SessionHub>("/hub/session");
 // is a page and is answered with the site's index. The fallback answers it, because an endpoint
 // matched ahead of the static files means they never see the request. Anything under the API's own
 // prefixes that matched nothing stays a 404.
-app.MapFallback((HttpContext context, IWebHostEnvironment environment) =>
+app.MapFallback(async (HttpContext context, IWebHostEnvironment environment, IConfiguration configuration,
+    SessionStore sessions, TitleLibrary library, FilmStore films) =>
 {
     var request = context.Request;
     if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method)) return Results.NotFound();
@@ -349,6 +350,22 @@ app.MapFallback((HttpContext context, IWebHostEnvironment environment) =>
 
     // The index names the build's hashed assets, so a stale copy would load the last release's.
     context.Response.Headers.CacheControl = "no-cache";
+
+    // A room's page carries the tags a chat client unfurls a link with, written here because a
+    // crawler does not run the page's script. The image has to be an absolute address on the public
+    // one, which is where whatever unfurls the link fetches it from.
+    if (RoomPreview.RoomOf(request.Path) is { } room)
+    {
+        var baseUrl = configuration["Api:PublicBaseUrl"] is { Length: > 0 } configured
+            ? configured.TrimEnd('/')
+            : $"{request.Scheme}://{request.Host}";
+        var tags = RoomPreview.Tags(room, request.Query["title"].FirstOrDefault(), sessions, library, films,
+            baseUrl, baseUrl + request.Path + request.QueryString);
+        var page = await File.ReadAllTextAsync(index.PhysicalPath);
+        var at = page.IndexOf("</head>", StringComparison.OrdinalIgnoreCase);
+        return Results.Content(at < 0 ? page : page.Insert(at, tags), "text/html; charset=utf-8");
+    }
+
     return Results.File(index.PhysicalPath, "text/html; charset=utf-8");
 });
 

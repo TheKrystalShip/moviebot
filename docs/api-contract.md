@@ -41,6 +41,12 @@ which one it is under changes no URL. Left empty, the whole library is the media
 
 CORS reflects any origin and allows credentials. Media answers HEAD as well as GET.
 
+Any other GET is a page of the site and is answered with its index. `/r/{room}` is answered with the
+index carrying Open Graph and Twitter tags for the room: `og:title` "Watch <film> on Krystal Cinema",
+`og:description` the year and how far in ("1995 · 31 min in"), `og:image` the film's backdrop (or its
+poster) at the public address `Api:PublicBaseUrl`. A room holding nothing shows the film its
+`?title=` names, or the site. The tags never name or count the people in the room.
+
 ### Opening a film's bytes
 
 Everything closed is opened by the room token, carried as `Authorization: Bearer`. `/media` also

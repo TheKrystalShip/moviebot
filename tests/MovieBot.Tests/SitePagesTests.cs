@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
@@ -12,12 +13,20 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "moviebot-tests", "site-" + Guid.NewGuid().ToString("N"));
 
+    private WebApplicationFactory<Program>? _host;
+
+    /// <summary>A client of one host per test, so what one request does to a room the next one sees.</summary>
     private HttpClient Client()
     {
-        Directory.CreateDirectory(_root);
-        File.WriteAllText(Path.Combine(_root, "index.html"), "<!doctype html><title>Krystal Cinema</title>");
-        // As a host runs it: in Development the web root is the project's own build, whatever is set.
-        return fixture.WithWebHostBuilder(b => b.UseEnvironment("Production").UseWebRoot(_root)).CreateClient();
+        if (_host is null)
+        {
+            Directory.CreateDirectory(_root);
+            File.WriteAllText(Path.Combine(_root, "index.html"),
+                "<!doctype html><html><head><title>Krystal Cinema</title></head><body></body></html>");
+            // As a host runs it: in Development the web root is the project's own build, whatever is set.
+            _host = fixture.WithWebHostBuilder(b => b.UseEnvironment("Production").UseWebRoot(_root));
+        }
+        return _host.CreateClient();
     }
 
     [Theory]
@@ -37,6 +46,63 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
         Assert.Contains("Krystal Cinema", await response.Content.ReadAsStringAsync());
     }
 
+    /// <summary>
+    /// A room's link unfurls with the film and how far in, and with nothing about the people: the
+    /// crawler that reads it carries no token, so whatever is here is public.
+    /// </summary>
+    [Fact]
+    public async Task A_room_s_page_unfurls_with_the_film_and_never_the_people()
+    {
+        var client = Client();
+        client.DefaultRequestHeaders.Add("X-MovieBot-Service", SessionFixture.ServiceKey);
+        var room = "preview-" + Guid.NewGuid().ToString("N")[..8];
+        (await client.GetAsync("/api/films/tt0113277")).EnsureSuccessStatusCode();
+        (await client.PostAsJsonAsync($"/api/sessions/{room}/title",
+            new TheKrystalShip.MovieBot.Core.SetTitleRequest(SessionFixture.Heat, "u-alice", "Alice"))).EnsureSuccessStatusCode();
+
+        // As a crawler asks: no token, no service key.
+        var page = await Client().GetStringAsync($"/r/{room}");
+
+        Assert.Contains("<meta property=\"og:title\" content=\"Watch Heat on Krystal Cinema\" />", page);
+        Assert.Contains("<meta property=\"og:description\" content=\"1995\" />", page);
+        Assert.Contains("property=\"og:image\" content=\"http://localhost/films/tt0113277/poster.jpg\"", page);
+        Assert.DoesNotContain("Alice", page);
+        Assert.DoesNotContain("watching", page, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Krystal Cinema</title>", page);
+    }
+
+    [Fact]
+    public async Task A_link_naming_a_film_unfurls_with_it_before_anybody_has_opened_the_room()
+    {
+        var page = await Client().GetStringAsync($"/r/fresh-{Guid.NewGuid():N}?title={SessionFixture.Heat}");
+
+        Assert.Contains("Watch Heat on Krystal Cinema", page);
+    }
+
+    [Fact]
+    public async Task A_room_holding_nothing_unfurls_as_the_site()
+    {
+        var page = await Client().GetStringAsync($"/r/empty-{Guid.NewGuid():N}");
+
+        Assert.Contains("<meta property=\"og:title\" content=\"Krystal Cinema\" />", page);
+        Assert.DoesNotContain("og:image", page);
+    }
+
+    [Fact]
+    public async Task Only_a_room_s_page_carries_the_tags()
+    {
+        var page = await Client().GetStringAsync("/library");
+
+        Assert.DoesNotContain("og:title", page);
+    }
+
+    [Theory]
+    [InlineData(30, null)]
+    [InlineData(31 * 60 + 5, "31 min in")]
+    [InlineData(3600 + 9 * 60, "1 h 09 min in")]
+    public void How_far_in_is_said_in_minutes(double seconds, string? said) =>
+        Assert.Equal(said, TheKrystalShip.MovieBot.Api.Sessions.RoomPreview.HowFarIn(seconds));
+
     [Theory]
     [InlineData("/api/nothing-here")]
     [InlineData("/assets/missing.js")]
@@ -52,6 +118,7 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
 
     public void Dispose()
     {
+        _host?.Dispose();
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
 }

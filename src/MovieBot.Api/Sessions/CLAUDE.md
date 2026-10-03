@@ -45,3 +45,8 @@ alone, and restarting the API would take the film out from under everybody in it
   makes restarting something that can be looked at first rather than found out about afterwards.
 - **The room listing carries what each room is watching and how many are in it, and no names**: who
   is in a room is the room's business. The bot's presence surfaces read it on every pass.
+- **A room's link unfurls with the film, never with the people** (`RoomPreview`). `/r/<room>` is
+  answered with Open Graph tags in the page itself, since a crawler runs no script: the film's name,
+  its year, how far in the room is, and its backdrop or poster at an absolute public address. Whatever
+  unfurls the link fetches it without a token, so nothing there is private, and it is stricter than the
+  listing: no names and no count either. A room nobody has opened yet shows the film its link names.
