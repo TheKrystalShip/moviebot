@@ -25,6 +25,23 @@ button { font-family: inherit; }
 }
 @media (max-width: 720px) { .kc-page { padding: 16px 16px 48px; gap: 22px; } }
 
+/* ── Moving between pages (PageStage) ── the page navigated to is laid out at the column's width
+   out of sight, then fades in rising a few pixels in place of the one it replaces. */
+.kc-stage { position: relative; width: 100%; min-width: 0; }
+.kc-stage__page.is-incoming {
+  position: absolute; top: 0; left: 0; right: 0;
+  visibility: hidden; pointer-events: none;
+}
+.kc-stage__page.is-entering { animation: kc-page-in 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes kc-page-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kc-stage__page.is-entering { animation: kc-page-fade 160ms ease-out both; }
+  @keyframes kc-page-fade { from { opacity: 0; } to { opacity: 1; } }
+}
+
 .kc-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .kc-head__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .kc-head h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }

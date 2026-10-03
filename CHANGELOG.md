@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.83.0] - 2026-10-03
+
+### Changed
+
+- Moving between pages no longer shows the new page empty. The page navigated to is prepared out
+  of sight while the one being left stays, and replaces it once its first reads are answered and the
+  artwork in view has decoded (half a second at most), fading in as it rises a few pixels. The tab
+  bar and the sidebar answer the press at once.
+
 ## [1.82.1] - 2026-10-03
 
 ### Fixed

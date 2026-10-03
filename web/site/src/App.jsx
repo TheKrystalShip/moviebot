@@ -20,6 +20,7 @@ import { SignIn } from "./pages/SignIn.jsx";
 import { About } from "./pages/About.jsx";
 import { SiteFooter } from "./components/SiteFooter.jsx";
 import { BellNavItem } from "./components/Bell.jsx";
+import { PageStage } from "./components/PageStage.jsx";
 
 // The player carries hls.js, the hub client and Discord's SDK; only a room pays for them.
 const EmbedRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.EmbedRoom })));
@@ -89,10 +90,10 @@ function Frame({ session, route }) {
   useEdgeSwipe(false, noDrawer, dock.open, dock.setOpen);
   const mainRef = React.useRef(null);
 
-  // A new page starts at its top.
-  React.useEffect(() => {
+  // A new page starts at its top, from the moment it is shown.
+  const toTop = React.useCallback(() => {
     if (mainRef.current) mainRef.current.scrollTop = 0;
-  }, [route.path]);
+  }, []);
 
   const go = (path) => navigate(path);
   const item = (n) => (
@@ -152,7 +153,7 @@ function Frame({ session, route }) {
           {!dock.open && <DockFab onClick={() => dock.setOpen(true)} />}
         </>}
         tabBar={<TabBar items={TABS.map(tab)} />}>
-        <Page route={route} />
+        <PageStage route={route} render={(r) => <Page route={r} />} onShown={toTop} />
         <SiteFooter />
       </AppShell>
       <Toasts />
