@@ -503,8 +503,9 @@ src/Api/kgsm-api.db-wal
 /packaging/*.pkg.tar.zst
 
 # Ingest output: transcoded renditions, extracted subtitles, manifests. Regenerated
-# from the source films, never committed.
-media/
+# from the source films, never committed. Anchored to the repository root: the player's own
+# source has a media/ directory too.
+/media/
 
 # Fixture media for the browser checks. Kept out of the live library so it is never suggested.
 .testmedia/

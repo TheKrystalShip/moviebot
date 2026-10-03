@@ -1,0 +1,449 @@
+import Hls from 'hls.js';
+
+import { environment } from '../environment';
+import type { Manifest, ThumbnailStrip } from '../types';
+import { buildMasterPlaylist, masterPlaylistUrl, type MasterPlaylist } from './masterPlaylist';
+import { ensureTicket, hasTicket, ticketedLoader, ticketedMediaUrl } from './mediaTicket';
+import { findSubtitle } from './tracks';
+
+export interface StreamEvents {
+  /** The media element holds the title and can be driven. */
+  onReady(): void;
+  /** Something went wrong that the person should hear about, and playback goes on. */
+  onError(message: string): void;
+  /** This viewer cannot play the film at all. The stream has stopped trying and says why. */
+  onUnplayable(message: string): void;
+  /** Whether the element has been waiting for data long enough to be worth showing. */
+  onStall(waiting: boolean): void;
+  /** The sheet of preview frames and where it is drawn from, or nothing. */
+  onThumbnails(strip: ThumbnailStrip | null, url: string | null): void;
+  /** The chosen subtitle's cues, as a hidden text track the page draws from, or none. */
+  onSubtitleTrack(track: TextTrack | null): void;
+  /**
+   * The rungs this viewer can choose between, tallest first, and the one being played. Empty where
+   * the browser plays the stream itself, because it chooses for itself and says nothing about it.
+   */
+  onQuality(levels: QualityLevel[], playingHeight: number | null): void;
+}
+
+/** One rung of the film's ladder. */
+export interface QualityLevel {
+  height: number;
+  bitrateKbps: number;
+}
+
+const LoadTimeoutMs = 30_000;
+
+/**
+ * What the ingest writes: H.264 High at level 4.2 and stereo AAC-LC. Asked about before anything
+ * is fetched, because a client with no decoder for them fails every append, and hls.js recovering
+ * from each failure resets the element about ten times a second for as long as the page is open.
+ */
+const VideoCodec = 'video/mp4; codecs="avc1.64002a"';
+const AudioCodec = 'audio/mp4; codecs="mp4a.40.2"';
+
+/**
+ * Fatal media errors recovered from before giving up: one plain recovery, then one that swaps the
+ * audio codec, which is the sequence hls.js recommends. Counted per stretch of playback, so a film
+ * that plays between two hiccups has both recoveries again for the second one.
+ */
+const MediaRecoveries = 2;
+
+/**
+ * Discord's desktop client decodes H.264 only on the graphics card. With hardware acceleration
+ * off it has no decoder at all, and this is the one thing the viewer can do about it.
+ */
+const NoDecoderMessage =
+  'This copy of Discord cannot decode the film. Turn on Hardware Acceleration under '
+  + 'Settings → Advanced, then restart Discord.';
+
+/** A stall shorter than this is a stutter, and showing a spinner at it is worse than ignoring it. */
+const StallGraceMs = 400;
+
+/**
+ * What a media fetch outside hls.js carries.
+ *
+ * A ticket on the URL and nothing else, so the response is one a shared cache will store. The
+ * header is the fallback for a viewer whose ticket never arrived, and is never sent alongside
+ * one: a shared cache refuses to store a response to a request carrying it.
+ */
+function mediaFetchInit(titleId: string): RequestInit | undefined {
+  if (hasTicket(titleId)) return undefined;
+
+  const token = environment().authToken();
+  return token === null ? undefined : { headers: { authorization: `Bearer ${token}` } };
+}
+
+/**
+ * The film in one media element: hls.js fed from the transcode, the audio rendition chosen, the
+ * subtitle file attached, and the preview sheet fetched.
+ *
+ * It owns no timeline and no controls. The room's position is the sync controller's to apply, and
+ * what a person sees and presses is the page's: this answers whether the element holds the film,
+ * and says when it cannot.
+ */
+export class FilmStream {
+  private hls: Hls | null = null;
+  private manifest: Manifest | null = null;
+  private master: MasterPlaylist | null = null;
+  private masterUrl: string | null = null;
+  private masterUrlIsBlob = false;
+  private subtitleEl: HTMLTrackElement | null = null;
+  private subtitleUrl: string | null = null;
+  private subtitleToken = 0;
+  private thumbnailUrl: string | null = null;
+  /** The height this viewer holds the film at, or null to let the connection decide. */
+  private quality: number | null = null;
+  private stallTimer: number | null = null;
+  /** Set once the loaded film reached metadata, and cleared by the next load or by giving up. */
+  private ready = false;
+  private recoveries = 0;
+  /** Ends the wait in `load` early, when the stream gives up before metadata ever arrives. */
+  private settleLoad: ((ok: boolean) => void) | null = null;
+  private readonly listeners: [string, () => void][] = [];
+
+  constructor(readonly video: HTMLVideoElement, private readonly events: StreamEvents) {
+    this.listen('playing', () => { this.recoveries = 0; });
+    this.listen('waiting', () => this.stalled(true));
+    this.listen('stalled', () => this.stalled(true));
+    for (const settled of ['playing', 'canplay', 'seeked', 'pause', 'error']) {
+      this.listen(settled, () => this.stalled(false));
+    }
+  }
+
+  /**
+   * Whether the media element holds the loaded film, so that what it does is somebody acting on
+   * it. An element that never loaded, or one a recovery has just emptied, sits at zero and raises
+   * play and pause as machinery.
+   */
+  get holdsFilm(): boolean {
+    return this.ready && this.video.readyState >= HTMLMediaElement.HAVE_METADATA;
+  }
+
+  /** Loads a title. Resolves once the media element holds it, or once it has given up. */
+  async load(manifest: Manifest, startPosition: number | undefined, audioId: string | undefined,
+             subtitleId: string | null, quality: number | null): Promise<void> {
+    this.teardownSource();
+    this.quality = quality;
+    this.events.onQuality([], null);
+
+    this.manifest = manifest;
+    this.ready = false;
+    this.recoveries = 0;
+
+    // Before anything asks for a byte of the film, so every request for it carries the ticket.
+    await ensureTicket(manifest.id);
+
+    this.master = buildMasterPlaylist(manifest);
+
+    // The ingest writes a master when it can, and that one is authoritative. Composing one here
+    // covers a manifest that carries none, and is the same playlist either way.
+    this.masterUrlIsBlob = manifest.master === undefined;
+    this.masterUrl = manifest.master === undefined
+      ? masterPlaylistUrl(this.master)
+      : environment().mediaUrl(manifest.id, manifest.master);
+
+    void this.loadThumbnails(manifest);
+
+    // A source that never reaches metadata would otherwise leave the caller waiting forever, so
+    // the wait ends either way and the failure says what happened.
+    const ready = new Promise<boolean>((resolve) => {
+      const settle = (ok: boolean) => {
+        window.clearTimeout(timer);
+        this.video.removeEventListener('loadedmetadata', loaded);
+        if (this.settleLoad === settle) this.settleLoad = null;
+        resolve(ok);
+      };
+      const loaded = () => settle(true);
+      const timer = window.setTimeout(() => settle(false), LoadTimeoutMs);
+      this.video.addEventListener('loadedmetadata', loaded);
+      this.settleLoad = settle;
+    });
+
+    const mse = Hls.isSupported();
+    if (mse && !(MediaSource.isTypeSupported(VideoCodec) && MediaSource.isTypeSupported(AudioCodec))) {
+      this.giveUp(NoDecoderMessage);
+      return;
+    }
+
+    if (mse) {
+      const titleId = manifest.id;
+
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 90,
+        startPosition: startPosition ?? 0,
+        // A film's own bytes are opened by a ticket on the URL, which is what lets a shared cache
+        // answer a whole room from one copy. The loader is where it goes: hls.js resolves a
+        // segment against its playlist, and relative resolution drops the query string, so a
+        // ticket put on the playlist URL reaches none of the segments underneath it.
+        loader: ticketedLoader(titleId),
+        // The fallback, for a viewer whose ticket never arrived. Never sent alongside a ticket: a
+        // shared cache refuses to store a response to a request carrying it.
+        xhrSetup: (xhr) => {
+          if (hasTicket(titleId)) return;
+          const token = environment().authToken();
+          if (token !== null) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
+      });
+      this.hls = hls;
+      hls.on(Hls.Events.ERROR, (_event, data) => this.onHlsError(data));
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (audioId !== undefined) this.selectAudio(audioId);
+        this.selectQuality(this.quality);
+      });
+      hls.on(Hls.Events.LEVEL_SWITCHED, () => this.reportQuality());
+      hls.attachMedia(this.video);
+      hls.loadSource(this.masterUrl);
+    } else if (this.video.canPlayType('application/vnd.apple.mpegurl') !== '') {
+      this.video.src = this.masterUrl;
+    } else {
+      this.giveUp('This browser cannot play the film.');
+      return;
+    }
+
+    if (!(await ready)) {
+      // Giving up has already said why, and says it for as long as it holds.
+      if (this.manifest === manifest && !this.ready && this.hls !== null) {
+        this.events.onError(`${manifest.title} did not start playing.`);
+      }
+      return;
+    }
+
+    // Native HLS has no start position in its configuration. For hls.js it is in the
+    // configuration, and setting it here as well is harmless.
+    if (startPosition !== undefined && startPosition > 0) this.video.currentTime = startPosition;
+
+    if (subtitleId !== null) await this.selectSubtitle(subtitleId);
+    this.ready = true;
+    this.events.onReady();
+  }
+
+  /**
+   * Takes what the film gained since it was loaded. A manifest read while the film is still
+   * transcoding is missing the preview sheet, which the transcode writes after its main pass.
+   */
+  follow(fresh: Manifest): void {
+    if (this.manifest === null || fresh.id !== this.manifest.id) return;
+
+    if (this.manifest.thumbnails === undefined && fresh.thumbnails !== undefined) {
+      this.manifest = { ...this.manifest, thumbnails: fresh.thumbnails };
+      void this.loadThumbnails(fresh);
+    }
+    this.manifest = { ...this.manifest, subtitles: fresh.subtitles };
+  }
+
+  selectAudio(trackId: string): void {
+    const name = this.master?.audioNames[trackId];
+    if (this.hls) {
+      // Renditions are written in manifest order, so the position is the reliable key; the name
+      // is tried first because it survives a master that lists them in some other order.
+      const byName = this.hls.audioTracks.findIndex((track) => track.name === name);
+      const index = byName >= 0
+        ? byName
+        : (this.manifest?.audio.findIndex((track) => track.id === trackId) ?? -1);
+      if (index >= 0 && index < this.hls.audioTracks.length && this.hls.audioTrack !== index) {
+        this.hls.audioTrack = index;
+      }
+    } else {
+      // Native HLS keeps the renditions on the element rather than in hls.js.
+      const native = (this.video as unknown as { audioTracks?: { length: number; [i: number]: { label: string; enabled: boolean } } }).audioTracks;
+      if (native && name !== undefined) {
+        for (let i = 0; i < native.length; i++) native[i].enabled = native[i].label === name;
+      }
+    }
+  }
+
+  /**
+   * Holds the film at one rung, by its height, or lets hls.js choose for the connection when null.
+   * Taken from the next segment rather than at once: the buffer already fetched still plays, so the
+   * change costs no stall. A height the film has no rung at is the tallest rung below it, or the
+   * shortest rung when every one is taller.
+   */
+  selectQuality(height: number | null): void {
+    this.quality = height;
+    const hls = this.hls;
+    if (hls === null || hls.levels.length === 0) return;
+    if (height === null) {
+      hls.nextLevel = -1;
+    } else {
+      const ranked = hls.levels.map((level, index) => ({ index, height: level.height }));
+      const fits = ranked.filter((level) => level.height <= height).sort((a, b) => b.height - a.height);
+      const shortest = [...ranked].sort((a, b) => a.height - b.height);
+      hls.nextLevel = (fits[0] ?? shortest[0]).index;
+    }
+    this.reportQuality();
+  }
+
+  private reportQuality(): void {
+    const hls = this.hls;
+    if (hls === null) return;
+    const levels = hls.levels
+      .map((level) => ({ height: level.height, bitrateKbps: Math.round(level.bitrate / 1000) }))
+      .sort((a, b) => b.height - a.height);
+    const playing = hls.currentLevel >= 0 ? hls.levels[hls.currentLevel]?.height ?? null : null;
+    this.events.onQuality(levels, playing);
+  }
+
+  /**
+   * Subtitles are whole WebVTT files rather than an HLS rendition, so the chosen one is fetched
+   * and attached as a track of its own, hidden: the page draws its cues itself. Only the chosen
+   * one is fetched: a Blu-ray rip carries dozens, and loading them all to show one is a megabyte
+   * of nothing.
+   */
+  async selectSubtitle(trackId: string | null): Promise<void> {
+    const manifest = this.manifest;
+    if (!manifest) return;
+
+    const token = ++this.subtitleToken;
+    this.clearSubtitle();
+
+    const track = findSubtitle(manifest, trackId);
+    if (!track || !track.available || track.uri === undefined) return;
+
+    try {
+      const response = await fetch(ticketedMediaUrl(manifest.id, track.uri), mediaFetchInit(manifest.id));
+      if (!response.ok) throw new Error(`subtitle answered ${response.status}`);
+      const blob = await response.blob();
+      if (token !== this.subtitleToken) return;
+
+      this.subtitleUrl = URL.createObjectURL(blob);
+      const element = document.createElement('track');
+      element.kind = 'subtitles';
+      element.src = this.subtitleUrl;
+      element.srclang = track.language;
+      element.label = track.label;
+      this.video.appendChild(element);
+      element.track.mode = 'hidden';
+      this.subtitleEl = element;
+      this.events.onSubtitleTrack(element.track);
+    } catch {
+      this.events.onError(`The ${track.label} subtitles could not be loaded.`);
+    }
+  }
+
+  dispose(): void {
+    if (this.stallTimer !== null) window.clearTimeout(this.stallTimer);
+    for (const [name, handler] of this.listeners) this.video.removeEventListener(name, handler);
+    this.releaseThumbnails();
+    this.teardownSource();
+  }
+
+  /**
+   * Fetches the sheet of preview frames and hands the page a blob to draw from.
+   *
+   * It cannot be pointed at the media route directly: a background image is fetched by the
+   * browser, which carries none of this viewer's token, and the answer is a 401 that renders as an
+   * empty grey box. The poster is the one thing that route leaves open, because Discord's own
+   * servers fetch it to draw an embed; a sheet of four hundred frames of the film is not that.
+   */
+  private async loadThumbnails(manifest: Manifest): Promise<void> {
+    this.releaseThumbnails();
+
+    if (manifest.thumbnails === undefined) {
+      this.events.onThumbnails(null, null);
+      return;
+    }
+
+    try {
+      const response = await fetch(ticketedMediaUrl(manifest.id, manifest.thumbnails.uri), mediaFetchInit(manifest.id));
+      if (!response.ok) throw new Error(`previews answered ${response.status}`);
+
+      this.thumbnailUrl = URL.createObjectURL(await response.blob());
+      this.events.onThumbnails(manifest.thumbnails, this.thumbnailUrl);
+    } catch {
+      // A bar that previews nothing is worth strictly more than one that previews a grey box.
+      this.events.onThumbnails(null, null);
+    }
+  }
+
+  private releaseThumbnails(): void {
+    if (this.thumbnailUrl === null) return;
+    URL.revokeObjectURL(this.thumbnailUrl);
+    this.thumbnailUrl = null;
+  }
+
+  private stalled(waiting: boolean): void {
+    if (this.stallTimer !== null) {
+      window.clearTimeout(this.stallTimer);
+      this.stallTimer = null;
+    }
+
+    if (!waiting) {
+      this.events.onStall(false);
+      return;
+    }
+
+    this.stallTimer = window.setTimeout(() => {
+      this.stallTimer = null;
+      this.events.onStall(true);
+    }, StallGraceMs);
+  }
+
+  private clearSubtitle(): void {
+    if (this.subtitleEl) {
+      this.subtitleEl.track.mode = 'disabled';
+      this.subtitleEl.remove();
+      this.subtitleEl = null;
+      this.events.onSubtitleTrack(null);
+    }
+    if (this.subtitleUrl) {
+      URL.revokeObjectURL(this.subtitleUrl);
+      this.subtitleUrl = null;
+    }
+  }
+
+  private teardownSource(): void {
+    this.clearSubtitle();
+    this.hls?.destroy();
+    this.hls = null;
+    if (this.masterUrl !== null && this.masterUrlIsBlob) URL.revokeObjectURL(this.masterUrl);
+    this.masterUrl = null;
+  }
+
+  private onHlsError(data: { fatal: boolean; type: string; details: string }): void {
+    if (!data.fatal) return;
+
+    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+      this.hls?.startLoad();
+      return;
+    }
+    if (data.type === Hls.ErrorTypes.MEDIA_ERROR && this.recoveries < MediaRecoveries) {
+      if (this.recoveries > 0) this.hls?.swapAudioCodec();
+      this.recoveries++;
+      this.hls?.recoverMediaError();
+      return;
+    }
+
+    // A buffer that refuses the codec is a client with no decoder for it. Any other media error
+    // that outlasts both recoveries is the decoder failing on data every other viewer plays, and
+    // on this surface that is most often the same missing decoder, so the fix is named with it.
+    if (data.details === Hls.ErrorDetails.BUFFER_ADD_CODEC_ERROR
+        || data.details === Hls.ErrorDetails.MANIFEST_INCOMPATIBLE_CODECS_ERROR) {
+      this.giveUp(NoDecoderMessage);
+    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+      this.giveUp(`The film could not be decoded here (${data.details}). If Hardware Acceleration `
+        + 'is off under Settings → Advanced, turning it on and restarting Discord usually fixes this.');
+    } else {
+      this.giveUp(`The film could not be played here (${data.details}).`);
+    }
+  }
+
+  /**
+   * Stops trying, and says why for as long as it holds. What follows a fatal error is the same
+   * error again, and every attempt resets the element and fetches the film's opening over again.
+   */
+  private giveUp(message: string): void {
+    this.teardownSource();
+    this.ready = false;
+    this.events.onStall(false);
+    this.settleLoad?.(false);
+    this.events.onUnplayable(message);
+  }
+
+  private listen(name: string, handler: () => void): void {
+    this.video.addEventListener(name, handler);
+    this.listeners.push([name, handler]);
+  }
+}
