@@ -169,6 +169,18 @@ public sealed class MediaRoots
     public static bool IsTitleDirectory(string name) =>
         name.Length > 0 && name[0] != '.' && name != "lost+found";
 
+    /// <summary>
+    /// Whether an id can only name a directory directly under a root. Anything that reaches a path
+    /// from outside the library is checked against this before it is joined to one: an id with a
+    /// separator or a dot-dot in it names somewhere else.
+    /// </summary>
+    public static bool IsSafeId(string id) =>
+        !string.IsNullOrWhiteSpace(id)
+        && id.Length <= 200
+        && id.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.')
+        && !id.Contains("..", StringComparison.Ordinal)
+        && id[0] != '.';
+
     /// <summary>The roots a title is looked for in, in the order it is looked for in them.</summary>
     public IEnumerable<string> InOrder()
     {

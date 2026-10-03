@@ -153,9 +153,9 @@ ready is how anybody starts it.
   down — skips it rather than refusing, since neither is needed to fetch a film and the worst a
   skipped check costs is a second copy of something.
 - **It needs no voice channel**, because there is no room in it.
-- **It is on the same clock as any other download.** A film fetched a week before anybody watches
-  it can be pruned before they do; `/keep` is what stops that, and the announcement says how long
-  the film has.
+- **It is on the same clock as any other film.** A film fetched long before anybody watches it
+  leaves the library once it has gone its time without a play; `/keep` is what stops that, and the
+  announcement says how long the film has once it has settled.
 
 The reply is the progress message, which the same updater keeps current and the same watcher
 announces, because a download fetched for later is a download.

@@ -22,9 +22,9 @@ library's capacity is the cold disk's. The move between them is the hand-off's
   both services start and everything on the media root is served exactly as it is with one disk. The
   fault is reported — an error in the log, and on `/health` — rather than absorbed, and what has
   settled is missing from the library until the volume is back, which is the honest answer. Nothing is
-  pruned while it is gone: a film on a volume this pass cannot see looks exactly like one already
-  deleted, and removing its torrent would leave the directory to come back with the disk with nothing
-  pointing at it.
+  removed while it is gone, by either clock: a film on a volume a pass cannot see looks exactly like
+  one already deleted, and acting on what it cannot see is how a library loses a film that was only
+  unplugged. A film is on the library's clock only while it is under the cold root alone.
 - **Nothing seek-heavy goes on the cold disk.** It is a platter: sequential streaming is well within
   budget and random IO is a cliff. Large finished media files, and nothing else — no database, no
   journal, no scratch space.

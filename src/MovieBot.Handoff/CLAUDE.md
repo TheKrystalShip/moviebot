@@ -84,11 +84,17 @@ The model of the two roots is `src/MovieBot.Core/CLAUDE.md`.
   served asking to be revalidated, so a film stamped with the moment it moved would have every viewer
   fetch all of it again for nothing.
 
-## Letting a film go (`RetentionWorker`)
+## Letting a film go: two clocks
 
-Disk is finite, and a downloaded film that nobody keeps leaves after a week of seeding. The rule
-itself, and the clock it runs on, are `Retention` in the acquire library; this is about who acts on it
-and what is checked first. Keeping a film is `src/MovieBot.Bot/Keep/CLAUDE.md`.
+Disk is finite, and a film is let go of twice, on two unrelated clocks. The tracker's clock frees
+the **source**: the torrent and the files it downloaded. The library's clock removes a **transcoded
+film** that has settled on the cold disk. Neither knows about the other, and each removes only its
+own half. Keeping a film is `src/MovieBot.Bot/Keep/CLAUDE.md`.
+
+### The tracker's clock (`RetentionWorker`)
+
+The rule itself, and the clock it runs on, are `Retention` in the acquire library; this is about who
+acts on it and what is checked first.
 
 - **The clock is the torrent client's seeding time, never the calendar.** The tracker credits seeding
   only while the client is running and the torrent is active, and the client's own count covers the
@@ -97,22 +103,34 @@ and what is checked first. Keeping a film is `src/MovieBot.Bot/Keep/CLAUDE.md`.
 - **Nothing is removed under the tracker's minimum plus a margin, whatever the window says.** The
   client's clock can only run ahead of the tracker's, by the announces that never landed, so the floor
   carries a margin and the window sits days above it.
-- **The hand-off prunes, because it is the only process allowed to write the media root.** The bot and
-  the API hold that root read-only, and the torrent's files go through the client rather than being
-  deleted from under it, which would leave the client announcing a file it no longer has.
-- **The title directory goes first, then the torrent.** A failure between the two leaves a torrent
-  that the next pass finds again; the other order leaves a directory nothing points at.
-- **A directory is deleted only when its manifest names the source this download arrived as.** A film
-  fetched twice as two releases lands under one id, the second ingest replacing the first's directory,
-  and the older torrent's turn to go must not take the newer transcode with it. A mismatch removes the
-  download alone and says so.
-- **A film a room holds is not pruned** (`OccupiedRooms`). The API is asked which titles the rooms
+- **Only the torrent and its files go, through the client.** Deleting them from under it would leave
+  the client announcing a file it no longer has. The title directory, the transcode, is not this
+  clock's: it is what the library keeps.
+- **A film a room holds is not removed** (`OccupiedRooms`). The API is asked which titles the rooms
   hold, whether or not anybody is in them this second, and if it cannot answer the pass removes
-  nothing. The API forgets an idle room on its own, so a room blocks a prune for at most that idle
+  nothing. The API forgets an idle room on its own, so a room blocks a removal for at most that idle
   window.
-- **A film still owing its transcode is left alone.** The ingest deletes and rewrites its directory,
-  and two processes doing that to one directory is how a film ends up half written. One owed for a
-  week is a fault to read about in the log, not a film to remove.
-- **A title with no download behind it is on no clock.** A film put in the library by hand owes the
-  tracker nothing and carries no seeding time, so retention does not apply to it and the launch says
-  nothing about how long it stays.
+- **A film still owing its transcode is left alone.** The transcode is reading the source. One owed
+  for a week is a fault to read about in the log, not a source to remove.
+- **Nothing is removed while the cold volume is out.** A pass that cannot see the library acts on
+  nothing it cannot ask about.
+- **A kept film's source goes like any other.** A keep pins the film in the library and has no say
+  over a torrent the tracker has been paid its seeding on.
+
+### The library's clock (`LibraryWorker`)
+
+A settled film, one whose directory is on the cold root alone, leaves once it has gone
+`Library:LeaveAfterDays` without a play, unless somebody keeps it. The rule is the API's alone
+(`LibraryClock`), because the plays and the keeps are its records; the hand-off asks `GET
+/api/library/due` and deletes what comes back, being the only process allowed to write the media
+roots.
+
+- **It deletes only on the cold root, and only a directory directly under it.** An id comes over the
+  wire, so one that could name a path outside the root, or a link, is not a film and is skipped.
+- **A film a room holds is not removed**, checked again here at the moment of deleting rather than
+  trusted from the API's answer a moment ago.
+- **A film that is also under the media root is not removed.** It is mid-move or being made again, so
+  it has not settled, and the cold copy is what its readers are on.
+- **If the API cannot answer, nothing is deleted.** An empty list is a fact and a missing one is not;
+  a film deleted on a guess cannot be taken back. The same holds for the rooms, and for the cold
+  volume being out.

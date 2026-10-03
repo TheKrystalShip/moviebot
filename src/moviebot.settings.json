@@ -92,11 +92,20 @@
     "TierByTrackerFlags": true
   },
 
-  // How long a downloaded film keeps seeding before it is removed, unless somebody keeps it.
+  // How long a downloaded film keeps seeding before its torrent and downloaded files are removed.
   "Retention": {
     "SeedDays": 7,
     "TrackerMinimumHours": 48,
     "MarginHours": 12
+  },
+
+  // How long a film stays in the library once it has settled on the cold disk: LeaveAfterDays after
+  // its last play, or after it settled when nobody has played it, unless somebody keeps it. The API
+  // decides what is due and the hand-off deletes it. An empty Keeps writes keeps.json in the state
+  // directory.
+  "Library": {
+    "LeaveAfterDays": 7,
+    "Keeps": ""
   },
 
   // Films people are waiting on, watched for by the API. An empty Path writes wishes.json in the

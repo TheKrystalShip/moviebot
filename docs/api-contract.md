@@ -113,7 +113,7 @@ other token is a `403`. A service names the person it acts for on every act as
 person: `requestedBy` and `userId` are taken from the token whatever the request says, and a
 member's download or wish names no Discord channel. `/wishes/available` and `/wishes/{imdbId}/told`
 are the bot's, and answer the service key alone. The shapes are in `src/MovieBot.Core/Acquisition.cs`;
-the API reads the tracker, `QBittorrent`, `Download`, `Selection`, `Retention` and `Notify` settings
+the API reads the tracker, `QBittorrent`, `Download`, `Selection`, `Library` and `Notify` settings
 to serve them.
 
 ### Signing in
@@ -137,10 +137,22 @@ the code from the OAuth2 redirect, asked for with `identify guilds.members.read`
 | `DELETE /api/wishes/{imdbId}?userId=` | `CancelWishReply` |
 | `GET /api/wishes/available` | `AvailableWish[]` — wishes the tracker can now answer, found by the hourly sweep |
 | `POST /api/wishes/{imdbId}/told` | 204 for `{channelIds}` — whoever asked in those channels is told and comes off the wish |
-| `GET /api/keeps` | `KeptFilmView[]` |
-| `PUT /api/keeps/{hash}` | `KeepReply` for `{requestedBy}` |
-| `POST /api/keeps/{hash}/release` | `KeepReply` for `{requestedBy}` |
-| `GET /api/titles/{id}/retention` | `KeptFilmView`, or 204 for a title that did not arrive as a download |
+| `GET /api/titles/{id}/stay` | `TitleStay`, or 404 for a film the library does not hold |
+| `GET /api/stays` | `TitleStay[]` — every settled film, soonest to leave first, the kept ones after them |
+| `PUT /api/titles/{id}/keep` | `TitleStay` for `{requestedBy}`; a film already kept stays its first keeper's |
+| `DELETE /api/titles/{id}/keep` | `TitleStay` for `{requestedBy}`; 404 for a film the library does not hold |
+| `GET /api/library/due` | `string[]` — the ids of the settled films whose time is up; the **service key** alone |
+
+- **A film stays in the library until it has gone `Library:LeaveAfterDays` without a play.** The clock
+  is only on a film that has settled on the cold disk, and it counts from the later of the film's
+  last play and the moment it settled. A film somebody keeps never leaves, and neither does one a room
+  holds. `TitleStay` is `{titleId, settled, keeperId?, keeperName?, keptAt?, lastPlayedAt?, leavesAt?,
+  daysLeft?}`: `leavesAt` and `daysLeft` are absent while the film is kept or has not settled, and
+  `keeperName` is the keeper's name where one is known, the id otherwise. A keep is held by the API,
+  by library id, and outlives the film's torrent. The hand-off asks `/api/library/due` and deletes
+  what it names, being the only process that writes the media roots; a hand-off the API cannot answer
+  deletes nothing. The removal of a download's torrent and files after its seeding window is the
+  tracker's clock, which the hand-off keeps on its own and no route shows.
 
 - **A download names a release the API offered.** `torrentId` is resolved against what a search or a
   picker answered; anything else is `noLongerOffered`, before the torrent client is asked.

@@ -117,7 +117,16 @@ builder.Services.AddSingleton<WishList>();
 builder.Services.AddSingleton<Wishes>();
 builder.Services.AddSingleton<WishSweep>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WishSweep>());
-builder.Services.AddSingleton<Keeps>();
+
+// Who keeps which film, and the rule for when a settled film that nobody keeps leaves. Both are
+// answered here and acted on by the hand-off, which is the one process that writes the media roots.
+builder.Services.AddOptions<LibraryOptions>().Bind(builder.Configuration.GetSection(LibraryOptions.Section));
+builder.Services.AddSingleton(sp => new KeepStore(
+    StatePath(sp.GetRequiredService<IConfiguration>()["Library:Keeps"], "keeps.json"),
+    sp.GetRequiredService<ILogger<KeepStore>>()));
+// A keeper is shown by the name this gives, and by their id where it gives none.
+builder.Services.AddSingleton<KeeperNames>(_ => _ => null);
+builder.Services.AddSingleton<LibraryClock>();
 
 // The client id is the application id, which the settings file names once for the bot and the
 // API together.

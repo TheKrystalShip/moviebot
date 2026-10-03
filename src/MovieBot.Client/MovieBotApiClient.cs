@@ -270,34 +270,44 @@ public sealed class MovieBotApiClient(HttpClient http)
         }
     }
 
-    /// <summary>Every film on disk, with where the retention rule has it.</summary>
-    public async Task<IReadOnlyList<KeptFilmView>> ListKeepsAsync(CancellationToken ct) =>
-        await GetAsync("api/keeps",
-            ManifestJsonContext.Default.IReadOnlyListKeptFilmView, "The downloads could not be read.", ct) ?? [];
+    /// <summary>Every settled film and how long it stays, soonest to leave first, the kept ones last.</summary>
+    public async Task<IReadOnlyList<TitleStay>> ListStaysAsync(CancellationToken ct) =>
+        await GetAsync("api/stays",
+            ManifestJsonContext.Default.IReadOnlyListTitleStay, "The library's films could not be read.", ct) ?? [];
 
-    public Task<KeepReply> KeepAsync(string hash, Actor requestedBy, CancellationToken ct) =>
-        SendAsync(HttpMethod.Put, $"api/keeps/{Uri.EscapeDataString(hash)}", new KeepRequest { RequestedBy = requestedBy },
-            ManifestJsonContext.Default.KeepRequest, ManifestJsonContext.Default.KeepReply, "The film could not be kept.", ct);
+    /// <summary>How long a film stays in the library and who keeps it, or null when the library holds no such film.</summary>
+    public Task<TitleStay?> StayAsync(string titleId, CancellationToken ct) =>
+        GetAsync($"api/titles/{Uri.EscapeDataString(titleId)}/stay",
+            ManifestJsonContext.Default.TitleStay, "The film's stay could not be read.", ct, missing: true);
 
-    public Task<KeepReply> ReleaseKeepAsync(string hash, Actor requestedBy, CancellationToken ct) =>
-        SendAsync(HttpMethod.Post, $"api/keeps/{Uri.EscapeDataString(hash)}/release", new KeepRequest { RequestedBy = requestedBy },
-            ManifestJsonContext.Default.KeepRequest, ManifestJsonContext.Default.KeepReply, "The film could not be let go.", ct);
+    /// <summary>Keeps a film as somebody; null when the library holds no such film.</summary>
+    public Task<TitleStay?> KeepAsync(string titleId, Actor requestedBy, CancellationToken ct) =>
+        ChangeKeepAsync(HttpMethod.Put, titleId, requestedBy, "The film could not be kept.", ct);
 
-    /// <summary>Where a film in the library stands with the retention rule, or null when no download is behind it.</summary>
-    public async Task<KeptFilmView?> RetentionAsync(string titleId, CancellationToken ct)
+    /// <summary>Lets a film go back on the library's clock as somebody; null when the library holds no such film.</summary>
+    public Task<TitleStay?> ReleaseKeepAsync(string titleId, Actor requestedBy, CancellationToken ct) =>
+        ChangeKeepAsync(HttpMethod.Delete, titleId, requestedBy, "The film could not be let go.", ct);
+
+    private async Task<TitleStay?> ChangeKeepAsync(
+        HttpMethod method, string titleId, Actor requestedBy, string failure, CancellationToken ct)
     {
         try
         {
-            using var response = await http.GetAsync($"api/titles/{Uri.EscapeDataString(titleId)}/retention", ct);
-            if (response.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.NotFound) return null;
+            using var request = new HttpRequestMessage(method, $"api/titles/{Uri.EscapeDataString(titleId)}/keep")
+            {
+                Content = JsonContent.Create(new KeepRequest { RequestedBy = requestedBy }, ManifestJsonContext.Default.KeepRequest),
+            };
+            using var response = await http.SendAsync(request, ct);
+            if (response.StatusCode == HttpStatusCode.NotFound) return null;
             if (!response.IsSuccessStatusCode)
-                throw new MovieBotApiException($"The retention of {titleId} could not be read: {(int)response.StatusCode}.");
-            return await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.KeptFilmView, ct);
+                throw new MovieBotApiException($"{failure} ({(int)response.StatusCode})");
+            return await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.TitleStay, ct)
+                ?? throw new MovieBotApiException(failure);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
                                    && !ct.IsCancellationRequested)
         {
-            throw new MovieBotApiException($"The retention of {titleId} could not be read.", ex);
+            throw new MovieBotApiException(failure, ex);
         }
     }
 

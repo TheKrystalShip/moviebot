@@ -13,7 +13,7 @@ namespace TheKrystalShip.MovieBot.Api.Acquisition;
 /// Every fact about the download is written on the torrent rather than held here: where to announce
 /// it, who asked, which room it is for, that it is not watchable until something has transcoded it,
 /// and which film it is. A download outlives a restart of every process that touches it, and the
-/// watchers that announce it, the hand-off that ingests it and the retention rule that prunes it all
+/// watchers that announce it, the hand-off that ingests it and the retention rule that removes it all
 /// read those notes, so a download wearing none of them is one nobody is waiting on.
 /// </summary>
 public sealed class Downloads(
@@ -89,7 +89,6 @@ public sealed class Downloads(
                 Summary = d.Summary,
                 IsFinished = d.IsFinished,
                 IsWatchable = d.Tags.Contains(TorrentTags.Watchable),
-                IsKept = d.Tags.Contains(TorrentTags.Keep),
                 LibraryId = libraryId,
                 ImdbId = d.Tags.Select(TorrentTags.ReadImdb).FirstOrDefault(i => i is not null),
             };

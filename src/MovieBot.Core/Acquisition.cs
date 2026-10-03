@@ -114,8 +114,6 @@ public sealed record DownloadView
     /// <summary>Enough has been transcoded to start watching while the rest arrives.</summary>
     public bool IsWatchable { get; init; }
 
-    public bool IsKept { get; init; }
-
     /// <summary>The library title it became, once it has become one.</summary>
     public string? LibraryId { get; init; }
 
@@ -201,45 +199,40 @@ public sealed record AvailableWish(WishView Wish, ReleaseOffer Release);
 /// <summary>The channels a wish has been announced in, whose people are told and can be forgotten.</summary>
 public sealed record WishesTold(IReadOnlyList<string> ChannelIds);
 
-/// <summary>A film on disk as the retention rule sees it.</summary>
-public sealed record KeptFilmView
+/// <summary>
+/// Where a film in the library stands on the library's clock: how long it stays once it has
+/// settled on cold storage, and who keeps it past that.
+/// </summary>
+public sealed record TitleStay
 {
-    /// <summary>The download's identity.</summary>
-    public required string Hash { get; init; }
+    public required string TitleId { get; init; }
 
-    /// <summary>The library's name for the film where it has one, the release's otherwise.</summary>
-    public required string Name { get; init; }
+    /// <summary>
+    /// Whether the film has settled on the cold disk. Only a settled film is on the clock, so
+    /// <see cref="LeavesAt"/> and <see cref="DaysLeft"/> are absent until it has.
+    /// </summary>
+    public required bool Settled { get; init; }
 
-    public required string Release { get; init; }
+    /// <summary>The Discord id of whoever keeps it, or absent when nobody does.</summary>
+    public string? KeeperId { get; init; }
 
-    public string? LibraryId { get; init; }
+    /// <summary>What the keeper is called, the id until a name is known.</summary>
+    public string? KeeperName { get; init; }
 
-    /// <summary>Who kept it, or absent when nobody has.</summary>
-    public string? Keeper { get; init; }
+    public DateTimeOffset? KeptAt { get; init; }
 
-    /// <summary>How much more seeding it has before it is due to go.</summary>
-    public required double RemainingSeconds { get; init; }
+    /// <summary>The last moment a room was playing the film, or absent when none is recorded.</summary>
+    public DateTimeOffset? LastPlayedAt { get; init; }
 
-    /// <summary>Whether the download is complete. Seeding, and so the clock, starts then.</summary>
-    public required bool IsFinished { get; init; }
+    /// <summary>When the film leaves unless somebody plays or keeps it first; absent while kept or unsettled.</summary>
+    public DateTimeOffset? LeavesAt { get; init; }
 
-    /// <summary>How long a film seeds before it goes, when nobody keeps it.</summary>
-    public required double WindowSeconds { get; init; }
+    /// <summary>Whole days until <see cref="LeavesAt"/>, rounded up and never below zero.</summary>
+    public int? DaysLeft { get; init; }
 }
 
-/// <summary>Keep a film, or let one go, as somebody.</summary>
+/// <summary>Keep a film, or let one go, as somebody. A member's request names nobody: the token does.</summary>
 public sealed record KeepRequest
 {
     public required Actor RequestedBy { get; init; }
-}
-
-/// <summary>
-/// How a keep went: <c>kept</c>, <c>alreadyKept</c>, <c>released</c>, <c>notKept</c>,
-/// <c>notFound</c> or <c>unavailable</c>.
-/// </summary>
-public sealed record KeepReply
-{
-    public required string Outcome { get; init; }
-
-    public KeptFilmView? Film { get; init; }
 }

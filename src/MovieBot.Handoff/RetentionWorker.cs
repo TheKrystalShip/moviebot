@@ -1,31 +1,28 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Handoff;
 
 /// <summary>
-/// Lets go of films nobody has kept, once they have seeded for the window.
+/// The tracker's clock: lets go of the source once it has seeded for the window.
 ///
-/// It lives here for the same reason the ingest does: this is the only process allowed to write
-/// the media root, and a title's directory is the larger half of what a film costs. The torrent
-/// and its files go through the client, so the client never finds itself seeding a file that is
-/// no longer there.
+/// What goes is the torrent and the files it downloaded, through the client, so the client never
+/// finds itself seeding a file that is no longer there. The film's own directory, the transcode, is
+/// not touched: how long a film stays in the library is the library's clock
+/// (<see cref="LibraryWorker"/>), which runs on plays rather than on seeding.
 ///
 /// Every decision is taken from what is in front of it on the pass: the torrent's own tags for
-/// whether it is kept or still owes a transcode, the client's seeding clock for whether it is
-/// due, the API for whether a room holds it, and the manifest on disk for whether the directory
-/// under the film's id is this film's. Nothing is remembered between passes, so a stop at any
-/// moment loses nothing and a pass that cannot answer one of those questions removes nothing.
+/// whether it still owes a transcode, the client's seeding clock for whether it is due, and the API
+/// for whether a room holds it. Nothing is remembered between passes, so a stop at any moment loses
+/// nothing and a pass that cannot answer one of those questions removes nothing.
 /// </summary>
 public sealed class RetentionWorker(
-    AcquisitionService acquisition,
+    ISeedingDownloads downloads,
     Retention retention,
     OccupiedRooms rooms,
     MediaRoots roots,
-    IOptions<HandoffOptions> options,
     ILogger<RetentionWorker> logger) : BackgroundService
 {
     /// <summary>
@@ -34,12 +31,10 @@ public sealed class RetentionWorker(
     /// </summary>
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
 
-    private readonly HandoffOptions _options = options.Value;
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation(
-            "Pruning films after {Window} of seeding unless kept; never under {Floor}.",
+            "Removing sources after {Window} of seeding; never under {Floor}.",
             retention.Window, retention.Floor);
 
         using var timer = new PeriodicTimer(Interval);
@@ -62,29 +57,25 @@ public sealed class RetentionWorker(
         }
     }
 
-    private async Task SweepAsync(CancellationToken ct)
+    public async Task SweepAsync(CancellationToken ct)
     {
-        // A film kept on a volume this pass cannot see is a film it cannot find, and a film it
-        // cannot find looks exactly like one already gone: the torrent would be removed and the
-        // directory would come back with the disk, with nothing left pointing at it. The same
-        // rule that stops a pass removing anything it cannot ask about covers this.
+        // A pass that cannot see the cold volume cannot see the library either, and it acts on
+        // nothing until it can: the same rule that stops it removing anything it cannot ask about.
         if (roots.Cold is not null && !roots.ColdState.Ready)
         {
             logger.LogWarning(
-                "Cold storage is unusable: {Problem} Nothing is pruned until it is back.",
+                "Cold storage is unusable: {Problem} Nothing is removed until it is back.",
                 roots.ColdState.Problem);
 
             return;
         }
 
-        var downloads = await acquisition.ListAsync(ct);
+        var all = await downloads.ListAsync(ct);
 
-        // A film still owing its transcode is left alone however long it has seeded: the ingest
-        // is what deletes and rewrites its directory, and two processes doing that to one
-        // directory is how a film ends up half written. One owed for a week is a fault to read
-        // about in the log, not a film to remove.
-        var due = downloads
-            .Where(d => !d.Tags.Contains(TorrentTags.Keep))
+        // A film still owing its transcode is left alone however long it has seeded: the transcode
+        // is reading the source, and one owed for a week is a fault to read about in the log, not
+        // a source to remove.
+        var due = all
             .Where(d => !d.Tags.Contains(TorrentTags.NeedsIngest))
             .Where(retention.IsDue)
             .ToList();
@@ -109,72 +100,11 @@ public sealed class RetentionWorker(
                 continue;
             }
 
-            await PruneAsync(download, id, ct);
-        }
-    }
+            await downloads.RemoveAsync(download.Hash, ct);
 
-    /// <summary>
-    /// The title directory first, then the torrent. Removing the torrent first would leave a
-    /// directory with nothing pointing at it if the second step failed, and nothing would ever
-    /// come back for it; this way round a failure leaves the torrent to be found again next pass.
-    /// </summary>
-    private async Task PruneAsync(DownloadStatus download, string id, CancellationToken ct)
-    {
-        var directory = roots.DirectoryOf(id);
-        var removedTitle = false;
-
-        if (directory is not null)
-        {
-            if (IsThisFilm(directory, download))
-            {
-                Directory.Delete(directory, recursive: true);
-                removedTitle = true;
-            }
-            else
-            {
-                logger.LogWarning(
-                    "{Id} does not hold the film {Name} arrived as; the directory stays and only "
-                    + "the download goes.", id, download.Name);
-            }
-        }
-
-        await acquisition.RemoveAsync(download.Hash, ct);
-
-        logger.LogInformation(
-            "Pruned {Name} after {Hours}h {Minutes}m of seeding{Title}.",
-            download.Name, (int)download.Seeded.TotalHours, download.Seeded.Minutes,
-            removedTitle ? $" and removed {id} from the library" : "");
-    }
-
-    /// <summary>
-    /// Whether the directory under the id was made from this download's file.
-    ///
-    /// The id is a slug of the film's name, and a film fetched twice as two releases lands under
-    /// the same id both times, the second ingest replacing the first's directory. The manifest
-    /// names the source it was made from, so the older torrent's turn to go cannot take the
-    /// newer release's transcode with it.
-    /// </summary>
-    private bool IsThisFilm(string directory, DownloadStatus download)
-    {
-        try
-        {
-            var path = Path.Combine(directory, "manifest.json");
-            if (!File.Exists(path)) return false;
-
-            var manifest = ManifestJson.Deserialize(File.ReadAllText(path));
-            if (manifest?.Source?.Release is not { Length: > 0 } release) return false;
-
-            var source = FilmFile.Locate(
-                download.ContentPath, (long)_options.MinimumFilmSizeMiB * (1 << 20));
-            if (source is null) return false;
-
-            return string.Equals(
-                release, Path.GetFileNameWithoutExtension(source), StringComparison.Ordinal);
-        }
-        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
-        {
-            logger.LogWarning(ex, "Could not read the manifest under {Directory}.", directory);
-            return false;
+            logger.LogInformation(
+                "Removed the source of {Name} after {Hours}h {Minutes}m of seeding.",
+                download.Name, (int)download.Seeded.TotalHours, download.Seeded.Minutes);
         }
     }
 }

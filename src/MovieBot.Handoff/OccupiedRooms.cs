@@ -9,7 +9,7 @@ namespace TheKrystalShip.MovieBot.Handoff;
 /// Which films the rooms hold right now, read from the API at the moment of asking.
 ///
 /// A room that holds a film may be opened into it at any moment, whether or not anybody is in it
-/// this second; the API forgets an idle room on its own, so a room blocks a prune for at most
+/// this second; the API forgets an idle room on its own, so a room blocks a removal for at most
 /// that idle window past its last viewer.
 /// </summary>
 public sealed class OccupiedRooms(HttpClient http, ILogger<OccupiedRooms> logger)

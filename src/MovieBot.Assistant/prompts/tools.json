@@ -73,13 +73,13 @@
     ]
   },
   "keep_film": {
-    "description": "Proposes keeping a downloaded film on disk, so it is never pruned.",
+    "description": "Proposes keeping a film in the library, so it never leaves for want of a play.",
     "params": [
       { "name": "title", "description": "The film's id from the library, or its name." }
     ]
   },
   "let_go": {
-    "description": "Proposes removing a keep, so a downloaded film goes back on the clock and is pruned after its seeding time.",
+    "description": "Proposes removing a keep, so a film goes back on the library's clock and leaves once it has gone its time without a play.",
     "params": [
       { "name": "title", "description": "The film's id from the library, or its name." }
     ]

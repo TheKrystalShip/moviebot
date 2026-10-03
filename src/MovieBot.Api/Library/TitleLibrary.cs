@@ -191,10 +191,5 @@ public sealed class TitleLibrary(
     /// Ids name a directory under the media root, so anything that could climb out of it is
     /// refused rather than sanitised — a rewritten path that still resolves is worse than a 404.
     /// </summary>
-    public static bool IsSafeId(string id) =>
-        !string.IsNullOrWhiteSpace(id)
-        && id.Length <= 200
-        && id.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.')
-        && !id.Contains("..", StringComparison.Ordinal)
-        && id[0] != '.';
+    public static bool IsSafeId(string id) => MediaRoots.IsSafeId(id);
 }
