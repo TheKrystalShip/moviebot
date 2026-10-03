@@ -4,7 +4,7 @@ import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { linkProps, navigate } from "../router.js";
 import { Empty, Failed, PageHead } from "../components/Film.jsx";
-import { NotOutYet } from "./Search.jsx";
+import { NotOutYet } from "./Discover.jsx";
 import { KeptPoster } from "../components/FilmDetails.jsx";
 
 /**
@@ -47,7 +47,7 @@ export function Notify() {
                 <span className="kc-row__title">{found.data.film ? found.data.film.display : query}</span>
                 <span className="kc-row__sub">It can be downloaded already.</span>
               </div>
-              <button type="button" className="kc-btn kc-btn--primary" onClick={() => navigate("/search?q=" + encodeURIComponent(query))}>
+              <button type="button" className="kc-btn kc-btn--primary" onClick={() => navigate("/discover?q=" + encodeURIComponent(query))}>
                 <Icon name="download" size={16} />See releases
               </button>
             </div>

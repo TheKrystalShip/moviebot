@@ -14,6 +14,9 @@ public sealed class FilmStoreOptions
     /// <summary>Where shows are kept, the same way. Empty is <c>shows/</c> in the state directory.</summary>
     public string ShowsDirectory { get; set; } = "";
 
+    /// <summary>Where the week's trending films and shows are kept. Empty is <c>popular/</c> in the state directory.</summary>
+    public string PopularDirectory { get; set; } = "";
+
     /// <summary>How old a description may get before the database is asked again.</summary>
     public int RefreshDays { get; set; } = 14;
 }

@@ -109,6 +109,12 @@ builder.Services.AddSingleton(sp => new ShowStore(
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<ShowStore>>()));
 builder.Services.AddHostedService<FilmWarmer>();
+builder.Services.AddSingleton(sp => new PopularNow(
+    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.PopularDirectory, "popular"),
+    sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<TimeProvider>(),
+    sp.GetRequiredService<ILogger<PopularNow>>()));
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PopularNow>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SessionKeeper>());
 
 // The subtitle index. Searching costs nothing and only a download spends the day's allowance, so

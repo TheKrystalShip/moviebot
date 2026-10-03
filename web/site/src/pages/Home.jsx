@@ -127,16 +127,16 @@ export function Home() {
         <Rail
           variant="posters" icon="clapperboard" title="Movies" count={films.length}
           onViewAll={() => navigate("/movies")} viewAllLabel="All movies"
-          items={films} itemKey={(t) => t.id}
-          renderItem={card} />
+          items={[...films, MORE]} itemKey={(t) => (t === MORE ? "more" : t.id)}
+          renderItem={(t) => (t === MORE ? <MoreTile label="Any movie" /> : card(t))} />
       )}
 
       {shows.length > 0 && (
         <Rail
           variant="posters" icon="tv" title="TV Shows" count={shows.length}
           onViewAll={() => navigate("/tv")} viewAllLabel="All shows"
-          items={shows} itemKey={(s) => s.imdbId || s.firstTitleId}
-          renderItem={(s) => <ShowCard show={s} me={me} />} />
+          items={[...shows, MORE]} itemKey={(s) => (s === MORE ? "more" : s.imdbId || s.firstTitleId)}
+          renderItem={(s) => (s === MORE ? <MoreTile label="Any show" /> : <ShowCard show={s} me={me} />)} />
       )}
     </div>
   );
@@ -175,6 +175,19 @@ function Featured({ title, room }) {
         </div>
       </div>
     </section>
+  );
+}
+
+/** The last place on a shelf of the library, held by the tile that leads past it. */
+const MORE = { more: true };
+
+/** The tile closing a shelf: past the last poster here is everything Discover can find. */
+function MoreTile({ label }) {
+  return (
+    <a className="kc-more-tile" {...linkProps("/discover")}>
+      <Icon name="compass" size={26} />
+      <span>{label}</span>
+    </a>
   );
 }
 

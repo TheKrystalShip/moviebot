@@ -46,6 +46,9 @@ and keeps are `Acquisition/CLAUDE.md`; notifications, pushes and invites are
   A show is kept the same way by `Shows/ShowStore` under `shows/`, its description and every season's
   episodes asked for together with their stills, and served at `/shows/{imdbId}/…`; the warmer keeps
   every show the library holds described. An episode's show is never asked of the film side.
+  `Films/PopularNow` keeps the week's trending films and shows under `popular/`, the list and one
+  poster per entry and nothing more, asked for every six hours and served at `/api/popular` and
+  `/popular/{imdbId}.jpg`; an entry's page asks for the rest of it when it is opened.
 - **An episode is a title, and a show is its episodes grouped.** Every route that serves a title
   serves an episode unchanged; `/api/shows` and `/api/shows/{imdbId}` group the library's episodes by
   the show their manifest names and join them with the show's description, and an episode's

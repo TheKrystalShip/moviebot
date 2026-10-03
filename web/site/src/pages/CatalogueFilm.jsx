@@ -6,7 +6,7 @@ import { goBack, navigate } from "../router.js";
 import { Empty, Failed } from "../components/Film.jsx";
 import { CastGrid, Credits, FilmScore, Genres } from "../components/FilmDetails.jsx";
 import { FilmRequestSheet } from "../components/RequestSheet.jsx";
-import { wishWords } from "./Search.jsx";
+import { wishWords } from "./Discover.jsx";
 import { defaultOffer, watchNow } from "../watchNow.js";
 
 /**
@@ -81,7 +81,7 @@ export function CatalogueFilm({ imdbId }) {
 
   return (
     <div className="kc-page kc-title">
-      <button type="button" className="kc-back" onClick={() => goBack("/search")}>
+      <button type="button" className="kc-back" onClick={() => goBack("/discover")}>
         <Icon name="arrow-left" size={14} />Back
       </button>
 

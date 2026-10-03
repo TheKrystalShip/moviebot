@@ -109,6 +109,7 @@ public class SessionFixture : WebApplicationFactory<Program>
                 ["Tmdb:ReadAccessToken"] = "a-test-token",
                 ["Tmdb:Directory"] = Path.Combine(StateRoot, "films"),
                 ["Tmdb:ShowsDirectory"] = Path.Combine(StateRoot, "shows"),
+                ["Tmdb:PopularDirectory"] = Path.Combine(StateRoot, "popular"),
             }));
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(MoreSettings()));
 

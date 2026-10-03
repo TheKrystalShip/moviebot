@@ -10,7 +10,7 @@ import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes } from "../compon
 import { FollowButton } from "../components/FollowButton.jsx";
 import { RequestSheet, plan } from "../components/RequestSheet.jsx";
 import { watchNow } from "../watchNow.js";
-import { downloadWords } from "./Search.jsx";
+import { downloadWords } from "./Discover.jsx";
 
 /**
  * One show: what it is, its seasons with their episodes, where this person picks up, how long each

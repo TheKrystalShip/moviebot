@@ -161,7 +161,9 @@
   // API asks it, keeps what it said and the artwork under Directory (an empty one is films/ in the
   // state directory), serves its own copies, and asks again after RefreshDays. The token is a
   // credential and is set only in the environment as Tmdb__ReadAccessToken; without one, films are
-  // described by the title index alone. Region picks whose certificate a film is shown with.
+  // described by the title index alone. Region picks whose certificate a film is shown with. The
+  // films and shows trending this week, with their posters, are kept under PopularDirectory (an empty
+  // one is popular/ in the state directory) and asked for again every few hours.
   "Tmdb": {
     "BaseUrl": "https://api.themoviedb.org/3",
     "ImageBaseUrl": "https://image.tmdb.org/t/p",
@@ -170,6 +172,7 @@
     "TimeoutSeconds": 15,
     "Directory": "",
     "ShowsDirectory": "",
+    "PopularDirectory": "",
     "RefreshDays": 14
   },
 

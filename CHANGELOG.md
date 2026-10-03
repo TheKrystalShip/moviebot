@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.85.0] - 2026-10-04
+
+### Added
+
+- Discover, the site's page for finding anything to watch, here or not, under Home in the sidebar
+  and as a tab on a phone. It opens on a large field and the films and shows popular this week, each
+  marked when the library holds it and otherwise leading to its page, where whether and how it can be
+  watched is asked. `/`, Ctrl+K or Cmd+K anywhere outside a text field opens it with the field focused.
+- The Movies and TV Shows rows on the front page end in a tile that opens Discover.
+- `GET /api/popular` answers the films and shows the film database counts as trending this week, and
+  `/popular/{imdbId}.jpg` their posters. The API keeps the list and the posters under `popular/` in
+  its state directory (`Tmdb:PopularDirectory`) and asks again every six hours.
+
+### Changed
+
+- Discover is at `/discover`, where the Search page was, and the sidebar no longer holds a search
+  field. A search's tracker releases are asked for when their row is opened, and the row opens by
+  itself when the catalogue knows no film or show by the name typed.
+- The notice that a film somebody waited on is out opens the film's page.
+
 ## [1.84.1] - 2026-10-04
 
 ### Fixed

@@ -3,7 +3,7 @@ import { Icon, Modal, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { bytes } from "./FilmDetails.jsx";
-import { downloadWords } from "../pages/Search.jsx";
+import { downloadWords } from "../pages/Discover.jsx";
 
 const QUALITIES = [
   { value: "720p", label: "720p", note: "Recommended: a third of the space" },

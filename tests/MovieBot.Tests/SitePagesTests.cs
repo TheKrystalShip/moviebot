@@ -33,7 +33,7 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
     [InlineData("/")]
     [InlineData("/library")]
     [InlineData("/title/heat-1995")]
-    [InlineData("/search?q=heat")]
+    [InlineData("/discover?q=heat")]
     [InlineData("/r/a1b2c3d4?title=heat-1995")]
     [InlineData("/embed/")]
     // Discord launches the Activity at the root with its parameters; the index sends it to /embed/.

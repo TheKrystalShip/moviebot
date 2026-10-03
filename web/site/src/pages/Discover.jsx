@@ -1,25 +1,35 @@
 import React from "react";
-import { Icon, toast } from "@thekrystalship/krystal-ui";
+import { Icon, Rail, ShowcaseCard, toast } from "@thekrystalship/krystal-ui";
 import { api, filmName, showHref } from "../api.js";
 import { useLoad } from "../data.js";
 import { linkProps, navigate } from "../router.js";
-import { Empty, Failed, FilmCard, PageHead, ShowCard } from "../components/Film.jsx";
+import { Failed, FilmCard, PageHead, ShowCard, watchHref } from "../components/Film.jsx";
+
+/** The class the page's field carries, so the shortcut that opens the page can find it. */
+export const DISCOVER_FIELD = "kc-search--discover";
 
 /**
- * Finding a film: what the library holds first, then what the tracker offers to fetch, and, for a
- * film that has no release yet, a way to be told when it does. The query is in the address, so a
+ * Finding anything to watch, here or not. With nothing typed, the field and what is popular this
+ * week; with a query, what the library holds first, then the catalogue's films and shows, each
+ * leading to its own page, and the tracker's releases on request. The query is in the address, so a
  * search can be shared and reloaded.
  */
-export function Search({ query }) {
+export function Discover({ query }) {
   const q = (query.get("q") || "").trim();
   const [draft, setDraft] = React.useState(q);
   React.useEffect(() => setDraft(q), [q]);
+  const field = useFocusOnceShown();
 
   const titles = useLoad(() => api.titles(), []);
-  const tracker = useLoad(() => (q ? api.releases(q) : Promise.resolve(null)), [q]);
-  const found = useLoad(() => (q ? api.findShows(q).catch(() => []) : Promise.resolve([])), [q]);
-  const films = useLoad(() => (q ? api.findFilms(q).catch(() => []) : Promise.resolve([])), [q]);
+  // Each answer carries the query it is for: until this query's comes back, the one held is the last
+  // query's, and says nothing about whether the catalogue knows this name.
+  const foundFor = useLoad(() => (q ? api.findShows(q).catch(() => []) : Promise.resolve([])).then((list) => ({ q, list })), [q]);
+  const filmsFor = useLoad(() => (q ? api.findFilms(q).catch(() => []) : Promise.resolve([])).then((list) => ({ q, list })), [q]);
+  const answered = foundFor.data && foundFor.data.q === q && filmsFor.data && filmsFor.data.q === q;
+  const found = { data: answered ? foundFor.data.list : null };
+  const films = { data: answered ? filmsFor.data.list : null };
   const libraryShows = useLoad(() => api.shows().catch(() => []), []);
+  const popular = useLoad(() => (q ? Promise.resolve(null) : api.popular().catch(() => null)), [q]);
 
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const named = (name) => words.every((w) => name.toLowerCase().includes(w));
@@ -29,19 +39,41 @@ export function Search({ query }) {
   const showsHere = q ? (libraryShows.data || []).filter((s) => named(s.title)) : [];
   const heldShows = new Set((libraryShows.data || []).map((s) => s.imdbId));
 
+  const filmsHere = new Map((titles.data || []).filter((t) => t.kind !== "show" && t.film).map((t) => [t.film.imdbId, t]));
+
   const submit = (e) => {
     e.preventDefault();
-    navigate("/search?q=" + encodeURIComponent(draft.trim()));
+    const typed = draft.trim();
+    navigate(typed ? "/discover?q=" + encodeURIComponent(typed) : "/discover");
   };
 
   return (
-    <div className="kc-page">
-      <PageHead title="Search" sub="The library first, then everything the tracker can find." />
-      <form className="kc-search" onSubmit={submit}>
-        <Icon name="search" size={17} />
-        <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Movies and shows" />
+    <div className="kc-page kc-discover">
+      <PageHead title="Discover" />
+      <form className={"kc-search " + DISCOVER_FIELD} onSubmit={submit} role="search">
+        <Icon name="search" size={20} />
+        <input ref={field} value={draft} onChange={(e) => setDraft(e.target.value)}
+          placeholder="Any movie or show" aria-label="Any movie or show" enterKeyHint="search" />
         <button type="submit" className="kc-btn kc-btn--primary">Search</button>
       </form>
+
+      {!q && popular.data && (
+        <>
+          {popular.data.films.length > 0 && (
+            <Rail
+              variant="posters" icon="flame" title="Popular movies now" count={popular.data.films.length}
+              items={popular.data.films} itemKey={(f) => f.imdbId}
+              renderItem={(f) => <PopularCard entry={f} here={filmsHere.get(f.imdbId)} />} />
+          )}
+          {popular.data.shows.length > 0 && (
+            <Rail
+              variant="posters" icon="flame" title="Popular shows now" count={popular.data.shows.length}
+              items={popular.data.shows} itemKey={(s) => s.imdbId}
+              renderItem={(s) => <PopularCard entry={s} show held={heldShows.has(s.imdbId)} />} />
+          )}
+          <p className="kc-attribution-note">Popular titles and artwork from TMDB.</p>
+        </>
+      )}
 
       {q && (
         <>
@@ -97,18 +129,94 @@ export function Search({ query }) {
             </section>
           )}
 
-          <section className="kc-shelf">
-            <div className="kc-shelf__head"><h2>On the tracker</h2></div>
-            <Failed error={tracker.error} onRetry={tracker.reload} />
-            {tracker.loading && <span className="kc-quiet">Asking the tracker…</span>}
-            {tracker.data && <TrackerResults ranked={tracker.data} inLibrary={inLibrary} />}
-          </section>
+          {answered && (
+            <TrackerShelf key={q} q={q} inLibrary={inLibrary}
+              open={(films.data || []).length === 0 && (found.data || []).length === 0} />
+          )}
         </>
       )}
-
-      {!q && <Empty icon="search" title="Search movies and shows" />}
     </div>
   );
+}
+
+/**
+ * The tracker's releases for what was typed, asked for when opened: each film and show above already
+ * leads to the release that suits it, so this is for a name the catalogue does not know. It opens by
+ * itself when the catalogue found nothing.
+ */
+function TrackerShelf({ q, inLibrary, open: openAtFirst }) {
+  const [open, setOpen] = React.useState(openAtFirst);
+  return (
+    <section className="kc-shelf">
+      <button type="button" className="kc-shelf__head kc-shelf__head--toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <h2>On the tracker</h2>
+        <Icon name={open ? "chevron-up" : "chevron-down"} size={18} />
+      </button>
+      {open && <TrackerReleases q={q} inLibrary={inLibrary} />}
+    </section>
+  );
+}
+
+function TrackerReleases({ q, inLibrary }) {
+  const tracker = useLoad(() => api.releases(q), [q]);
+  return (
+    <>
+      <Failed error={tracker.error} onRetry={tracker.reload} />
+      {tracker.loading && <span className="kc-quiet">Asking the tracker…</span>}
+      {tracker.data && <TrackerResults ranked={tracker.data} inLibrary={inLibrary} />}
+    </>
+  );
+}
+
+/**
+ * A film or show trending this week. One the library holds says so and plays; any other opens its
+ * page, which is where whether and how it can be watched is asked.
+ */
+function PopularCard({ entry, show = false, here, held }) {
+  const inLibrary = show ? held : !!here;
+  const page = show ? showHref(entry.imdbId) : here ? "/title/" + encodeURIComponent(here.id) : "/film/" + encodeURIComponent(entry.imdbId);
+  const playable = here && here.status === "ready";
+  return (
+    <ShowcaseCard
+      name={entry.title}
+      art={entry.posterUrl ? `url("${entry.posterUrl}")` : null}
+      onPick={() => navigate(page)}
+      specs={[
+        { icon: "star", value: entry.rating ? entry.rating.toFixed(1) : null, label: "Rating" },
+        { icon: "calendar", value: entry.year || null, label: "Year" },
+      ]}
+      status={inLibrary ? { tone: "success", icon: "check", label: "In the library" } : null}
+      action={playable
+        ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) }
+        : { label: inLibrary ? "Open" : "View" }} />
+  );
+}
+
+/**
+ * The field, focused once its page is on screen, where a keyboard is what types: on a touch screen it
+ * would raise the keyboard over the shelves below before anybody asked to type. A page navigated to
+ * is prepared out of sight first (`PageStage`), where nothing takes focus, so this waits for it to be
+ * shown.
+ */
+function useFocusOnceShown() {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    if (!window.matchMedia || !window.matchMedia("(pointer: fine)").matches) return undefined;
+    let frame = 0;
+    const deadline = performance.now() + 2000;
+    const tryFocus = () => {
+      const el = ref.current;
+      if (!el || performance.now() > deadline) return;
+      if (el.closest(".is-incoming")) {
+        frame = requestAnimationFrame(tryFocus);
+        return;
+      }
+      el.focus({ preventScroll: true });
+    };
+    tryFocus();
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return ref;
 }
 
 function TrackerResults({ ranked, inLibrary }) {

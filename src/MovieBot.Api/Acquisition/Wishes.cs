@@ -286,7 +286,7 @@ public sealed class WishSweep(
                     Kind = NotificationKinds.Available,
                     Key = $"available:{wish.ImdbId}",
                     Text = $"{wish.Display} is out digitally and can be downloaded.",
-                    Url = $"/search?q={Uri.EscapeDataString(wish.Title)}",
+                    Url = $"/film/{wish.ImdbId}",
                     Action = "Download",
                     Direct = subscriber.ChannelId is null,
                 }, ct);

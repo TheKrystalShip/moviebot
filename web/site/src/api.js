@@ -43,6 +43,8 @@ export const api = {
   titles: () => call("GET", "/api/titles"),
   title: (id) => call("GET", `/api/titles/${enc(id)}`),
   film: (imdbId) => call("GET", `/api/films/${enc(imdbId)}`),
+  // The films and shows the film database counts as trending this week, whether here or not.
+  popular: () => call("GET", "/api/popular"),
 
   // Shows: the library's, one by its IMDb id (in the library or not), and the episodes either side
   // of one, which the player moves the room to.

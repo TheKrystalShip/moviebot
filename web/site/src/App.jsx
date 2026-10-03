@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  AppShell, Dock, DockFab, Icon, NavItem, Sidebar, SidebarAccount, SidebarGroup, TabBar, Toasts,
+  AppShell, Dock, DockFab, NavItem, Sidebar, SidebarAccount, SidebarGroup, TabBar, Toasts,
   useDock, useEdgeSwipe, useStoredFlag,
 } from "@thekrystalship/krystal-ui";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
@@ -12,7 +12,7 @@ import { Library } from "./pages/Library.jsx";
 import { Title } from "./pages/Title.jsx";
 import { Show } from "./pages/Show.jsx";
 import { CatalogueFilm } from "./pages/CatalogueFilm.jsx";
-import { Search } from "./pages/Search.jsx";
+import { Discover, DISCOVER_FIELD } from "./pages/Discover.jsx";
 import { Notify } from "./pages/Notify.jsx";
 import { Leaving } from "./pages/Leaving.jsx";
 import { Profile } from "./pages/Profile.jsx";
@@ -29,6 +29,7 @@ const Dark = () => <div style={{ position: "fixed", inset: 0, background: "#000"
 
 const HOME = [
   { page: "home", path: "/", icon: "house", label: "Home" },
+  { page: "discover", path: "/discover", icon: "compass", label: "Discover", also: ["film"] },
 ];
 
 const LIBRARY = [
@@ -46,7 +47,7 @@ const LIFECYCLE = [
 const TABS = [
   { id: "home", path: "/", icon: "house", label: "Home", pages: ["home", "leaving"] },
   { id: "library", path: "/movies", icon: "clapperboard", label: "Library", pages: ["movies", "tv", "title", "show"] },
-  { id: "search", path: "/search", icon: "search", label: "Search", pages: ["search", "film"] },
+  { id: "discover", path: "/discover", icon: "compass", label: "Discover", pages: ["discover", "film"] },
   { id: "assistant", icon: "bot", label: "Assistant" },
   { id: "me", path: "/profile", icon: "user", label: "Me", pages: ["profile", "notify"] },
 ];
@@ -89,6 +90,7 @@ function Frame({ session, route }) {
   // A phone has the tab bar and no drawer, so only the right edge's swipe, the dock's, is taken.
   useEdgeSwipe(false, noDrawer, dock.open, dock.setOpen);
   const mainRef = React.useRef(null);
+  useDiscoverKey(route.page === "discover");
 
   // A new page starts at its top, from the moment it is shown.
   const toTop = React.useCallback(() => {
@@ -127,7 +129,6 @@ function Frame({ session, route }) {
             open={false}
             collapsed={dock.desktop && collapsed}
             onToggleCollapse={() => setCollapsed((c) => !c)}
-            top={<SidebarSearch collapsed={dock.desktop && collapsed} />}
             closeNav
             foot={<>
               <BellNavItem />
@@ -163,6 +164,32 @@ function Frame({ session, route }) {
 
 function noDrawer() {}
 
+/**
+ * `/`, or Ctrl+K and Cmd+K, from anywhere but a field being typed in: to Discover with its field
+ * focused, which the page does itself when it opens with a keyboard at hand.
+ */
+function useDiscoverKey(onDiscover) {
+  React.useEffect(() => {
+    const onKey = (e) => {
+      const slash = e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey;
+      const k = e.key.toLowerCase() === "k" && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey;
+      if (!slash && !k) return;
+      const target = e.target;
+      const typing = target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+      if (typing) return;
+      e.preventDefault();
+      if (onDiscover) {
+        const field = document.querySelector(`.${DISCOVER_FIELD} input`);
+        if (field) { field.focus(); field.select(); }
+      } else {
+        navigate("/discover");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onDiscover]);
+}
+
 function Page({ route }) {
   switch (route.page) {
     case "home": return <Home />;
@@ -170,36 +197,12 @@ function Page({ route }) {
     case "tv": return <Library key="show" kind="show" />;
     case "title": return route.arg ? <Title key={route.arg} id={route.arg} /> : <Library kind="film" />;
     case "show": return route.arg ? <Show key={route.arg} imdbId={route.arg} query={route.query} /> : <Library kind="show" />;
-    case "film": return route.arg ? <CatalogueFilm key={route.arg} imdbId={route.arg} /> : <Search query={route.query} />;
-    case "search": return <Search query={route.query} />;
+    case "film": return route.arg ? <CatalogueFilm key={route.arg} imdbId={route.arg} /> : <Discover query={route.query} />;
+    case "discover": return <Discover query={route.query} />;
     case "notify": return <Notify />;
     case "leaving": return <Leaving />;
     case "profile": return <Profile query={route.query} />;
     case "about": return <About />;
     default: return <Home />;
   }
-}
-
-/** The search field at the top of the sidebar: Enter searches the library and the tracker. */
-function SidebarSearch({ collapsed }) {
-  const [q, setQ] = React.useState("");
-  // The Search page's field, smaller and without its button. The collapsed rail has no room for
-  // typing, so there it is the same box holding the icon, opening the Search page.
-  if (collapsed) {
-    return (
-      <button type="button" className="kc-search kc-search--sidebar kc-search--icon" aria-label="Search" data-tip="Search"
-        onClick={() => navigate("/search")}>
-        <Icon name="search" size={17} />
-      </button>
-    );
-  }
-  return (
-    <form className="kc-search kc-search--sidebar" onSubmit={(e) => {
-      e.preventDefault();
-      if (q.trim()) navigate("/search?q=" + encodeURIComponent(q.trim()));
-    }}>
-      <Icon name="search" size={17} />
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search" />
-    </form>
-  );
 }

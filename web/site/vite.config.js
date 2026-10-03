@@ -17,6 +17,7 @@ export default defineConfig({
       "/media": api,
       "/films": api,
       "/shows": api,
+      "/popular": api,
       "/hub": { target: api, ws: true },
       "/assistant": { target: assistant, rewrite: (path) => path.replace(/^\/assistant/, "") },
     },
