@@ -4,6 +4,36 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.77.0] - 2026-10-03
+
+### Added
+
+- **Notifications.** The API tells a person when a film they wait on can be downloaded, a download
+  they started can be watched (or could not be made watchable), something they watched leaves within
+  a day, somebody keeps or lets go of something they watched, and when somebody invites them into a
+  room. Each is kept for the person's bell (`/api/me/notifications`), newest 50 for 30 days, said
+  once per thing it is about.
+- **Web Push.** A browser subscribes against this server's VAPID key (`/api/push/key`,
+  `/api/me/push`), made once into `push-keys.json` in the state directory. Every notification of a
+  kind the person allows (`/api/me/notifications/preferences`; all but keeps on by default) is pushed
+  to each browser they subscribed; an invite always is. A browser the push service calls gone is
+  forgotten.
+- **Discord messages.** When no push reaches a person, the bot sends the notification as a direct
+  message with an Open button, from `/api/notifications/direct`. Somebody already told in a channel,
+  where the announcement mentions them, is not messaged as well.
+- **Invites.** `/api/people` lists who can be asked into a room and when each was last seen;
+  `POST /api/rooms/{room}/invite` pushes or messages them. The player's invite panel lists them, says
+  whether the invite went out as a push or on Discord, and marks who is already watching.
+- **Krystal Cinema's bell**, in the sidebar above the person and at the top right of the phone's front
+  page, as the design draws it: each kind with its icon, Mark all read, the action, and a way to the
+  settings. Profile has a Notifications tab: pushes on this browser, and the four switches. The
+  service worker shows pushes and opens the page each names.
+
+### Changed
+
+- Whoever waits on a film without having asked in a channel is told through their notifications when
+  it can be downloaded, and comes off the wish then.
+
 ## [1.76.1] - 2026-10-03
 
 ### Fixed

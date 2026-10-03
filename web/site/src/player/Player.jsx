@@ -10,6 +10,7 @@ import { bindShortcuts } from "./engine/media/shortcuts.ts";
 import { Cues } from "./Cues.jsx";
 import { ScrubBar } from "./ScrubBar.jsx";
 import { Volume } from "./Volume.jsx";
+import { ago } from "../time.js";
 import {
   Menu, MenuTitles, audioValue, hasQualityChoice, qualityValue, subtitleValue,
 } from "./Menus.jsx";
@@ -438,7 +439,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
         <Overflow view={view} volume={volume} onVolume={changeVolume} onNudge={nudgeVolume} embed={embed}
           onPick={(kind) => { setOverflow(false); setMenu(kind); }} onClose={() => setOverflow(false)} />
       )}
-      {invite && !compact && <InvitePanel />}
+      {invite && !compact && <InvitePanel everyone={everyone} />}
     </div>
   );
 }
@@ -555,14 +556,46 @@ function InviteButton({ embed, compact, open, manifest, onToggle }) {
   );
 }
 
-function InvitePanel() {
+/**
+ * The room's link, and everybody who can be asked in. An invite is a push to their devices, or a
+ * Discord message where no push reaches them, and the row says which went out; it says nothing about
+ * whether they saw it. Somebody already in the room is marked as watching.
+ */
+function InvitePanel({ everyone }) {
   const link = environment().roomUrl();
   const [copied, setCopied] = React.useState(false);
+  const [people, setPeople] = React.useState(null);
+  const [sent, setSent] = React.useState({});
   React.useEffect(() => {
     if (!copied) return undefined;
     const timer = window.setTimeout(() => setCopied(false), 1600);
     return () => window.clearTimeout(timer);
   }, [copied]);
+  React.useEffect(() => {
+    let live = true;
+    api.people().then((list) => live && setPeople(list), () => live && setPeople([]));
+    return () => { live = false; };
+  }, []);
+
+  const here = new Set(everyone.map((p) => p.userId));
+  const invite = async (person) => {
+    setSent((s) => ({ ...s, [person.userId]: "sending" }));
+    try {
+      const reply = await api.invite(environment().sessionId(), person.userId);
+      setSent((s) => ({ ...s, [person.userId]: reply.delivery }));
+    } catch {
+      setSent((s) => ({ ...s, [person.userId]: "failed" }));
+    }
+  };
+  const status = (person) => {
+    if (here.has(person.userId)) return "In this room";
+    const state = sent[person.userId];
+    if (state === "push") return "Push sent · waiting for them";
+    if (state === "discord") return "Sent on Discord · waiting for them";
+    if (state === "failed") return "Could not be invited";
+    return person.lastSeenAt ? `Active ${ago(person.lastSeenAt)}` : "Not seen on the site";
+  };
+
   return (
     <div className="mp-invite-panel">
       <div className="mp-invite-panel__head">
@@ -578,6 +611,28 @@ function InvitePanel() {
           </button>
         </div>
       </div>
+      {people && people.length > 0 && (
+        <div className="mp-invite__people">
+          <span className="mp-invite__label">Invite people</span>
+          {people.map((person) => {
+            const state = sent[person.userId];
+            return (
+              <div key={person.userId} className="mp-invite__person">
+                <Avatar person={{ userId: person.userId, displayName: person.name }} className="mp-invite__avatar" />
+                <div className="mp-invite__who">
+                  <span className="mp-invite__name">{person.name}</span>
+                  <span className="mp-invite__status">{status(person)}</span>
+                </div>
+                {here.has(person.userId)
+                  ? <span className="mp-invite__here">watching</span>
+                  : state === "push" || state === "discord"
+                    ? <span className="mp-invite__sent">invited</span>
+                    : <button type="button" className="mp-invite__send" disabled={state === "sending"} onClick={() => invite(person)}>Invite</button>}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

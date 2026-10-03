@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Configuration;
+using TheKrystalShip.KGSM.WebPush;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
@@ -99,6 +100,10 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
                 ["People:Watch"] = Path.Combine(StateRoot, "watch.json"),
                 ["People:Devices"] = Path.Combine(StateRoot, "devices.json"),
                 ["Library:Keeps"] = Path.Combine(StateRoot, "keeps.json"),
+                ["Notifications:Inbox"] = Path.Combine(StateRoot, "notifications.json"),
+                ["Notifications:Devices"] = Path.Combine(StateRoot, "push-devices.json"),
+                ["Notifications:Keys"] = Path.Combine(StateRoot, "push-keys.json"),
+                ["Notifications:Preferences"] = Path.Combine(StateRoot, "notification-preferences.json"),
                 // The film database, answered by the test.
                 ["Tmdb:ReadAccessToken"] = "a-test-token",
                 ["Tmdb:Directory"] = Path.Combine(StateRoot, "films"),
@@ -110,8 +115,12 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
             services.AddSingleton<IReleaseSearch>(new AssistantHost.OneRelease());
             services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new AssistantHost.CatalogueStub());
             services.AddHttpClient<TmdbClient>().ConfigurePrimaryHttpMessageHandler(() => FilmDatabase);
+            services.AddHttpClient<WebPushSender>().ConfigurePrimaryHttpMessageHandler(() => PushService);
         });
     }
+
+    /// <summary>The browsers' push services, as the tests answer them.</summary>
+    public PushServiceStub PushService { get; } = new();
 
     /// <summary>The film database, as the tests answer it; it counts what it was asked.</summary>
     public FilmDatabaseStub FilmDatabase { get; } = new();

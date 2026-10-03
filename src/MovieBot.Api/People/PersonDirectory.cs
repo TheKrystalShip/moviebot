@@ -39,6 +39,12 @@ public sealed class PersonDirectory
         lock (_gate) return _names.GetValueOrDefault(userId);
     }
 
+    /// <summary>Everybody this service has heard of, by id, with what they are called.</summary>
+    public IReadOnlyDictionary<string, string> All()
+    {
+        lock (_gate) return _names;
+    }
+
     /// <summary>Notes a name. A blank one says nothing about who the person is and is ignored.</summary>
     public void Remember(string userId, string displayName)
     {

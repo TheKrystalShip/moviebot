@@ -1,6 +1,6 @@
 import { environment } from './environment';
 import type {
-  EpisodeNeighbours, Manifest, Participant, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary, ViewerPreferences
+  EpisodeNeighbours, Manifest, Participant, Person, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary, ViewerPreferences
 } from './types';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -62,6 +62,13 @@ export const api = {
     getJson<SubtitleSearch>(
       `/api/titles/${encodeURIComponent(id)}/subtitles/search?language=${encodeURIComponent(
         [...new Set(languages.map((l) => l.toLowerCase()))].sort().join(','))}`),
+
+  /** Everybody who can be asked into a room, most recently seen first, without the person asking. */
+  people: () => getJson<Person[]>('/api/people'),
+
+  /** Asks one person into a room: a push to their devices, or a Discord message where none reaches them. */
+  invite: (sessionId: string, userId: string) =>
+    sendJson<{ delivery: 'push' | 'discord' }>(`/api/rooms/${encodeURIComponent(sessionId)}/invite`, 'POST', { userId }),
 
   /** How the signed-in person watches, wherever they signed in. */
   preferences: () => getJson<ViewerPreferences>('/api/me/preferences'),

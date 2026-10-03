@@ -7,7 +7,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Api</RootNamespace>
     <AssemblyName>moviebot-api</AssemblyName>
-    <Version>1.22.0</Version>
+    <Version>1.23.0</Version>
 
     <!-- Compiled ahead of time. What a long-running .NET process holds is not its heap but the
          code the JIT has written and the type data the runtime built around it, and this
@@ -24,6 +24,10 @@
   <ItemGroup>
     <ProjectReference Include="../MovieBot.Core/MovieBot.Core.csproj" />
     <ProjectReference Include="../../../moviebot-acquire/src/MovieBot.Acquire/MovieBot.Acquire.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TheKrystalShip.KGSM.WebPush" Version="1.0.0" />
   </ItemGroup>
 
   <!-- The shared settings file, shipped beside the binary as the defaults. -->

@@ -15,6 +15,8 @@ using TheKrystalShip.MovieBot.Api.Subtitles;
 using TheKrystalShip.MovieBot.Acquire.Configuration;
 using TheKrystalShip.MovieBot.Acquire.Subtitles;
 using TheKrystalShip.MovieBot.Api.Media;
+using TheKrystalShip.MovieBot.Api.Notifications;
+using TheKrystalShip.KGSM.WebPush;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Core;
@@ -152,6 +154,24 @@ builder.Services.AddSingleton(sp => new KeepStore(
 builder.Services.AddSingleton<KeeperNames>(sp => sp.GetRequiredService<PersonDirectory>().NameOf);
 builder.Services.AddSingleton<LibraryClock>();
 
+// Telling people things: the bell, the pushes to their browsers, and the Discord messages the bot
+// sends where no push reaches them.
+builder.Services.AddSingleton(sp => new NotificationStore(
+    StatePath(sp.GetRequiredService<IConfiguration>()["Notifications:Inbox"], "notifications.json"),
+    sp.GetRequiredService<ILogger<NotificationStore>>()));
+builder.Services.AddSingleton(sp => new PushDevices(
+    StatePath(sp.GetRequiredService<IConfiguration>()["Notifications:Devices"], "push-devices.json"),
+    StatePath(sp.GetRequiredService<IConfiguration>()["Notifications:Keys"], "push-keys.json"),
+    sp.GetRequiredService<ILogger<PushDevices>>()));
+builder.Services.AddSingleton(sp => new NotificationPreferenceStore(
+    StatePath(sp.GetRequiredService<IConfiguration>()["Notifications:Preferences"], "notification-preferences.json"),
+    sp.GetRequiredService<ILogger<NotificationPreferenceStore>>()));
+builder.Services.AddHttpClient<WebPushSender>(http => http.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddSingleton<Notifier>();
+builder.Services.AddSingleton<KeepNotices>();
+builder.Services.AddHostedService<ReadyNotices>();
+builder.Services.AddHostedService<LeavingNotices>();
+
 // The client id is the application id, which the settings file names once for the bot and the
 // API together.
 builder.Services.AddOptions<DiscordAuthOptions>()
@@ -272,6 +292,7 @@ app.MapPeople();
 app.MapDevices();
 app.MapFilms();
 app.MapShows();
+app.MapNotifications();
 
 // Every room, for the bot: it holds no state of its own, so what to say about rooms it reads
 // from here each time it is about to say it.

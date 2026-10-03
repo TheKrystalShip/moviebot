@@ -190,9 +190,52 @@ at the hub's negotiate. A token without a `jti` is valid until `exp` and is not 
   neither — so each client words the outcome from the same facts.
 - **A service that could not be reached is a 502, not an empty list.** No downloads and a torrent
   client that did not answer are different answers, and the second carries `ErrorReply`.
-- **A wish stays until its people are told.** The sweep finds what became available; the client
-  that announces it says which channels it reached, and only those subscribers come off. Somebody
-  who asked without a channel stays on the wish.
+- **A wish stays until its people are told.** The sweep finds what became available and tells every
+  subscriber through their notifications; whoever asked without a channel is told that way alone and
+  comes off the wish then. The client that announces it in channels says which it reached, and the
+  subscribers who asked in those come off.
+
+### Notifications
+
+A notification is one sentence for one person, kept for their bell and, where they allow its kind,
+pushed to every browser they subscribed; when no push reaches them, the bot sends it to them as a
+Discord message. Everything under `/api/me` answers for whoever the token names and is a `403` for
+the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
+
+| Route | Returns |
+|---|---|
+| `GET /api/me/notifications` | `NotificationsReply` — `{unread, items: [{id, kind, text, url?, action?, createdAt, read}]}`, newest first; a person keeps their newest 50, none older than 30 days |
+| `POST /api/me/notifications/read` | 204 for `{ids?}` — marks those read, or all of them when none are named |
+| `GET /api/me/notifications/preferences` | `NotificationPreferences` — `{available, ready, leaving, kept}`, which kinds are pushed; everything but `kept` is on until switched off |
+| `PUT /api/me/notifications/preferences` | `NotificationPreferences`, as stored |
+| `GET /api/push/key` | `{publicKey}` — this server's VAPID key, base64url, which a browser subscribes with |
+| `GET /api/me/push?endpoint=` | `{subscribed, devices}` — whether that browser is registered to this person, and how many are |
+| `POST /api/me/push` | 204 for a browser's `PushSubscription.toJSON()`, `{endpoint, keys: {p256dh, auth}}`; a browser registered again replaces its own row, and belongs to whoever registered it last. An endpoint that is not `https` is a `400` |
+| `DELETE /api/me/push?endpoint=` | 204, or 404 for a browser that is not this person's |
+| `GET /api/people` | `PersonView[]` — everybody the server has a name for but the person asking, `{userId, name, lastSeenAt?}`, most recently seen first |
+| `POST /api/rooms/{room}/invite` | `InviteReply` for `{userId}` — `{delivery}`, `push` when a push service took it for at least one of their devices and `discord` when the bot will message them instead. 404 for somebody unknown |
+| `GET /api/notifications/direct` | `DirectMessage[]` — the Discord messages owed, `{id, userId, text, url?}`, oldest first, `url` absolute on `Api:PublicBaseUrl`; the **service key** alone |
+| `POST /api/notifications/direct/{id}` | 204 for `{sent}` — takes the message off the queue; `false` is Discord refusing it outright |
+
+- **Kinds.** `available`: a film somebody waits on can be downloaded. `ready`: a download they started
+  can be watched, or could not be made watchable. `leaving`: something they watched leaves the
+  library within a day. `kept`: somebody else kept, or let go of, something they watched. `invite`:
+  somebody asked them into a room; an invite is pushed whatever the person chose.
+- **One thing is said once.** Each notification carries the thing it is about, and a person holding a
+  notification about it is not told again: a download once, a wish once, a title leaving once per
+  date it is due, since a play moves the date.
+- **A switch holds back the push and the message, not the record.** A kind switched off still lands
+  in the bell.
+- **A Discord message stands in for a push only where the bot does not already tell the person.** A
+  download or a wish asked for in a channel is announced there, mentioning them, so no message
+  follows; one asked for on the site, a title leaving, a keep and an invite are messaged.
+- **The text is written once for every surface.** It mentions nobody and names no command, so the
+  bell, the push and the Discord message show it as it is.
+- **Taken is all that is known.** A push service accepting a push is not a phone showing it, and
+  `delivery: "push"` says only the first.
+- **Who is owed news of a download is on its torrent.** `tell` is written beside `requester:` when it
+  starts, with `tell:direct` where no channel will announce it, and both come off once the person has
+  been told.
 
 ## Manifest
 

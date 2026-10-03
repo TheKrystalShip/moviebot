@@ -128,6 +128,18 @@
     "Devices": ""
   },
 
+  // What the API tells people: each person's notifications (Inbox), the browsers they subscribed to
+  // pushes (Devices), this server's push key pair (Keys, made once and never again: every
+  // subscription is bound to it), and which kinds each person is pushed (Preferences). An empty
+  // value writes notifications.json, push-devices.json, push-keys.json and
+  // notification-preferences.json in the state directory.
+  "Notifications": {
+    "Inbox": "",
+    "Devices": "",
+    "Keys": "",
+    "Preferences": ""
+  },
+
   // The film database that describes a film: credits, certificate, genres, overview, artwork. The
   // API asks it, keeps what it said and the artwork under Directory (an empty one is films/ in the
   // state directory), serves its own copies, and asks again after RefreshDays. The token is a

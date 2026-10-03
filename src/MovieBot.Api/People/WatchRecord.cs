@@ -118,6 +118,13 @@ public sealed class WatchRecord : IPlayHistory, IDisposable
         }
     }
 
+    /// <summary>Everybody with an entry for any of the titles, which is who watched them.</summary>
+    public IReadOnlyList<string> Watchers(IReadOnlyCollection<string> titleIds)
+    {
+        lock (_gate)
+            return [.. _data.People.Where(p => p.Value.Keys.Any(titleIds.Contains)).Select(p => p.Key)];
+    }
+
     public WatchEntry? EntryOf(string userId, string titleId)
     {
         lock (_gate)

@@ -70,6 +70,7 @@ about when it can.
 - **The wish list is written down because a wish exists nowhere else.** A film that is not on the
   tracker has no torrent to tag and no manifest to write. It goes in the state directory systemd hands
   the service, whole and through a rename, on every change.
-- **A wish is forgotten by being told.** The sweep marks what became available and the client that
-  announces it reports the channels it reached; only the people who asked in those channels come off.
-  Somebody who asked without a channel stays on the wish.
+- **A wish is forgotten by being told.** The sweep marks what became available and tells every
+  subscriber through their notifications (`Notifications/`). Somebody who asked without a channel is
+  told that way alone and comes off then; the client that announces in channels reports the ones it
+  reached, and the people who asked in those come off.

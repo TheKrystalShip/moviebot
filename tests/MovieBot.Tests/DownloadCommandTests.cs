@@ -142,6 +142,10 @@ public sealed class DownloadCommandTests : IDisposable
         var form = Assert.Single(_added);
         Assert.DoesNotContain(TorrentTags.RoomPrefix, form);
         Assert.Contains(TorrentTags.Notify(1), form);
+
+        // Whoever asked is owed the news, and the channel announcement is how it reaches them on Discord.
+        Assert.Contains(TorrentTags.Tell, form);
+        Assert.DoesNotContain(TorrentTags.TellDirect, form);
     }
 
     /// <summary>A download asked for from a page has no channel to be announced in, and carries none.</summary>
@@ -152,7 +156,11 @@ public sealed class DownloadCommandTests : IDisposable
             Pick(41, room: null) with { NotifyChannelId = null }, CancellationToken.None);
 
         Assert.Equal("started", reply.Outcome);
-        Assert.DoesNotContain(TorrentTags.NotifyPrefix, Assert.Single(_added));
+        var form = Assert.Single(_added);
+        Assert.DoesNotContain(TorrentTags.NotifyPrefix, form);
+
+        // With no channel to announce it, the person is told directly where no push reaches them.
+        Assert.Contains(TorrentTags.TellDirect, form);
     }
 
     [Fact]

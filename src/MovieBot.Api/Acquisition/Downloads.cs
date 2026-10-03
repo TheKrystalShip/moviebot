@@ -31,8 +31,16 @@ public sealed class Downloads(
         {
             var tags = new List<string> { TorrentTags.NeedsIngest };
 
-            if (Snowflake(request.NotifyChannelId) is { } channel) tags.Add(TorrentTags.Notify(channel));
-            if (Snowflake(request.RequestedBy.UserId) is { } requester) tags.Add(TorrentTags.Requester(requester));
+            var channel = Snowflake(request.NotifyChannelId);
+            if (channel is { } announceIn) tags.Add(TorrentTags.Notify(announceIn));
+            if (Snowflake(request.RequestedBy.UserId) is { } requester)
+            {
+                // Whoever asked is told when it can be watched; on Discord directly only where no
+                // channel will announce it to them.
+                tags.Add(TorrentTags.Requester(requester));
+                tags.Add(TorrentTags.Tell);
+                if (channel is null) tags.Add(TorrentTags.TellDirect);
+            }
 
             // The room is the reason for the download. Whichever pass sees the film become
             // watchable, in whichever process is running by then, loads it there.

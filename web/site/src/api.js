@@ -67,6 +67,20 @@ export const api = {
   preferences: () => call("GET", "/api/me/preferences"),
   setPreferences: (preferences) => call("PUT", "/api/me/preferences", preferences),
 
+  // This person's notifications, the pushes their browsers take, and which kinds they are pushed.
+  notifications: () => call("GET", "/api/me/notifications"),
+  markRead: (ids) => call("POST", "/api/me/notifications/read", ids ? { ids } : {}),
+  notificationPreferences: () => call("GET", "/api/me/notifications/preferences"),
+  setNotificationPreferences: (preferences) => call("PUT", "/api/me/notifications/preferences", preferences),
+  pushKey: () => call("GET", "/api/push/key"),
+  pushStatus: (endpoint) => call("GET", "/api/me/push" + (endpoint ? `?endpoint=${enc(endpoint)}` : "")),
+  subscribePush: (subscription) => call("POST", "/api/me/push", subscription),
+  unsubscribePush: (endpoint) => call("DELETE", `/api/me/push?endpoint=${enc(endpoint)}`),
+
+  // Who can be asked into a room, and asking them.
+  people: () => call("GET", "/api/people"),
+  invite: (room, userId) => call("POST", `/api/rooms/${enc(room)}/invite`, { userId }),
+
   // The devices that hold one of this person's tokens.
   sessions: () => call("GET", "/api/me/sessions"),
   signOutDevice: (id) => call("DELETE", `/api/me/sessions/${enc(id)}`),

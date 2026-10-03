@@ -356,3 +356,11 @@ as available once a release is offered whose source is a web encode or better. W
 new message goes to each channel people asked in, mentioning exactly those people, naming the
 release and pointing at `/watch`. The wish is forgotten once its people have been told; a channel
 the message could not be sent to keeps its people for the next pass.
+
+### Direct messages
+
+What the API tells a person on the site (a download ready, a title leaving, a keep, an invite into a
+room) reaches their phone as a push when they turned pushes on. When no push reaches them, the bot
+sends it to them as a direct message instead: the API's sentence as it is, with an Open button to the
+page. Somebody already told in a channel, where the announcement mentions them, is not messaged as
+well. A person who shares no server with the bot, or takes no messages from it, is skipped.

@@ -132,7 +132,19 @@ The site installs as an app, Krystal Cinema, from Android Chrome's "Install app"
   first. Anything else, the API, a film's media and the hub among it, goes to the network untouched,
   so a cached answer can never outlive a session or hand one person's data to another. It is
   registered by `src/registerSW.js` in a production build only, and never in the Activity, which runs
-  inside Discord at Discord's origin.
+  inside Discord at Discord's origin. It also shows the API's pushes: the sentence as the API wrote
+  it, opening the page it names in a window of the site already open, or a new one.
+
+## Notifications
+
+The bell lists what the API told this person (`src/notifications.js`, read every minute and whenever
+the page comes back into view): in the sidebar above the person on a wide screen, at the top right of
+the front page on a phone. Profile's Notifications tab turns pushes on for this browser, through
+krystal-ui's `pushBrowser` against `/api/push/key` and `/api/me/push`, and holds the four switches
+for which kinds are pushed. A browser can be pushed to only once it has a service worker, which is a
+production build; on an iPhone, only once the site is on the Home Screen, and the tab says so. The
+player's invite panel lists everybody who can be asked into the room and says, per person, whether
+the invite went out as a push or as a Discord message, never that it was seen.
 
 Installing needs HTTPS, which localhost is exempt from. `npm run verify:pwa [origin]` asks a real
 Chromium whether the site is installable, decodes every icon and launch screen at the size it is

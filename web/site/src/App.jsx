@@ -18,6 +18,7 @@ import { Profile } from "./pages/Profile.jsx";
 import { SignIn } from "./pages/SignIn.jsx";
 import { About } from "./pages/About.jsx";
 import { SiteFooter } from "./components/SiteFooter.jsx";
+import { BellNavItem } from "./components/Bell.jsx";
 
 // The player carries hls.js, the hub client and Discord's SDK; only a room pays for them.
 const EmbedRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.EmbedRoom })));
@@ -122,7 +123,10 @@ function Frame({ session, route }) {
             collapsed={dock.desktop && collapsed}
             onToggleCollapse={() => setCollapsed((c) => !c)}
             top={<SidebarSearch />}
-            foot={<NavItem icon="circle-user" label={session.user.name} active={route.page === "profile"} onClick={() => go("/profile")} />}>
+            foot={<>
+              <BellNavItem />
+              <NavItem icon="circle-user" label={session.user.name} active={route.page === "profile"} onClick={() => go("/profile")} />
+            </>}>
             <SidebarGroup>{NAV.map(item)}</SidebarGroup>
             <SidebarGroup label="Coming and going">{LIFECYCLE.map(item)}</SidebarGroup>
           </Sidebar>

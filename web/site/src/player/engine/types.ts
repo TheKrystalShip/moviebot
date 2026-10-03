@@ -224,3 +224,11 @@ export interface Participant {
   /** Their player has been waiting for the film for longer than a stutter. */
   buffering?: boolean;
 }
+
+/** Somebody who can be asked into a room. */
+export interface Person {
+  userId: string;
+  name: string;
+  /** When any of their signed-in devices was last used. */
+  lastSeenAt?: string;
+}

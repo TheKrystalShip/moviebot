@@ -5,6 +5,7 @@ using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
 using TheKrystalShip.MovieBot.Api.Library;
+using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Acquisition;
@@ -170,6 +171,7 @@ public sealed class WishSweep(
     IReleaseSearch search,
     WishList wishes,
     OfferedReleases offered,
+    Notifier notifier,
     IOptions<NotifyOptions> options,
     ILogger<WishSweep> logger) : BackgroundService
 {
@@ -263,6 +265,32 @@ public sealed class WishSweep(
                 else
                     _available[wish.ImdbId] = release;
             }
+
+            await TellAsync(wish, ct);
         }
+    }
+
+    /// <summary>
+    /// Tells everybody waiting on a film that it can be downloaded. Whoever asked in a channel is
+    /// also told there by the bot, mentioning them, so only whoever asked without one is sent a
+    /// Discord message when no push reaches them, and they come off the wish here because no
+    /// announcement will take them off.
+    /// </summary>
+    private async Task TellAsync(Wish wish, CancellationToken ct)
+    {
+        foreach (var subscriber in wish.Subscribers)
+        {
+            await notifier.TellAsync(subscriber.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                new NotificationDraft
+                {
+                    Kind = NotificationKinds.Available,
+                    Key = $"available:{wish.ImdbId}",
+                    Text = $"{wish.Display} is out digitally and can be downloaded.",
+                    Url = $"/search?q={Uri.EscapeDataString(wish.Title)}",
+                    Action = "Download",
+                    Direct = subscriber.ChannelId is null,
+                }, ct);
+        }
+        wishes.ForgetUnchannelled(wish.ImdbId);
     }
 }

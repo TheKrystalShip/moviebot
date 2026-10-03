@@ -88,8 +88,10 @@ which strips the prefix (`nginx-moviebot.conf`).
   identity is kept out of the repository the same way the passkey is. A unit's own `Environment=`
   lines are for the process, not for MovieBot: `PATH` and the driver's shader cache.
 - **The state directories are what no re-ingest can rebuild.** systemd hands the API
-  `/var/lib/moviebot` — the rooms, the wish list, and the subtitles fetched from outside, each of
-  which cost one of a limited daily allowance — the bot `/var/lib/moviebot-bot`, holding the launch
+  `/var/lib/moviebot` — the rooms, the wish list, the subtitles fetched from outside, each of
+  which cost one of a limited daily allowance, and `push-keys.json`, the key pair every browser's push
+  subscription is bound to, which cannot be made again without every device subscribing again —
+  the bot `/var/lib/moviebot-bot`, holding the launch
   cards still standing, and the assistant `/var/lib/moviebot-assistant`,
   holding the conversations and the warm-up request `moviebot-llm` replays when it starts.
 - **The cold disk is named in the settings file and proved by a marker file.** `Media.ColdRoot` and

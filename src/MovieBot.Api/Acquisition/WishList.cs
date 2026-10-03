@@ -228,7 +228,17 @@ public sealed class WishList
     /// Forgets everybody who asked in the given channels, because they have been told. Whoever
     /// asked somewhere the message could not be sent stays, and the next sweep tries them again.
     /// </summary>
-    public void Forget(string imdbId, IReadOnlySet<ulong> channelIds)
+    public void Forget(string imdbId, IReadOnlySet<ulong> channelIds) =>
+        Forget(imdbId, s => s.ChannelId is { } channel && channelIds.Contains(channel));
+
+    /// <summary>
+    /// Forgets everybody who asked without a channel, once they have been told through their own
+    /// notifications. Nobody announces to them in a channel, so nothing later would take them off.
+    /// </summary>
+    public void ForgetUnchannelled(string imdbId) =>
+        Forget(imdbId, s => s.ChannelId is null);
+
+    private void Forget(string imdbId, Func<WishSubscriber, bool> told)
     {
         lock (_gate)
         {
@@ -237,9 +247,7 @@ public sealed class WishList
             if (index < 0) return;
 
             var wish = wishes[index];
-            var remaining = wish.Subscribers
-                .Where(s => s.ChannelId is not { } channel || !channelIds.Contains(channel))
-                .ToList();
+            var remaining = wish.Subscribers.Where(s => !told(s)).ToList();
             if (remaining.Count == wish.Subscribers.Count) return;
 
             if (remaining.Count == 0) wishes.RemoveAt(index);

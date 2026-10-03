@@ -6,6 +6,8 @@ import { linkProps, navigate } from "../router.js";
 import { clock, since } from "../time.js";
 import { ContinueCard, Empty, Failed, FilmCard, PosterArt, ShowCard, watchLink } from "../components/Film.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
+import { BellButton } from "../components/Bell.jsx";
+import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 
 const RECENT_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -59,11 +61,12 @@ export function Home() {
 
   const featured = newest(films);
 
-  if (titles.error && !titles.data) return <div className="kc-page"><Failed error={titles.error} onRetry={titles.reload} /></div>;
-  if (titles.loading && !titles.data) return <div className="kc-page" />;
+  if (titles.error && !titles.data) return <div className="kc-page"><PhoneHead /><Failed error={titles.error} onRetry={titles.reload} /></div>;
+  if (titles.loading && !titles.data) return <div className="kc-page"><PhoneHead /></div>;
   if (library.length === 0) {
     return (
       <div className="kc-page">
+        <PhoneHead />
         <Empty title="The library is empty">Search for a film to fetch the first one.</Empty>
       </div>
     );
@@ -71,6 +74,7 @@ export function Home() {
 
   return (
     <div className="kc-page kc-home">
+      <PhoneHead />
       {featured && <Featured title={featured} room={watching.find((r) => r.titleId === featured.id)} />}
 
       {continuing.length > 0 && (
@@ -179,4 +183,18 @@ function newest(library) {
   const ready = library.filter((t) => t.status === "ready");
   const pool = ready.length > 0 ? ready : library;
   return pool.reduce((best, t) => (!best || (t.addedAt || "") > (best.addedAt || "") ? t : best), null);
+}
+
+/**
+ * The top of the front page on a phone, where there is no sidebar: the mark, the name, and the bell
+ * at the right. A wide screen has all three in the sidebar and does not draw it.
+ */
+function PhoneHead() {
+  return (
+    <div className="kc-phonehead">
+      <img src={markUrl} width="26" height="26" alt="" />
+      <span className="kc-phonehead__name">Krystal Cinema</span>
+      <BellButton />
+    </div>
+  );
 }

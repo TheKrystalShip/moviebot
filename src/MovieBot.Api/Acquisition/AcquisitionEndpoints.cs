@@ -1,6 +1,7 @@
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
 using TheKrystalShip.MovieBot.Api.Library;
+using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Acquisition;
@@ -110,25 +111,33 @@ public static class AcquisitionEndpoints
         // nobody to record. A keep is on what stays or leaves as one, so keeping an episode keeps its
         // season.
         group.MapPut("/titles/{id}/keep", async (string id, HttpContext context,
-            LibraryClock library, KeepStore keeps, TimeProvider clock, ILogger<KeepStore> logger) =>
+            LibraryClock library, KeepStore keeps, KeepNotices notices, TimeProvider clock, ILogger<KeepStore> logger) =>
         {
             if (library.StayOf(id) is not { } stay) return NoSuchTitle();
             if (Asker(context, await NamedAsync(context)) is not { } asker) return NoKeeper();
 
+            var already = keeps.Get(stay.Unit) is not null;
             var keep = keeps.Add(stay.Unit, asker.UserId, clock.GetUtcNow());
-            if (keep.KeeperId == asker.UserId)
+            if (!already)
+            {
                 logger.LogInformation("{User} kept {Unit}.", asker.DisplayName, stay.Unit);
+                await notices.TellAsync(stay.Unit, asker, kept: true, context.RequestAborted);
+            }
 
             return Results.Ok(library.StayOf(id));
         });
 
         group.MapDelete("/titles/{id}/keep", async (string id, HttpContext context,
-            LibraryClock library, KeepStore keeps, ILogger<KeepStore> logger) =>
+            LibraryClock library, KeepStore keeps, KeepNotices notices, ILogger<KeepStore> logger) =>
         {
             if (library.StayOf(id) is not { } stay) return NoSuchTitle();
             if (Asker(context, await NamedAsync(context)) is not { } asker) return NoKeeper();
 
-            if (keeps.Remove(stay.Unit)) logger.LogInformation("{User} let {Unit} go.", asker.DisplayName, stay.Unit);
+            if (keeps.Remove(stay.Unit))
+            {
+                logger.LogInformation("{User} let {Unit} go.", asker.DisplayName, stay.Unit);
+                await notices.TellAsync(stay.Unit, asker, kept: false, context.RequestAborted);
+            }
 
             return Results.Ok(library.StayOf(id));
         });
@@ -191,7 +200,7 @@ public static class AcquisitionEndpoints
             ? Refuse("This is for members of the server, signed in on the site, and for the services that act for them.")
             : next(context);
 
-    private static ValueTask<object?> ServiceOnly(EndpointFilterInvocationContext context, EndpointFilterDelegate next) =>
+    internal static ValueTask<object?> ServiceOnly(EndpointFilterInvocationContext context, EndpointFilterDelegate next) =>
         context.HttpContext.Items.ContainsKey("room-token")
             ? Refuse("This is for the services that act on somebody's behalf.")
             : next(context);

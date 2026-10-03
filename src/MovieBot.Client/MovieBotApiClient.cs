@@ -263,6 +263,28 @@ public sealed class MovieBotApiClient(HttpClient http)
         await GetAsync("api/wishes/available",
             ManifestJsonContext.Default.IReadOnlyListAvailableWish, "The wishes could not be read.", ct) ?? [];
 
+    /// <summary>The notifications no push reached, waiting to be sent to their people on Discord.</summary>
+    public async Task<IReadOnlyList<DirectMessage>> DirectMessagesAsync(CancellationToken ct) =>
+        await GetAsync("api/notifications/direct",
+            ManifestJsonContext.Default.IReadOnlyListDirectMessage, "The messages owed could not be read.", ct) ?? [];
+
+    /// <summary>Reports how one Discord message went, which takes it off the queue.</summary>
+    public async Task DirectMessageSentAsync(string id, bool sent, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await http.PostAsJsonAsync(
+                $"api/notifications/direct/{Uri.EscapeDataString(id)}", new DirectMessageReport(sent),
+                ManifestJsonContext.Default.DirectMessageReport, ct);
+            if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
+                throw new MovieBotApiException($"The API refused the report on message {id}: {(int)response.StatusCode}.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            throw new MovieBotApiException($"Message {id} could not be reported.", ex);
+        }
+    }
+
     /// <summary>Reports the channels a wish was announced in, whose people the API then forgets.</summary>
     public async Task WishesToldAsync(string imdbId, IReadOnlyList<string> channelIds, CancellationToken ct)
     {

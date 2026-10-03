@@ -123,6 +123,19 @@ public sealed class DeviceSessions : IDisposable
         }
     }
 
+    /// <summary>When each person was last seen on any session that has not expired.</summary>
+    public Dictionary<string, DateTimeOffset> LastSeen()
+    {
+        var now = _clock.GetUtcNow();
+        lock (_gate)
+        {
+            return _byId.Values
+                .Where(d => d.ExpiresAt > now)
+                .GroupBy(d => d.UserId)
+                .ToDictionary(g => g.Key, g => g.Max(d => d.LastSeenAt));
+        }
+    }
+
     /// <summary>Ends one of the person's own sessions. Another person's id, or none, is false.</summary>
     public bool Revoke(string userId, string id)
     {

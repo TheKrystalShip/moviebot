@@ -168,6 +168,7 @@ builder.Services.AddHostedService<LaunchExpiry>();
 
 // Asks the tracker about the films people are waiting on, and tells them when one appears.
 builder.Services.AddHostedService<WishWatcher>();
+builder.Services.AddHostedService<DirectMessages>();
 
 var host = builder.Build();
 host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("MovieBot.Bot")
