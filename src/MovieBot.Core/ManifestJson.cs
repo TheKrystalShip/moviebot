@@ -18,6 +18,7 @@ namespace TheKrystalShip.MovieBot.Core;
 [JsonSerializable(typeof(SubtitlePin))]
 [JsonSerializable(typeof(Chapter))]
 [JsonSerializable(typeof(ThumbnailStrip))]
+[JsonSerializable(typeof(Marker))]
 [JsonSerializable(typeof(SessionState))]
 [JsonSerializable(typeof(SessionStatePush))]
 [JsonSerializable(typeof(SeekClamped))]

@@ -64,12 +64,16 @@ public sealed class ShowStore(
         return read;
     }
 
-    /// <summary>The show, asking the database when nothing is kept or what is kept is due.</summary>
-    public async Task<StoredShow?> GetAsync(string imdbId, CancellationToken ct)
+    /// <summary>
+    /// The show, asking the database when nothing is kept or what is kept is due: older than
+    /// <paramref name="maxAge"/> when one is given, else than the store's own refresh interval. A
+    /// caller that needs a show's airing episodes current asks with a shorter age.
+    /// </summary>
+    public async Task<StoredShow?> GetAsync(string imdbId, CancellationToken ct, TimeSpan? maxAge = null)
     {
         if (!FilmStore.IsImdbId(imdbId)) return null;
         var held = Held(imdbId);
-        if (held is not null && !IsDue(held)) return held;
+        if (held is not null && !(maxAge is { } age ? clock.GetUtcNow() - held.FetchedAt > age : IsDue(held))) return held;
 
         var asking = _asking.GetOrAdd(imdbId, id => FetchAsync(id, held));
         try

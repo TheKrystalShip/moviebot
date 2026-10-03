@@ -77,6 +77,11 @@ export const api = {
   preferences: () => call("GET", "/api/me/preferences"),
   setPreferences: (preferences) => call("PUT", "/api/me/preferences", preferences),
 
+  // The shows this person follows, and whether each is fetched when a new episode airs.
+  follows: () => call("GET", "/api/me/follows"),
+  follow: (imdbId, autoDownload) => call("PUT", `/api/me/follows/${enc(imdbId)}`, { autoDownload }),
+  unfollow: (imdbId) => call("DELETE", `/api/me/follows/${enc(imdbId)}`),
+
   // This person's notifications, the pushes their browsers take, and which kinds they are pushed.
   notifications: () => call("GET", "/api/me/notifications"),
   markRead: (ids) => call("POST", "/api/me/notifications/read", ids ? { ids } : {}),

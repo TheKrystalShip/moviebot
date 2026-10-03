@@ -146,6 +146,17 @@
     "Preferences": ""
   },
 
+  // Following a show. Path is the file holding who follows what and which episodes were announced
+  // (an empty one is follows.json in the state directory). An episode is looked for from the day
+  // after its air date until GiveUpDays past it, asked of the tracker at most once per AskMinutes,
+  // and a followed show's description is asked of the film database again after RefreshHours.
+  "Follow": {
+    "Path": "",
+    "RefreshHours": 24,
+    "AskMinutes": 60,
+    "GiveUpDays": 14
+  },
+
   // The film database that describes a film: credits, certificate, genres, overview, artwork. The
   // API asks it, keeps what it said and the artwork under Directory (an empty one is films/ in the
   // state directory), serves its own copies, and asks again after RefreshDays. The token is a

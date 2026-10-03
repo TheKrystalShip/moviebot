@@ -87,6 +87,44 @@ A release name is what a film arrives as. It is not what the film is called.
 - **A source that shipped its own cover art keeps it.** It came with the release, and the catalogue's
   is only ever a stand-in for a film that has none.
 
+## What an episode lets a viewer skip (`MarkerPass`, `FingerprintStore`)
+
+Once an episode is ready, its intro and its recap are written into `manifest.markers`. The methods
+and their thresholds are `src/MovieBot.Ingest/CLAUDE.md`; this is what the hand-off does around them.
+Only episodes are marked: a film's chapters are not read for an intro, because a film's opening is
+not a title sequence a viewer wants to skip.
+
+- **It runs after the transcode and is never what an episode waits on.** The episode is watchable
+  while it transcodes and ready before this starts. The pass uses CPU only, runs `fpcalc` at a lower
+  priority, and reports its own failures as warnings: an episode it could not mark has empty markers
+  and is otherwise whole. A host without `fpcalc` still gets the chapter markers.
+- **A chapter that names the stretch is taken before the audio is consulted**, per kind: an episode
+  with an `Intro` chapter and no recap chapter has the first exact and the second searched for.
+- **The episode's own subtitles are read for the guard on title sequences.** They are written before
+  the status turns ready, including for a source that arrived while it transcoded, so they are on
+  disk when the pass runs. A sequence a partner is given is guarded against the partner's subtitles,
+  not the new episode's.
+- **Fingerprints outlive the titles.** A recap is found in episodes that came before, which the
+  library's clock may have removed by then, so each episode's whole-audio fingerprint is kept in
+  `<media root>/.fingerprints/<show>/s05e02.fp`, about a hundred kilobytes each, written by this
+  process alone. The directory is dotted so every listing of titles skips it (`MediaRoots.Ids`,
+  settling, backfill, the API's library), it stays on the hot root so a missing cold volume never
+  hides it, and nothing removes it with a title. The show is the IMDb id the episodes carry, or the id
+  stem before `-s02e04` when nothing identified it; an episode ingested again replaces its own file.
+  A lost fingerprint costs a recap that is not found, never a wrong one.
+- **A title sequence found from another episode is given to that episode too**, when it has none.
+  The second episode of a season marks the first. The partner's marker is written under the partner's
+  own lock after the new episode's lock is released, because two episodes finishing together would
+  otherwise each hold one lock and wait for the other.
+- **Settling and the pass share a per-title lock (`TitleLocks`).** A manifest rewritten in the middle
+  of the copy to the cold root is missing from the copy, and the disk it was written to is then
+  deleted. Each takes the title's lock for all of what it does and looks the directory up again once
+  it holds it. The manifest is read again right before it is written and only `markers` is replaced.
+- **`moviebot-handoff --backfill-markers` marks what is already in the library.** It fingerprints
+  every ready episode first and compares second, so each is compared with all the others and the first
+  episode of a season can be given its sequence by the second. Fingerprints already kept are reused. It
+  reads both roots and refuses to run while the cold volume is out, like `--backfill`.
+
 ## Settling onto the cold disk (`SettleWorker`, `ColdStore`)
 
 The model of the two roots is `src/MovieBot.Core/CLAUDE.md`.

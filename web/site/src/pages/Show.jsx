@@ -4,9 +4,10 @@ import { api, episodeCode } from "../api.js";
 import { SOON_DAYS, leaveRule, stayWords, useLoad } from "../data.js";
 import { goBack } from "../router.js";
 import { useSession } from "../session.js";
-import { ago, clock, since, timeLeft } from "../time.js";
+import { ago, airDay, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, watchLink } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes } from "../components/FilmDetails.jsx";
+import { FollowButton } from "../components/FollowButton.jsx";
 import { RequestSheet, plan } from "../components/RequestSheet.jsx";
 import { watchNow } from "../watchNow.js";
 import { downloadWords } from "./Search.jsx";
@@ -146,6 +147,7 @@ export function Show({ imdbId, query }) {
                   <Icon name="download" size={17} />{play ? "Get episodes" : "Download"}
                 </button>
               )}
+              {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
               {resume && (
                 <span className="kc-mono kc-quiet">
                   {episodeCode({ season: resume.season, number: resume.episode })}
@@ -153,6 +155,11 @@ export function Show({ imdbId, query }) {
                 </span>
               )}
             </div>
+            {s.nextEpisode && (
+              <span className="kc-mono kc-quiet">
+                Next episode: {episodeCode({ season: s.nextEpisode.season, number: s.nextEpisode.episode })} · {airDay(s.nextEpisode.airDate)}
+              </span>
+            )}
           </div>
         </div>
       </section>

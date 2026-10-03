@@ -148,3 +148,64 @@ CLI changes.
 - **Subtitles wait for the whole file.** They have to be demuxed from a complete one, so where a
   source is still arriving they are extracted after the main pass, and a track is advertised in the
   manifest only once its own file is whole. A `.vtt` that is still being written is never served.
+
+## Intro and recap markers (`Markers/`)
+
+Measured on three real episodes of one show against their container chapters; the hand-off decides
+when it runs and where fingerprints are kept (`src/MovieBot.Handoff/CLAUDE.md`).
+
+- **A chapter that names the stretch is exact and is believed whole or not at all.** The whole
+  normalised title has to be a name for a title sequence (`Intro`, `Opening Credits`, `Main Title`,
+  `OP1`) or a recap (`Recap`, `Previously On ...`); "Opening Heist" and "Chapter 3" are acts. A chapter
+  runs to the next chapter's start, and one longer than 150 s as an intro, 300 s as a recap, or shorter
+  than 5 s, is not one.
+- **Everything else is chromaprint run on the transcoded audio**, `fpcalc -raw -length 0` over the
+  first rendition's playlist: one 32-bit value per 4096/3 samples at 11025 Hz, about 0.124 s, each
+  describing about 1.9 s of sound. It reads the HLS playlist directly, so nothing is decoded twice and
+  the source need not exist. A whole episode takes seconds.
+- **Two fingerprints are aligned by voting, then verified bit by bit** (`RunFinder`). Each half of
+  every value votes for the offset between the two fingerprints; the six best offsets are walked, and
+  a run is a stretch whose values differ in at most 8 bits, bridging gaps of up to four values, with a
+  mean under 6.5 bits. Unrelated audio differs in about 16. Values that occur more than six times in a
+  fingerprint are ignored, because silence and a held tone produce one value hundreds of times and
+  would vote for every offset; a run that is mostly one value is rejected for the same reason.
+- **The title sequence is the longest stretch the openings of two episodes share**, an opening being
+  the first quarter of an episode capped at ten minutes, and it counts only between 15 s and 120 s.
+  Longer is a replayed scene and shorter is a sting. A longest stretch outside the range is no answer;
+  the next longest is not tried. The cold open's length varies, so nothing is assumed about where it is.
+- **The audio's edges are the titles' edges; a chapter can be earlier.** Measured by comparing the
+  frames of two episodes at the aligned offset, the title sequence of the episodes tested runs on the
+  same frames, 0.0 to 0.3 mean difference on a 64x36 grey frame, until the show's name card ends
+  and the next scene's differ by about 90. The sound ends within a second of that frame. The
+  container's `Intro` chapter ends eleven seconds before it, before the writing credits and the name
+  card, so a chapter marks where the chapter is and not always where the titles end.
+- **A run's edges are placed from its first and last matching value.** A value describes about
+  1.9 s and still matches while about half of it is shared, so the run begins 0.9 s before the shared
+  sound and its last value starts 0.9 s before the sound ends (`Fpcalc.EdgeSeconds`, measured against
+  those frames). The start is placed 0.9 s after the first value; the end 0.5 s after the last, early
+  on purpose, since a skip that leaves a moment of the titles costs nothing and one that lands late
+  takes the scene.
+- **Speech inside a title sequence cuts it short (`IntroGuard`).** A sequence has music and nobody
+  talking, so a spoken cue that starts inside a marker, whether a chapter named it or the audio found
+  it, ends the marker 0.5 s before the cue; with under 15 s left the marker is dropped. Cues are the
+  episode's first available English text track that is not forced, otherwise the first available;
+  a cue made only of music marks (a line with `♪`, `♫`, `♬` or a leading `#`), or wholly of bracketed
+  or parenthesised sound descriptions, is not speech. An episode with no readable subtitles keeps its
+  markers as found. Cues only ever shorten an intro and never set where it ends: the scene after the
+  titles can be silent for twenty seconds (the first line after the titles of the episodes measured is
+  23 s past them), and a skip to the line would take it. A recap is not guarded, since a recap is
+  speech from earlier scenes. No cue falls inside the title sequences of the three episodes measured,
+  so the guard leaves them as the audio placed them.
+- **A recap is found by what it is made of.** The opening of an episode, up to the title sequence or
+  the first four minutes, is compared with the *bodies* of the episodes before it, nearest first. A
+  clip is a shared run of at least 2.5 s; clips from several earlier episodes are merged. It is a
+  recap only when there are at least two clips adding to at least 15 s, the first starts within 45 s,
+  and the clips cover at least 40% of the span from the first to the last. The earlier episodes'
+  openings are never searched, because their own title sequence is there. The theme is played again
+  in the bodies of the episodes measured, so an episode's own title sequence matches them too, which
+  is why the sequence, once placed, ends the search. A recap whose
+  first clip is within 10 s of the start begins at 0, one that ends within 10 s of the title sequence
+  runs up to it.
+- **A false recap skips story and a missing one skips nothing**, so every threshold above leans toward
+  saying nothing, and the recap is searched only after the title sequence is placed so that the
+  sequence bounds it. Nothing is a recap that the earlier episodes do not contain.

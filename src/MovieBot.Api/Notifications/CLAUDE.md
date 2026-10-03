@@ -31,6 +31,13 @@ rest on. `Notifier` is the one way anything here tells anybody anything.
   `TellDirect` where no channel will announce it). `ReadyNotices` tells them once it can be watched or
   could not be made watchable, and takes the tags off; a download that never carried them is news to
   nobody, which is also why the first start of this service announces nothing it finds already done.
+- **A new episode of a followed show is told once, and not twice to whoever is fetching it.**
+  `FollowWatcher` tells every follower the episode is out (`episode`, keyed by show and episode), once
+  it is due and the tracker offers it. The follower a download is started as carries the torrent's
+  tags like any requester, so `ReadyNotices` tells them when it can be watched and they are not also
+  told the episode is out; every other follower, with or without `autoDownload`, gets the `episode`
+  notice, and so does everyone when the download is refused. A follower who switched `episode` off
+  still has it in the bell.
 - **What leaves is the library clock's to say.** `LeavingNotices` reads `LibraryClock.Stays()`, so a
   title it says leaves is the title the sweep deletes, and tells everybody the watch record says
   watched any of the unit once per date it is due.

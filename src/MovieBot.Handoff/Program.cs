@@ -49,6 +49,13 @@ builder.Services.AddSingleton(sp =>
 });
 builder.Services.AddSingleton<ColdStore>();
 
+// What can be skipped in an episode: found once it is ready, from its chapters or by comparing its
+// audio with the show's other episodes. The locks keep that pass and settling off one title at once.
+builder.Services.AddSingleton<TitleLocks>();
+builder.Services.AddSingleton<FingerprintStore>();
+builder.Services.AddSingleton<MarkerPass>();
+builder.Services.AddSingleton<MarkerBackfill>();
+
 // What this asks the API: which films the rooms hold, so none is removed from under a room, and
 // which settled films the library's clock says are due. Reached with the service key, because both
 // are behind the same door as the films.
@@ -76,6 +83,16 @@ if (args.Contains("--backfill"))
     using var host = builder.Build();
 
     return await host.Services.GetRequiredService<Backfill>()
+        .RunAsync(host.Services.GetRequiredService<MediaRoots>(), CancellationToken.None);
+}
+
+// The same, for the markers of episodes already in the library.
+if (args.Contains("--backfill-markers"))
+{
+    builder.Logging.AddSimpleConsole(o => o.SingleLine = true);
+    using var host = builder.Build();
+
+    return await host.Services.GetRequiredService<MarkerBackfill>()
         .RunAsync(host.Services.GetRequiredService<MediaRoots>(), CancellationToken.None);
 }
 

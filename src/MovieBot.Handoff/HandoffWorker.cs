@@ -27,6 +27,7 @@ public sealed class HandoffWorker(
     FilmMetadata metadata,
     MediaRoots roots,
     ColdStore cold,
+    MarkerPass markers,
     IOptions<HandoffOptions> options,
     ILogger<HandoffWorker> logger) : BackgroundService
 {
@@ -283,6 +284,11 @@ public sealed class HandoffWorker(
 
             var manifest = await transcode;
             logger.LogInformation("{Title} finished transcoding as {Id}.", manifest.Title, manifest.Id);
+
+            // The episode is ready and watchable already; what a viewer can skip in it is found
+            // now and written when known. The pass reports its own failures and leaves the
+            // markers empty, so nothing here can fail the episode.
+            await markers.RunAsync(id, reuseStored: false, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {

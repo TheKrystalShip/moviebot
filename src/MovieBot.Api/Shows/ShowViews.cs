@@ -37,6 +37,15 @@ public sealed record ShowView
 
     /// <summary>Where the asking person picks up: absent when they have nothing in progress here.</summary>
     public ResumePoint? Resume { get; init; }
+
+    /// <summary>Whether the show can be followed: the film database does not say it has ended or been cancelled.</summary>
+    public bool Followable { get; init; }
+
+    /// <summary>The asking person's follow of the show; absent when they do not follow it.</summary>
+    public ShowFollow? Follow { get; init; }
+
+    /// <summary>The episode the film database expects next; absent when it names none.</summary>
+    public AiringView? NextEpisode { get; init; }
 }
 
 public sealed record SeasonView
@@ -154,7 +163,7 @@ public static class ShowViews
     /// <summary>The page of one show, from what is kept and what the library holds of it.</summary>
     public static ShowView View(
         this ShowStore store, string imdbId, StoredShow? stored,
-        IReadOnlyList<TitleSummary> episodes, Func<string, TitleStay?> stayOf)
+        IReadOnlyList<TitleSummary> episodes, Func<string, TitleStay?> stayOf, StoredFollow? follow = null)
     {
         var d = stored?.Details;
         string? Image(string file) => store.HasImage(imdbId, file) ? ImageUrl(imdbId, file) : null;
@@ -242,6 +251,9 @@ public static class ShowViews
             BackdropUrl = Image(ShowStore.Backdrop),
             Seasons = seasons,
             Resume = ResumeIn(Ordered(episodes)),
+            Followable = FollowViews.Followable(d),
+            Follow = follow is null ? null : new ShowFollow(follow.AutoDownload, follow.Since),
+            NextEpisode = FollowViews.Airing(d?.NextEpisodeToAir),
         };
     }
 

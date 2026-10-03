@@ -106,7 +106,7 @@ builder.Services.AddSingleton(sp => new ShowStore(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.ShowsDirectory, "shows"),
     sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
-    TimeProvider.System,
+    sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<ShowStore>>()));
 builder.Services.AddHostedService<FilmWarmer>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SessionKeeper>());
@@ -179,6 +179,14 @@ builder.Services.AddSingleton<Notifier>();
 builder.Services.AddSingleton<KeepNotices>();
 builder.Services.AddHostedService<ReadyNotices>();
 builder.Services.AddHostedService<LeavingNotices>();
+
+// Following a show: who follows what, and the watcher that tells them when an episode is out.
+builder.Services.AddOptions<FollowOptions>().Bind(builder.Configuration.GetSection(FollowOptions.Section));
+builder.Services.AddSingleton(sp => new FollowStore(
+    StatePath(sp.GetRequiredService<IConfiguration>()["Follow:Path"], "follows.json"),
+    sp.GetRequiredService<ILogger<FollowStore>>()));
+builder.Services.AddSingleton<FollowWatcher>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<FollowWatcher>());
 
 // The client id is the application id, which the settings file names once for the bot and the
 // API together.
@@ -300,6 +308,7 @@ app.MapPeople();
 app.MapDevices();
 app.MapFilms();
 app.MapShows();
+app.MapFollows();
 app.MapNotifications();
 
 // Every room, for the bot: it holds no state of its own, so what to say about rooms it reads

@@ -64,6 +64,14 @@ more.
   has it (`fetchable`), next fetches it into the room at the quality of the one playing, and the room
   shows it arriving over the film; the server has usually fetched it ahead already. The Activity
   spends nothing, so there next is the next episode here.
+- **Skipping an intro or a recap is a button over the film, and it moves the room.** The manifest's
+  `markers` name the stretches, and while the playhead is inside one the button asks the room to seek
+  to its end, as the scrub bar does, so everyone skips together. It is offered only when playback
+  entered the stretch by playing through: a seek that lands more than a couple of seconds past its
+  start says the person already chose where to be. A stretch that was skipped is not offered again.
+  With the viewer's `skipIntros` preference on and nobody else in the room, entering a stretch skips
+  it without a press; skipping on its own for somebody who is watching with others would move their
+  film too. No key is bound to it, for the reason above.
 - **A control that already answers a key keeps it.** The scrub bar and the volume slider handle the
   arrows when focused; taking them globally as well moves the film, or the volume, twice for one press.
 - **What somebody else did to the room is said over the film, to everyone but them**, with their mark
@@ -100,7 +108,7 @@ more.
   whenever the menu opens: what a film gains is pushed as it lands, and the re-read is the guarantee
   behind the push. The search asks for the person's own language and English beside it.
 - **A person's defaults are the API's, and a choice made for one film is the browser's.** Subtitle
-  language, audio language and quality come from `/api/me/preferences`, so they follow the person
+  language, audio language, quality and whether stretches are skipped automatically come from `/api/me/preferences`, so they follow the person
   between the site and the Activity; the track picked for a film is held in `localStorage` per title,
   because a track id means nothing outside the film it came from. Volume stays in the browser: it is
   about the speakers in front of the person.

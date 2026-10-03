@@ -52,8 +52,18 @@ and keeps are `Acquisition/CLAUDE.md`; notifications, pushes and invites are
   `details` on `/api/titles` are its show's.
 - **A person's own settings are asked for by token, never by id.** `/api/me/preferences` answers for
   whoever the token names, so there is no route by which anybody reads or writes anybody else's; the
-  service key names nobody and is refused there. Progress, history and devices (`/api/me/progress`,
-  `/api/me/history`, `/api/me/sessions`) are asked for the same way.
+  service key names nobody and is refused there. Progress, history, devices and follows
+  (`/api/me/progress`, `/api/me/history`, `/api/me/sessions`, `/api/me/follows`) are asked for the
+  same way.
+- **A followed show is watched by `Shows/FollowWatcher`, and what it announces is kept.** A follow
+  starts from a baseline, the latest episode already due, so only later episodes are news. An episode
+  is due from the day after its air date, an air date being a date read against UTC, and is looked for
+  until `Follow:GiveUpDays` past it; only a show with an episode due is asked of the tracker, once per
+  `Follow:AskMinutes` per episode. An offered episode is fetched once for every follower who wants it,
+  at the best quality any of them watches at, and what was announced is persisted beside the follows
+  (`follows.json`) so a restart never tells anybody twice. A followed show's description is asked of
+  the film database again after `Follow:RefreshHours`, which is what brings a new episode into view.
+  The rules for who is told what are in `Notifications/CLAUDE.md`.
 - **What a person watched comes from the room, the one source of where a film is** (`People/`). A
   room's state is a position at an instant and everything between two changes follows from it, so
   nothing polls the rooms. `SessionStore` raises `Watched` when a stretch of playing ends — a pause,

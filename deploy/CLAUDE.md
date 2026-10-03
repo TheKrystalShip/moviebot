@@ -40,6 +40,9 @@ which strips the prefix (`nginx-moviebot.conf`).
 - **Listening needs three system libraries on hotbox**: `opus`, `libsodium`, and `libdave`, which is
   Discord's end-to-end voice encryption and is packaged in tks-agent. Without libdave the bot runs
   and every voice connection is refused.
+- **Finding an episode's intro and recap needs `chromaprint`** (`fpcalc` in `/usr/bin`, on the
+  hand-off unit's `PATH` after the card's ffmpeg). Without it an episode gets only the markers its
+  chapters name.
 - **The API and the hand-off publish as native binaries.** `PublishAot` in each project, so the
   publish above runs the ahead-of-time compiler, needs `clang`, and takes a minute or two longer than
   a JIT publish. What lands is one executable beside `moviebot.settings.json` and, for the API, `wwwroot`,

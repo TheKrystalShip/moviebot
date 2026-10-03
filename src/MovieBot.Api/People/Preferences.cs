@@ -18,6 +18,12 @@ public sealed record ViewerPreferences
     /// <summary>The height a film is held at, or null to let the connection decide.</summary>
     public int? QualityHeight { get; init; }
 
+    /// <summary>
+    /// Whether an intro or a recap is skipped on its own when this person is the only one in the room.
+    /// With anybody else there the player offers the skip and leaves it to a press.
+    /// </summary>
+    public bool SkipIntros { get; init; }
+
     /// <summary>A stored value that no longer makes sense is the setting left alone.</summary>
     public ViewerPreferences Normalised() => this with
     {

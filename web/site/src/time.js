@@ -38,3 +38,10 @@ export function daysLeft(days) {
   if (days <= 0) return "leaves today";
   return `${days} ${days === 1 ? "day" : "days"} left`;
 }
+
+/** A calendar day from the API, "2026-10-08", the way a person says it: "Wed 8 Oct". */
+export function airDay(date) {
+  const [year, month, day] = String(date).slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return String(date);
+  return new Date(year, month - 1, day).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+}

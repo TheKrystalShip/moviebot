@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.80.0] - 2026-10-03
+
+### Added
+
+- **Skip intro and skip recap.** An episode's title sequence and its "previously on" are written
+  into its manifest as `markers` once it is ready: from a chapter that names them, else by matching
+  its audio fingerprint (chromaprint's `fpcalc`, now a requirement beside ffmpeg) against the show's
+  other episodes. While playback runs through one, the player offers Skip intro or Skip recap, which
+  seeks the whole room past it. Profile's Playback tab has "Skip intros and recaps automatically",
+  acted on when the viewer is alone in the room. A dialogue subtitle inside a found intro trims it
+  or drops it, so a skip never takes speech. `moviebot-handoff --backfill-markers` marks the episodes
+  already in the library.
+- **Follow a show.** A show's page has Follow, and Profile a Following tab. When an episode after the
+  ones out at follow time airs and the tracker offers it, its followers are told ("episode", a fifth
+  notification switch), and those who switched on Download new episodes automatically have it
+  fetched, once, at the best quality any of them watches the show at. The page shows the next
+  episode's air date. `GET /api/me/follows`, `PUT`/`DELETE /api/me/follows/{imdbId}`; `ShowView`
+  carries `followable`, `follow` and `nextEpisode`; a `Follow` settings section.
+
 ## [1.79.0] - 2026-10-03
 
 ### Added

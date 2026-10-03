@@ -1,17 +1,18 @@
 import React from "react";
 import { Icon, Select, SettingsRow, SettingsSection, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal-ui";
 import { KIND } from "../notifications.js";
-import { api, filmName } from "../api.js";
+import { api, episodeCode, filmName, showHref } from "../api.js";
 import { useLoad } from "../data.js";
 import { signOut, useSession } from "../session.js";
 import { linkProps, navigate } from "../router.js";
-import { ago } from "../time.js";
+import { ago, airDay } from "../time.js";
 import { Empty, Failed, PageHead, PosterArt } from "../components/Film.jsx";
 import { KeptPoster } from "../components/FilmDetails.jsx";
 
 const TABS = [
   { id: "history", icon: "history", label: "History" },
   { id: "requests", icon: "inbox", label: "Requests" },
+  { id: "following", icon: "tv", label: "Following" },
   { id: "notifications", icon: "bell-ring", label: "Notifications" },
   { id: "playback", icon: "play", label: "Playback" },
   { id: "sessions", icon: "monitor-smartphone", label: "Sessions" },
@@ -38,6 +39,7 @@ export function Profile({ query }) {
       <SubTabs tabs={TABS} active={tab} onChange={(id) => navigate("/profile?tab=" + id, { replace: true })} />
       {tab === "history" && <History />}
       {tab === "requests" && <Requests user={user} />}
+      {tab === "following" && <Following />}
       {tab === "notifications" && <Notifications />}
       {tab === "playback" && <Playback />}
       {tab === "sessions" && <Sessions />}
@@ -160,11 +162,69 @@ function Requests({ user }) {
   );
 }
 
+/** The shows this person follows, whether each is fetched when an episode airs, and unfollowing. */
+function Following() {
+  const follows = useLoad(() => api.follows(), []);
+  const rows = follows.data || [];
+
+  const setAuto = async (row, on) => {
+    try {
+      await api.follow(row.imdbId, on);
+      follows.reload();
+    } catch (error) {
+      toast.fromError(error, "Could not save that");
+    }
+  };
+  const unfollow = async (row) => {
+    try {
+      await api.unfollow(row.imdbId);
+      toast.info(`You no longer follow ${row.title}.`);
+      follows.reload();
+    } catch (error) {
+      toast.fromError(error, "Could not unfollow it");
+    }
+  };
+
+  return (
+    <section className="kc-shelf">
+      <Failed error={follows.error} onRetry={follows.reload} />
+      {follows.data && rows.length === 0 && <Empty icon="tv" title="Not following anything">Follow a show from its page to hear when a new episode is out.</Empty>}
+      <div className="kc-rows">
+        {rows.map((row) => {
+          const href = showHref(row.imdbId);
+          const next = row.nextEpisode;
+          return (
+            <div key={row.imdbId} className="kc-row">
+              <a {...linkProps(href)}>
+                {row.posterUrl
+                  ? <img className="kc-row__thumb" src={row.posterUrl} alt="" loading="lazy" />
+                  : <PosterArt title={{ id: row.imdbId, title: row.title }} className="kc-row__thumb" />}
+              </a>
+              <div className="kc-row__text">
+                <a className="kc-row__title" {...linkProps(href)}>{row.title}</a>
+                {next && <span className="kc-row__sub">Next episode: {episodeCode({ season: next.season, number: next.episode })} · {airDay(next.airDate)}</span>}
+              </div>
+              <label className="kc-follow__option kc-follow__option--row">
+                <span>Download new episodes</span>
+                <Toggle on={row.autoDownload} label={`Download new episodes of ${row.title} automatically`} onChange={(on) => setAuto(row, on)} />
+              </label>
+              <button type="button" className="kc-btn kc-btn--ghost" onClick={() => unfollow(row)}>
+                <Icon name="bell-off" size={16} />Unfollow
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 const KINDS = [
   { id: "available", title: "A title I'm waiting for can be downloaded", sub: "Anything on your Notify me list." },
   { id: "ready", title: "A download I started is ready to watch", sub: "Includes partial season downloads." },
   { id: "leaving", title: "Something I watched leaves tomorrow", sub: "One push per title, the day before it leaves." },
   { id: "kept", title: "Someone keeps or un-keeps a title I watched", sub: "Off by default, since it can get chatty." },
+  { id: "episode", title: "New episodes of shows you follow" },
 ];
 
 /** What this browser says about receiving pushes, when it cannot be switched on here. */
@@ -299,6 +359,9 @@ function Playback() {
               );
             })}
           </div>
+        </SettingsRow>
+        <SettingsRow icon="skip-forward" title="Skip intros and recaps automatically">
+          <Toggle on={Boolean(preferences.skipIntros)} label="Skip intros and recaps automatically" onChange={(on) => change({ skipIntros: on })} />
         </SettingsRow>
       </SettingsSection>
       <SettingsSection icon="palette" title="Appearance">

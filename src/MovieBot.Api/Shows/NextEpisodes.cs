@@ -66,7 +66,7 @@ public sealed class NextEpisodes(
                     && e.Manifest.Episode.Number == next.Episode && e.Manifest.Status != TitleStatus.Failed)) continue;
 
             all ??= await acquisition.ListAsync(ct);
-            if (await ArrivingAsync(all, show, next, ct)) continue;
+            if (await ArrivingAsync(acquisition, all, show, next, ct)) continue;
 
             var quality = manifest.Video?.Width >= 1800 ? Resolution.Hd1080 : Resolution.Hd720;
             Release? release;
@@ -95,7 +95,8 @@ public sealed class NextEpisodes(
     }
 
     /// <summary>Whether a torrent of the show is already fetching the episode.</summary>
-    private async Task<bool> ArrivingAsync(IReadOnlyList<DownloadStatus> all, string show, EpisodeNumber episode, CancellationToken ct)
+    internal static async Task<bool> ArrivingAsync(
+        AcquisitionService acquisition, IReadOnlyList<DownloadStatus> all, string show, EpisodeNumber episode, CancellationToken ct)
     {
         foreach (var download in all.Where(d => d.Tags.Select(TorrentTags.ReadImdb).Any(i => i == show)))
         {

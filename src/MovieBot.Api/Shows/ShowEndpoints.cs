@@ -22,7 +22,7 @@ public static class ShowEndpoints
         // as fully as one on the shelf.
         app.MapGet("/api/shows/{imdbId}", async (string imdbId, HttpContext context, TitleLibrary library,
             ShowStore shows, LibraryClock stays, WatchRecord record, PersonDirectory people,
-            SessionStore sessions, TimeProvider clock, CancellationToken ct) =>
+            SessionStore sessions, FollowStore follows, TimeProvider clock, CancellationToken ct) =>
         {
             if (!FilmStore.IsImdbId(imdbId))
                 return Results.Json(new ErrorReply("That is not an IMDb id."), ApiJsonContext.Default.ErrorReply,
@@ -40,7 +40,9 @@ public static class ShowEndpoints
                     : Results.Json(new ErrorReply("The film database has no show under that id."),
                         ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
 
-            return Results.Ok(shows.View(imdbId, stored, episodes, stays.StayOf));
+            var person = PeopleEndpoints.Person(context);
+            return Results.Ok(shows.View(imdbId, stored, episodes, stays.StayOf,
+                person is null ? null : follows.Get(person.UserId, imdbId)));
         });
 
         // The episodes either side of one the library holds, which is what a player's previous and

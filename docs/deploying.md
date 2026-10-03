@@ -41,20 +41,20 @@ You need all of these. The steps below assume they are in place.
 
 ## Step 1: Install the system packages
 
-MovieBot needs ffmpeg (to convert films), nginx and certbot (to serve it over https), and
-qBittorrent (to download).
+MovieBot needs ffmpeg (to convert films), chromaprint (to find the intro and recap of a show's
+episodes), nginx and certbot (to serve it over https), and qBittorrent (to download).
 
 Debian or Ubuntu:
 
 ```bash
 sudo apt update
-sudo apt install ffmpeg nginx certbot python3-certbot-nginx qbittorrent-nox curl
+sudo apt install ffmpeg libchromaprint-tools nginx certbot python3-certbot-nginx qbittorrent-nox curl
 ```
 
 Arch Linux:
 
 ```bash
-sudo pacman -S --needed ffmpeg nginx certbot certbot-nginx qbittorrent-nox curl
+sudo pacman -S --needed ffmpeg chromaprint nginx certbot certbot-nginx qbittorrent-nox curl
 ```
 
 Now check that ffmpeg can use your graphics card. This encodes one second of a test picture:

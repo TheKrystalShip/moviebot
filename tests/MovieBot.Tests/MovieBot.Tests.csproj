@@ -29,6 +29,11 @@
     <None Include="Replays/*.jsonl" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- The first ten minutes of the audio fingerprints of three real episodes, which is where their title sequences are. -->
+  <ItemGroup>
+    <None Include="Fingerprints/*.u32" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="TheKrystalShip.MovieBot.Client" />
   </ItemGroup>

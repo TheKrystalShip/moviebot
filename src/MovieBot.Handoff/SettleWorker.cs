@@ -21,6 +21,7 @@ public sealed class SettleWorker(
     ColdStore cold,
     OccupiedRooms rooms,
     MediaRoots roots,
+    TitleLocks locks,
     ILogger<SettleWorker> logger) : BackgroundService
 {
     /// <summary>
@@ -127,7 +128,10 @@ public sealed class SettleWorker(
                 continue;
             }
 
-            await cold.SettleAsync(id, ct);
+            // Held for the whole copy, so a manifest rewritten meanwhile is either in the copy or
+            // written after it, to the root the film is on by then.
+            using (await locks.AcquireAsync(id, ct))
+                await cold.SettleAsync(id, ct);
         }
     }
 

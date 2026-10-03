@@ -28,12 +28,12 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows` and `/hub` to the AP
 | `/` | A film to watch, then a row each for where the person left off, the rooms watching something now, what was recently added, what leaves next, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail` |
 | `/movies`, `/tv` | Every film, or every show (one card each, however many of its episodes are here), with krystal-ui's `Toolbar`: a search by name, one Filters popover (state, stay, genre) with the active ones as chips, and a sort with its direction |
 | `/title/<id>` | One film: what it is, who played it last, how long it stays, keep or let go, and watch or resume. An episode's id forwards to its show's page at its season |
-| `/show/<imdbId>?season=` | One show, in the library or not: what it is, its seasons as chips with how long each stays, each season's episodes with their stills and how far this person got, resume, keep a season, and the request sheet that picks seasons and episodes to download at 720p (the default) or 1080p. Every episode the tracker has plays from its row while it arrives, each season can be downloaded whole, first episode first, and with nothing of it here Watch plays its first episode |
+| `/show/<imdbId>?season=` | One show, in the library or not: what it is, its seasons as chips with how long each stays, each season's episodes with their stills and how far this person got, resume, keep a season, and the request sheet that picks seasons and episodes to download at 720p (the default) or 1080p. Every episode the tracker has plays from its row while it arrives, each season can be downloaded whole, first episode first, and with nothing of it here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it |
 | `/film/<imdbId>` | A film that is not here: what it is, and Watch (now, while it arrives) and Download (1080p, the default, or 720p, with the size of each) when the tracker offers it, the download's progress while it is on its way, or Notify when it is not out digitally yet. A film in the library forwards to its `/title/` |
 | `/search?q=` | The library first, then the catalogue's films and shows, each leading to its page, then the tracker's releases to fetch; reached from the sidebar's search field, and on a phone from the Search tab |
 | `/notify` | The films the signed-in person is waiting on |
 | `/leaving` | Every settled film and how long it stays, kept or not |
-| `/profile?tab=` | The signed-in person: History (with a way to remove a film), Requests, Playback (subtitle and audio language, quality, theme) and Sessions (the devices signed in, signing one or all others out), and signing out |
+| `/profile?tab=` | The signed-in person: History (with a way to remove a film), Requests, Following (each followed show with its next episode, whether new episodes are downloaded, and Unfollow), Notifications, Playback (subtitle and audio language, quality, skipping intros and recaps automatically, theme) and Sessions (the devices signed in, signing one or all others out), and signing out |
 | `/about` | What the site is, and where its film details come from |
 | `/signin` | The door, and where Discord sends the browser back to |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from. A room waiting on a Watch now shows the film being found, arriving and starting, and plays it on its own |
@@ -141,8 +141,8 @@ The site installs as an app, Krystal Cinema, from Android Chrome's "Install app"
 The bell lists what the API told this person (`src/notifications.js`, read every minute and whenever
 the page comes back into view): in the sidebar above the person on a wide screen, at the top right of
 the front page on a phone. Profile's Notifications tab turns pushes on for this browser, through
-krystal-ui's `pushBrowser` against `/api/push/key` and `/api/me/push`, and holds the four switches
-for which kinds are pushed. A browser can be pushed to only once it has a service worker, which is a
+krystal-ui's `pushBrowser` against `/api/push/key` and `/api/me/push`, and holds a switch
+for each kind that is pushed, new episodes of followed shows among them. A browser can be pushed to only once it has a service worker, which is a
 production build; on an iPhone, only once the site is on the Home Screen, and the tab says so. The
 player's invite panel lists everybody who can be asked into the room and says, per person, whether
 the invite went out as a push or as a Discord message, never that it was seen.

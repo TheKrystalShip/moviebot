@@ -400,7 +400,8 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
 
         await Until(() => fixture.Torrents.Held.TryGetValue(WatchNowFixture.ShowHash, out var held)
             && held.Tags.Contains("watch:show-night:s01e02"));
-        Assert.Equal(7, fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "E02.720p.mkv"));
+        // The tag goes on before the files are prioritised, so the priority is waited for too.
+        await Until(() => fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "E02.720p.mkv") == 7);
         Assert.Equal(0, fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "E03.720p.mkv"));
         await Until(() => Room("show-night").Preparing?.Stage == PreparingStages.Downloading);
         Assert.Equal("Show S01E02", Room("show-night").Preparing!.Name);

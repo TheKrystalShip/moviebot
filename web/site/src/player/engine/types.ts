@@ -142,6 +142,15 @@ export interface Chapter {
   title?: string;
 }
 
+/** A stretch of an episode that can be skipped: its opening credits, or a recap of the last one. */
+export interface Marker {
+  kind: 'intro' | 'recap';
+  startSeconds: number;
+  endSeconds: number;
+  /** What the ingest found it from: the container's chapters, or the audio itself. */
+  from: 'chapter' | 'audio';
+}
+
 /**
  * Every preview frame in one image. A request per frame would spend the whole hover fetching;
  * the browser holds one sheet and moves a window over it for nothing.
@@ -171,6 +180,8 @@ export interface Manifest {
   /** Languages the source carries that were not extracted, so an absent one is explained. */
   otherLanguages?: string[];
   chapters?: Chapter[];
+  /** Skippable stretches; absent for a title with none. */
+  markers?: Marker[];
   thumbnails?: ThumbnailStrip;
   /** The HLS master playlist binding audio to video, when the ingest wrote one. */
   master?: string;
@@ -235,6 +246,8 @@ export interface ViewerPreferences {
   audioLanguage?: string | null;
   /** The height a film is held at; absent to let the connection decide. */
   qualityHeight?: number | null;
+  /** Skip an intro or a recap on its own when this viewer is alone in the room; absent for off. */
+  skipIntros?: boolean;
 }
 
 export interface Participant {

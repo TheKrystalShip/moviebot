@@ -38,6 +38,9 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `DELETE /api/me/history/{titleId}` | `204` — forgets the person's entry for the film, and so their progress in it. The film's own last play stays. `403` for the service key |
 | `GET /api/me/sessions` | `DeviceSession[]` — the devices the token's person is signed in on, most recently seen first: `{id, device, issuedAt, lastSeenAt, current}`. `current` marks the one asking. `403` for the service key |
 | `DELETE /api/me/sessions/{id}` | 204 — ends one of the person's own sessions. Another person's id, or one that does not exist, is `404` |
+| `GET /api/me/follows` | `FollowView[]` — the shows the token's person follows, newest follow first: `{imdbId, title, posterUrl?, since, autoDownload, nextEpisode?}`. `nextEpisode` is `{season, episode, name?, airDate}`, the episode the film database expects next. `403` for the service key |
+| `PUT /api/me/follows/{imdbId}` | `FollowView` for `{autoDownload}` — follows the show, or changes `autoDownload` of a follow that exists, which keeps its `since`. `400` for an id that is not an IMDb id, `404` when the film database has no show under it, `409` when the show has ended or been cancelled, `503` when the database cannot be asked and nothing is kept. `403` for the service key |
+| `DELETE /api/me/follows/{imdbId}` | `204` — stops following; also when the person did not. `403` for the service key |
 | `DELETE /api/me/sessions` | 204 — ends every session of the person except the current one |
 
 What is recorded comes from the rooms: when a room that is **playing** a film is paused, seeked or
@@ -52,7 +55,8 @@ film ignores `at`.
 {
   "subtitleLanguage": "es",   // the subtitle language to start on when the film carries it; absent for none
   "audioLanguage": "en",      // the audio language to start on when the film carries it; absent for the film's own
-  "qualityHeight": 720        // the rung to hold the film at; absent to let the connection decide
+  "qualityHeight": 720,       // the rung to hold the film at; absent to let the connection decide
+  "skipIntros": true          // skip an intro or recap on its own when this person is alone in the room; false when never set
 }
 ```
 
@@ -230,6 +234,31 @@ the one being watched (1080p for a picture 1800 or more wide, else 720p), out of
 where there is one. Nobody is named as having asked, so nobody is told. What the tracker offers for
 a show is asked once per ten minutes and shared by the show page, Watch now and this.
 
+### Following a show
+
+A person follows a show on its page. When a new episode of it airs and the tracker offers it, they get
+an `episode` notification; one who switched on `autoDownload` has it fetched as well. Follows are the
+token's person's own: there is no route by which anybody reads or changes anybody else's.
+
+- **Only an episode after the follow is news.** A follow records the latest episode already due when
+  it began, and a show followed mid-run announces nothing that was out. A season premiere months
+  later counts.
+- **An episode is due from the day after its air date.** An air date is a date with no zone, read
+  against UTC; the day after is when the tracker can be expected to hold it. It is looked for until
+  `Follow:GiveUpDays` past its air date, asked of the tracker at most once per `Follow:AskMinutes`,
+  and only for a show with an episode due.
+- **One download serves everybody.** Followers with `autoDownload` share one download of the episode,
+  at 1080p when the latest episode of the show any of them watched has a picture at least 1800 wide
+  and 720p otherwise, started as the one who followed first. That person is told by the download's own
+  `ready` notice when it can be watched, and the rest by the `episode` notice. A download the disk or
+  the tracker refuses leaves them with the `episode` notice alone. An episode the library holds or is
+  fetching is announced and not fetched again.
+- **An episode is announced once.** What was announced is kept, so a restart tells nobody twice.
+- **`ShowView` carries the asking person's side.** `followable` is false once the film database calls
+  the show `Ended` or `Canceled`; `follow` is `{autoDownload, since}` for a show the person follows and
+  absent otherwise; `nextEpisode` is `{season, episode, name?, airDate}` and absent when the database
+  names none.
+
 ### Notifications
 
 A notification is one sentence for one person, kept for their bell and, where they allow its kind,
@@ -241,7 +270,7 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 |---|---|
 | `GET /api/me/notifications` | `NotificationsReply` — `{unread, items: [{id, kind, text, url?, action?, createdAt, read}]}`, newest first; a person keeps their newest 50, none older than 30 days |
 | `POST /api/me/notifications/read` | 204 for `{ids?}` — marks those read, or all of them when none are named |
-| `GET /api/me/notifications/preferences` | `NotificationPreferences` — `{available, ready, leaving, kept}`, which kinds are pushed; everything but `kept` is on until switched off |
+| `GET /api/me/notifications/preferences` | `NotificationPreferences` — `{available, ready, leaving, episode, kept}`, which kinds are pushed; everything but `kept` is on until switched off |
 | `PUT /api/me/notifications/preferences` | `NotificationPreferences`, as stored |
 | `GET /api/push/key` | `{publicKey}` — this server's VAPID key, base64url, which a browser subscribes with |
 | `GET /api/me/push?endpoint=` | `{subscribed, devices}` — whether that browser is registered to this person, and how many are |
@@ -254,11 +283,13 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 
 - **Kinds.** `available`: a film somebody waits on can be downloaded. `ready`: a download they started
   can be watched, or could not be made watchable. `leaving`: something they watched leaves the
-  library within a day. `kept`: somebody else kept, or let go of, something they watched. `invite`:
+  library within a day. `episode`: a new episode of a show they follow is out and the tracker offers
+  it, "Show S5 · E4 is out.", opening `/show/{imdbId}?season={n}`. `kept`: somebody else kept, or
+  let go of, something they watched. `invite`:
   somebody asked them into a room; an invite is pushed whatever the person chose.
 - **One thing is said once.** Each notification carries the thing it is about, and a person holding a
   notification about it is not told again: a download once, a wish once, a title leaving once per
-  date it is due, since a play moves the date.
+  date it is due, since a play moves the date, an episode once.
 - **A switch holds back the push and the message, not the record.** A kind switched off still lands
   in the bell.
 - **A Discord message stands in for a push only where the bot does not already tell the person.** A
@@ -305,6 +336,10 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
     { "id": "a2", "kind": "feature", "language": "eng", "label": "English — Dialogue boost",
       "channels": 2, "uri": "a2/index.m3u8" }
   ],
+  "markers": [
+    { "kind": "recap", "startSeconds": 0.0, "endSeconds": 61.5, "from": "audio" },
+    { "kind": "intro", "startSeconds": 489.0, "endSeconds": 523.458, "from": "chapter" }
+  ],
   "subtitles": [
     { "id": "s3", "kind": "feature", "language": "eng", "label": "English",
       "source": "embedded-text", "available": true, "uri": "s3.vtt" },
@@ -328,6 +363,18 @@ Every feature track has a second mix with the dialogue raised, listed after the 
 tracks with the label `"<track> — Dialogue boost"`. It is made after the main pass, so `audio`
 gains those entries once, before `status` turns `ready`, and the master is rewritten with them in
 the same moment. A player that loaded the master earlier offers them after it loads the film again.
+
+`markers` are the stretches of an episode a viewer can skip, in time order, and are empty for a film
+and for an episode nothing was found in. `kind` is `"intro"` (the title sequence) or `"recap"` (the
+"previously on" at the head of the episode); `startSeconds` and `endSeconds` are positions in the
+episode, and skipping seeks to `endSeconds`. `from` is `"chapter"` when the container names the
+stretch, and `"audio"` when it was found by comparing the episode's sound with the show's other
+episodes, which places the start within about half a second and the end up to a second early, never
+late. A chapter's own edges are the container's and can differ from the audio's by several seconds,
+since a chapter named `Intro` may end before the titles do. An episode has at most one marker of
+each kind. Markers are written once the episode is `ready` and can appear
+on an episode already in the library, so a player reads them from every `TitleChanged` as well as
+from the first load.
 
 A track with `available: false` is listed on purpose — a language that is simply missing from the
 menu reads as a bug. Render it disabled with its `reason`, do not hide it.
@@ -376,7 +423,10 @@ id), absent when nobody has; `byName` is absent when that person's name was neve
       "progress": { "positionSeconds": 1260, "finished": false, "lastWatchedAt": "…" }
     }]
   }],
-  "resume": { "titleId": "severance-s02e04", "season": 2, "episode": 4, "positionSeconds": 1260, "durationSeconds": 3080.2 }
+  "resume": { "titleId": "severance-s02e04", "season": 2, "episode": 4, "positionSeconds": 1260, "durationSeconds": 3080.2 },
+  "followable": true,
+  "follow": { "autoDownload": false, "since": "…" },  // absent when the asking person does not follow it
+  "nextEpisode": { "season": 3, "episode": 1, "name": "…", "airDate": "2027-01-15" }  // absent when the database names none
 }
 ```
 

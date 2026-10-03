@@ -156,6 +156,46 @@ function inClosingStretch(manifest, position) {
   return duration > 0 && position >= from;
 }
 
+/** A playhead this close to a stretch's start got there by playing; further in, somebody seeked. */
+const EnterSlackSeconds = 2;
+
+const SkipLabels = { intro: "Skip intro", recap: "Skip recap" };
+
+/**
+ * The marker this viewer is offered to skip, or null. A stretch is offered only when playback
+ * entered it by playing through, and once skipped it is not offered again. With the viewer's
+ * preference on and nobody else in the room, entering a stretch skips it.
+ */
+function useSkipOffer(room, view, position, alone) {
+  const markers = view.manifest && view.manifest.markers;
+  const titleId = view.state && view.state.titleId;
+  const auto = Boolean(view.preferences && view.preferences.skipIntros);
+  const stretch = React.useRef({ titleId: null, index: -1, offered: false, handled: new Set() });
+  const [offer, setOffer] = React.useState(-1);
+
+  const skip = React.useCallback((index) => {
+    const s = stretch.current;
+    s.handled.add(index);
+    s.offered = false;
+    setOffer(-1);
+    room.seek(markers[index].endSeconds);
+  }, [room, markers]);
+
+  React.useEffect(() => {
+    if (stretch.current.titleId !== titleId) stretch.current = { titleId, index: -1, offered: false, handled: new Set() };
+    const s = stretch.current;
+    const index = view.ready && markers ? markers.findIndex((m) => position >= m.startSeconds && position < m.endSeconds) : -1;
+    if (index !== s.index) {
+      s.index = index;
+      s.offered = index >= 0 && !s.handled.has(index) && position <= markers[index].startSeconds + EnterSlackSeconds;
+      if (s.offered && auto && alone) { skip(index); return; }
+    }
+    setOffer(s.offered ? index : -1);
+  }, [position, markers, titleId, view.ready, auto, alone, skip]);
+
+  return offer >= 0 && markers && markers[offer] ? { marker: markers[offer], skip: () => skip(offer) } : null;
+}
+
 /** The chapter a moment is in, or null for a film that records none. */
 export function chapterAt(chapters, seconds) {
   if (!chapters || chapters.length < 2) return null;
@@ -354,7 +394,8 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
 
   const everyone = people(view);
   const others = view.identity ? everyone.filter((p) => p.userId !== view.identity.userId) : everyone;
-  const titleHeld = view.state && (view.state.titleId ?? null) !== null;
+  const skipOffer = useSkipOffer(room, view, clock.position, others.length === 0);
+  const titleHeld = view.state &&(view.state.titleId ?? null) !== null;
   const duration = manifest ? manifest.durationSeconds : 0;
   const preparing = manifest && !view.ready && !view.unplayable && !view.gate && !view.fatal;
   const waiting = !view.fatal && !view.unplayable && !view.gate && !preparing
@@ -483,6 +524,13 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
         <button type="button" className="mp-nextup" onClick={goNext}>
           <span className="mp-nextup__label">Next episode</span>
           <span className="mp-nextup__name">{next.words}</span>
+          <Icon name="skip-forward" size={18} />
+        </button>
+      )}
+
+      {skipOffer && !(view.state && view.state.preparing) && size !== "tiny" && (
+        <button type="button" className="mp-nextup mp-skip" onClick={skipOffer.skip}>
+          <span className="mp-nextup__name">{SkipLabels[skipOffer.marker.kind]}</span>
           <Icon name="skip-forward" size={18} />
         </button>
       )}

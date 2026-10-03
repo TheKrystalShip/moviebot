@@ -52,6 +52,19 @@ public sealed class PreferencesTests(SessionFixture fixture) : IClassFixture<Ses
     }
 
     [Fact]
+    public async Task Skipping_intros_is_off_until_switched_on_and_follows_the_person()
+    {
+        Assert.False((await Read(As("7005", member: true)))?.SkipIntros);
+
+        using var put = await As("7005", member: true).PutAsJsonAsync("/api/me/preferences",
+            new ViewerPreferences { SkipIntros = true });
+        put.EnsureSuccessStatusCode();
+
+        Assert.True((await Read(As("7005", member: false)))?.SkipIntros);
+        Assert.False((await Read(As("7006", member: true)))?.SkipIntros);
+    }
+
+    [Fact]
     public async Task A_meaningless_value_is_the_setting_left_alone()
     {
         using var put = await As("7004", member: true).PutAsJsonAsync("/api/me/preferences",

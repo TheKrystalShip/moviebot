@@ -147,6 +147,40 @@ public sealed class Manifest
     /// read from the whole source, so it is null until then and null for a source that has none.
     /// </summary>
     public ThumbnailStrip? Thumbnails { get; set; }
+
+    /// <summary>
+    /// Stretches of an episode a viewer can skip: the title sequence and the recap of earlier
+    /// episodes. Settable because they are found after the transcode, from the container's
+    /// chapters or by comparing the episode's audio with the show's other episodes, and a title
+    /// the pass could not place anything in simply has none.
+    /// </summary>
+    public IReadOnlyList<Marker> Markers { get; set; } = [];
+}
+
+/// <summary>What a marked stretch of an episode is.</summary>
+public enum MarkerKind
+{
+    [JsonStringEnumMemberName("intro")] Intro,
+    [JsonStringEnumMemberName("recap")] Recap
+}
+
+/// <summary>How a marker was found, which says how far to trust its edges.</summary>
+public enum MarkerSource
+{
+    /// <summary>A chapter the container names as an intro or a recap: exact.</summary>
+    [JsonStringEnumMemberName("chapter")] Chapter,
+
+    /// <summary>Audio shared with another episode of the show: within a fraction of a second.</summary>
+    [JsonStringEnumMemberName("audio")] Audio
+}
+
+/// <summary>A stretch of an episode a viewer can skip, from its first second to the first one after it.</summary>
+public sealed record Marker
+{
+    public required MarkerKind Kind { get; init; }
+    public required double StartSeconds { get; init; }
+    public required double EndSeconds { get; init; }
+    public required MarkerSource From { get; init; }
 }
 
 /// <summary>One point in the film with a name, taken from the container.</summary>

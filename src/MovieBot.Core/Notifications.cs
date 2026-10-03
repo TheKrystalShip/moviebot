@@ -18,6 +18,9 @@ public static class NotificationKinds
     /// <summary>Somebody kept, or let go of, something this person watched.</summary>
     public const string Kept = "kept";
 
+    /// <summary>An episode of a show this person follows is out and the tracker offers it.</summary>
+    public const string Episode = "episode";
+
     /// <summary>Somebody asked this person into their room.</summary>
     public const string Invite = "invite";
 }
@@ -68,6 +71,8 @@ public sealed record NotificationPreferences
 
     public bool Leaving { get; init; } = true;
 
+    public bool Episode { get; init; } = true;
+
     /// <summary>Off unless asked for: every keep of anything a person watched adds up.</summary>
     public bool Kept { get; init; }
 
@@ -77,6 +82,7 @@ public sealed record NotificationPreferences
         NotificationKinds.Available => Available,
         NotificationKinds.Ready => Ready,
         NotificationKinds.Leaving => Leaving,
+        NotificationKinds.Episode => Episode,
         NotificationKinds.Kept => Kept,
         _ => true,
     };

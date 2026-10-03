@@ -286,6 +286,7 @@
 .mp-nextup__label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.8; }
 .mp-nextup__name { font-size: 15px; font-weight: 600; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mp-frame--compact .mp-nextup { right: 12px; bottom: 112px; height: 46px; }
+.mp-skip { height: 46px; padding: 0 16px; }
 .mp-icon:disabled { opacity: 0.35; cursor: default; }
 
 /* ── Menus ── */
