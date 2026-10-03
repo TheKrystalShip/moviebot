@@ -7,6 +7,10 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// <summary>The outcome of a mutation: the new state, plus a clamp notice when one was applied.</summary>
 public sealed record MutationResult(SessionState State, SeekClamped? Clamped);
 
+/// <summary>A room that is playing a film: where it is at the instant asked, and each person in it once.</summary>
+public sealed record PlayingRoom(
+    string SessionId, string TitleId, double PositionSeconds, IReadOnlyList<Participant> Viewers);
+
 /// <summary>
 /// Holds every live session and is the only thing allowed to change one.
 ///
@@ -74,20 +78,54 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     /// handed another goes on playing, from the beginning of the new one, so changing the film
     /// is one act rather than a change followed by everyone waiting for somebody to press play.
     /// A room that was paused stays paused.
+    ///
+    /// <paramref name="startSeconds"/> puts the room somewhere other than the beginning, which is
+    /// how somebody carries on a film they are partway through. It is held to the transcode head
+    /// like any seek, judged against the film being loaded.
     /// </summary>
-    public MutationResult LoadTitle(string sessionId, string titleId, Actor actor)
+    public MutationResult LoadTitle(string sessionId, string titleId, Actor actor, double? startSeconds = null)
     {
         var entry = Entry(sessionId);
         lock (entry.Gate)
         {
-            entry.State = Advance(entry.State, actor) with
+            var loaded = entry.State with { TitleId = titleId };
+            var (start, clamp) = ClampToHead(loaded, startSeconds ?? 0);
+            entry.State = Advance(loaded, actor) with
             {
-                TitleId = titleId,
-                PositionSeconds = 0,
+                PositionSeconds = start,
                 AnchorUtc = clock.GetUtcNow()
             };
-            return new MutationResult(WithCurrentHead(entry.State), null);
+            return new MutationResult(WithCurrentHead(entry.State), clamp);
         }
+    }
+
+    /// <summary>
+    /// The rooms that are playing a film right now, with who is in each. A room that is paused, or
+    /// holds nothing, or has nobody in it is not playing: nobody is watching what it holds.
+    /// Position is derived from the anchor at the instant asked, never read as a stored number.
+    /// </summary>
+    public IReadOnlyList<PlayingRoom> Playing()
+    {
+        var now = clock.GetUtcNow();
+        var rooms = new List<PlayingRoom>();
+
+        foreach (var (id, entry) in _sessions)
+        {
+            SessionState state;
+            lock (entry.Gate) state = entry.State;
+
+            if (state.Paused || state.TitleId is not { } titleId) continue;
+
+            var viewers = entry.Participants.Values
+                .GroupBy(p => p.UserId)
+                .Select(g => g.First())
+                .ToList();
+            if (viewers.Count == 0) continue;
+
+            rooms.Add(new PlayingRoom(id, titleId, state.PositionAt(now), viewers));
+        }
+
+        return rooms;
     }
 
     /// <summary>

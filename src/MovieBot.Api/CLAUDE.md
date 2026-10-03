@@ -44,7 +44,17 @@ and keeps are `Acquisition/CLAUDE.md`.
   what is kept and never waits on the network. No page talks to the database or its image store.
 - **A person's own settings are asked for by token, never by id.** `/api/me/preferences` answers for
   whoever the token names, so there is no route by which anybody reads or writes anybody else's; the
-  service key names nobody and is refused there.
+  service key names nobody and is refused there. Progress and history (`/api/me/progress`,
+  `/api/me/history`) are asked for the same way.
+- **What a person watched is sampled from rooms that are playing, and only those** (`People/`).
+  `WatchSampler` credits every person in a room that is playing a film with the room's position,
+  every 30 seconds; the position is derived from the room's anchor at the instant sampled, never
+  read as a stored number. A paused room, an empty one and a film no longer in the library record
+  nothing: the library's clock reads each film's last play to decide when an unwatched film leaves,
+  and a room left paused overnight must not look like a play. A person forgetting a film removes
+  their own entry and progress and leaves the film's last play. `PersonDirectory` is what turns a
+  Discord id into a name, learned from every token issued and every join; a record never shows an id
+  where a name belongs.
 - **The API publishes its public address on `/api/config`.** The page's origin is Discord's proxy,
   reachable only from inside the Activity, and the poster a viewer's presence shows is fetched by
   Discord's servers, so the page builds the poster URL from that address.

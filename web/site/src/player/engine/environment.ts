@@ -42,6 +42,11 @@ export interface Environment {
   /** The title the launch named, or null when nothing was named. */
   titleId(): string | null;
   /**
+   * Where in the launched film it starts when the launch put it into an empty room, in seconds, or
+   * null to start at the beginning. A room already holding a film ignores it.
+   */
+  startAt(): number | null;
+  /**
    * What this viewer presents to the server as proof they came through Discord, or null when
    * there is nothing to present. Every closed route refuses a request without one.
    */
@@ -85,6 +90,10 @@ export function createSiteEnvironment(sessionId: string, titleId: string | null)
     hubUrl: () => `${origin}/hub/session`,
     sessionId: () => sessionId,
     titleId: () => titleId,
+    startAt: () => {
+      const seconds = Number(new URLSearchParams(window.location.search).get('at'));
+      return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+    },
     authToken: () => siteSession()?.token ?? null,
     identity: async () => {
       const session = siteSession();

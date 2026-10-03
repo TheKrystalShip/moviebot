@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Sessions;
@@ -10,7 +11,8 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// push state. Every broadcast carries the server clock and a revision, which between them make
 /// reordering, duplication and skewed client clocks all harmless.
 /// </summary>
-public sealed class SessionHub(SessionStore sessions, RoomControls controls, ILogger<SessionHub> logger) : Hub
+public sealed class SessionHub(
+    SessionStore sessions, RoomControls controls, PersonDirectory people, ILogger<SessionHub> logger) : Hub
 {
     private const string SessionIdKey = "sessionId";
     private const string ActorKey = "actor";
@@ -26,6 +28,7 @@ public sealed class SessionHub(SessionStore sessions, RoomControls controls, ILo
         Context.Items[ActorKey] = actor;
 
         await Groups.AddToGroupAsync(Context.ConnectionId, sessionId);
+        people.Remember(userId, displayName);
 
         var participants = sessions.Join(sessionId, Context.ConnectionId,
             new Participant { UserId = userId, DisplayName = displayName });
@@ -38,8 +41,12 @@ public sealed class SessionHub(SessionStore sessions, RoomControls controls, ILo
         return Push(sessions.GetOrCreate(sessionId));
     }
 
-    public Task<SessionStatePush> LoadTitle(string titleId) =>
-        Mutate("load", actor => sessions.LoadTitle(SessionId(), titleId, actor));
+    /// <summary>
+    /// Puts a film on for the room, from <paramref name="startSeconds"/> or from the beginning when it
+    /// is null. A hub call carries every argument its method has, so a client with no start sends null.
+    /// </summary>
+    public Task<SessionStatePush> LoadTitle(string titleId, double? startSeconds) =>
+        Mutate("load", actor => sessions.LoadTitle(SessionId(), titleId, actor, startSeconds));
 
     public Task<SessionStatePush> Play(double atSeconds) =>
         Mutate("play", actor => sessions.Play(SessionId(), atSeconds, actor));

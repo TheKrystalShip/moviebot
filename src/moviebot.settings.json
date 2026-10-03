@@ -108,10 +108,13 @@
     "MinimumSource": "Web"
   },
 
-  // How each person watches, kept by the API. An empty Preferences writes preferences.json in the
-  // state directory.
+  // What the API keeps about each person: how they watch (Preferences), what each Discord id is
+  // called (Directory), and what they have watched and when each film was last played (Watch). An
+  // empty value writes preferences.json, people.json and watch.json in the state directory.
   "People": {
-    "Preferences": ""
+    "Preferences": "",
+    "Directory": "",
+    "Watch": ""
   },
 
   // The film database that describes a film: credits, certificate, genres, overview, artwork. The

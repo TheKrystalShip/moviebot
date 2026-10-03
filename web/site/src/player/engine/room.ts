@@ -328,9 +328,11 @@ export class PlayerRoom {
       // a fresh link, or one the server built again after forgetting it. The link names the film
       // where there is one; inside the Activity there is only an invite, which names nothing, so
       // what this viewer already has open is the answer. Only the empty case, because a room
-      // showing something else was told by somebody.
+      // showing something else was told by somebody. A start rides only with the launched film.
       const restore = launched ?? held;
-      if (restore !== null && titleId === null) void this.hub?.loadTitle(restore);
+      if (restore !== null && titleId === null) {
+        void this.hub?.loadTitle(restore, restore === launched ? environment().startAt() : null);
+      }
       return;
     }
 

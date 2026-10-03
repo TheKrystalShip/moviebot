@@ -95,6 +95,8 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
                 ["Download:Root"] = StateRoot,
                 ["Notify:Path"] = Path.Combine(StateRoot, "wishes.json"),
                 ["People:Preferences"] = Path.Combine(StateRoot, "preferences.json"),
+                ["People:Directory"] = Path.Combine(StateRoot, "people.json"),
+                ["People:Watch"] = Path.Combine(StateRoot, "watch.json"),
                 // The film database, answered by the test.
                 ["Tmdb:ReadAccessToken"] = "a-test-token",
                 ["Tmdb:Directory"] = Path.Combine(StateRoot, "films"),

@@ -127,6 +127,9 @@ export async function createDiscordEnvironment(
     sessionId: () => sessionId,
     authToken: () => auth.roomToken,
     titleId: () => new URLSearchParams(window.location.search).get('title'),
+    // An Activity is launched by Discord from a URL the site never writes, so there is nowhere for a
+    // position to ride.
+    startAt: () => null,
     identity: async () => identity,
     // The page's own origin is Discord's proxy, which opens nowhere outside the Activity. The
     // public address is the site, where the same room is open to anyone signed in.
