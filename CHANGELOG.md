@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.66.0] - 2026-10-03
+
+### Changed
+
+- **What a person watched is written from the room, as it changes.** The room's state is the one
+  record of where a film is, so nothing samples the rooms any more: a pause, a seek, a film changed,
+  somebody leaving or the server stopping ends a stretch of playing, and everybody who was watching it
+  is credited with where it got to. What a room is playing right now is read from the room, so
+  Continue watching, Resume and "last played" are to the second rather than up to half a minute old.
+
 ## [1.65.0] - 2026-10-03
 
 ### Added

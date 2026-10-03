@@ -12,9 +12,10 @@ using Xunit;
 namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
-/// What a person has watched, from a room playing to the routes that read it back. The sampler is
-/// driven one pass at a time rather than waited for, and every test names its own people, because
-/// the record is shared by the class.
+/// What a person has watched, from a room playing to the routes that read it back. The room is the
+/// one source: a stretch of playing is written down when it ends — a pause, a film changed, somebody
+/// leaving, the server stopping — and what a room is playing right now is read from the room. Every
+/// test names its own people, because the record is shared by the class.
 /// </summary>
 public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<SessionFixture>
 {
@@ -23,8 +24,15 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
 
     private static string NewSession() => $"watch-{Guid.NewGuid():n}";
 
-    private WatchSampler Sampler => fixture.Services.GetRequiredService<WatchSampler>();
     private WatchRecord Record => fixture.Services.GetRequiredService<WatchRecord>();
+    private TheKrystalShip.MovieBot.Api.Sessions.SessionStore Sessions =>
+        fixture.Services.GetRequiredService<TheKrystalShip.MovieBot.Api.Sessions.SessionStore>();
+
+    /// <summary>A position a room reached a moment after it was asked to be somewhere.</summary>
+    private static void Near(double expected, double actual) => Assert.InRange(actual, expected, expected + 3);
+
+    /// <summary>Pausing wherever the room is, which is the plainest way to end a stretch of playing.</summary>
+    private void Pause(string session) => Sessions.Pause(session, null, new Actor("w-pauser", "Pauser"));
 
     private HttpClient As(string userId, string name = "Cy")
     {
@@ -55,7 +63,7 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
     }
 
     [Fact]
-    public async Task Only_a_room_that_is_playing_is_sampled_and_only_the_people_in_it()
+    public async Task A_pause_credits_everybody_in_a_playing_room_with_where_it_got_to()
     {
         var playing = NewSession();
         await using var alice = await Watching(playing, "w-alice-1", "Alice", Film, 3000);
@@ -65,27 +73,71 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
         var paused = NewSession();
         await using var carol = await fixture.ConnectAsync(paused, "w-carol-1", "Carol");
         await carol.InvokeAsync<SessionStatePush>("LoadTitle", Film, null);
+        Pause(paused);
 
-        Sampler.Sample();
+        Pause(playing);
 
-        Assert.Equal(3000, Record.EntryOf("w-alice-1", Film)!.PositionSeconds, 1);
-        Assert.Equal(3000, Record.EntryOf("w-bob-1", Film)!.PositionSeconds, 1);
+        Near(3000, Record.EntryOf("w-alice-1", Film)!.PositionSeconds);
+        Near(3000, Record.EntryOf("w-bob-1", Film)!.PositionSeconds);
         Assert.Null(Record.EntryOf("w-carol-1", Film));
         Assert.Null(Record.EntryOf("w-dave-1", Film));
     }
 
     [Fact]
-    public async Task A_room_nobody_is_in_is_not_sampled()
+    public async Task Leaving_a_playing_room_credits_whoever_left()
     {
         var session = NewSession();
         var alice = await Watching(session, "w-alice-2", "Alice", Film, 100);
+        await using var bob = await fixture.ConnectAsync(session, "w-bob-2", "Bob");
+
         await alice.DisposeAsync();
         // The hub drops a connection when it learns of the disconnect, which is a moment later.
-        await Eventually(() => fixture.Services.GetRequiredService<TheKrystalShip.MovieBot.Api.Sessions.SessionStore>().Participants(session).Count == 0);
+        await Eventually(() => Sessions.Participants(session).Count == 1);
 
-        Sampler.Sample();
+        Near(100, Record.EntryOf("w-alice-2", Film)!.PositionSeconds);
+        // Bob is still watching: nothing ended for him.
+        Assert.Null(Record.EntryOf("w-bob-2", Film));
+    }
 
-        Assert.Null(Record.EntryOf("w-alice-2", Film));
+    [Fact]
+    public async Task A_paused_room_credits_nobody_with_what_it_did_while_paused()
+    {
+        var session = NewSession();
+        var alice = await Watching(session, "w-alice-8", "Alice", Film, 500);
+        Pause(session);
+        // Moved while paused, then left: nothing was watched past the pause.
+        await alice.InvokeAsync<SessionStatePush>("Seek", 4000.0);
+        await alice.DisposeAsync();
+        await Eventually(() => Sessions.Participants(session).Count == 0);
+
+        Near(500, Record.EntryOf("w-alice-8", Film)!.PositionSeconds);
+    }
+
+    [Fact]
+    public async Task A_server_that_stops_credits_everybody_still_watching()
+    {
+        var session = NewSession();
+        await using var alice = await Watching(session, "w-alice-9", "Alice", Film, 2500);
+        Assert.Null(Record.EntryOf("w-alice-9", Film));
+
+        Sessions.EndAllSpans();
+
+        Near(2500, Record.EntryOf("w-alice-9", Film)!.PositionSeconds);
+    }
+
+    [Fact]
+    public async Task What_a_room_is_playing_now_is_read_from_the_room()
+    {
+        var session = NewSession();
+        await using var alice = await Watching(session, "w-alice-10", "Alice", Film, 1000);
+        await Task.Delay(1200);
+
+        var progress = await As("w-alice-10").GetFromJsonAsync<JsonElement>("/api/me/progress");
+
+        // Nothing has ended, so nothing is written down; the room says where it is.
+        Assert.Null(Record.EntryOf("w-alice-10", Film));
+        var entry = Assert.Single(progress.EnumerateArray());
+        Assert.InRange(entry.GetProperty("positionSeconds").GetDouble(), 1001, 1004);
     }
 
     [Fact]
@@ -94,7 +146,7 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
         var session = NewSession();
         await using var alice = await Watching(session, "w-alice-3", "Alice", Film, SessionFixture.TitleDuration * 0.95);
 
-        Sampler.Sample();
+        Pause(session);
 
         Assert.True(Record.EntryOf("w-alice-3", Film)!.Finished);
     }
@@ -104,11 +156,11 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
     {
         var session = NewSession();
         await using var alice = await Watching(session, "w-alice-4", "Alice", Film, 2000);
-        Sampler.Sample();
+        // Changing the film ends the first one's stretch.
         await alice.InvokeAsync<SessionStatePush>("LoadTitle", Other, 5800.0);
         await alice.InvokeAsync<SessionStatePush>("Play", 5800.0);
         await Task.Delay(20);
-        Sampler.Sample();
+        Pause(session);
 
         var progress = await As("w-alice-4").GetFromJsonAsync<JsonElement>("/api/me/progress");
         var history = await As("w-alice-4").GetFromJsonAsync<JsonElement>("/api/me/history");
@@ -116,9 +168,10 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
         // The second film was finished, so it is history and not progress.
         var inProgress = Assert.Single(progress.EnumerateArray());
         Assert.Equal(Film, inProgress.GetProperty("titleId").GetString());
-        Assert.Equal(2000, inProgress.GetProperty("positionSeconds").GetDouble(), 1);
+        Near(2000, inProgress.GetProperty("positionSeconds").GetDouble());
         Assert.Equal(SessionFixture.TitleDuration, inProgress.GetProperty("durationSeconds").GetDouble());
-        Assert.Equal(SessionFixture.TitleDuration - 2000, inProgress.GetProperty("remainingSeconds").GetDouble(), 1);
+        Assert.InRange(inProgress.GetProperty("remainingSeconds").GetDouble(),
+            SessionFixture.TitleDuration - 2003, SessionFixture.TitleDuration - 2000);
         Assert.Equal("Heat (1995)", inProgress.GetProperty("name").GetString());
 
         var watched = history.EnumerateArray().ToList();
@@ -136,7 +189,7 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
     {
         var session = NewSession();
         await using var alice = await Watching(session, "w-alice-5", "Alice", Film, 1500);
-        Sampler.Sample();
+        Pause(session);
         var playedBefore = Record.LastPlayedAt(Film);
         Assert.NotNull(playedBefore);
 
@@ -158,11 +211,12 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
     {
         var session = NewSession();
         await using var alice = await Watching(session, "w-alice-6", "Alice Liddell", Film, 1200);
-        Sampler.Sample();
 
+        // Still playing: the listing reads the room.
         var mine = await Listing(As("w-alice-6"), Film);
         var progress = mine.GetProperty("progress");
-        Assert.Equal(1200, progress.GetProperty("positionSeconds").GetDouble(), 1);
+        Near(1200, progress.GetProperty("positionSeconds").GetDouble());
+        Assert.Equal("w-alice-6", mine.GetProperty("lastPlayed").GetProperty("byId").GetString());
         Assert.False(progress.GetProperty("finished").GetBoolean());
         Assert.Equal("Alice Liddell", mine.GetProperty("lastPlayed").GetProperty("byName").GetString());
 

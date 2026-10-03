@@ -36,8 +36,10 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `DELETE /api/me/sessions/{id}` | 204 — ends one of the person's own sessions. Another person's id, or one that does not exist, is `404` |
 | `DELETE /api/me/sessions` | 204 — ends every session of the person except the current one |
 
-What is recorded is sampled from rooms: every 30 seconds each person in a room that is **playing** a
-film is credited with the room's position, so a paused room left open ages nothing. Opening a film
+What is recorded comes from the rooms: when a room that is **playing** a film is paused, seeked or
+given another film, or somebody leaves it, each person who was watching is credited with where it got
+to; a film a room is playing right now is answered from the room itself. A paused room left open
+records nothing. Opening a film
 at `/r/{room}?title={id}&at={seconds}` into an empty room starts it there; a room already holding a
 film ignores `at`.
 

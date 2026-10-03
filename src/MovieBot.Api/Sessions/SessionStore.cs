@@ -7,9 +7,19 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// <summary>The outcome of a mutation: the new state, plus a clamp notice when one was applied.</summary>
 public sealed record MutationResult(SessionState State, SeekClamped? Clamped);
 
-/// <summary>A room that is playing a film: where it is at the instant asked, and each person in it once.</summary>
-public sealed record PlayingRoom(
-    string SessionId, string TitleId, double PositionSeconds, IReadOnlyList<Participant> Viewers);
+/// <summary>
+/// A room holding a film with people in it: where it is at the instant asked, whether it is
+/// playing, and each person in it once.
+/// </summary>
+public sealed record ViewingRoom(
+    string SessionId, string TitleId, double PositionSeconds, bool Playing, IReadOnlyList<Participant> Viewers);
+
+/// <summary>
+/// A stretch of a film a room played, ending now: the people who were watching and where the film
+/// got to. Raised when a playing room is changed, when somebody leaves one, and when the server
+/// stops, which are the only moments the position stops following from the room's anchor.
+/// </summary>
+public sealed record WatchedSpan(string TitleId, double PositionSeconds, IReadOnlyList<Participant> Viewers, DateTimeOffset At);
 
 /// <summary>
 /// Holds every live session and is the only thing allowed to change one.
@@ -26,6 +36,15 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     /// decide what happened, and how often that reaches a disk is somebody else's judgement.
     /// </summary>
     public event Action? Changed;
+
+    /// <summary>
+    /// Raised when a stretch of playing ends, with who watched it and where it ended. The room's
+    /// state is the record of what is being watched: between two changes the position follows from
+    /// the anchor, so the moment a playing state is replaced, or somebody leaves it, is the one
+    /// moment worth writing anything down. Only a playing state counts; a paused room left open is
+    /// nobody watching.
+    /// </summary>
+    public event Action<WatchedSpan>? Watched;
 
     /// <summary>
     /// How far short of the transcode head a clamped seek lands. Seeking exactly to the head
@@ -88,6 +107,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         var entry = Entry(sessionId);
         lock (entry.Gate)
         {
+            EndSpan(entry, Viewers(entry));
             var loaded = entry.State with { TitleId = titleId };
             var (start, clamp) = ClampToHead(loaded, startSeconds ?? 0);
             entry.State = Advance(loaded, actor) with
@@ -100,32 +120,38 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     }
 
     /// <summary>
-    /// The rooms that are playing a film right now, with who is in each. A room that is paused, or
-    /// holds nothing, or has nobody in it is not playing: nobody is watching what it holds.
-    /// Position is derived from the anchor at the instant asked, never read as a stored number.
+    /// The rooms holding a film with somebody in them, with who is in each: what is being watched
+    /// this instant, which is newer than anything written down. Position is derived from the anchor
+    /// at the instant asked, never read as a stored number.
     /// </summary>
-    public IReadOnlyList<PlayingRoom> Playing()
+    public IReadOnlyList<ViewingRoom> Viewing()
     {
         var now = clock.GetUtcNow();
-        var rooms = new List<PlayingRoom>();
+        var rooms = new List<ViewingRoom>();
 
         foreach (var (id, entry) in _sessions)
         {
             SessionState state;
             lock (entry.Gate) state = entry.State;
 
-            if (state.Paused || state.TitleId is not { } titleId) continue;
-
-            var viewers = entry.Participants.Values
-                .GroupBy(p => p.UserId)
-                .Select(g => g.First())
-                .ToList();
+            if (state.TitleId is not { } titleId) continue;
+            var viewers = Viewers(entry);
             if (viewers.Count == 0) continue;
 
-            rooms.Add(new PlayingRoom(id, titleId, state.PositionAt(now), viewers));
+            rooms.Add(new ViewingRoom(id, titleId, state.PositionAt(now), !state.Paused, viewers));
         }
 
         return rooms;
+    }
+
+    /// <summary>
+    /// Ends every stretch of playing at once, for a server that is stopping: the people in the rooms
+    /// are about to be disconnected without leaving one by one.
+    /// </summary>
+    public void EndAllSpans()
+    {
+        foreach (var entry in _sessions.Values)
+            lock (entry.Gate) EndSpan(entry, Viewers(entry));
     }
 
     /// <summary>
@@ -143,6 +169,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         var entry = Entry(sessionId);
         lock (entry.Gate)
         {
+            EndSpan(entry, Viewers(entry));
             var from = atSeconds ?? entry.State.PositionAt(clock.GetUtcNow());
             var (granted, clamp) = ClampToHead(entry.State, from);
             entry.State = Advance(entry.State, actor) with
@@ -166,6 +193,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         var entry = Entry(sessionId);
         lock (entry.Gate)
         {
+            EndSpan(entry, Viewers(entry));
             var at = atSeconds ?? entry.State.PositionAt(clock.GetUtcNow());
             entry.State = Advance(entry.State, actor) with
             {
@@ -183,6 +211,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         var entry = Entry(sessionId);
         lock (entry.Gate)
         {
+            EndSpan(entry, Viewers(entry));
             var (granted, clamp) = ClampToHead(entry.State, toSeconds);
             entry.State = Advance(entry.State, actor) with
             {
@@ -215,6 +244,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         var entry = Entry(sessionId);
         lock (entry.Gate)
         {
+            EndSpan(entry, Viewers(entry));
             var from = entry.State.PositionAt(clock.GetUtcNow());
             var (granted, clamp) = ClampToHead(entry.State, from + deltaSeconds);
             entry.State = Advance(entry.State, actor) with
@@ -243,7 +273,8 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     public IReadOnlyList<Participant> Leave(string sessionId, string connectionId)
     {
         if (!_sessions.TryGetValue(sessionId, out var entry)) return new List<Participant>();
-        entry.Participants.TryRemove(connectionId, out _);
+        if (entry.Participants.TryRemove(connectionId, out var leaving))
+            lock (entry.Gate) EndSpan(entry, [leaving]);
         // The clock on an empty room starts when the last person leaves it.
         entry.LastActivityUtc = clock.GetUtcNow();
 
@@ -267,6 +298,22 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         _sessions.TryGetValue(sessionId, out var entry) ? entry.Participants.Values.ToList() : new List<Participant>();
 
     // ---- Internals ------------------------------------------------------------------
+
+    /// <summary>Each person in the room once: one person on two devices is one person watching.</summary>
+    private static List<Participant> Viewers(SessionEntry entry) =>
+        [.. entry.Participants.Values.GroupBy(p => p.UserId).Select(g => g.First())];
+
+    /// <summary>
+    /// Says where a playing film got to, for whoever was watching it, as the state it was playing
+    /// under ends. Called under the room's lock, before the state changes.
+    /// </summary>
+    private void EndSpan(SessionEntry entry, IReadOnlyList<Participant> viewers)
+    {
+        var state = entry.State;
+        if (state.Paused || state.TitleId is not { } titleId || viewers.Count == 0) return;
+        var now = clock.GetUtcNow();
+        Watched?.Invoke(new WatchedSpan(titleId, state.PositionAt(now), viewers, now));
+    }
 
     private SessionEntry Entry(string sessionId)
     {

@@ -1,4 +1,5 @@
 using TheKrystalShip.MovieBot.Api.Library;
+using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.People;
@@ -24,12 +25,12 @@ public static class PeopleEndpoints
 
         // Films this person started and did not finish, newest first. A film the library no longer
         // holds is left out: there is nothing to continue and no name to show for it.
-        app.MapGet("/api/me/progress", (HttpContext context, WatchRecord record, TitleLibrary library) =>
+        app.MapGet("/api/me/progress", (HttpContext context, WatchRecord record, TitleLibrary library, SessionStore sessions, TimeProvider clock) =>
         {
             if (Person(context) is not { } person) return NoPerson();
 
             var entries = new List<ProgressEntry>();
-            foreach (var (titleId, entry) in record.Entries(person.UserId))
+            foreach (var (titleId, entry) in EntriesOf(person.UserId, record, sessions, library, clock))
             {
                 if (entry.Finished || NameOf(library, titleId) is not { } name) continue;
                 entries.Add(new ProgressEntry(titleId, name, entry.PositionSeconds, entry.DurationSeconds,
@@ -39,12 +40,12 @@ public static class PeopleEndpoints
             return Results.Ok(entries);
         });
 
-        app.MapGet("/api/me/history", (HttpContext context, WatchRecord record, TitleLibrary library) =>
+        app.MapGet("/api/me/history", (HttpContext context, WatchRecord record, TitleLibrary library, SessionStore sessions, TimeProvider clock) =>
         {
             if (Person(context) is not { } person) return NoPerson();
 
             var entries = new List<HistoryEntry>();
-            foreach (var (titleId, entry) in record.Entries(person.UserId))
+            foreach (var (titleId, entry) in EntriesOf(person.UserId, record, sessions, library, clock))
             {
                 if (NameOf(library, titleId) is not { } name) continue;
                 entries.Add(new HistoryEntry(titleId, name, entry.PositionSeconds, entry.DurationSeconds,
@@ -64,17 +65,61 @@ public static class PeopleEndpoints
         });
     }
 
-    /// <summary>What the listing says each film carries for the asking person; the service key has none.</summary>
+    /// <summary>
+    /// What the listing says each film carries for the asking person; the service key has none. A
+    /// film a room is playing right now was last played now, and by whoever is watching it.
+    /// </summary>
     public static TitleSummary WithPlays(
-        this TitleSummary title, RoomTokenPayload? person, WatchRecord record, PersonDirectory people)
+        this TitleSummary title, RoomTokenPayload? person, WatchRecord record, PersonDirectory people,
+        IReadOnlyList<ViewingRoom> viewing, DateTimeOffset now)
     {
-        var entry = person is null ? null : record.EntryOf(person.UserId, title.Id);
+        var live = person is null ? null : Live(person.UserId, viewing, title.Id, title.DurationSeconds, now);
+        var entry = live ?? (person is null ? null : record.EntryOf(person.UserId, title.Id));
+        var playing = viewing.FirstOrDefault(r => r.Playing && r.TitleId == title.Id);
         var played = record.LastPlayed(title.Id);
 
         return title with
         {
             Progress = entry is null ? null : new TitleProgress(entry.PositionSeconds, entry.Finished, entry.LastWatchedAt),
-            LastPlayed = played is null ? null : new TitleLastPlayed(played.LastPlayedAt, played.LastPlayedBy, people.NameOf(played.LastPlayedBy)),
+            LastPlayed = playing is not null
+                ? new TitleLastPlayed(now, playing.Viewers[0].UserId, playing.Viewers[0].DisplayName)
+                : played is null ? null : new TitleLastPlayed(played.LastPlayedAt, played.LastPlayedBy, people.NameOf(played.LastPlayedBy)),
+        };
+    }
+
+    /// <summary>
+    /// One person's films, newest first: what is written down, with whatever a room is playing to
+    /// them this instant in place of it, because a room's position is newer than any record of it.
+    /// </summary>
+    private static IEnumerable<(string TitleId, WatchEntry Entry)> EntriesOf(
+        string userId, WatchRecord record, SessionStore sessions, TitleLibrary library, TimeProvider clock)
+    {
+        var now = clock.GetUtcNow();
+        var viewing = sessions.Viewing();
+        var entries = record.Entries(userId).ToDictionary(e => e.TitleId, e => e.Entry);
+
+        foreach (var room in viewing.Where(r => r.Playing && r.Viewers.Any(v => v.UserId == userId)))
+        {
+            if (library.Get(room.TitleId) is not { } manifest) continue;
+            if (Live(userId, viewing, room.TitleId, manifest.DurationSeconds, now) is { } live)
+                entries[room.TitleId] = live;
+        }
+
+        return entries.OrderByDescending(e => e.Value.LastWatchedAt).Select(e => (e.Key, e.Value));
+    }
+
+    /// <summary>Where a room playing the film to this person is now, or null when none is.</summary>
+    private static WatchEntry? Live(string userId, IReadOnlyList<ViewingRoom> viewing, string titleId, double duration, DateTimeOffset now)
+    {
+        var room = viewing.FirstOrDefault(r => r.Playing && r.TitleId == titleId && r.Viewers.Any(v => v.UserId == userId));
+        if (room is null || duration <= 0) return null;
+        var position = Math.Clamp(room.PositionSeconds, 0, duration);
+        return new WatchEntry
+        {
+            PositionSeconds = position,
+            DurationSeconds = duration,
+            LastWatchedAt = now,
+            Finished = position >= duration * WatchRecord.FinishedFraction,
         };
     }
 

@@ -78,8 +78,9 @@ builder.Services.AddSingleton(sp => new WatchRecord(
     StatePath(sp.GetRequiredService<IConfiguration>()["People:Watch"], "watch.json"),
     sp.GetRequiredService<ILogger<WatchRecord>>()));
 builder.Services.AddSingleton<IPlayHistory>(sp => sp.GetRequiredService<WatchRecord>());
-builder.Services.AddSingleton<WatchSampler>();
-builder.Services.AddHostedService(sp => sp.GetRequiredService<WatchSampler>());
+// Written from the rooms as they change: the room is where a film's position lives.
+builder.Services.AddSingleton<WatchRecorder>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<WatchRecorder>());
 
 // The devices people are signed in on, which is what lets one be signed out from another.
 builder.Services.AddSingleton(sp => new DeviceSessions(
@@ -229,11 +230,13 @@ app.MapGet("/api/config", (IOptions<DiscordAuthOptions> discord, IConfiguration 
 // on the network, and a film not described yet is listed without it. Each carries the asking
 // person's progress and when the film was last played, and a caller that is nobody gets no progress.
 app.MapGet("/api/titles", (HttpContext context, TitleLibrary library, FilmStore films,
-    WatchRecord record, PersonDirectory people) =>
+    WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
 {
     var person = PeopleEndpoints.Person(context);
+    var viewing = sessions.Viewing();
+    var now = clock.GetUtcNow();
     return Results.Ok(library.List()
-        .Select(t => (t with { Details = films.Facts(t.Film?.ImdbId) }).WithPlays(person, record, people))
+        .Select(t => (t with { Details = films.Facts(t.Film?.ImdbId) }).WithPlays(person, record, people, viewing, now))
         .ToList());
 });
 

@@ -45,6 +45,10 @@ alone, and restarting the API would take the film out from under everybody in it
   makes restarting something that can be looked at first rather than found out about afterwards.
 - **The room listing carries what each room is watching and how many are in it, and no names**: who
   is in a room is the room's business. The bot's presence surfaces read it on every pass.
+- **A room is the record of what is being watched.** Every change ends the stretch of playing before
+  it, and the store says so (`Watched`) with who was in the room and where the film got to; somebody
+  leaving ends it for them, and the server stopping ends it for everyone. Nothing else keeps its own
+  idea of a film's position.
 - **A room's link unfurls with the film, never with the people** (`RoomPreview`). `/r/<room>` is
   answered with Open Graph tags in the page itself, since a crawler runs no script: the film's name,
   its year, how far in the room is, and its backdrop or poster at an absolute public address. Whatever

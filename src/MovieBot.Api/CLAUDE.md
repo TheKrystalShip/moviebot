@@ -46,12 +46,14 @@ and keeps are `Acquisition/CLAUDE.md`.
   whoever the token names, so there is no route by which anybody reads or writes anybody else's; the
   service key names nobody and is refused there. Progress, history and devices (`/api/me/progress`,
   `/api/me/history`, `/api/me/sessions`) are asked for the same way.
-- **What a person watched is sampled from rooms that are playing, and only those** (`People/`).
-  `WatchSampler` credits every person in a room that is playing a film with the room's position,
-  every 30 seconds; the position is derived from the room's anchor at the instant sampled, never
-  read as a stored number. A paused room, an empty one and a film no longer in the library record
-  nothing: the library's clock reads each film's last play to decide when an unwatched film leaves,
-  and a room left paused overnight must not look like a play. A person forgetting a film removes
+- **What a person watched comes from the room, the one source of where a film is** (`People/`). A
+  room's state is a position at an instant and everything between two changes follows from it, so
+  nothing polls the rooms. `SessionStore` raises `Watched` when a stretch of playing ends — a pause,
+  a seek, a film changed, somebody leaving, the server stopping — and `WatchRecorder` credits each
+  person who was watching with where it got to. What a room is playing right now is newer than any
+  record and is read from the room (`SessionStore.Viewing`), so progress and "last played" never
+  lag the room. A paused room records nothing: the library's clock reads each film's last play to
+  decide when an unwatched film leaves, and a room left paused overnight must not look like a play. A person forgetting a film removes
   their own entry and progress and leaves the film's last play. `PersonDirectory` is what turns a
   Discord id into a name, learned from every token issued and every join; a record never shows an id
   where a name belongs.
