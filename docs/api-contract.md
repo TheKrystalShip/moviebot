@@ -147,7 +147,7 @@ at the hub's negotiate. A token without a `jti` is valid until `exp` and is not 
 | `GET /api/releases/suggest?q=&session=` | `ReleaseSuggestions` — picker rows for what was typed; `session` keys the debounce |
 | `GET /api/releases?q=` or `?imdb=` | `RankedOffers` — the tracker's releases for a film, best first |
 | `GET /api/releases/{torrentId}` | `ReleaseOffer` — a release a search or a picker offered, or 404 |
-| `GET /api/downloads` | `DownloadView[]` |
+| `GET /api/downloads` | `DownloadView[]`: `{hash, name, release, summary, isFinished, isWatchable, libraryId?, imdbId?, requestedBy?}`, `requestedBy` the Discord id of whoever asked |
 | `POST /api/downloads` | `StartDownloadReply` for `{torrentId, requestedBy, notifyChannelId?, roomId?}` |
 | `GET /api/wishes?userId=` | `WishView[]` — every wish, or the ones that person waits on |
 | `POST /api/wishes` | `AddWishReply` for `{chosen, requestedBy, channelId?}` |
@@ -161,10 +161,11 @@ at the hub's negotiate. A token without a `jti` is valid until `exp` and is not 
 | `GET /api/library/due` | `string[]` — the ids of the settled films whose time is up; the **service key** alone |
 
 - **A film stays in the library until it has gone `Library:LeaveAfterDays` without a play.** The clock
-  is only on a film that has settled on the cold disk, and it counts from the later of the film's
-  last play and the moment it settled. A film somebody keeps never leaves, and neither does one a room
-  holds. `TitleStay` is `{titleId, settled, keeperId?, keeperName?, keptAt?, lastPlayedAt?, leavesAt?,
-  daysLeft?}`: `leavesAt` and `daysLeft` are absent while the film is kept or has not settled, and
+  is only on a film that has settled on the cold disk, and it counts from the latest of the film's
+  last play, the moment it settled, and the moment plays began to be recorded. A film somebody keeps
+  never leaves, and neither does one a room holds. `TitleStay` is `{titleId, settled, keeperId?,
+  keeperName?, keptAt?, lastPlayedAt?, leavesAt?, daysLeft?, leaveAfterDays}`: `leaveAfterDays` is
+  the rule itself, `leavesAt` and `daysLeft` are absent while the film is kept or has not settled, and
   `keeperName` is the keeper's name where one is known, the id otherwise. A keep is held by the API,
   by library id, and outlives the film's torrent. The hand-off asks `/api/library/due` and deletes
   what it names, being the only process that writes the media roots; a hand-off the API cannot answer
@@ -246,8 +247,8 @@ listing shows it — `{rating?, votes, certification?, genres, runtimeMinutes?, 
 posterUrl?, backdropUrl?}` — and is absent for a film not yet described; the listing never waits on
 the network for it. `progress` is `{positionSeconds, finished, lastWatchedAt}` for the person the
 token names, absent when they have not watched the film and always absent for the service key.
-`lastPlayed` is `{at, byName?}`, the last time anybody played the film, absent when nobody has;
-`byName` is absent when that person's name was never heard.
+`lastPlayed` is `{at, byId, byName?}`, the last time anybody played the film and who (their Discord
+id), absent when nobody has; `byName` is absent when that person's name was never heard.
 
 ```jsonc
 // FilmView: GET /api/films/{imdbId}

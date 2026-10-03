@@ -101,6 +101,7 @@ public sealed class LibraryClock(
             KeeperName = keep is null ? null : names(keep.KeeperId) ?? keep.KeeperId,
             KeptAt = keep?.KeptAt,
             LastPlayedAt = played,
+            LeaveAfterDays = options.Value.LeaveAfterDays,
         };
 
         if (!stay.Settled || keep is not null) return stay;

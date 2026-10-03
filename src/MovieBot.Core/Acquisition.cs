@@ -118,6 +118,9 @@ public sealed record DownloadView
     public string? LibraryId { get; init; }
 
     public string? ImdbId { get; init; }
+
+    /// <summary>The Discord id of whoever asked for it, so a person can be shown their own requests.</summary>
+    public string? RequestedBy { get; init; }
 }
 
 /// <summary>One person waiting on a film, and where they asked to be told.</summary>
@@ -229,6 +232,12 @@ public sealed record TitleStay
 
     /// <summary>Whole days until <see cref="LeavesAt"/>, rounded up and never below zero.</summary>
     public int? DaysLeft { get; init; }
+
+    /// <summary>
+    /// How long a settled film stays without a play, in days: the rule itself, so a page can say it
+    /// without keeping its own copy of a setting.
+    /// </summary>
+    public double LeaveAfterDays { get; init; }
 }
 
 /// <summary>Keep a film, or let one go, as somebody. A member's request names nobody: the token does.</summary>

@@ -4,6 +4,47 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.65.0] - 2026-10-03
+
+### Added
+
+- **What each person watches is recorded.** Every 30 seconds the API credits each person in a room
+  that is playing a film with the room's position (`watch.json`); a paused or empty room records
+  nothing. `GET /api/me/progress` and `GET /api/me/history` answer for the signed-in person,
+  `DELETE /api/me/history/{titleId}` forgets one, and `/api/titles` carries the asking person's
+  `progress` and the film's `lastPlayed {at, byId, byName}`. A directory of names (`people.json`),
+  learned at every sign-in and join, turns an id into a person.
+- **Resume.** A room link carries `&at=<seconds>`; a film loaded into an empty room starts there. The
+  hub's `LoadTitle` takes the start as a second argument, null for none.
+- **Signed-in devices.** Every token carries an id (`jti`) and is recorded with a short device name
+  (`devices.json`). `GET /api/me/sessions` lists them; `DELETE /api/me/sessions/{id}` signs one out
+  and `DELETE /api/me/sessions` signs out every other; a revoked token is refused, on the hub too.
+- **Two retention clocks.** The tracker's clock removes a download's torrent and source files once its
+  seeding window ends, and no longer the transcoded film. The library's clock removes a film settled on
+  cold storage after `Library:LeaveAfterDays` (7) without a play, counted from the latest of its last
+  play, when it settled and when plays began to be recorded; a kept film and one a room holds never
+  leave. The API decides (`GET /api/library/due`), the hand-off deletes.
+- **Keeps belong to the library**, by film, in `keeps.json`: `GET /api/titles/{id}/stay`,
+  `GET /api/stays`, `PUT`/`DELETE /api/titles/{id}/keep`. The bot's `/keep` and the assistant's keep
+  tools use them; a keep shows the keeper's name.
+- `DownloadView.requestedBy`, so a person can be shown their own requests.
+- Krystal Cinema: Continue watching on the home page; Resume with the time left, and "Played … by
+  you" on a film's page; the stay pill and Keep / Un-keep on the library's clock; Leaving soon from the
+  library's clock; Profile with History (each row removable), Requests, Playback (default subtitles,
+  audio language, quality) and Sessions (sign out one device or every other).
+
+### Changed
+
+- `/api/keeps`, `/api/keeps/{hash}`, `/api/keeps/{hash}/release` and `/api/titles/{id}/retention` are
+  replaced by the library's keep and stay routes. Nothing on the site mentions seeding.
+- A room nobody is in is not shown as watching now, and a film's page offers to join a room only
+  when somebody is in it.
+
+### Fixed
+
+- The player's stream module is in the repository: the ingest output's ignore rule also matched the
+  player's own `media/` directory, so a fresh clone could not build the site.
+
 ## [1.64.0] - 2026-10-03
 
 ### Added

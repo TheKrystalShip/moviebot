@@ -66,7 +66,8 @@ function History() {
         {rows.map((row) => {
           const title = byId.get(row.titleId);
           const href = "/title/" + encodeURIComponent(row.titleId);
-          const how = row.finished ? "Watched" : `${Math.round(100 * row.positionSeconds / Math.max(1, row.durationSeconds))}% watched`;
+          const fraction = row.finished ? 1 : Math.min(1, row.positionSeconds / Math.max(1, row.durationSeconds));
+          const how = row.finished ? "Watched" : `${Math.round(100 * fraction)}% watched`;
           return (
             <div key={row.titleId} className="kc-row">
               <a {...linkProps(href)}><PosterArt title={title || { id: row.titleId, title: row.name }} className="kc-row__thumb" /></a>
@@ -74,6 +75,9 @@ function History() {
                 <a className="kc-row__title" {...linkProps(href)}>{title ? filmName(title) : row.name}</a>
                 <span className="kc-row__sub">{how} · {ago(row.lastWatchedAt)}</span>
               </div>
+              <span className={"kc-bar kc-history__bar" + (row.finished ? " is-done" : "")} aria-hidden="true">
+                <span style={{ width: `${Math.round(100 * fraction)}%` }} />
+              </span>
               <button type="button" className="kc-btn kc-btn--ghost kc-btn--icon" aria-label={`Remove ${row.name} from your history`} title="Remove from history" onClick={() => forget(row)}>
                 <Icon name="x" size={15} />
               </button>
@@ -85,12 +89,14 @@ function History() {
   );
 }
 
-/** The films this person is waiting on, and the downloads under way or done. */
+/** The films this person is waiting on, and the downloads they asked for, under way or done. */
 function Requests({ user }) {
   const wishes = useLoad(() => api.wishes(), []);
   const downloads = useLoad(() => api.downloads(), [], { every: 5000 });
   const mine = (wishes.data || []).filter((w) => w.subscribers.some((s) => user && s.userId === user.id));
-  const rows = (downloads.data || []).slice().sort((a, b) => Number(a.isFinished) - Number(b.isFinished));
+  const rows = (downloads.data || [])
+    .filter((d) => user && d.requestedBy === user.id)
+    .sort((a, b) => Number(a.isFinished) - Number(b.isFinished));
 
   const cancel = async (wish) => {
     try {
@@ -197,8 +203,15 @@ function Playback() {
             aria-label="Audio language" onChange={(e) => change({ audioLanguage: orNull(e.target.value) })} />
         </SettingsRow>
         <SettingsRow icon="gauge" title="Quality" sub="Auto lets the connection decide.">
-          <Select value={preferences.qualityHeight ? String(preferences.qualityHeight) : ""} options={qualities}
-            aria-label="Quality" onChange={(e) => change({ qualityHeight: e.target.value ? Number(e.target.value) : null })} />
+          <div className="kc-segmented" role="radiogroup" aria-label="Quality">
+            {qualities.map((q) => {
+              const on = (preferences.qualityHeight ? String(preferences.qualityHeight) : "") === q.value;
+              return (
+                <button key={q.value} type="button" role="radio" aria-checked={on} className={"kc-segmented__option" + (on ? " is-on" : "")}
+                  onClick={() => change({ qualityHeight: q.value ? Number(q.value) : null })}>{q.label}</button>
+              );
+            })}
+          </div>
         </SettingsRow>
       </SettingsSection>
       <SettingsSection icon="palette" title="Appearance">

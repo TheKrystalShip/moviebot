@@ -29,8 +29,12 @@ export function useLoad(load, deps, { every } = {}) {
   return { ...state, reload: () => setTick((t) => t + 1) };
 }
 
-/** How many days a settled film goes without a play before it leaves, as `Library:LeaveAfterDays` ships it. */
-export const LEAVE_AFTER_DAYS = 7;
+/** The library's rule in words, from the stay the API answered, which carries the rule itself. */
+export function leaveRule(stay) {
+  const days = stay && stay.leaveAfterDays;
+  if (!days) return "Leaves after a while without a play";
+  return `Leaves after ${days} ${days === 1 ? "day" : "days"} without a play`;
+}
 
 /** Whoever kept a film, as the person asking reads it: "you" for their own keep. */
 export function keeperOf(stay, me) {

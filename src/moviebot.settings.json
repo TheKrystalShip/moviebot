@@ -118,12 +118,14 @@
   },
 
   // What the API keeps about each person: how they watch (Preferences), what each Discord id is
-  // called (Directory), and what they have watched and when each film was last played (Watch). An
-  // empty value writes preferences.json, people.json and watch.json in the state directory.
+  // called (Directory), what they have watched and when each film was last played (Watch), and the
+  // devices they are signed in on (Devices). An empty value writes preferences.json, people.json,
+  // watch.json and devices.json in the state directory.
   "People": {
     "Preferences": "",
     "Directory": "",
-    "Watch": ""
+    "Watch": "",
+    "Devices": ""
   },
 
   // The film database that describes a film: credits, certificate, genres, overview, artwork. The

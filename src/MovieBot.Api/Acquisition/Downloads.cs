@@ -91,6 +91,8 @@ public sealed class Downloads(
                 IsWatchable = d.Tags.Contains(TorrentTags.Watchable),
                 LibraryId = libraryId,
                 ImdbId = d.Tags.Select(TorrentTags.ReadImdb).FirstOrDefault(i => i is not null),
+                RequestedBy = d.Tags.Select(TorrentTags.ReadRequester).FirstOrDefault(i => i is not null)
+                    ?.ToString(System.Globalization.CultureInfo.InvariantCulture),
             };
         }).ToList();
     }

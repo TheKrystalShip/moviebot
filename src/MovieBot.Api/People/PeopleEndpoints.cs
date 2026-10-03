@@ -74,7 +74,7 @@ public static class PeopleEndpoints
         return title with
         {
             Progress = entry is null ? null : new TitleProgress(entry.PositionSeconds, entry.Finished, entry.LastWatchedAt),
-            LastPlayed = played is null ? null : new TitleLastPlayed(played.LastPlayedAt, people.NameOf(played.LastPlayedBy)),
+            LastPlayed = played is null ? null : new TitleLastPlayed(played.LastPlayedAt, played.LastPlayedBy, people.NameOf(played.LastPlayedBy)),
         };
     }
 

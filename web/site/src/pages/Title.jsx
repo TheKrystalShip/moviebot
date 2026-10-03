@@ -1,7 +1,7 @@
 import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../api.js";
-import { LEAVE_AFTER_DAYS, stayWords, useLoad } from "../data.js";
+import { leaveRule, stayWords, useLoad } from "../data.js";
 import { goBack } from "../router.js";
 import { useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
@@ -37,12 +37,13 @@ export function Title({ id }) {
   const d = details.data;
   const summary = listing.data;
   const held = stay.data && stay.data.settled ? stay.data : null;
-  const room = (rooms.data || []).find((r) => r.titleId === m.id);
+  // A room with nobody in it is not one to join: it is kept a while after the last person leaves.
+  const room = (rooms.data || []).find((r) => r.titleId === m.id && r.participants > 0);
   const backdrop = (d && d.backdropUrl) || posterUrl(title);
   const progress = summary && summary.progress && !summary.progress.finished && summary.progress.positionSeconds > 0
     ? summary.progress : null;
   const played = summary && summary.lastPlayed;
-  const playedBy = played && (me && played.byName === me.name ? "you" : played.byName);
+  const playedBy = played && (me && played.byId === me.id ? "you" : played.byName);
 
   const keep = async (keeping) => {
     setBusy(true);
@@ -116,7 +117,7 @@ export function Title({ id }) {
                   <span className="kc-tt__stay-note">
                     {held.keeperId
                       ? "Stays for everyone until someone un-keeps it"
-                      : `Leaves after ${LEAVE_AFTER_DAYS} days without a play`}
+                      : leaveRule(held)}
                   </span>
                 </span>
               )}

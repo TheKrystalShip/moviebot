@@ -25,7 +25,8 @@ export function Home() {
 
   const library = (titles.data || []).filter((t) => t.status !== "failed");
   const byId = new Map(library.map((t) => [t.id, t]));
-  const watching = (rooms.data || []).filter((r) => r.titleId && byId.has(r.titleId));
+  // Watching now means somebody is there: an empty room is kept a while after the last person leaves.
+  const watching = (rooms.data || []).filter((r) => r.titleId && r.participants > 0 && byId.has(r.titleId));
   const arriving = (downloads.data || []).filter((d) => !d.isFinished);
   const leaving = (stays.data || [])
     .filter((s) => s.settled && !s.keeperId && s.daysLeft != null && s.daysLeft <= LEAVING_SOON_DAYS && byId.has(s.titleId));

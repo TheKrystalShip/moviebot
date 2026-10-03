@@ -31,8 +31,10 @@ hand-off, the one process that writes the media roots, deletes what it names. Th
   due from the same computation, so the page that says "3 days left" and the sweep that deletes cannot
   disagree. The hand-off applies the answer and decides nothing of its own.
 - **Only a settled film is on the clock**: its directory is on the cold root and not also on the media
-  root. The count runs from the later of the last play (`IPlayHistory`) and the moment it settled, so
-  a film that settles long after it was last watched is not due the instant it lands.
+  root. The count runs from the latest of the last play (`IPlayHistory`), the moment it settled, and
+  the moment plays began to be recorded (`IPlayHistory.RecordingSince`): a film that settles long
+  after it was last watched is not due the instant it lands, and a film with no recorded play is one
+  nobody has played since recording began, which is all that can be known about it.
 - **A kept film has no `leavesAt`, and neither does one that has not settled.** A date for a film
   that cannot leave would be invented.
 - **A film a room holds is never due**, whether or not anybody is in the room this second.

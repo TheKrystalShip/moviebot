@@ -1,6 +1,6 @@
 import { Icon, toast } from "@thekrystalship/krystal-ui";
 import { api, filmName } from "../api.js";
-import { LEAVE_AFTER_DAYS, stayWords, useLoad } from "../data.js";
+import { leaveRule, stayWords, useLoad } from "../data.js";
 import { useSession } from "../session.js";
 import { ago } from "../time.js";
 import { Empty, Failed, PageHead, PosterArt } from "../components/Film.jsx";
@@ -40,7 +40,7 @@ export function Leaving() {
 
   return (
     <div className="kc-page">
-      <PageHead title="Leaving soon" sub={`A film leaves after ${LEAVE_AFTER_DAYS} days without a play. Keeping one holds it for everybody until somebody lets it go.`} />
+      <PageHead title="Leaving soon" sub={`${leaveRule(all[0])}. Keeping a film holds it for everybody until somebody lets it go.`} />
       <Failed error={stays.error} onRetry={stays.reload} />
       {stays.data && all.length === 0 && <Empty icon="hourglass" title="Nothing on the clock">No film has settled in the library yet.</Empty>}
 

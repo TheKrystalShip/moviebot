@@ -24,7 +24,7 @@ export function Downloads() {
               {d.libraryId
                 ? <a className="kc-row__title" {...linkProps("/title/" + encodeURIComponent(d.libraryId))}>{d.name}</a>
                 : <span className="kc-row__title">{d.name}</span>}
-              <span className="kc-row__sub">{d.summary}{d.isKept ? " · kept" : ""}</span>
+              <span className="kc-row__sub">{d.summary}</span>
             </div>
             {d.libraryId && (d.isFinished || d.isWatchable) && (
               <a className="kc-btn" {...watchLink(d.libraryId)}><Icon name="play" size={15} />Watch</a>
