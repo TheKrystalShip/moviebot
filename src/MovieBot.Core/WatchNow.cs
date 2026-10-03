@@ -71,8 +71,14 @@ public sealed record FilmAvailability
 
     public ReleaseOffer? Hd720 { get; init; }
 
-    /// <summary>Nothing at a digital source or better is offered: a film somebody can wait on.</summary>
+    /// <summary>The tracker holds nothing from a digital source up: a film somebody can wait on.</summary>
     public bool NotOut { get; init; }
+
+    /// <summary>
+    /// The tracker holds it from a digital source up, but nothing this server takes: every release is
+    /// in a category, at a size or with a swarm it turns down. Waiting would not change that.
+    /// </summary>
+    public bool NotOffered { get; init; }
 
     /// <summary>Why nothing is offered, when the tracker could say.</summary>
     public string? EmptyExplanation { get; init; }

@@ -50,7 +50,7 @@ public sealed class WatchNowFixture : SessionFixture
             r.RequestUri!.AbsolutePath.EndsWith("download.php", StringComparison.Ordinal) ? TorrentFile : null));
     }
 
-    private sealed class InceptionOnly : IReleaseSearch
+    public sealed class InceptionOnly : IReleaseSearch
     {
         private static readonly Release[] Offered =
         [
@@ -60,8 +60,25 @@ public sealed class WatchNowFixture : SessionFixture
                 ImdbId = Inception, SizeBytes = 1 << 19, Resolution = Resolution.Hd720, Source = Source.Web },
         ];
 
-        private static Task<RankedReleases> Find(string said) =>
-            Task.FromResult(new RankedReleases(said == Inception || said.Contains("Inception") ? Offered : [], []));
+        /// <summary>Out digitally, and turned down here: a web release filed outside the film categories.</summary>
+        public const string Elsewhere = "tt0245429";
+
+        /// <summary>Not out digitally: a camcorder recording, and nothing else.</summary>
+        public const string InCinemas = "tt0000003";
+
+        private static Task<RankedReleases> Find(string said) => Task.FromResult(said switch
+        {
+            Elsewhere => new RankedReleases([], [new RejectedRelease(new Release
+            {
+                TorrentId = 61, ReleaseName = "Spirited.Away.2001.1080p.WEB-DL-GRP", Title = "Spirited Away", Year = 2001,
+                Resolution = Resolution.Hd1080, Source = Source.Web,
+            }, RejectionReason.NotAFilm)]),
+            InCinemas => new RankedReleases([new Release
+            {
+                TorrentId = 62, ReleaseName = "New.Film.2026.CAM-GRP", Title = "New Film", Year = 2026, Source = Source.Cam,
+            }], []),
+            _ => new RankedReleases(said == Inception || said.Contains("Inception") ? Offered : [], []),
+        });
 
         public Task<RankedReleases> ByTextAsync(string typed, CancellationToken ct) => Find(typed);
         public Task<RankedReleases> ByTitleAsync(string query, CancellationToken ct) => Find(query);
@@ -168,6 +185,19 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
 
         Assert.Equal(SessionFixture.Heat, availability!.LibraryId);
         Assert.Null(availability.Hd1080);
+    }
+
+    [Fact]
+    public async Task Out_digitally_but_turned_down_here_is_not_offered_rather_than_not_out()
+    {
+        var turnedDown = await Member().GetFromJsonAsync<FilmAvailability>($"/api/films/{WatchNowFixture.InceptionOnly.Elsewhere}/availability");
+        Assert.True(turnedDown!.NotOffered);
+        Assert.False(turnedDown.NotOut);
+        Assert.Contains("outside the film categories", turnedDown.EmptyExplanation);
+
+        var inCinemas = await Member().GetFromJsonAsync<FilmAvailability>($"/api/films/{WatchNowFixture.InceptionOnly.InCinemas}/availability");
+        Assert.True(inCinemas!.NotOut);
+        Assert.False(inCinemas.NotOffered);
     }
 
     [Fact]

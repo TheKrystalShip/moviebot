@@ -89,17 +89,23 @@ public sealed class WatchNow(
             return answer with { TrackerUnanswered = true };
         }
 
-        var digital = ranked.Candidates.Where(r => r.Source >= notify.Value.MinimumSource).ToList();
+        var floor = notify.Value.MinimumSource;
+        var digital = ranked.Candidates.Where(r => r.Source >= floor).ToList();
         var hd1080 = digital.FirstOrDefault(r => r.Resolution == Resolution.Hd1080);
         var hd720 = digital.FirstOrDefault(r => r.Resolution == Resolution.Hd720);
         offered.Remember([.. new[] { hd1080, hd720 }.OfType<Release>()]);
 
+        // Out digitally is about the film, not this server's policy: a digital release turned down
+        // for its category or its size is a film that is out and not offered here.
+        var none = hd1080 is null && hd720 is null;
+        var outDigitally = ranked.Candidates.Concat(ranked.Rejected.Select(r => r.Release)).Any(r => r.Source >= floor);
         return answer with
         {
             Hd1080 = hd1080 is null ? null : OfferedReleases.View(hd1080),
             Hd720 = hd720 is null ? null : OfferedReleases.View(hd720),
-            NotOut = hd1080 is null && hd720 is null,
-            EmptyExplanation = hd1080 is null && hd720 is null ? ranked.EmptyExplanation : null,
+            NotOut = none && !outDigitally,
+            NotOffered = none && outDigitally,
+            EmptyExplanation = none ? ranked.EmptyExplanation : null,
         };
     }
 

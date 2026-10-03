@@ -110,6 +110,9 @@ export function CatalogueFilm({ imdbId }) {
             <div className="kc-actions">
               {!a && state.loading && <span className="kc-quiet">Asking the tracker…</span>}
               {a && a.trackerUnanswered && <span className="kc-note">The tracker is not answering, so whether this can be fetched is not known. Try again in a minute.</span>}
+              {a && a.notOffered && (
+                <span className="kc-note">The tracker has it, but nothing this server takes. {a.emptyExplanation}</span>
+              )}
 
               {a && (arriving || offer) && (
                 <button type="button" className={"kc-btn kc-btn--primary kc-btn--lg" + (full && !arriving ? " is-dim" : "")} disabled={busy} onClick={watch}>
