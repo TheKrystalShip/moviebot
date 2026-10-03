@@ -3,8 +3,8 @@ using Microsoft.Extensions.Time.Testing;
 using TheKrystalShip.Agent;
 using TheKrystalShip.Agent.Replies;
 using TheKrystalShip.Llm.Models;
-using TheKrystalShip.MovieBot.Bot.Api;
-using TheKrystalShip.MovieBot.Bot.Assistant;
+using TheKrystalShip.MovieBot.Assistant;
+using TheKrystalShip.MovieBot.Assistant.Wire;
 using TheKrystalShip.MovieBot.Core;
 using Xunit;
 
@@ -19,11 +19,21 @@ public sealed class AssistantPartsTests
     private static readonly string Prompts = new AssistantOptions().ResolvePromptDirectory();
 
     [Fact]
-    public void The_shipped_catalog_describes_exactly_the_tools_the_bot_implements()
+    public void The_shipped_catalog_describes_exactly_the_tools_the_assistant_implements()
     {
         var catalog = ToolCatalog.Load(Prompts, RoomTools.Names);
 
         Assert.Equal(RoomTools.Names.Order(), catalog.All.Select(t => t.Name).Order());
+    }
+
+    [Fact]
+    public void A_turn_in_no_room_is_offered_no_tool_that_acts_on_one()
+    {
+        var catalog = ToolCatalog.Load(Prompts, RoomTools.Names);
+
+        Assert.DoesNotContain(catalog.Site, t => RoomTools.RoomOnly.Contains(t.Name));
+        Assert.Contains(catalog.Site, t => t.Name == RoomTools.WatchFilm);
+        Assert.Contains(catalog.Site, t => t.Name == RoomTools.DownloadOnly);
     }
 
     [Fact]
@@ -40,7 +50,7 @@ public sealed class AssistantPartsTests
     }
 
     [Fact]
-    public void A_catalog_that_disagrees_with_the_bot_is_refused_naming_both_sides()
+    public void A_catalog_that_disagrees_with_the_assistant_is_refused_naming_both_sides()
     {
         const string json = """{ "play": { "description": "Plays.", "params": [] }, "dance": { "description": "Dances.", "params": [] } }""";
 
@@ -79,7 +89,7 @@ public sealed class AssistantPartsTests
     public void A_proposal_is_redeemed_once_by_an_unguessable_token()
     {
         var staged = new StagedActions(Options.Create(new AssistantOptions()), TimeProvider.System);
-        var action = staged.Stage("keep_film", "keep Heat", Turn(1), _ => Task.FromResult(new StagedOutcome("kept")));
+        var action = staged.Stage("keep_film", "keep Heat", "Heat", Turn(1), _ => Task.FromResult(Kept));
 
         Assert.Matches("^[0-9a-f]{32}$", action.Token);
         Assert.Same(action, staged.Take(action.Token));
@@ -91,12 +101,31 @@ public sealed class AssistantPartsTests
     {
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var staged = new StagedActions(Options.Create(new AssistantOptions { OfferMinutes = 10 }), clock);
-        var action = staged.Stage("download_film", "download Heat", Turn(1), _ => Task.FromResult(new StagedOutcome("started")));
+        var action = staged.Stage("download_film", "download Heat", "Heat", Turn(1), _ => Task.FromResult(Kept));
 
         clock.Advance(TimeSpan.FromMinutes(11));
 
         Assert.Null(staged.Take(action.Token));
     }
+
+    /// <summary>
+    /// Anyone in a room may agree to what the room was offered; on the site only the person who asked.
+    /// A refusal leaves the proposal where it was, so a guess cannot cancel it.
+    /// </summary>
+    [Fact]
+    public void A_proposal_made_on_the_site_is_the_asker_s_alone_and_a_room_s_is_anybody_s()
+    {
+        var staged = new StagedActions(Options.Create(new AssistantOptions()), TimeProvider.System);
+        var mine = staged.Stage("keep_film", "keep Heat", "Heat", AssistantTurn.ForPerson("4242", "Haru", "main"), _ => Task.FromResult(Kept));
+        var room = staged.Stage("keep_film", "keep Heat", "Heat", Turn(1), _ => Task.FromResult(Kept));
+
+        Assert.Null(staged.Take(mine.Token, "77"));
+        Assert.Single(staged.Pending(mine.ConversationId));
+        Assert.Same(mine, staged.Take(mine.Token, "4242"));
+        Assert.Same(room, staged.Take(room.Token, "77"));
+    }
+
+    private static readonly ConfirmOutcome Kept = new() { Text = "kept", Success = true, Verdict = "accepted" };
 
     [Theory]
     [InlineData("1:02:03", 3723)]
@@ -128,20 +157,24 @@ public sealed class AssistantPartsTests
             new() { Id = "heat-1995", Title = "Heat", DurationSeconds = 10_200, Status = TitleStatus.Ready },
         ];
 
-        var line = RoomFacts.Describe("Cinema", state, library, now);
+        var line = TurnFacts.Describe("Cinema", state, library, now);
 
         Assert.Equal("Room Cinema: Heat (id heat-1995) at 1:00:15 of 2:50:00, playing. Last changed by Haru.", line);
     }
 
     [Fact]
     public void A_room_holding_nothing_says_so() =>
-        Assert.Equal("Room Cinema: no film is loaded.", RoomFacts.Describe("Cinema", null, [], DateTimeOffset.UtcNow));
+        Assert.Equal("Room Cinema: no film is loaded.", TurnFacts.Describe("Cinema", null, [], DateTimeOffset.UtcNow));
 
-    internal static RoomTurn Turn(ulong channel) => new(1, channel, "Cinema", 4242, "Haru");
+    internal static AssistantTurn Turn(ulong channel)
+    {
+        var id = channel.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return AssistantTurn.InRoom(new TurnRoom(id, "Cinema", id), "4242", "Haru");
+    }
 }
 
 /// <summary>
-/// The tools against the running API, built the way the bot builds them. What is worth catching is
+/// The tools against the running API, built the way the service builds them. What is worth catching is
 /// the seam: the right room, the right person, a proposal that waits, and nothing done to a room that
 /// is watching nothing.
 /// </summary>
@@ -161,7 +194,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         var said = await host.Tools.For(turn).ExecuteAsync(Call(RoomTools.Pause));
 
         Assert.StartsWith("Paused at ", said.Summary);
-        var state = await host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None);
+        var state = await host.Api.OpenSessionAsync(turn.Room!.SessionId, CancellationToken.None);
         Assert.True(state.Paused);
         Assert.Equal("Haru", state.UpdatedBy?.DisplayName);
     }
@@ -171,7 +204,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     {
         var host = Host();
         var turn = AssistantPartsTests.Turn(NewChannel());
-        await host.Api.SetSessionTitleAsync(turn.SessionId, SessionFixture.TranscodingTitle, "someone", CancellationToken.None);
+        await host.Api.SetSessionTitleAsync(turn.Room!.SessionId, SessionFixture.TranscodingTitle, "someone", CancellationToken.None);
 
         var said = await host.Tools.For(turn).ExecuteAsync(Call(RoomTools.Seek, ("position", "1:00:00")));
 
@@ -187,11 +220,11 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         var said = await host.Tools.For(turn).ExecuteAsync(Call(RoomTools.SeekRelative, ("seconds", "-15")));
 
         Assert.Contains("No film is loaded", said.Summary);
-        Assert.DoesNotContain(await host.Api.ListRoomsAsync(CancellationToken.None), r => r.SessionId == turn.SessionId);
+        Assert.DoesNotContain(await host.Api.ListRoomsAsync(CancellationToken.None), r => r.SessionId == turn.Room!.SessionId);
     }
 
     [Fact]
-    public async Task Loading_a_film_by_its_name_puts_it_in_the_room_and_hands_the_card_to_the_chat()
+    public async Task Loading_a_film_by_its_name_puts_it_in_the_room_and_hands_it_over_to_be_opened()
     {
         var host = Host();
         var turn = AssistantPartsTests.Turn(NewChannel());
@@ -199,9 +232,66 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
 
         await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "collateral")));
 
-        Assert.Single(room.Launched);
-        var state = await host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None);
+        var launch = Assert.Single(room.Launched);
+        Assert.Equal(SessionFixture.Collateral, launch.TitleId);
+        Assert.Equal(turn.Room!.SessionId, launch.SessionId);
+        var state = await host.Api.OpenSessionAsync(turn.Room.SessionId, CancellationToken.None);
         Assert.Equal(SessionFixture.Collateral, state.TitleId);
+    }
+
+    [Fact]
+    public async Task Switching_a_room_names_the_film_it_replaced()
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        await StartFilmAsync(host.Api, turn);
+        var room = host.Tools.For(turn);
+
+        var said = await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "collateral")));
+
+        Assert.StartsWith("Haru switched Cinema from all-done to Collateral (2004).", said.Summary);
+        Assert.Equal("all-done", Assert.Single(room.Launched).Replaced);
+    }
+
+    [Fact]
+    public async Task On_the_site_a_film_is_found_to_open_and_no_room_is_touched()
+    {
+        var host = Host();
+        var turn = AssistantTurn.ForPerson("4242", "Haru", "main");
+        var tools = host.Tools.For(turn, "show me heat");
+        var before = (await host.Api.ListRoomsAsync(CancellationToken.None)).Count;
+
+        await tools.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "heat")));
+
+        var launch = Assert.Single(tools.Launched);
+        Assert.Equal(SessionFixture.Heat, launch.TitleId);
+        Assert.Null(launch.SessionId);
+        Assert.Equal(before, (await host.Api.ListRoomsAsync(CancellationToken.None)).Count);
+    }
+
+    [Fact]
+    public async Task On_the_site_a_tool_that_acts_on_a_room_is_refused()
+    {
+        var host = Host();
+        var tools = host.Tools.For(AssistantTurn.ForPerson("4242", "Haru", "main"));
+
+        var said = await tools.ExecuteAsync(Call(RoomTools.Pause));
+
+        Assert.Contains("in none", said.Summary);
+    }
+
+    [Fact]
+    public async Task On_the_site_a_film_the_library_lacks_is_proposed_for_the_library_and_for_no_room()
+    {
+        var host = Host();
+        var tools = host.Tools.For(AssistantTurn.ForPerson("4242", "Haru", "main"), "get inception");
+
+        var told = await tools.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "Inception")));
+
+        var proposal = Assert.Single(tools.Proposed);
+        Assert.Equal(RoomTools.DownloadOnly, proposal.Kind);
+        Assert.Null(proposal.Room);
+        Assert.Contains("confirm it on their screen", told.Summary);
     }
 
     [Fact]
@@ -216,7 +306,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         Assert.Empty(room.Launched);
         Assert.Contains("Inception (2010) is not in the library", told.Summary);
         Assert.Contains("Proposed: download Inception (2010)", told.Summary);
-        Assert.DoesNotContain(await host.Api.ListRoomsAsync(CancellationToken.None), r => r.SessionId == turn.SessionId);
+        Assert.DoesNotContain(await host.Api.ListRoomsAsync(CancellationToken.None), r => r.SessionId == turn.Room!.SessionId);
 
         // The model calling download_film for the same release afterwards is asking again, not twice.
         await room.ExecuteAsync(Call(RoomTools.DownloadFilm, ("torrent_id", "41")));
@@ -250,6 +340,24 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         Assert.Empty(room.Launched);
         Assert.Contains("not in the library", told.Summary);
         Assert.Contains("add_wish with imdb_id tt", told.Summary);
+    }
+
+    [Fact]
+    public async Task A_wish_agreed_to_is_made_as_the_person_who_asked_in_the_room_s_channel()
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        var room = host.Tools.For(turn, "tell me when at worlds end is out");
+
+        await room.ExecuteAsync(Call(RoomTools.AddWish, ("imdb_id", "tt0449088")));
+        var outcome = await Assert.Single(room.Proposed).Run(CancellationToken.None);
+
+        Assert.True(outcome.Success, outcome.Text);
+        Assert.Equal("subscribed", outcome.Wish?.Outcome);
+        var held = await host.Api.ListWishesAsync("4242", CancellationToken.None);
+        Assert.Equal(turn.Room!.ChannelId, Assert.Single(held, w => w.ImdbId == "tt0449088").Subscribers.Single(s => s.UserId == "4242").ChannelId);
+
+        await host.Api.CancelWishAsync("4242", "tt0449088", CancellationToken.None);
     }
 
     [Fact]
@@ -288,7 +396,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", title)));
 
         Assert.Single(room.Launched);
-        Assert.Equal(SessionFixture.Heat, (await host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).TitleId);
+        Assert.Equal(SessionFixture.Heat, (await host.Api.OpenSessionAsync(turn.Room!.SessionId, CancellationToken.None)).TitleId);
     }
 
     [Theory]
@@ -304,7 +412,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
 
         Assert.Empty(room.Launched);
         Assert.Contains("Heat (1995)", told.Summary);
-        Assert.DoesNotContain(await host.Api.ListRoomsAsync(CancellationToken.None), r => r.SessionId == turn.SessionId);
+        Assert.DoesNotContain(await host.Api.ListRoomsAsync(CancellationToken.None), r => r.SessionId == turn.Room!.SessionId);
     }
 
     [Fact]
@@ -334,7 +442,22 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         Assert.StartsWith("Proposed: download Inception (2010)", said.Summary);
         var proposal = Assert.Single(room.Proposed);
         Assert.Equal(RoomTools.DownloadFilm, proposal.Kind);
-        Assert.Equal(4242ul, proposal.AskedBy);
+        Assert.Equal("4242", proposal.AskedBy);
+    }
+
+    [Fact]
+    public async Task A_download_agreed_to_that_cannot_start_claims_nothing()
+    {
+        var host = Host();
+        var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()));
+        await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "Inception")));
+
+        var outcome = await Assert.Single(room.Proposed).Run(CancellationToken.None);
+
+        Assert.False(outcome.Success);
+        Assert.Equal("failed", outcome.Verdict);
+        Assert.NotEqual("started", outcome.Download?.Outcome);
+        Assert.DoesNotContain("Downloading", outcome.Text);
     }
 
     [Fact]
@@ -354,7 +477,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         Assert.Equal(RoomTools.DownloadOnly, Assert.Single(room.Proposed).Kind);
         Assert.Empty(room.Launched);
 
-        var state = await host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None);
+        var state = await host.Api.OpenSessionAsync(turn.Room!.SessionId, CancellationToken.None);
         Assert.Equal(SessionFixture.ReadyTitle, state.TitleId);
         Assert.False(state.Paused);
     }
@@ -404,7 +527,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         Assert.Equal(RoomTools.DownloadOnly, proposal.Kind);
         Assert.Contains("leaving Cinema as it is", told.Summary);
         Assert.Equal(SessionFixture.ReadyTitle,
-            (await host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).TitleId);
+            (await host.Api.OpenSessionAsync(turn.Room!.SessionId, CancellationToken.None)).TitleId);
     }
 
     [Fact]
@@ -466,6 +589,21 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     }
 
     [Fact]
+    public async Task A_person_s_chat_on_the_site_is_never_started_over_behind_their_back()
+    {
+        var host = Host();
+        var turn = AssistantTurn.ForPerson("4242", "Haru", "main");
+        Said(host, turn, "what is heat about", "Heat is a heist film.", DateTimeOffset.UtcNow.AddHours(-12));
+        host.Model.Answers.Enqueue(LlmResponse.Text("It is from 1995."));
+
+        await host.Assistant.AskAsync(turn, "and what year?", CancellationToken.None);
+
+        var sent = Assert.Single(host.Model.Requests);
+        Assert.Contains(sent, m => m.Content.Contains("heist film", StringComparison.Ordinal));
+        Assert.DoesNotContain(sent, m => m.Role == LlmRole.System && m.Content.Contains("Room "));
+    }
+
+    [Fact]
     public async Task A_room_still_talking_replays_what_it_just_said()
     {
         var host = Host();
@@ -479,7 +617,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         Assert.Contains(sent, m => m.Content.Contains("Heat is in the library.", StringComparison.Ordinal));
     }
 
-    private static void Said(AssistantHost host, RoomTurn turn, string prompt, string reply, DateTimeOffset at) =>
+    private static void Said(AssistantHost host, AssistantTurn turn, string prompt, string reply, DateTimeOffset at) =>
         host.Conversations.AppendTurn(new ConversationTurnRecord
         {
             ConversationId = turn.ConversationId,
@@ -496,18 +634,51 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         });
 
     [Fact]
-    public async Task A_turn_that_proposes_hands_the_proposal_back_for_the_chat_to_post()
+    public async Task A_turn_that_proposes_hands_the_proposal_over_as_a_frame()
     {
         var host = Host();
         var turn = AssistantPartsTests.Turn(NewChannel());
         host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.WatchFilm, ("title", "Inception"))]));
         host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.DownloadFilm, ("torrent_id", "41"))]));
         host.Model.Answers.Enqueue(LlmResponse.Text("Inception is ready to download once somebody confirms."));
+        var frames = new List<Frame>();
 
-        var answer = await host.Assistant.AskAsync(turn, "download inception", CancellationToken.None);
+        var answer = await host.Assistant.RunAsync(turn, "download inception", frames.Add, CancellationToken.None);
 
         Assert.Equal("Inception is ready to download once somebody confirms.", answer.Text);
-        Assert.Equal(RoomTools.DownloadFilm, Assert.Single(answer.Proposed).Kind);
+        var proposal = Assert.Single(answer.Proposed);
+        Assert.Equal(RoomTools.DownloadFilm, proposal.Kind);
+        var proposed = Assert.Single(frames.OfType<CommandProposed>());
+        Assert.Equal(proposal.Token, proposed.Token);
+        Assert.Equal("download", proposed.Verb);
+        Assert.IsType<DoneFrame>(frames[^1]);
+    }
+
+    [Fact]
+    public async Task A_film_put_on_is_handed_over_as_a_launch_frame_and_the_turn_ends_once()
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.WatchFilm, ("title", "collateral"))]));
+        host.Model.Answers.Enqueue(LlmResponse.Text("Enjoy."));
+        var frames = new List<Frame>();
+
+        await host.Assistant.RunAsync(turn, "put collateral on", frames.Add, CancellationToken.None);
+
+        Assert.Equal(SessionFixture.Collateral, Assert.Single(frames.OfType<LaunchFrame>()).TitleId);
+        Assert.Single(frames, f => f is DoneFrame or ErrorFrame);
+    }
+
+    [Fact]
+    public async Task A_turn_whose_model_is_down_ends_in_one_error_frame()
+    {
+        var host = Host();
+        var frames = new List<Frame>();
+
+        var answer = await host.Assistant.RunAsync(AssistantPartsTests.Turn(NewChannel()), "hello", frames.Add, CancellationToken.None);
+
+        Assert.True(answer.Failed);
+        Assert.Equal("assistant_failed", Assert.IsType<ErrorFrame>(Assert.Single(frames)).Code);
     }
 
     [Fact]
@@ -522,7 +693,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
 
         Assert.Equal(2, host.Model.Requests.Count);
         Assert.Contains("\"put heat on\"", host.Model.Requests[1][^1].Content);
-        Assert.Equal("I have loaded Heat for you." + RoomActionClaim.Check.Correction, answer.Text);
+        Assert.EndsWith("I have loaded Heat for you." + RoomActionClaim.Check.Correction, answer.Text);
     }
 
     [Fact]
@@ -537,6 +708,19 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         var answer = await host.Assistant.AskAsync(turn, "download inception", CancellationToken.None);
 
         Assert.Equal("Inception it is." + PendingConfirmationNote.For(1), answer.Text);
+    }
+
+    [Fact]
+    public async Task A_turn_that_proposes_and_writes_nothing_answers_with_what_waits()
+    {
+        var host = Host();
+        var turn = AssistantPartsTests.Turn(NewChannel());
+        host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.WatchFilm, ("title", "Inception"))]));
+        host.Model.Answers.Enqueue(LlmResponse.Text(""));
+
+        var answer = await host.Assistant.AskAsync(turn, "download inception", CancellationToken.None);
+
+        Assert.Equal(PendingConfirmationNote.For(1).TrimStart(), answer.Text);
     }
 
     [Fact]
@@ -566,10 +750,10 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         foreach (var host in _hosts) host.Dispose();
     }
 
-    private static async Task StartFilmAsync(MovieBotApiClient api, RoomTurn turn)
+    private static async Task StartFilmAsync(MovieBotApiClient api, AssistantTurn turn)
     {
-        await api.SetSessionTitleAsync(turn.SessionId, SessionFixture.ReadyTitle, "someone", CancellationToken.None);
-        await api.PlayAsync(turn.SessionId, "1", "someone", CancellationToken.None);
+        await api.SetSessionTitleAsync(turn.Room!.SessionId, SessionFixture.ReadyTitle, "someone", CancellationToken.None);
+        await api.PlayAsync(turn.Room.SessionId, "1", "someone", CancellationToken.None);
     }
 
     private static ulong NewChannel() => (ulong)Interlocked.Increment(ref _channels);

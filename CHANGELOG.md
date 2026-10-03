@@ -4,6 +4,34 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.58.0] - 2026-10-03
+
+### Added
+
+- **moviebot-assistant**, a service of its own (`src/MovieBot.Assistant`). It holds the agent loop,
+  the prompts and tool catalog, the conversations, the proposals waiting to be agreed to and the
+  reply checks, and serves the assistant wire contract 2.1: `POST /turn` as server-sent events or one
+  JSON answer, `POST /confirm`, the caller's conversations, `GET /events` with attaching to a chat,
+  and the `new` and `help` commands. It adds one frame, `launch`, for a film put on or found to open.
+  Every act its tools take is the API's, through the service key.
+- A person is recognised by the token the API gave them at Discord sign-in, checked with
+  `Auth:SigningKey`; a service proves itself with `Auth:ServiceKey` and names the person in
+  `X-MovieBot-Acting`. Only a service names a room, which is what gives a turn the room's tools and
+  conversation. A person's turn gets the library and fetching tools, with `site.md` as its
+  instructions, and a proposal it makes is theirs alone to agree to.
+- `POST /rooms/record` writes a room verb the bot carried out into the room's conversation.
+- `deploy/moviebot-assistant.service` and `packaging/systemd/moviebot-assistant.service`, listening
+  on `Assistant.Listen` (`127.0.0.1:8191`), proxied at `/assistant/` by both nginx configurations.
+  Releases carry it; it needs a llama.cpp server the release does not include.
+- `src/MovieBot.Client`: the API client, `TitleMatcher` and `FilmClock`, shared by the bot and the
+  assistant.
+
+### Changed
+
+- `RoomToken` is in MovieBot.Core, so the assistant checks the API's tokens with the same code that
+  issues them.
+- moviebot-llm replays the assistant's warm-up request, from `/var/lib/moviebot-assistant`.
+
 ## [1.57.0] - 2026-10-03
 
 ### Changed

@@ -14,9 +14,13 @@ With everything under [Before you start](#before-you-start) ready, it takes abou
 | `moviebot-api` | Serves the player, your films, and the live connection that keeps everyone in a room at the same moment of the film |
 | `moviebot-bot` | The Discord bot: the `/watch`, `/download`, `/notify` and `/keep` commands |
 | `moviebot-handoff` | Watches for finished downloads and prepares them for playback on your GPU |
+| `moviebot-assistant` | Optional. Answers what people say or type to MovieBot, using a language model you run yourself |
 | `moviebot-ingest` | A command for adding films you already have |
 
-All three services run under their own user account, `moviebot`, and are managed by systemd.
+The services run under their own user account, `moviebot`, and are managed by systemd.
+`moviebot-assistant` needs a [llama.cpp](https://github.com/ggml-org/llama.cpp) server at the
+address in the `Llm` section of the settings file. This release does not include one; without it,
+leave the assistant stopped and `Assistant.Enabled` off.
 
 ## Before you start
 
@@ -218,7 +222,10 @@ Check that all three are running:
 systemctl status moviebot-api moviebot-bot moviebot-handoff --no-pager
 ```
 
-Each should say `active (running)`. Then check the API from outside, in a browser or with curl:
+Each should say `active (running)`. If you run a language model for the assistant, start it too
+with `sudo systemctl enable --now moviebot-assistant`.
+
+Then check the API from outside, in a browser or with curl:
 
 ```bash
 curl -s https://YOUR.DOMAIN/health; echo
@@ -302,5 +309,5 @@ journalctl -u moviebot-handoff -n 50 --no-pager
 | `/srv/moviebot/media` | Your film library |
 | `/srv/moviebot/downloads` | Downloads, which keep seeding for a week unless someone uses `/keep` |
 | `/srv/moviebot/incoming` | Films you add yourself, before `moviebot-ingest` prepares them |
-| `/var/lib/moviebot`, `/var/lib/moviebot-bot` | Open rooms, fetched subtitles and the wish list; the bot's saved state |
+| `/var/lib/moviebot`, `/var/lib/moviebot-bot`, `/var/lib/moviebot-assistant` | Open rooms, fetched subtitles and the wish list; the bot's saved state; the assistant's conversations |
 | `/etc/systemd/system/moviebot-*.service` | The service definitions |

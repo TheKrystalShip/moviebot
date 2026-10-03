@@ -1,8 +1,6 @@
-namespace TheKrystalShip.MovieBot.Bot.Library;
+namespace TheKrystalShip.MovieBot.Client;
 
 using System.Text;
-
-using TheKrystalShip.MovieBot.Bot.Api;
 
 public enum TitleMatchKind
 {

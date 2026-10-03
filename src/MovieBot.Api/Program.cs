@@ -241,7 +241,7 @@ app.MapPost("/api/auth/discord/callback", async (
         DisplayName = user.DisplayName,
         RoomId = request.SessionId ?? "",
         ExpiresAtUnix = DateTimeOffset.UtcNow.Add(auth.TokenLifetime).ToUnixTimeSeconds()
-    }, auth);
+    }, auth.SigningKey);
 
     // The access token goes back so the SDK can complete authenticate(); it is the browser's own
     // token and is scoped to the Activity, unlike the secret that redeemed the code.
@@ -273,7 +273,7 @@ app.MapPost("/api/auth/service-token", (
         DisplayName = request.DisplayName,
         RoomId = request.RoomId,
         ExpiresAtUnix = DateTimeOffset.UtcNow.Add(auth.TokenLifetime).ToUnixTimeSeconds()
-    }, auth)));
+    }, auth.SigningKey)));
 });
 
 app.MapMedia();

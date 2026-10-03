@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TheKrystalShip.Llm.Models;
-using TheKrystalShip.MovieBot.Bot.Assistant;
+using TheKrystalShip.MovieBot.Assistant;
 using TheKrystalShip.MovieBot.Core;
 using Xunit;
 using Xunit.Abstractions;
@@ -41,20 +41,20 @@ public sealed class RoomReplayRoutingTests(SessionFixture fixture, ITestOutputHe
     public async Task The_first_film_of_a_series_is_put_on_in_a_room_that_has_retyped_its_id(string said)
     {
         var turn = AssistantPartsTests.Turn((ulong)Interlocked.Increment(ref _channels));
-        await _host.Api.SetSessionTitleAsync(turn.SessionId, DeadMansChest, "someone", CancellationToken.None);
+        await _host.Api.SetSessionTitleAsync(turn.Room!.SessionId, DeadMansChest, "someone", CancellationToken.None);
         Replay(turn, "pirates-room.jsonl");
 
         var answer = await _host.Assistant.AskAsync(turn, said, CancellationToken.None);
 
         var last = _host.Conversations.GetHistory(turn.ConversationId)[^1].Turn!;
         output.WriteLine($"\"{said}\" -> {string.Join(", ", last.Tools.Select(t => $"{t.Name.Name}({string.Join(", ", t.Arguments.Select(a => $"{a.Key}={a.Value}"))})"))}; reply: {answer.Text}");
-        Assert.Equal(BlackPearl, (await _host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).TitleId);
+        Assert.Equal(BlackPearl, (await _host.Api.OpenSessionAsync(turn.Room!.SessionId, CancellationToken.None)).TitleId);
     }
 
     public void Dispose() => _host.Dispose();
 
     /// <summary>Writes the replay's turns into the room's conversation, as just said, so none of it is idle.</summary>
-    private void Replay(RoomTurn turn, string file)
+    private void Replay(AssistantTurn turn, string file)
     {
         var at = DateTimeOffset.UtcNow.AddMinutes(-2);
         foreach (var line in File.ReadAllLines(Path.Combine(AppContext.BaseDirectory, "Replays", file)))

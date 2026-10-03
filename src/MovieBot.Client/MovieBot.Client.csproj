@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- The services that act on somebody's behalf reach the API through this: the bot and the
+         assistant. Source-generated JSON and no reflection, like the contract it reads. -->
+    <IsAotCompatible>true</IsAotCompatible>
+
+    <RootNamespace>TheKrystalShip.MovieBot.Client</RootNamespace>
+    <AssemblyName>TheKrystalShip.MovieBot.Client</AssemblyName>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../MovieBot.Core/MovieBot.Core.csproj" />
+  </ItemGroup>
+
+</Project>

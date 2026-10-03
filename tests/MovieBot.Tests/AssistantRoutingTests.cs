@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using TheKrystalShip.Llm.Models;
-using TheKrystalShip.MovieBot.Bot.Assistant;
+using TheKrystalShip.MovieBot.Assistant;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -56,7 +56,7 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
         var calls = await AskAsync(turn, "ok carry on");
 
         Assert.Contains(calls, c => c.Name.Name == RoomTools.Resume);
-        Assert.False((await _host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).Paused);
+        Assert.False((await _host.Api.OpenSessionAsync(turn.Room!.SessionId, CancellationToken.None)).Paused);
     }
 
     [LiveModelFact]
@@ -100,7 +100,7 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
         var calls = await AskAsync(turn, "put on collateral instead");
 
         var load = Assert.Single(calls, c => c.Name.Name == RoomTools.WatchFilm);
-        Assert.Equal(SessionFixture.Collateral, (await _host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).TitleId);
+        Assert.Equal(SessionFixture.Collateral, (await _host.Api.OpenSessionAsync(turn.Room!.SessionId, CancellationToken.None)).TitleId);
         output.WriteLine($"watch_film title={load.Arg("title")}");
     }
 
@@ -114,7 +114,7 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
 
         Assert.Contains(calls, c => c.Name.Name is RoomTools.WatchFilm);
         Assert.Equal(RoomTools.DownloadFilm, Assert.Single(answer.Proposed).Kind);
-        Assert.Equal(SessionFixture.Heat, (await _host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).TitleId);
+        Assert.Equal(SessionFixture.Heat, (await _host.Api.OpenSessionAsync(turn.Room!.SessionId, CancellationToken.None)).TitleId);
     }
 
     [LiveModelTheory]
@@ -164,7 +164,7 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
         output.WriteLine($"{string.Join(", ", Calls(turn).Select(c => $"{c.Name}({string.Join(", ", c.Arguments.Select(a => $"{a.Key}={a.Value}"))})"))}; "
                          + $"proposed: {string.Join("; ", answer.Proposed.Select(p => p.Describes))}; reply: {answer.Text}");
         Assert.Equal(RoomTools.DownloadOnly, Assert.Single(answer.Proposed).Kind);
-        Assert.Equal(SessionFixture.Heat, (await _host.Api.OpenSessionAsync(turn.SessionId, CancellationToken.None)).TitleId);
+        Assert.Equal(SessionFixture.Heat, (await _host.Api.OpenSessionAsync(turn.Room!.SessionId, CancellationToken.None)).TitleId);
     }
 
     [LiveModelTheory]
@@ -214,10 +214,10 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
     public async Task Why_it_stopped_is_answered_from_what_the_room_verbs_did()
     {
         var turn = await RoomAsync(SessionFixture.Heat, at: 900, paused: false);
-        await _host.Api.PauseAsync(turn.SessionId, turn.SpeakerUserId, turn.SpeakerName, CancellationToken.None);
+        await _host.Api.PauseAsync(turn.Room!.SessionId, turn.SpeakerUserId, turn.SpeakerName, CancellationToken.None);
         _host.Assistant.RecordAct(turn, "pause", RoomTools.Pause, new Dictionary<string, string?>(), "Paused at 15:00.");
 
-        var answer = await _host.Assistant.AskAsync(turn with { SpeakerId = 99, SpeakerName = "Mika" }, "why did it stop?", CancellationToken.None);
+        var answer = await _host.Assistant.AskAsync(turn with { SpeakerUserId = "99", SpeakerName = "Mika" }, "why did it stop?", CancellationToken.None);
 
         Assert.Contains("Haru", answer.Text);
         Assert.DoesNotContain(Calls(turn), c => RoomTools.RoomMoves.Contains(c.Name.Name));
@@ -238,16 +238,16 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
 
     public void Dispose() => _host.Dispose();
 
-    private async Task<RoomTurn> RoomAsync(string title, double at, bool paused)
+    private async Task<AssistantTurn> RoomAsync(string title, double at, bool paused)
     {
         var turn = AssistantPartsTests.Turn((ulong)Interlocked.Increment(ref _channels));
-        await _host.Api.SetSessionTitleAsync(turn.SessionId, title, "someone", CancellationToken.None);
-        await _host.Api.SeekAsync(turn.SessionId, at, "1", "someone", CancellationToken.None);
-        if (!paused) await _host.Api.PlayAsync(turn.SessionId, "1", "someone", CancellationToken.None);
+        await _host.Api.SetSessionTitleAsync(turn.Room!.SessionId, title, "someone", CancellationToken.None);
+        await _host.Api.SeekAsync(turn.Room!.SessionId, at, "1", "someone", CancellationToken.None);
+        if (!paused) await _host.Api.PlayAsync(turn.Room!.SessionId, "1", "someone", CancellationToken.None);
         return turn;
     }
 
-    private async Task<IReadOnlyList<LlmToolCall>> AskAsync(RoomTurn turn, string said)
+    private async Task<IReadOnlyList<LlmToolCall>> AskAsync(AssistantTurn turn, string said)
     {
         var started = Stopwatch.GetTimestamp();
         var answer = await _host.Assistant.AskAsync(turn, said, CancellationToken.None);
@@ -259,7 +259,7 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
         return calls;
     }
 
-    private IReadOnlyList<LlmToolCall> Calls(RoomTurn turn) =>
+    private IReadOnlyList<LlmToolCall> Calls(AssistantTurn turn) =>
     [
         .. _host.Conversations.GetHistory(turn.ConversationId)
             .Where(e => e.Turn is { SystemPromptHash: not "room-verb" })

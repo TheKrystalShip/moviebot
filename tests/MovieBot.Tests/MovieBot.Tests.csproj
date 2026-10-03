@@ -30,8 +30,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Using Include="TheKrystalShip.MovieBot.Client" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../src/MovieBot.Api/MovieBot.Api.csproj" />
+    <ProjectReference Include="../../src/MovieBot.Client/MovieBot.Client.csproj" />
     <ProjectReference Include="../../src/MovieBot.Bot/MovieBot.Bot.csproj" />
+    <ProjectReference Include="../../src/MovieBot.Assistant/MovieBot.Assistant.csproj" />
     <ProjectReference Include="../../src/MovieBot.Handoff/MovieBot.Handoff.csproj" />
     <ProjectReference Include="../../src/MovieBot.Ingest/MovieBot.Ingest.csproj" />
   </ItemGroup>

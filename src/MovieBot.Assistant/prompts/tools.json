@@ -1,0 +1,87 @@
+{
+  "resume": {
+    "description": "Carries on playing the film this room already holds, for everyone, from wherever it is. Never for a film named by title: that is watch_film.",
+    "params": []
+  },
+  "pause": {
+    "description": "Pauses the film for everyone in the room, where it is.",
+    "params": []
+  },
+  "seek_relative": {
+    "description": "Moves the film forward or back by an amount from where it is now. Use for rewind, go back, skip ahead.",
+    "params": [
+      { "name": "seconds", "description": "How far to move, in seconds. Negative goes back.", "type": "integer" }
+    ]
+  },
+  "seek": {
+    "description": "Moves the film to a position counted from its start.",
+    "params": [
+      { "name": "position", "description": "The position as h:mm:ss, m:ss, or seconds." }
+    ]
+  },
+  "watch_film": {
+    "description": "Use whenever somebody asks to watch, play, put on, switch to, find or download a film. If the library has it, puts it on in this room and posts the way in. If not, proposes downloading the best release, which plays here once somebody confirms.",
+    "params": [
+      { "name": "title", "description": "The film's name, as they said it." }
+    ]
+  },
+  "room_state": {
+    "description": "Reads this room again: which film, where it is, whether it is playing, and who last changed it.",
+    "params": []
+  },
+  "list_rooms": {
+    "description": "Lists every room watching a film, with where each has got to and how many are in it.",
+    "params": []
+  },
+  "get_title": {
+    "description": "Describes one film in the library: its length, cast, audio tracks, subtitles, and how long it stays on disk.",
+    "params": [
+      { "name": "title", "description": "The film's id from the library, or its name." }
+    ]
+  },
+  "download_status": {
+    "description": "Lists downloads in progress and finished ones still seeding, with how far each has got.",
+    "params": []
+  },
+  "wish_list": {
+    "description": "Lists the films people are waiting to be able to download.",
+    "params": []
+  },
+  "download_film": {
+    "description": "Proposes downloading a different release from one watch_film listed. It starts only when somebody confirms, and the film then plays in this room as soon as it can be watched.",
+    "params": [
+      { "name": "torrent_id", "description": "The torrent id of a release watch_film returned.", "type": "integer" }
+    ]
+  },
+  "download_only": {
+    "description": "Fetches a film for later and leaves this room playing whatever it is playing. Use whenever they ask for a film to be ready rather than to be put on now: get it ready, have it ready, line it up, queue it up, for later, for afterwards, for tomorrow, for after this one, for when this finishes, or while something else is on. It starts only when somebody confirms, and the film then waits in the library until somebody asks to watch it.",
+    "params": [
+      { "name": "title", "description": "The film's name, as they said it." },
+      { "name": "torrent_id", "description": "Only to fetch a different release from one this tool already listed. Leave it out otherwise.", "type": "integer", "required": false }
+    ]
+  },
+  "fetch_subtitle": {
+    "description": "Proposes fetching English subtitles for a film in the library, which spends one of the day's subtitle downloads when confirmed.",
+    "params": [
+      { "name": "title", "description": "The film's id from the library, or its name." }
+    ]
+  },
+  "add_wish": {
+    "description": "Proposes waiting for a film the tracker does not have yet, and telling the person who asked when it can be downloaded.",
+    "params": [
+      { "name": "imdb_id", "description": "The film's imdb id, which watch_film gives when the tracker has no release." }
+    ]
+  },
+  "keep_film": {
+    "description": "Proposes keeping a downloaded film on disk, so it is never pruned.",
+    "params": [
+      { "name": "title", "description": "The film's id from the library, or its name." }
+    ]
+  },
+  "let_go": {
+    "description": "Proposes removing a keep, so a downloaded film goes back on the clock and is pruned after its seeding time.",
+    "params": [
+      { "name": "title", "description": "The film's id from the library, or its name." }
+    ]
+  }
+}

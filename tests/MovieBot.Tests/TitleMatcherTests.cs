@@ -1,6 +1,5 @@
 using Xunit;
 using TheKrystalShip.MovieBot.Bot.Api;
-using TheKrystalShip.MovieBot.Bot.Library;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Tests;

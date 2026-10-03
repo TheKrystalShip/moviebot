@@ -55,6 +55,10 @@ Playback starts seconds after a film is requested, while it is still being trans
 5. **The hand-off** watches for downloads, picks the feature file, and runs ingest while the
    download is still arriving, so the film is announced as soon as it can be played. It also
    prunes downloads nobody has kept.
+6. **The assistant** answers what people say or type to MovieBot with a small local language
+   model, acting through the API: it can move a room, put a film on, and propose a download, a wish
+   or a keep for somebody to agree to. It speaks the same chat protocol as the KGSM assistant, so one
+   chat client serves both.
 
 A single transcode serves the whole room because there is only one playhead. On an NVENC GPU a
 1080p source transcodes at around ten times realtime, far ahead of anyone watching it.
@@ -76,8 +80,10 @@ See [`src/MovieBot.Bot/README.md`](src/MovieBot.Bot/README.md) for the bot, and
 
 ```
 src/MovieBot.Core/      manifest and session contracts, and their serializer
+src/MovieBot.Client/    the API client the bot and the assistant share
 src/MovieBot.Ingest/    the ingest CLI: probe, extract, transcode, manifest
-src/MovieBot.Api/       library, media serving, sessions, SignalR hub
+src/MovieBot.Api/       library, media serving, sessions, SignalR hub, downloads and wishes
+src/MovieBot.Assistant/ the assistant: turns, proposals and conversations over the chat protocol
 src/MovieBot.Bot/       the Discord bot
 src/MovieBot.Handoff/   moves finished downloads into the library
 src/MovieBot.Speech/    speech recognition host for voice commands

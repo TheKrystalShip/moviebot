@@ -31,6 +31,7 @@ publish() {
 publish MovieBot.Api     api
 publish MovieBot.Handoff handoff
 publish MovieBot.Bot     bot    --self-contained
+publish MovieBot.Assistant assistant --self-contained
 publish MovieBot.Ingest  ingest --self-contained -p:PublishSingleFile=true
 
 # Debug symbols are for the build machine, not for a deployment.

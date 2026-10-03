@@ -3,29 +3,10 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace TheKrystalShip.MovieBot.Api.Auth;
+namespace TheKrystalShip.MovieBot.Core;
 
-public sealed class AuthOptions
-{
-    public const string Section = "Auth";
-
-    /// <summary>
-    /// Signs the tokens the player carries. Without it nothing can be minted or checked, so the
-    /// API refuses to start rather than serving films to anybody who knows the hostname.
-    /// </summary>
-    public string SigningKey { get; set; } = "";
-
-    /// <summary>
-    /// Shared with the bot, which has no Discord user to authenticate as when it puts a film into
-    /// a room on somebody's behalf.
-    /// </summary>
-    public string ServiceKey { get; set; } = "";
-
-    /// <summary>Long enough for a film and the evening around it, short enough to be worth little if it leaks.</summary>
-    public TimeSpan TokenLifetime { get; set; } = TimeSpan.FromHours(8);
-}
-
-/// <summary>Who the bearer is, proven by Discord and vouched for by this server.</summary>
+/// <summary>Who the bearer is, proven by Discord and vouched for by the API.</summary>
+/// <param name="RoomId">The room the Activity was opened in; empty for a sign-in that names none.</param>
 public sealed record RoomTokenPayload
 {
     [JsonPropertyName("sub")] public required string UserId { get; init; }
@@ -41,27 +22,28 @@ internal partial class RoomTokenJsonContext : JsonSerializerContext;
 /// <summary>
 /// The proof a request came through Discord.
 ///
-/// An Activity is the only door: it signs a person in with Discord, and this is what that
-/// sign-in is worth afterwards. A browser that never went through Discord has no way to obtain
-/// one, which is the whole point — the films and the rooms are not otherwise protected by
-/// anything but the length of a URL.
+/// Discord is the only door: the API signs a person in with Discord, and this is what that sign-in
+/// is worth afterwards. A browser that never went through Discord has no way to obtain one, which is
+/// the whole point — the films and the rooms are not otherwise protected by anything but the length
+/// of a URL. The API issues it and checks it; the assistant checks it with the same key, so it signs
+/// nobody in itself.
 ///
 /// Signed rather than stored: a room lives in memory and is forgotten after an evening, and a
 /// token that outlived its room would be a puzzle rather than a protection.
 /// </summary>
 public static class RoomToken
 {
-    public static string Issue(RoomTokenPayload payload, AuthOptions options)
+    public static string Issue(RoomTokenPayload payload, string signingKey)
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(payload, RoomTokenJsonContext.Default.RoomTokenPayload);
         var body = Base64Url(json);
-        return $"{body}.{Base64Url(Sign(body, options.SigningKey))}";
+        return $"{body}.{Base64Url(Sign(body, signingKey))}";
     }
 
     /// <summary>Returns the payload when the signature holds and the token has not expired.</summary>
-    public static RoomTokenPayload? Validate(string? token, AuthOptions options, DateTimeOffset now)
+    public static RoomTokenPayload? Validate(string? token, string signingKey, DateTimeOffset now)
     {
-        if (string.IsNullOrWhiteSpace(token) || options.SigningKey.Length == 0) return null;
+        if (string.IsNullOrWhiteSpace(token) || signingKey.Length == 0) return null;
 
         var dot = token.IndexOf('.');
         if (dot <= 0 || dot == token.Length - 1) return null;
@@ -71,7 +53,7 @@ public static class RoomToken
 
         // Fixed-time comparison: a signature check that returns early leaks how much of a forgery
         // was right, one byte at a time.
-        var expected = Base64Url(Sign(body, options.SigningKey));
+        var expected = Base64Url(Sign(body, signingKey));
         if (!CryptographicOperations.FixedTimeEquals(
                 Encoding.ASCII.GetBytes(signature), Encoding.ASCII.GetBytes(expected)))
         {
@@ -92,6 +74,12 @@ public static class RoomToken
         if (payload is null) return null;
         return payload.ExpiresAtUnix <= now.ToUnixTimeSeconds() ? null : payload;
     }
+
+    /// <summary>The token a request carries as <c>Authorization: Bearer</c>, or null.</summary>
+    public static string? FromAuthorization(string? header) =>
+        header is { } value && value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? value["Bearer ".Length..].Trim()
+            : null;
 
     private static byte[] Sign(string body, string key) =>
         HMACSHA256.HashData(Encoding.UTF8.GetBytes(key), Encoding.ASCII.GetBytes(body));

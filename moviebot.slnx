@@ -1,10 +1,12 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/MovieBot.Core/MovieBot.Core.csproj" />
+    <Project Path="src/MovieBot.Client/MovieBot.Client.csproj" />
     <Project Path="src/MovieBot.Ingest/MovieBot.Ingest.csproj" />
     <Project Path="src/MovieBot.Api/MovieBot.Api.csproj" />
     <Project Path="src/MovieBot.Handoff/MovieBot.Handoff.csproj" />
     <Project Path="src/MovieBot.Bot/MovieBot.Bot.csproj" />
+    <Project Path="src/MovieBot.Assistant/MovieBot.Assistant.csproj" />
   <Project Path="src/MovieBot.Speech/MovieBot.Speech.csproj" />
   </Folder>
   <Folder Name="/tests/">

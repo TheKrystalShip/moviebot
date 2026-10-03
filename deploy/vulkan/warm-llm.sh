@@ -11,9 +11,9 @@
 # The warm-up only warms the shape it sends. Measured after a restart: replaying the warm-up's
 # own request takes 241 ms, while the first request carrying a different system prompt and tool
 # catalog takes 1,093 ms and the second takes 244 ms. So the body is not a token request to prove
-# the port works — it is the bot's own instructions and catalog, which the bot writes into its
-# state directory every time it starts. The file installed beside this script stands in only on a
-# host where the bot has never run with the assistant switched on.
+# the port works — it is the assistant's own instructions and catalog, which moviebot-assistant
+# writes into its state directory every time it starts. The file installed beside this script stands
+# in only on a host where the assistant has never run.
 #
 # Run as the unit's ExecStartPost, so systemd does not call the service active until a request
 # of the real shape has been all the way through the model.
@@ -23,7 +23,7 @@ set -euo pipefail
 PORT="${1:-8190}"
 BODY_FILE="${2:-}"
 if [[ -z "$BODY_FILE" ]]; then
-  BODY_FILE=/var/lib/moviebot-bot/llm-warmup.json
+  BODY_FILE=/var/lib/moviebot-assistant/llm-warmup.json
   [[ -f "$BODY_FILE" ]] || BODY_FILE=/opt/moviebot/llm/warmup.json
 fi
 DEADLINE=$(( SECONDS + ${WARM_TIMEOUT:-180} ))

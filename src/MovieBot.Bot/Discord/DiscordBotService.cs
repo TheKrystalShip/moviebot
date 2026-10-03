@@ -10,7 +10,6 @@ using TheKrystalShip.MovieBot.Bot.Configuration;
 using TheKrystalShip.MovieBot.Bot.Download;
 using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Bot.Launch;
-using TheKrystalShip.MovieBot.Bot.Library;
 using TheKrystalShip.MovieBot.Bot.Notify;
 using TheKrystalShip.MovieBot.Bot.Watch;
 using TheKrystalShip.Discord.Voice;

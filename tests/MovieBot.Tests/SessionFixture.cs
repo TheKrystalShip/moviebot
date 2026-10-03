@@ -111,7 +111,7 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
             DisplayName = displayName,
             RoomId = roomId,
             ExpiresAtUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds()
-        }, new AuthOptions { SigningKey = SigningKey });
+        }, SigningKey);
 
     /// <summary>A client that proves itself the way the bot does.</summary>
     public HttpClient CreateServiceClient()

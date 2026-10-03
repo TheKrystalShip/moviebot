@@ -115,9 +115,15 @@
     "MaxCommandSeconds": 7
   },
 
-  // Answering spoken requests with a local language model. Off unless enabled.
+  // The assistant: moviebot-assistant answers what people say to MovieBot, with the language model
+  // below, and listens on Listen. Enabled is whether the bot puts a spoken request the room verbs do
+  // not cover to it; off unless enabled.
   "Assistant": {
-    "Enabled": false
+    "Enabled": false,
+    "Listen": "http://127.0.0.1:8191",
+    "OfferMinutes": 10,
+    "LibraryInContext": 60,
+    "IdleResetMinutes": 15
   },
 
   "Llm": {

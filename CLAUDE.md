@@ -23,9 +23,11 @@ room in step.
 Three docs beside this one, each the authority for its own half: `docs/api-contract.md` for what
 `MovieBot.Api` serves on the wire, `web/activity/README.md` for the player, and
 `src/MovieBot.Bot/README.md` for the Discord surface. **The rules each part rests on live in a
-`CLAUDE.md` beside its code**: `deploy/`, `src/MovieBot.Api/` (with `Sessions/`, `Subtitles/` and `Acquisition/`),
-`src/MovieBot.Core/` (the two disks), `src/MovieBot.Ingest/`, `src/MovieBot.Handoff/`,
-`src/MovieBot.Bot/` (and each of its feature directories), and `web/activity/`.
+`CLAUDE.md` beside its code**: `deploy/`, `src/MovieBot.Api/` (with `Sessions/`, `Subtitles/` and
+`Acquisition/`), `src/MovieBot.Core/` (the two disks), `src/MovieBot.Ingest/`, `src/MovieBot.Handoff/`,
+`src/MovieBot.Assistant/` (with the wire it serves), `src/MovieBot.Bot/` (and each of its feature
+directories), and `web/activity/`. `src/MovieBot.Client` is the API client the bot and the assistant
+share.
 
 ## The one idea everything follows from
 

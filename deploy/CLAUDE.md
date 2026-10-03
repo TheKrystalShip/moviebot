@@ -1,25 +1,30 @@
 # Deploying MovieBot
 
-Five units run on **hotbox**, under `heisen`, out of `/opt/moviebot`: `moviebot-api`,
-`moviebot-bot` and `moviebot-handoff`, which are this repository's .NET services, and
-`moviebot-speech` and `moviebot-llm`, which hold whisper and the language model on the card. All of
-it is built on hotrod, which is the machine holding the checkouts, the .NET SDK, `clang` and node;
-hotbox carries the .NET runtime and nothing else of the toolchain. So a deploy of the three services
-is a publish here, an rsync there, and a restart:
+Six units run on **hotbox**, under `heisen`, out of `/opt/moviebot`: `moviebot-api`,
+`moviebot-bot`, `moviebot-handoff` and `moviebot-assistant`, which are this repository's .NET
+services, and `moviebot-speech` and `moviebot-llm`, which hold whisper and the language model on the
+card. All of it is built on hotrod, which is the machine holding the checkouts, the .NET SDK, `clang`
+and node; hotbox carries the .NET runtime and nothing else of the toolchain. So a deploy of the
+services is a publish here, an rsync there, and a restart:
 
 ```bash
 ./scripts/build-player.sh                                    # player -> the API's wwwroot
-dotnet publish src/MovieBot.Api     -c Release -o /tmp/mb/api
-dotnet publish src/MovieBot.Bot     -c Release -o /tmp/mb/bot
-dotnet publish src/MovieBot.Handoff -c Release -o /tmp/mb/handoff
+dotnet publish src/MovieBot.Api       -c Release -o /tmp/mb/api
+dotnet publish src/MovieBot.Bot       -c Release -o /tmp/mb/bot
+dotnet publish src/MovieBot.Handoff   -c Release -o /tmp/mb/handoff
+dotnet publish src/MovieBot.Assistant -c Release -r linux-x64 --self-contained false -o /tmp/mb/assistant
 
-rsync -a --delete /tmp/mb/api/     hotbox:/opt/moviebot/api/
-rsync -a --delete /tmp/mb/bot/     hotbox:/opt/moviebot/bot/
-rsync -a --delete /tmp/mb/handoff/ hotbox:/opt/moviebot/handoff/
+rsync -a --delete /tmp/mb/api/       hotbox:/opt/moviebot/api/
+rsync -a --delete /tmp/mb/bot/       hotbox:/opt/moviebot/bot/
+rsync -a --delete /tmp/mb/handoff/   hotbox:/opt/moviebot/handoff/
+rsync -a --delete /tmp/mb/assistant/ hotbox:/opt/moviebot/assistant/
 ssh hotbox 'mkdir -p ~/.config/moviebot'
 rsync deploy/hotbox.settings.json hotbox:.config/moviebot/moviebot.settings.json
-ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff'
+ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff moviebot-assistant'
 ```
+
+`moviebot-assistant` is reached by the bot on loopback and by the site at `/assistant/` on the vhost,
+which strips the prefix (`nginx-moviebot.conf`).
 
 - **Settings are two files and the environment.** Every service reads `moviebot.settings.json`
   twice: the copy of `src/moviebot.settings.json` published beside its binary holds the defaults,
@@ -70,17 +75,18 @@ ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff'
   owning user is refused with *"interactive authentication required"* and nothing happens.
   Publishing the binaries is unprivileged and the restart that picks them up is not, so a deploy ends
   by saying what changed and handing over the command rather than working around the privilege.
-- **`/etc/moviebot/moviebot.env` holds the credentials** all three units read, **and which tracker
+- **`/etc/moviebot/moviebot.env` holds the credentials** every unit reads, **and which tracker
   this is**: `Tracker__BaseUrl`, `Tracker__Username`, `Tracker__Passkey` and the tracker's category
   names as `Selection__AllowedCategories__0`, `__1` and so on. The API, the bot and the hand-off
   refuse to start without the categories. Any other configuration that is not a credential belongs in
   `deploy/hotbox.settings.json`, where it is in the repository and reviewable; the tracker's
   identity is kept out of the repository the same way the passkey is. A unit's own `Environment=`
   lines are for the process, not for MovieBot: `PATH` and the driver's shader cache.
-- **The state directories are the two things no re-ingest can rebuild.** systemd hands the API
+- **The state directories are what no re-ingest can rebuild.** systemd hands the API
   `/var/lib/moviebot` — the rooms, the wish list, and the subtitles fetched from outside, each of
-  which cost one of a limited daily allowance — and the bot `/var/lib/moviebot-bot`, holding the
-  launch cards still standing and the assistant's conversation.
+  which cost one of a limited daily allowance — the bot `/var/lib/moviebot-bot`, holding the launch
+  cards still standing and its own conversation, and the assistant `/var/lib/moviebot-assistant`,
+  holding the conversations and the warm-up request `moviebot-llm` replays when it starts.
 - **The cold disk is named in the settings file and proved by a marker file.** `Media.ColdRoot` and
   `Handoff.ColdRoot` point at the volume finished films are kept on, and it is used only while a
   `.moviebot-cold` file sits at its root. That file is made once per host, as the owning user, on the

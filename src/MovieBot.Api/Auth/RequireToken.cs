@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Auth;
 
@@ -53,7 +54,7 @@ public sealed class RequireTokenMiddleware(
             return;
         }
 
-        var payload = RoomToken.Validate(BearerFrom(context.Request), settings, clock.GetUtcNow());
+        var payload = RoomToken.Validate(BearerFrom(context.Request), settings.SigningKey, clock.GetUtcNow());
         if (payload is null)
         {
             logger.LogDebug("Refused {Method} {Path}: no usable token", context.Request.Method, context.Request.Path);

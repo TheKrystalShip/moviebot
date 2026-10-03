@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using TheKrystalShip.MovieBot.Core;
 
-namespace TheKrystalShip.MovieBot.Bot.Api;
+namespace TheKrystalShip.MovieBot.Client;
 
 /// <summary>
 /// One row of the API's library listing.
@@ -35,20 +35,19 @@ public sealed record LibraryTitle
 
 /// <summary>
 /// The serializer for the shapes the API publishes that the shared contract project does not
-/// carry. Session state is read through <see cref="ManifestJsonContext"/> instead, so the bot
+/// carry. Session state is read through <see cref="ManifestJsonContext"/> instead, so the clients
 /// and the API agree on it by compiling against the same type.
 /// </summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     UseStringEnumConverter = true)]
 [JsonSerializable(typeof(IReadOnlyList<LibraryTitle>))]
-[JsonSerializable(typeof(Presence.VoiceStatusRequest))]
-public partial class BotJsonContext : JsonSerializerContext;
+public partial class ClientJsonContext : JsonSerializerContext;
 
 /// <summary>
 /// The API answered, but not with what was asked for, or it did not answer at all. Carried as a
-/// distinct type so a command can tell the room the backend is unreachable rather than failing
-/// silently into a generic interaction error.
+/// distinct type so a caller can say the backend is unreachable rather than failing silently into
+/// a generic error.
 /// </summary>
 public sealed class MovieBotApiException(string message, Exception? inner = null)
     : Exception(message, inner);

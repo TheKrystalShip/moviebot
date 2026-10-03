@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <RootNamespace>TheKrystalShip.MovieBot.Assistant</RootNamespace>
+    <AssemblyName>moviebot-assistant</AssemblyName>
+    <Version>1.0.0</Version>
+
+    <!-- The agent loop's conversation store is SQLite through a native library, and the loop itself
+         is not built for the ahead-of-time compiler, so this runs on the JIT. A worker that runs for
+         weeks gains nothing from tiering, so a method is compiled once at full optimisation. -->
+    <TieredCompilation>false</TieredCompilation>
+    <TieredPGO>false</TieredPGO>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The shared settings file, shipped beside the binary as the defaults. -->
+    <Content Include="../moviebot.settings.json" Link="moviebot.settings.json" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- The instructions and the tool descriptions, read from beside the binary. The web SDK already
+         counts the JSON among its content, so the directory is taken back and listed once. -->
+    <Content Remove="prompts/**" />
+    <Content Include="prompts/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The agent loop and its conversation store. The model is moviebot-llm, reached over loopback;
+         nothing of it runs in this process. -->
+    <PackageReference Include="TheKrystalShip.Llm" Version="2.4.0" />
+
+    <!-- What an assistant needs around the loop and belongs to no product: the prompt directory, the
+         catalog file and its agreement check, the checks a reply is held to, compaction, and the
+         single-use handle a proposal is redeemed by. -->
+    <PackageReference Include="TheKrystalShip.Agent" Version="1.0.0" />
+  </ItemGroup>
+
+  <!-- GHSA-2m69-gcr7-jv3q is on the native SQLite the conversation store pulls in, and no build of it
+       fixes the advisory. The database is this service's own conversations, reached by no SQL anybody
+       else writes. Scoped to that advisory alone. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../MovieBot.Core/MovieBot.Core.csproj" />
+    <ProjectReference Include="../MovieBot.Client/MovieBot.Client.csproj" />
+
+    <!-- For the settings file's lookup and the title index, which names films nobody has yet. -->
+    <ProjectReference Include="../../../moviebot-acquire/src/MovieBot.Acquire/MovieBot.Acquire.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MovieBot.Tests" />
+  </ItemGroup>
+
+</Project>

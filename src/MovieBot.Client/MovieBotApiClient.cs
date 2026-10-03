@@ -3,14 +3,14 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using TheKrystalShip.MovieBot.Core;
 
-namespace TheKrystalShip.MovieBot.Bot.Api;
+namespace TheKrystalShip.MovieBot.Client;
 
 /// <summary>
-/// The bot's only route to anything that persists.
+/// The route to anything that persists, for the bot and the assistant.
 ///
-/// The bot holds no state: no session cache, no library copy, no record of who asked for what.
-/// Every question it answers is asked of the API at the moment it is asked of the bot, so a
-/// restart loses nothing and two bot processes would agree.
+/// Neither holds state of the API's: no session cache, no library copy, no record of who asked
+/// for what. Every question is asked of the API at the moment it is asked, so a restart loses
+/// nothing and two processes would agree.
 /// </summary>
 public sealed class MovieBotApiClient(HttpClient http)
 {
@@ -20,7 +20,7 @@ public sealed class MovieBotApiClient(HttpClient http)
         try
         {
             var titles = await http.GetFromJsonAsync(
-                "api/titles", BotJsonContext.Default.IReadOnlyListLibraryTitle, ct);
+                "api/titles", ClientJsonContext.Default.IReadOnlyListLibraryTitle, ct);
             return titles ?? [];
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException

@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Bot.Launch;
-using TheKrystalShip.MovieBot.Bot.Library;
 using TheKrystalShip.MovieBot.Bot.Sessions;
 using TheKrystalShip.MovieBot.Core;
 

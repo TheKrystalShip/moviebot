@@ -1,27 +1,18 @@
 using System.Net;
 using System.Runtime.CompilerServices;
-using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TheKrystalShip.Llm.Interfaces;
 using TheKrystalShip.Llm.Models;
-using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
-using TheKrystalShip.MovieBot.Bot.Api;
-using TheKrystalShip.MovieBot.Bot.Assistant;
-using TheKrystalShip.MovieBot.Bot.Configuration;
-using TheKrystalShip.MovieBot.Bot.Download;
-using TheKrystalShip.MovieBot.Bot.Keep;
-using TheKrystalShip.MovieBot.Bot.Launch;
-using TheKrystalShip.MovieBot.Bot.Notify;
-using TheKrystalShip.MovieBot.Bot.Watch;
+using TheKrystalShip.MovieBot.Assistant;
 
 namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
-/// The assistant built the way the bot builds it, against the in-process API, with the tracker and
+/// The assistant built the way the service builds it, against the in-process API, with the tracker and
 /// the catalogue answering from the test and the torrent client unreachable. The model is scripted
 /// unless an endpoint is given, in which case it is the real one.
 /// </summary>
@@ -33,41 +24,14 @@ internal sealed class AssistantHost : IDisposable
     public AssistantHost(SessionFixture fixture, string? modelEndpoint = null)
     {
         Directory.CreateDirectory(_state);
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                // The model settings the bot ships with.
-                ["Llm:Provider"] = "LlamaCpp",
-                ["Llm:ContextWindow"] = "8192",
-                ["Llm:Temperature"] = "0",
-                ["LlmAgent:MaxIterations"] = "6",
-
-                ["Assistant:Enabled"] = "true",
-                ["Assistant:DatabasePath"] = Path.Combine(_state, "assistant.db"),
-                ["Notify:Path"] = Path.Combine(_state, "wishes.json"),
-                ["Download:Root"] = _state,
-                ["QBittorrent:BaseUrl"] = "http://127.0.0.1:1",
-                ["Player:BaseUrl"] = "https://movies.example",
-                ["Api:BaseUrl"] = "http://127.0.0.1:8099",
-                ["Llm:Endpoint"] = modelEndpoint ?? "http://127.0.0.1:1",
-            }).Build();
+        var configuration = Configuration(_state, modelEndpoint);
 
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(new MovieBotApiClient(fixture.CreateServiceClient()));
-        services.AddSingleton(new DiscordSocketClient());
-        services.AddOptions<PlayerOptions>().Bind(configuration.GetSection(PlayerOptions.Section));
-        services.AddOptions<ApiOptions>().Bind(configuration.GetSection(ApiOptions.Section));
-        services.AddSingleton<ILaunchPresenter, LinkLaunchPresenter>();
-        services.AddSingleton<WatchCommand>();
-        services.AddSingleton<KeepCommand>();
-        services.AddSingleton<IFilmRetention>(sp => sp.GetRequiredService<KeepCommand>());
-        services.AddAcquire(configuration);
+        services.AddCinemaAssistant(configuration);
         services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new CatalogueStub());
-        services.AddSingleton<DownloadCommand>();
-        services.AddSingleton<NotifyCommand>();
-        services.AddRoomAssistant(configuration);
 
         if (modelEndpoint is null)
         {
@@ -78,13 +42,29 @@ internal sealed class AssistantHost : IDisposable
         Provider = services.BuildServiceProvider();
     }
 
+    /// <summary>The model settings the service ships with, and a state directory of the test's own.</summary>
+    public static IConfiguration Configuration(string state, string? modelEndpoint = null) =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Llm:Provider"] = "LlamaCpp",
+                ["Llm:ContextWindow"] = "8192",
+                ["Llm:Temperature"] = "0",
+                ["LlmAgent:MaxIterations"] = "6",
+
+                ["Assistant:DatabasePath"] = Path.Combine(state, "assistant.db"),
+                ["Llm:Endpoint"] = modelEndpoint ?? "http://127.0.0.1:1",
+            }).Build();
+
     public ServiceProvider Provider { get; }
 
     public MovieBotApiClient Api => Provider.GetRequiredService<MovieBotApiClient>();
 
     public RoomToolbox Tools => Provider.GetRequiredService<RoomToolbox>();
 
-    public RoomAssistant Assistant => Provider.GetRequiredService<RoomAssistant>();
+    public CinemaAssistant Assistant => Provider.GetRequiredService<CinemaAssistant>();
+
+    public StagedActions Staged => Provider.GetRequiredService<StagedActions>();
 
     public ScriptedModel Model => (ScriptedModel)Provider.GetRequiredService<ILlmClient>();
 
@@ -217,12 +197,16 @@ internal sealed class AssistantHost : IDisposable
                 : Result.Failure<LlmResponse>("nothing queued"));
         }
 
+        /// <summary>The queued answer as one chunk, which is how a stream that has finished reads.</summary>
         public async IAsyncEnumerable<LlmStreamChunk> ChatStreamAsync(
             IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmToolDefinition>? tools = null,
             bool think = false, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             await Task.CompletedTask;
-            yield break;
+            Requests.Add([.. messages]);
+            if (!Answers.TryDequeue(out var answer)) throw new HttpRequestException("nothing queued");
+
+            yield return new LlmStreamChunk(answer.Content, answer.ToolCalls, Done: true, answer.Usage);
         }
     }
 }
