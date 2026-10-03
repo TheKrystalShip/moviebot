@@ -17,7 +17,7 @@ namespace TheKrystalShip.MovieBot.Tests;
 /// Hosts the API in-process over a media root built for the test, so clamping can be exercised
 /// against a title that is genuinely mid-transcode rather than a mocked head.
 /// </summary>
-public sealed class SessionFixture : WebApplicationFactory<Program>
+public class SessionFixture : WebApplicationFactory<Program>
 {
     public string MediaRoot { get; } = Path.Combine(
         Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"));
@@ -108,6 +108,7 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
                 ["Tmdb:ReadAccessToken"] = "a-test-token",
                 ["Tmdb:Directory"] = Path.Combine(StateRoot, "films"),
             }));
+        builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(MoreSettings()));
 
         builder.ConfigureServices(services =>
         {
@@ -116,8 +117,20 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
             services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new AssistantHost.CatalogueStub());
             services.AddHttpClient<TmdbClient>().ConfigurePrimaryHttpMessageHandler(() => FilmDatabase);
             services.AddHttpClient<WebPushSender>().ConfigurePrimaryHttpMessageHandler(() => PushService);
+            MoreServices(services);
         });
     }
+
+    /// <summary>Settings a fixture built on this one adds, over the ones above.</summary>
+    protected virtual Dictionary<string, string?> MoreSettings() => [];
+
+    /// <summary>Services a fixture built on this one replaces, after the ones above.</summary>
+    protected virtual void MoreServices(IServiceCollection services)
+    {
+    }
+
+    /// <summary>Puts a title in the library, as the hand-off would.</summary>
+    public void AddTitle(string id, FilmIdentity film) => WriteManifest(MediaRoot, id, TitleStatus.Transcoding, 120, film);
 
     /// <summary>The browsers' push services, as the tests answer them.</summary>
     public PushServiceStub PushService { get; } = new();

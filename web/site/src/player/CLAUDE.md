@@ -41,6 +41,11 @@ more.
 - **The spinner waits before it appears.** A stall shorter than a moment is a stutter. The same grace
   decides when this viewer is reported to the room as waiting, which is the mark on their avatar.
 
+- **A room waiting on a Watch now shows what it waits on, from the room.** The room's state carries
+  `preparing`, so every viewer sees the same three steps (finding, downloading, starting) and the film
+  starts on its own when the server loads it; a film that will not arrive says why. Leaving does not
+  stop the download.
+
 ## The controls
 
 - **Every control that moves the film moves the whole room.** There is one playhead and no host, so a

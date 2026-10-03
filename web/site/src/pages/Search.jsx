@@ -18,6 +18,7 @@ export function Search({ query }) {
   const titles = useLoad(() => api.titles(), []);
   const tracker = useLoad(() => (q ? api.releases(q) : Promise.resolve(null)), [q]);
   const found = useLoad(() => (q ? api.findShows(q).catch(() => []) : Promise.resolve([])), [q]);
+  const films = useLoad(() => (q ? api.findFilms(q).catch(() => []) : Promise.resolve([])), [q]);
   const libraryShows = useLoad(() => api.shows().catch(() => []), []);
 
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -55,6 +56,28 @@ export function Search({ query }) {
               )
               : <span className="kc-quiet">Nothing in the library is called that.</span>}
           </section>
+
+          {(films.data || []).length > 0 && (
+            <section className="kc-shelf">
+              <div className="kc-shelf__head"><h2>Films</h2></div>
+              <div className="kc-rows">
+                {films.data.map((f) => {
+                  const held = (titles.data || []).find((t) => t.film && t.film.imdbId === f.imdbId && t.kind !== "show");
+                  return (
+                    <a key={f.imdbId} className="kc-row kc-row--link"
+                      {...linkProps(held ? "/title/" + encodeURIComponent(held.id) : "/film/" + encodeURIComponent(f.imdbId))}>
+                      <span className="kc-row__icon"><Icon name="clapperboard" size={16} /></span>
+                      <div className="kc-row__text">
+                        <span className="kc-row__title">{f.display}</span>
+                        <span className="kc-row__sub">Movie{held ? " · in the library" : ""}</span>
+                      </div>
+                      <span className="kc-btn kc-btn--ghost"><Icon name={held ? "play" : "chevron-right"} size={16} />{held ? "Open" : "See how to watch"}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {(found.data || []).length > 0 && (
             <section className="kc-shelf">

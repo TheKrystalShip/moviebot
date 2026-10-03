@@ -2,7 +2,7 @@ import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
-import { navigate } from "../router.js";
+import { linkProps, navigate } from "../router.js";
 import { Empty, Failed, PageHead } from "../components/Film.jsx";
 import { NotOutYet } from "./Search.jsx";
 import { KeptPoster } from "../components/FilmDetails.jsx";
@@ -70,7 +70,7 @@ export function Notify() {
             <div key={wish.imdbId} className="kc-row">
               <KeptPoster imdbId={wish.imdbId} />
               <div className="kc-row__text">
-                <span className="kc-row__title">{wish.display}</span>
+                <a className="kc-row__title" {...linkProps("/film/" + encodeURIComponent(wish.imdbId))}>{wish.display}</a>
                 {wish.starring && <span className="kc-row__sub">{wish.starring}</span>}
                 <span className="kc-row__sub">
                   {wish.subscribers.length === 1 ? "Only you are waiting" : `${wish.subscribers.length} people are waiting`}

@@ -170,6 +170,88 @@ export function RequestSheet({ show, onClose, onStarted }) {
   );
 }
 
+const FILM_QUALITIES = [
+  { value: "1080p", label: "1080p", note: "The sharpest the server keeps", key: "hd1080" },
+  { value: "720p", label: "720p", note: "Smaller, and plenty on a phone", key: "hd720" },
+];
+
+/**
+ * Downloading a film: 1080p or 720p, the best release the tracker offers at each, with what it costs on
+ * disk. 1080p is the default where it is offered; a quality nothing is offered at cannot be picked.
+ */
+export function FilmRequestSheet({ film, availability, onClose, onStarted }) {
+  const offered = FILM_QUALITIES.filter((q) => availability[q.key]);
+  const [quality, setQuality] = React.useState(offered.length ? offered[0].value : null);
+  const [busy, setBusy] = React.useState(false);
+  const chosen = quality && availability[FILM_QUALITIES.find((q) => q.value === quality).key];
+  const name = film.year ? `${film.title} (${film.year})` : film.title;
+
+  const submit = async () => {
+    if (!chosen) return;
+    setBusy(true);
+    try {
+      const reply = await api.download(chosen.torrentId);
+      if (reply.outcome === "started") {
+        toast.success(`Downloading ${name} at ${quality}. You'll get a push when it's ready.`);
+        onStarted();
+      } else {
+        toast.error(downloadWords(reply));
+      }
+    } catch (error) {
+      toast.fromError(error, "The download did not start");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal onClose={onClose} canClose={!busy} scrimClassName="kc-sheet-scrim">
+      <div className="kc-sheet" role="dialog" aria-label={`Download ${name}`}>
+        <div className="kc-sheet__head">
+          <span className="kc-sheet__poster">{film.posterUrl && <img src={film.posterUrl} alt="" />}</span>
+          <div className="kc-sheet__title">
+            <span className="kc-eyebrow kc-eyebrow--muted">Download</span>
+            <span className="kc-sheet__name">{film.title} {film.year && <span className="kc-quiet">{film.year}</span>}</span>
+            {film.directors.length > 0 && <span className="kc-quiet">Directed by {film.directors.join(", ")}</span>}
+          </div>
+          <button type="button" className="kc-sheet__close" aria-label="Close" onClick={onClose}><Icon name="x" size={18} /></button>
+        </div>
+
+        <div className="kc-sheet__body">
+          <div className="kc-sheet__group">
+            <span className="kc-sheet__label">Quality</span>
+            <div className="kc-qualities">
+              {FILM_QUALITIES.map((q) => {
+                const offer = availability[q.key];
+                return (
+                  <button key={q.value} type="button" disabled={!offer}
+                    className={"kc-quality" + (quality === q.value ? " is-on" : "")} onClick={() => setQuality(q.value)}>
+                    <span className="kc-quality__dot" />
+                    <span className="kc-quality__text">
+                      <span className="kc-quality__label">{q.label}</span>
+                      <span className="kc-mono kc-quiet">{offer ? `~${bytes(offer.sizeBytes)}` : "not offered"}</span>
+                      <span className="kc-quiet">{q.note}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <span className="kc-quiet">Downloads usually finish in 10–40 minutes. You'll get a push when it's ready to watch, and it shows up under My downloads.</span>
+        </div>
+
+        <div className="kc-sheet__foot">
+          <span className="kc-mono kc-sheet__summary">{chosen ? `${quality} · ~${bytes(chosen.sizeBytes)}` : "Nothing offered"}</span>
+          <button type="button" className="kc-btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button type="button" className="kc-btn kc-btn--primary" disabled={busy || !chosen} onClick={submit}>
+            <Icon name="download" size={16} />Download
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function Check({ on, partial, onClick }) {
   const box = <span className={"kc-check" + (on || partial ? " is-on" : "")}>{on ? <Icon name="check" size={13} /> : partial ? <Icon name="minus" size={13} /> : null}</span>;
   return onClick ? <button type="button" className="kc-check__hit" onClick={onClick}>{box}</button> : box;

@@ -255,6 +255,18 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   React.useEffect(() => room.onAnnounce((said) => {
     setAnnouncement({ ...said, key: Date.now() });
   }), [room]);
+
+  // A film the room was waiting on has arrived far enough to play; the rest is still coming.
+  const waitedOn = React.useRef(false);
+  const arrivedTitle = view.state && view.state.titleId;
+  const preparingNow = Boolean(view.state && view.state.preparing && view.state.preparing.stage === "downloading");
+  React.useEffect(() => {
+    if (preparingNow) waitedOn.current = true;
+    else if (waitedOn.current && arrivedTitle) {
+      waitedOn.current = false;
+      setAnnouncement({ text: "Playing while it finishes downloading.", actor: null, key: Date.now() });
+    }
+  }, [preparingNow, arrivedTitle]);
   React.useEffect(() => {
     if (!announcement) return undefined;
     const timer = window.setTimeout(() => setAnnouncement(null), AnnouncementMs);
@@ -369,7 +381,15 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
       {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} onJoin={() => room.joinPlayback()} />}
       {view.unplayable && <Message icon="circle-alert" title="This film cannot play here" text={view.unplayable} />}
       {view.fatal && <Message icon="circle-alert" title={view.fatal} action={!embed && onBack ? { label: "Back", go: onBack } : null} />}
-      {!view.fatal && view.state && !titleHeld && (
+      {!view.fatal && view.state && !titleHeld && view.state.preparing && view.state.preparing.stage !== "failed" && (
+        <Fetching preparing={view.state.preparing} onBack={!embed ? onBack : null} />
+      )}
+      {!view.fatal && view.state && !titleHeld && view.state.preparing && view.state.preparing.stage === "failed" && (
+        <Message icon="circle-alert" title={`${view.state.preparing.name} could not be fetched`}
+          text={fetchProblem(view.state.preparing)}
+          action={!embed && onBack ? { label: "Back", go: onBack } : null} />
+      )}
+      {!view.fatal && view.state && !titleHeld && !view.state.preparing && (
         <Message icon="clapperboard" title="Nothing playing yet"
           text={embed ? "Ask the bot for a film with /watch." : null}
           action={!embed && onEmpty ? { label: "Choose a film", go: onEmpty } : null} />
@@ -697,6 +717,59 @@ function Preparing({ manifest, head }) {
       <div className="mp-prepare__bar"><div style={{ width: `${written * 100}%` }} /></div>
     </div>
   );
+}
+
+/**
+ * A room waiting on a film somebody pressed Watch now on: it being found, arriving, and starting, as
+ * the room says, so everybody in it sees the same panel. It starts on its own; leaving does not stop
+ * the download.
+ */
+function Fetching({ preparing, onBack }) {
+  const finding = preparing.stage === "finding";
+  const progress = preparing.progress || 0;
+  const steps = [
+    { label: "Finding a release", sub: finding ? "Searching the tracker by IMDb ID" : `Matched on IMDb${preparing.release ? ` · ${preparing.release}` : ""}`, done: !finding, active: finding },
+    { label: "Downloading", sub: finding ? "" : `${Math.floor(progress * 100)}% · transcoding live as it arrives`, active: !finding },
+    { label: "Starting playback", sub: "" },
+  ];
+  return (
+    <div className="mp-prepare" role="status">
+      <div className="mp-prepare__head">
+        <span className="mp-prepare__eyebrow">Watch</span>
+        <span className="mp-prepare__name">{preparing.name}</span>
+        <span className="mp-prepare__text">Playback starts on its own as soon as the server can stream it.</span>
+      </div>
+      <div className="mp-prepare__steps">
+        {steps.map((s) => (
+          <div key={s.label} className={"mp-step" + (s.done ? " is-done" : "") + (s.active ? " is-active" : "")}>
+            <span className="mp-step__dot">
+              {s.done && <Icon name="check" size={12} />}
+              {s.active && <Icon name="loader-circle" size={13} className="mp-spin" />}
+            </span>
+            <span className="mp-step__label">{s.label}</span>
+            {s.sub && <span className="mp-step__sub">{s.sub}</span>}
+          </div>
+        ))}
+      </div>
+      <div className="mp-prepare__bar"><div style={{ width: `${finding ? 8 : 24 + progress * 76}%` }} /></div>
+      {onBack && (
+        <div className="mp-prepare__foot">
+          <span className="mp-prepare__text">Closing won't cancel the download.</span>
+          <button type="button" className="mp-prepare__leave" onClick={onBack}>Keep downloading in background</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Why a film a room waited on will not arrive, in words. */
+function fetchProblem(preparing) {
+  switch (preparing.problem) {
+    case "notOffered": return "The tracker has no release of it at a quality worth watching.";
+    case "refused": return preparing.refusal || "The download was refused.";
+    case "notWatchable": return "It arrived, but it could not be made watchable.";
+    default: return "The tracker or the torrent client is not answering. Try again in a minute.";
+  }
 }
 
 function Message({ icon, title, text, action }) {

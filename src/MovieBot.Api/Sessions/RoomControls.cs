@@ -63,6 +63,18 @@ public sealed class RoomControls(
 
         return new RoomChange(push, result.Clamped);
     }
+
+    /// <summary>
+    /// Tells a room what film it is waiting on and how far it has got, and pushes that to everybody in
+    /// it. Nobody asked for this, so it is not an intent and is not logged as one; nothing is pushed
+    /// when nothing changed.
+    /// </summary>
+    public async Task ReportAsync(string sessionId, RoomPreparing? preparing, CancellationToken ct = default)
+    {
+        if (sessions.SetPreparing(sessionId, preparing) is not { } result) return;
+        await hub.Clients.Group(sessionId).SendAsync("StateChanged",
+            new SessionStatePush { State = result.State, ServerTime = DateTimeOffset.UtcNow }, ct);
+    }
 }
 
 /// <summary>

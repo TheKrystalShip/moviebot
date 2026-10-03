@@ -143,6 +143,14 @@
   color: var(--fg-1);
 }
 .mp-prepare__head { display: flex; flex-direction: column; gap: 4px; }
+.mp-prepare__text { font-size: 13px; color: var(--fg-3); line-height: 1.5; white-space: normal; }
+.mp-prepare__foot { display: flex; align-items: center; gap: 12px; }
+.mp-prepare__foot .mp-prepare__text { font-size: 12px; flex: 1; }
+.mp-prepare__leave {
+  height: 34px; padding: 0 12px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: transparent;
+  color: var(--fg-1); font: inherit; font-weight: 600; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.mp-prepare__leave:hover { background: var(--surface-2); }
 .mp-prepare__eyebrow { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--krystal-teal); font-weight: 600; }
 .mp-prepare__name { font-size: 18px; font-weight: 600; }
 .mp-prepare__steps { display: flex; flex-direction: column; gap: 14px; }

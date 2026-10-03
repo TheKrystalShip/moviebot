@@ -4,6 +4,7 @@ using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
+using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Notifications;
@@ -37,6 +38,7 @@ public static class Naming
 public sealed class ReadyNotices(
     AcquisitionService acquisition,
     TitleLibrary library,
+    SessionStore sessions,
     Notifier notifier,
     ILogger<ReadyNotices> logger) : BackgroundService
 {
@@ -69,9 +71,10 @@ public sealed class ReadyNotices(
             var failed = download.Tags.Contains(TorrentTags.IngestFailed);
             if (!failed && !download.Tags.Contains(TorrentTags.Watchable)) continue;
 
-            if (download.Tags.Select(TorrentTags.ReadRequester).FirstOrDefault(r => r is not null) is { } requester)
+            var id = download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null);
+            if (download.Tags.Select(TorrentTags.ReadRequester).FirstOrDefault(r => r is not null) is { } requester
+                && !(id is not null && !failed && Watching(requester.ToString(CultureInfo.InvariantCulture), id)))
             {
-                var id = download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null);
                 var manifest = id is null ? null : library.Get(id);
                 var name = manifest is null ? ReleaseParser.ParseName(download.Name).Display : Naming.Name(manifest);
 
@@ -91,6 +94,13 @@ public sealed class ReadyNotices(
                 await acquisition.ClearTagAsync(download.Hash, TorrentTags.TellDirect, ct);
         }
     }
+
+    /// <summary>
+    /// Whether the person is in a room playing the title already, as somebody who pressed Watch now
+    /// is by the time it can be watched: the room is the news, and a push would be the same thing late.
+    /// </summary>
+    private bool Watching(string userId, string titleId) =>
+        sessions.Viewing().Any(v => v.TitleId == titleId && v.Viewers.Any(p => p.UserId == userId));
 
     internal static async Task<bool> WaitAsync(PeriodicTimer timer, CancellationToken ct)
     {

@@ -52,6 +52,16 @@ export const api = {
   showReleases: (imdbId) => call("GET", `/api/shows/${enc(imdbId)}/releases`),
   neighbours: (id) => call("GET", `/api/titles/${enc(id)}/neighbours`),
   rooms: () => call("GET", "/api/sessions"),
+
+  // A film by its IMDb id: the catalogue's matches for a name, and whether one can be watched and how.
+  findFilms: (q) => call("GET", `/api/films/find?q=${enc(q)}`),
+  availability: (imdbId) => call("GET", `/api/films/${enc(imdbId)}/availability`),
+  // Watch now: fetch it and play it in a room the moment it can be opened. Answers with the room at
+  // once; a 409 is every slot for watching while it arrives in use, and carries them.
+  watchNow: (request) => call("POST", "/api/watch", request).catch((error) => {
+    if (error.status === 409) return { outcome: "full" };
+    throw error;
+  }),
   downloads: () => call("GET", "/api/downloads"),
 
   // How long a settled film stays. A keep is the signed-in person's own: the token names who.

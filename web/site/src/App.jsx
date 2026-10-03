@@ -11,6 +11,7 @@ import { Home } from "./pages/Home.jsx";
 import { Library } from "./pages/Library.jsx";
 import { Title } from "./pages/Title.jsx";
 import { Show } from "./pages/Show.jsx";
+import { CatalogueFilm } from "./pages/CatalogueFilm.jsx";
 import { Search } from "./pages/Search.jsx";
 import { Notify } from "./pages/Notify.jsx";
 import { Leaving } from "./pages/Leaving.jsx";
@@ -41,7 +42,7 @@ const LIFECYCLE = [
 const TABS = [
   { id: "home", path: "/", icon: "house", label: "Home", pages: ["home", "leaving"] },
   { id: "library", path: "/movies", icon: "clapperboard", label: "Library", pages: ["movies", "tv", "title", "show"] },
-  { id: "search", path: "/search", icon: "search", label: "Search", pages: ["search"] },
+  { id: "search", path: "/search", icon: "search", label: "Search", pages: ["search", "film"] },
   { id: "assistant", icon: "bot", label: "Assistant" },
   { id: "me", path: "/profile", icon: "user", label: "Me", pages: ["profile", "notify"] },
 ];
@@ -155,6 +156,7 @@ function Page({ route }) {
     case "tv": return <Library key="show" kind="show" />;
     case "title": return route.arg ? <Title key={route.arg} id={route.arg} /> : <Library kind="film" />;
     case "show": return route.arg ? <Show key={route.arg} imdbId={route.arg} query={route.query} /> : <Library kind="show" />;
+    case "film": return route.arg ? <CatalogueFilm key={route.arg} imdbId={route.arg} /> : <Search query={route.query} />;
     case "search": return <Search query={route.query} />;
     case "notify": return <Notify />;
     case "leaving": return <Leaving />;

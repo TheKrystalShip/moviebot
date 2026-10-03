@@ -195,6 +195,22 @@ export interface SessionState {
   epoch: string;
   /** How far the transcode has reached. Absent once the title is ready. */
   transcodeHead?: number;
+  /** The film the room waits on while it is fetched for a Watch now. Absent once it is in the room. */
+  preparing?: RoomPreparing;
+}
+
+/** A film being fetched for a room: found, arriving, or not coming. */
+export interface RoomPreparing {
+  imdbId: string;
+  name: string;
+  stage: 'finding' | 'downloading' | 'failed';
+  /** The release as its resolution and source: "1080p WEB". */
+  release?: string;
+  /** From 0 to 1, while downloading. */
+  progress?: number;
+  /** Why it will not arrive: notOffered, refused, unavailable or notWatchable. */
+  problem?: string;
+  refusal?: string;
 }
 
 export interface SessionStatePush {

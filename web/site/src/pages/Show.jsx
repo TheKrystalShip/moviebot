@@ -7,7 +7,8 @@ import { useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, watchLink } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes } from "../components/FilmDetails.jsx";
-import { RequestSheet } from "../components/RequestSheet.jsx";
+import { RequestSheet, plan } from "../components/RequestSheet.jsx";
+import { watchNow } from "../watchNow.js";
 
 /**
  * One show: what it is, its seasons with their episodes, where this person picks up, how long each
@@ -24,6 +25,7 @@ export function Show({ imdbId, query }) {
   const [season, setSeason] = React.useState(Number(query.get("season")) || null);
   const [requesting, setRequesting] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const [starting, setStarting] = React.useState(false);
   const session = useSession();
   const me = session && session.user;
 
@@ -46,6 +48,25 @@ export function Show({ imdbId, query }) {
   const first = seasons.flatMap((x) => x.episodes).find((e) => e.titleId);
   const play = resume || (first && { titleId: first.titleId, season: first.season, episode: first.number, positionSeconds: 0 });
   const room = play && (rooms.data || []).find((r) => r.titleId === play.titleId && r.participants > 0);
+  // With nothing of the show here, Watch starts its first episode while it arrives.
+  const opening = seasons.filter((x) => x.number >= 1 && x.episodes.length > 0).map((x) => x.episodes[0])[0] || null;
+
+  const watchFirst = async () => {
+    setStarting(true);
+    try {
+      const offers = await api.showReleases(s.imdbId);
+      const picked = plan(offers, { [opening.season]: new Set([opening.number]) }, "720p").torrents[0];
+      if (!picked) {
+        toast.info(`The tracker has nothing of ${s.title} Season ${opening.season} to watch yet.`);
+        return;
+      }
+      await watchNow({ imdbId: s.imdbId, torrentId: picked.offer.torrentId, episodes: [{ season: opening.season, episode: opening.number }] });
+    } catch (error) {
+      toast.fromError(error, "That could not be started");
+    } finally {
+      setStarting(false);
+    }
+  };
   const years = s.firstYear ? `${s.firstYear}–${s.inProduction ? "" : s.lastYear || ""}` : null;
   const episodeCount = seasons.reduce((n, x) => n + x.episodes.length, 0);
 
@@ -112,8 +133,13 @@ export function Show({ imdbId, query }) {
                   {room ? `Join the room (${room.participants})` : resume ? "Resume" : "Watch"}
                 </a>
               )}
+              {!play && opening && (
+                <button type="button" className="kc-btn kc-btn--primary kc-btn--lg" disabled={starting} onClick={watchFirst}>
+                  <Icon name="play" size={18} />Watch
+                </button>
+              )}
               {missing && (
-                <button type="button" className={"kc-btn kc-btn--lg" + (play ? "" : " kc-btn--primary")} onClick={() => setRequesting(true)}>
+                <button type="button" className="kc-btn kc-btn--lg" onClick={() => setRequesting(true)}>
                   <Icon name="download" size={17} />{play ? "Get episodes" : "Download"}
                 </button>
               )}

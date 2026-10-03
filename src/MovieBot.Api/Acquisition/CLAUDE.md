@@ -18,6 +18,24 @@ and this directory is where the API calls them.
 - **A service that did not answer is a 502, never an empty answer.** No downloads and a torrent client
   that could not be asked are different facts.
 
+## Watch now (`WatchNow.cs`)
+
+- **The answer comes before the release is picked.** Finding a release is the one slow step, so the
+  room is told it is `finding` and the person goes to it; they watch the rest happen there rather than
+  waiting on a button.
+- **The torrent is the record of which room waits on it** (`watch:<room>`). `WatchNowLoader` reads the
+  torrent client every three seconds and holds nothing, so a restart picks every waiting room back up;
+  a room's `preparing` is dropped on restore for the same reason and read again on the next pass.
+- **A site room is loaded by the API, a Discord room by the bot.** A site room has no channel to
+  announce in, so the API does what the bot's download watcher does for `room:`: loads the film the
+  moment the hand-off marks it watchable, as the person who pressed it, and starts it.
+- **What is waited on names nobody.** A preparing state is the server reporting on a download; with
+  an actor, every player would announce it as somebody moving the room.
+- **The cap counts what is being watched while it arrives**: every download still arriving that a room
+  waits on, or that an occupied room is playing. Each is a download and a live transcode at once.
+- **Only a release from a digital source up is offered or picked**, the same floor that decides when a
+  wish is out: a camcorder recording is not what Watch now means.
+
 ## Keeps and the library's clock
 
 How long a settled film stays in the library is this API's to say (`Library/LibraryClock`), and the

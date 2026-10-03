@@ -155,6 +155,9 @@ at the hub's negotiate. A token without a `jti` is valid until `exp` and is not 
 | `GET /api/releases/{torrentId}` | `ReleaseOffer` — a release a search or a picker offered, or 404 |
 | `GET /api/shows/find?q=` | `FilmView[]` — the shows the title index offers for a name, `{imdbId, title, year?, display}`; never a film or an episode |
 | `GET /api/shows/{imdbId}/releases` | `ShowOffers` — `{seasons: [{season, packs, episodes: [{episode, releases}]}], emptyExplanation?}`, each list a show's `ReleaseOffer`s best first, 720p ahead of 1080p. A pack is listed under every season it covers |
+| `GET /api/films/find?q=` | `FilmView[]` — the films the title index offers for a name; never a show |
+| `GET /api/films/{imdbId}/availability` | `FilmAvailability` — `{imdbId, libraryId?, download?: {hash, progress, isWatchable, libraryId?}, hd1080?, hd720?, notOut, emptyExplanation?, trackerUnanswered, waiting, waiters, streams: {used, limit}}`. The library first, then the torrent client, then the tracker, which is asked only for a film neither here nor arriving; `hd1080` and `hd720` are the best `ReleaseOffer` at each from a digital source up, and `notOut` is neither being offered |
+| `POST /api/watch` | `WatchNowReply` for `{imdbId, torrentId?, quality?, episodes?, room?}` — `{outcome, room?, libraryId?, streams?}`. See Watch now below |
 | `GET /api/downloads` | `DownloadView[]`: `{hash, name, release, summary, isFinished, isWatchable, libraryId?, imdbId?, requestedBy?}`, `requestedBy` the Discord id of whoever asked |
 | `POST /api/downloads` | `StartDownloadReply` for `{torrentId, requestedBy, notifyChannelId?, roomId?, episodes?}`; `episodes` (`[{season, episode}]`) fetches only those files out of a show's release, and picking more from a release already downloading switches them on in it |
 | `GET /api/wishes?userId=` | `WishView[]` — every wish, or the ones that person waits on |
@@ -194,6 +197,25 @@ at the hub's negotiate. A token without a `jti` is valid until `exp` and is not 
   subscriber through their notifications; whoever asked without a channel is told that way alone and
   comes off the wish then. The client that announces it in channels says which it reached, and the
   subscribers who asked in those come off.
+
+### Watch now
+
+A film that is not here is fetched and played in a room the moment it can be opened. `POST
+/api/watch` answers at once: `inLibrary` (the film is here, and is loaded into `room`), `preparing`
+(the room waits on it), `full` (a `409`: `streams` films are already being watched while they arrive,
+the `Watch:MaxStreams` setting, and the person is offered Download instead) or `badRoom`. Without a
+`room` a new one is made; a room id is 1 to 64 letters, digits, `-` or `_`. A film already arriving
+has the room added to its download. Otherwise the release is `torrentId`, one the API offered, or the
+best at `quality` (`1080p` unless `720p` is asked) from a digital source up; `episodes` fetches only
+those out of a show's release and is how a show is watched.
+
+What the room waits on is on its state, `preparing: {imdbId, name, stage, release?, progress?,
+problem?, refusal?}`, pushed to everybody in it: `stage` is `finding` (the release is being picked),
+`downloading` (`progress` from 0 to 1) or `failed` (`problem`: `notOffered`, `refused`,
+`unavailable`, `notWatchable`). These states name nobody in `updatedBy`. The download carries the
+room as `watch:<room>`; once the hand-off marks it watchable the film is loaded into the room and
+played as the person who pressed it, and `preparing` goes. A download watched this way still owes its
+requester a "ready" notification, which is not sent while they are in a room playing it.
 
 ### Notifications
 

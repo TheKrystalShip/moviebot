@@ -144,6 +144,11 @@ builder.Services.AddSingleton<Wishes>();
 builder.Services.AddSingleton<WishSweep>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WishSweep>());
 
+// Watch now: a film fetched and played in a site room as soon as it can be opened.
+builder.Services.AddOptions<WatchOptions>().Bind(builder.Configuration.GetSection(WatchOptions.Section));
+builder.Services.AddSingleton<WatchNow>();
+builder.Services.AddHostedService<WatchNowLoader>();
+
 // Who keeps which film, and the rule for when a settled film that nobody keeps leaves. Both are
 // answered here and acted on by the hand-off, which is the one process that writes the media roots.
 builder.Services.AddOptions<LibraryOptions>().Bind(builder.Configuration.GetSection(LibraryOptions.Section));

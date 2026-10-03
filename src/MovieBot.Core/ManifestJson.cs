@@ -68,6 +68,9 @@ namespace TheKrystalShip.MovieBot.Core;
 [JsonSerializable(typeof(List<PersonView>))]
 [JsonSerializable(typeof(InviteRequest))]
 [JsonSerializable(typeof(InviteReply))]
+[JsonSerializable(typeof(FilmAvailability))]
+[JsonSerializable(typeof(WatchNowRequest))]
+[JsonSerializable(typeof(WatchNowReply))]
 [JsonSerializable(typeof(string[]))]
 public partial class ManifestJsonContext : JsonSerializerContext;
 

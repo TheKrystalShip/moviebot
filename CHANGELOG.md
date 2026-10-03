@@ -4,6 +4,30 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.78.0] - 2026-10-03
+
+### Added
+
+- **Watch now.** `POST /api/watch` fetches a film that is not here and plays it in a room the moment
+  it can be opened: a film already here is loaded at once, one already arriving has the room added to
+  its download, and anything else is fetched at the release a page was offered or the best at 1080p
+  (or 720p) from a digital source up. The answer comes at once with the room. The room's state carries
+  what it waits on (`preparing`: finding, downloading with its progress, or failed and why), pushed to
+  everybody in it, and `WatchNowLoader` loads and starts the film there once the hand-off marks it
+  watchable. The download carries the room as a `watch:` tag, so a restart loses nothing. At most
+  `Watch:MaxStreams` films (4) are watched while they arrive; past that the answer is `full`.
+- `GET /api/films/{imdbId}/availability`: here, arriving, offered at 1080p and 720p with sizes, or not
+  out digitally yet, with who waits on it and how many live slots are free. `GET /api/films/find?q=`
+  names films from the catalogue.
+- **Krystal Cinema's film page**, `/film/<imdbId>`, from the design: Watch and Download (a request
+  sheet with 1080p and 720p and the size of each) for a film the tracker offers, its progress while it
+  arrives, and Notify for one not out yet. Search lists the catalogue's films, each leading to its
+  page; the Notify page links each wish to its page. A show with nothing here gets Watch, which plays
+  its first episode while it arrives.
+- **The player's preparing panel**: Finding a release, Downloading with its percentage, Starting
+  playback, and "Keep downloading in background"; a film that will not arrive says why, and one that
+  does starts on its own with "Playing while it finishes downloading."
+
 ## [1.77.0] - 2026-10-03
 
 ### Added

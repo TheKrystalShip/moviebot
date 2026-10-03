@@ -21,7 +21,10 @@ public sealed class Downloads(
     AcquisitionService acquisition,
     ILogger<Downloads> logger)
 {
-    public async Task<StartDownloadReply> StartAsync(StartDownloadRequest request, CancellationToken ct)
+    /// <param name="watchRoom">
+    /// The site room waiting to watch it, for Watch now, which loads it there once it can be opened.
+    /// </param>
+    public async Task<StartDownloadReply> StartAsync(StartDownloadRequest request, CancellationToken ct, string? watchRoom = null)
     {
         if (offered.Resolve(request.TorrentId) is not { } release)
             return new StartDownloadReply { Outcome = "noLongerOffered" };
@@ -41,6 +44,7 @@ public sealed class Downloads(
                 tags.Add(TorrentTags.Tell);
                 if (channel is null) tags.Add(TorrentTags.TellDirect);
             }
+            if (watchRoom is not null) tags.Add(TorrentTags.Watch(watchRoom));
 
             // The room is the reason for the download. Whichever pass sees the film become
             // watchable, in whichever process is running by then, loads it there.

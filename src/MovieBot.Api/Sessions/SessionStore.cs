@@ -108,7 +108,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         lock (entry.Gate)
         {
             EndSpan(entry, Viewers(entry));
-            var loaded = entry.State with { TitleId = titleId };
+            var loaded = entry.State with { TitleId = titleId, Preparing = null };
             var (start, clamp) = ClampToHead(loaded, startSeconds ?? 0);
             entry.State = Advance(loaded, actor) with
             {
@@ -116,6 +116,30 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
                 AnchorUtc = clock.GetUtcNow()
             };
             return new MutationResult(WithCurrentHead(entry.State), clamp);
+        }
+    }
+
+    /// <summary>
+    /// Says what film the room is waiting on and how far it has got, or that it waits on nothing.
+    ///
+    /// Nobody did this: the server is reporting on a download, so the state names no actor, which is
+    /// also what keeps every player from announcing it as somebody moving the room. Null when
+    /// nothing changed, so a pass that finds the same progress pushes nothing.
+    /// </summary>
+    public MutationResult? SetPreparing(string sessionId, RoomPreparing? preparing)
+    {
+        var entry = Entry(sessionId);
+        lock (entry.Gate)
+        {
+            if (entry.State.Preparing == preparing) return null;
+
+            entry.LastActivityUtc = clock.GetUtcNow();
+            Changed?.Invoke();
+            entry.State = entry.State with
+            {
+                Revision = entry.State.Revision + 1, UpdatedBy = null, Preparing = preparing,
+            };
+            return new MutationResult(WithCurrentHead(entry.State), null);
         }
     }
 
@@ -402,7 +426,9 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         {
             _sessions[room.State.SessionId] = new SessionEntry
             {
-                State = room.State,
+                // What a room waits on is read again from the downloads on the next pass, which is
+                // the record of it; a copy from before the restart may describe one since finished.
+                State = room.State with { Preparing = null },
                 LastActivityUtc = room.LastActivityUtc
             };
         }

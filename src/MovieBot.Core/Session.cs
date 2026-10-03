@@ -52,6 +52,12 @@ public sealed record SessionState
     public double? TranscodeHead { get; init; }
 
     /// <summary>
+    /// The film the room is waiting on, while it is fetched for somebody who pressed Watch now.
+    /// Absent once the film is in the room, and in every room nobody is fetching anything for.
+    /// </summary>
+    public RoomPreparing? Preparing { get; init; }
+
+    /// <summary>
     /// Where the film is now. Derived from the anchor rather than transmitted, so a client that
     /// missed a push for ten seconds still computes the right answer.
     /// </summary>

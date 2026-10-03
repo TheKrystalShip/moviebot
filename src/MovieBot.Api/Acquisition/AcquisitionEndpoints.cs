@@ -1,3 +1,5 @@
+using TheKrystalShip.MovieBot.Acquire;
+using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
 using TheKrystalShip.MovieBot.Api.Library;
@@ -31,6 +33,38 @@ public static class AcquisitionEndpoints
             return Results.Ok(new ReleaseSuggestions(
                 answer.Choices.Select(c => new ReleaseChoiceView(c.Label, c.TorrentId)).ToList(),
                 answer.Explanation));
+        });
+
+        // The films the title index offers for a name, for a search box: each leads to its own page,
+        // which is where whether it can be watched is asked.
+        group.MapGet("/films/find", async (string? q, ImdbClient index, CancellationToken ct) =>
+            Results.Ok((await index.SuggestAsync(q ?? "", ct))
+                .Select(f => new FilmView { ImdbId = f.ImdbId, Title = f.Title, Year = f.Year, Display = f.Display })
+                .ToList()));
+
+        // Whether a film can be watched and how: here, arriving, offered at 1080p and 720p, or not out.
+        group.MapGet("/films/{imdbId}/availability", async (string imdbId, HttpContext context, WatchNow watch, CancellationToken ct) =>
+            ImdbId.IsValid(imdbId)
+                ? Results.Ok(await watch.AvailabilityAsync(imdbId, MemberOf(context)?.UserId, ct))
+                : Results.Json(new ErrorReply("That is not an IMDb id."), ApiJsonContext.Default.ErrorReply,
+                    statusCode: StatusCodes.Status400BadRequest));
+
+        // Watch now: the film is fetched and played in a room the moment it can be opened. The answer
+        // comes before the release is picked, so the person is in the room watching that happen.
+        group.MapPost("/watch", async (WatchNowRequest request, HttpContext context, WatchNow watch, CancellationToken ct) =>
+        {
+            if (!ImdbId.IsValid(request.ImdbId))
+                return Results.Json(new ErrorReply("That is not an IMDb id."), ApiJsonContext.Default.ErrorReply,
+                    statusCode: StatusCodes.Status400BadRequest);
+            var asker = MemberOf(context) is { } member
+                ? new Actor(member.UserId, member.DisplayName)
+                : request.RequestedBy is { UserId.Length: > 0 } named ? named : null;
+            if (asker is null) return NoKeeper();
+
+            var reply = await watch.StartAsync(request, asker, ct);
+            return reply.Outcome == "full"
+                ? Results.Json(reply, ManifestJsonContext.Default.WatchNowReply, statusCode: StatusCodes.Status409Conflict)
+                : Results.Ok(reply);
         });
 
         // The releases the tracker holds for a film, named in words or by IMDb id, best first.

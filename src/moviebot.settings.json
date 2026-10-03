@@ -128,6 +128,12 @@
     "Devices": ""
   },
 
+  // Watch now: how many films may be watched while they are still arriving (MaxStreams). Each is a
+  // download and a live transcode at once; past it, a person is offered Download instead.
+  "Watch": {
+    "MaxStreams": 4
+  },
+
   // What the API tells people: each person's notifications (Inbox), the browsers they subscribed to
   // pushes (Devices), this server's push key pair (Keys, made once and never again: every
   // subscription is bound to it), and which kinds each person is pushed (Preferences). An empty
