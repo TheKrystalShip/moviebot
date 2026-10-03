@@ -4,6 +4,37 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.75.0] - 2026-10-03
+
+### Added
+
+- **Shows, episode by episode.** A show's download is ingested one title per picked episode
+  (`<show>-s02e04`, `kind: "show"`), in order, each starting once enough of its own file has
+  arrived, so the first is watchable while the rest download. The manifest carries `episode`
+  (`{season, number}`) with the show in `film`, and is titled with the show's name and the
+  episode's place. The torrent owes its transcode until every picked episode is in the library.
+- **`/api/shows`** lists the library's shows one entry each, **`/api/shows/{imdbId}`** describes a
+  show from TMDB with every season's episodes joined with the library and the asking person's
+  progress and where they pick up, **`/api/titles/{id}/neighbours`** names the episodes either side
+  of one, and **`/api/shows/{imdbId}/releases`** offers the tracker's packs and single episodes
+  season by season. A show's artwork and its episodes' stills are kept by the API under `shows/`
+  and served at `/shows/{imdbId}/…`.
+- **Picking episodes:** `POST /api/downloads` takes `episodes` (`[{season, episode}]`) and fetches
+  only those out of a show's release; picking more from a release already downloading switches them
+  on. A `ReleaseOffer` says its resolution and, for a show's, where it sits, how many episodes it
+  holds and their average size.
+- `Selection__AllowedShowCategories__N` names the tracker's show categories (packaging, the guide).
+
+### Changed
+
+- **A season stays and leaves as one.** A title's stay is its unit's (`TitleStay.unit`): a film's own,
+  or its season's. Keeping an episode keeps the season, the season's clock runs from the latest play
+  and settle of any episode in it, and a room on one episode holds the season. `/api/stays` lists a
+  season once.
+- `TitleSummary` carries `episode` and `unit`; an episode's `details` are its show's. Progress and
+  history entries name an episode by its show and carry `episode` and `showImdbId`.
+- The tracker's clock keeps a show's torrent while a room holds any episode made from it.
+
 ## [1.74.0] - 2026-10-03
 
 ### Changed

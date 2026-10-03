@@ -41,6 +41,21 @@ public sealed class TitleKindTests(SessionFixture fixture) : IClassFixture<Sessi
     }
 
     [Fact]
+    public void An_episode_carries_its_place_in_the_show_through_a_rewrite()
+    {
+        var episode = ManifestJson.Deserialize(Unsaid.Replace(
+            "\"status\": \"ready\",",
+            "\"status\": \"ready\", \"kind\": \"show\", \"episode\": { \"season\": 2, \"number\": 4 },"))!;
+
+        Assert.Equal(2, episode.Episode!.Season);
+        Assert.Equal("S02E04", episode.Episode.Label);
+
+        var again = ManifestJson.Deserialize(ManifestJson.Serialize(episode))!;
+        Assert.Equal(4, again.Episode!.Number);
+        Assert.Null(ManifestJson.Deserialize(Unsaid)!.Episode);
+    }
+
+    [Fact]
     public async Task The_listing_says_what_each_title_is()
     {
         var body = await fixture.CreateServiceClient().GetStringAsync("/api/titles");

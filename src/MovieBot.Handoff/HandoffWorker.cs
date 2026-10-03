@@ -71,9 +71,17 @@ public sealed class HandoffWorker(
     private async Task SweepAsync(CancellationToken ct)
     {
         var downloads = await acquisition.ListAsync(ct);
+        var tagged = downloads.Where(d => d.Tags.Contains(TorrentTags.NeedsIngest)).ToList();
 
-        var owed = downloads
-            .Where(d => d.Tags.Contains(TorrentTags.NeedsIngest) && IsFarEnoughAlong(d))
+        // A show's torrent is many titles, one per episode, and is swept file by file.
+        foreach (var download in tagged.Where(IsShow))
+        {
+            if (ct.IsCancellationRequested) return;
+            await SweepShowAsync(download, ct);
+        }
+
+        var owed = tagged
+            .Where(d => !IsShow(d) && IsFarEnoughAlong(d))
             .Where(d => !_inFlight.ContainsKey(d.Hash))
             .ToList();
 
@@ -115,6 +123,178 @@ public sealed class HandoffWorker(
     private bool IsFarEnoughAlong(DownloadStatus download) =>
         download.IsFinished
         || (_options.StartAtProgress > 0 && download.Progress >= _options.StartAtProgress);
+
+    /// <summary>Whether a download is a show's, which is ingested an episode at a time.</summary>
+    private static bool IsShow(DownloadStatus download) =>
+        ReleaseParser.ParseName(download.Name).IsEpisodic;
+
+    /// <summary>
+    /// Episodes whose ingest failed, by download and file, so a pass does not start them again
+    /// every half minute. Held only for this process's life: a restart tries each once more.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _failedEpisodes = new();
+
+    private static string EpisodeKey(DownloadStatus download, EpisodeFile file) =>
+        $"{download.Hash}/{file.Path}";
+
+    /// <summary>
+    /// Starts the picked episodes of a show's torrent that are not in the library yet, in episode
+    /// order and up to the ceiling, each once enough of its own file has arrived; and once none is
+    /// left owing, says the torrent owes nothing.
+    ///
+    /// Which episodes are owed is read from the torrent's picked files and the library, never
+    /// remembered: an episode is done when its title is ready, so a pass after a restart, or after
+    /// more episodes are picked from the same pack, finds exactly what is left.
+    /// </summary>
+    private async Task SweepShowAsync(DownloadStatus download, CancellationToken ct)
+    {
+        var picked = (await acquisition.FilesAsync(download.Hash, ct)).Where(f => f.Priority > 0).ToList();
+
+        // A torrent whose files the client has not listed yet has nothing to say about them.
+        if (picked.Count == 0) return;
+
+        var arrived = picked.ToDictionary(f => f.Name, f => f.Progress, StringComparer.Ordinal);
+        var episodes = EpisodeFiles.Map(
+            picked.Select(f => (f.Name, f.Size)), ReleaseParser.ParseName(download.Name).Episodic);
+
+        var owed = episodes
+            .Where(e => !IsReady(LibraryId.ForEpisode(download.Name, e.Episode)))
+            .Where(e => !_failedEpisodes.ContainsKey(EpisodeKey(download, e)))
+            .ToList();
+
+        if (owed.Count == 0)
+        {
+            var anyReady = episodes.Any(e => IsReady(LibraryId.ForEpisode(download.Name, e.Episode)));
+            if (anyReady)
+            {
+                await acquisition.ClearTagAsync(download.Hash, TorrentTags.NeedsIngest, ct);
+                logger.LogInformation("Every picked episode of {Name} is in the library.", download.Name);
+            }
+            else
+            {
+                logger.LogError("No episode of {Name} could be made watchable.", download.Name);
+                await FailAsync(download, ct);
+            }
+
+            return;
+        }
+
+        foreach (var episode in owed)
+        {
+            var key = EpisodeKey(download, episode);
+            if (_inFlight.ContainsKey(key)) continue;
+
+            var progress = arrived.GetValueOrDefault(episode.Path);
+            var farEnough = progress >= 1
+                            || (_options.StartAtProgress > 0 && progress >= _options.StartAtProgress);
+            if (!farEnough) continue;
+
+            if (_inFlight.Count >= Math.Max(1, _options.MaxConcurrentIngests))
+            {
+                logger.LogInformation(
+                    "{Episode} of {Name} waits: {Running} already transcoding.",
+                    episode.Episode, download.Name, _inFlight.Count);
+                return;
+            }
+
+            if (!_inFlight.TryAdd(key, 0)) continue;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await IngestEpisodeAsync(download, episode, progress >= 1, ct);
+                }
+                finally
+                {
+                    _inFlight.TryRemove(key, out _);
+                }
+            }, ct);
+        }
+    }
+
+    /// <summary>Whether a title is in the library and finished, on either root.</summary>
+    private bool IsReady(string id)
+    {
+        if (roots.DirectoryOf(id) is not { } directory) return false;
+
+        try
+        {
+            var path = Path.Combine(directory, "manifest.json");
+            return File.Exists(path)
+                   && ManifestJson.Deserialize(File.ReadAllText(path))?.Status == TitleStatus.Ready;
+        }
+        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Makes one episode a title of its own: named for the show and its place in it, tagged on
+    /// the torrent like a film's, and announced as watchable the same way. The torrent owes its
+    /// transcode until every picked episode is done, which the sweep decides.
+    /// </summary>
+    private async Task IngestEpisodeAsync(
+        DownloadStatus download, EpisodeFile file, bool whole, CancellationToken ct)
+    {
+        // The client names a file under the torrent's own folder, which sits in the directory the
+        // torrent's contents are in; a single-file torrent's contents are the file.
+        var source = Path.Combine(Path.GetDirectoryName(download.ContentPath) ?? "", file.Path);
+        var id = LibraryId.ForEpisode(download.Name, file.Episode);
+        var release = ReleaseParser.ParseName(download.Name);
+
+        logger.LogInformation(
+            "Ingesting {Episode} of {Name} from {Source} as {Id}.",
+            file.Episode, download.Name, Path.GetFileName(source), id);
+
+        try
+        {
+            cold.ClearSettled(id);
+            await acquisition.TagAsync(download.Hash, TorrentTags.Library(id), ct);
+
+            var imdbId = download.Tags.Select(TorrentTags.ReadImdb).FirstOrDefault(i => i is not null);
+            var show = await metadata.ResolveShowAsync(imdbId, ct);
+
+            string? poster = null;
+            if (show is not null)
+                poster = await metadata.WritePosterAsync(
+                    show, Path.Combine(Path.GetTempPath(), "moviebot-posters", id), ct);
+
+            var episode = new EpisodeIdentity { Season = file.Episode.Season, Number = file.Episode.Episode };
+            var options = new IngestOptions
+            {
+                SourcePath = source,
+                OutputRoot = roots.Hot,
+                Id = id,
+                Title = $"{release.Title} {episode.Label}",
+                ImdbId = imdbId,
+                Film = show is null ? null : FilmMetadata.Identify(show),
+                Episode = episode,
+                PosterSource = poster,
+                SubtitleLanguages = _options.SubtitleLanguages,
+                Availability = whole ? null : new TorrentAvailability(acquisition, download.Hash, source, file.Path),
+                Force = true,
+            };
+
+            var pipeline = new IngestPipeline(options, line => logger.LogInformation("  {Line}", line));
+            var transcode = pipeline.RunAsync(ct);
+            await ReleaseWhenPlayableAsync(download, options.OutputDirectory(id), transcode, ct);
+
+            var manifest = await transcode;
+            logger.LogInformation("{Title} finished transcoding as {Id}.", manifest.Title, manifest.Id);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            logger.LogInformation("Stopped mid-transcode of {Id}; it stays owed.", id);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Could not ingest {Episode} of {Name}.", file.Episode, download.Name);
+            _failedEpisodes.TryAdd(EpisodeKey(download, file), 0);
+        }
+    }
 
     private async Task IngestAsync(DownloadStatus download, CancellationToken ct)
     {

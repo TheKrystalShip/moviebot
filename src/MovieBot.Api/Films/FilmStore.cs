@@ -11,6 +11,9 @@ public sealed class FilmStoreOptions
     /// <summary>Where descriptions and artwork are kept. Empty is <c>films/</c> in the state directory.</summary>
     public string Directory { get; set; } = "";
 
+    /// <summary>Where shows are kept, the same way. Empty is <c>shows/</c> in the state directory.</summary>
+    public string ShowsDirectory { get; set; } = "";
+
     /// <summary>How old a description may get before the database is asked again.</summary>
     public int RefreshDays { get; set; } = 14;
 }

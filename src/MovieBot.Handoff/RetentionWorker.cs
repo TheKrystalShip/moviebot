@@ -89,14 +89,16 @@ public sealed class RetentionWorker(
         {
             if (ct.IsCancellationRequested) return;
 
-            var id = download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null)
-                     ?? LibraryId.For(download.Name);
+            // A show's torrent is tagged with every episode made from it, and a room holding any one
+            // of them holds the torrent.
+            var ids = download.Tags.Select(TorrentTags.ReadLibrary).OfType<string>().ToList();
+            if (ids.Count == 0) ids.Add(LibraryId.For(download.Name));
 
-            if (held.Contains(id))
+            if (ids.FirstOrDefault(held.Contains) is { } holding)
             {
                 logger.LogInformation(
                     "{Name} is due but a room holds {Id}; it stays until the room lets go.",
-                    download.Name, id);
+                    download.Name, holding);
                 continue;
             }
 

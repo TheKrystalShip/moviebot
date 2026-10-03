@@ -27,10 +27,14 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET,HEAD /media/{id}/**` | playlists, segments, subtitles, poster. Opened by `?mt=` or the bearer token |
 | `GET /api/films/{imdbId}` | `FilmView` — a film as the film database describes it, in the library or not, with artwork at this server's addresses. `404` when the database holds no film under the id, `503` when it cannot be asked and nothing is kept |
 | `GET,HEAD /films/{imdbId}/{poster.jpg,backdrop.jpg,cast-N.jpg}` | the artwork kept beside a description. Open: it is public artwork and an `<img>` carries no token |
+| `GET /api/shows` | `ShowSummary[]` — the shows the library holds, one entry each: `{imdbId?, title, firstYear?, lastYear?, status?, details?, seasons, episodes, addedAt?, sizeBytes, lastPlayed?, resume?, firstTitleId}` |
+| `GET /api/shows/{imdbId}` | `ShowView` — a show as the film database describes it, in the library or not, every season with its episodes joined with the library and the asking person's progress. `404` when neither the database nor the library knows it, `503` when the database cannot be asked and nothing is kept |
+| `GET /api/titles/{id}/neighbours` | `{previous?, next?}` — the episodes either side of one, among those the library holds, as `TitleSummary`; both absent for a film. 404 for a title the library does not hold |
+| `GET,HEAD /shows/{imdbId}/{poster.jpg,backdrop.jpg,cast-N.jpg,sNNeMM.jpg}` | a show's artwork and its episodes' stills, open like a film's |
 | `GET /api/me/preferences` | `ViewerPreferences` — how the token's person watches; every field absent for somebody who set nothing. `403` for the service key, which names nobody |
 | `PUT /api/me/preferences` | `ViewerPreferences` → the stored `ViewerPreferences`. A blank language or a height that is not positive is stored as absent |
-| `GET /api/me/progress` | `ProgressEntry[]` — the films the token's person started and did not finish, newest first: `{titleId, name, positionSeconds, durationSeconds, remainingSeconds, lastWatchedAt}`. A film the library no longer holds is left out. `403` for the service key |
-| `GET /api/me/history` | `HistoryEntry[]` — every film the token's person watched, newest first: `{titleId, name, positionSeconds, durationSeconds, finished, lastWatchedAt}`. `finished` is a position past 90 % of the film. `403` for the service key |
+| `GET /api/me/progress` | `ProgressEntry[]` — the films and episodes the token's person started and did not finish, newest first: `{titleId, name, positionSeconds, durationSeconds, remainingSeconds, lastWatchedAt, episode?, showImdbId?}`. For an episode `name` is the show's and `episode` is `{season, number}`. A title the library no longer holds is left out. `403` for the service key |
+| `GET /api/me/history` | `HistoryEntry[]` — every film and episode the token's person watched, newest first: `{titleId, name, positionSeconds, durationSeconds, finished, lastWatchedAt, episode?, showImdbId?}`, named as above. `finished` is a position past 90 % of the title. `403` for the service key |
 | `DELETE /api/me/history/{titleId}` | `204` — forgets the person's entry for the film, and so their progress in it. The film's own last play stays. `403` for the service key |
 | `GET /api/me/sessions` | `DeviceSession[]` — the devices the token's person is signed in on, most recently seen first: `{id, device, issuedAt, lastSeenAt, current}`. `current` marks the one asking. `403` for the service key |
 | `DELETE /api/me/sessions/{id}` | 204 — ends one of the person's own sessions. Another person's id, or one that does not exist, is `404` |
@@ -149,27 +153,31 @@ at the hub's negotiate. A token without a `jti` is valid until `exp` and is not 
 | `GET /api/releases/suggest?q=&session=` | `ReleaseSuggestions` — picker rows for what was typed; `session` keys the debounce |
 | `GET /api/releases?q=` or `?imdb=` | `RankedOffers` — the tracker's releases for a film, best first |
 | `GET /api/releases/{torrentId}` | `ReleaseOffer` — a release a search or a picker offered, or 404 |
+| `GET /api/shows/{imdbId}/releases` | `ShowOffers` — `{seasons: [{season, packs, episodes: [{episode, releases}]}], emptyExplanation?}`, each list a show's `ReleaseOffer`s best first, 720p ahead of 1080p. A pack is listed under every season it covers |
 | `GET /api/downloads` | `DownloadView[]`: `{hash, name, release, summary, isFinished, isWatchable, libraryId?, imdbId?, requestedBy?}`, `requestedBy` the Discord id of whoever asked |
-| `POST /api/downloads` | `StartDownloadReply` for `{torrentId, requestedBy, notifyChannelId?, roomId?}` |
+| `POST /api/downloads` | `StartDownloadReply` for `{torrentId, requestedBy, notifyChannelId?, roomId?, episodes?}`; `episodes` (`[{season, episode}]`) fetches only those files out of a show's release, and picking more from a release already downloading switches them on in it |
 | `GET /api/wishes?userId=` | `WishView[]` — every wish, or the ones that person waits on |
 | `POST /api/wishes` | `AddWishReply` for `{chosen, requestedBy, channelId?}` |
 | `DELETE /api/wishes/{imdbId}?userId=` | `CancelWishReply` |
 | `GET /api/wishes/available` | `AvailableWish[]` — wishes the tracker can now answer, found by the hourly sweep |
 | `POST /api/wishes/{imdbId}/told` | 204 for `{channelIds}` — whoever asked in those channels is told and comes off the wish |
 | `GET /api/titles/{id}/stay` | `TitleStay`, or 404 for a film the library does not hold |
-| `GET /api/stays` | `TitleStay[]` — every settled film, soonest to leave first, the kept ones after them |
-| `PUT /api/titles/{id}/keep` | `TitleStay` for `{requestedBy}`; a film already kept stays its first keeper's |
+| `GET /api/stays` | `TitleStay[]` — every settled film and season, soonest to leave first, the kept ones after them; a season is listed once, by its first episode |
+| `PUT /api/titles/{id}/keep` | `TitleStay` for `{requestedBy}`; a film already kept stays its first keeper's. Keeping an episode keeps its season |
 | `DELETE /api/titles/{id}/keep` | `TitleStay` for `{requestedBy}`; 404 for a film the library does not hold |
 | `GET /api/library/due` | `string[]` — the ids of the settled films whose time is up; the **service key** alone |
 
-- **A film stays in the library until it has gone `Library:LeaveAfterDays` without a play.** The clock
-  is only on a film that has settled on the cold disk, and it counts from the latest of the film's
-  last play, the moment it settled, and the moment plays began to be recorded. A film somebody keeps
-  never leaves, and neither does one a room holds. `TitleStay` is `{titleId, settled, keeperId?,
-  keeperName?, keptAt?, lastPlayedAt?, leavesAt?, daysLeft?, leaveAfterDays}`: `leaveAfterDays` is
-  the rule itself, `leavesAt` and `daysLeft` are absent while the film is kept or has not settled, and
-  `keeperName` is the keeper's name where one is known, the id otherwise. A keep is held by the API,
-  by library id, and outlives the film's torrent. The hand-off asks `/api/library/due` and deletes
+- **A film stays in the library until it has gone `Library:LeaveAfterDays` without a play, and a
+  show's season the same way, as one.** The clock is only on a title that has settled on the cold
+  disk, and it counts from the latest of the last play, the moment it settled, and the moment plays
+  began to be recorded; for a season, the latest play of any of its episodes and the latest of them
+  to settle, so all of it falls due together. A film or season somebody keeps never leaves, and
+  neither does one a room holds, a room on one episode holding its season. `TitleStay` is `{titleId,
+  unit, season?, settled, keeperId?, keeperName?, keptAt?, lastPlayedAt?, leavesAt?, daysLeft?,
+  leaveAfterDays}`: `unit` is what stays or leaves as one (a film's id, or a season's,
+  `tt11280740:s02`), `leaveAfterDays` is the rule itself, `leavesAt` and `daysLeft` are absent while
+  it is kept or has not settled, and `keeperName` is the keeper's name where one is known, the id
+  otherwise. A keep is held by the API, by unit, and outlives the torrent. The hand-off asks `/api/library/due` and deletes
   what it names, being the only process that writes the media roots; a hand-off the API cannot answer
   deletes nothing. The removal of a download's torrent and files after its seeding window is the
   tracker's clock, which the hand-off keeps on its own and no route shows.
@@ -194,6 +202,7 @@ at the hub's negotiate. A token without a `jti` is valid until `exp` and is not 
   "durationSeconds": 43.501,
   "status": "transcoding",        // "transcoding" | "ready" | "failed"
   "kind": "film",                 // "film" | "show"; a manifest without it is a film
+  "episode": { "season": 2, "number": 4 },  // an episode's place in its show, which "film" then names; absent for a film
   "headSeconds": 20.0,            // absent once ready
   "error": "…",                   // present only when status is "failed"
   "poster": "poster.jpg",         // absent when the container carried no cover art
@@ -244,8 +253,11 @@ the same moment. A player that loaded the master earlier offers them after it lo
 A track with `available: false` is listed on purpose — a language that is simply missing from the
 menu reads as a bug. Render it disabled with its `reason`, do not hide it.
 
-`TitleSummary` is `{id, title, durationSeconds, status, kind, headSeconds?, poster?, film?, sizeBytes?,
-addedAt?, details?, progress?, lastPlayed?}`. `kind` is `"film"` or `"show"`, as the manifest says. `details` is what the film database said, as far as a
+`TitleSummary` is `{id, title, durationSeconds, status, kind, episode?, unit, headSeconds?, poster?,
+film?, sizeBytes?, addedAt?, details?, progress?, lastPlayed?}`. `kind` is `"film"` or `"show"`, as the
+manifest says. Every episode of a show is a title of its own: `episode` is `{season, number}`, `film`
+is the show, `title` is the show's name with the episode's place (`Severance S02E04`), and `unit` is
+its season's (a film's is its own id). `details` is what the film database said, as far as a
 listing shows it — `{rating?, votes, certification?, genres, runtimeMinutes?, overview?, directors,
 posterUrl?, backdropUrl?}` — and is absent for a film not yet described; the listing never waits on
 the network for it. `progress` is `{positionSeconds, finished, lastWatchedAt}` for the person the
@@ -265,6 +277,33 @@ id), absent when nobody has; `byName` is absent when that person's name was neve
   "posterUrl": "/films/tt0113277/poster.jpg", "backdropUrl": "/films/tt0113277/backdrop.jpg"
 }
 ```
+
+```jsonc
+// ShowView: GET /api/shows/{imdbId}
+{
+  "imdbId": "tt11280740", "tmdbId": 95396, "title": "Severance", "firstYear": 2022, "lastYear": 2025,
+  "status": "Returning Series", "inProduction": true, "certification": "TV-MA",
+  "genres": ["Drama", "Mystery"], "overview": "…", "rating": 8.4, "votes": 2900,
+  "creators": ["Dan Erickson"], "cast": [{ "name": "Adam Scott", "character": "Mark Scout", "portraitUrl": "/shows/tt11280740/cast-0.jpg" }],
+  "languages": ["English"], "countries": ["United States of America"], "networks": ["Apple TV+"],
+  "posterUrl": "/shows/tt11280740/poster.jpg", "backdropUrl": "/shows/tt11280740/backdrop.jpg",
+  "seasons": [{
+    "number": 2, "name": "Season 2", "airDate": "2025-01-16",
+    "stay": { "titleId": "severance-s02e01", "unit": "tt11280740:s02", "season": 2, "daysLeft": 7, … },  // absent while the library holds none of it
+    "episodes": [{
+      "season": 2, "number": 4, "name": "Woe's Hollow", "airDate": "2025-02-07", "runtimeMinutes": 51,
+      "rating": 8.6, "votes": 120, "stillUrl": "/shows/tt11280740/s02e04.jpg",
+      "titleId": "severance-s02e04", "status": "ready", "durationSeconds": 3080.2,  // absent when the library does not hold it
+      "progress": { "positionSeconds": 1260, "finished": false, "lastWatchedAt": "…" }
+    }]
+  }],
+  "resume": { "titleId": "severance-s02e04", "season": 2, "episode": 4, "positionSeconds": 1260, "durationSeconds": 3080.2 }
+}
+```
+
+`resume` is the latest episode the person watched if they did not finish it, else the one after it
+when the library holds it; absent otherwise. Seasons are the database's numbered ones and any the
+library holds that it does not list; specials are left out.
 
 Everything here is TMDB's, and a surface showing it credits TMDB, as its terms ask.
 

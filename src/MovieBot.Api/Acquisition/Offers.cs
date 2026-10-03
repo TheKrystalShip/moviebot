@@ -56,5 +56,16 @@ public sealed class OfferedReleases(AutocompleteSearch suggestions)
         ImdbId = release.ImdbId,
         SizeBytes = release.SizeBytes,
         Seeders = release.Seeders,
+        Resolution = release.Resolution switch
+        {
+            Resolution.Uhd2160 => "2160p",
+            Resolution.Hd1080 => "1080p",
+            Resolution.Hd720 => "720p",
+            Resolution.Sd => "SD",
+            _ => null,
+        },
+        Episodic = release.Episodic?.Label,
+        EpisodeCount = release.IsEpisodic ? release.EpisodeCount : null,
+        SizePerEpisode = release.IsEpisodic ? release.SizePerEpisode : null,
     };
 }

@@ -42,7 +42,10 @@ public sealed class Downloads(
             // fact rather than something re-guessed from a release name later on.
             if (release.ImdbId is { Length: > 0 } imdbId) tags.Add(TorrentTags.Imdb(imdbId));
 
-            var result = await acquisition.StartAsync(release, tags, ct);
+            var episodes = request.Episodes is { Count: > 0 } picked
+                ? picked.Select(e => new EpisodeNumber(e.Season, e.Episode)).ToList()
+                : null;
+            var result = await acquisition.StartAsync(release, episodes, tags, ct);
             if (!result.Started)
                 return new StartDownloadReply { Outcome = "refused", Refusal = result.Refusal, Release = view };
 

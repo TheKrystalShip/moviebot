@@ -32,9 +32,10 @@ public static class PeopleEndpoints
             var entries = new List<ProgressEntry>();
             foreach (var (titleId, entry) in EntriesOf(person.UserId, record, sessions, library, clock))
             {
-                if (entry.Finished || NameOf(library, titleId) is not { } name) continue;
-                entries.Add(new ProgressEntry(titleId, name, entry.PositionSeconds, entry.DurationSeconds,
-                    Math.Max(0, entry.DurationSeconds - entry.PositionSeconds), entry.LastWatchedAt));
+                if (entry.Finished || library.Get(titleId) is not { } manifest) continue;
+                entries.Add(new ProgressEntry(titleId, NameOf(manifest), entry.PositionSeconds, entry.DurationSeconds,
+                    Math.Max(0, entry.DurationSeconds - entry.PositionSeconds), entry.LastWatchedAt,
+                    manifest.Episode, manifest.Episode is null ? null : manifest.Film?.ImdbId));
             }
 
             return Results.Ok(entries);
@@ -47,9 +48,10 @@ public static class PeopleEndpoints
             var entries = new List<HistoryEntry>();
             foreach (var (titleId, entry) in EntriesOf(person.UserId, record, sessions, library, clock))
             {
-                if (NameOf(library, titleId) is not { } name) continue;
-                entries.Add(new HistoryEntry(titleId, name, entry.PositionSeconds, entry.DurationSeconds,
-                    entry.Finished, entry.LastWatchedAt));
+                if (library.Get(titleId) is not { } manifest) continue;
+                entries.Add(new HistoryEntry(titleId, NameOf(manifest), entry.PositionSeconds, entry.DurationSeconds,
+                    entry.Finished, entry.LastWatchedAt,
+                    manifest.Episode, manifest.Episode is null ? null : manifest.Film?.ImdbId));
             }
 
             return Results.Ok(entries);
@@ -126,8 +128,11 @@ public static class PeopleEndpoints
     public static RoomTokenPayload? Person(HttpContext context) =>
         context.Items.TryGetValue("room-token", out var token) ? token as RoomTokenPayload : null;
 
-    private static string? NameOf(TitleLibrary library, string titleId) =>
-        library.Get(titleId) is { } manifest ? manifest.Film?.Display ?? manifest.Title : null;
+    /// <summary>A film by its name and year; an episode by its show's name, the episode said apart.</summary>
+    private static string NameOf(Manifest manifest) =>
+        manifest.Episode is not null
+            ? manifest.Film?.Name ?? manifest.Title
+            : manifest.Film?.Display ?? manifest.Title;
 
     /// <summary>The service key names nobody, so there is nobody's preferences, progress or history to answer with.</summary>
     private static IResult NoPerson() =>

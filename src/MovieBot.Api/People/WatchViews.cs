@@ -1,22 +1,29 @@
 namespace TheKrystalShip.MovieBot.Api.People;
 
-/// <summary>A film somebody started and did not finish, and how much of it is left.</summary>
+/// <summary>
+/// A film or an episode somebody started and did not finish, and how much of it is left. For an
+/// episode, <see cref="Name"/> is the show's and <see cref="Episode"/> says which.
+/// </summary>
 public sealed record ProgressEntry(
     string TitleId,
     string Name,
     double PositionSeconds,
     double DurationSeconds,
     double RemainingSeconds,
-    DateTimeOffset LastWatchedAt);
+    DateTimeOffset LastWatchedAt,
+    Core.EpisodeIdentity? Episode = null,
+    string? ShowImdbId = null);
 
-/// <summary>A film somebody watched, and how far they got.</summary>
+/// <summary>A film or an episode somebody watched, and how far they got, named as <see cref="ProgressEntry"/>.</summary>
 public sealed record HistoryEntry(
     string TitleId,
     string Name,
     double PositionSeconds,
     double DurationSeconds,
     bool Finished,
-    DateTimeOffset LastWatchedAt);
+    DateTimeOffset LastWatchedAt,
+    Core.EpisodeIdentity? Episode = null,
+    string? ShowImdbId = null);
 
 /// <summary>Where the asking person is in a film, as the library listing carries it.</summary>
 public sealed record TitleProgress(double PositionSeconds, bool Finished, DateTimeOffset LastWatchedAt);

@@ -17,7 +17,8 @@ public delegate string? KeeperNames(string keeperId);
 internal partial class KeepsJson : JsonSerializerContext;
 
 /// <summary>
-/// The films somebody keeps, by library id, in one file in the state directory.
+/// The films and seasons somebody keeps, by unit — a film's library id, or a season's
+/// (<see cref="Library.TitleLibrary.UnitOf(Core.Manifest)"/>) — in one file in the state directory.
 ///
 /// A keep pins a settled film against the library's clock. It lives here and not on the film's
 /// torrent because the torrent is let go of once its seeding is done, long before the film leaves

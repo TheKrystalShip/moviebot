@@ -24,9 +24,14 @@ How long a settled film stays in the library is this API's to say (`Library/Libr
 hand-off, the one process that writes the media roots, deletes what it names. The routes are in
 `docs/api-contract.md`; these are the rules they rest on.
 
-- **A keep is held by library id in `keeps.json`, never on the torrent.** The torrent is removed once
+- **A keep is held by unit in `keeps.json`, never on the torrent.** The torrent is removed once
   its seeding is done and the film is in the library for much longer, so a keep that lived on it
   would protect nothing. Anyone may keep and anyone may let go; the record names who.
+- **A show's season stays and leaves as one** (`TitleLibrary.UnitOf`): a film is its own unit and an
+  episode's is its season, because a season is what a person keeps and what "Leaving soon" names.
+  Its clock runs from the latest play of any episode and the latest episode to settle, a keep on it
+  keeps every episode, a room on one episode holds the season, and every settled episode in it falls
+  due at the same moment.
 - **The rule is written once.** `LibraryClock` answers a film's stay, the list of stays and what is
   due from the same computation, so the page that says "3 days left" and the sweep that deletes cannot
   disagree. The hand-off applies the answer and decides nothing of its own.

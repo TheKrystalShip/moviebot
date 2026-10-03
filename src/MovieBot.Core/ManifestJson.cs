@@ -35,6 +35,7 @@ namespace TheKrystalShip.MovieBot.Core;
 [JsonSerializable(typeof(ReleaseOffer))]
 [JsonSerializable(typeof(ReleaseSuggestions))]
 [JsonSerializable(typeof(RankedOffers))]
+[JsonSerializable(typeof(ShowOffers))]
 [JsonSerializable(typeof(StartDownloadRequest))]
 [JsonSerializable(typeof(StartDownloadReply))]
 [JsonSerializable(typeof(IReadOnlyList<DownloadView>))]

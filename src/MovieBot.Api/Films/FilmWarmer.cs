@@ -13,6 +13,7 @@ namespace TheKrystalShip.MovieBot.Api.Films;
 /// </summary>
 public sealed class FilmWarmer(
     FilmStore store,
+    Shows.ShowStore shows,
     TitleLibrary library,
     WishList wishes,
     ILogger<FilmWarmer> logger) : BackgroundService
@@ -39,7 +40,10 @@ public sealed class FilmWarmer(
 
     public async Task PassAsync(CancellationToken ct)
     {
-        var ids = library.List().Select(t => t.Film?.ImdbId)
+        var titles = library.List();
+
+        // An episode names its show, which is described as a show and never as a film.
+        var ids = titles.Where(t => t.Kind != Core.TitleKind.Show).Select(t => t.Film?.ImdbId)
             .Concat(wishes.All().Select(w => (string?)w.ImdbId))
             .Where(FilmStore.IsImdbId)
             .Select(id => id!)
@@ -55,5 +59,22 @@ public sealed class FilmWarmer(
             await Task.Delay(Between, ct);
         }
         if (asked > 0) logger.LogInformation("Described {Asked} of {Films} films from the film database.", asked, ids.Count);
+
+        var showIds = titles.Where(t => t.Kind == Core.TitleKind.Show).Select(t => t.Film?.ImdbId)
+            .Where(FilmStore.IsImdbId)
+            .Select(id => id!)
+            .Distinct()
+            .ToList();
+
+        var askedShows = 0;
+        foreach (var id in showIds)
+        {
+            if (shows.Held(id) is { } held && !shows.IsDue(held)) continue;
+            await shows.GetAsync(id, ct);
+            askedShows++;
+            await Task.Delay(Between, ct);
+        }
+        if (askedShows > 0)
+            logger.LogInformation("Described {Asked} of {Shows} shows from the film database.", askedShows, showIds.Count);
     }
 }

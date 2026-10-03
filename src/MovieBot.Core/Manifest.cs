@@ -93,12 +93,19 @@ public sealed class Manifest
     public string? Master { get; init; }
 
     /// <summary>
-    /// Which film this is, as opposed to which file it came from. Null when nothing identified it.
+    /// Which film this is, or for an episode which show it belongs to, as opposed to which file it
+    /// came from. Null when nothing identified it.
     /// </summary>
     public FilmIdentity? Film { get; set; }
 
     /// <summary>Whether the title is a film or part of a show.</summary>
     public TitleKind Kind { get; init; }
+
+    /// <summary>
+    /// Where an episode sits in its show; null for a film. Every episode is a title of its own,
+    /// with the show it belongs to in <see cref="Film"/>.
+    /// </summary>
+    public EpisodeIdentity? Episode { get; init; }
 
     /// <summary>
     /// Settable for the same reason as <see cref="Subtitles"/>, and null until it is known. A
@@ -263,6 +270,21 @@ public sealed record FilmIdentity
         Name is not { Length: > 0 } name ? null
         : Year is { } year ? $"{name} ({year})"
         : name;
+}
+
+/// <summary>
+/// One episode's place in its show. The episode's own name, its runtime and its still are the
+/// show's description, kept and served by the API, and are not repeated here.
+/// </summary>
+public sealed record EpisodeIdentity
+{
+    public required int Season { get; init; }
+
+    public required int Number { get; init; }
+
+    /// <summary>The scene spelling, <c>S02E04</c>, which is how a title names the episode.</summary>
+    public string Label =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"S{Season:00}E{Number:00}");
 }
 
 /// <summary>

@@ -16,6 +16,7 @@ using TheKrystalShip.MovieBot.Acquire.Configuration;
 using TheKrystalShip.MovieBot.Acquire.Subtitles;
 using TheKrystalShip.MovieBot.Api.Media;
 using TheKrystalShip.MovieBot.Api.Sessions;
+using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Core;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -99,6 +100,12 @@ builder.Services.AddSingleton(sp => new FilmStore(
     sp.GetRequiredService<IServiceScopeFactory>(),
     TimeProvider.System,
     sp.GetRequiredService<ILogger<FilmStore>>()));
+builder.Services.AddSingleton(sp => new ShowStore(
+    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.ShowsDirectory, "shows"),
+    sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
+    sp.GetRequiredService<IServiceScopeFactory>(),
+    TimeProvider.System,
+    sp.GetRequiredService<ILogger<ShowStore>>()));
 builder.Services.AddHostedService<FilmWarmer>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SessionKeeper>());
 
@@ -229,14 +236,18 @@ app.MapGet("/api/config", (IOptions<DiscordAuthOptions> discord, IConfiguration 
 // Each title with what the film database said about it, from what is kept: a listing never waits
 // on the network, and a film not described yet is listed without it. Each carries the asking
 // person's progress and when the film was last played, and a caller that is nobody gets no progress.
-app.MapGet("/api/titles", (HttpContext context, TitleLibrary library, FilmStore films,
+app.MapGet("/api/titles", (HttpContext context, TitleLibrary library, FilmStore films, ShowStore shows,
     WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
 {
     var person = PeopleEndpoints.Person(context);
     var viewing = sessions.Viewing();
     var now = clock.GetUtcNow();
     return Results.Ok(library.List()
-        .Select(t => (t with { Details = films.Facts(t.Film?.ImdbId) }).WithPlays(person, record, people, viewing, now))
+        .Select(t => (t with
+        {
+            // An episode is described by its show.
+            Details = t.Kind == TitleKind.Show ? shows.Facts(t.Film?.ImdbId) : films.Facts(t.Film?.ImdbId),
+        }).WithPlays(person, record, people, viewing, now))
         .ToList());
 });
 
@@ -260,6 +271,7 @@ app.MapAcquisition();
 app.MapPeople();
 app.MapDevices();
 app.MapFilms();
+app.MapShows();
 
 // Every room, for the bot: it holds no state of its own, so what to say about rooms it reads
 // from here each time it is about to say it.

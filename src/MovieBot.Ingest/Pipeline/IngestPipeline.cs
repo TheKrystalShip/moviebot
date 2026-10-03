@@ -37,7 +37,11 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         // The film's own name where it is known. A title parsed out of a release keeps that
         // release's edition words and loses the punctuation a name has; the container's title tag
         // is routinely the release name again, so it is the last thing tried rather than the first.
-        var title = options.Film?.Display
+        // An episode is the show's name and its place in it; the show's year would only say when
+        // the show started.
+        var title = (options.Episode is { } episode && options.Film?.Name is { Length: > 0 } show
+                        ? $"{show} {episode.Label}" : null)
+                    ?? options.Film?.Display
                     ?? options.Title
                     ?? probe.Format.Title
                     ?? Path.GetFileNameWithoutExtension(options.SourcePath);
@@ -751,6 +755,8 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                    ?? (options.ImdbId is { Length: > 0 } imdbId
                        ? new FilmIdentity { ImdbId = imdbId }
                        : null),
+            Kind = options.Episode is null ? TitleKind.Film : TitleKind.Show,
+            Episode = options.Episode,
             Source = sourceStillArriving ? null : Fingerprint(video),
             Subtitles = subtitles
         };

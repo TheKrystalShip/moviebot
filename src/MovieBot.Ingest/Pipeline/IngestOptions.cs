@@ -38,6 +38,12 @@ public sealed record IngestOptions
     public FilmIdentity? Film { get; init; }
 
     /// <summary>
+    /// Where the source sits in its show, when it is an episode. <see cref="Film"/> is then the show,
+    /// and the title is the show's name with the episode's place in it.
+    /// </summary>
+    public EpisodeIdentity? Episode { get; init; }
+
+    /// <summary>
     /// A poster on disk to use when the source carries no cover art of its own.
     ///
     /// A path rather than an address: fetching it belongs to whoever knows where films are

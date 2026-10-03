@@ -27,7 +27,8 @@ is about not losing that.
   person watching several times over, which is the only rate that matters.
 - **A sweep never restarts what it is already running.** Sweeps carry on while a transcode does, and an
   ingest replaces a title's directory wholesale, so a second start would delete what the first is
-  writing. The in-flight set keyed by download hash is what prevents it.
+  writing. The in-flight set, keyed by download hash for a film and by hash and file for an
+  episode, is what prevents it.
 - **A film owing a transcode and a film being watchable are different facts with different tags.**
   `ingest` survives until the transcode finishes; `watchable` is set seconds into it and is what the
   announcement waits for. One tag cannot answer both: clearing it to let the announcement out would
@@ -45,6 +46,28 @@ is about not losing that.
   both.
 - **The unit keeps the GPU devices visible.** `PrivateDevices` would hide them and drop the pipeline
   onto the CPU, where a feature costs hours instead of minutes.
+
+## A show's torrent: one title per episode
+
+A release carrying a season marker is a show's, and its picked files are ingested apart, each as a
+title of its own (`<show>-s02e04`, `kind: "show"`, the episode's place in the manifest).
+
+- **Which file is which episode is `EpisodeFiles`, the one reading the download picked them with.**
+  Only files the client is fetching are ingested; a file switched off is not owed.
+- **What is owed is read from the library every pass, never remembered.** An episode is done when its
+  title is ready, so a pass after a restart, or after more episodes are picked from the same pack,
+  finds exactly what is left. The torrent's `ingest` tag clears once nothing picked is owed.
+- **Episodes go in order, each once enough of its own file has arrived**, under the same ceiling as
+  films. The download is sequential across files, so the first episode arrives first and is
+  watchable while the rest download. Each file's own completeness is what a transcode reading it
+  waits on; the torrent as a whole finishes only with its last episode.
+- **Every episode made is tagged on the torrent**, so a room holding any one of them holds the
+  torrent against the tracker's clock. `watchable` goes on with the first.
+- **An episode that fails is not started again by this process**, and the torrent is marked failed
+  only when no episode of it could be made.
+- **The show is named by the id the tracker filed it under, never by a search.** A show's releases
+  carry no year to tell two shows of one name apart, so an episode without an id is titled from its
+  release and names no show.
 
 ## Naming a film (`FilmMetadata`)
 

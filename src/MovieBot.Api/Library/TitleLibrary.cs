@@ -14,6 +14,15 @@ public sealed record TitleSummary
     /// <summary>Whether the title is a film or part of a show, as its manifest says.</summary>
     public required TitleKind Kind { get; init; }
 
+    /// <summary>For an episode, its place in the show; the show is <see cref="Film"/>.</summary>
+    public EpisodeIdentity? Episode { get; init; }
+
+    /// <summary>
+    /// What stays or leaves with it as one, and what a keep is on: the title itself for a film, the
+    /// season for an episode (<see cref="TitleLibrary.UnitOf(Manifest)"/>).
+    /// </summary>
+    public required string Unit { get; init; }
+
     public double? HeadSeconds { get; init; }
     public string? Poster { get; init; }
 
@@ -88,6 +97,8 @@ public sealed class TitleLibrary(
                 DurationSeconds = manifest.DurationSeconds,
                 Status = manifest.Status,
                 Kind = manifest.Kind,
+                Episode = manifest.Episode,
+                Unit = UnitOf(manifest),
                 HeadSeconds = manifest.HeadSeconds,
                 Poster = manifest.Poster,
                 Film = manifest.Film,
@@ -199,6 +210,45 @@ public sealed class TitleLibrary(
         if (titleId is null) return null;
         var manifest = Get(titleId);
         return manifest?.Status == TitleStatus.Transcoding ? manifest.HeadSeconds : null;
+    }
+
+    /// <summary>
+    /// What a title stays or leaves with as one. A film is its own unit. An episode's is its season,
+    /// named by the show's IMDb id where the show is known and by the show's part of the episode's
+    /// id where it is not: <c>tt11280740:s02</c>, or <c>severance:s02</c>.
+    /// </summary>
+    public static string UnitOf(Manifest manifest)
+    {
+        if (manifest.Episode is not { } episode) return manifest.Id;
+
+        var show = manifest.Film?.ImdbId is { Length: > 0 } imdbId
+            ? imdbId
+            : ShowPartOf(manifest.Id, episode);
+        return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{show}:s{episode.Season:00}");
+    }
+
+    /// <summary>The unit a title is in, or null when the library does not hold it.</summary>
+    public string? UnitOf(string id) => Get(id) is { } manifest ? UnitOf(manifest) : null;
+
+    /// <summary>Every title the library holds in a unit.</summary>
+    public IReadOnlyList<string> IdsIn(string unit) =>
+        [.. roots.Ids().Where(id => Get(id) is { } m && UnitOf(m) == unit)];
+
+    /// <summary>
+    /// The episodes of one show the library holds, in order, by the show's IMDb id.
+    /// </summary>
+    public IReadOnlyList<(string Id, Manifest Manifest)> EpisodesOf(string showImdbId) =>
+        [.. roots.Ids()
+            .Select(id => (Id: id, Manifest: Get(id)))
+            .Where(t => t.Manifest is { Episode: not null } m && m.Film?.ImdbId == showImdbId)
+            .Select(t => (t.Id, t.Manifest!))
+            .OrderBy(t => t.Item2.Episode!.Season)
+            .ThenBy(t => t.Item2.Episode!.Number)];
+
+    private static string ShowPartOf(string id, EpisodeIdentity episode)
+    {
+        var suffix = "-" + episode.Label.ToLowerInvariant();
+        return id.EndsWith(suffix, StringComparison.Ordinal) ? id[..^suffix.Length] : id;
     }
 
     /// <summary>

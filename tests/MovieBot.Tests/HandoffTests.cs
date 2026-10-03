@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Handoff;
 using Xunit;
 
@@ -47,6 +48,24 @@ public class LibraryIdTests
     public void Falls_back_to_the_release_name_when_there_is_nothing_else()
     {
         Assert.False(string.IsNullOrWhiteSpace(LibraryId.For("something-unparseable")));
+    }
+
+    [Fact]
+    public void Names_an_episode_by_its_show_and_its_place()
+    {
+        Assert.Equal("severance-s02e04", LibraryId.ForEpisode(
+            "Severance.S02.720p.ATVP.WEB-DL.DDP5.1.H.264-GROUP", new EpisodeNumber(2, 4)));
+    }
+
+    [Fact]
+    public void One_episode_lands_on_one_id_from_a_pack_or_on_its_own()
+    {
+        // Otherwise an episode picked from a season pack and the same episode fetched alone would
+        // be two titles, and the second would never replace the first.
+        Assert.Equal(
+            LibraryId.ForEpisode("Slow.Horses.S06.1080p.ATVP.WEB-DL-GROUP", new EpisodeNumber(6, 2)),
+            LibraryId.ForEpisode("Slow.Horses.S06E02.Daddy.Issues.720p.ATVP.WEB-DL.DDP5.1.Atmos.H.264-OTHER",
+                new EpisodeNumber(6, 2)));
     }
 }
 

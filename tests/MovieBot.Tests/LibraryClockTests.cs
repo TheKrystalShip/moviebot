@@ -39,14 +39,17 @@ public sealed class LibraryClockTests : IDisposable
 
         _roots = new MediaRoots(Hot, Cold, _time);
         _keeps = new KeepStore(Path.Combine(_root, "keeps.json"), NullLogger<KeepStore>.Instance);
-        _sessions = new SessionStore(
-            new TitleLibrary(
-                _roots,
-                new SubtitleStore(Path.Combine(_root, "subtitles"), NullLogger<SubtitleStore>.Instance),
-                new PinStore(Path.Combine(_root, "subtitles"), NullLogger<PinStore>.Instance),
-                NullLogger<TitleLibrary>.Instance),
-            _time);
+        _library = LibraryOn(_roots);
+        _sessions = new SessionStore(_library, _time);
     }
+
+    private readonly TitleLibrary _library;
+
+    private TitleLibrary LibraryOn(MediaRoots roots) => new(
+        roots,
+        new SubtitleStore(Path.Combine(_root, "subtitles"), NullLogger<SubtitleStore>.Instance),
+        new PinStore(Path.Combine(_root, "subtitles"), NullLogger<PinStore>.Instance),
+        NullLogger<TitleLibrary>.Instance);
 
     public void Dispose()
     {
@@ -64,7 +67,7 @@ public sealed class LibraryClockTests : IDisposable
     }
 
     private LibraryClock Clock(KeeperNames? names = null, double days = 7) => new(
-        _roots, _keeps, _plays, _sessions, names ?? (_ => null),
+        _roots, _library, _keeps, _plays, _sessions, names ?? (_ => null),
         Options.Create(new LibraryOptions { LeaveAfterDays = days }), _time);
 
     private string Settle(string id)
@@ -231,8 +234,9 @@ public sealed class LibraryClockTests : IDisposable
     [Fact]
     public void Nothing_is_settled_with_no_cold_root()
     {
+        var hotOnly = new MediaRoots(Hot);
         var clock = new LibraryClock(
-            new MediaRoots(Hot), _keeps, _plays, _sessions, _ => null,
+            hotOnly, LibraryOn(hotOnly), _keeps, _plays, _sessions, _ => null,
             Options.Create(new LibraryOptions()), _time);
         Directory.CreateDirectory(Path.Combine(Hot, "heat-1995"));
         _time.SetUtcNow(DateTimeOffset.UtcNow.AddDays(365));
@@ -321,6 +325,72 @@ public sealed class LibraryClockTests : IDisposable
         Assert.True(reopened.Remove("heat-1995"));
         Assert.False(reopened.Remove("heat-1995"));
         Assert.Null(new KeepStore(path, NullLogger<KeepStore>.Instance).Get("heat-1995"));
+    }
+
+    /// <summary>Settles an episode of a show, with the manifest that says which.</summary>
+    private void SettleEpisode(string id, int season, int number)
+    {
+        var directory = Settle(id);
+        File.WriteAllText(Path.Combine(directory, "manifest.json"), $$"""
+            {
+              "id": "{{id}}", "title": "Severance S{{season:00}}E{{number:00}}", "durationSeconds": 3000.0,
+              "status": "ready", "master": "master.m3u8", "kind": "show",
+              "episode": { "season": {{season}}, "number": {{number}} },
+              "film": { "imdbId": "tt11280740", "name": "Severance" },
+              "video": { "width": 1280, "height": 720, "sourceCodec": "h264", "sourceHdr": "sdr", "renditions": [] },
+              "audio": [], "subtitles": []
+            }
+            """);
+    }
+
+    [Fact]
+    public void A_season_stays_and_leaves_as_one()
+    {
+        SettleEpisode("severance-s02e01", 2, 1);
+        SettleEpisode("severance-s02e02", 2, 2);
+        SettleEpisode("severance-s01e01", 1, 1);
+        var clock = Clock();
+        var settled = SettledAt("severance-s02e02", TimeSpan.FromDays(3));
+
+        // Watching one episode keeps its season, and only its season.
+        _plays.At["severance-s02e02"] = settled.AddDays(2);
+        Assert.Equal(settled.AddDays(9), clock.StayOf("severance-s02e01")!.LeavesAt);
+        Assert.Equal("tt11280740:s02", clock.StayOf("severance-s02e01")!.Unit);
+        Assert.Equal(2, clock.StayOf("severance-s02e01")!.Season);
+
+        // A season is listed once.
+        Assert.Equal(2, clock.Stays().Count);
+
+        _time.SetUtcNow(settled.AddDays(8));
+        Assert.Equal(["severance-s01e01"], clock.Due());
+
+        _time.SetUtcNow(settled.AddDays(10));
+        Assert.Equal(["severance-s01e01", "severance-s02e01", "severance-s02e02"], clock.Due().Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void A_keep_on_a_season_keeps_every_episode_in_it()
+    {
+        SettleEpisode("severance-s02e01", 2, 1);
+        SettleEpisode("severance-s02e02", 2, 2);
+        var clock = Clock();
+        _keeps.Add("tt11280740:s02", "1", DateTimeOffset.UtcNow);
+        SettledAt("severance-s02e01", TimeSpan.FromDays(100));
+
+        Assert.Empty(clock.Due());
+        Assert.Equal("1", clock.StayOf("severance-s02e02")!.KeeperId);
+    }
+
+    [Fact]
+    public void A_room_on_one_episode_holds_its_whole_season()
+    {
+        SettleEpisode("severance-s02e01", 2, 1);
+        SettleEpisode("severance-s02e02", 2, 2);
+        var clock = Clock();
+        _sessions.LoadTitle("room", "severance-s02e01", Somebody);
+        SettledAt("severance-s02e01", TimeSpan.FromDays(100));
+
+        Assert.Empty(clock.Due());
     }
 
     [Fact]

@@ -42,6 +42,13 @@ and keeps are `Acquisition/CLAUDE.md`.
   `Tmdb:RefreshDays` old; a database that cannot be reached then costs freshness and nothing else.
   `FilmWarmer` keeps every library film and every wished film described, so a listing reads only
   what is kept and never waits on the network. No page talks to the database or its image store.
+  A show is kept the same way by `Shows/ShowStore` under `shows/`, its description and every season's
+  episodes asked for together with their stills, and served at `/shows/{imdbId}/…`; the warmer keeps
+  every show the library holds described. An episode's show is never asked of the film side.
+- **An episode is a title, and a show is its episodes grouped.** Every route that serves a title
+  serves an episode unchanged; `/api/shows` and `/api/shows/{imdbId}` group the library's episodes by
+  the show their manifest names and join them with the show's description, and an episode's
+  `details` on `/api/titles` are its show's.
 - **A person's own settings are asked for by token, never by id.** `/api/me/preferences` answers for
   whoever the token names, so there is no route by which anybody reads or writes anybody else's; the
   service key names nobody and is refused there. Progress, history and devices (`/api/me/progress`,

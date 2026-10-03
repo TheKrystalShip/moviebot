@@ -49,6 +49,14 @@ public sealed class FilmMetadata(ImdbClient imdb, HttpClient http, ILogger<FilmM
         return film;
     }
 
+    /// <summary>
+    /// Which show an episode belongs to, by the id the tracker filed it under. There is no search
+    /// by name: a show's releases carry no year to separate one show from another of the same name,
+    /// and an episode filed under the wrong show is worse than one filed under none.
+    /// </summary>
+    public async Task<ImdbTitle?> ResolveShowAsync(string? imdbId, CancellationToken ct) =>
+        await imdb.LookupAsync(imdbId, ct) is { IsSeries: true } show ? show : null;
+
     /// <summary>What goes in the manifest, from what the index answered.</summary>
     public static FilmIdentity Identify(ImdbTitle film) => new()
     {

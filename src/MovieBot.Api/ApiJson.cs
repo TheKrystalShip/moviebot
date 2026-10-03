@@ -72,6 +72,9 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 // both are named. The Core context carries the same pair for the participants and the rooms.
 [JsonSerializable(typeof(IReadOnlyList<TitleSummary>))]
 [JsonSerializable(typeof(List<TitleSummary>))]
+[JsonSerializable(typeof(Shows.ShowView))]
+[JsonSerializable(typeof(List<Shows.ShowSummary>))]
+[JsonSerializable(typeof(Shows.EpisodeNeighbours))]
 [JsonSerializable(typeof(List<Participant>))]
 [JsonSerializable(typeof(List<RoomSummary>))]
 // Hub arguments and the clock the hub answers with.

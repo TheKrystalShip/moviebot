@@ -32,6 +32,18 @@ public sealed record ReleaseOffer
     public long SizeBytes { get; init; }
 
     public int Seeders { get; init; }
+
+    /// <summary><c>720p</c>, <c>1080p</c>, <c>2160p</c> or <c>SD</c>; absent when the name does not say.</summary>
+    public string? Resolution { get; init; }
+
+    /// <summary>For a show's release, where it sits in the show: <c>S02</c>, <c>S06E02</c>, <c>S01–S03</c>.</summary>
+    public string? Episodic { get; init; }
+
+    /// <summary>For a show's release, how many episodes it holds.</summary>
+    public int? EpisodeCount { get; init; }
+
+    /// <summary>For a show's release, the size of one episode on average, which is what picking a few costs.</summary>
+    public long? SizePerEpisode { get; init; }
 }
 
 /// <summary>One row of a picker: what to show, and the release it stands for.</summary>
@@ -78,7 +90,31 @@ public sealed record StartDownloadRequest
 
     /// <summary>The room to put the film on in as soon as it can be watched, if any.</summary>
     public string? RoomId { get; init; }
+
+    /// <summary>
+    /// For a show's release, the episodes wanted out of it; only their files are fetched. Absent or
+    /// empty fetches the whole release.
+    /// </summary>
+    public IReadOnlyList<EpisodePick>? Episodes { get; init; }
 }
+
+/// <summary>One episode of a show, by season and number.</summary>
+public sealed record EpisodePick(int Season, int Episode);
+
+/// <summary>
+/// What the tracker offers for a show, season by season. <see cref="EmptyExplanation"/> says why
+/// nothing is on offer, when nothing is.
+/// </summary>
+public sealed record ShowOffers(IReadOnlyList<SeasonOffers> Seasons, string? EmptyExplanation = null);
+
+/// <summary>
+/// One season's releases: packs holding all of it and releases holding single episodes, each best
+/// first. Downloading a pack with <see cref="StartDownloadRequest.Episodes"/> fetches only those.
+/// </summary>
+public sealed record SeasonOffers(int Season, IReadOnlyList<ReleaseOffer> Packs, IReadOnlyList<EpisodeOffers> Episodes);
+
+/// <summary>The releases holding one episode on its own, best first.</summary>
+public sealed record EpisodeOffers(int Episode, IReadOnlyList<ReleaseOffer> Releases);
 
 /// <summary>
 /// How a download request went: <c>started</c>, <c>noLongerOffered</c> (the pick is no longer one
@@ -209,6 +245,16 @@ public sealed record WishesTold(IReadOnlyList<string> ChannelIds);
 public sealed record TitleStay
 {
     public required string TitleId { get; init; }
+
+    /// <summary>
+    /// What stays or leaves as one: a film is its own, and every episode of one season of a show
+    /// shares the season's, <c>tt11280740:s02</c>. A keep is on the unit, the clock runs from the
+    /// latest play of anything in it, and all of it leaves together.
+    /// </summary>
+    public string Unit { get; init; } = "";
+
+    /// <summary>The season, when the unit is one.</summary>
+    public int? Season { get; init; }
 
     /// <summary>
     /// Whether the film has settled on the cold disk. Only a settled film is on the clock, so

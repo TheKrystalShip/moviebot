@@ -81,8 +81,9 @@ which strips the prefix (`nginx-moviebot.conf`).
   by saying what changed and handing over the command rather than working around the privilege.
 - **`/etc/moviebot/moviebot.env` holds the credentials** every unit reads, **and which tracker
   this is**: `Tracker__BaseUrl`, `Tracker__Username`, `Tracker__Passkey` and the tracker's category
-  names as `Selection__AllowedCategories__0`, `__1` and so on. The API, the bot and the hand-off
-  refuse to start without the categories. Any other configuration that is not a credential belongs in
+  names as `Selection__AllowedCategories__0`, `__1` and so on, with the show categories as
+  `Selection__AllowedShowCategories__N`. The API, the bot and the hand-off refuse to start without
+  the film categories; without the show ones no show is offered. Any other configuration that is not a credential belongs in
   `deploy/hotbox.settings.json`, where it is in the repository and reviewable; the tracker's
   identity is kept out of the repository the same way the passkey is. A unit's own `Environment=`
   lines are for the process, not for MovieBot: `PATH` and the driver's shader cache.

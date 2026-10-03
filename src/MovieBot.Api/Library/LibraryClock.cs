@@ -35,6 +35,7 @@ public sealed class LibraryOptions
 /// </summary>
 public sealed class LibraryClock(
     MediaRoots roots,
+    TitleLibrary library,
     KeepStore keeps,
     IPlayHistory history,
     SessionStore sessions,
@@ -52,31 +53,42 @@ public sealed class LibraryClock(
         return Describe(id, clock.GetUtcNow());
     }
 
-    /// <summary>Every settled film, soonest to leave first, with the kept ones, which never leave, after them.</summary>
+    /// <summary>
+    /// Every settled unit — a film, or a season of a show — soonest to leave first, with the kept
+    /// ones, which never leave, after them. A season is listed once, by the first of its episodes.
+    /// </summary>
     public IReadOnlyList<TitleStay> Stays()
     {
         var now = clock.GetUtcNow();
         return [.. roots.Ids()
             .Where(IsSettled)
+            .Order(StringComparer.Ordinal)
             .Select(id => Describe(id, now))
+            .GroupBy(s => s.Unit, StringComparer.Ordinal)
+            .Select(g => g.First())
             .OrderBy(s => s.LeavesAt is null)
             .ThenBy(s => s.LeavesAt)
             .ThenBy(s => s.TitleId, StringComparer.Ordinal)];
     }
 
     /// <summary>
-    /// The ids of the settled films whose time is up: not kept and not held by any room. A film a
-    /// room holds is never due, whether or not anybody is in the room this second.
+    /// The ids of the settled titles whose time is up: not kept and not held by any room. A title a
+    /// room holds is never due, whether or not anybody is in the room this second, and neither is
+    /// anything that leaves with it: a room on one episode holds its whole season.
     /// </summary>
     public IReadOnlyList<string> Due()
     {
         var now = clock.GetUtcNow();
-        var held = sessions.Summaries().Select(r => r.TitleId).OfType<string>().ToHashSet(StringComparer.Ordinal);
+        var held = sessions.Summaries().Select(r => r.TitleId).OfType<string>()
+            .Select(id => library.UnitOf(id) ?? id)
+            .ToHashSet(StringComparer.Ordinal);
 
         return [.. roots.Ids()
             .Where(IsSettled)
-            .Where(id => !held.Contains(id))
-            .Where(id => Describe(id, now) is { KeeperId: null, LeavesAt: { } leaves } && leaves <= now)];
+            .Select(id => Describe(id, now))
+            .Where(s => !held.Contains(s.Unit))
+            .Where(s => s is { KeeperId: null, LeavesAt: { } leaves } && leaves <= now)
+            .Select(s => s.TitleId)];
     }
 
     /// <summary>Whether the film is on the cold disk alone: moved, and not being made again.</summary>
@@ -88,14 +100,25 @@ public sealed class LibraryClock(
                && !Directory.Exists(Path.Combine(roots.Hot, id));
     }
 
+    /// <summary>
+    /// A title's stay is its unit's. The keep is on the unit; the count runs from the latest play of
+    /// anything in it and from the latest of its titles to settle, so an episode watched or newly
+    /// arrived keeps its whole season, and every settled title in the unit falls due at once.
+    /// </summary>
     private TitleStay Describe(string id, DateTimeOffset now)
     {
-        var keep = keeps.Get(id);
-        var played = history.LastPlayedAt(id);
+        var manifest = library.Get(id);
+        var unit = manifest is null ? id : TitleLibrary.UnitOf(manifest);
+        IReadOnlyList<string> members = unit == id ? [id] : library.IdsIn(unit);
+
+        var keep = keeps.Get(unit);
+        var played = members.Select(history.LastPlayedAt).Max();
 
         var stay = new TitleStay
         {
             TitleId = id,
+            Unit = unit,
+            Season = manifest?.Episode?.Season,
             Settled = IsSettled(id),
             KeeperId = keep?.KeeperId,
             KeeperName = keep is null ? null : names(keep.KeeperId) ?? keep.KeeperId,
@@ -106,7 +129,8 @@ public sealed class LibraryClock(
 
         if (!stay.Settled || keep is not null) return stay;
 
-        var since = Latest(Latest(played, SettledAt(id)), history.RecordingSince);
+        var settled = members.Where(IsSettled).Select(SettledAt).DefaultIfEmpty(SettledAt(id)).Max();
+        var since = Latest(Latest(played, settled), history.RecordingSince);
         var leaves = since + options.Value.LeaveAfter;
         var days = (int)Math.Ceiling((leaves - now).TotalDays);
 

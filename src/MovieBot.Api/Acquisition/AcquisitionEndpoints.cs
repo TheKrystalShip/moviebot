@@ -107,16 +107,17 @@ public static class AcquisitionEndpoints
         group.MapGet("/stays", (LibraryClock library) => Results.Ok(library.Stays().ToList()));
 
         // A member keeps as themselves. A service names who it keeps for, and without a name there is
-        // nobody to record.
+        // nobody to record. A keep is on what stays or leaves as one, so keeping an episode keeps its
+        // season.
         group.MapPut("/titles/{id}/keep", async (string id, HttpContext context,
             LibraryClock library, KeepStore keeps, TimeProvider clock, ILogger<KeepStore> logger) =>
         {
-            if (library.StayOf(id) is null) return NoSuchTitle();
+            if (library.StayOf(id) is not { } stay) return NoSuchTitle();
             if (Asker(context, await NamedAsync(context)) is not { } asker) return NoKeeper();
 
-            var keep = keeps.Add(id, asker.UserId, clock.GetUtcNow());
+            var keep = keeps.Add(stay.Unit, asker.UserId, clock.GetUtcNow());
             if (keep.KeeperId == asker.UserId)
-                logger.LogInformation("{User} kept {Id}.", asker.DisplayName, id);
+                logger.LogInformation("{User} kept {Unit}.", asker.DisplayName, stay.Unit);
 
             return Results.Ok(library.StayOf(id));
         });
@@ -124,10 +125,10 @@ public static class AcquisitionEndpoints
         group.MapDelete("/titles/{id}/keep", async (string id, HttpContext context,
             LibraryClock library, KeepStore keeps, ILogger<KeepStore> logger) =>
         {
-            if (library.StayOf(id) is null) return NoSuchTitle();
+            if (library.StayOf(id) is not { } stay) return NoSuchTitle();
             if (Asker(context, await NamedAsync(context)) is not { } asker) return NoKeeper();
 
-            if (keeps.Remove(id)) logger.LogInformation("{User} let {Id} go.", asker.DisplayName, id);
+            if (keeps.Remove(stay.Unit)) logger.LogInformation("{User} let {Unit} go.", asker.DisplayName, stay.Unit);
 
             return Results.Ok(library.StayOf(id));
         });
@@ -185,7 +186,7 @@ public static class AcquisitionEndpoints
     /// Lets through the service key and a member's token. The middleware has already let the request
     /// through on one or the other, and a token is what it leaves in Items.
     /// </summary>
-    private static ValueTask<object?> ServiceOrMember(EndpointFilterInvocationContext context, EndpointFilterDelegate next) =>
+    internal static ValueTask<object?> ServiceOrMember(EndpointFilterInvocationContext context, EndpointFilterDelegate next) =>
         context.HttpContext.Items.TryGetValue("room-token", out var token) && token is RoomTokenPayload { Member: false }
             ? Refuse("This is for members of the server, signed in on the site, and for the services that act for them.")
             : next(context);

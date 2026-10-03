@@ -37,6 +37,19 @@ public static class LibraryId
         return Slug(string.IsNullOrWhiteSpace(basis) ? releaseName : basis);
     }
 
+    /// <summary>
+    /// The library id for one episode of a show, from the release it arrived in: the show's id
+    /// followed by the episode's place, <c>severance-s02e04</c>. Every release of the same show
+    /// names it the same way, so an episode from a season pack and the same episode on its own go
+    /// under one id.
+    /// </summary>
+    public static string ForEpisode(string releaseName, EpisodeNumber episode)
+    {
+        var release = ReleaseParser.ParseName(releaseName);
+        var show = string.IsNullOrWhiteSpace(release.Title) ? releaseName : release.Title;
+        return $"{Slug(show)}-{episode.ToString().ToLowerInvariant()}";
+    }
+
     private static string Slug(string value)
     {
         var builder = new StringBuilder(value.Length);

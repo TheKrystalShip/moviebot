@@ -140,6 +140,7 @@
     "Region": "US",
     "TimeoutSeconds": 15,
     "Directory": "",
+    "ShowsDirectory": "",
     "RefreshDays": 14
   },
 
