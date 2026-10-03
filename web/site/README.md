@@ -28,7 +28,7 @@ The dev server proxies `/api`, `/media` and `/hub` to the API (`MOVIEBOT_API`, d
 | `/` | A film to watch, then a row each for where the person left off, the rooms watching something now, what was recently added, what leaves next, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail` |
 | `/movies`, `/tv` | Every film, or every show, with krystal-ui's `Toolbar`: a search by name, one Filters popover (state, stay, genre) with the active ones as chips, and a sort with its direction |
 | `/title/<id>` | One film: what it is, who played it last, how long it stays, keep or let go, and watch or resume |
-| `/search?q=` | The library first, then the tracker's releases to fetch, and a film with no release yet to wait on; reached from the sidebar's search field |
+| `/search?q=` | The library first, then the tracker's releases to fetch, and a film with no release yet to wait on; reached from the sidebar's search field, and on a phone from the Search tab |
 | `/notify` | The films the signed-in person is waiting on |
 | `/leaving` | Every settled film and how long it stays, kept or not |
 | `/profile?tab=` | The signed-in person: History (with a way to remove a film), Requests, Playback (subtitle and audio language, quality, theme) and Sessions (the devices signed in, signing one or all others out), and signing out |
@@ -39,6 +39,12 @@ The dev server proxies `/api`, `/media` and `/hub` to the API (`MOVIEBOT_API`, d
 
 A page is a path, so it can be linked to and reloaded: the API answers any path that is not its own
 with this site's index.
+
+Wide screens get around by the sidebar. A phone has krystal-ui's `TabBar` along its bottom edge
+instead, and no drawer: Home (lit on `/` and `/leaving`), Library (`/movies`, lit on `/tv` and a
+title too), Search, Assistant, which opens the dock above the bar rather than a page, and Me
+(`/profile`, lit on `/notify` too). The tab of the page already open scrolls it back to its top. The
+pages no tab names are linked from the footer every page ends with.
 
 ## Signing in
 

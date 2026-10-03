@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  AppShell, Dock, DockFab, Icon, NavItem, Sidebar, SidebarGroup, Toasts,
+  AppShell, Dock, DockFab, Icon, NavItem, Sidebar, SidebarGroup, TabBar, Toasts,
   useDock, useEdgeSwipe, useStoredFlag,
 } from "@thekrystalship/krystal-ui";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
@@ -32,6 +32,16 @@ const NAV = [
 const LIFECYCLE = [
   { page: "notify", path: "/notify", icon: "bell-plus", label: "Notify me" },
   { page: "leaving", path: "/leaving", icon: "hourglass", label: "Leaving soon" },
+];
+
+// A phone's way around: a tab for each place, lit on the pages that belong to it. The assistant's
+// tab opens the dock rather than a page.
+const TABS = [
+  { id: "home", path: "/", icon: "house", label: "Home", pages: ["home", "leaving"] },
+  { id: "library", path: "/movies", icon: "clapperboard", label: "Library", pages: ["movies", "tv", "title"] },
+  { id: "search", path: "/search", icon: "search", label: "Search", pages: ["search"] },
+  { id: "assistant", icon: "bot", label: "Assistant" },
+  { id: "me", path: "/profile", icon: "user", label: "Me", pages: ["profile", "notify"] },
 ];
 
 /**
@@ -68,35 +78,46 @@ export function App() {
 
 function Frame({ session, route }) {
   const [collapsed, setCollapsed] = useStoredFlag("cinema:sidebar:collapsed");
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
   const dock = useDock({ storageKey: "cinema:dock" });
-  useEdgeSwipe(drawerOpen, setDrawerOpen, dock.open, dock.setOpen);
+  // A phone has the tab bar and no drawer, so only the right edge's swipe, the dock's, is taken.
+  useEdgeSwipe(false, noDrawer, dock.open, dock.setOpen);
   const mainRef = React.useRef(null);
 
-  // A new page starts at its top, and closes the drawer it was chosen from.
+  // A new page starts at its top.
   React.useEffect(() => {
     if (mainRef.current) mainRef.current.scrollTop = 0;
-    setDrawerOpen(false);
   }, [route.path]);
 
   const go = (path) => navigate(path);
   const item = (n) => (
     <NavItem key={n.page} icon={n.icon} label={n.label} active={route.page === n.page} onClick={() => go(n.path)} />
   );
+  // A tab leaves the dock for its page. The tab of the page already open takes it back to its top.
+  const tab = (t) => t.path
+    ? {
+      id: t.id, icon: t.icon, label: t.label,
+      active: !dock.open && t.pages.includes(route.page),
+      onClick: () => {
+        dock.setOpen(false);
+        if (route.path === t.path && mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
+        else go(t.path);
+      },
+    }
+    : { id: t.id, icon: t.icon, label: t.label, active: dock.open, onClick: () => dock.setOpen(true) };
 
   return (
     <>
       <AppShell
         collapsed={dock.desktop && collapsed}
-        drawerOpen={drawerOpen}
-        onDrawer={setDrawerOpen}
+        drawerOpen={false}
+        onDrawer={noDrawer}
         dockPush={dock.pushing ? dock.width : 0}
         mainRef={mainRef}
         sidebar={
           <Sidebar
             mark={markUrl}
             wordmark="Krystal Cinema"
-            open={drawerOpen}
+            open={false}
             collapsed={dock.desktop && collapsed}
             onToggleCollapse={() => setCollapsed((c) => !c)}
             top={<SidebarSearch />}
@@ -110,7 +131,8 @@ function Frame({ session, route }) {
             {dock.open && <CinemaAssistant session={session} docked dock={dock} onClose={() => dock.setOpen(false)} />}
           </Dock>
           {!dock.open && <DockFab onClick={() => dock.setOpen(true)} />}
-        </>}>
+        </>}
+        tabBar={<TabBar items={TABS.map(tab)} />}>
         <Page route={route} />
         <SiteFooter />
       </AppShell>
@@ -118,6 +140,8 @@ function Frame({ session, route }) {
     </>
   );
 }
+
+function noDrawer() {}
 
 function Page({ route }) {
   switch (route.page) {

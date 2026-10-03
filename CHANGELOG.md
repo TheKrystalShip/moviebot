@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.74.0] - 2026-10-03
+
+### Changed
+
+- **Krystal Cinema on a phone gets around by a tab bar** along the bottom edge, as the mobile design
+  draws it: Home, Library, Search, Assistant and Me (krystal-ui 0.6.0's `TabBar`). It replaces the
+  drawer, its left-edge handle, which sat over page text, and the assistant's floating button, which
+  sat over the drawer and the page. Assistant opens the dock above the bar, so the bar is the way back
+  out of it. The tab of the page already open scrolls it to its top. Wide screens keep the sidebar.
+- **The phone harness looks at the tab bar**: a view taps the Library tab, the assistant is opened
+  from its tab, and a check fails a page whose end sits under the bar or an open dock that runs under
+  it. Page text scrolling by under the bar is what a tab bar is for, and is not a collision.
+
 ## [1.73.0] - 2026-10-03
 
 ### Added

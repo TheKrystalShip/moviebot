@@ -70,6 +70,9 @@ export function inspect() {
   // its text nodes, trimmed to whatever clips it (an ellipsis cuts the text where the box ends), and
   // kept only where that text is what is on top: text under a drawer or a popover is covered, not
   // collided with. Boxes of unrelated elements on screen must not cross.
+  // The page scrolls under the tab bar, so what of the page is seen ends at the bar's top edge.
+  const tabbar = document.querySelector(".tabbar");
+  const pageEnd = tabbar && shown(tabbar) ? tabbar.getBoundingClientRect().top : Infinity;
   const clipOf = (e, r) => {
     let { left, top, right, bottom } = r;
     for (let p = e; p && p !== document.body; p = p.parentElement) {
@@ -77,6 +80,7 @@ export function inspect() {
       const c = p.getBoundingClientRect();
       left = Math.max(left, c.left); top = Math.max(top, c.top); right = Math.min(right, c.right); bottom = Math.min(bottom, c.bottom);
     }
+    if (!tabbar || !tabbar.contains(e)) bottom = Math.min(bottom, pageEnd);
     return { left, top, right, bottom };
   };
   const onTop = (e, r) => {
@@ -140,6 +144,19 @@ export function inspect() {
     }
   }
 
+  // The tab bar floats over the page as it scrolls by, which is what a tab bar does; what it must not
+  // do is sit over the page's end, which can never be scrolled clear of it, or over an open dock,
+  // which is left by the bar.
+  const bar = tabbar;
+  if (bar && shown(bar)) {
+    const br = bar.getBoundingClientRect();
+    if (main && parseFloat(getComputedStyle(main).paddingBottom) < br.height - 1) {
+      faults.push(`the page's end sits under ${describe(bar)}: the column keeps ${getComputedStyle(main).paddingBottom} clear of a ${Math.round(br.height)}px bar`);
+    }
+    const dock = document.querySelector(".assistant-dock--open");
+    if (dock && dock.getBoundingClientRect().bottom > br.top + 1) faults.push(`the open dock runs under ${describe(bar)}`);
+  }
+
   const unique = (list) => [...new Set(list)];
   return { faults: unique(faults), warnings: unique(warnings), notes: unique(notes) };
 }
@@ -147,6 +164,6 @@ export function inspect() {
 /** Lets the page column grow to its content, so one screenshot holds the whole page. */
 export function unroll() {
   const style = document.createElement("style");
-  style.textContent = "html,body,.app{height:auto!important;overflow:visible!important}.app__main{height:auto!important;max-height:none!important;overflow:visible!important}";
+  style.textContent = "html,body,.app{height:auto!important;overflow:visible!important}.app__main{height:auto!important;max-height:none!important;overflow:visible!important}.tabbar{display:none!important}";
   document.head.appendChild(style);
 }

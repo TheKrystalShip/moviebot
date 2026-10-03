@@ -1,5 +1,5 @@
 // Every view the harness looks at: each page, and each state of a page a person reaches by tapping
-// something (the drawer, a popover, the assistant). A view names where it goes, given what staging
+// something (a tab, a popover, the assistant). A view names where it goes, given what staging
 // put in the library, what it does once there, and whether one tall screenshot of it makes sense. A
 // view acts as the staged viewer unless it names another `person` (stage.mjs), which keeps a view
 // that changes something — playing a film — out of what the others see.
@@ -36,7 +36,7 @@ export const VIEWS = [
   { name: "home", path: () => "/", ready: ".showcase-card", full: true },
   { name: "home-middle", path: () => "/", ready: ".showcase-card", act: scrollTo(0.5) },
   { name: "home-foot", path: () => "/", ready: ".kfoot", act: scrollTo(1) },
-  { name: "drawer", path: () => "/", ready: ".mnav", act: tap(".mnav", ".sidebar--open") },
+  { name: "tab-library", path: () => "/", ready: ".tabbar", act: tap(".tabbar__tab:nth-child(2)", ".toolbar") },
   { name: "movies", path: () => "/movies", ready: ".showcase-card", full: true },
   { name: "movies-filters", path: () => "/movies", ready: ".toolbar-filter__trigger", act: tap(".toolbar-filter:not(.toolbar-sort) .toolbar-filter__trigger", ".toolbar-filter__menu") },
   { name: "movies-sort", path: () => "/movies", ready: ".toolbar-sort", act: tap(".toolbar-sort .toolbar-filter__trigger", ".toolbar-sort__menu") },
@@ -52,7 +52,7 @@ export const VIEWS = [
   { name: "profile-playback", path: () => "/profile?tab=playback", ready: ".kc-page", full: true },
   { name: "profile-sessions", path: () => "/profile?tab=sessions", ready: ".kc-page", full: true },
   { name: "about", path: () => "/about", ready: ".kc-about", full: true },
-  { name: "assistant", path: () => "/", ready: ".assistant-fab", act: tap(".assistant-fab", ".assistant-dock--open") },
+  { name: "assistant", path: () => "/", ready: ".tabbar", act: tap(".tabbar__tab:nth-child(4)", ".assistant-dock--open") },
   {
     name: "player", person: "player", path: (s) => `/r/verify-player?title=${encodeURIComponent(s.film.id)}`, ready: "video",
     act: async (page) => {
