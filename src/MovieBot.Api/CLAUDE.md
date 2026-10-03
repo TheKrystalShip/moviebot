@@ -45,6 +45,12 @@ and keeps are `Acquisition/CLAUDE.md`.
 - **A person's own settings are asked for by token, never by id.** `/api/me/preferences` answers for
   whoever the token names, so there is no route by which anybody reads or writes anybody else's; the
   service key names nobody and is refused there.
+- **Tokens are signed and short-lived, and the device list is what makes "sign out elsewhere"
+  possible.** A token cannot be taken back, so each sign-in carries an id (`jti`) and is recorded in
+  `People/DeviceSessions` (`devices.json`); a revoked id is refused with the ordinary 401 by
+  `RequireTokenMiddleware`, which the hub's negotiate also passes through. An entry is forgotten
+  once its token would have expired anyway. `lastSeenAt` moves at most once a minute per session.
+  A token with no id is valid until it expires and is not listed.
 - **The API publishes its public address on `/api/config`.** The page's origin is Discord's proxy,
   reachable only from inside the Activity, and the poster a viewer's presence shows is fetched by
   Discord's servers, so the page builds the poster URL from that address.

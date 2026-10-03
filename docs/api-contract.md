@@ -29,6 +29,9 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET,HEAD /films/{imdbId}/{poster.jpg,backdrop.jpg,cast-N.jpg}` | the artwork kept beside a description. Open: it is public artwork and an `<img>` carries no token |
 | `GET /api/me/preferences` | `ViewerPreferences` — how the token's person watches; every field absent for somebody who set nothing. `403` for the service key, which names nobody |
 | `PUT /api/me/preferences` | `ViewerPreferences` → the stored `ViewerPreferences`. A blank language or a height that is not positive is stored as absent |
+| `GET /api/me/sessions` | `DeviceSession[]` — the devices the token's person is signed in on, most recently seen first: `{id, device, issuedAt, lastSeenAt, current}`. `current` marks the one asking. `403` for the service key |
+| `DELETE /api/me/sessions/{id}` | 204 — ends one of the person's own sessions. Another person's id, or one that does not exist, is `404` |
+| `DELETE /api/me/sessions` | 204 — ends every session of the person except the current one |
 
 ```jsonc
 // ViewerPreferences: the defaults a film starts with, for a person wherever they sign in
@@ -124,6 +127,12 @@ only opens inside the server, and its token says nothing more than who is watchi
 the code from the OAuth2 redirect, asked for with `identify guilds.members.read`, and its
 `redirectUri`: then the token is issued only to a member of one of `Discord.GuildIds`, and carries
 `member`. Somebody outside the server is a `403`; a Discord that cannot say is a `502`.
+
+A token's payload is `sub`, `name`, `room`, `member`, `exp` and `jti`, a random id naming that one
+sign-in. Each sign-in is recorded with a short summary of the browser that made it ("Chrome on
+Android"; "Discord Activity" for the Activity's), which is what `/api/me/sessions` lists. A session
+the person ended is refused with the same `401` as a token that was never valid, on every route and
+at the hub's negotiate. A token without a `jti` is valid until `exp` and is not listed.
 
 | Route | Returns |
 |---|---|

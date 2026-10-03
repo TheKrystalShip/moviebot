@@ -68,6 +68,12 @@ builder.Services.AddSingleton(sp => new PreferenceStore(
     StatePath(sp.GetRequiredService<IConfiguration>()["People:Preferences"], "preferences.json"),
     sp.GetRequiredService<ILogger<PreferenceStore>>()));
 
+// The devices people are signed in on, which is what lets one be signed out from another.
+builder.Services.AddSingleton(sp => new DeviceSessions(
+    StatePath(sp.GetRequiredService<IConfiguration>()["People:Devices"], "devices.json"),
+    sp.GetRequiredService<TimeProvider>(),
+    sp.GetRequiredService<ILogger<DeviceSessions>>()));
+
 // When each film was last played, which the library's clock reads.
 builder.Services.AddSingleton<IPlayHistory, NoPlayHistory>();
 
@@ -223,6 +229,7 @@ app.MapGet("/api/titles/{id}/ticket", (
 app.MapSubtitles();
 app.MapAcquisition();
 app.MapPeople();
+app.MapDevices();
 app.MapFilms();
 
 // Every room, for the bot: it holds no state of its own, so what to say about rooms it reads
@@ -248,6 +255,8 @@ app.MapPost("/api/auth/discord/callback", async (
     IOptions<DiscordAuthOptions> options,
     DiscordAuthClient discord,
     IOptions<AuthOptions> authOptions,
+    DeviceSessions devices,
+    HttpContext context,
     CancellationToken ct) =>
 {
     if (!options.Value.IsConfigured)
@@ -288,14 +297,25 @@ app.MapPost("/api/auth/discord/callback", async (
     }
 
     var auth = authOptions.Value;
+    var expiresAt = DateTimeOffset.UtcNow.Add(auth.TokenLifetime);
+    var tokenId = RoomToken.NewTokenId();
     var roomToken = RoomToken.Issue(new RoomTokenPayload
     {
         UserId = user.Id,
         DisplayName = user.DisplayName,
         RoomId = request.SessionId ?? "",
-        ExpiresAtUnix = DateTimeOffset.UtcNow.Add(auth.TokenLifetime).ToUnixTimeSeconds(),
+        ExpiresAtUnix = expiresAt.ToUnixTimeSeconds(),
         Member = member,
+        TokenId = tokenId,
     }, auth.SigningKey);
+
+    // The Activity's sign-in sends no redirect and the site's always does; the Activity's browser
+    // is Discord's own, so it is named for what it is.
+    devices.Record(tokenId, user.Id,
+        string.IsNullOrWhiteSpace(request.RedirectUri)
+            ? DeviceName.Activity
+            : DeviceName.FromUserAgent(context.Request.Headers.UserAgent.ToString()),
+        expiresAt);
 
     // The access token goes back so the SDK can complete authenticate(); it is the browser's own
     // token and is scoped to the Activity, unlike the secret that redeemed the code.
@@ -308,7 +328,8 @@ app.MapPost("/api/auth/discord/callback", async (
 app.MapPost("/api/auth/service-token", (
     ServiceTokenRequest request,
     HttpContext context,
-    IOptions<AuthOptions> authOptions) =>
+    IOptions<AuthOptions> authOptions,
+    DeviceSessions devices) =>
 {
     var auth = authOptions.Value;
     var offered = context.Request.Headers["X-MovieBot-Service"].ToString();
@@ -321,13 +342,18 @@ app.MapPost("/api/auth/service-token", (
         return Results.Unauthorized();
     }
 
+    var expiresAt = DateTimeOffset.UtcNow.Add(auth.TokenLifetime);
+    var tokenId = RoomToken.NewTokenId();
+    devices.Record(tokenId, request.UserId, DeviceName.Service, expiresAt);
+
     return Results.Ok(new ServiceTokenReply(RoomToken.Issue(new RoomTokenPayload
     {
         UserId = request.UserId,
         DisplayName = request.DisplayName,
         RoomId = request.RoomId,
-        ExpiresAtUnix = DateTimeOffset.UtcNow.Add(auth.TokenLifetime).ToUnixTimeSeconds(),
+        ExpiresAtUnix = expiresAt.ToUnixTimeSeconds(),
         Member = request.Member,
+        TokenId = tokenId,
     }, auth.SigningKey)));
 });
 

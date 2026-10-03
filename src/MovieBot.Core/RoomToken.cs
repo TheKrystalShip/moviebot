@@ -23,6 +23,13 @@ public sealed record RoomTokenPayload
     /// more than who is watching.
     /// </summary>
     [JsonPropertyName("member")] public bool Member { get; init; }
+
+    /// <summary>
+    /// Names this one sign-in, so the person can see it in their list of devices and end it. A token
+    /// carries one when the API issued it for a sign-in; one without is valid until it expires and is
+    /// not listed.
+    /// </summary>
+    [JsonPropertyName("jti")] public string? TokenId { get; init; }
 }
 
 [JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -49,6 +56,9 @@ public static class RoomToken
         var body = Base64Url(json);
         return $"{body}.{Base64Url(Sign(body, signingKey))}";
     }
+
+    /// <summary>A fresh id for a token about to be issued.</summary>
+    public static string NewTokenId() => Base64Url(RandomNumberGenerator.GetBytes(16));
 
     /// <summary>Returns the payload when the signature holds and the token has not expired.</summary>
     public static RoomTokenPayload? Validate(string? token, string signingKey, DateTimeOffset now)
