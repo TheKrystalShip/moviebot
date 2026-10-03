@@ -1,10 +1,11 @@
 // Reading the API for a page: what came back, whether it is still coming, and what went wrong.
 //
-// Nothing is cached across pages: the library, the downloads and the keeps are read when a page asks
+// Nothing is cached across pages: the library, the downloads and the stays are read when a page asks
 // for them, so what a page shows is what the API says now. A page that shows something moving, a
 // download, reads it again on an interval while it is open.
 
 import React from "react";
+import { daysLeft } from "./time.js";
 
 export function useLoad(load, deps, { every } = {}) {
   const [state, setState] = React.useState({ data: null, error: null, loading: true });
@@ -28,13 +29,18 @@ export function useLoad(load, deps, { every } = {}) {
   return { ...state, reload: () => setTick((t) => t + 1) };
 }
 
-/** How long a film stays, from the seconds the retention rule gives, in a few words. */
-export function staysFor(kept) {
-  if (!kept) return null;
-  if (kept.keeper) return "Kept";
-  const seconds = kept.isFinished ? kept.remainingSeconds : kept.windowSeconds;
-  const days = seconds / 86400;
-  if (days >= 1) return `${Math.ceil(days)} ${Math.ceil(days) === 1 ? "day" : "days"} left`;
-  const hours = Math.max(1, Math.ceil(seconds / 3600));
-  return `${hours} ${hours === 1 ? "hour" : "hours"} left`;
+/** How many days a settled film goes without a play before it leaves, as `Library:LeaveAfterDays` ships it. */
+export const LEAVE_AFTER_DAYS = 7;
+
+/** Whoever kept a film, as the person asking reads it: "you" for their own keep. */
+export function keeperOf(stay, me) {
+  if (!stay || !stay.keeperId) return null;
+  return me && stay.keeperId === me.id ? "you" : stay.keeperName || "someone";
+}
+
+/** How long a film stays, in a few words: "kept by Jo", "3 days left", or nothing before it has settled. */
+export function stayWords(stay, me) {
+  if (!stay || !stay.settled) return null;
+  if (stay.keeperId) return `kept by ${keeperOf(stay, me)}`;
+  return stay.daysLeft == null ? null : daysLeft(stay.daysLeft);
 }

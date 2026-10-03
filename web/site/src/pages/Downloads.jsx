@@ -4,7 +4,7 @@ import { useLoad } from "../data.js";
 import { linkProps } from "../router.js";
 import { Empty, Failed, PageHead, watchLink } from "../components/Film.jsx";
 
-/** What is downloading and what is seeding, read again every few seconds while the page is open. */
+/** What is downloading and what has arrived, read again every few seconds while the page is open. */
 export function Downloads() {
   const downloads = useLoad(() => api.downloads(), [], { every: 5000 });
   const rows = (downloads.data || []).slice().sort((a, b) => Number(a.isFinished) - Number(b.isFinished));

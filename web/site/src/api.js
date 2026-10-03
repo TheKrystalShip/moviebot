@@ -42,13 +42,28 @@ const enc = encodeURIComponent;
 export const api = {
   titles: () => call("GET", "/api/titles"),
   title: (id) => call("GET", `/api/titles/${enc(id)}`),
-  retention: (id) => call("GET", `/api/titles/${enc(id)}/retention`),
   film: (imdbId) => call("GET", `/api/films/${enc(imdbId)}`),
   rooms: () => call("GET", "/api/sessions"),
   downloads: () => call("GET", "/api/downloads"),
-  keeps: () => call("GET", "/api/keeps"),
-  keep: (hash) => call("PUT", `/api/keeps/${enc(hash)}`, { requestedBy: { userId: "", displayName: "" } }),
-  release: (hash) => call("POST", `/api/keeps/${enc(hash)}/release`, { requestedBy: { userId: "", displayName: "" } }),
+
+  // How long a settled film stays. A keep is the signed-in person's own: the token names who.
+  stays: () => call("GET", "/api/stays"),
+  stay: (id) => call("GET", `/api/titles/${enc(id)}/stay`),
+  keep: (id) => call("PUT", `/api/titles/${enc(id)}/keep`),
+  unkeep: (id) => call("DELETE", `/api/titles/${enc(id)}/keep`),
+
+  // What the signed-in person has watched, and how they watch.
+  progress: () => call("GET", "/api/me/progress"),
+  history: () => call("GET", "/api/me/history"),
+  forgetHistory: (id) => call("DELETE", `/api/me/history/${enc(id)}`),
+  preferences: () => call("GET", "/api/me/preferences"),
+  setPreferences: (preferences) => call("PUT", "/api/me/preferences", preferences),
+
+  // The devices that hold one of this person's tokens.
+  sessions: () => call("GET", "/api/me/sessions"),
+  signOutDevice: (id) => call("DELETE", `/api/me/sessions/${enc(id)}`),
+  signOutOtherDevices: () => call("DELETE", "/api/me/sessions"),
+
   releases: (q) => call("GET", `/api/releases?q=${enc(q)}`),
   releasesFor: (imdb) => call("GET", `/api/releases?imdb=${enc(imdb)}`),
   download: (torrentId) => call("POST", "/api/downloads", { torrentId, requestedBy: { userId: "", displayName: "" } }),
@@ -72,12 +87,4 @@ export function filmName(title) {
   const film = title && title.film;
   if (film && film.name) return film.year ? `${film.name} (${film.year})` : film.name;
   return (title && title.title) || "";
-}
-
-/** A length or a position the way a person reads one. */
-export function clock(seconds) {
-  const s = Math.max(0, Math.round(seconds || 0));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }

@@ -23,14 +23,14 @@ The dev server proxies `/api`, `/media` and `/hub` to the API (`MOVIEBOT_API`, d
 
 | Path | What it is |
 |---|---|
-| `/` | A film to watch, the rooms watching something now, what is on its way, what is leaving soon, and the shelf |
+| `/` | A film to watch, where the person left off, the rooms watching something now, what is on its way, what is leaving soon, and the shelf |
 | `/library` | Every film, narrowed by state and ordered by name, year or length |
-| `/title/<id>` | One film: what it is, its tracks, how long it stays, keep or let go, and watch |
+| `/title/<id>` | One film: what it is, who played it last, how long it stays, keep or let go, and watch or resume |
 | `/search?q=` | The library first, then the tracker's releases to fetch, and a film with no release yet to wait on |
 | `/notify` | The films the signed-in person is waiting on |
-| `/leaving` | Every downloaded film and how long it stays, kept or not |
-| `/downloads` | What is downloading and seeding, read again every few seconds |
-| `/profile` | The theme, and signing out |
+| `/leaving` | Every settled film and how long it stays, kept or not |
+| `/downloads` | What is downloading and what has arrived, read again every few seconds |
+| `/profile?tab=` | The signed-in person: History (with a way to remove a film), Requests, Playback (subtitle and audio language, quality, theme) and Sessions (the devices signed in, signing one or all others out), and signing out |
 | `/about` | What the site is, and where its film details come from |
 | `/signin` | The door, and where Discord sends the browser back to |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from |

@@ -129,7 +129,7 @@ function Page({ route }) {
     case "notify": return <Notify />;
     case "leaving": return <Leaving />;
     case "downloads": return <Downloads />;
-    case "profile": return <Profile />;
+    case "profile": return <Profile query={route.query} />;
     case "about": return <About />;
     default: return <Home />;
   }

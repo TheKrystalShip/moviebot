@@ -1,31 +1,35 @@
 import { Icon } from "@thekrystalship/krystal-ui";
-import { api, clock, filmName, posterUrl } from "../api.js";
-import { useLoad, staysFor } from "../data.js";
+import { api, filmName, posterUrl } from "../api.js";
+import { useLoad, stayWords } from "../data.js";
+import { useSession } from "../session.js";
 import { linkProps } from "../router.js";
-import { Empty, Failed, PosterArt, PosterCard, Shelf, watchLink } from "../components/Film.jsx";
-import { FilmScore, since } from "../components/FilmDetails.jsx";
+import { clock, since } from "../time.js";
+import { ContinueCard, Empty, Failed, PosterArt, PosterCard, Shelf, watchLink } from "../components/Film.jsx";
+import { FilmScore } from "../components/FilmDetails.jsx";
 
 const LEAVING_SOON_DAYS = 3;
 
 /**
- * The front page: a film to watch, the rooms watching something now, what is on its way, what is
- * about to leave, and the shelf. Every row is something the API measured; a row with nothing in it is
- * left out rather than drawn empty.
+ * The front page: a film to watch, where this person left off, the rooms watching something now,
+ * what is on its way, what is about to leave, and the shelf. Every row is something the API
+ * measured; a row with nothing in it is left out rather than drawn empty.
  */
 export function Home() {
+  const session = useSession();
+  const me = session && session.user;
   const titles = useLoad(() => api.titles(), []);
   const rooms = useLoad(() => api.rooms(), [], { every: 15000 });
   const downloads = useLoad(() => api.downloads().catch(() => []), [], { every: 10000 });
-  const keeps = useLoad(() => api.keeps().catch(() => []), []);
+  const stays = useLoad(() => api.stays().catch(() => []), []);
+  const progress = useLoad(() => api.progress().catch(() => []), []);
 
   const library = (titles.data || []).filter((t) => t.status !== "failed");
   const byId = new Map(library.map((t) => [t.id, t]));
   const watching = (rooms.data || []).filter((r) => r.titleId && byId.has(r.titleId));
   const arriving = (downloads.data || []).filter((d) => !d.isFinished);
-  const leaving = (keeps.data || [])
-    .filter((k) => !k.keeper && k.isFinished && k.libraryId && byId.has(k.libraryId)
-      && k.remainingSeconds < LEAVING_SOON_DAYS * 86400)
-    .sort((a, b) => a.remainingSeconds - b.remainingSeconds);
+  const leaving = (stays.data || [])
+    .filter((s) => s.settled && !s.keeperId && s.daysLeft != null && s.daysLeft <= LEAVING_SOON_DAYS && byId.has(s.titleId));
+  const continuing = (progress.data || []).filter((p) => byId.has(p.titleId));
 
   const featured = newest(library);
 
@@ -42,6 +46,19 @@ export function Home() {
   return (
     <div className="kc-page kc-home">
       {featured && <Featured title={featured} room={watching.find((r) => r.titleId === featured.id)} />}
+
+      {continuing.length > 0 && (
+        <Shelf title="Continue watching" icon="history">
+          {continuing.map((p) => (
+            <ContinueCard
+              key={p.titleId}
+              title={byId.get(p.titleId)}
+              progress={p}
+              remainingSeconds={p.remainingSeconds}
+              room={watching.find((r) => r.titleId === p.titleId)} />
+          ))}
+        </Shelf>
+      )}
 
       {watching.length > 0 && (
         <Shelf title="Watching now" icon="users">
@@ -72,8 +89,8 @@ export function Home() {
 
       {leaving.length > 0 && (
         <Shelf title="Leaving soon" icon="hourglass" more={{ href: "/leaving", label: "See all" }}>
-          {leaving.map((k) => (
-            <PosterCard key={k.hash} title={byId.get(k.libraryId)} note={staysFor(k)} tone="warn" />
+          {leaving.map((s) => (
+            <PosterCard key={s.titleId} title={byId.get(s.titleId)} note={stayWords(s, me)} tone="warn" />
           ))}
         </Shelf>
       )}

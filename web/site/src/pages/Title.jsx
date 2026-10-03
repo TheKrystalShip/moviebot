@@ -1,27 +1,30 @@
 import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
-import { api, clock, filmName, posterUrl } from "../api.js";
-import { useLoad, staysFor } from "../data.js";
+import { api, filmName, posterUrl } from "../api.js";
+import { LEAVE_AFTER_DAYS, stayWords, useLoad } from "../data.js";
 import { goBack } from "../router.js";
 import { useSession } from "../session.js";
+import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, watchLink } from "../components/Film.jsx";
-import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes, since } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes } from "../components/FilmDetails.jsx";
 
 /**
  * One film in the library: what it is, who made it and who is in it, how long it stays, and watch.
  *
  * What the film is comes from the film database through the API, which keeps it; what is on this
- * server — its length, its picture, its size, how long it stays — comes from the library.
+ * server — its length, its picture, its size, how long it stays, how far this person got — comes from
+ * the library.
  */
 export function Title({ id }) {
   const manifest = useLoad(() => api.title(id), [id]);
   const listing = useLoad(() => api.titles().then((all) => all.find((t) => t.id === id) || null), [id]);
   const imdbId = manifest.data && manifest.data.film && manifest.data.film.imdbId;
   const details = useLoad(() => (imdbId ? api.film(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId]);
-  const retention = useLoad(() => api.retention(id).catch(() => null), [id]);
+  const stay = useLoad(() => api.stay(id).catch(() => null), [id]);
   const rooms = useLoad(() => api.rooms(), [id]);
   const [busy, setBusy] = React.useState(false);
   const session = useSession();
+  const me = session && session.user;
 
   if (manifest.error && manifest.error.status === 404) {
     return <div className="kc-page"><Empty title="Not in the library">This film has left the library, or never arrived.</Empty></div>;
@@ -33,17 +36,21 @@ export function Title({ id }) {
   const film = m.film || {};
   const d = details.data;
   const summary = listing.data;
-  const kept = retention.data;
+  const held = stay.data && stay.data.settled ? stay.data : null;
   const room = (rooms.data || []).find((r) => r.titleId === m.id);
   const backdrop = (d && d.backdropUrl) || posterUrl(title);
+  const progress = summary && summary.progress && !summary.progress.finished && summary.progress.positionSeconds > 0
+    ? summary.progress : null;
+  const played = summary && summary.lastPlayed;
+  const playedBy = played && (me && played.byName === me.name ? "you" : played.byName);
 
   const keep = async (keeping) => {
     setBusy(true);
     try {
-      const reply = keeping ? await api.keep(kept.hash) : await api.release(kept.hash);
-      if (reply.outcome === "unavailable" || reply.outcome === "notFound") toast.error(keepWords(reply, filmName(title)));
-      else toast.success(keepWords(reply, filmName(title)));
-      retention.reload();
+      if (keeping) await api.keep(m.id);
+      else await api.unkeep(m.id);
+      toast.success(keeping ? `${filmName(title)} is kept, so it stays.` : `${filmName(title)} is back on the clock.`);
+      stay.reload();
     } catch (error) {
       toast.fromError(error, "That did not change anything");
     } finally {
@@ -94,20 +101,29 @@ export function Title({ id }) {
 
             <div className="kc-actions">
               {m.status !== "failed" && (
-                <a className="kc-btn kc-btn--primary kc-btn--lg" {...watchLink(m.id, room && room.sessionId)}>
-                  <Icon name={room ? "users" : "play"} size={18} />{room ? `Join the room (${room.participants})` : "Watch"}
+                <a className="kc-btn kc-btn--primary kc-btn--lg" {...watchLink(m.id, room && room.sessionId, progress && progress.positionSeconds)}>
+                  <Icon name={room ? "users" : "play"} size={18} />
+                  {room ? `Join the room (${room.participants})` : progress ? "Resume" : "Watch"}
+                  {!room && progress && <span className="kc-btn__sub">{timeLeft(m.durationSeconds - progress.positionSeconds)}</span>}
                 </a>
               )}
-              {kept && (kept.keeper
+              {held && (held.keeperId
                 ? <button type="button" className="kc-btn kc-btn--lg" disabled={busy} onClick={() => keep(false)}><Icon name="pin-off" size={17} />Un-keep</button>
                 : <button type="button" className="kc-btn kc-btn--lg" disabled={busy} onClick={() => keep(true)}><Icon name="pin" size={17} />Keep</button>)}
-              {kept && (
+              {held && (
                 <span className="kc-tt__stay">
-                  <span className="kc-pill">{kept.keeper ? (session && kept.keeper === session.user.id ? "kept by you" : "kept") : staysFor(kept).toLowerCase()}</span>
-                  <span className="kc-tt__stay-note">{kept.keeper ? "Stays for everyone until someone un-keeps it." : kept.isFinished ? "Leaves when its seeding is done, unless somebody keeps it." : "Still downloading."}</span>
+                  <span className="kc-pill">{stayWords(held, me)}</span>
+                  <span className="kc-tt__stay-note">
+                    {held.keeperId
+                      ? "Stays for everyone until someone un-keeps it"
+                      : `Leaves after ${LEAVE_AFTER_DAYS} days without a play`}
+                  </span>
                 </span>
               )}
             </div>
+            {played && (
+              <span className="kc-note">Played {ago(played.at)} by {playedBy}</span>
+            )}
           </div>
         </div>
       </section>
@@ -139,15 +155,4 @@ export function pictureClass(video) {
   if (video.width >= 1800) return "1080p";
   if (video.width >= 1200) return "720p";
   return "SD";
-}
-
-export function keepWords(reply, name) {
-  switch (reply && reply.outcome) {
-    case "kept": return `${name} is kept, so it stays.`;
-    case "alreadyKept": return `${name} was already kept.`;
-    case "released": return `${name} is back on the clock.`;
-    case "notKept": return `${name} was not kept.`;
-    case "unavailable": return "The torrent client is not answering, so nothing changed.";
-    default: return `Nothing on disk answers to ${name} any more.`;
-  }
 }
