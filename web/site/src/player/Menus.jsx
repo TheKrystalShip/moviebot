@@ -2,6 +2,7 @@ import React from "react";
 import { Icon } from "@thekrystalship/krystal-ui";
 import { formatTime } from "./engine/format.ts";
 import { SubtitleStyleEditor } from "./SubtitleStyleEditor.jsx";
+import { Drawer } from "../components/Drawer.jsx";
 
 const languageNames = (() => {
   try { return new Intl.DisplayNames(undefined, { type: "language" }); } catch { return null; }
@@ -57,23 +58,27 @@ export function Menu({ kind, view, room, sheet, position, styling, onStyling, on
       : kind === "audio" ? <AudioOptions view={view} room={room} onClose={onClose} />
         : kind === "chapters" ? <ChapterOptions view={view} room={room} position={position} onClose={onClose} />
           : <QualityOptions view={view} room={room} onClose={onClose} />;
-  return (
-    <>
-      {sheet && <div className="mp-sheet-scrim" onClick={onClose} />}
-      <div className={(sheet ? "mp-sheet" : "mp-popover") + (kind === "subs" ? " mp-popover--wide" : "") + (editing ? " is-styling" : "") + " mp-menu"}
-        role="menu" aria-label={MenuTitles[kind]}>
-        {sheet && <div className="mp-sheet__grabber" />}
-        <div className="mp-menu__head">
-          {editing && (
-            <button type="button" className="mp-menu__back" aria-label="Back to subtitles" onClick={() => onStyling(false)}>
-              <Icon name="arrow-left" size={14} />
-            </button>
-          )}
-          {editing ? "Subtitle style" : MenuTitles[kind]}
-        </div>
+  const title = editing ? "Subtitle style" : MenuTitles[kind];
+  const back = editing ? { label: "Back to subtitles", onClick: () => onStyling(false) } : null;
+  if (sheet) {
+    return (
+      <Drawer contained role="menu" title={title} back={back} onClose={onClose} className={"mp-menu" + (editing ? " is-styling" : "")}>
         {body}
+      </Drawer>
+    );
+  }
+  return (
+    <div className={"mp-popover" + (kind === "subs" ? " mp-popover--wide" : "") + " mp-menu"} role="menu" aria-label={title}>
+      <div className="mp-menu__head">
+        {back && (
+          <button type="button" className="mp-menu__back" aria-label={back.label} onClick={back.onClick}>
+            <Icon name="arrow-left" size={14} />
+          </button>
+        )}
+        {title}
       </div>
-    </>
+      {body}
+    </div>
   );
 }
 

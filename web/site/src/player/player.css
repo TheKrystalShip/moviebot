@@ -282,21 +282,13 @@
   color: var(--fg-1);
 }
 .mp-popover--wide { width: 340px; }
-.mp-sheet-scrim { position: absolute; inset: 0; z-index: 6; background: rgba(0, 0, 0, 0.45); }
-.mp-sheet {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 7; max-height: 75%; overflow-y: auto;
-  background: rgba(17, 22, 29, 0.96); border-top: 1px solid var(--border-strong);
-  border-radius: var(--r-sm) var(--r-sm) 0 0; padding: 8px 8px 10px; color: var(--fg-1);
-  animation: mp-sheet-in 180ms var(--ease-out);
-}
-.mp-sheet.is-styling { max-height: 45%; }
-.mp-sheet__grabber { width: 36px; height: 4px; border-radius: 999px; background: var(--surface-3); margin: 0 auto 6px; }
+/* The style editor's drawer leaves room above it for the sample line it is styling. */
+.kc-drawer.is-styling { max-height: 45%; }
 .mp-menu__head {
   display: flex; align-items: center; gap: 8px; padding: 12px 16px;
   font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); font-weight: 600;
   border-bottom: 1px solid var(--border-subtle);
 }
-.mp-sheet .mp-menu__head { border-bottom: none; padding: 4px 10px 8px; }
 .mp-menu__back {
   display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: -4px 0 -4px -6px;
   border: none; border-radius: 999px; background: transparent; color: var(--fg-2); cursor: pointer;
@@ -420,7 +412,6 @@
 
 @keyframes mp-spin { to { transform: rotate(360deg); } }
 @keyframes mp-rise { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
-@keyframes mp-sheet-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .mp-event, .mp-sheet { animation: none; }
+  .mp-event { animation: none; }
 }

@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.84.0] - 2026-10-03
+
+### Changed
+
+- One drawer from the bottom edge, the full width of the screen, for every menu and list a phone
+  opens: the player's subtitles, audio, chapters, quality and overflow, and the notifications from
+  the front page's bell, which had a floating panel of its own. The subtitle menu, which kept the
+  wide popover's fixed width as a drawer, spans the screen like the others.
+
 ## [1.83.2] - 2026-10-03
 
 ### Changed

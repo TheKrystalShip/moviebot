@@ -11,6 +11,7 @@ import { Cues } from "./Cues.jsx";
 import { ScrubBar } from "./ScrubBar.jsx";
 import { Volume } from "./Volume.jsx";
 import { ago } from "../time.js";
+import { Drawer } from "../components/Drawer.jsx";
 import {
   Menu, MenuTitles, audioValue, hasQualityChoice, qualityValue, subtitleValue,
 } from "./Menus.jsx";
@@ -584,25 +585,21 @@ function Overflow({ view, volume, onVolume, onNudge, onPick, onClose }) {
     hasQualityChoice(view) ? ["quality", "gauge", qualityValue(view)] : null,
   ].filter(Boolean);
   return (
-    <>
-      <div className="mp-sheet-scrim" onClick={onClose} />
-      <div className="mp-sheet mp-menu" role="menu">
-        <div className="mp-sheet__grabber" />
-        <div className="mp-menu__list">
-          {entries.map(([kind, icon, value]) => (
-            <button key={kind} type="button" className="mp-option" onClick={() => onPick(kind)}>
-              <span className="mp-option__check"><Icon name={icon} size={16} /></span>
-              <span className="mp-option__text"><span className="mp-option__label">{MenuTitles[kind]}</span></span>
-              <span className="mp-option__value">{value}</span>
-            </button>
-          ))}
-          <div className="mp-option mp-option--volume">
-            <Volume position={volume.position} muted={volume.muted} onChange={onVolume} onNudge={onNudge} />
-          </div>
-          {link && <CopyLink link={link} className="mp-option" />}
+    <Drawer contained role="menu" label="More" onClose={onClose} className="mp-menu">
+      <div className="mp-menu__list">
+        {entries.map(([kind, icon, value]) => (
+          <button key={kind} type="button" className="mp-option" onClick={() => onPick(kind)}>
+            <span className="mp-option__check"><Icon name={icon} size={16} /></span>
+            <span className="mp-option__text"><span className="mp-option__label">{MenuTitles[kind]}</span></span>
+            <span className="mp-option__value">{value}</span>
+          </button>
+        ))}
+        <div className="mp-option mp-option--volume">
+          <Volume position={volume.position} muted={volume.muted} onChange={onVolume} onNudge={onNudge} />
         </div>
+        {link && <CopyLink link={link} className="mp-option" />}
       </div>
-    </>
+    </Drawer>
   );
 }
 

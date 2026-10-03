@@ -4,6 +4,7 @@ import { Icon } from "@thekrystalship/krystal-ui";
 import { navigate } from "../router.js";
 import { ago } from "../time.js";
 import { KIND, markRead, useNotifications } from "../notifications.js";
+import { Drawer } from "./Drawer.jsx";
 
 /**
  * The bell in the sidebar, above the person: "Notifications" and how many are unread, or the bell
@@ -44,14 +45,16 @@ export function BellButton() {
 }
 
 /**
- * A trigger and the list it opens: beside the sidebar on a wide screen, as a sheet over the tab bar
- * on a phone. A press outside it, or Escape, closes it.
+ * A trigger and the list it opens: beside the sidebar on a wide screen, in the site's drawer on a
+ * phone. A press outside it, or Escape, closes it.
  */
 function Bell({ placement, children }) {
   const [open, setOpen] = React.useState(false);
   const [pos, setPos] = React.useState(null);
   const triggerRef = React.useRef(null);
   const panelRef = React.useRef(null);
+  const { unread } = useNotifications();
+  const close = React.useCallback(() => setOpen(false), []);
 
   React.useLayoutEffect(() => {
     if (!open || placement !== "beside" || !triggerRef.current) return undefined;
@@ -66,7 +69,7 @@ function Bell({ placement, children }) {
   }, [open, placement]);
 
   React.useEffect(() => {
-    if (!open) return undefined;
+    if (!open || placement !== "beside") return undefined;
     const outside = (e) => {
       if (triggerRef.current?.contains(e.target) || panelRef.current?.contains(e.target)) return;
       setOpen(false);
@@ -78,21 +81,33 @@ function Bell({ placement, children }) {
       document.removeEventListener("mousedown", outside);
       document.removeEventListener("keydown", escape);
     };
-  }, [open]);
+  }, [open, placement]);
 
+  const markAll = unread > 0 && <button type="button" className="kc-bell__mark" onClick={() => markRead()}>Mark all read</button>;
   return (
     <div className="kc-bell" ref={triggerRef}>
       {children(open, () => setOpen((o) => !o))}
-      {open && createPortal(
-        <BellPanel ref={panelRef} className={"kc-bell__panel kc-bell__panel--" + placement}
-          style={placement === "beside" ? pos || { visibility: "hidden" } : undefined} onClose={() => setOpen(false)} />,
+      {open && placement === "sheet" && (
+        <Drawer title="Notifications" action={markAll} onClose={close} className="kc-bell__drawer">
+          <BellList onClose={close} />
+        </Drawer>
+      )}
+      {open && placement === "beside" && createPortal(
+        <div ref={panelRef} className="kc-bell__panel" style={pos || { visibility: "hidden" }} role="dialog" aria-label="Notifications">
+          <div className="kc-bell__head">
+            <span className="kc-bell__title">Notifications</span>
+            {markAll}
+          </div>
+          <BellList onClose={close} />
+        </div>,
         document.body)}
     </div>
   );
 }
 
-const BellPanel = React.forwardRef(function BellPanel({ className, style, onClose }, ref) {
-  const { items, unread, error } = useNotifications();
+/** What the API told this person, newest first, each opening the page it names. */
+function BellList({ onClose }) {
+  const { items, error } = useNotifications();
 
   const open = (n) => {
     onClose();
@@ -101,11 +116,7 @@ const BellPanel = React.forwardRef(function BellPanel({ className, style, onClos
   };
 
   return (
-    <div ref={ref} className={className} style={style} role="dialog" aria-label="Notifications">
-      <div className="kc-bell__head">
-        <span className="kc-bell__title">Notifications</span>
-        {unread > 0 && <button type="button" className="kc-bell__mark" onClick={() => markRead()}>Mark all read</button>}
-      </div>
+    <>
       <div className="kc-bell__list">
         {items && items.length === 0 && (
           <div className="kc-bell__empty"><Icon name="bell-off" size={18} /><span>Nothing yet.</span></div>
@@ -132,6 +143,6 @@ const BellPanel = React.forwardRef(function BellPanel({ className, style, onClos
       <button type="button" className="kc-bell__settings" onClick={() => { onClose(); navigate("/profile?tab=notifications"); }}>
         <Icon name="settings-2" size={13} />Push notification settings
       </button>
-    </div>
+    </>
   );
-});
+}
