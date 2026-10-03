@@ -2,7 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
+using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Api;
+using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Api.Library;
@@ -79,6 +81,19 @@ builder.Services.AddHostedService<SessionReaper>();
 // What a film gains while people are watching it reaches them down the connection they hold.
 builder.Services.AddSingleton<TitleChanges>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<TitleChanges>());
+
+// Fetching films: the tracker, the torrent client and the title index, and what this service does
+// with them on somebody's behalf. The API is the one place a download is started, a wish is made or a
+// film is kept, so the bot's commands and the assistant's tools are the same act whichever asks.
+builder.Services.AddAcquire(builder.Configuration);
+builder.Services.AddSingleton<OfferedReleases>();
+builder.Services.AddSingleton<Downloads>();
+builder.Services.AddOptions<NotifyOptions>().Bind(builder.Configuration.GetSection(NotifyOptions.Section));
+builder.Services.AddSingleton<WishList>();
+builder.Services.AddSingleton<Wishes>();
+builder.Services.AddSingleton<WishSweep>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<WishSweep>());
+builder.Services.AddSingleton<Keeps>();
 
 // The client id is the application id, which the settings file names once for the bot and the
 // API together.
@@ -178,6 +193,7 @@ app.MapGet("/api/titles/{id}/ticket", (
 });
 
 app.MapSubtitles();
+app.MapAcquisition();
 
 // Every room, for the bot: it holds no state of its own, so what to say about rooms it reads
 // from here each time it is about to say it.

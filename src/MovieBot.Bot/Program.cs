@@ -137,16 +137,13 @@ builder.Services.AddSingleton<LaunchCards>();
 builder.Services.AddSingleton<KeepCommand>();
 builder.Services.AddSingleton<IFilmRetention>(sp => sp.GetRequiredService<KeepCommand>());
 
-// The acquiring half. It brings its own options, its tracker client and its torrent client, and
-// it is reflection-free, so it adds nothing to this project's startup beyond what it is asked.
+// The acquiring half. The API starts every download, holds every wish and records every keep; the
+// bot asks it, and reads the torrent client itself only for what it shows in Discord — a download's
+// progress, and the film becoming watchable. The title index is read here too, for /notify's
+// suggestions as somebody types.
 builder.Services.AddAcquire(builder.Configuration);
 builder.Services.AddSingleton<DownloadCommand>();
-
-// The films people are waiting on, because a film that is not on the tracker yet exists nowhere
-// else to be remembered.
-builder.Services.AddOptions<NotifyOptions>().Bind(builder.Configuration.GetSection(NotifyOptions.Section));
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<WishList>();
 builder.Services.AddSingleton<NotifyCommand>();
 
 builder.Services.AddHostedService<DiscordBotService>();

@@ -5,14 +5,16 @@ using TheKrystalShip.MovieBot.Acquire.Configuration;
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
 using TheKrystalShip.MovieBot.Acquire.Search;
-using TheKrystalShip.MovieBot.Bot.Download;
+using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Bot.Watch;
+using TheKrystalShip.MovieBot.Core;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
-/// The command, against a tracker and a torrent client that each answer what the test says.
+/// The API's download starter, against a tracker and a torrent client that each answer what the
+/// test says.
 ///
 /// What makes it wrong is the notes left on the torrent: they are the only thing that tells a
 /// later pass, in whichever process is running by then, where to announce the film and which room
@@ -59,7 +61,7 @@ public sealed class DownloadCommandTests : IDisposable
         ImdbId = "tt0113277", SizeBytes = 1 << 20,
     };
 
-    private async Task<DownloadCommand> CommandAsync()
+    private async Task<Downloads> CommandAsync()
     {
         static HttpClient Http(string baseAddress, Func<HttpRequestMessage, Task<string?>> answer) =>
             new(new StubHandler(answer)) { BaseAddress = new Uri(baseAddress) };
@@ -105,22 +107,22 @@ public sealed class DownloadCommandTests : IDisposable
             NullLogger<AutocompleteSearch>.Instance);
         await suggestions.SuggestAsync("heat", "tester", CancellationToken.None);
 
-        return new DownloadCommand(suggestions, acquisition, NullLogger<DownloadCommand>.Instance);
+        return new Downloads(new OfferedReleases(suggestions), acquisition, NullLogger<Downloads>.Instance);
     }
 
-    private static DownloadRequest Pick(long torrentId, ulong? room) => new()
+    private static StartDownloadRequest Pick(long torrentId, string? room) => new()
     {
-        TorrentId = torrentId, ChannelId = 1, RequesterId = 10, RequestedBy = "Alice", RoomId = room,
+        TorrentId = torrentId, RequestedBy = new Actor("10", "Alice"), NotifyChannelId = "1", RoomId = room,
     };
 
     [Fact]
     public async Task A_pick_from_a_voice_channel_carries_the_room_to_start_in()
     {
-        var result = await (await CommandAsync()).ExecuteAsync(Pick(41, room: 918273645), CancellationToken.None);
+        var reply = await (await CommandAsync()).StartAsync(Pick(41, room: "918273645"), CancellationToken.None);
 
-        Assert.Equal(DownloadOutcome.Started, result.Outcome);
-        Assert.NotNull(result.Hash);
-        Assert.Contains("voice channel", result.Message);
+        Assert.Equal("started", reply.Outcome);
+        Assert.NotNull(reply.Hash);
+        Assert.Equal("Heat.1995.1080p.BluRay-GRP", reply.Release?.ReleaseName);
 
         var form = Assert.Single(_added);
         Assert.Contains(TorrentTags.Room(918273645), form);
@@ -133,22 +135,32 @@ public sealed class DownloadCommandTests : IDisposable
     [Fact]
     public async Task A_pick_from_outside_a_voice_channel_is_a_download_and_nothing_more()
     {
-        var result = await (await CommandAsync()).ExecuteAsync(Pick(41, room: null), CancellationToken.None);
+        var reply = await (await CommandAsync()).StartAsync(Pick(41, room: null), CancellationToken.None);
 
-        Assert.Equal(DownloadOutcome.Started, result.Outcome);
-        Assert.Contains("announced here", result.Message);
+        Assert.Equal("started", reply.Outcome);
 
         var form = Assert.Single(_added);
         Assert.DoesNotContain(TorrentTags.RoomPrefix, form);
         Assert.Contains(TorrentTags.Notify(1), form);
     }
 
+    /// <summary>A download asked for from a page has no channel to be announced in, and carries none.</summary>
+    [Fact]
+    public async Task A_pick_with_no_channel_leaves_no_note_to_announce_it()
+    {
+        var reply = await (await CommandAsync()).StartAsync(
+            Pick(41, room: null) with { NotifyChannelId = null }, CancellationToken.None);
+
+        Assert.Equal("started", reply.Outcome);
+        Assert.DoesNotContain(TorrentTags.NotifyPrefix, Assert.Single(_added));
+    }
+
     [Fact]
     public async Task A_row_this_process_never_offered_is_refused_rather_than_guessed()
     {
-        var result = await (await CommandAsync()).ExecuteAsync(Pick(99, room: 918273645), CancellationToken.None);
+        var reply = await (await CommandAsync()).StartAsync(Pick(99, room: "918273645"), CancellationToken.None);
 
-        Assert.Equal(DownloadOutcome.NoLongerOffered, result.Outcome);
+        Assert.Equal("noLongerOffered", reply.Outcome);
         Assert.Empty(_added);
     }
 

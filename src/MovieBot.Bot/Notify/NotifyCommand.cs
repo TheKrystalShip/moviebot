@@ -1,11 +1,6 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using TheKrystalShip.MovieBot.Acquire;
-using TheKrystalShip.MovieBot.Acquire.Download;
-using TheKrystalShip.MovieBot.Acquire.Tracker;
-using TheKrystalShip.MovieBot.Acquire.Imdb;
-using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Bot.Api;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Bot.Notify;
 
@@ -51,169 +46,114 @@ public enum NotifyStatus
 
     /// <summary>Neither a suggestion nor a link was given.</summary>
     NothingPicked,
+
+    /// <summary>The API did not answer.</summary>
+    Unavailable,
 }
 
 /// <summary>
 /// The command's answer. <see cref="Wish"/> is set when the film is on the list; <see cref="Release"/>
-/// when the tracker turned out to have it; <see cref="Title"/> when the library did.
+/// when the tracker turned out to have it.
 /// </summary>
 public sealed record NotifyResult(
     NotifyStatus Status,
     string Message,
     Wish? Wish = null,
-    Release? Release = null,
-    LibraryTitle? Title = null);
+    ReleaseOffer? Release = null);
 
 public enum CancelStatus
 {
     Cancelled,
     NotWaiting,
     NothingPicked,
+    Unavailable,
 }
 
 public sealed record CancelResult(CancelStatus Status, string Message, Wish? Wish = null);
 
 /// <summary>
-/// Puts a person on the list for a film, and takes them off it.
-///
-/// Deliberately free of Discord's types: what makes this command wrong is watching for the wrong
-/// film, promising to watch for one that is already here, or losing the person who asked, and
-/// none of those need a gateway to reproduce.
-///
-/// Before a wish is made, the places the film might already be are checked in the order that
-/// answers fastest and means most: the library, the torrent client, then the tracker. Each check
-/// that cannot be made is skipped rather than refused, because the sweep will ask the tracker
-/// again within the hour and the worst outcome of skipping is one message too many.
+/// Puts a person on the list for a film, and takes them off it, by asking the API — which holds the
+/// list, checks the library, the torrent client and the tracker before making a wish, and sweeps the
+/// tracker for every film on it. What stays here is how a Discord channel is told each answer.
 /// </summary>
-public sealed class NotifyCommand(
-    ImdbClient catalogue,
-    IReleaseSearch search,
-    MovieBotApiClient api,
-    AcquisitionService acquisition,
-    WishList wishes,
-    IOptions<NotifyOptions> options,
-    TimeProvider clock,
-    ILogger<NotifyCommand> logger)
+public sealed class NotifyCommand(MovieBotApiClient api, ILogger<NotifyCommand> logger)
 {
     public async Task<NotifyResult> SubscribeAsync(NotifyRequest request, CancellationToken ct)
     {
-        if (ImdbId.FromText(request.Chosen) is not { } imdbId)
-            return new NotifyResult(NotifyStatus.NothingPicked,
-                "Pick one of the suggestions, or paste the film's IMDb link. Start typing the "
-                + "film's name and a list will appear.");
-
-        var film = await catalogue.LookupAsync(imdbId, ct);
-        if (film is null)
-            return new NotifyResult(NotifyStatus.NotFound,
-                $"Nothing in the catalogue is called {imdbId}. Pick one of the suggestions, or "
-                + "paste the link from the film's own page.");
-
-        if (!film.IsFeature)
-            return new NotifyResult(NotifyStatus.NotAFilm,
-                $"{film.Title} is not a film, and only films can be fetched here.");
-
-        if (await InLibraryAsync(imdbId, ct) is { } title)
-            return new NotifyResult(NotifyStatus.InLibrary,
-                $"{title.Name} is already in the library. Watch it with /watch.", Title: title);
-
-        if (await DownloadingAsync(imdbId, ct) is { } download)
-            return new NotifyResult(NotifyStatus.Downloading,
-                $"{film.Title} is already on its way as {download.Name}. It will be announced "
-                + "when it is ready to watch.");
-
-        if (await AvailableNowAsync(imdbId, ct) is { } release)
-            return new NotifyResult(NotifyStatus.AlreadyAvailable,
-                $"{film.Title} can be downloaded now. Pick it from the search results in /watch.",
-                Wish: Describe(film), Release: release);
-
-        var (outcome, wish) = wishes.Add(film, new WishSubscriber
-        {
-            UserId = request.UserId,
-            ChannelId = request.ChannelId,
-            AskedAt = clock.GetUtcNow(),
-        });
-
-        if (outcome == WishAdded.AlreadySubscribed)
-            return new NotifyResult(NotifyStatus.AlreadySubscribed,
-                $"You are already waiting on {wish.Display}. It will be announced when it can be "
-                + "downloaded.", wish);
-
-        logger.LogInformation("{User} is waiting on {Film} ({Imdb}).",
-            request.RequestedBy, wish.Display, wish.ImdbId);
-
-        return new NotifyResult(NotifyStatus.Subscribed,
-            $"You will be told when {wish.Display} can be downloaded.", wish);
-    }
-
-    public IReadOnlyList<Wish> List(ulong userId) => wishes.For(userId);
-
-    public CancelResult Cancel(ulong userId, string chosen)
-    {
-        if (ImdbId.FromText(chosen) is not { } imdbId)
-            return new CancelResult(CancelStatus.NothingPicked,
-                "Pick one of the films you are waiting on from the suggestions.");
-
-        var wish = wishes.Remove(userId, imdbId);
-        if (wish is null)
-            return new CancelResult(CancelStatus.NotWaiting,
-                "You are not waiting on that film. /notify list shows what you are waiting on.");
-
-        return new CancelResult(CancelStatus.Cancelled,
-            $"You will not be told about {wish.Display}.", wish);
-    }
-
-    private async Task<LibraryTitle?> InLibraryAsync(string imdbId, CancellationToken ct)
-    {
+        AddWishReply reply;
         try
         {
-            var library = await api.ListTitlesAsync(ct);
-            return library.FirstOrDefault(t =>
-                string.Equals(t.Film?.ImdbId, imdbId, StringComparison.OrdinalIgnoreCase));
+            reply = await api.AddWishAsync(new AddWishRequest
+            {
+                Chosen = request.Chosen,
+                RequestedBy = new Actor(request.UserId.ToString(), request.RequestedBy),
+                ChannelId = request.ChannelId == 0 ? null : request.ChannelId.ToString(),
+            }, ct);
         }
         catch (MovieBotApiException ex)
         {
-            logger.LogWarning(ex, "The library could not be checked for {Imdb}.", imdbId);
-            return null;
+            logger.LogWarning(ex, "The API could not be asked to wait on {Chosen}.", request.Chosen);
+            return new NotifyResult(NotifyStatus.Unavailable,
+                "The MovieBot API is not answering, so nothing was noted. Try again in a minute.");
         }
+
+        var wish = reply.Wish is { } view ? Wish.From(view) : null;
+        var name = wish?.Display ?? reply.FilmTitle ?? reply.ImdbId;
+        var title = wish?.Title ?? reply.FilmTitle ?? reply.ImdbId;
+
+        return reply.Outcome switch
+        {
+            "subscribed" => new NotifyResult(NotifyStatus.Subscribed,
+                $"You will be told when {name} can be downloaded.", wish),
+            "alreadySubscribed" => new NotifyResult(NotifyStatus.AlreadySubscribed,
+                $"You are already waiting on {name}. It will be announced when it can be downloaded.", wish),
+            "alreadyAvailable" => new NotifyResult(NotifyStatus.AlreadyAvailable,
+                $"{title} can be downloaded now. Pick it from the search results in /watch.", wish, reply.Release),
+            "inLibrary" => new NotifyResult(NotifyStatus.InLibrary,
+                $"{reply.LibraryName ?? name} is already in the library. Watch it with /watch."),
+            "downloading" => new NotifyResult(NotifyStatus.Downloading,
+                $"{title} is already on its way as {reply.DownloadName}. It will be announced when it is "
+                + "ready to watch."),
+            "notAFilm" => new NotifyResult(NotifyStatus.NotAFilm,
+                $"{title} is not a film, and only films can be fetched here."),
+            "notFound" => new NotifyResult(NotifyStatus.NotFound,
+                $"Nothing in the catalogue is called {reply.ImdbId}. Pick one of the suggestions, or "
+                + "paste the link from the film's own page."),
+            _ => new NotifyResult(NotifyStatus.NothingPicked,
+                "Pick one of the suggestions, or paste the film's IMDb link. Start typing the "
+                + "film's name and a list will appear."),
+        };
     }
 
-    private async Task<DownloadStatus?> DownloadingAsync(string imdbId, CancellationToken ct)
+    public async Task<IReadOnlyList<Wish>> ListAsync(ulong userId, CancellationToken ct) =>
+        (await api.ListWishesAsync(userId.ToString(), ct)).Select(Wish.From).ToList();
+
+    public async Task<CancelResult> CancelAsync(ulong userId, string chosen, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(chosen))
+            return new CancelResult(CancelStatus.NothingPicked,
+                "Pick one of the films you are waiting on from the suggestions.");
+
+        CancelWishReply reply;
         try
         {
-            var downloads = await acquisition.ListAsync(ct);
-            return downloads.FirstOrDefault(d => d.Tags
-                .Select(TorrentTags.ReadImdb)
-                .Any(id => string.Equals(id, imdbId, StringComparison.OrdinalIgnoreCase)));
+            reply = await api.CancelWishAsync(userId.ToString(), chosen, ct);
         }
-        catch (QBittorrentException ex)
+        catch (MovieBotApiException ex)
         {
-            logger.LogWarning(ex, "The downloads could not be checked for {Imdb}.", imdbId);
-            return null;
+            logger.LogWarning(ex, "The API could not be asked to cancel {Chosen}.", chosen);
+            return new CancelResult(CancelStatus.Unavailable,
+                "The MovieBot API is not answering, so nothing changed. Try again in a minute.");
         }
-    }
 
-    private async Task<Release?> AvailableNowAsync(string imdbId, CancellationToken ct)
-    {
-        try
+        return reply.Outcome switch
         {
-            var ranked = await search.ByImdbAsync(imdbId, ct);
-            return ReleaseAvailability.Pick(ranked, options.Value.MinimumSource);
-        }
-        catch (TrackerException ex)
-        {
-            logger.LogWarning(ex, "The tracker could not be asked about {Imdb}.", imdbId);
-            return null;
-        }
+            "cancelled" when reply.Wish is { } view =>
+                new CancelResult(CancelStatus.Cancelled, $"You will not be told about {view.Display}.", Wish.From(view)),
+            "nothingPicked" => new CancelResult(CancelStatus.NothingPicked,
+                "Pick one of the films you are waiting on from the suggestions."),
+            _ => new CancelResult(CancelStatus.NotWaiting,
+                "You are not waiting on that film. /notify list shows what you are waiting on."),
+        };
     }
-
-    /// <summary>The film as a wish would describe it, for a message about one that needs no wish.</summary>
-    private static Wish Describe(ImdbTitle film) => new()
-    {
-        ImdbId = film.ImdbId,
-        Title = film.Title,
-        Year = film.Year,
-        Starring = film.Starring,
-        PosterUrl = film.PosterUrl?.ToString(),
-    };
 }

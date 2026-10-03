@@ -19,17 +19,22 @@ Environment=DOTNET_EnableDiagnostics=0
 Restart=on-failure
 RestartSec=5s
 
-# It serves files it is given and talks to nobody but nginx, the media root and its own state.
+# It serves the library and fetches films: it reaches the tracker, the title index and the torrent
+# client over the network, and writes nothing outside its own state.
 #
 # The media root stays read-only. What this writes goes to its own state directory, which systemd
-# makes and hands over in the environment: subtitles fetched from outside, and the rooms. Neither
-# belongs under the media root — everything there is regenerable from the source file, a re-ingest
-# replaces a title's directory wholesale, and the transcode rewrites the manifest inside it every
-# few seconds. A subtitle that cost a download and a room somebody is sitting in are neither
-# regenerable nor replaceable.
+# makes and hands over in the environment: subtitles fetched from outside, the rooms, and the wish
+# list. None belongs under the media root — everything there is regenerable from the source file, a
+# re-ingest replaces a title's directory wholesale, and the transcode rewrites the manifest inside
+# it every few seconds. A subtitle that cost a download, a room somebody is sitting in and a film
+# somebody is waiting on are neither regenerable nor replaceable.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
+
+# The download directory has to be readable, because the disk budget is measured off the
+# filesystem. Masked away entirely, the budget reads zero used and the ceiling never stops
+# anything — a wrong answer that looks exactly like plenty of room.
 ProtectHome=read-only
 ReadOnlyPaths=/home/heisen/moviebot/media /home/heisen/moviebot/cold
 StateDirectory=moviebot

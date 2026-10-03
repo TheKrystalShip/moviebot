@@ -52,9 +52,6 @@ public sealed class RoomToolbox(
     DownloadCommand download,
     NotifyCommand notify,
     KeepCommand keep,
-    WishList wishes,
-    AcquisitionService acquisition,
-    IReleaseSearch tracker,
     ImdbClient catalogue,
     StagedActions staged,
     OfferedReleases offered,
@@ -63,8 +60,7 @@ public sealed class RoomToolbox(
 {
     /// <param name="said">What the person said, which is what a tool holds the model's arguments against.</param>
     public RoomTools For(RoomTurn turn, string said = "") =>
-        new(turn, said, api, discord, watch, download, notify, keep, wishes, acquisition, tracker, catalogue,
-            staged, offered, clock, logger);
+        new(turn, said, api, discord, watch, download, notify, keep, catalogue, staged, offered, clock, logger);
 }
 
 /// <summary>The tools for one turn: one room, one person, and what the turn proposed and launched.</summary>
@@ -77,9 +73,6 @@ public sealed partial class RoomTools(
     DownloadCommand download,
     NotifyCommand notify,
     KeepCommand keep,
-    WishList wishes,
-    AcquisitionService acquisition,
-    IReleaseSearch tracker,
     ImdbClient catalogue,
     StagedActions staged,
     OfferedReleases offered,
@@ -196,7 +189,7 @@ public sealed partial class RoomTools(
                 ListRooms => await ListRoomsAsync(ct),
                 GetTitle => await GetTitleAsync(call.Arg("title"), ct),
                 DownloadStatus => await DownloadStatusAsync(ct),
-                WishListTool => WishListing(),
+                WishListTool => await WishListingAsync(ct),
                 Resume => await PlaybackAsync(pause: false, ct),
                 Pause => await PlaybackAsync(pause: true, ct),
                 Seek => await SeekAsync(call.Arg("position"), ct),
@@ -301,33 +294,30 @@ public sealed partial class RoomTools(
 
     private async Task<string> DownloadStatusAsync(CancellationToken ct)
     {
-        var downloads = await acquisition.ListAsync(ct);
+        var downloads = await api.ListDownloadsAsync(ct);
         if (downloads.Count == 0) return Tell("Nothing is downloading or seeding.");
 
-        var library = await api.ListTitlesAsync(ct);
         return Tell(string.Join('\n', downloads
             .OrderBy(d => d.IsFinished)
             .Take(MostRows)
             .Select(d =>
             {
-                var libraryId = d.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null);
-                var name = library.FirstOrDefault(t => t.Id == libraryId)?.Name
-                           ?? ReleaseParser.ParseName(d.Name).Display;
-                var watchable = !d.IsFinished && d.Tags.Contains(TorrentTags.Watchable) ? ", already watchable" : "";
-                var kept = d.Tags.Contains(TorrentTags.Keep) ? ", kept" : "";
-                return $"- {name}: {d.Summary}{watchable}{kept}";
+                var watchable = !d.IsFinished && d.IsWatchable ? ", already watchable" : "";
+                var kept = d.IsKept ? ", kept" : "";
+                return $"- {d.Name}: {d.Summary}{watchable}{kept}";
             })));
     }
 
-    private string WishListing()
+    private async Task<string> WishListingAsync(CancellationToken ct)
     {
-        var all = wishes.All();
+        var all = await api.ListWishesAsync(null, ct);
         if (all.Count == 0) return Tell("Nobody is waiting on a film.");
 
+        var speaker = turn.SpeakerId.ToString(CultureInfo.InvariantCulture);
         return Tell(string.Join('\n', all.Take(MostRows).Select(w =>
             $"- {w.Display}, waited on by {w.Subscribers.Count} "
             + (w.Subscribers.Count == 1 ? "person" : "people")
-            + (w.Subscribers.Any(s => s.UserId == turn.SpeakerId) ? $", {turn.SpeakerName} among them" : "")
+            + (w.Subscribers.Any(s => s.UserId == speaker) ? $", {turn.SpeakerName} among them" : "")
             + $" (imdb {w.ImdbId})")));
     }
 
@@ -500,7 +490,10 @@ public sealed partial class RoomTools(
             is { } here)
             return Launch(await WatchAsync(here.Id, ct));
 
-        var ranked = await tracker.ByImdbAsync(film.ImdbId, ct) with { Film = film };
+        var ranked = await api.ReleasesForAsync(film.ImdbId, ct) with
+        {
+            Film = new FilmView { ImdbId = film.ImdbId, Title = film.Title, Year = film.Year, Display = film.Display },
+        };
         return await OfferAsync(
             ranked, $"{film.Display} is not in the library.", others: "", query: film.Title,
             intoRoom: true, ct);
@@ -563,7 +556,7 @@ public sealed partial class RoomTools(
         // The tracker's search names the film in the title index first, which also knows every other
         // name a film goes by. A film the library holds under a name the words did not match is found
         // by its id and put on — unless somebody said a number, which may be what says it is another.
-        var ranked = await tracker.ByTextAsync(query, ct);
+        var ranked = await api.SearchReleasesAsync(query, ct);
         var library = await api.ListTitlesAsync(ct);
 
         if (ranked.Film is { } identified && !SaysANumber().IsMatch(said)
@@ -586,7 +579,7 @@ public sealed partial class RoomTools(
     /// <summary>Proposes the best release the tracker found, or says what can be done when there is none.</summary>
     /// <param name="intoRoom"><inheritdoc cref="FromTrackerAsync" path="/param[@name='intoRoom']"/></param>
     private async Task<string> OfferAsync(
-        RankedReleases ranked, string lead, string others, string query, bool intoRoom, CancellationToken ct)
+        RankedOffers ranked, string lead, string others, string query, bool intoRoom, CancellationToken ct)
     {
         // Every tool named in the guidance is one that keeps the room's fate as it already is, so a
         // model following the words it was handed cannot turn a fetch for later into a switch.
@@ -634,7 +627,7 @@ public sealed partial class RoomTools(
     /// is often not that one. In release order, because the index's order puts the latest sequel above
     /// the film it follows, and "the second one" read off that list is whichever is popular this week.
     /// </remarks>
-    private async Task<string> OtherFilmsAsync(string query, ImdbTitle? identified, CancellationToken ct)
+    private async Task<string> OtherFilmsAsync(string query, FilmView? identified, CancellationToken ct)
     {
         var films = await catalogue.SuggestAsync(query, ct);
         var others = films
@@ -711,7 +704,7 @@ public sealed partial class RoomTools(
                 RequestedBy = asker.SpeakerName,
                 RequesterId = asker.SpeakerId,
                 RoomId = intoRoom ? asker.ChannelId : null,
-            }, release, ct2);
+            }, ct2);
 
             if (result.Outcome != DownloadOutcome.Started || result.Release is null)
                 return new StagedOutcome(result.Message);
@@ -735,16 +728,16 @@ public sealed partial class RoomTools(
     /// cannot get. Carrying the proposal out says plainly that the client is down, if it still is
     /// by the time anybody agrees.
     /// </remarks>
-    private async Task<DownloadStatus?> AlreadyDownloadingAsync(string imdbId, CancellationToken ct)
+    private async Task<DownloadView?> AlreadyDownloadingAsync(string imdbId, CancellationToken ct)
     {
         try
         {
-            var running = await acquisition.ListAsync(ct);
-            return running.FirstOrDefault(d => d.Tags.Contains(TorrentTags.Imdb(imdbId)));
+            var running = await api.ListDownloadsAsync(ct);
+            return running.FirstOrDefault(d => string.Equals(d.ImdbId, imdbId, StringComparison.OrdinalIgnoreCase));
         }
-        catch (QBittorrentException ex)
+        catch (MovieBotApiException ex)
         {
-            logger.LogDebug(ex, "Assistant: the torrent client could not say whether {Imdb} is already coming.", imdbId);
+            logger.LogDebug(ex, "Assistant: the downloads could not say whether {Imdb} is already coming.", imdbId);
             return null;
         }
     }
@@ -808,23 +801,22 @@ public sealed partial class RoomTools(
         var (title, refusal) = await ResolveAsync(query, ct);
         if (title is null) return refusal!;
 
-        var downloads = await acquisition.ListAsync(ct);
-        var behind = downloads.FirstOrDefault(d => d.Tags.Select(TorrentTags.ReadLibrary).Any(i => i == title.Id));
+        var downloads = await api.ListDownloadsAsync(ct);
+        var behind = downloads.FirstOrDefault(d => d.LibraryId == title.Id);
         if (behind is null)
             return Tell($"No download stands behind {title.Name}, so it is on no clock and is never pruned.");
 
-        var kept = behind.Tags.Contains(TorrentTags.Keep);
-        if (keeping && kept) return Tell($"{title.Name} is already kept.");
-        if (!keeping && !kept) return Tell($"{title.Name} is not kept, so it is already on the clock to be pruned.");
+        if (keeping && behind.IsKept) return Tell($"{title.Name} is already kept.");
+        if (!keeping && !behind.IsKept) return Tell($"{title.Name} is not kept, so it is already on the clock to be pruned.");
 
         var asker = turn;
         var hash = behind.Hash;
 
         return keeping
             ? Propose(KeepFilm, $"keep {title.Name} from being pruned", async ct2 =>
-                new StagedOutcome((await keep.KeepAsync(hash, asker.SpeakerId, ct2)).Message))
+                new StagedOutcome((await keep.KeepAsync(hash, asker.SpeakerId, asker.SpeakerName, ct2)).Message))
             : Propose(LetGo, $"let {title.Name} go back on the clock to be pruned", async ct2 =>
-                new StagedOutcome((await keep.ReleaseAsync(hash, asker.SpeakerId, ct2)).Message));
+                new StagedOutcome((await keep.ReleaseAsync(hash, asker.SpeakerId, asker.SpeakerName, ct2)).Message));
     }
 
     /// <summary>
@@ -877,10 +869,10 @@ public sealed class OfferedReleases
 {
     private const int Kept = 200;
 
-    private readonly Dictionary<long, Release> _byId = [];
+    private readonly Dictionary<long, ReleaseOffer> _byId = [];
     private readonly Queue<long> _order = new();
 
-    public void Remember(IEnumerable<Release> releases)
+    public void Remember(IEnumerable<ReleaseOffer> releases)
     {
         lock (_byId)
         {
@@ -894,7 +886,7 @@ public sealed class OfferedReleases
         }
     }
 
-    public Release? Find(long torrentId)
+    public ReleaseOffer? Find(long torrentId)
     {
         lock (_byId) return _byId.GetValueOrDefault(torrentId);
     }

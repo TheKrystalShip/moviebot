@@ -19,15 +19,14 @@ that could disagree with reality. A download's own notes live on the torrent.
 Everything in a reply was measured while the command ran. The bot never opens a manifest, never
 caches a title and never claims a state it did not read.
 
-Two things are exceptions, and both for the same reason: they exist nowhere else to be read back
-from. The wish list is the films people are waiting on and who asked — a film that is not on the
-tracker yet has no torrent to tag and no manifest to write. The launch cards are the messages
-that hand out a way into a room: which message, in which channel, carrying which invite, for
-which film. The API has never heard of a Discord message, so a bot that did not write this down
-would leave every card it had posted looking live for good.
+Downloads, wishes and keeps are the API's: the bot asks it to start one, wait on a film or keep
+one, and words in Discord what it answers (`docs/api-contract.md`, "Fetching films").
 
-Each is one JSON file in the state directory systemd hands the service, written whole and moved
-into place on every change.
+One thing is an exception, because it exists nowhere else to be read back from. The launch cards
+are the messages that hand out a way into a room: which message, in which channel, carrying which
+invite, for which film. The API has never heard of a Discord message, so a bot that did not write
+this down would leave every card it had posted looking live for good. They are one JSON file in
+the state directory systemd hands the service, written whole and moved into place on every change.
 
 The assistant adds a third: `assistant.db`, each voice channel's conversation with the assistant,
 one conversation per room, which is what lets "why did it stop?" be answered a minute after somebody
@@ -54,8 +53,6 @@ setting as the environment variable that overrides it; in the file, `Voice__Trig
 | `Api__PublicBaseUrl` | no | Where Discord's servers reach the API. Only the poster needs it, and without it the embed carries no image rather than a broken one. |
 | `Launch__InviteGraceSeconds` | no | How long an Activity invite outlives the film it was made for. Defaults to 1800, matching the API's `Rooms:IdleTimeout`, which lands the invite and the room behind it at the same moment. |
 | `Launch__CardsPath` | no | Where the standing launch cards are written. Defaults to `launches.json` in the directory `STATE_DIRECTORY` names, and to the working directory when there is none. |
-| `Notify__Path` | no | Where the wish list is written. Defaults to `wishes.json` in the directory `STATE_DIRECTORY` names, and to the working directory when there is none. |
-| `Notify__SweepMinutes` | no | How often the tracker is asked about every film on the list. Defaults to 60. |
 | `Voice__Enabled` | no | Whether the bot may listen in a voice channel at all. Off by default, because everyone in a channel it joins is heard. On, it still joins only when somebody runs `/voice join`. |
 | `Voice__Triggers` | no | What addresses the bot, comma-separated. `moviebot.settings.json` carries `okay computer, ok computer, okay computers, ok computers`, because the recogniser writes "okay" both ways and sometimes adds an s. Two full words carry a trigger through a three-second scan window where a one-syllable "hey" does not: whisper reads "hey" as "A", "Pay" or "K" often enough that, across fourteen synthetic voices with room noise added, "okay computer" was found in every command and "hey moviebot" in ten of fourteen. Near-miss chat ("okay, come on", "my computer crashed, okay") does not trigger; naming the Radiohead album does. The recogniser is primed with the name "MovieBot" and never with a trigger: whisper answers noise with the sentence it was primed with, so a trigger in the priming makes a breath address the bot. |
 | `Voice__MaxCommandSeconds` | no | The longest a request may run before it is cut and taken as it stands. `moviebot.settings.json` carries 7, because moviebot-speech reads commands in an eight-second window and audio that fills it makes recognition run away. |
@@ -70,7 +67,6 @@ setting as the environment variable that overrides it; in the file, `Voice__Trig
 | `Assistant__IdleResetMinutes` | no | How long a room's conversation sits silent before the next request or room verb starts it over. Defaults to 15; 0 keeps one conversation for the life of the room. |
 | `Llm__Endpoint` | no | Where the model answers. `moviebot.settings.json` carries moviebot-llm's `http://127.0.0.1:8190`, with the model's context window and a temperature of 0. |
 | `Speech__SocketPath` | no | Where moviebot-speech answers. Defaults to `/run/moviebot-speech/speech.sock`, the same key the speech host reads. |
-| `Notify__MinimumSource` | no | The least a release's source may be for a film to count as available: `Web` by default, so a camcorder recording of a film in cinemas does not announce it. |
 
 The two credentials are read under their own names. They sit above the settings files and
 underneath every other source, so `Discord:Token` and `Discord:ApplicationId` from user-secrets or

@@ -1,7 +1,8 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.MovieBot.Acquire.Download;
-using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Bot.Api;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Bot.Keep;
 
@@ -14,15 +15,26 @@ namespace TheKrystalShip.MovieBot.Bot.Keep;
 /// <param name="Keeper">Who kept it, or null when nobody has.</param>
 /// <param name="Remaining">How much more seeding it has before it is due to go.</param>
 /// <param name="IsFinished">Whether the download is complete. Seeding, and so the clock, starts then.</param>
+/// <param name="Window">How long a film nobody keeps seeds before it goes.</param>
 public sealed record KeptFilm(
     string Hash,
     string Name,
     string Release,
     ulong? Keeper,
     TimeSpan Remaining,
-    bool IsFinished)
+    bool IsFinished,
+    TimeSpan Window)
 {
     public bool IsKept => Keeper is not null;
+
+    public static KeptFilm From(KeptFilmView view) => new(
+        view.Hash,
+        view.Name,
+        view.Release,
+        ulong.TryParse(view.Keeper, NumberStyles.None, CultureInfo.InvariantCulture, out var keeper) ? keeper : null,
+        TimeSpan.FromSeconds(view.RemainingSeconds),
+        view.IsFinished,
+        TimeSpan.FromSeconds(view.WindowSeconds));
 }
 
 public enum KeepStatus
@@ -50,7 +62,7 @@ public sealed record KeepResult(KeepStatus Status, string Message, KeptFilm? Fil
 
 /// <summary>
 /// What a launch says about how long the film stays. Separated from the command so the surfaces
-/// that post a launch depend on one sentence rather than on the torrent client.
+/// that post a launch depend on one sentence rather than on the API.
 /// </summary>
 public interface IFilmRetention
 {
@@ -62,111 +74,75 @@ public interface IFilmRetention
 }
 
 /// <summary>
-/// Keeps a film from being pruned, lets one go again, and says where every film on disk stands.
-///
-/// A keep is a note on the torrent, so this holds nothing: every answer is read from the torrent
-/// client at the moment it is asked, and the hand-off reads the same note when it decides what
-/// to prune. Anyone may keep a film and anyone may let it go, and the row says who did.
+/// Keeps a film from being pruned, lets one go again, and says where every film on disk stands, by
+/// asking the API — which writes the keep as a note on the torrent, where the hand-off reads it when
+/// it decides what to prune. Anyone may keep a film and anyone may let it go, and the row says who
+/// did. What stays here is how a Discord channel is told.
 /// </summary>
-public sealed class KeepCommand(
-    AcquisitionService acquisition,
-    MovieBotApiClient api,
-    Retention retention,
-    ILogger<KeepCommand> logger) : IFilmRetention
+public sealed class KeepCommand(MovieBotApiClient api, ILogger<KeepCommand> logger) : IFilmRetention
 {
     /// <summary>Every download, with the library's name for it where the library has one.</summary>
-    public async Task<IReadOnlyList<KeptFilm>> ListAsync(CancellationToken ct)
-    {
-        var downloads = await acquisition.ListAsync(ct);
+    public async Task<IReadOnlyList<KeptFilm>> ListAsync(CancellationToken ct) =>
+        (await api.ListKeepsAsync(ct)).Select(KeptFilm.From).ToList();
 
-        // A name is a courtesy: the release name stands in when the library cannot be read.
-        IReadOnlyList<LibraryTitle> library;
+    public async Task<KeepResult> KeepAsync(string hash, ulong userId, string displayName, CancellationToken ct)
+    {
+        KeepReply reply;
         try
         {
-            library = await api.ListTitlesAsync(ct);
+            reply = await api.KeepAsync(hash, new Actor(userId.ToString(), displayName), ct);
         }
         catch (MovieBotApiException ex)
         {
-            logger.LogWarning(ex, "The library could not be read; films are named by their releases.");
-            library = [];
-        }
-
-        return downloads
-            .Select(d => Describe(d, library))
-            .OrderBy(f => f.IsKept)
-            .ThenBy(f => f.Remaining)
-            .ToList();
-    }
-
-    public async Task<KeepResult> KeepAsync(string hash, ulong userId, CancellationToken ct)
-    {
-        var film = await FindAsync(hash, ct);
-        if (film is null) return NotFound();
-
-        if (film.IsKept)
-            return new KeepResult(KeepStatus.AlreadyKept,
-                $"{film.Name} is already kept, by {Mention(film.Keeper!.Value)}.", film);
-
-        try
-        {
-            await acquisition.TagAsync(hash, TorrentTags.Keeper(userId), ct);
-            await acquisition.TagAsync(hash, TorrentTags.Keep, ct);
-        }
-        catch (QBittorrentException ex)
-        {
-            logger.LogWarning(ex, "Could not keep {Name}.", film.Name);
+            logger.LogWarning(ex, "The API could not be asked to keep {Hash}.", hash);
             return Unavailable();
         }
 
-        logger.LogInformation("{UserId} kept {Name}.", userId, film.Release);
-
-        return new KeepResult(KeepStatus.Kept,
-            $"{film.Name} stays. It will not be pruned until somebody runs /keep remove.",
-            film with { Keeper = userId });
+        var film = reply.Film is { } view ? KeptFilm.From(view) : null;
+        return reply.Outcome switch
+        {
+            "kept" => new KeepResult(KeepStatus.Kept,
+                $"{film!.Name} stays. It will not be pruned until somebody runs /keep remove.", film),
+            "alreadyKept" => new KeepResult(KeepStatus.AlreadyKept,
+                $"{film!.Name} is already kept, by {Mention(film.Keeper!.Value)}.", film),
+            "unavailable" => Unavailable(),
+            _ => NotFound(),
+        };
     }
 
-    public async Task<KeepResult> ReleaseAsync(string hash, ulong userId, CancellationToken ct)
+    public async Task<KeepResult> ReleaseAsync(string hash, ulong userId, string displayName, CancellationToken ct)
     {
-        var film = await FindAsync(hash, ct);
-        if (film is null) return NotFound();
-
-        if (!film.IsKept)
-            return new KeepResult(KeepStatus.NotKept, $"{film.Name} was not kept.", film);
-
+        KeepReply reply;
         try
         {
-            // The keep goes first. A process stopping between the two leaves a keeper without a
-            // keep, which reads as nobody keeping it, where the other order leaves a keep nobody
-            // owns.
-            await acquisition.ClearTagAsync(hash, TorrentTags.Keep, ct);
-            await acquisition.ClearTagAsync(hash, TorrentTags.Keeper(film.Keeper!.Value), ct);
+            reply = await api.ReleaseKeepAsync(hash, new Actor(userId.ToString(), displayName), ct);
         }
-        catch (QBittorrentException ex)
+        catch (MovieBotApiException ex)
         {
-            logger.LogWarning(ex, "Could not release {Name}.", film.Name);
+            logger.LogWarning(ex, "The API could not be asked to release {Hash}.", hash);
             return Unavailable();
         }
 
-        logger.LogInformation("{UserId} let {Name} go.", userId, film.Release);
-
-        var released = film with { Keeper = null };
-        return new KeepResult(KeepStatus.Released,
-            $"{film.Name} is no longer kept. {Notice(released)}", released);
+        var film = reply.Film is { } view ? KeptFilm.From(view) : null;
+        return reply.Outcome switch
+        {
+            "released" => new KeepResult(KeepStatus.Released,
+                $"{film!.Name} is no longer kept. {Notice(film)}", film),
+            "notKept" => new KeepResult(KeepStatus.NotKept, $"{film!.Name} was not kept.", film),
+            "unavailable" => Unavailable(),
+            _ => NotFound(),
+        };
     }
 
     public async Task<string?> NoticeForAsync(string libraryId, CancellationToken ct)
     {
         try
         {
-            var downloads = await acquisition.ListAsync(ct);
-            var download = downloads.FirstOrDefault(d =>
-                d.Tags.Select(TorrentTags.ReadLibrary).Any(id => id == libraryId));
-
-            return download is null ? null : Notice(Describe(download, []));
+            return await api.RetentionAsync(libraryId, ct) is { } view ? Notice(KeptFilm.From(view)) : null;
         }
-        catch (QBittorrentException ex)
+        catch (MovieBotApiException ex)
         {
-            logger.LogDebug(ex, "The downloads could not be read for {Id}.", libraryId);
+            logger.LogDebug(ex, "The retention of {Id} could not be read.", libraryId);
             return null;
         }
     }
@@ -174,13 +150,13 @@ public sealed class KeepCommand(
     /// <summary>
     /// The one sentence about how long a film stays, for every surface that says it.
     /// </summary>
-    public string Notice(KeptFilm film)
+    public static string Notice(KeptFilm film)
     {
         if (film.Keeper is { } keeper)
             return $"Kept by {Mention(keeper)}, so it stays.";
 
         if (!film.IsFinished)
-            return $"Leaves after {Retention.Describe(retention.Window)} of seeding once it has "
+            return $"Leaves after {Retention.Describe(film.Window)} of seeding once it has "
                    + "downloaded, unless somebody keeps it with /keep add.";
 
         return $"Leaves after {Retention.Describe(film.Remaining)} more of seeding, unless somebody "
@@ -192,34 +168,6 @@ public sealed class KeepCommand(
     /// Rendered as a name wherever the message forbids mentions, which every message here does.
     /// </summary>
     public static string Mention(ulong userId) => $"<@{userId}>";
-
-    private async Task<KeptFilm?> FindAsync(string hash, CancellationToken ct)
-    {
-        try
-        {
-            var download = await acquisition.StatusAsync(hash, ct);
-            return download is null ? null : Describe(download, []);
-        }
-        catch (QBittorrentException ex)
-        {
-            logger.LogWarning(ex, "The downloads could not be read.");
-            return null;
-        }
-    }
-
-    private KeptFilm Describe(DownloadStatus download, IReadOnlyList<LibraryTitle> library)
-    {
-        var id = download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null);
-        var title = id is null ? null : library.FirstOrDefault(t => t.Id == id);
-
-        return new KeptFilm(
-            download.Hash,
-            title?.Name ?? ReleaseParser.ParseName(download.Name).Display,
-            download.Name,
-            download.Tags.Select(TorrentTags.ReadKeeper).FirstOrDefault(k => k is not null),
-            download.IsFinished ? retention.Remaining(download) : retention.Window,
-            download.IsFinished);
-    }
 
     private static KeepResult NotFound() => new(KeepStatus.NotFound,
         "Nothing on disk answers to that. Pick a film from the suggestions.");

@@ -18,8 +18,9 @@ Environment=DOTNET_EnableDiagnostics=0
 Restart=on-failure
 RestartSec=5s
 
-# The API only reads the library. What it writes (open rooms, downloaded subtitles) goes to
-# /var/lib/moviebot, which systemd creates for it.
+# The API reads the library and the download directory, and asks the tracker and qBittorrent for
+# films. What it writes (open rooms, downloaded subtitles, the wish list) goes to /var/lib/moviebot,
+# which systemd creates for it.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

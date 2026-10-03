@@ -34,7 +34,6 @@ public sealed class DiscordBotService(
     LaunchCards cards,
     TheKrystalShip.MovieBot.Acquire.Download.Retention retention,
     TheKrystalShip.MovieBot.Acquire.Download.AcquisitionService acquisition,
-    TheKrystalShip.MovieBot.Acquire.Search.AutocompleteSearch suggestions,
     TheKrystalShip.MovieBot.Acquire.Imdb.ImdbClient catalogue,
     IVoiceSessions voiceSessions,
     VoiceDecryptHealth decryptHealth,
@@ -429,7 +428,7 @@ public sealed class DiscordBotService(
 
             // Resolved here rather than left to the command, because what the film is decides
             // whether it is worth fetching at all and the release is the only thing that says.
-            if (suggestions.Resolve(torrentId) is not { } release)
+            if (await api.OfferedReleaseAsync(torrentId, CancellationToken.None) is not { } release)
             {
                 await command.FollowupAsync(DownloadCommand.Stale, allowedMentions: AllowedMentions.None);
                 return;
@@ -448,7 +447,7 @@ public sealed class DiscordBotService(
                 RequesterId = command.User.Id,
                 RequestedBy = requestedBy,
                 RoomId = null,
-            }, release, CancellationToken.None);
+            }, CancellationToken.None);
 
             await PostStartedAsync(command, result, roomName: null);
         }
@@ -476,8 +475,7 @@ public sealed class DiscordBotService(
     /// down costs at worst a second copy of something — where refusing costs the film.
     /// </para>
     /// </remarks>
-    private async Task<string?> AlreadyHereAsync(
-        TheKrystalShip.MovieBot.Acquire.Search.Release release, CancellationToken ct)
+    private async Task<string?> AlreadyHereAsync(TheKrystalShip.MovieBot.Core.ReleaseOffer release, CancellationToken ct)
     {
         if (release.ImdbId is not { Length: > 0 } imdbId) return null;
 
@@ -570,13 +568,16 @@ public sealed class DiscordBotService(
             switch (subcommand?.Name)
             {
                 case NotifySlashCommand.List:
-                    await command.RespondAsync(
-                        embed: WishEmbed.List(notify.List(command.User.Id)), ephemeral: true);
+                    await command.DeferAsync(ephemeral: true);
+                    await command.FollowupAsync(
+                        embed: WishEmbed.List(await notify.ListAsync(command.User.Id, CancellationToken.None)),
+                        ephemeral: true);
                     return;
 
                 case NotifySlashCommand.Cancel:
-                    var cancelled = notify.Cancel(command.User.Id, film);
-                    await command.RespondAsync(
+                    await command.DeferAsync(ephemeral: true);
+                    var cancelled = await notify.CancelAsync(command.User.Id, film, CancellationToken.None);
+                    await command.FollowupAsync(
                         cancelled.Message, ephemeral: true, allowedMentions: AllowedMentions.None);
                     return;
 
@@ -648,9 +649,10 @@ public sealed class DiscordBotService(
 
             await command.DeferAsync();
 
+            var keeper = (command.User as IGuildUser)?.DisplayName ?? command.User.Username;
             var result = subcommand.Name == KeepSlashCommand.Add
-                ? await keep.KeepAsync(film, command.User.Id, CancellationToken.None)
-                : await keep.ReleaseAsync(film, command.User.Id, CancellationToken.None);
+                ? await keep.KeepAsync(film, command.User.Id, keeper, CancellationToken.None)
+                : await keep.ReleaseAsync(film, command.User.Id, keeper, CancellationToken.None);
 
             // The message names the keeper by mention so the name is always current, and the
             // mentions are forbidden so that naming them never pings them.
@@ -731,7 +733,7 @@ public sealed class DiscordBotService(
         if (here.Count > 0 || typed.Trim().Length == 0)
             return here.Select(t => new AutocompleteResult(Choice(t), t.Id));
 
-        var offered = await suggestions.SuggestAsync(
+        var offered = await api.SuggestReleasesAsync(
             typed, interaction.User.Id.ToString(), CancellationToken.None);
 
         if (offered.Choices.Count > 0)
@@ -757,7 +759,7 @@ public sealed class DiscordBotService(
     {
         if (typed.Trim().Length == 0) return [];
 
-        var offered = await suggestions.SuggestAsync(
+        var offered = await api.SuggestReleasesAsync(
             typed, interaction.User.Id.ToString(), CancellationToken.None);
 
         if (offered.Choices.Count > 0)
@@ -781,7 +783,7 @@ public sealed class DiscordBotService(
             .FirstOrDefault(o => o.Type == ApplicationCommandOptionType.SubCommand)?.Name;
 
         if (subcommand == NotifySlashCommand.Cancel)
-            return notify.List(interaction.User.Id)
+            return (await notify.ListAsync(interaction.User.Id, CancellationToken.None))
                 .Where(w => w.Display.Contains(typed, StringComparison.OrdinalIgnoreCase))
                 .Take(MaximumChoices)
                 .Select(w => new AutocompleteResult(Choice(w.Display), w.ImdbId));

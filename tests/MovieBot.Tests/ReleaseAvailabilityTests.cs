@@ -1,5 +1,5 @@
 using TheKrystalShip.MovieBot.Acquire.Search;
-using TheKrystalShip.MovieBot.Bot.Notify;
+using TheKrystalShip.MovieBot.Api.Acquisition;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;

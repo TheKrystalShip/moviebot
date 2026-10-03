@@ -5,10 +5,10 @@ Anything said to the bot that the room-verb gate does not read is a turn of the 
 authority for the surface; these are the rules it rests on.
 
 - **The brain runs in the bot, and its tools are the bot's commands.** A download has to post its
-  progress message and a wish lives in the bot's state directory, so the acts it can take are
-  `WatchCommand`, `DownloadCommand`, `NotifyCommand` and `KeepCommand`, called directly. A tool that
-  did its own version would not disagree loudly; it would leave a download without its progress
-  message.
+  progress message, so the acts it can take are `WatchCommand`, `DownloadCommand`, `NotifyCommand`
+  and `KeepCommand`, called directly; each of those is a client of the API, which carries the act
+  out. A tool that did its own version would not disagree loudly; it would leave a download without
+  its progress message.
 - **Live state goes in the turn's context, never in the instructions.** The chat template renders the
   instructions ahead of the tool catalog, so a changing byte there re-reads the catalog and the
   conversation every turn. `AgentTurn.Context` is sent after the conversation.

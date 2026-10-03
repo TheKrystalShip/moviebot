@@ -21,7 +21,7 @@ public static class DownloadEmbed
     /// room the film will play in when there is one, because that is the whole of what the
     /// person is waiting for.
     /// </summary>
-    public static Embed Starting(Release release, string? roomName = null)
+    public static Embed Starting(TheKrystalShip.MovieBot.Core.ReleaseOffer release, string? roomName = null)
     {
         var embed = new EmbedBuilder()
             .WithTitle(release.Display)

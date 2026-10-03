@@ -99,6 +99,15 @@
     "MarginHours": 12
   },
 
+  // Films people are waiting on, watched for by the API. An empty Path writes wishes.json in the
+  // state directory systemd hands the service. A film counts as available once a release at or
+  // above MinimumSource is offered; a camcorder recording does not.
+  "Notify": {
+    "Path": "",
+    "SweepMinutes": 60,
+    "MinimumSource": "Web"
+  },
+
   // Listening in a voice channel. Off unless enabled: everyone in a channel the bot joins is heard.
   "Voice": {
     "Enabled": false,

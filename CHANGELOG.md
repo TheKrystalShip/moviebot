@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.57.0] - 2026-10-03
+
+### Changed
+
+- **MovieBot.Api fetches films.** Downloads, wishes and keeps are served under `/api` to the service
+  key alone (`docs/api-contract.md`, "Fetching films"): release search and the picker's suggestions,
+  starting and listing downloads, the wish list with its hourly sweep, and keeping or releasing a
+  film. Each act names the person a service vouches for, and each outcome is a word and its facts,
+  so every client words it its own way. The API reads the tracker, qBittorrent, download, selection,
+  retention and notify settings, and refuses to start without the tracker's categories, as the bot
+  does.
+- **The bot is a client of those routes.** `/download`, `/notify`, `/keep`, the tracker rows of the
+  `/watch` picker and the assistant's tools ask the API; the bot still reads qBittorrent for the
+  progress messages and the ready announcement. `WishWatcher` posts the wishes the API's sweep found
+  and reports which channels it told.
+- **The wish list lives in the API's state directory**, `/var/lib/moviebot/wishes.json`. A host that
+  had wishes in `/var/lib/moviebot-bot/wishes.json` moves that file across once, with both services
+  stopped.
+- `Notify` is declared in `moviebot.settings.json`.
+
 ## [1.56.0] - 2026-10-03
 
 ### Fixed

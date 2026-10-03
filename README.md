@@ -27,10 +27,12 @@ Playback starts seconds after a film is requested, while it is still being trans
 ```
                  /watch, /download, voice
   Discord  ───────────────────────────────►  MovieBot.Bot
-     │                                          │   │
-     │ Activity (player)                        │   └─► moviebot-acquire: tracker search, downloads
+     │                                          │
+     │ Activity (player)                        │
      ▼                                          ▼
   web/activity  ◄── HLS, SignalR ──►  MovieBot.Api  ◄── manifests, segments ──  MovieBot.Ingest
+                                            │
+                                            └─► moviebot-acquire: tracker search, downloads, wishes
                                                                                      ▲
                                               MovieBot.Handoff ──────────────────────┘
                                               (finished download → library)
@@ -47,8 +49,9 @@ Playback starts seconds after a film is requested, while it is still being trans
    It derives the playback position from the server's clock and the room's last change, rather
    than being sent a ticking number.
 4. **The bot** is the Discord surface. It resolves a film, opens the room's session on the API and
-   posts the launch. When the film is not in the library it uses
-   [moviebot-acquire](https://github.com/TheKrystalShip/moviebot-acquire) to find and download it.
+   posts the launch. When the film is not in the library it asks the API, which finds and downloads
+   it through [moviebot-acquire](https://github.com/TheKrystalShip/moviebot-acquire) and keeps the
+   list of films people are waiting on.
 5. **The hand-off** watches for downloads, picks the feature file, and runs ingest while the
    download is still arriving, so the film is announced as soon as it can be played. It also
    prunes downloads nobody has kept.

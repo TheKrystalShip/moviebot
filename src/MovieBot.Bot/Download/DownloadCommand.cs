@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.MovieBot.Acquire.Download;
-using TheKrystalShip.MovieBot.Acquire.Tracker;
-using TheKrystalShip.MovieBot.Acquire.Search;
+using TheKrystalShip.MovieBot.Bot.Api;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Bot.Download;
 
@@ -42,17 +42,18 @@ public enum DownloadOutcome
 /// The command's answer. <see cref="Release"/> is set only when a download started.
 /// </summary>
 public sealed record DownloadResult(
-    DownloadOutcome Outcome, string Message, Release? Release = null, string? Hash = null);
+    DownloadOutcome Outcome, string Message, ReleaseOffer? Release = null, string? Hash = null);
 
 /// <summary>
-/// Turns a picked tracker row into a running download.
+/// Asks the API to turn a picked release into a running download, and says how that went in the
+/// words a Discord channel is told.
 ///
-/// Deliberately free of Discord's types: what makes this command wrong is starting the wrong
-/// film, filling the disk, or telling somebody a download began when it did not, and none of
-/// those need a gateway to reproduce.
+/// The API starts every download, so a release picked from /watch, from /download or by the
+/// assistant is the same act with the same notes on the torrent. What stays here is the sentence,
+/// and the one note that is the bot's own: which message shows the download's progress.
 /// </summary>
 public sealed class DownloadCommand(
-    AutocompleteSearch suggestions,
+    MovieBotApiClient api,
     AcquisitionService acquisition,
     ILogger<DownloadCommand> logger)
 {
@@ -86,64 +87,36 @@ public sealed class DownloadCommand(
 
     public async Task<DownloadResult> ExecuteAsync(DownloadRequest request, CancellationToken ct)
     {
-        var release = suggestions.Resolve(request.TorrentId);
-        if (release is null)
-            return new DownloadResult(DownloadOutcome.NoLongerOffered, Stale);
-
-        return await ExecuteAsync(request, release, ct);
-    }
-
-    /// <summary>
-    /// Starts a release the caller already holds — one a search in this process offered, which is
-    /// what the assistant has when somebody agrees to a download it proposed. Everything written on
-    /// the torrent is the same as for a pick from the menu, so the watcher, the progress message and
-    /// the launch treat the two alike.
-    /// </summary>
-    public async Task<DownloadResult> ExecuteAsync(DownloadRequest request, Release release, CancellationToken ct)
-    {
+        StartDownloadReply reply;
         try
         {
-            // Notes left on the torrent rather than held in this process: where to announce it,
-            // that it is not watchable until something has transcoded it, and which film it is.
-            // A download wearing none of them is one nobody is waiting on.
-            var tags = new List<string>
+            reply = await api.StartDownloadAsync(new StartDownloadRequest
             {
-                TorrentTags.Notify(request.ChannelId),
-                TorrentTags.Requester(request.RequesterId),
-                TorrentTags.NeedsIngest,
-            };
+                TorrentId = request.TorrentId,
+                RequestedBy = new Actor(request.RequesterId.ToString(), request.RequestedBy),
+                NotifyChannelId = request.ChannelId == 0 ? null : request.ChannelId.ToString(),
+                RoomId = request.RoomId?.ToString(),
+            }, ct);
+        }
+        catch (MovieBotApiException ex)
+        {
+            logger.LogWarning(ex, "The API could not be asked to start {TorrentId}.", request.TorrentId);
+            return new DownloadResult(DownloadOutcome.TrackerUnavailable,
+                "The MovieBot API is not answering, so nothing started. Try again in a minute.");
+        }
 
-            // The room is the reason for the download. Whichever pass sees the film become
-            // watchable, in whichever process is running by then, loads it there.
-            if (request.RoomId is { } roomId) tags.Add(TorrentTags.Room(roomId));
-
-            // The tracker states the film outright. Recording it here is the only chance to keep
-            // a fact rather than something re-guessed from a release name later on.
-            if (release.ImdbId is { Length: > 0 } imdbId) tags.Add(TorrentTags.Imdb(imdbId));
-
-            var result = await acquisition.StartAsync(release, tags, ct);
-
-            if (!result.Started)
-                return new DownloadResult(DownloadOutcome.Refused, result.Refusal!, release);
-
-            logger.LogInformation(
-                "{User} started {Release} as {Hash}{Room}.",
-                request.RequestedBy, release.ReleaseName, result.Hash,
-                request.RoomId is { } room ? $" for room {room}" : "");
-
-            return new DownloadResult(DownloadOutcome.Started,
+        return reply.Outcome switch
+        {
+            "started" => new DownloadResult(DownloadOutcome.Started,
                 request.RoomId is null
                     ? "Downloading. It will be announced here when it can be watched."
                     : "Downloading. It starts in your voice channel as soon as enough of it has "
                       + "arrived, and you will be pinged here.",
-                release, result.Hash);
-        }
-        catch (Exception ex) when (ex is TrackerException or QBittorrentException)
-        {
-            logger.LogWarning(ex, "Could not start {Release}.", release.ReleaseName);
-            return new DownloadResult(DownloadOutcome.TrackerUnavailable,
-                "Could not reach the tracker or the torrent client. Try again in a minute.",
-                release);
-        }
+                reply.Release, reply.Hash),
+            "noLongerOffered" => new DownloadResult(DownloadOutcome.NoLongerOffered, Stale),
+            "refused" => new DownloadResult(DownloadOutcome.Refused, reply.Refusal ?? "The download was refused.", reply.Release),
+            _ => new DownloadResult(DownloadOutcome.TrackerUnavailable,
+                "Could not reach the tracker or the torrent client. Try again in a minute.", reply.Release),
+        };
     }
 }

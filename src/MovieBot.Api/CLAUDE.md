@@ -1,7 +1,8 @@
 # MovieBot.Api invariants
 
 `docs/api-contract.md` is the authority for what this serves on the wire. Rooms are
-`Sessions/CLAUDE.md`; subtitles fetched from outside are `Subtitles/CLAUDE.md`.
+`Sessions/CLAUDE.md`; subtitles fetched from outside are `Subtitles/CLAUDE.md`; downloads, wishes
+and keeps are `Acquisition/CLAUDE.md`.
 
 - **The server is authoritative and there is no host.** Clients send intent; the store decides,
   stamps the server clock and assigns the next revision. A client never pushes state.

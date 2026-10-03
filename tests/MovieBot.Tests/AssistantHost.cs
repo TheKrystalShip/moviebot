@@ -65,11 +65,7 @@ internal sealed class AssistantHost : IDisposable
         services.AddSingleton<IFilmRetention>(sp => sp.GetRequiredService<KeepCommand>());
         services.AddAcquire(configuration);
         services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new CatalogueStub());
-        services.RemoveAll<IReleaseSearch>();
-        services.AddSingleton<IReleaseSearch>(new OneRelease());
         services.AddSingleton<DownloadCommand>();
-        services.AddOptions<NotifyOptions>().Bind(configuration.GetSection(NotifyOptions.Section));
-        services.AddSingleton<WishList>();
         services.AddSingleton<NotifyCommand>();
         services.AddRoomAssistant(configuration);
 
@@ -158,7 +154,7 @@ internal sealed class AssistantHost : IDisposable
     /// the words name. The series comes back as the index returns it: ordered by what people search
     /// for rather than by when the films came out, with people who share the words mixed in.
     /// </summary>
-    private sealed class CatalogueStub : HttpMessageHandler
+    internal sealed class CatalogueStub : HttpMessageHandler
     {
         private const string Pirates = """
             {"d":[
@@ -182,6 +178,15 @@ internal sealed class AssistantHost : IDisposable
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             var path = request.RequestUri!.AbsolutePath;
+
+            // An id is looked up under its own key, and the index answers with the film it names.
+            var tag = path.Split('/')[^1].Replace(".json", "");
+            if (tag.StartsWith("tt", StringComparison.Ordinal))
+                path = new[] { Heat, Inception, Pirates }.FirstOrDefault(b => b.Contains($"\"{tag}\"")) switch
+                {
+                    Heat => "heat", Inception => "incep", Pirates => "pirates", _ => path,
+                };
+
             var body = path.Contains("heat", StringComparison.OrdinalIgnoreCase) ? Heat
                 : path.Contains("incep", StringComparison.OrdinalIgnoreCase) ? Inception
                 : path.Contains("pirates", StringComparison.OrdinalIgnoreCase) ? Pirates

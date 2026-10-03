@@ -2,49 +2,37 @@ using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using TheKrystalShip.MovieBot.Acquire.Tracker;
-using TheKrystalShip.MovieBot.Acquire.Search;
+using TheKrystalShip.MovieBot.Bot.Api;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Bot.Notify;
 
 /// <summary>
-/// Asks the tracker, on a slow clock, about every film somebody is waiting on, and tells them
-/// when it can be downloaded.
+/// Tells the people waiting on a film that it can be downloaded, once the API's sweep has found it.
 ///
-/// The announcement is a new message rather than an edit, because an edit notifies nobody, and
-/// it names exactly the people who asked in that channel. A wish is forgotten once its people
-/// have been told; a message that fails to send leaves them on the list, so the next pass tries
-/// again rather than losing them.
+/// The API asks the tracker about every wish on its own slow clock and holds the ones it can answer;
+/// this reads them every minute and announces each in the channels its people asked in. The
+/// announcement is a new message rather than an edit, because an edit notifies nobody, and it names
+/// exactly the people who asked in that channel. The channels reached are reported back, which is
+/// what forgets those people; a message that fails to send leaves them on the list, so the next read
+/// tries again rather than losing them.
 /// </summary>
 public sealed class WishWatcher(
     DiscordSocketClient client,
-    IReleaseSearch search,
-    WishList wishes,
-    IOptions<NotifyOptions> options,
+    MovieBotApiClient api,
     ILogger<WishWatcher> logger) : BackgroundService
 {
-    /// <summary>
-    /// How long after starting the first pass runs. Long enough for the gateway to connect, short
-    /// enough that a bot restarted after a film appeared says so without waiting out the interval.
-    /// </summary>
-    private static readonly TimeSpan FirstPass = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("Wishes are kept at {Path}.", wishes.Path);
-
-        var delay = FirstPass;
-
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await Task.Delay(delay, stoppingToken);
-                delay = TimeSpan.FromMinutes(Math.Max(1, options.Value.SweepMinutes));
-
+                await Task.Delay(Interval, stoppingToken);
                 if (client.ConnectionState != ConnectionState.Connected) continue;
-                await SweepAsync(stoppingToken);
+                await AnnounceAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -52,52 +40,33 @@ public sealed class WishWatcher(
             }
             catch (Exception ex)
             {
-                // A failing sweep must not end the watcher: the films are still on the list and
-                // the next pass will ask about them.
-                logger.LogWarning(ex, "A wish sweep failed.");
+                // A failing pass must not end the watcher: the wishes are still held by the API and
+                // the next pass reads them again.
+                logger.LogWarning(ex, "Announcing the wishes that can be downloaded failed.");
             }
         }
     }
 
-    private async Task SweepAsync(CancellationToken ct)
+    private async Task AnnounceAsync(CancellationToken ct)
     {
-        var pending = wishes.All();
-        if (pending.Count == 0) return;
-
-        foreach (var wish in pending)
+        foreach (var available in await api.AvailableWishesAsync(ct))
         {
-            RankedReleases ranked;
-            try
+            var wish = Wish.From(available.Wish);
+            var told = new List<string>();
+
+            foreach (var channel in wish.Subscribers.Where(s => s.ChannelId is not null).GroupBy(s => s.ChannelId!.Value))
             {
-                ranked = await search.ByImdbAsync(wish.ImdbId, ct);
-            }
-            catch (TrackerException ex)
-            {
-                // One tracker failure is every tracker failure; the rest of the pass would only
-                // repeat it against the same cap.
-                logger.LogWarning(ex, "The tracker could not be asked about {Film}; the pass stops here.",
-                    wish.Display);
-                return;
+                if (await TryAnnounceAsync(channel.Key, channel.Select(s => s.UserId).ToList(), wish, available.Release))
+                    told.Add(channel.Key.ToString());
             }
 
-            if (ReleaseAvailability.Pick(ranked, options.Value.MinimumSource) is not { } release)
-                continue;
-
-            logger.LogInformation("{Film} is on the tracker as {Release}.", wish.Display, release.ReleaseName);
-
-            var told = new HashSet<ulong>();
-            foreach (var channel in wish.Subscribers.GroupBy(s => s.ChannelId))
-            {
-                if (await TryAnnounceAsync(channel.Key, channel.Select(s => s.UserId).ToList(), wish, release))
-                    told.Add(channel.Key);
-            }
-
-            wishes.Forget(wish.ImdbId, told);
+            if (told.Count > 0)
+                await api.WishesToldAsync(wish.ImdbId, told, ct);
         }
     }
 
     private async Task<bool> TryAnnounceAsync(
-        ulong channelId, IReadOnlyList<ulong> userIds, Wish wish, Release release)
+        ulong channelId, IReadOnlyList<ulong> userIds, Wish wish, ReleaseOffer release)
     {
         try
         {

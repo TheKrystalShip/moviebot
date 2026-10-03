@@ -84,6 +84,43 @@ Content types are set explicitly, because the framework knows none of them and h
 segment delivered as `application/octet-stream`: `application/vnd.apple.mpegurl`,
 `video/iso.segment`, `video/mp4`, `text/vtt`.
 
+### Fetching films
+
+The API is the one writer of downloads, wishes and keeps. These routes spend the disk and the
+tracker's ratio, so they answer the **service key** (`X-MovieBot-Service`) alone: a room token is a
+`403`. A service names the person it acts for on every act as `requestedBy: {id, name}`, and that is
+who the download's tags and the log record. The shapes are in `src/MovieBot.Core/Acquisition.cs`;
+the API reads the tracker, `QBittorrent`, `Download`, `Selection`, `Retention` and `Notify` settings
+to serve them.
+
+| Route | Returns |
+|---|---|
+| `GET /api/releases/suggest?q=&session=` | `ReleaseSuggestions` — picker rows for what was typed; `session` keys the debounce |
+| `GET /api/releases?q=` or `?imdb=` | `RankedOffers` — the tracker's releases for a film, best first |
+| `GET /api/releases/{torrentId}` | `ReleaseOffer` — a release a search or a picker offered, or 404 |
+| `GET /api/downloads` | `DownloadView[]` |
+| `POST /api/downloads` | `StartDownloadReply` for `{torrentId, requestedBy, notifyChannelId?, roomId?}` |
+| `GET /api/wishes?userId=` | `WishView[]` — every wish, or the ones that person waits on |
+| `POST /api/wishes` | `AddWishReply` for `{chosen, requestedBy, channelId?}` |
+| `DELETE /api/wishes/{imdbId}?userId=` | `CancelWishReply` |
+| `GET /api/wishes/available` | `AvailableWish[]` — wishes the tracker can now answer, found by the hourly sweep |
+| `POST /api/wishes/{imdbId}/told` | 204 for `{channelIds}` — whoever asked in those channels is told and comes off the wish |
+| `GET /api/keeps` | `KeptFilmView[]` |
+| `PUT /api/keeps/{hash}` | `KeepReply` for `{requestedBy}` |
+| `POST /api/keeps/{hash}/release` | `KeepReply` for `{requestedBy}` |
+| `GET /api/titles/{id}/retention` | `KeptFilmView`, or 204 for a title that did not arrive as a download |
+
+- **A download names a release the API offered.** `torrentId` is resolved against what a search or a
+  picker answered; anything else is `noLongerOffered`, before the torrent client is asked.
+- **An outcome is a word and the facts behind it, never a sentence.** What to tell somebody depends
+  on where they asked — a Discord channel mentions people and names slash commands, a web page does
+  neither — so each client words the outcome from the same facts.
+- **A service that could not be reached is a 502, not an empty list.** No downloads and a torrent
+  client that did not answer are different answers, and the second carries `ErrorReply`.
+- **A wish stays until its people are told.** The sweep finds what became available; the client
+  that announces it says which channels it reached, and only those subscribers come off. Somebody
+  who asked without a channel stays on the wish.
+
 ## Manifest
 
 ```jsonc

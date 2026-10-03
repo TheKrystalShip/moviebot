@@ -302,5 +302,5 @@ journalctl -u moviebot-handoff -n 50 --no-pager
 | `/srv/moviebot/media` | Your film library |
 | `/srv/moviebot/downloads` | Downloads, which keep seeding for a week unless someone uses `/keep` |
 | `/srv/moviebot/incoming` | Films you add yourself, before `moviebot-ingest` prepares them |
-| `/var/lib/moviebot`, `/var/lib/moviebot-bot` | Open rooms, fetched subtitles, and the bot's saved state |
+| `/var/lib/moviebot`, `/var/lib/moviebot-bot` | Open rooms, fetched subtitles and the wish list; the bot's saved state |
 | `/etc/systemd/system/moviebot-*.service` | The service definitions |

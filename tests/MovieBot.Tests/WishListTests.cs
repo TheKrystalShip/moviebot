@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
-using TheKrystalShip.MovieBot.Bot.Notify;
+using TheKrystalShip.MovieBot.Api.Acquisition;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
-/// The wish list is the one thing the bot remembers, so what matters is that it comes back the
+/// A wish exists nowhere but the API's wish list, so what matters is that it comes back the
 /// same from disk and that people are only ever dropped by being told.
 /// </summary>
 public sealed class WishListTests : IDisposable

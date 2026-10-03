@@ -1,6 +1,6 @@
 using Discord;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
-using TheKrystalShip.MovieBot.Acquire.Search;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Bot.Notify;
 
@@ -47,7 +47,7 @@ public static class WishEmbed
     }
 
     /// <summary>The announcement: the film can be downloaded, and this is the release that says so.</summary>
-    public static Embed Available(Wish wish, Release release) =>
+    public static Embed Available(Wish wish, ReleaseOffer release) =>
         Film(wish)
             .WithDescription($"{wish.Display} can be downloaded now.")
             .AddField("Release", release.ReleaseName, inline: false)

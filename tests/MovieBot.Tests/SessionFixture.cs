@@ -2,7 +2,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Configuration;
+using TheKrystalShip.MovieBot.Acquire.Imdb;
+using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Core;
 
@@ -72,7 +75,8 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
     public const string SigningKey = "a-test-signing-key-of-at-least-thirty-two-characters";
     public const string ServiceKey = "a-test-service-key";
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
         builder.ConfigureAppConfiguration((_, config) =>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -80,8 +84,24 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
                 ["Media:ColdRoot"] = ColdRoot,
                 ["Rooms:Journal"] = Path.Combine(StateRoot, "rooms.json"),
                 ["Auth:SigningKey"] = SigningKey,
-                ["Auth:ServiceKey"] = ServiceKey
+                ["Auth:ServiceKey"] = ServiceKey,
+
+                // Fetching films: a tracker and a title index answered by the test, a torrent
+                // client nobody is listening for, and a wish list of this run's own.
+                ["Selection:AllowedCategories:0"] = "Movies HD",
+                ["Tracker:BaseUrl"] = "https://tracker.invalid/",
+                ["QBittorrent:BaseUrl"] = "http://127.0.0.1:1",
+                ["Download:Root"] = StateRoot,
+                ["Notify:Path"] = Path.Combine(StateRoot, "wishes.json"),
             }));
+
+        builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<IReleaseSearch>();
+            services.AddSingleton<IReleaseSearch>(new AssistantHost.OneRelease());
+            services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new AssistantHost.CatalogueStub());
+        });
+    }
 
     /// <summary>What the Activity would have been given after signing in with Discord.</summary>
     public string TokenFor(string roomId, string userId = "u", string displayName = "Someone") =>
