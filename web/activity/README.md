@@ -19,6 +19,10 @@ Media__Root=/absolute/path/to/media dotnet run --project ../../src/MovieBot.Api 
 
 ## Where it is served from
 
+The API serves the build under `/activity/` (`scripts/build-player.sh` builds it with that base),
+beside Krystal Cinema at the root. Discord launches the Activity at the root of its URL mapping, and
+the site's index sends a load carrying Discord's launch parameters on to `/activity/`.
+
 Everything that differs between front doors is behind `Environment` in `src/environment.ts`:
 the API base, how a manifest-relative media path becomes a URL, the hub address, which session
 this is, and who the viewer is. Nothing else in the app reads `location` or builds a URL, so a
@@ -32,7 +36,7 @@ server serves the page and not the API.
 ## The launch link
 
 ```
-https://<player-origin>/?session=<sessionId>&title=<titleId>
+https://<player-origin>/activity/?session=<sessionId>&title=<titleId>
 ```
 
 `session` is the room to join, and is opaque: never parsed, never validated. A page opened
@@ -44,9 +48,12 @@ the room is showing something else. A viewer joining a room that already holds t
 nothing, because loading it again would send everyone back to the beginning. Without a `title`
 the library is shown and the person picks.
 
-The link carries **no identity**. A first-time viewer is asked what to call them, and the name
-and a stable id are kept in this browser under `moviebot.identity.v1`. The link is unguessable
-and nothing more than that.
+The link carries **no identity**. The player is served under `/activity/` on the same origin as
+Krystal Cinema, and somebody who signed in there arrives with the site's session under
+`cinema:session`: the player presents its token as their proof and takes their name from it. That is
+how a browser opens a film, or joins the room a voice channel is watching. A page opened with no
+session holds no token, so every closed route refuses it; it asks what to call its viewer, and keeps
+the name and a stable id in this browser under `moviebot.identity.v1`.
 
 ## Shared, and not shared
 

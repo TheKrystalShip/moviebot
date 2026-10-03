@@ -31,6 +31,11 @@ and keeps are `Acquisition/CLAUDE.md`.
 - **CORS reflects the origin rather than enumerating one.** The Activity is served from Discord's
   proxy under an origin that is not known ahead of time, and a failed preflight is invisible: no
   status, no log, just a request that never happens.
+- **A path that is no route and names no file is a page.** Krystal Cinema and the player name their
+  pages by path, so the fallback answers one under `/activity/` with the player's index and any other
+  with the site's. It is the fallback rather than the default-files middleware that does this, because
+  an endpoint matched ahead of the static files means they never see the request. Paths under `/api`,
+  `/media` and `/hub` stay a 404.
 - **The API publishes its public address on `/api/config`.** The page's origin is Discord's proxy,
   reachable only from inside the Activity, and the poster a viewer's presence shows is fetched by
   Discord's servers, so the page builds the poster URL from that address.

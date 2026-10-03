@@ -92,11 +92,37 @@ function resolveSessionId(): string {
   return generated;
 }
 
+/** Where Krystal Cinema keeps the signed-in session, on this same origin. */
+const SiteSessionKey = 'cinema:session';
+
+interface SiteSession {
+  token: string;
+  expiresAt: number;
+  user: { id: string; name: string };
+}
+
 /**
- * Who this viewer is. The link deliberately carries no identity, so the name is asked for once
- * and kept in this browser along with a stable id.
+ * The session somebody signed into the site with, while it is good. The site and the player share
+ * an origin, so a person who signed in there arrives here with the token the API gave them, and the
+ * player presents it as their proof and takes their name from it.
+ */
+function siteSession(): SiteSession | null {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(SiteSessionKey) ?? 'null') as SiteSession | null;
+    return stored && stored.expiresAt * 1000 > Date.now() ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Who this viewer is: the site's signed-in person, or, on a page opened with no session, a name
+ * asked for once and kept in this browser along with a stable id.
  */
 async function localIdentity(): Promise<Identity> {
+  const session = siteSession();
+  if (session) return { userId: session.user.id, displayName: session.user.name };
+
   const stored = window.localStorage.getItem(IdentityKey);
   if (stored !== null) {
     try {
@@ -114,9 +140,9 @@ async function localIdentity(): Promise<Identity> {
 
 export const browserEnvironment: Environment = {
   name: 'browser',
-  // A plain page has no way to prove anyone came through Discord, so it holds nothing and every
-  // closed route refuses it. It exists to say so.
-  authToken: () => null,
+  // A page opened without signing in on the site has no way to prove anyone came through Discord,
+  // so it holds nothing and every closed route refuses it.
+  authToken: () => siteSession()?.token ?? null,
   apiUrl: (path) => `${defaultApiBase()}${path.startsWith('/') ? path : `/${path}`}`,
   mediaUrl: (titleId, relative) => `${defaultApiBase()}/media/${titleId}/${relative}`,
   hubUrl: () => `${defaultApiBase()}/hub/session`,

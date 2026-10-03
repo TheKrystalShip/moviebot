@@ -119,10 +119,13 @@ public sealed class AssistantServiceTests(SessionFixture fixture) : IClassFixtur
         Assert.True(reply!.TurnId > 0);
 
         var listed = await client.GetFromJsonAsync("/conversations", AssistantJsonContext.Default.ListConversationRow);
-        Assert.Equal("chat-1", Assert.Single(listed!).ConversationId);
+        Assert.Equal("chat-1", Assert.Single(listed!).Id);
 
         var detail = await client.GetFromJsonAsync("/conversations/chat-1", AssistantJsonContext.Default.ConversationDetail);
-        Assert.Equal("hello", Assert.Single(detail!.Turns).Prompt);
+        var entry = Assert.Single(detail!.Entries);
+        Assert.Equal("turn", entry.Kind);
+        Assert.Equal("hello", entry.Turn!.Prompt);
+        Assert.Equal("Hello, Haru.", entry.Turn.Final);
 
         // Somebody else signed in sees none of it.
         var other = await _service.As("77", "Bea").GetFromJsonAsync("/conversations", AssistantJsonContext.Default.ListConversationRow);
@@ -142,6 +145,16 @@ public sealed class AssistantServiceTests(SessionFixture fixture) : IClassFixtur
         var launch = frames.Single(f => f.Type == "launch").Data;
         Assert.Equal(SessionFixture.Heat, launch.GetProperty("titleId").GetString());
         Assert.False(launch.TryGetProperty("sessionId", out _));
+
+        // The film is the tool's card too, which is how a chat draws the way into it — live, and
+        // read back from the conversation's history.
+        var card = frames.Single(f => f.Type == "tool.result").Data.GetProperty("result");
+        Assert.Equal(RoomTools.WatchFilm, card.GetProperty("tool").GetString());
+        Assert.Equal(SessionFixture.Heat, card.GetProperty("data").GetProperty("titleId").GetString());
+
+        var history = await client.GetFromJsonAsync("/conversations/main", AssistantJsonContext.Default.ConversationDetail);
+        var stored = Assert.Single(Assert.Single(history!.Entries).Turn!.Tools).Result!.Value;
+        Assert.Equal(SessionFixture.Heat, stored.GetProperty("data").GetProperty("titleId").GetString());
     }
 
     [Fact]

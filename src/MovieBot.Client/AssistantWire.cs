@@ -83,10 +83,20 @@ public sealed record ToolStartFrame(string Id, string Tool, IReadOnlyDictionary<
     public override string Type => "tool.start";
 }
 
-public sealed record ToolResultFrame(string Id, string Tool, string Summary) : Frame
+/// <summary><see cref="Result"/> is present only when the tool has something a client draws, never hollow.</summary>
+public sealed record ToolResultFrame(string Id, string Tool, string Summary, ToolCard? Result = null) : Frame
 {
     public override string Type => "tool.result";
 }
+
+/// <summary>
+/// A tool's structured result, which a client draws as a card and keys on <see cref="Tool"/>. The one
+/// this service sends is a film to open: a film put on in a room, or found for somebody to watch.
+/// </summary>
+public sealed record ToolCard(string Tool, string Confidence, CommandSubject Subject, FilmCardData Data);
+
+/// <summary>A film to open, and the room it is on in when it was put on in one.</summary>
+public sealed record FilmCardData(string TitleId, string Name, string? SessionId = null);
 
 /// <summary>What a proposal is done to.</summary>
 public sealed record CommandSubject(string Resource, string Id);
@@ -210,18 +220,27 @@ public sealed record ConfirmResult(string Text, bool Success, ConfirmVerdict Out
 public sealed record RecordRequest(
     TurnRoom Room, string Said, string Tool, IReadOnlyDictionary<string, string?> Arguments, string Outcome);
 
+/// <summary>One of a person's conversations, as the listing names it. <see cref="Id"/> is the id the client holds.</summary>
 public sealed record ConversationRow(
-    string ConversationId, string Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, int TurnCount,
+    string Id, string Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, int TurnCount,
     bool Think, bool Autorun);
 
-public sealed record HistoryTool(string Id, string Name, IReadOnlyDictionary<string, string?> Arguments, string Summary);
+/// <summary>A tool a turn called, and the card it drew, read back as it was stored.</summary>
+public sealed record HistoryTool(string Tool, string Summary, System.Text.Json.JsonElement? Result = null);
 
 public sealed record HistoryTurn(
-    long TurnId, string Prompt, string? Speaker, DateTimeOffset StartedAt, DateTimeOffset CompletedAt,
-    string Outcome, string? Text, IReadOnlyList<HistoryTool> Tools, string? Rating);
+    string Prompt, string? Final, string Outcome, IReadOnlyList<HistoryTool> Tools, TurnUsage? Usage = null);
 
+public sealed record HistoryFeedback(string Rating, string? Note);
+
+/// <summary>One entry of a conversation's history: a turn, or the summary it was compacted to.</summary>
+public sealed record HistoryEntry(
+    string Kind, long TurnId, DateTimeOffset CreatedAt, DateTimeOffset? StartedAt = null,
+    HistoryTurn? Turn = null, HistoryFeedback? Feedback = null);
+
+/// <summary>A conversation: its history, and the proposals still waiting in it.</summary>
 public sealed record ConversationDetail(
-    string ConversationId, string Title, IReadOnlyList<HistoryTurn> Turns, IReadOnlyList<CommandProposed> Pending,
+    string Id, string Title, IReadOnlyList<HistoryEntry> Entries, IReadOnlyList<CommandProposed> Pending,
     bool Think, bool Autorun);
 
 public sealed record FeedbackRequest(string? Rating, string? Note);
@@ -256,6 +275,7 @@ public sealed record AssistantError(string Error);
 [JsonSerializable(typeof(RecordRequest))]
 [JsonSerializable(typeof(List<ConversationRow>))]
 [JsonSerializable(typeof(ConversationDetail))]
+[JsonSerializable(typeof(ToolCard))]
 [JsonSerializable(typeof(FeedbackRequest))]
 [JsonSerializable(typeof(AttachRequest))]
 [JsonSerializable(typeof(MeReply))]

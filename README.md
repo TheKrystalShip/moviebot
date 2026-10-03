@@ -25,17 +25,17 @@ Playback starts seconds after a film is requested, while it is still being trans
 ## How it works
 
 ```
-                 /watch, /download, voice
-  Discord  ───────────────────────────────►  MovieBot.Bot
-     │                                          │
-     │ Activity (player)                        │
-     ▼                                          ▼
-  web/activity  ◄── HLS, SignalR ──►  MovieBot.Api  ◄── manifests, segments ──  MovieBot.Ingest
-                                            │
-                                            └─► moviebot-acquire: tracker search, downloads, wishes
-                                                                                     ▲
-                                              MovieBot.Handoff ──────────────────────┘
-                                              (finished download → library)
+               /watch, /download, voice                        what is said and typed
+  Discord ─────────────────────────────►  MovieBot.Bot ──────────────► moviebot-assistant
+     │                                         │                              │   ▲
+     │ Activity (player)                       │                              │   │ chat
+     ▼                                         ▼                              ▼   │
+  web/activity ◄── HLS, SignalR ──►     MovieBot.Api  ◄─────────────────── web/site
+                                         │        ▲                     (Krystal Cinema)
+     moviebot-acquire: tracker,  ◄───────┘        └── manifests, segments ── MovieBot.Ingest
+     downloads, wishes, keeps                                                    ▲
+                                                  MovieBot.Handoff ──────────────┘
+                                                  (finished download → library)
 ```
 
 1. **Ingest** probes a film with `ffprobe`, extracts subtitles and cover art, and transcodes it to
@@ -59,6 +59,9 @@ Playback starts seconds after a film is requested, while it is still being trans
    model, acting through the API: it can move a room, put a film on, and propose a download, a wish
    or a keep for somebody to agree to. It speaks the same chat protocol as the KGSM assistant, so one
    chat client serves both.
+7. **Krystal Cinema** is the site: the library in a browser, for members of the server. It searches,
+   fetches, keeps and waits on films through the API as the person signed in, carries the assistant
+   in a dock, and opens the player, in a room of its own or in one a voice channel is watching.
 
 A single transcode serves the whole room because there is only one playhead. On an NVENC GPU a
 1080p source transcodes at around ten times realtime, far ahead of anyone watching it.
@@ -87,6 +90,7 @@ src/MovieBot.Assistant/ the assistant: turns, proposals and conversations over t
 src/MovieBot.Bot/       the Discord bot
 src/MovieBot.Handoff/   moves finished downloads into the library
 src/MovieBot.Speech/    speech recognition host for voice commands
+web/site/               Krystal Cinema, the site
 web/activity/           the player
 packaging/              the release's installer, systemd units and configuration examples
 deploy/                 the maintainers' host configuration and native GPU builds
@@ -166,17 +170,22 @@ Discord__ClientSecret=<OAuth2 client secret> \
 dotnet run --project src/MovieBot.Api -c Release
 ```
 
-The API listens on `http://127.0.0.1:8099`. The player is built into the API's `wwwroot` with
-`scripts/build-player.sh`, or served on its own for development:
+The API listens on `http://127.0.0.1:8099`. The site and the player are built into the API's
+`wwwroot` with `scripts/build-player.sh`, or served on their own for development:
 
 ```bash
+cd web/site
+npm install          # @thekrystalship/krystal-ui comes from GitHub Packages, which wants a token
+npm run dev          # http://localhost:5175, talking to the API on :8099 and the assistant on :8191
+
 cd web/activity
 npm install
 npm run dev          # http://localhost:5173, talking to the API on :8099
 ```
 
-Viewers sign in through Discord, so the player is used from inside the Activity, with the
-application's URL mapping pointed at wherever the API is reachable.
+Everybody signs in through Discord: the site with the OAuth2 redirect, which lets in members of
+the server alone, and the player from inside the Activity, with the application's URL mapping
+pointed at wherever the API is reachable.
 
 ### Run the bot
 
@@ -259,6 +268,7 @@ built and tested, with moviebot-acquire checked out beside this repository.
 
 - [`docs/deploying.md`](docs/deploying.md): deploying a release, step by step
 - [`docs/api-contract.md`](docs/api-contract.md): what the API serves on the wire
+- [`web/site/README.md`](web/site/README.md): Krystal Cinema, the site
 - [`web/activity/README.md`](web/activity/README.md): the player
 - [`src/MovieBot.Bot/README.md`](src/MovieBot.Bot/README.md): the Discord bot and its configuration
 - [`docs/voice-commands.md`](docs/voice-commands.md): what can be said to the bot

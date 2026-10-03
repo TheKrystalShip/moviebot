@@ -3,7 +3,7 @@
 `README.md` here is the authority for the player. Builds: `npm run check` (types only),
 `npm run build` (→ `dist/`), `npm run verify` (a real browser against a running API and page). It
 reaches people only through the API: `scripts/build-player.sh` installs the build into
-`src/MovieBot.Api/wwwroot`.
+`src/MovieBot.Api/wwwroot/activity/`.
 
 ## Starting playback
 

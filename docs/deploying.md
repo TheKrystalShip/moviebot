@@ -108,9 +108,10 @@ Keep a text editor open: you will copy four values from here.
 3. Open **Bot** in the left menu. Click **Reset Token**, confirm, and copy the token. This is
    value 2. Discord shows it only once.
 4. Open **OAuth2**. Under **Client Secret**, click **Reset Secret** and copy it. This is value 3.
-5. Still on **OAuth2**, under **Redirects**, click **Add Redirect**, enter `https://127.0.0.1`
-   and click **Save Changes**. Discord needs one redirect to allow the sign-in the player uses.
-   Nothing is ever sent to that address.
+5. Still on **OAuth2**, under **Redirects**, click **Add Redirect**, enter your domain followed by
+   `/signin`, for example `https://movies.example.com/signin`, and click **Save Changes**. That is
+   where Discord sends people back after signing in to the site; it also allows the sign-in the
+   player inside Discord uses.
 6. Open **Activities** → **Settings** and turn on **Enable Activities**.
 7. Open **Activities** → **URL Mappings**. For the root mapping (prefix `/`), enter your domain
    without `https://`, for example `movies.example.com`, and save.
@@ -255,6 +256,10 @@ for every permission the bot needs.
 
 Play, pause and seeking are shared by everyone in the room. Volume, subtitles and the audio
 track are each person's own.
+
+The site at `https://YOUR.DOMAIN` is the same library in a browser: browse it, search for films,
+fetch or keep them, wait on one that is not out yet, and join a room a voice channel is watching.
+Signing in goes through Discord, and only members of the server in `GuildIds` are let in.
 
 ## Adding films you already have
 

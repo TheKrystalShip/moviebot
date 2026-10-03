@@ -670,6 +670,19 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     }
 
     [Fact]
+    public async Task A_film_put_on_with_nothing_written_after_it_is_answered_with_what_was_done()
+    {
+        var host = Host();
+        var turn = AssistantTurn.ForPerson("4242", "Haru", "main");
+        host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.WatchFilm, ("title", "heat"))]));
+        host.Model.Answers.Enqueue(LlmResponse.Text(""));
+
+        var answer = await host.Assistant.AskAsync(turn, "show me heat", CancellationToken.None);
+
+        Assert.Equal("Heat (1995) is ready to open.", answer.Text);
+    }
+
+    [Fact]
     public async Task A_turn_whose_model_is_down_ends_in_one_error_frame()
     {
         var host = Host();

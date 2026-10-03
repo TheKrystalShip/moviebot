@@ -75,18 +75,28 @@ public static class AssistantEndpoints
             if (Person(request, callers) is not { } caller) return Refuse();
             var full = AssistantTurn.PersonConversation(caller.UserId, id);
             var summary = store.ListConversations(full).FirstOrDefault(c => c.ConversationId == full);
-            if (summary is null) return Results.NotFound();
 
-            var turns = store.GetHistory(full)
-                .Where(e => e.Kind == ConversationEntryKind.Turn && e.Turn is not null)
-                .Select(e => new HistoryTurn(
-                    e.Id, e.Turn!.UserPrompt, e.Turn.UserDisplay, e.Turn.StartedAt, e.Turn.CompletedAt,
-                    e.Turn.Outcome.ToString().ToLowerInvariant(), e.Turn.Final,
-                    [.. e.Turn.Tools.Select((t, i) => new HistoryTool($"tc_{i}", t.Name.Name, t.Arguments, t.Summary))],
-                    e.Feedback?.Rating.ToString().ToLowerInvariant()))
+            // A chat the client has named and nobody has spoken in yet is empty, not missing: the
+            // client mints the id when somebody presses New chat, before the first turn makes it.
+            if (summary is null)
+                return Json(new ConversationDetail(id, ConversationTitle.NewConversation, [], [], false, false));
+
+            var entries = store.GetHistory(full)
+                .Select(e => e.Kind == ConversationEntryKind.Checkpoint || e.Turn is null
+                    ? new HistoryEntry("checkpoint", e.Id, e.CreatedAt)
+                    : new HistoryEntry("turn", e.Id, e.CreatedAt, e.Turn.StartedAt,
+                        new HistoryTurn(
+                            e.Turn.UserPrompt, e.Turn.Final, e.Turn.Outcome.ToString().ToLowerInvariant(),
+                            [.. e.Turn.Tools.Select(t => new HistoryTool(t.Name.Name, t.Summary, StoredCard(t.Card)))],
+                            e.Turn.Usage is { } usage
+                                ? new TurnUsage(usage.PromptTokens, usage.ResponseTokens, usage.UsedTokens, usage.ContextWindow, usage.RemainingTokens)
+                                : null),
+                        e.Feedback is { } feedback
+                            ? new HistoryFeedback(feedback.Rating.ToString().ToLowerInvariant(), feedback.Note)
+                            : null))
                 .ToList();
 
-            return Json(new ConversationDetail(id, summary.Title, turns,
+            return Json(new ConversationDetail(id, summary.Title, entries,
                 [.. staged.Pending(full).Select(a => a.Frame())], false, false));
         });
 
@@ -366,6 +376,17 @@ public static class AssistantEndpoints
     /// <summary>A person, or a service speaking for one. A service naming nobody has no conversations.</summary>
     private static Caller? Person(HttpRequest request, Callers callers) =>
         callers.Resolve(request) is { UserId.Length: > 0 } caller ? caller : null;
+
+    /// <summary>
+    /// A tool's card as the store holds it: written as the card itself and read back as JSON, which is
+    /// exactly what the client is sent.
+    /// </summary>
+    private static JsonElement? StoredCard(object? card) => card switch
+    {
+        JsonElement element when element.ValueKind == JsonValueKind.Object => element,
+        ToolCard toolCard => JsonSerializer.SerializeToElement(toolCard, AssistantJsonContext.Default.ToolCard),
+        _ => null,
+    };
 
     private static ConversationRow Row(Caller caller, ConversationSummary summary) =>
         new(summary.ConversationId[(caller.Scope.Length + 1)..], summary.Title, summary.CreatedAt,

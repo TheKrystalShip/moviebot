@@ -169,7 +169,8 @@ public sealed class CinemaAssistant(
                     break;
 
                 case AgentEventKind.ToolResult:
-                    emit(new ToolResultFrame(step.ToolCallId ?? "", step.ToolName?.Name ?? "", step.ToolSummary ?? ""));
+                    emit(new ToolResultFrame(step.ToolCallId ?? "", step.ToolName?.Name ?? "", step.ToolSummary ?? "",
+                        step.ToolData as ToolCard));
                     HandOver();
                     break;
 

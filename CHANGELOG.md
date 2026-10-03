@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.61.0] - 2026-10-03
+
+### Added
+
+- **Krystal Cinema**, the site (`web/site`), served by the API at the root: the shelf, the rooms
+  watching something now, what is downloading and leaving, a film's page with its tracks and how long
+  it stays, search across the library and the tracker, the films a person waits on, keeping and
+  letting go, and moviebot-assistant in a dock. Built on `@thekrystalship/krystal-ui` 0.3.1. Signing
+  in goes through Discord and lets in members of the server alone; the redirect is
+  `<origin>/signin`, registered with the Discord application.
+- The API answers a path that is no route and names no file with the site's index, or with the
+  player's under `/activity/`, so a page can be linked to and reloaded.
+- A tool that puts a film on, or finds one to open, carries it as its card (`tool.result`'s
+  `result`), and the conversation's history keeps it.
+
+### Changed
+
+- **The player is served under `/activity/`.** Discord still launches the Activity at the root, and
+  the site's index sends that load on. In a browser, the player takes the site's signed-in session as
+  its proof and its viewer's name, which is how the site opens a film or joins a voice channel's room.
+- moviebot-assistant's conversation listing names a conversation by `id`, and its history is
+  `entries`, each a turn with its prompt, reply, tools and cards: the shapes the package chat reads.
+  A chat nobody has spoken in yet is answered as empty.
+- A film put on with nothing written after it is answered with what was done.
+- The release build installs the site with the player, reading the design system from GitHub
+  Packages.
+
 ## [1.60.0] - 2026-10-03
 
 ### Added

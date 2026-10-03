@@ -51,11 +51,17 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # The site's @thekrystalship scope resolves from GitHub Packages, which wants a token even to
+      # install; setup-node writes the registry for the scope and the Package step hands it the token.
       - uses: actions/setup-node@v7
         with:
           node-version: 'lts/*'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@thekrystalship'
           cache: npm
-          cache-dependency-path: moviebot/web/activity/package-lock.json
+          cache-dependency-path: |
+            moviebot/web/activity/package-lock.json
+            moviebot/web/site/package-lock.json
 
       # The native builds of the API and the hand-off link with clang.
       - name: Install the native toolchain
@@ -76,6 +82,8 @@ jobs:
 
       - name: Package
         working-directory: moviebot
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: scripts/package-release.sh "$GITHUB_WORKSPACE/out"
 
       # The release notes are this version's CHANGELOG entry, followed by the moviebot-acquire

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Krystal Cinema</title>
+    <meta name="theme-color" content="#0B0F14" />
+
+    <!-- The Activity is served from /activity/, and Discord launches it at the address its URL
+         mapping names, which is this page's. A load carrying Discord's launch parameters is the
+         Activity's, so it goes there before anything of the site loads. -->
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        if (params.has("frame_id")) {
+          window.location.replace("/activity/" + window.location.search + window.location.hash);
+        }
+      })();
+    </script>
+
+    <!-- Theme: set before the stylesheet applies, so a light preference never flashes dark. -->
+    <script>
+      (function () {
+        try {
+          var p = localStorage.getItem("krystal:theme");
+          var t = p && p !== "auto" ? p
+                : (p === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches) ? "light"
+                : "dark";
+          document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

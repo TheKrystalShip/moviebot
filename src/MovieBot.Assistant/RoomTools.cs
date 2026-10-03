@@ -153,11 +153,23 @@ public sealed partial class RoomTools(
     /// answer is what it returns and a handler added later would otherwise go unrecorded — and a figure
     /// missing from the record reads as one the model invented.
     /// </remarks>
+    /// <remarks>
+    /// A call that put a film on, or found one to open, carries it as the tool's card: the turn's
+    /// record keeps it, and a chat draws it under the answer as the way into the film.
+    /// </remarks>
     public async Task<ToolOutput> ExecuteAsync(LlmToolCall call, CancellationToken ct = default)
     {
+        var launchedBefore = _launched.Count;
         var output = await DispatchAsync(call, ct);
         MeasuredValues.Note(output.Summary);
-        return output;
+
+        if (_launched.Count == launchedBefore) return output;
+        var film = _launched[^1];
+        return output with
+        {
+            Data = new ToolCard(call.Name.Name, "confirmed", new CommandSubject("film", film.TitleId),
+                new FilmCardData(film.TitleId, film.Name, film.SessionId)),
+        };
     }
 
     private async Task<ToolOutput> DispatchAsync(LlmToolCall call, CancellationToken ct)
@@ -583,7 +595,9 @@ public sealed partial class RoomTools(
     {
         if (result.Launch is not { } launch) return Tell(result.Message);
 
+        // The headline is what was done, in words for people: the answer when the model writes none.
         _launched.Add(launch);
+        _told.Add(result.Message);
         return turn.Room is null
             ? result.Message + " The way to open it is on their screen; do not repeat what it says."
             : result.Message + " The card with the way in is posted in the chat; do not repeat what it says.";

@@ -146,9 +146,10 @@ app.UseCors();
 // Everything below this line is closed unless the caller came through Discord.
 app.UseMiddleware<RequireTokenMiddleware>();
 
-// The player is served from this origin, which is what lets a Discord Activity reach the page,
-// the API, the media and the hub through a single declared URL mapping instead of a set of them.
-// Static files sit under wwwroot and never shadow /api, /media or /hub, which are explicit routes.
+// Krystal Cinema is served from this origin at its root and the player under /activity/, which is
+// what lets a Discord Activity reach the page, the API, the media and the hub through a single
+// declared URL mapping instead of a set of them. Static files sit under wwwroot and never shadow
+// /api, /media or /hub, which are explicit routes.
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
@@ -303,6 +304,28 @@ app.MapPost("/api/auth/service-token", (
 
 app.MapMedia();
 app.MapHub<SessionHub>("/hub/session");
+
+// The site names its pages by path, so a film's page can be linked to and reloaded. A GET for a path
+// that names no file is a page: under /activity/ the player's, anywhere else but the API's, the
+// media's and the hub's the site's. The fallback is what answers both indexes, because an endpoint
+// matched ahead of the static files means they never see the request. Anything under the API's own
+// prefixes that matched nothing stays a 404.
+app.MapFallback((HttpContext context, IWebHostEnvironment environment) =>
+{
+    var request = context.Request;
+    if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method)) return Results.NotFound();
+    if (request.Path.StartsWithSegments("/api") || request.Path.StartsWithSegments("/media")
+        || request.Path.StartsWithSegments("/hub") || Path.HasExtension(request.Path.Value))
+        return Results.NotFound();
+
+    var index = environment.WebRootFileProvider.GetFileInfo(
+        request.Path.StartsWithSegments("/activity") ? "activity/index.html" : "index.html");
+    if (!index.Exists || index.PhysicalPath is null) return Results.NotFound();
+
+    // The index names the build's hashed assets, so a stale copy would load the last release's.
+    context.Response.Headers.CacheControl = "no-cache";
+    return Results.File(index.PhysicalPath, "text/html; charset=utf-8");
+});
 
 var roots = app.Services.GetRequiredService<MediaRoots>();
 app.Logger.LogInformation("Serving media from {MediaRoot}", roots.Hot);
