@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.67.0] - 2026-10-03
+
+### Changed
+
+- **Krystal Cinema ends every page with the Krystal footer** (krystal-ui 0.4.0's `Footer`, the one the
+  Control Panel uses): the cinema's mark and what it is, how many rooms are watching something right
+  now with a live dot (or that it is self-hosted and open source when none are), links to the
+  Library, Leaving soon, Notify me and About, and the source on GitHub. TMDB's credit is on the About
+  page.
+
 ## [1.66.0] - 2026-10-03
 
 ### Changed

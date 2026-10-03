@@ -16,7 +16,8 @@ import { Leaving } from "./pages/Leaving.jsx";
 import { Downloads } from "./pages/Downloads.jsx";
 import { Profile } from "./pages/Profile.jsx";
 import { SignIn } from "./pages/SignIn.jsx";
-import { About, SiteFooter } from "./pages/About.jsx";
+import { About } from "./pages/About.jsx";
+import { SiteFooter } from "./components/SiteFooter.jsx";
 
 // The player carries hls.js, the hub client and Discord's SDK; only a room pays for them.
 const EmbedRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.EmbedRoom })));
@@ -113,7 +114,7 @@ function Frame({ session, route }) {
           {!dock.open && <DockFab onClick={() => dock.setOpen(true)} />}
         </>}>
         <Page route={route} />
-        <SiteFooter onAbout={() => go("/about")} />
+        <SiteFooter />
       </AppShell>
       <Toasts />
     </>

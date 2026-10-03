@@ -263,18 +263,12 @@ button { font-family: inherit; }
 .kc-featured__overview { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--fg-2); max-width: 560px; }
 .kc-chips--genres { margin-top: -6px; }
 
-/* ── About, and the footer every page ends with ───────────────────────────────────────── */
+/* ── About, and the footer every page ends with (krystal-ui's Footer) ───────────────────── */
 .kc-about__block { display: flex; flex-direction: column; gap: 10px; max-width: 680px; }
 .kc-about__block h2 { margin: 0; font-size: 18px; font-weight: 600; }
 .kc-about__block p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--fg-2); }
 .kc-about__logo img { height: 22px; display: block; }
-.kc-footer {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; padding: 18px 32px 28px;
-  font-size: 12px; color: var(--fg-4); border-top: 1px solid var(--border-subtle);
-}
-.kc-footer__logo img { height: 12px; display: block; }
-.kc-footer a:last-child { color: var(--fg-3); }
-@media (max-width: 720px) { .kc-footer { padding: 16px; } }
+.kfoot__end .kfoot__org { font-family: var(--font-mono); }
 
 /* ── Lists ───────────────────────────────────────────────────────────────────────────── */
 .kc-rows { display: flex; flex-direction: column; gap: 8px; }

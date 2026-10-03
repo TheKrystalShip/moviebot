@@ -29,16 +29,3 @@ export function About() {
     </div>
   );
 }
-
-/** The line every page ends with: where the film details come from, as TMDB's terms ask. */
-export function SiteFooter({ onAbout }) {
-  return (
-    <footer className="kc-footer">
-      <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer" className="kc-footer__logo">
-        <img src={tmdbLogo} alt="TMDB" />
-      </a>
-      <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
-      <a href="/about" onClick={(e) => { e.preventDefault(); onAbout(); }}>About</a>
-    </footer>
-  );
-}
