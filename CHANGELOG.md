@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.73.0] - 2026-10-03
+
+### Added
+
+- **Krystal Cinema installs as an app.** A web app manifest (standalone, the canvas colour, a 192, a
+  512 and a maskable icon, and no `orientation`, so the phone's rotation lock holds), Safari's
+  home-screen tags and a launch screen for each iPhone and iPad size, and a service worker that keeps
+  the shell and the build's files for offline and lets everything else, the API, the media and the
+  hub, reach the network untouched. The Activity registers no worker. The icon is the Movies entry's
+  clapperboard on the accent's tile, written by `web/site/scripts/make-icons.mjs`, and the site has a
+  favicon of it.
+- **`npm run verify:pwa [origin]`** asks a real Chromium whether the site is installable, decodes
+  every icon and launch screen at its named size, and drives the API, media and hub routes through
+  the controlled page to show the worker kept none of them.
+
 ## [1.72.0] - 2026-10-03
 
 ### Added

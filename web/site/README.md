@@ -14,6 +14,7 @@ npm run check      # the player's engine, types only
 npm run build      # -> dist/; scripts/build-player.sh installs it into the API's wwwroot
 npm run verify     # the player in a real browser, against a running API and dev server
 npm run verify:mobile  # every page on iPhones and Galaxies, against a scratch site (verify/mobile/)
+npm run verify:pwa     # installable, and the service worker keeps only what it may (verify/pwa.mjs)
 ```
 
 The dev server proxies `/api`, `/media` and `/hub` to the API (`MOVIEBOT_API`, default
@@ -105,6 +106,32 @@ and Galaxies (Chromium), against a scratch site with a library and a person of i
 screenshot per view per phone, a contact sheet per view and a report of what reads as broken on a
 phone. How to run it, what it measures and how to add a page or a phone: `verify/mobile/README.md`.
 
+## Installing
+
+The site installs as an app, Krystal Cinema, from Android Chrome's "Install app" and from Safari's
+"Add to Home Screen", and opens standalone.
+
+- **`public/manifest.webmanifest`** is what Chrome reads: name, standalone display, the canvas colour
+  and a 192, a 512 and a maskable icon, without which it offers no install. It names no
+  `orientation`, because any value there overrides the phone's rotation lock in the installed app,
+  and a film is watched sideways by turning the phone.
+- **`index.html`** carries what Safari reads instead: the home-screen icons and title, standalone
+  display, the black status bar the page starts below, and a launch screen per iPhone and iPad size.
+- **The artwork** under `public/icons/` and `public/splash/` is written by `scripts/make-icons.mjs`
+  (needs `rsvg-convert`; no build runs it): the Movies entry's clapperboard on the accent's tile. Its
+  launch-screen list and the `index.html` tags mirror each other.
+- **`public/sw.js`** is the service worker. It allowlists: page loads, network first with the
+  index kept as the offline shell, and the files under `/assets/`, `/icons/` and `/splash/`, cache
+  first. Anything else, the API, a film's media and the hub among it, goes to the network untouched,
+  so a cached answer can never outlive a session or hand one person's data to another. It is
+  registered by `src/registerSW.js` in a production build only, and never in the Activity, which runs
+  inside Discord at Discord's origin.
+
+Installing needs HTTPS, which localhost is exempt from. `npm run verify:pwa [origin]` asks a real
+Chromium whether the site is installable, decodes every icon and launch screen at the size it is
+named for, and drives the API, media and hub routes through the controlled page to show none of
+them was kept; it defaults to the scratch site and takes a deployed origin as readily.
+
 ## The assistant
 
 The dock holds krystal-ui's `Chat`, talking to moviebot-assistant at `/assistant` as the signed-in
@@ -120,9 +147,9 @@ who asked for it.
 - **Everything is fetched from this origin.** Film details and their artwork come from TMDB through
   the API, which keeps them and serves its own copies under `/films/`; no page reaches TMDB, IMDb or
   any other outside host itself.
-- **TMDB is credited wherever its data is shown.** Its terms are free personal use with attribution:
-  every page ends with its logo and notice ("This product uses the TMDB API but is not endorsed or
-  certified by TMDB."), and `/about` says what comes from it. The logo is TMDB's own, from its
+- **TMDB is credited.** Its terms are free personal use with attribution: `/about` carries its logo
+  and notice ("This product uses the TMDB API but is not endorsed or certified by TMDB.") and says
+  what comes from it. The logo is TMDB's own, from its
   attribution page, in `src/assets/tmdb.svg`.
 - **One module attaches the token.** `src/api.js` is the only place a bearer is added to a call to
   the API; the assistant's client is given a way to read the token, never the token itself. A 401

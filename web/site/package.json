@@ -1,16 +1,17 @@
 {
   "name": "krystal-cinema",
   "private": true,
-  "version": "0.10.0",
+  "version": "0.11.0",
   "type": "module",
   "description": "Krystal Cinema: MovieBot's site, served by MovieBot.Api.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint src verify",
+    "lint": "eslint src verify scripts public/sw.js",
     "check": "tsc -p .",
     "verify": "node verify/run.mjs",
     "verify:mobile": "node verify/mobile/run.mjs",
+    "verify:pwa": "node verify/pwa.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -32,8 +32,14 @@ export default [
   },
 
   {
-    // The checks under verify/ run in Node and drive a browser, so they see both.
-    files: ["vite.config.*", "eslint.config.js", "verify/**/*.mjs"],
+    // The checks under verify/ run in Node and drive a browser, so they see both; scripts/ are the
+    // authoring tools, run in Node.
+    files: ["vite.config.*", "eslint.config.js", "verify/**/*.mjs", "scripts/**/*.mjs"],
     languageOptions: { globals: { ...globals.node } },
+  },
+
+  {
+    files: ["public/sw.js"],
+    languageOptions: { sourceType: "script", globals: { ...globals.serviceworker } },
   },
 ];
