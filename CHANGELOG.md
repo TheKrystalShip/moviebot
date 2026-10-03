@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.82.0] - 2026-10-03
+
+### Changed
+
+- The site's sidebar is laid out as the Control Panel's: the search under the brand, then Home,
+  Movies and TV Shows, and Notify me and Leaving soon, each ruled off and unlabelled, and at the
+  bottom Notifications and the signed-in person as krystal-ui's account row, with Profile and Sign
+  out in its menu. krystal-ui is at 0.7.0.
+
 ## [1.81.0] - 2026-10-03
 
 ### Added

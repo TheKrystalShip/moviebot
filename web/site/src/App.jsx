@@ -1,10 +1,10 @@
 import React from "react";
 import {
-  AppShell, Dock, DockFab, Icon, NavItem, Sidebar, SidebarGroup, TabBar, Toasts,
+  AppShell, Dock, DockFab, Icon, NavItem, Sidebar, SidebarAccount, SidebarGroup, TabBar, Toasts,
   useDock, useEdgeSwipe, useStoredFlag,
 } from "@thekrystalship/krystal-ui";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
-import { useSession } from "./session.js";
+import { signOut, useSession } from "./session.js";
 import { goBack, navigate, useRoute } from "./router.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { Home } from "./pages/Home.jsx";
@@ -26,8 +26,11 @@ const EmbedRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) =>
 const SiteRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.SiteRoom })));
 const Dark = () => <div style={{ position: "fixed", inset: 0, background: "#000" }} />;
 
-const NAV = [
+const HOME = [
   { page: "home", path: "/", icon: "house", label: "Home" },
+];
+
+const LIBRARY = [
   { page: "movies", path: "/movies", icon: "clapperboard", label: "Movies" },
   { page: "tv", path: "/tv", icon: "tv", label: "TV Shows", also: ["show"] },
 ];
@@ -124,12 +127,22 @@ function Frame({ session, route }) {
             collapsed={dock.desktop && collapsed}
             onToggleCollapse={() => setCollapsed((c) => !c)}
             top={<SidebarSearch />}
+            closeNav
             foot={<>
               <BellNavItem />
-              <NavItem icon="circle-user" label={session.user.name} active={route.page === "profile"} onClick={() => go("/profile")} />
+              <SidebarAccount
+                user={session.user}
+                sub={session.user.username ? "@" + session.user.username : null}
+                detail={session.user.username ? "@" + session.user.username : null}
+                collapsed={dock.desktop && collapsed}
+                items={[
+                  { icon: "user", label: "Profile", onClick: () => go("/profile") },
+                  { icon: "log-out", label: "Sign out", danger: true, onClick: () => { signOut(); navigate("/signin", { replace: true }); } },
+                ]} />
             </>}>
-            <SidebarGroup>{NAV.map(item)}</SidebarGroup>
-            <SidebarGroup label="Coming and going">{LIFECYCLE.map(item)}</SidebarGroup>
+            <SidebarGroup>{HOME.map(item)}</SidebarGroup>
+            <SidebarGroup>{LIBRARY.map(item)}</SidebarGroup>
+            <SidebarGroup>{LIFECYCLE.map(item)}</SidebarGroup>
           </Sidebar>
         }
         aside={<>
