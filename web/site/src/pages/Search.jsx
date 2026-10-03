@@ -1,6 +1,7 @@
 import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
-import { api, clock, filmName } from "../api.js";
+import { api, filmName } from "../api.js";
+import { clock } from "../time.js";
 import { useLoad } from "../data.js";
 import { navigate } from "../router.js";
 import { Empty, Failed, PageHead, PosterCard } from "../components/Film.jsx";

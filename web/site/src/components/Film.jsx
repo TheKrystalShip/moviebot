@@ -2,19 +2,41 @@ import React from "react";
 import { Icon } from "@thekrystalship/krystal-ui";
 import { filmName, posterUrl } from "../api.js";
 import { linkProps } from "../router.js";
+import { timeLeft } from "../time.js";
 
 /**
  * Where a film is watched: a room of its own for whoever opens it, or the room somebody is already
- * watching it in. The room is the address, so the link can be handed to somebody else.
+ * watching it in. The room is the address, so the link can be handed to somebody else. `at` is where
+ * to start when the room is empty; a room already holding the film ignores it.
  */
-export function watchHref(titleId, sessionId) {
+export function watchHref(titleId, sessionId, at) {
   const room = sessionId || crypto.randomUUID().replaceAll("-", "").slice(0, 8);
-  return `/r/${encodeURIComponent(room)}` + (titleId ? `?title=${encodeURIComponent(titleId)}` : "");
+  const query = [];
+  if (titleId) query.push(`title=${encodeURIComponent(titleId)}`);
+  if (titleId && at > 0) query.push(`at=${Math.floor(at)}`);
+  return `/r/${encodeURIComponent(room)}` + (query.length ? "?" + query.join("&") : "");
 }
 
 /** A link into a room, opened in place so the way back is the page it was opened from. */
-export function watchLink(titleId, sessionId) {
-  return linkProps(watchHref(titleId, sessionId));
+export function watchLink(titleId, sessionId, at) {
+  return linkProps(watchHref(titleId, sessionId, at));
+}
+
+/** A film started and not finished: its artwork, how far in, how much is left, and a way back into it. */
+export function ContinueCard({ title, progress, remainingSeconds, room }) {
+  const art = (title.details && title.details.backdropUrl) || posterUrl(title);
+  const fraction = progress.durationSeconds > 0 ? Math.min(1, progress.positionSeconds / progress.durationSeconds) : 0;
+  return (
+    <a className="kc-continue" {...watchLink(title.id, room && room.sessionId, progress.positionSeconds)}>
+      <div className="kc-poster-art kc-poster-art--wide">
+        {art ? <img src={art} alt="" loading="lazy" /> : <span className="kc-poster-art__name">{filmName(title)}</span>}
+        <span className="kc-continue__play"><Icon name="play" size={16} /></span>
+        <span className="kc-bar"><span style={{ width: `${Math.round(fraction * 100)}%` }} /></span>
+      </div>
+      <span className="kc-poster__name">{filmName(title)}</span>
+      <span className="kc-poster__note">{timeLeft(remainingSeconds)}</span>
+    </a>
+  );
 }
 
 /**

@@ -1,6 +1,8 @@
 import React from "react";
-import { api, clock, filmName } from "../api.js";
-import { useLoad, staysFor } from "../data.js";
+import { api, filmName } from "../api.js";
+import { stayWords, useLoad } from "../data.js";
+import { useSession } from "../session.js";
+import { clock } from "../time.js";
 import { Empty, Failed, PageHead, PosterCard } from "../components/Film.jsx";
 
 const rating = (t) => (t.details && t.details.rating) || 0;
@@ -16,19 +18,20 @@ const SORTS = [
 /** Every film on the shelf, narrowed by what state it is in and ordered the way somebody asks. */
 export function Library() {
   const titles = useLoad(() => api.titles(), []);
-  const keeps = useLoad(() => api.keeps().catch(() => []), []);
+  const stays = useLoad(() => api.stays().catch(() => []), []);
+  const me = (useSession() || {}).user;
   const [filter, setFilter] = React.useState("all");
   const [genre, setGenre] = React.useState(null);
   const [sort, setSort] = React.useState("added");
 
-  const keptBy = new Map((keeps.data || []).filter((k) => k.libraryId).map((k) => [k.libraryId, k]));
+  const stayOf = new Map((stays.data || []).map((s) => [s.titleId, s]));
   const all = titles.data || [];
   const filters = [
     { id: "all", label: "All", test: () => true },
     { id: "ready", label: "Ready", test: (t) => t.status === "ready" },
     { id: "preparing", label: "Preparing", test: (t) => t.status === "transcoding" },
-    { id: "kept", label: "Kept", test: (t) => !!(keptBy.get(t.id) && keptBy.get(t.id).keeper) },
-    { id: "clock", label: "On the clock", test: (t) => !!(keptBy.get(t.id) && !keptBy.get(t.id).keeper) },
+    { id: "kept", label: "Kept", test: (t) => !!(stayOf.get(t.id) && stayOf.get(t.id).keeperId) },
+    { id: "clock", label: "On the clock", test: (t) => !!(stayOf.get(t.id) && !stayOf.get(t.id).keeperId) },
   ];
   const active = filters.find((f) => f.id === filter) || filters[0];
   const order = SORTS.find((s) => s.id === sort) || SORTS[0];
@@ -81,8 +84,8 @@ export function Library() {
               <PosterCard
                 key={t.id}
                 title={t}
-                note={t.status === "transcoding" ? "Still preparing" : t.status === "failed" ? "Could not be prepared" : staysFor(keptBy.get(t.id)) || clock(t.durationSeconds)}
-                tone={t.status === "failed" ? "danger" : keptBy.get(t.id) && !keptBy.get(t.id).keeper ? "warn" : null} />
+                note={t.status === "transcoding" ? "Still preparing" : t.status === "failed" ? "Could not be prepared" : stayWords(stayOf.get(t.id), me) || clock(t.durationSeconds)}
+                tone={t.status === "failed" ? "danger" : stayOf.get(t.id) && !stayOf.get(t.id).keeperId ? "warn" : null} />
             ))}
           </div>
         )}
