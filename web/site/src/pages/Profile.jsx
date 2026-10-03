@@ -8,6 +8,8 @@ import { linkProps, navigate } from "../router.js";
 import { ago, airDay } from "../time.js";
 import { Empty, Failed, PageHead, PosterArt } from "../components/Film.jsx";
 import { KeptPoster } from "../components/FilmDetails.jsx";
+import { Cues } from "../player/Cues.jsx";
+import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
 
 const TABS = [
   { id: "history", icon: "history", label: "History" },
@@ -317,6 +319,7 @@ const languageName = (code) => {
 function Playback() {
   const stored = useLoad(() => api.preferences(), []);
   const [saved, setSaved] = React.useState(null);
+  const styleSave = React.useRef(null);
   const preferences = saved || stored.data;
 
   if (!preferences) return <Failed error={stored.error} onRetry={stored.reload} />;
@@ -327,6 +330,17 @@ function Playback() {
     } catch (error) {
       toast.fromError(error, "Could not save that");
     }
+  };
+
+  // The preview follows every change at once; the save waits for the choosing to pause, since a
+  // slider dragged across its range is one decision.
+  const styleChange = (subtitleStyle) => {
+    const next = { ...preferences, subtitleStyle };
+    setSaved(next);
+    clearTimeout(styleSave.current);
+    styleSave.current = setTimeout(() => {
+      api.setPreferences(next).then(setSaved, (error) => toast.fromError(error, "Could not save that"));
+    }, 600);
   };
 
   const languages = (current, none) => [
@@ -363,6 +377,14 @@ function Playback() {
         <SettingsRow icon="skip-forward" title="Skip intros and recaps automatically">
           <Toggle on={Boolean(preferences.skipIntros)} label="Skip intros and recaps automatically" onChange={(on) => change({ skipIntros: on })} />
         </SettingsRow>
+      </SettingsSection>
+      <SettingsSection icon="captions" title="Subtitle style">
+        <div className="kc-cue-style">
+          <div className="kc-cue-preview" aria-hidden="true">
+            <Cues style={preferences.subtitleStyle} sample />
+          </div>
+          <SubtitleStyleEditor style={preferences.subtitleStyle} onChange={(subtitleStyle) => styleChange(subtitleStyle)} />
+        </div>
       </SettingsSection>
       <SettingsSection icon="palette" title="Appearance">
         <ThemePicker />

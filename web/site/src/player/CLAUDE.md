@@ -52,10 +52,9 @@ more.
   space bar pauses the film for everybody. That is the premise, which is why nothing is bound that a
   hand resting on a keyboard could trigger, and why a drag on the scrub bar says where letting go takes
   everybody before it is let go.
-- **Every menu holds this viewer's own choice, and its header says so.** Volume, subtitles, audio and
-  quality never reach the hub. The one exception is Chapters, which moves the room like the scrub bar
-  and says "for everyone"; a chapter's start is also a mark on the bar, and pointing names the
-  chapter.
+- **Every menu holds this viewer's own choice, except Chapters.** Volume, subtitles, audio and
+  quality never reach the hub. Chapters moves the room like the scrub bar; a chapter's start is also
+  a mark on the bar, and pointing names the chapter. No menu explains itself: its header is its name.
 - **Moving between episodes is a button, never automatic.** An episode has previous and next
   controls the whole time it plays, from `/api/titles/{id}/neighbours` (the episodes either side among
   those the library holds), and from its closing stretch — the last chapter when that is the credits,
@@ -103,12 +102,23 @@ more.
   megabyte of nothing. It is attached hidden and the page draws its cues itself, sized against the
   frame: a cue the browser draws takes the operating system's caption settings and nothing this page
   can say about it.
+- **Each person's subtitles look the way they chose** (`subtitleStyle.js`, `SubtitleStyleEditor.jsx`).
+  Size, font, weight, text colour, edge and its colour, a box behind each line and its opacity, and
+  how high dialogue sits are the person's `subtitleStyle` preference, so the look follows them into the
+  Activity, which has no profile page; the editor is under Style in the subtitle menu and on the
+  profile's Playback tab. A stored style holds only what differs from `DEFAULT_STYLE`, so the default
+  can be retuned for everybody who never changed it. The default is white letters with a black
+  outline and no box, which reads over any picture and hides none of it. Sizes are fractions of the
+  frame's height, so a size reads alike on a phone and a television. While the editor is open in the
+  player and the film is saying nothing, a sample line stands in, so the choice is seen over the film
+  it is for, and the choosing is saved once it pauses.
 - **The subtitle menu belongs to one film.** What OpenSubtitles offered is forgotten when the film
   changes and a search that lands after the change is dropped. The film's own tracks are read again
   whenever the menu opens: what a film gains is pushed as it lands, and the re-read is the guarantee
   behind the push. The search asks for the person's own language and English beside it.
 - **A person's defaults are the API's, and a choice made for one film is the browser's.** Subtitle
-  language, audio language, quality and whether stretches are skipped automatically come from `/api/me/preferences`, so they follow the person
+  language, audio language, quality, how subtitles look and whether stretches are skipped
+  automatically come from `/api/me/preferences`, so they follow the person
   between the site and the Activity; the track picked for a film is held in `localStorage` per title,
   because a track id means nothing outside the film it came from. Volume stays in the browser: it is
   about the speakers in front of the person.

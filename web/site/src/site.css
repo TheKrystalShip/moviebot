@@ -561,3 +561,12 @@ button.kc-episode:disabled { cursor: progress; }
 @media (max-width: 720px) {
   .kc-follow__menu { min-width: min(280px, calc(100vw - 32px)); }
 }
+
+/* ── Subtitle style ── the preview stays in view beside the choices, above them on a phone. */
+.kc-cue-style { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; align-items: start; padding: 10px 14px 14px; }
+.kc-cue-style .kc-cue-preview { position: sticky; top: 16px; }
+.kc-cue-style .mp-style { padding: 0; }
+@media (max-width: 860px) {
+  .kc-cue-style { grid-template-columns: minmax(0, 1fr); }
+  .kc-cue-style .kc-cue-preview { position: relative; top: auto; }
+}

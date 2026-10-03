@@ -1,6 +1,7 @@
 import React from "react";
 import { Icon } from "@thekrystalship/krystal-ui";
 import { formatTime } from "./engine/format.ts";
+import { SubtitleStyleEditor } from "./SubtitleStyleEditor.jsx";
 
 const languageNames = (() => {
   try { return new Intl.DisplayNames(undefined, { type: "language" }); } catch { return null; }
@@ -46,20 +47,30 @@ export const MenuTitles = { subs: "Subtitles", audio: "Audio track", quality: "Q
 
 /**
  * One menu over the film: a popover above the control bar where the frame is wide, a sheet from
- * the bottom edge where it is not. Every menu but one holds this viewer's own choice, and the header
- * says so; the chapters move the whole room, like the scrub bar, and say that instead.
+ * the bottom edge where it is not. Every menu but one holds this viewer's own choice; the chapters
+ * move the whole room, like the scrub bar.
  */
-export function Menu({ kind, view, room, sheet, position, onClose }) {
-  const body = kind === "subs" ? <SubtitleOptions view={view} room={room} />
-    : kind === "audio" ? <AudioOptions view={view} room={room} onClose={onClose} />
-      : kind === "chapters" ? <ChapterOptions view={view} room={room} position={position} onClose={onClose} />
-        : <QualityOptions view={view} room={room} onClose={onClose} />;
+export function Menu({ kind, view, room, sheet, position, styling, onStyling, onClose }) {
+  const editing = kind === "subs" && styling;
+  const body = editing ? <SubtitleStyleEditor style={view.preferences.subtitleStyle} onChange={(style) => room.setSubtitleStyle(style)} />
+    : kind === "subs" ? <SubtitleOptions view={view} room={room} onStyle={() => onStyling(true)} />
+      : kind === "audio" ? <AudioOptions view={view} room={room} onClose={onClose} />
+        : kind === "chapters" ? <ChapterOptions view={view} room={room} position={position} onClose={onClose} />
+          : <QualityOptions view={view} room={room} onClose={onClose} />;
   return (
     <>
       {sheet && <div className="mp-sheet-scrim" onClick={onClose} />}
-      <div className={(sheet ? "mp-sheet" : "mp-popover") + (kind === "subs" ? " mp-popover--wide" : "") + " mp-menu"} role="menu" aria-label={MenuTitles[kind]}>
+      <div className={(sheet ? "mp-sheet" : "mp-popover") + (kind === "subs" ? " mp-popover--wide" : "") + (editing ? " is-styling" : "") + " mp-menu"}
+        role="menu" aria-label={MenuTitles[kind]}>
         {sheet && <div className="mp-sheet__grabber" />}
-        <div className="mp-menu__head">{MenuTitles[kind]}<span className="mp-menu__aside">{kind === "chapters" ? "for everyone" : "just for you"}</span></div>
+        <div className="mp-menu__head">
+          {editing && (
+            <button type="button" className="mp-menu__back" aria-label="Back to subtitles" onClick={() => onStyling(false)}>
+              <Icon name="arrow-left" size={14} />
+            </button>
+          )}
+          {editing ? "Subtitle style" : MenuTitles[kind]}
+        </div>
         {body}
       </div>
     </>
@@ -146,7 +157,7 @@ function trackSource(track) {
  * the person who fetched it is switched to it. The film's own list is read again on opening too,
  * because what it gains is pushed as it lands and this is the guarantee behind the push.
  */
-function SubtitleOptions({ view, room }) {
+function SubtitleOptions({ view, room, onStyle }) {
   const manifest = view.manifest;
   const [found, setFound] = React.useState(null);
   const [failure, setFailure] = React.useState(null);
@@ -188,6 +199,11 @@ function SubtitleOptions({ view, room }) {
           <Option key={track.id} on={track.id === view.subtitleId} label={track.label} sub={trackSource(track)}
             disabled={!track.available || track.uri === undefined} onPick={() => room.selectSubtitle(track.id)} />
         ))}
+        <button type="button" className="mp-option" onClick={onStyle}>
+          <span className="mp-option__check"><Icon name="type" size={15} /></span>
+          <span className="mp-option__text"><span className="mp-option__label">Style</span></span>
+          <Icon name="chevron-right" size={15} />
+        </button>
       </div>
       <div className="mp-menu__section">OpenSubtitles</div>
       <div className="mp-menu__list">

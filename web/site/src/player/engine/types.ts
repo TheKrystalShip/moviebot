@@ -248,6 +248,25 @@ export interface ViewerPreferences {
   qualityHeight?: number | null;
   /** Skip an intro or a recap on its own when this viewer is alone in the room; absent for off. */
   skipIntros?: boolean;
+  /** How subtitles are drawn; absent, or a field of it absent, for the player's own look. */
+  subtitleStyle?: SubtitleStyle | null;
+}
+
+/** A person's subtitle look. The API keeps each field in range; `subtitleStyle.js` holds the defaults. */
+export interface SubtitleStyle {
+  /** Percent of the player's own size, 50 to 200. */
+  size?: number | null;
+  font?: 'sans' | 'serif' | 'mono' | 'casual' | null;
+  bold?: boolean | null;
+  /** `#rrggbb`. */
+  textColor?: string | null;
+  edge?: 'none' | 'outline' | 'shadow' | 'raised' | 'depressed' | null;
+  edgeColor?: string | null;
+  backgroundColor?: string | null;
+  /** 0, no box at all, to 1. */
+  backgroundOpacity?: number | null;
+  /** Dialogue's distance above the bottom of the frame, percent of its height, 0 to 30. */
+  position?: number | null;
 }
 
 export interface Participant {

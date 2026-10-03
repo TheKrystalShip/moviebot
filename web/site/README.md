@@ -33,7 +33,7 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows` and `/hub` to the AP
 | `/search?q=` | The library first, then the catalogue's films and shows, each leading to its page, then the tracker's releases to fetch; reached from the sidebar's search field, and on a phone from the Search tab |
 | `/notify` | The films the signed-in person is waiting on |
 | `/leaving` | Every settled film and how long it stays, kept or not |
-| `/profile?tab=` | The signed-in person: History (with a way to remove a film), Requests, Following (each followed show with its next episode, whether new episodes are downloaded, and Unfollow), Notifications, Playback (subtitle and audio language, quality, skipping intros and recaps automatically, theme) and Sessions (the devices signed in, signing one or all others out), and signing out |
+| `/profile?tab=` | The signed-in person: History (with a way to remove a film), Requests, Following (each followed show with its next episode, whether new episodes are downloaded, and Unfollow), Notifications, Playback (subtitle and audio language, quality, skipping intros and recaps automatically, how subtitles look with a preview of them, theme) and Sessions (the devices signed in, signing one or all others out), and signing out |
 | `/about` | What the site is, and where its film details come from |
 | `/signin` | The door, and where Discord sends the browser back to |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from. A room waiting on a Watch now shows the film being found, arriving and starting, and plays it on its own |

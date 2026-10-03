@@ -8,8 +8,8 @@ import { describeChange } from './session/changes';
 import { SessionHub, type ConnectionStatus } from './session/hub';
 import { SyncController } from './session/sync';
 import type {
-  Actor, Manifest, Participant, SeekClamped, SessionState, SubtitleSearch, SubtitleTrack, ThumbnailStrip, TitleSummary,
-  ViewerPreferences
+  Actor, Manifest, Participant, SeekClamped, SessionState, SubtitleSearch, SubtitleStyle, SubtitleTrack, ThumbnailStrip,
+  TitleSummary, ViewerPreferences
 } from './types';
 
 /**
@@ -104,6 +104,7 @@ export class PlayerRoom {
   private readonly subscribers = new Set<() => void>();
   private readonly announcers = new Set<(announcement: Announcement) => void>();
   private disposed = false;
+  private styleSave: ReturnType<typeof setTimeout> | null = null;
   private readonly onVisible = () => {
     if (document.visibilityState === 'visible') void this.hub?.resync();
   };
@@ -288,6 +289,12 @@ export class PlayerRoom {
 
   dispose(): void {
     this.disposed = true;
+    // A style chosen just before leaving is still saved.
+    if (this.styleSave !== null) {
+      clearTimeout(this.styleSave);
+      this.styleSave = null;
+      void api.setPreferences(this.view.preferences).catch(() => {});
+    }
     document.removeEventListener('visibilitychange', this.onVisible);
     this.controller?.dispose();
     this.stream.dispose();
@@ -512,6 +519,20 @@ export class PlayerRoom {
     const preferences = { ...this.view.preferences, qualityHeight: height };
     this.set({ quality: height, preferences });
     void api.setPreferences(preferences).catch(() => this.notice('Your quality choice could not be saved.', 'error'));
+  }
+
+  /**
+   * How this viewer's subtitles look. Drawn from the next frame and saved once the choosing pauses,
+   * since a slider dragged across its range is one decision and not thirty.
+   */
+  setSubtitleStyle(subtitleStyle: SubtitleStyle | null): void {
+    const preferences = { ...this.view.preferences, subtitleStyle };
+    this.set({ preferences });
+    if (this.styleSave !== null) clearTimeout(this.styleSave);
+    this.styleSave = setTimeout(() => {
+      this.styleSave = null;
+      void api.setPreferences(this.view.preferences).catch(() => this.notice('Your subtitle style could not be saved.', 'error'));
+    }, 600);
   }
 
   /** Back to whatever was last chosen, or the first track the film offers. */

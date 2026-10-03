@@ -65,6 +65,45 @@ public sealed class PreferencesTests(SessionFixture fixture) : IClassFixture<Ses
     }
 
     [Fact]
+    public async Task A_subtitle_style_is_kept_in_range_and_follows_the_person()
+    {
+        Assert.Null((await Read(As("7007", member: true)))?.SubtitleStyle);
+
+        using var put = await As("7007", member: true).PutAsJsonAsync("/api/me/preferences", new ViewerPreferences
+        {
+            SubtitleStyle = new SubtitleStyle
+            {
+                Size = 400, Font = "papyrus", Bold = true, TextColor = "#FFE14D", Edge = "outline",
+                EdgeColor = "black", BackgroundOpacity = -2, Position = 12.5,
+            },
+        });
+        put.EnsureSuccessStatusCode();
+
+        var style = (await Read(As("7007", member: false)))?.SubtitleStyle;
+        Assert.NotNull(style);
+        Assert.Equal(200, style.Size);
+        Assert.Null(style.Font);
+        Assert.True(style.Bold);
+        Assert.Equal("#ffe14d", style.TextColor);
+        Assert.Equal("outline", style.Edge);
+        Assert.Null(style.EdgeColor);
+        Assert.Equal(0, style.BackgroundOpacity);
+        Assert.Equal(12.5, style.Position);
+    }
+
+    [Fact]
+    public async Task A_subtitle_style_with_nothing_in_range_is_no_style()
+    {
+        using var put = await As("7008", member: true).PutAsJsonAsync("/api/me/preferences", new ViewerPreferences
+        {
+            SubtitleStyle = new SubtitleStyle { Font = "papyrus", TextColor = "red" },
+        });
+        put.EnsureSuccessStatusCode();
+
+        Assert.Null((await Read(As("7008", member: true)))?.SubtitleStyle);
+    }
+
+    [Fact]
     public async Task A_meaningless_value_is_the_setting_left_alone()
     {
         using var put = await As("7004", member: true).PutAsJsonAsync("/api/me/preferences",

@@ -1,0 +1,19 @@
+/* ── Subtitles ── the look comes from the custom properties `cueVars` sets on `.mp-cues`. */
+.mp-cues { position: absolute; inset: 0; pointer-events: none; z-index: 1; container-type: size; }
+.mp-cues__top, .mp-cues__bottom {
+  position: absolute; left: 5%; right: 5%; display: flex; flex-direction: column; align-items: center; gap: 0.2em;
+}
+.mp-cues__top { top: 6%; }
+.mp-cues__bottom { bottom: var(--cue-bottom, 6%); transition: bottom 200ms var(--ease-out); }
+.mp-cues__bottom.is-raised { bottom: max(var(--cue-bottom, 6%), 120px); }
+/* Above the style sheet on a narrow frame, which `.mp-sheet.is-styling` holds to 45%. */
+.mp-cues__bottom.is-lifted { bottom: calc(45% + 16px); }
+/* Left of the style popover on a wide frame: its width and its inset from the edge, and a gap. */
+.mp-cues__bottom.is-beside { right: calc(340px + 28px + 16px); }
+.mp-cue { text-align: center; line-height: 1.3; font-size: var(--cue-size, max(12px, min(3.8cqh, 2.1375cqw))); }
+.mp-cue__text {
+  color: var(--cue-color, #fff); background: var(--cue-background, transparent);
+  text-shadow: var(--cue-shadow, none); font-family: var(--cue-font, system-ui, sans-serif); font-weight: var(--cue-weight, 500);
+  padding: 0.08em 0.35em; white-space: pre-line;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}

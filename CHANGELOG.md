@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.81.0] - 2026-10-03
+
+### Added
+
+- **Subtitles look the way each person chooses.** Size, font, weight, text colour, edge (outline,
+  shadow, raised, depressed) and its colour, a box behind each line and its opacity and colour, and
+  how high dialogue sits, under Style in the player's subtitle menu and in Profile's Playback tab with
+  a preview. It is the person's `subtitleStyle` preference, so it follows them into the Activity.
+
+### Changed
+
+- The default subtitle look is white text with a black outline and no box, about a quarter smaller,
+  sized to the picture rather than the frame, so a phone held upright no longer sizes it to the black
+  above and below the film.
+- The player's menus name no audience in their headers.
+
 ## [1.80.0] - 2026-10-03
 
 ### Added

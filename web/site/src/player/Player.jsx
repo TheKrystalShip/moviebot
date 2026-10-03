@@ -265,6 +265,9 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   const manifest = view.manifest;
   const compact = size !== "wide";
   const [menu, setMenu] = React.useState(null);
+  // The subtitle menu's style editor is open: a sample line stands in while the film says nothing.
+  const [styling, setStyling] = React.useState(false);
+  React.useEffect(() => { if (menu !== "subs") setStyling(false); }, [menu]);
   const [overflow, setOverflow] = React.useState(false);
   const [invite, setInvite] = React.useState(false);
   const [held, setHeld] = React.useState(0);
@@ -411,7 +414,8 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
       <div className="mp-backdrop" aria-hidden="true" />
       <div className="mp-shade" aria-hidden="true" />
 
-      {view.ready && <Cues track={view.subtitleTrack} raised={shown} />}
+      {view.ready && <Cues track={view.subtitleTrack} raised={shown} lifted={styling && sheet} beside={styling && !sheet}
+        style={view.preferences.subtitleStyle} sample={styling} />}
 
       {/* ── Top bar ── */}
       {manifest && (
@@ -535,7 +539,8 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
         </button>
       )}
 
-      {menu !== null && manifest && <Menu kind={menu} view={view} room={room} sheet={sheet} position={clock.position} onClose={() => setMenu(null)} />}
+      {menu !== null && manifest && <Menu kind={menu} view={view} room={room} sheet={sheet} position={clock.position}
+        styling={styling} onStyling={setStyling} onClose={() => setMenu(null)} />}
       {overflow && manifest && (
         <Overflow view={view} volume={volume} onVolume={changeVolume} onNudge={nudgeVolume} embed={embed}
           onPick={(kind) => { setOverflow(false); setMenu(kind); }} onClose={() => setOverflow(false)} />

@@ -56,9 +56,23 @@ film ignores `at`.
   "subtitleLanguage": "es",   // the subtitle language to start on when the film carries it; absent for none
   "audioLanguage": "en",      // the audio language to start on when the film carries it; absent for the film's own
   "qualityHeight": 720,       // the rung to hold the film at; absent to let the connection decide
-  "skipIntros": true          // skip an intro or recap on its own when this person is alone in the room; false when never set
+  "skipIntros": true,         // skip an intro or recap on its own when this person is alone in the room; false when never set
+  "subtitleStyle": {          // how subtitles are drawn; absent, like any field of it, for the player's own look
+    "size": 125,              // percent of the player's own size, 50 to 200
+    "font": "sans",           // sans | serif | mono | casual
+    "bold": false,
+    "textColor": "#ffe14d",   // #rrggbb, as are the two colours below
+    "edge": "outline",        // none | outline | shadow | raised | depressed
+    "edgeColor": "#000000",
+    "backgroundColor": "#000000",
+    "backgroundOpacity": 0.5, // 0, no box, to 1
+    "position": 8             // dialogue's distance above the bottom of the frame, percent of its height, 0 to 30
+  }
 }
 ```
+
+A preference out of range is that preference left to its default: a size is clamped, an unknown font,
+edge or colour spelling is dropped, and a style with nothing left in it is stored as none.
 
 CORS reflects any origin and allows credentials. Media answers HEAD as well as GET.
 

@@ -185,7 +185,6 @@ async function menuChecks(browser) {
   await press(ada, '.mp-menu-button[title="Subtitles"]');
   const rows = await ada.$$eval('.mp-popover .mp-option__label', (els) => els.map((e) => e.textContent));
   check('the subtitle menu opens over the controls, Off first', rows[0] === 'Off' && rows.length > 1, rows.join(' | '));
-  check('and says it is this viewer\'s own', /just for you/.test(await ada.textContent('.mp-popover .mp-menu__head')));
   const english = await ada.$$('.mp-popover .mp-option[role="menuitemradio"]:not([disabled])');
   await english[english.length - 1].click();
   await ada.waitForFunction(() => [...document.querySelector('video').textTracks].some((t) => t.mode === 'hidden'), null, { timeout: 8000 }).catch(() => null);
