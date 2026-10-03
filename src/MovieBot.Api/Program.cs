@@ -68,6 +68,9 @@ builder.Services.AddSingleton(sp => new PreferenceStore(
     StatePath(sp.GetRequiredService<IConfiguration>()["People:Preferences"], "preferences.json"),
     sp.GetRequiredService<ILogger<PreferenceStore>>()));
 
+// When each film was last played, which the library's clock reads.
+builder.Services.AddSingleton<IPlayHistory, NoPlayHistory>();
+
 // What a film is, from the film database, kept on disk with its artwork and served from here.
 builder.Services.Configure<TmdbOptions>(builder.Configuration.GetSection(TmdbOptions.Section));
 builder.Services.AddOptions<FilmStoreOptions>().Bind(builder.Configuration.GetSection(TmdbOptions.Section));
