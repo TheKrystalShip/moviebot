@@ -31,11 +31,15 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # The site's @thekrystalship scope resolves from GitHub Packages, which wants a token even to
+      # install; setup-node writes the registry for the scope and the site's step hands it the token.
       - uses: actions/setup-node@v7
         with:
           node-version: 'lts/*'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@thekrystalship'
           cache: npm
-          cache-dependency-path: moviebot/web/activity/package-lock.json
+          cache-dependency-path: moviebot/web/site/package-lock.json
 
       # The TheKrystalShip.* packages come from the organisation's GitHub Packages feed, which
       # needs a token even to read. The run's own token is enough; it is written into this
@@ -49,10 +53,13 @@ jobs:
             --store-password-in-clear-text \
             --configfile nuget.config
 
-      - name: Check and build the player
-        working-directory: moviebot/web/activity
+      - name: Check and build the site and its player
+        working-directory: moviebot/web/site
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npm ci
+          npm run lint
           npm run check
           npm run build
 

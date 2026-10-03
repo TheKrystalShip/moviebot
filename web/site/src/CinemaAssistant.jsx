@@ -1,7 +1,7 @@
 import { Chat, Icon, createAssistantClient } from "@thekrystalship/krystal-ui";
 import { currentToken } from "./session.js";
 import { linkProps } from "./router.js";
-import { watchHref } from "./components/Film.jsx";
+import { watchLink } from "./components/Film.jsx";
 
 // moviebot-assistant, behind /assistant on the same origin, spoken to as the signed-in person. One
 // client for the life of the page: the chat asks for it by the assistant's id on every render.
@@ -50,7 +50,7 @@ function FilmCards({ cards }) {
         <div key={card.titleId + (card.sessionId || "")} className="kc-chat-card">
           <Icon name="clapperboard" size={16} />
           <a className="kc-chat-card__name" {...linkProps("/title/" + encodeURIComponent(card.titleId))}>{card.name}</a>
-          <a className="kc-btn kc-btn--primary" href={watchHref(card.titleId, card.sessionId)}>
+          <a className="kc-btn kc-btn--primary" {...watchLink(card.titleId, card.sessionId)}>
             <Icon name="play" size={15} />Watch
           </a>
         </div>

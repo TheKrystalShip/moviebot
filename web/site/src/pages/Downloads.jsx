@@ -2,7 +2,7 @@ import { Icon } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { linkProps } from "../router.js";
-import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
+import { Empty, Failed, PageHead, watchLink } from "../components/Film.jsx";
 
 /** What is downloading and what is seeding, read again every few seconds while the page is open. */
 export function Downloads() {
@@ -27,7 +27,7 @@ export function Downloads() {
               <span className="kc-row__sub">{d.summary}{d.isKept ? " · kept" : ""}</span>
             </div>
             {d.libraryId && (d.isFinished || d.isWatchable) && (
-              <a className="kc-btn" href={watchHref(d.libraryId)}><Icon name="play" size={15} />Watch</a>
+              <a className="kc-btn" {...watchLink(d.libraryId)}><Icon name="play" size={15} />Watch</a>
             )}
           </div>
         ))}

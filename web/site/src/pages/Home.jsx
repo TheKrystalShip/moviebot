@@ -2,7 +2,7 @@ import { Icon } from "@thekrystalship/krystal-ui";
 import { api, clock, filmName, posterUrl } from "../api.js";
 import { useLoad, staysFor } from "../data.js";
 import { linkProps } from "../router.js";
-import { Empty, Failed, PosterArt, PosterCard, Shelf, watchHref } from "../components/Film.jsx";
+import { Empty, Failed, PosterArt, PosterCard, Shelf, watchLink } from "../components/Film.jsx";
 
 const LEAVING_SOON_DAYS = 3;
 
@@ -45,7 +45,7 @@ export function Home() {
       {watching.length > 0 && (
         <Shelf title="Watching now" icon="users">
           {watching.map((room) => (
-            <a key={room.sessionId} className="kc-room" href={watchHref(room.titleId, room.sessionId)}>
+            <a key={room.sessionId} className="kc-room" {...watchLink(room.titleId, room.sessionId)}>
               <PosterArt title={byId.get(room.titleId)} className="kc-poster-art--wide" />
               <span className="kc-room__join"><Icon name="users" size={14} />Join</span>
               <span className="kc-poster__name">{filmName(byId.get(room.titleId))}</span>
@@ -103,7 +103,7 @@ function Featured({ title, room }) {
         </div>
         {film.starring && <span className="kc-featured__starring">Starring <b>{film.starring}</b></span>}
         <div className="kc-actions">
-          <a className="kc-btn kc-btn--primary" href={watchHref(title.id, room && room.sessionId)}>
+          <a className="kc-btn kc-btn--primary" {...watchLink(title.id, room && room.sessionId)}>
             <Icon name={room ? "users" : "play"} size={18} />{room ? "Join the room" : "Watch"}
           </a>
           <a className="kc-btn" {...linkProps("/title/" + encodeURIComponent(title.id))}>

@@ -8,10 +8,13 @@ import { linkProps } from "../router.js";
  * watching it in. The room is the address, so the link can be handed to somebody else.
  */
 export function watchHref(titleId, sessionId) {
-  const session = sessionId || "site-" + crypto.randomUUID().slice(0, 8);
-  const query = new URLSearchParams({ session });
-  if (titleId) query.set("title", titleId);
-  return "/activity/?" + query.toString();
+  const room = sessionId || crypto.randomUUID().replaceAll("-", "").slice(0, 8);
+  return `/r/${encodeURIComponent(room)}` + (titleId ? `?title=${encodeURIComponent(titleId)}` : "");
+}
+
+/** A link into a room, opened in place so the way back is the page it was opened from. */
+export function watchLink(titleId, sessionId) {
+  return linkProps(watchHref(titleId, sessionId));
 }
 
 /**

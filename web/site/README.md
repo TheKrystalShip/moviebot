@@ -1,14 +1,18 @@
 # Krystal Cinema
 
-MovieBot's site: the library in a browser, for members of the server MovieBot plays films in. It is
-served by `MovieBot.Api` from the root of its `wwwroot`, beside the player under `/activity/`, and
-built on `@thekrystalship/krystal-ui`, the design system the KGSM Control Panel is built on too.
+MovieBot's site and its player: the library in a browser for members of the server MovieBot plays
+films in, and the Discord Activity, which is the same player. It is served by `MovieBot.Api` from the
+root of its `wwwroot` and built on `@thekrystalship/krystal-ui`, the design system the KGSM Control
+Panel is built on too. The design is the Krystal Cinema project (desktop, mobile and embed pages); the
+API is the authority for everything it draws.
 
 ```bash
 npm install        # @thekrystalship/krystal-ui comes from GitHub Packages, which wants a token
 npm run dev        # http://localhost:5175
 npm run lint
+npm run check      # the player's engine, types only
 npm run build      # -> dist/; scripts/build-player.sh installs it into the API's wwwroot
+npm run verify     # the player in a real browser, against a running API and dev server
 ```
 
 The dev server proxies `/api`, `/media` and `/hub` to the API (`MOVIEBOT_API`, default
@@ -28,6 +32,8 @@ The dev server proxies `/api`, `/media` and `/hub` to the API (`MOVIEBOT_API`, d
 | `/downloads` | What is downloading and seeding, read again every few seconds |
 | `/profile` | The theme, and signing out |
 | `/signin` | The door, and where Discord sends the browser back to |
+| `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from |
+| `/embed/` | The Discord Activity: the same player with no site around it |
 
 A page is a path, so it can be linked to and reloaded: the API answers any path that is not its own
 with this site's index.
@@ -42,10 +48,56 @@ the Discord application.
 
 ## Watching
 
-Watching opens the player at `/activity/?session=<room>&title=<id>`: a room of its own for whoever
-opens it, or the room somebody is already watching in, which is how a browser joins a voice
-channel's film. The player shares this origin and takes the signed-in person's token and name from
-the same session.
+Watching opens `/r/<room>?title=<id>`: a room of its own for whoever opens it, or the room somebody is
+already watching in. The room is the address, so the link is what Invite hands to somebody else, and a
+voice channel's room is open on the site at `/r/<channel id>`. `title` is put on once, by whoever
+arrives while the room is showing nothing; somebody joining a room already holding it says nothing,
+because loading it again would send everyone back to the beginning.
+
+Discord launches the Activity at the root of its URL mapping. A load carrying Discord's launch
+parameters is the Activity's, so the index rewrites its address to `/embed/` before the page reads it,
+and the player signs the viewer in through the Embedded App SDK rather than the site's session.
+
+How the player behaves, and why: `src/player/CLAUDE.md`.
+
+### How the timeline holds together
+
+`src/player/engine/session/sync.ts` is the whole of it.
+
+- **Revisions gate everything.** A push whose revision is not greater than the last applied is
+  discarded, which makes reordered and duplicated pushes harmless.
+- **Position is derived, never read.** `paused ? positionSeconds : positionSeconds + (serverNow -
+  anchorUtc) * rate`, against a clock offset learned from round trips to `ServerTime`; the sample with
+  the shortest round trip wins.
+- **Echoes are recognised, not counted.** Applying remote state raises the same events that publish
+  intent, and an event that tells the room what the room just said is dropped by comparing against
+  what was applied.
+- **Seeks are never clamped here.** The scrub bar asks for what was let go on and does not move the
+  playhead; the server grants a position and answers `SeekClamped` to that viewer alone.
+- **A viewer that falls behind fixes itself.** Every two seconds the client compares where the room is
+  against its playhead: over two seconds of drift it seeks, between half a second and two it trims
+  `playbackRate` to 1.02 or 0.98 until inside a quarter second. Nothing about a stalled viewer moves
+  the room; the room is only told the viewer is waiting.
+
+### A viewer who cannot play the film
+
+The player asks `MediaSource.isTypeSupported` for what the ingest writes — H.264 High at level 4.2 and
+stereo AAC-LC — before fetching anything. Discord's desktop client decodes H.264 only on the graphics
+card, so with hardware acceleration off it answers no, and the player says so, naming the setting. A
+fatal media error is recovered from twice, the second time swapping the audio codec, and then the
+player stops and says why for as long as that holds: recovering without a limit resets the element
+about ten times a second and fetches the film's opening each time.
+
+### Verifying
+
+`npm run verify` drives a real browser against a running API and this dev server: two and three
+viewers in a room through play, pause, seek and the waiting mark, the join gate, the menus, a person's
+preferences reaching a fresh player, each frame size, and a film still transcoding (its manifest is
+edited in place and put back). It needs Chrome or Chromium **with H.264 and AAC** (`CHROME_PATH`, or
+Playwright's own download), the API (`MOVIEBOT_API`, `MOVIEBOT_SERVICE_KEY`, `MOVIEBOT_MEDIA` for its
+media root) and a film (`MOVIEBOT_TITLE`) with more than one audio track and a subtitle track. A jsdom
+mount has no media pipeline, so it agrees with itself while the film never decodes a frame; a real
+browser is the only thing that catches what matters here.
 
 ## The assistant
 
@@ -56,9 +108,9 @@ who asked for it.
 
 ## Rules
 
-- **Only what the API knows is shown.** The catalogue gives a film's name, year, billing and poster;
-  the manifest its length, picture and tracks; the retention rule how long it stays. Nothing the API
-  does not hold, a rating or a genre, is drawn, and a row with nothing in it is left out.
+- **The design is the UI and the API is the authority for its data.** Nothing is drawn from a
+  fixture: what the design shows, the API serves, and a row the API has nothing for is left out rather
+  than filled in.
 - **One module attaches the token.** `src/api.js` is the only place a bearer is added to a call to
   the API; the assistant's client is given a way to read the token, never the token itself. A 401
   signs the browser out.

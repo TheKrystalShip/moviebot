@@ -3,7 +3,7 @@ import { Icon, toast } from "@thekrystalship/krystal-ui";
 import { api, clock, filmName, posterUrl } from "../api.js";
 import { useLoad, staysFor } from "../data.js";
 import { navigate } from "../router.js";
-import { Empty, Failed, PosterArt, watchHref } from "../components/Film.jsx";
+import { Empty, Failed, PosterArt, watchLink } from "../components/Film.jsx";
 
 /**
  * One film in the library: what it is, what it can be watched with, and how long it stays.
@@ -71,7 +71,7 @@ export function Title({ id }) {
 
           <div className="kc-actions">
             {m.status !== "failed" && (
-              <a className="kc-btn kc-btn--primary" href={watchHref(m.id, room && room.sessionId)}>
+              <a className="kc-btn kc-btn--primary" {...watchLink(m.id, room && room.sessionId)}>
                 <Icon name={room ? "users" : "play"} size={18} />{room ? `Join the room (${room.participants})` : "Watch"}
               </a>
             )}

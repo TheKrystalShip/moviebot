@@ -20,14 +20,18 @@ disk budget, retention and the tag vocabulary all live there and are called from
 owns what happens to a file once it exists — probing it, transcoding it, serving it, and keeping a
 room in step.
 
-Four docs beside this one, each the authority for its own part: `docs/api-contract.md` for what
-`MovieBot.Api` serves on the wire, `web/site/README.md` for Krystal Cinema, the site,
-`web/activity/README.md` for the player, and `src/MovieBot.Bot/README.md` for the Discord surface. **The rules each part rests on live in a
-`CLAUDE.md` beside its code**: `deploy/`, `src/MovieBot.Api/` (with `Sessions/`, `Subtitles/` and
-`Acquisition/`), `src/MovieBot.Core/` (the two disks), `src/MovieBot.Ingest/`, `src/MovieBot.Handoff/`,
-`src/MovieBot.Assistant/` (with the wire it serves), `src/MovieBot.Bot/` (and each of its feature
-directories), and `web/activity/`. `src/MovieBot.Client` is the API client the bot and the assistant
-share.
+Three docs beside this one, each the authority for its own part: `docs/api-contract.md` for what
+`MovieBot.Api` serves on the wire, `web/site/README.md` for Krystal Cinema, the site, and its player,
+which is also the Discord Activity, and `src/MovieBot.Bot/README.md` for the Discord surface. **The
+rules each part rests on live in a `CLAUDE.md` beside its code**: `deploy/`, `src/MovieBot.Api/` (with
+`Sessions/`, `Subtitles/` and `Acquisition/`), `src/MovieBot.Core/` (the two disks),
+`src/MovieBot.Ingest/`, `src/MovieBot.Handoff/`, `src/MovieBot.Assistant/` (with the wire it serves),
+`src/MovieBot.Bot/` (and each of its feature directories), and `web/site/src/player/`.
+`src/MovieBot.Client` is the API client the bot and the assistant share.
+
+**The Krystal Cinema design is the UI, and the API is the authority for its data.** What the design
+shows, the API serves: a feature the design draws that the API lacks is added to the API, never drawn
+from a fixture and never left out for want of it.
 
 ## The one idea everything follows from
 

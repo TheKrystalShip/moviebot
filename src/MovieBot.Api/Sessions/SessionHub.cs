@@ -51,6 +51,16 @@ public sealed class SessionHub(SessionStore sessions, RoomControls controls, ILo
         Mutate("seek", actor => sessions.Seek(SessionId(), toSeconds, actor));
 
     /// <summary>
+    /// Says whether this viewer's player is waiting for the film. It moves nothing: the room is told
+    /// who it is waiting on, and the timeline stays the server's.
+    /// </summary>
+    public async Task Buffering(bool waiting)
+    {
+        if (sessions.SetBuffering(SessionId(), Context.ConnectionId, waiting) is { } participants)
+            await Clients.Group(SessionId()).SendAsync("ParticipantsChanged", participants);
+    }
+
+    /// <summary>
     /// Answers with the server's clock so a client can estimate its offset. Position is derived
     /// from that offset, so a viewer whose machine is a minute fast must not drag the room with it.
     /// </summary>

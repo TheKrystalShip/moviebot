@@ -4,6 +4,35 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.62.0] - 2026-10-03
+
+### Added
+
+- **The player is Krystal Cinema's own**, drawn to the design: a room at `/r/<room>` on the site,
+  full screen with a way back, and the Discord Activity at `/embed/`, the same page with no site
+  around it. A wide frame has labelled controls and popovers, a compact one icons and sheets from the
+  bottom edge, a popped-out one a single row with an overflow menu. The room's people are on screen
+  with a mark on anyone waiting for the film; what somebody else does is said over the film with who
+  did it; Invite hands out the room's link (the phone's share sheet on a phone, a copy in the
+  Activity); a browser that wants a press before playing is shown who is watching and where, with
+  Join; a film not yet in the element shows how far its transcode has got.
+- **Quality**: Auto, or any rung of the film's ladder, offered where there is more than one.
+- **Preferences that follow the person**: `GET`/`PUT /api/me/preferences` keeps a subtitle language,
+  an audio language and a quality for whoever the token names. A film starts on them wherever the
+  person opens it, and OpenSubtitles is searched in their language beside English.
+- **Who is waiting for the film**: the hub's `Buffering(waiting)` puts a viewer's waiting on the
+  roster (`Participant.buffering`), which every viewer sees.
+- OpenSubtitles' rating rides on each subtitle on offer (`rating`), when anybody has voted on it.
+- `npm run verify` in `web/site`: the player in a real browser against a running API.
+
+### Changed
+
+- `web/site` builds the whole of what the API serves; the separate player and its build are gone.
+  Discord's launch at the root is taken to `/embed/` by the site's index, and the URL mapping is
+  unchanged.
+- The player's subtitles are drawn in one style sized against the frame, and its menus are the
+  design's: subtitles with the film's own tracks and what OpenSubtitles offers, audio, quality.
+
 ## [1.61.0] - 2026-10-03
 
 ### Added

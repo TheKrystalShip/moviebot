@@ -1,7 +1,7 @@
 # Saying what a room is watching
 
 Discord shows it in three places, and each is a different surface with a different reach. Two are the
-bot's and live here; each viewer's own rich presence comes from the Activity (`web/activity/CLAUDE.md`).
+bot's and live here; each viewer's own rich presence comes from the Activity (`web/site/src/player/CLAUDE.md`).
 
 - **The bot's status names a film only while exactly one room is watching one.** There is one status
   for the whole bot, so two rooms are counted rather than named, and no room at all is no status at

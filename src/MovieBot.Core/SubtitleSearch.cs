@@ -11,6 +11,10 @@ public sealed record SubtitleCandidateView
     public required string Language { get; init; }
     public double? Fps { get; init; }
     public int DownloadCount { get; init; }
+
+    /// <summary>OpenSubtitles' rating out of ten, or absent when nobody has voted on it.</summary>
+    public double? Rating { get; init; }
+
     public bool HearingImpaired { get; init; }
     public bool Trusted { get; init; }
     public required int Score { get; init; }

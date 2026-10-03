@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Api.Library;
+using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Subtitles;
 using TheKrystalShip.MovieBot.Core;
 
@@ -59,6 +60,7 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 [JsonSerializable(typeof(DiscordUser))]
 [JsonSerializable(typeof(TokenResponse))]
 [JsonSerializable(typeof(PinSubtitleRequest))]
+[JsonSerializable(typeof(ViewerPreferences))]
 // A list is looked up by the type the endpoint declares and written by the type it holds, so
 // both are named. The Core context carries the same pair for the participants and the rooms.
 [JsonSerializable(typeof(IReadOnlyList<TitleSummary>))]
@@ -68,6 +70,7 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 // Hub arguments and the clock the hub answers with.
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(double))]
+[JsonSerializable(typeof(bool))]
 [JsonSerializable(typeof(DateTimeOffset))]
 internal partial class ApiJsonContext : JsonSerializerContext;
 

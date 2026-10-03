@@ -6,14 +6,13 @@
     <title>Krystal Cinema</title>
     <meta name="theme-color" content="#0B0F14" />
 
-    <!-- The Activity is served from /activity/, and Discord launches it at the address its URL
-         mapping names, which is this page's. A load carrying Discord's launch parameters is the
-         Activity's, so it goes there before anything of the site loads. -->
+    <!-- Discord launches the Activity at the address its URL mapping names, which is the root. A
+         load carrying Discord's launch parameters is the Activity's, so its address becomes the
+         embed's before the page reads it. -->
     <script>
       (function () {
-        var params = new URLSearchParams(window.location.search);
-        if (params.has("frame_id")) {
-          window.location.replace("/activity/" + window.location.search + window.location.hash);
+        if (window.location.pathname === "/" && new URLSearchParams(window.location.search).has("frame_id")) {
+          window.history.replaceState(null, "", "/embed/" + window.location.search + window.location.hash);
         }
       })();
     </script>

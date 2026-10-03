@@ -313,6 +313,7 @@ public static class SubtitleEndpoints
         Language = judged.Candidate.Language,
         Fps = judged.Candidate.Fps > 0 ? judged.Candidate.Fps : null,
         DownloadCount = judged.Candidate.DownloadCount,
+        Rating = judged.Candidate.Rating,
         HearingImpaired = judged.Candidate.HearingImpaired,
         Trusted = judged.Candidate.FromTrusted,
         Score = judged.Score,

@@ -213,6 +213,18 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         return entry.Participants.Values.ToList();
     }
 
+    /// <summary>
+    /// Records whether one connection's player is waiting for the film. Answers the roster when that
+    /// changed anything, and null when it did not, so a player repeating itself is not broadcast.
+    /// </summary>
+    public IReadOnlyList<Participant>? SetBuffering(string sessionId, string connectionId, bool buffering)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return null;
+        if (!entry.Participants.TryGetValue(connectionId, out var participant) || participant.Buffering == buffering) return null;
+        entry.Participants[connectionId] = participant with { Buffering = buffering };
+        return entry.Participants.Values.ToList();
+    }
+
     public IReadOnlyList<Participant> Participants(string sessionId) =>
         _sessions.TryGetValue(sessionId, out var entry) ? entry.Participants.Values.ToList() : new List<Participant>();
 

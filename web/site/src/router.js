@@ -7,11 +7,25 @@ const routeStore = createStore(window.location.pathname + window.location.search
 
 window.addEventListener("popstate", () => routeStore.setState(() => window.location.pathname + window.location.search));
 
+/** How many entries this page pushed, so going back never leaves the site. */
+let depth = 0;
+
+window.addEventListener("popstate", () => { depth = Math.max(0, depth - 1); });
+
 export function navigate(to, { replace = false } = {}) {
   if (to === window.location.pathname + window.location.search) return;
   if (replace) window.history.replaceState(null, "", to);
-  else window.history.pushState(null, "", to);
+  else {
+    window.history.pushState(null, "", to);
+    depth += 1;
+  }
   routeStore.setState(() => to);
+}
+
+/** Back to the page this one was opened from, or to a page of the site's own when it was opened directly. */
+export function goBack(fallback = "/") {
+  if (depth > 0) window.history.back();
+  else navigate(fallback, { replace: true });
 }
 
 /** The page the address names: its name, its argument, and the query. */

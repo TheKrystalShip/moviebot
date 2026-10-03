@@ -65,12 +65,11 @@ which strips the prefix (`nginx-moviebot.conf`).
   `/opt/ffmpeg-p2000` matches the driver and is kept off the global PATH; the unit names it, and
   `ffprobe` is in the same directory so the probe and the transcode cannot end up on different
   builds.
-- **The site and the player reach people through the API.** `scripts/build-player.sh` installs
-  Krystal Cinema (`web/site`) at the root of `src/MovieBot.Api/wwwroot` and the player
-  (`web/activity`) under `wwwroot/activity/`, and the API is what serves both, so a change to either
-  arrives only once the API is published after that script has run. One origin serves the site, the
-  player, the API, the media and the hub, because a Discord Activity maps one URL; Discord launches
-  the Activity at the root, and the site's index sends that load on to `/activity/`.
+- **The site and its player reach people through the API.** `scripts/build-player.sh` installs
+  Krystal Cinema (`web/site`) at the root of `src/MovieBot.Api/wwwroot`, and the API is what serves
+  it, so a change arrives only once the API is published after that script has run. One origin serves
+  the site, the player, the API, the media and the hub, because a Discord Activity maps one URL;
+  Discord launches the Activity at the root, and the site's index takes that load to `/embed/`.
 - **Signing in to the site needs its redirect registered with Discord.** The application's OAuth2
   redirects list `https://movies.thekrystalship.com/signin`; Discord refuses to send anybody back to
   an address it was not given.

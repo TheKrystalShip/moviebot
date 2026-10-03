@@ -146,6 +146,12 @@ public sealed record Participant
 {
     public required string UserId { get; init; }
     public required string DisplayName { get; init; }
+
+    /// <summary>
+    /// This viewer's player has been waiting for the film for longer than a stutter. It is what the
+    /// player reports of itself, so the room can see who the rest are waiting on.
+    /// </summary>
+    public bool Buffering { get; init; }
 }
 
 /// <summary>

@@ -8,6 +8,7 @@ using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Api.Library;
+using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Subtitles;
 using TheKrystalShip.MovieBot.Acquire.Configuration;
 using TheKrystalShip.MovieBot.Acquire.Subtitles;
@@ -59,6 +60,14 @@ builder.Services.AddSingleton(sp => new SessionJournal(
                 ?? Directory.GetCurrentDirectory(), "rooms.json"),
     sp.GetRequiredService<ILogger<SessionJournal>>()));
 builder.Services.AddSingleton<SessionKeeper>();
+
+// How each person watches, which follows them from the site into the Activity and back.
+builder.Services.AddSingleton(sp => new PreferenceStore(
+    sp.GetRequiredService<IConfiguration>()["People:Preferences"]
+        ?? Path.Combine(
+            Environment.GetEnvironmentVariable("STATE_DIRECTORY")?.Split(':').FirstOrDefault()
+                ?? Directory.GetCurrentDirectory(), "preferences.json"),
+    sp.GetRequiredService<ILogger<PreferenceStore>>()));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SessionKeeper>());
 
 // The subtitle index. Searching costs nothing and only a download spends the day's allowance, so
@@ -146,9 +155,9 @@ app.UseCors();
 // Everything below this line is closed unless the caller came through Discord.
 app.UseMiddleware<RequireTokenMiddleware>();
 
-// Krystal Cinema is served from this origin at its root and the player under /activity/, which is
-// what lets a Discord Activity reach the page, the API, the media and the hub through a single
-// declared URL mapping instead of a set of them. Static files sit under wwwroot and never shadow
+// Krystal Cinema, whose player is also the Discord Activity, is served from this origin at its
+// root, which is what lets an Activity reach the page, the API, the media and the hub through a
+// single declared URL mapping instead of a set of them. Static files sit under wwwroot and never shadow
 // /api, /media or /hub, which are explicit routes.
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -195,6 +204,7 @@ app.MapGet("/api/titles/{id}/ticket", (
 
 app.MapSubtitles();
 app.MapAcquisition();
+app.MapPeople();
 
 // Every room, for the bot: it holds no state of its own, so what to say about rooms it reads
 // from here each time it is about to say it.
@@ -305,9 +315,9 @@ app.MapPost("/api/auth/service-token", (
 app.MapMedia();
 app.MapHub<SessionHub>("/hub/session");
 
-// The site names its pages by path, so a film's page can be linked to and reloaded. A GET for a path
-// that names no file is a page: under /activity/ the player's, anywhere else but the API's, the
-// media's and the hub's the site's. The fallback is what answers both indexes, because an endpoint
+// The site names its pages by path, so a film's page and a room can be linked to and reloaded. A GET
+// for a path that names no file, anywhere but under the API's, the media's and the hub's prefixes,
+// is a page and is answered with the site's index. The fallback answers it, because an endpoint
 // matched ahead of the static files means they never see the request. Anything under the API's own
 // prefixes that matched nothing stays a 404.
 app.MapFallback((HttpContext context, IWebHostEnvironment environment) =>
@@ -318,8 +328,7 @@ app.MapFallback((HttpContext context, IWebHostEnvironment environment) =>
         || request.Path.StartsWithSegments("/hub") || Path.HasExtension(request.Path.Value))
         return Results.NotFound();
 
-    var index = environment.WebRootFileProvider.GetFileInfo(
-        request.Path.StartsWithSegments("/activity") ? "activity/index.html" : "index.html");
+    var index = environment.WebRootFileProvider.GetFileInfo("index.html");
     if (!index.Exists || index.PhysicalPath is null) return Results.NotFound();
 
     // The index names the build's hashed assets, so a stale copy would load the last release's.

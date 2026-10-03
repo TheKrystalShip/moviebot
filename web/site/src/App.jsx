@@ -5,7 +5,7 @@ import {
 } from "@thekrystalship/krystal-ui";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 import { useSession } from "./session.js";
-import { navigate, useRoute } from "./router.js";
+import { goBack, navigate, useRoute } from "./router.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { Home } from "./pages/Home.jsx";
 import { Library } from "./pages/Library.jsx";
@@ -16,6 +16,11 @@ import { Leaving } from "./pages/Leaving.jsx";
 import { Downloads } from "./pages/Downloads.jsx";
 import { Profile } from "./pages/Profile.jsx";
 import { SignIn } from "./pages/SignIn.jsx";
+
+// The player carries hls.js, the hub client and Discord's SDK; only a room pays for them.
+const EmbedRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.EmbedRoom })));
+const SiteRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.SiteRoom })));
+const Dark = () => <div style={{ position: "fixed", inset: 0, background: "#000" }} />;
 
 const NAV = [
   { page: "home", path: "/", icon: "house", label: "Home" },
@@ -37,14 +42,27 @@ const LIFECYCLE = [
 export function App() {
   const session = useSession();
   const route = useRoute();
+  const embedded = route.page === "embed";
 
   React.useEffect(() => {
-    if (!session && route.page !== "signin") {
+    if (!session && route.page !== "signin" && !embedded) {
       navigate("/signin?next=" + encodeURIComponent(route.path + (route.query.toString() ? "?" + route.query : "")), { replace: true });
     }
-  }, [session, route.page, route.path, route.query]);
+  }, [session, route.page, route.path, route.query, embedded]);
 
+  // The Activity proves who is watching through Discord, so it answers to no site session.
+  if (embedded) return <React.Suspense fallback={<Dark />}><EmbedRoom /></React.Suspense>;
   if (route.page === "signin" || !session) return <><SignIn query={route.query} /><Toasts /></>;
+  // A room fills the screen: the film is the page, and the way out is its back button.
+  if (route.page === "r" && route.arg) {
+    return (
+      <React.Suspense fallback={<Dark />}>
+        <SiteRoom key={route.arg} room={route.arg} title={route.query.get("title")}
+          onBack={() => goBack(route.query.get("title") ? "/title/" + encodeURIComponent(route.query.get("title")) : "/")}
+          onEmpty={() => navigate("/library")} />
+      </React.Suspense>
+    );
+  }
   return <Frame session={session} route={route} />;
 }
 

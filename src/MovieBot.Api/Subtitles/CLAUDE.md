@@ -41,4 +41,4 @@
   with and no release to mismatch, so an unconfirmed embedded track says nothing at all. A quality
   mark there would be inventing the one answer that matters.
 
-How the picker shows all this: `web/activity/CLAUDE.md`.
+How the player's menu shows all this: `web/site/src/player/CLAUDE.md`.

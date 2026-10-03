@@ -28,10 +28,10 @@ Playback starts seconds after a film is requested, while it is still being trans
                /watch, /download, voice                        what is said and typed
   Discord ─────────────────────────────►  MovieBot.Bot ──────────────► moviebot-assistant
      │                                         │                              │   ▲
-     │ Activity (player)                       │                              │   │ chat
+     │ Activity (/embed/)                      │                              │   │ chat
      ▼                                         ▼                              ▼   │
-  web/activity ◄── HLS, SignalR ──►     MovieBot.Api  ◄─────────────────── web/site
-                                         │        ▲                     (Krystal Cinema)
+  web/site ◄────── HLS, SignalR ──►     MovieBot.Api  ◄─────────────────── web/site
+  (the player)                           │        ▲                     (Krystal Cinema)
      moviebot-acquire: tracker,  ◄───────┘        └── manifests, segments ── MovieBot.Ingest
      downloads, wishes, keeps                                                    ▲
                                                   MovieBot.Handoff ──────────────┘
@@ -90,8 +90,7 @@ src/MovieBot.Assistant/ the assistant: turns, proposals and conversations over t
 src/MovieBot.Bot/       the Discord bot
 src/MovieBot.Handoff/   moves finished downloads into the library
 src/MovieBot.Speech/    speech recognition host for voice commands
-web/site/               Krystal Cinema, the site
-web/activity/           the player
+web/site/               Krystal Cinema, the site, and its player, which is also the Discord Activity
 packaging/              the release's installer, systemd units and configuration examples
 deploy/                 the maintainers' host configuration and native GPU builds
 docs/                   deployment guide, API contract, voice command reference
@@ -170,21 +169,17 @@ Discord__ClientSecret=<OAuth2 client secret> \
 dotnet run --project src/MovieBot.Api -c Release
 ```
 
-The API listens on `http://127.0.0.1:8099`. The site and the player are built into the API's
-`wwwroot` with `scripts/build-player.sh`, or served on their own for development:
+The API listens on `http://127.0.0.1:8099`. The site, with its player, is built into the API's
+`wwwroot` with `scripts/build-player.sh`, or served on its own for development:
 
 ```bash
 cd web/site
 npm install          # @thekrystalship/krystal-ui comes from GitHub Packages, which wants a token
 npm run dev          # http://localhost:5175, talking to the API on :8099 and the assistant on :8191
-
-cd web/activity
-npm install
-npm run dev          # http://localhost:5173, talking to the API on :8099
 ```
 
 Everybody signs in through Discord: the site with the OAuth2 redirect, which lets in members of
-the server alone, and the player from inside the Activity, with the application's URL mapping
+the server alone, and the Activity through the Embedded App SDK, with the application's URL mapping
 pointed at wherever the API is reachable.
 
 ### Run the bot
@@ -268,8 +263,7 @@ built and tested, with moviebot-acquire checked out beside this repository.
 
 - [`docs/deploying.md`](docs/deploying.md): deploying a release, step by step
 - [`docs/api-contract.md`](docs/api-contract.md): what the API serves on the wire
-- [`web/site/README.md`](web/site/README.md): Krystal Cinema, the site
-- [`web/activity/README.md`](web/activity/README.md): the player
+- [`web/site/README.md`](web/site/README.md): Krystal Cinema, the site, and its player
 - [`src/MovieBot.Bot/README.md`](src/MovieBot.Bot/README.md): the Discord bot and its configuration
 - [`docs/voice-commands.md`](docs/voice-commands.md): what can be said to the bot
 - [`CHANGELOG.md`](CHANGELOG.md): release history

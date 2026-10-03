@@ -128,6 +128,24 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     }
 
     [Fact]
+    public async Task A_viewer_waiting_for_the_film_is_marked_on_the_roster()
+    {
+        var session = NewSession();
+        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
+
+        var sawWaiting = Next<List<Participant>>(alice, "ParticipantsChanged");
+        await bob.InvokeAsync("Buffering", true);
+        var waiting = await sawWaiting;
+        Assert.True(waiting.Single(p => p.DisplayName == "Bob").Buffering);
+        Assert.False(waiting.Single(p => p.DisplayName == "Alice").Buffering);
+
+        var sawPlaying = Next<List<Participant>>(alice, "ParticipantsChanged");
+        await bob.InvokeAsync("Buffering", false);
+        Assert.All(await sawPlaying, p => Assert.False(p.Buffering));
+    }
+
+    [Fact]
     public void Position_is_derived_from_the_anchor_not_transmitted()
     {
         var anchor = DateTimeOffset.UtcNow;

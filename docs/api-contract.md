@@ -25,6 +25,17 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `POST /api/sessions/{id}/seek` | `RoomChanged` |
 | `POST /api/sessions/{id}/seek-relative` | `RoomChanged` |
 | `GET,HEAD /media/{id}/**` | playlists, segments, subtitles, poster. Opened by `?mt=` or the bearer token |
+| `GET /api/me/preferences` | `ViewerPreferences` — how the token's person watches; every field absent for somebody who set nothing. `403` for the service key, which names nobody |
+| `PUT /api/me/preferences` | `ViewerPreferences` → the stored `ViewerPreferences`. A blank language or a height that is not positive is stored as absent |
+
+```jsonc
+// ViewerPreferences: the defaults a film starts with, for a person wherever they sign in
+{
+  "subtitleLanguage": "es",   // the subtitle language to start on when the film carries it; absent for none
+  "audioLanguage": "en",      // the audio language to start on when the film carries it; absent for the film's own
+  "qualityHeight": 720        // the rung to hold the film at; absent to let the connection decide
+}
+```
 
 CORS reflects any origin and allows credentials. Media answers HEAD as well as GET.
 
@@ -213,6 +224,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `Pause` | `(atSeconds) → SessionStatePush` | |
 | `Seek` | `(toSeconds) → SessionStatePush` | may be clamped |
 | `ServerTime` | `() → DateTimeOffset` | for clock-offset estimation |
+| `Buffering` | `(waiting: bool)` | this viewer's player has been waiting for the film past a stutter, or is playing again. Moves nothing; the roster carries it |
 
 **Receive:**
 
@@ -220,7 +232,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 |---|---|
 | `StateChanged` | `SessionStatePush` — sent to everyone including the caller |
 | `SeekClamped` | `{requestedSeconds, grantedSeconds, headSeconds}` — sent to the caller only |
-| `ParticipantsChanged` | `Participant[]` = `{userId, displayName}[]` |
+| `ParticipantsChanged` | `Participant[]` = `{userId, displayName, buffering}[]` — sent when somebody joins, leaves, or starts or stops waiting for the film |
 | `TitleChanged` | `Manifest` — the manifest of the title this room holds changed: head, preview sheet, subtitles, status. Sent to every room holding the title, within a couple of seconds of the write |
 
 ```jsonc

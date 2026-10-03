@@ -93,6 +93,7 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
                 ["QBittorrent:BaseUrl"] = "http://127.0.0.1:1",
                 ["Download:Root"] = StateRoot,
                 ["Notify:Path"] = Path.Combine(StateRoot, "wishes.json"),
+                ["People:Preferences"] = Path.Combine(StateRoot, "preferences.json"),
             }));
 
         builder.ConfigureServices(services =>
