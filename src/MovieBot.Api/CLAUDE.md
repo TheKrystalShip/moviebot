@@ -44,8 +44,8 @@ and keeps are `Acquisition/CLAUDE.md`.
   what is kept and never waits on the network. No page talks to the database or its image store.
 - **A person's own settings are asked for by token, never by id.** `/api/me/preferences` answers for
   whoever the token names, so there is no route by which anybody reads or writes anybody else's; the
-  service key names nobody and is refused there. Progress and history (`/api/me/progress`,
-  `/api/me/history`) are asked for the same way.
+  service key names nobody and is refused there. Progress, history and devices (`/api/me/progress`,
+  `/api/me/history`, `/api/me/sessions`) are asked for the same way.
 - **What a person watched is sampled from rooms that are playing, and only those** (`People/`).
   `WatchSampler` credits every person in a room that is playing a film with the room's position,
   every 30 seconds; the position is derived from the room's anchor at the instant sampled, never
@@ -55,6 +55,12 @@ and keeps are `Acquisition/CLAUDE.md`.
   their own entry and progress and leaves the film's last play. `PersonDirectory` is what turns a
   Discord id into a name, learned from every token issued and every join; a record never shows an id
   where a name belongs.
+- **Tokens are signed and short-lived, and the device list is what makes "sign out elsewhere"
+  possible.** A token cannot be taken back, so each sign-in carries an id (`jti`) and is recorded in
+  `People/DeviceSessions` (`devices.json`); a revoked id is refused with the ordinary 401 by
+  `RequireTokenMiddleware`, which the hub's negotiate also passes through. An entry is forgotten
+  once its token would have expired anyway. `lastSeenAt` moves at most once a minute per session.
+  A token with no id is valid until it expires and is not listed.
 - **The API publishes its public address on `/api/config`.** The page's origin is Discord's proxy,
   reachable only from inside the Activity, and the poster a viewer's presence shows is fetched by
   Discord's servers, so the page builds the poster URL from that address.

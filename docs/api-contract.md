@@ -32,6 +32,9 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET /api/me/progress` | `ProgressEntry[]` — the films the token's person started and did not finish, newest first: `{titleId, name, positionSeconds, durationSeconds, remainingSeconds, lastWatchedAt}`. A film the library no longer holds is left out. `403` for the service key |
 | `GET /api/me/history` | `HistoryEntry[]` — every film the token's person watched, newest first: `{titleId, name, positionSeconds, durationSeconds, finished, lastWatchedAt}`. `finished` is a position past 90 % of the film. `403` for the service key |
 | `DELETE /api/me/history/{titleId}` | `204` — forgets the person's entry for the film, and so their progress in it. The film's own last play stays. `403` for the service key |
+| `GET /api/me/sessions` | `DeviceSession[]` — the devices the token's person is signed in on, most recently seen first: `{id, device, issuedAt, lastSeenAt, current}`. `current` marks the one asking. `403` for the service key |
+| `DELETE /api/me/sessions/{id}` | 204 — ends one of the person's own sessions. Another person's id, or one that does not exist, is `404` |
+| `DELETE /api/me/sessions` | 204 — ends every session of the person except the current one |
 
 What is recorded is sampled from rooms: every 30 seconds each person in a room that is **playing** a
 film is credited with the room's position, so a paused room left open ages nothing. Opening a film
@@ -132,6 +135,12 @@ only opens inside the server, and its token says nothing more than who is watchi
 the code from the OAuth2 redirect, asked for with `identify guilds.members.read`, and its
 `redirectUri`: then the token is issued only to a member of one of `Discord.GuildIds`, and carries
 `member`. Somebody outside the server is a `403`; a Discord that cannot say is a `502`.
+
+A token's payload is `sub`, `name`, `room`, `member`, `exp` and `jti`, a random id naming that one
+sign-in. Each sign-in is recorded with a short summary of the browser that made it ("Chrome on
+Android"; "Discord Activity" for the Activity's), which is what `/api/me/sessions` lists. A session
+the person ended is refused with the same `401` as a token that was never valid, on every route and
+at the hub's negotiate. A token without a `jti` is valid until `exp` and is not listed.
 
 | Route | Returns |
 |---|---|

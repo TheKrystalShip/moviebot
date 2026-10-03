@@ -66,6 +66,8 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 [JsonSerializable(typeof(TitleLastPlayed))]
 [JsonSerializable(typeof(List<ProgressEntry>))]
 [JsonSerializable(typeof(List<HistoryEntry>))]
+[JsonSerializable(typeof(DeviceSession))]
+[JsonSerializable(typeof(List<DeviceSession>))]
 // A list is looked up by the type the endpoint declares and written by the type it holds, so
 // both are named. The Core context carries the same pair for the participants and the rooms.
 [JsonSerializable(typeof(IReadOnlyList<TitleSummary>))]

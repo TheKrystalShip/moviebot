@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Auth;
@@ -18,6 +19,7 @@ public sealed class RequireTokenMiddleware(
     RequestDelegate next,
     IOptions<AuthOptions> options,
     TimeProvider clock,
+    DeviceSessions devices,
     ILogger<RequireTokenMiddleware> logger)
 {
     private const string ServiceHeader = "X-MovieBot-Service";
@@ -55,7 +57,11 @@ public sealed class RequireTokenMiddleware(
         }
 
         var payload = RoomToken.Validate(BearerFrom(context.Request), settings.SigningKey, clock.GetUtcNow());
-        if (payload is null)
+
+        // A session the person ended is refused exactly as a token that was never valid: the reply
+        // tells whoever holds it nothing more. The hub's negotiate passes through here with the
+        // token on the query string, so a revoked token cannot join a room either.
+        if (payload is null || payload.TokenId is { } id && devices.IsRevoked(id))
         {
             logger.LogDebug("Refused {Method} {Path}: no usable token", context.Request.Method, context.Request.Path);
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -65,6 +71,8 @@ public sealed class RequireTokenMiddleware(
                 ApiJsonContext.Default.ErrorReply);
             return;
         }
+
+        if (payload.TokenId is { } seen) devices.Touch(seen);
 
         context.Items["room-token"] = payload;
         await next(context);
