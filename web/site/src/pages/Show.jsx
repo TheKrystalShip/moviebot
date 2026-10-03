@@ -9,6 +9,7 @@ import { Empty, Failed, watchLink } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes } from "../components/FilmDetails.jsx";
 import { RequestSheet, plan } from "../components/RequestSheet.jsx";
 import { watchNow } from "../watchNow.js";
+import { downloadWords } from "./Search.jsx";
 
 /**
  * One show: what it is, its seasons with their episodes, where this person picks up, how long each
@@ -22,6 +23,8 @@ export function Show({ imdbId, query }) {
   const show = useLoad(() => api.show(imdbId), [imdbId]);
   const library = useLoad(() => api.shows().then((all) => all.find((s) => s.imdbId === imdbId) || null).catch(() => null), [imdbId]);
   const rooms = useLoad(() => api.rooms(), [imdbId]);
+  // What the tracker offers, so every episode it holds can be played; kept a few minutes by the API.
+  const offers = useLoad(() => api.showReleases(imdbId).catch(() => null), [imdbId]);
   const [season, setSeason] = React.useState(Number(query.get("season")) || null);
   const [requesting, setRequesting] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -172,7 +175,8 @@ export function Show({ imdbId, query }) {
             })}
           </div>
 
-          <SeasonPanel season={current} me={me} busy={busy} onKeep={keep} rooms={rooms.data || []} />
+          <SeasonPanel season={current} me={me} busy={busy} onKeep={keep} rooms={rooms.data || []}
+            offers={offers.data} showImdbId={s.imdbId} showTitle={s.title} onFetched={show.reload} />
         </section>
       )}
 
@@ -198,8 +202,33 @@ export function Show({ imdbId, query }) {
 }
 
 /** One season: its stay and its keep, and its episodes with how far this person got in each. */
-function SeasonPanel({ season, me, busy, onKeep, rooms }) {
+function SeasonPanel({ season, me, busy, onKeep, rooms, offers, showImdbId, showTitle, onFetched }) {
+  const [fetching, setFetching] = React.useState(false);
   const stay = season.stay && season.stay.settled ? season.stay : null;
+  const fetchable = fetchableIn(season, offers);
+
+  // The whole of the season not here, at 720p, first episode first: the season's pack where there
+  // is one, the first picked at the torrent client's highest priority and the second at its next.
+  const fetchSeason = async () => {
+    setFetching(true);
+    try {
+      const torrents = plan(offers, { [season.number]: new Set(fetchable) }, "720p").torrents;
+      let started = 0;
+      for (const t of torrents) {
+        const reply = await api.download(t.offer.torrentId, t.episodes);
+        if (reply.outcome === "started") started++;
+        else toast.error(downloadWords(reply));
+      }
+      if (started > 0) {
+        toast.success(`Downloading ${showTitle} Season ${season.number}, episode ${fetchable[0]} first. Each can be watched as soon as enough of it has arrived.`);
+        onFetched();
+      }
+    } catch (error) {
+      toast.fromError(error, "The download did not start");
+    } finally {
+      setFetching(false);
+    }
+  };
   const played = season.episodes.map((e) => e.lastPlayed).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at))[0];
   const playedBy = played && (me && played.byId === me.id ? "you" : played.byName);
   const aired = season.airDate ? new Date(season.airDate).getFullYear() : null;
@@ -220,19 +249,43 @@ function SeasonPanel({ season, me, busy, onKeep, rooms }) {
         {stay && (stay.keeperId
           ? <button type="button" className="kc-btn" disabled={busy} onClick={() => onKeep(stay, false)}><Icon name="pin-off" size={15} />Un-keep season</button>
           : <button type="button" className="kc-btn" disabled={busy} onClick={() => onKeep(stay, true)}><Icon name="pin" size={15} />Keep season</button>)}
+        {fetchable.length > 0 && (
+          <button type="button" className="kc-btn" disabled={fetching} onClick={fetchSeason}>
+            <Icon name="download" size={15} />{fetchable.length === season.episodes.length ? "Download season" : `Download the other ${fetchable.length}`}
+          </button>
+        )}
       </div>
 
-      {season.episodes.map((e) => <EpisodeRow key={e.number} episode={e} rooms={rooms} />)}
+      {season.episodes.map((e) => <EpisodeRow key={e.number} episode={e} rooms={rooms} offers={offers} showImdbId={showImdbId} />)}
     </div>
   );
 }
 
-function EpisodeRow({ episode: e, rooms }) {
+/** The release an episode is fetched from at 720p, the show's default, or null when nothing offered holds it. */
+function offerFor(offers, season, number) {
+  return (offers && plan(offers, { [season]: new Set([number]) }, "720p").torrents[0]) || null;
+}
+
+/** Every episode of a season not here that the tracker offers, by number. */
+function fetchableIn(season, offers) {
+  return season.episodes.filter((e) => !e.titleId && offerFor(offers, season.number, e.number)).map((e) => e.number);
+}
+
+function EpisodeRow({ episode: e, rooms, offers, showImdbId }) {
+  const [starting, setStarting] = React.useState(false);
   const done = e.progress && e.progress.finished;
   const fraction = done ? 1
     : e.progress && e.durationSeconds ? Math.min(1, e.progress.positionSeconds / e.durationSeconds) : 0;
   const room = e.titleId && rooms.find((r) => r.titleId === e.titleId && r.participants > 0);
   const here = !!e.titleId && e.status !== "failed";
+  // An episode not here that the tracker offers plays while it arrives, as any other does.
+  const offer = !e.titleId ? offerFor(offers, e.season, e.number) : null;
+  const watch = async () => {
+    if (starting) return;
+    setStarting(true);
+    const started = await watchNow({ imdbId: showImdbId, torrentId: offer.offer.torrentId, episodes: [{ season: e.season, episode: e.number }] });
+    if (!started) setStarting(false);
+  };
   const runtime = e.runtimeMinutes ? `${e.runtimeMinutes}m` : e.durationSeconds ? clock(e.durationSeconds) : null;
   const inner = (
     <>
@@ -245,17 +298,19 @@ function EpisodeRow({ episode: e, rooms }) {
         <span className={"kc-episode__title" + (done ? " is-done" : "")}>{e.name || `Episode ${e.number}`}</span>
         <span className="kc-episode__sub">
           {here ? (e.status === "transcoding" ? "Still being prepared" : e.airDate ? `Aired ${e.airDate}` : "On this server")
-            : e.titleId ? "Could not be prepared" : "Not on this server"}
+            : e.titleId ? "Could not be prepared"
+            : offer ? (starting ? "Starting…" : "Plays while it downloads")
+            : offers ? "Not on the tracker" : "Not on this server"}
         </span>
       </span>
       <span className="kc-episode__progress"><span style={{ width: `${Math.round(fraction * 100)}%` }} className={done ? "is-done" : ""} /></span>
       <span className="kc-episode__score">{e.rating ? <><Icon name="star" size={11} />{e.rating.toFixed(1)}</> : null}</span>
       <span className="kc-episode__runtime">{runtime}</span>
-      <span className="kc-episode__go"><Icon name={!here ? "cloud-off" : room ? "users" : done ? "check" : "play"} size={13} /></span>
+      <span className="kc-episode__go"><Icon name={here || offer ? (room ? "users" : done ? "check" : "play") : "cloud-off"} size={13} /></span>
     </>
   );
 
-  return here
-    ? <a className="kc-episode" {...watchLink(e.titleId, room && room.sessionId, !done && e.progress ? e.progress.positionSeconds : 0)}>{inner}</a>
-    : <div className="kc-episode is-absent">{inner}</div>;
+  if (here) return <a className="kc-episode" {...watchLink(e.titleId, room && room.sessionId, !done && e.progress ? e.progress.positionSeconds : 0)}>{inner}</a>;
+  if (offer) return <button type="button" className="kc-episode kc-episode--fetch" disabled={starting} onClick={watch}>{inner}</button>;
+  return <div className="kc-episode is-absent">{inner}</div>;
 }

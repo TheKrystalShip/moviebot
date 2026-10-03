@@ -63,6 +63,13 @@ export const api = {
       `/api/titles/${encodeURIComponent(id)}/subtitles/search?language=${encodeURIComponent(
         [...new Set(languages.map((l) => l.toLowerCase()))].sort().join(','))}`),
 
+  /**
+   * Fetches an episode into a room and plays it the moment it can be opened; the room shows it
+   * arriving. A member's act: the Activity's token spends nothing.
+   */
+  watchNow: (request: { imdbId: string; episodes: { season: number; episode: number }[]; room: string; quality: string }) =>
+    sendJson<{ outcome: string; room?: string }>('/api/watch', 'POST', request),
+
   /** Everybody who can be asked into a room, most recently seen first, without the person asking. */
   people: () => getJson<Person[]>('/api/people'),
 

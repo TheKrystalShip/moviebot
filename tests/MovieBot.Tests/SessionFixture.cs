@@ -107,6 +107,7 @@ public class SessionFixture : WebApplicationFactory<Program>
                 // The film database, answered by the test.
                 ["Tmdb:ReadAccessToken"] = "a-test-token",
                 ["Tmdb:Directory"] = Path.Combine(StateRoot, "films"),
+                ["Tmdb:ShowsDirectory"] = Path.Combine(StateRoot, "shows"),
             }));
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(MoreSettings()));
 
@@ -132,6 +133,11 @@ public class SessionFixture : WebApplicationFactory<Program>
     /// <summary>Puts a title in the library, as the hand-off would.</summary>
     public void AddTitle(string id, FilmIdentity film) => WriteManifest(MediaRoot, id, TitleStatus.Transcoding, 120, film);
 
+    /// <summary>Puts an episode in the library, playable up to its head, as the hand-off would.</summary>
+    public void AddEpisode(string id, string showImdbId, string showName, int season, int number) =>
+        WriteManifest(MediaRoot, id, TitleStatus.Transcoding, 120, new FilmIdentity { ImdbId = showImdbId, Name = showName },
+            new EpisodeIdentity { Season = season, Number = number });
+
     /// <summary>The browsers' push services, as the tests answer them.</summary>
     public PushServiceStub PushService { get; } = new();
 
@@ -156,13 +162,16 @@ public class SessionFixture : WebApplicationFactory<Program>
         return client;
     }
 
-    private static void WriteManifest(string root, string id, TitleStatus status, double? head, FilmIdentity? film = null)
+    private static void WriteManifest(string root, string id, TitleStatus status, double? head, FilmIdentity? film = null,
+        EpisodeIdentity? episode = null)
     {
         var manifest = new Manifest
         {
             Id = id,
             Title = id,
             Film = film,
+            Kind = episode is null ? default : TitleKind.Show,
+            Episode = episode,
             DurationSeconds = TitleDuration,
             Status = status,
             HeadSeconds = head,

@@ -131,6 +131,9 @@ export interface EpisodeNeighbours {
   name?: string;
   previousName?: string;
   nextName?: string;
+  /** The episode right after this one when it is not here and the tracker offers it: what next fetches. */
+  fetchable?: { season: number; number: number };
+  fetchableName?: string;
 }
 
 /** One point in the film with a name, as the container already records it. */

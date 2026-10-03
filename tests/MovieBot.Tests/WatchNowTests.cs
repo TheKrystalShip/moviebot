@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Search;
+using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
@@ -31,7 +32,43 @@ public sealed class WatchNowFixture : SessionFixture
 
     public static readonly string Hash = Bencode.InfoHash(Encoding.ASCII.GetBytes(TorrentFile));
 
+    /// <summary>A show, and its first season as one pack of three episode files.</summary>
+    public const string Show = "tt5875444";
+    public const string ShowRelease = "Show.S01.720p.WEB-DL-GRP";
+    private const long ShowTorrentId = 71;
+
+    private const string ShowTorrentFile =
+        "d4:infod5:filesl"
+        + "d6:lengthi10e4:pathl20:Show.S01E01.720p.mkvee"
+        + "d6:lengthi10e4:pathl20:Show.S01E02.720p.mkvee"
+        + "d6:lengthi10e4:pathl20:Show.S01E03.720p.mkvee"
+        + "e4:name24:Show.S01.720p.WEB-DL-GRP12:piece lengthi16384e6:pieces20:AAAAAAAAAAAAAAAAAAAAee";
+
+    public static readonly string ShowHash = Bencode.InfoHash(Encoding.ASCII.GetBytes(ShowTorrentFile));
+
+    public static readonly IReadOnlyList<string> ShowFiles =
+        [.. Bencode.Files(Encoding.ASCII.GetBytes(ShowTorrentFile)).Select(f => f.Path)];
+
     public TorrentClientStub Torrents { get; } = new();
+
+    public WatchNowFixture()
+    {
+        // The film database has described the show: three episodes in its first season.
+        var directory = Path.Combine(StateRoot, "shows", Show);
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, "show.json"), System.Text.Json.JsonSerializer.Serialize(new Api.Shows.StoredShow
+        {
+            FetchedAt = DateTimeOffset.UtcNow,
+            Seasons =
+            [
+                new Acquire.Tmdb.SeasonDetails
+                {
+                    Number = 1,
+                    Episodes = [.. Enumerable.Range(1, 3).Select(n => new Acquire.Tmdb.EpisodeDetails { Season = 1, Number = n, Name = $"Episode {n}" })],
+                },
+            ],
+        }, Api.Shows.StoredShowJson.Default.StoredShow));
+    }
 
     protected override Dictionary<string, string?> MoreSettings() => new()
     {
@@ -45,9 +82,28 @@ public sealed class WatchNowFixture : SessionFixture
     {
         services.RemoveAll<IReleaseSearch>();
         services.AddSingleton<IReleaseSearch>(new InceptionOnly());
+        services.RemoveAll<IShowSearch>();
+        services.AddSingleton<IShowSearch>(new OneSeasonPack());
         services.AddHttpClient<QBittorrentClient>().ConfigurePrimaryHttpMessageHandler(() => Torrents);
         services.AddHttpClient<TrackerClient>().ConfigurePrimaryHttpMessageHandler(() => new Answer(r =>
-            r.RequestUri!.AbsolutePath.EndsWith("download.php", StringComparison.Ordinal) ? TorrentFile : null));
+            !r.RequestUri!.AbsolutePath.EndsWith("download.php", StringComparison.Ordinal) ? null
+            : r.RequestUri.Query.Contains($"={ShowTorrentId}", StringComparison.Ordinal) ? ShowTorrentFile
+            : TorrentFile));
+    }
+
+    /// <summary>The tracker offers the show's first season as a 720p pack.</summary>
+    private sealed class OneSeasonPack : IShowSearch
+    {
+        private static readonly Release Pack = new()
+        {
+            TorrentId = ShowTorrentId, ReleaseName = ShowRelease, Title = "Show", ImdbId = Show, SizeBytes = 30,
+            Resolution = Resolution.Hd720, Source = Source.Web, Episodic = EpisodeMarker.Read(ShowRelease),
+        };
+
+        public Task<ShowReleases> ByShowAsync(string imdbId, CancellationToken ct) => Task.FromResult(
+            new ShowReleases(imdbId == Show ? [new SeasonOffer(1, [Pack], [])] : [], []));
+
+        public Task<ShowReleases> ShowByTextAsync(string typed, CancellationToken ct) => ByShowAsync(Show, ct);
     }
 
     public sealed class InceptionOnly : IReleaseSearch
@@ -94,10 +150,16 @@ public sealed class WatchNowFixture : SessionFixture
     }
 }
 
-/// <summary>A torrent client that keeps the torrents it is given, with their tags, and lists them back.</summary>
+/// <summary>
+/// A torrent client that keeps the torrents it is given, with their tags and their files' priorities,
+/// and lists them back. It knows the fixture's two torrents by what is in the upload.
+/// </summary>
 public sealed partial class TorrentClientStub : HttpMessageHandler
 {
     public ConcurrentDictionary<string, (string Name, double Progress, HashSet<string> Tags)> Held { get; } = new();
+
+    /// <summary>Each held torrent's files, as path and priority, in the torrent's order.</summary>
+    public ConcurrentDictionary<string, List<(string Path, int Priority)>> Files { get; } = new();
 
     public void Tag(string hash, params string[] tags)
     {
@@ -109,20 +171,57 @@ public sealed partial class TorrentClientStub : HttpMessageHandler
         lock (Held) Held[hash] = Held[hash] with { Progress = progress };
     }
 
+    public int PriorityOf(string hash, string fileEnding)
+    {
+        lock (Held) return Files[hash].First(f => f.Path.EndsWith(fileEnding, StringComparison.Ordinal)).Priority;
+    }
+
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
         var path = request.RequestUri!.AbsolutePath;
+        var query = HttpUtility.ParseQueryString(request.RequestUri.Query);
         var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct);
 
         if (path.EndsWith("app/version", StringComparison.Ordinal)) return Ok("v5.0.0");
         if (path.EndsWith("torrents/add", StringComparison.Ordinal))
         {
             var tags = TagsPart().Match(body) is { Success: true } m ? m.Groups[1].Value : "";
+            var show = body.Contains(WatchNowFixture.ShowRelease, StringComparison.Ordinal);
+            var hash = show ? WatchNowFixture.ShowHash : WatchNowFixture.Hash;
             lock (Held)
-                Held[WatchNowFixture.Hash] = ("Inception.2010.1080p.WEB-DL-GRP", 0,
+            {
+                Held[hash] = (show ? WatchNowFixture.ShowRelease : "Inception.2010.1080p.WEB-DL-GRP", 0,
                     [.. tags.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)]);
+                Files[hash] = show
+                    ? [.. WatchNowFixture.ShowFiles.Select(f => (f, 1))]
+                    : [("Inception.2010.1080p.WEB-DL-GRP.mkv", 1)];
+            }
             return Ok("Ok.");
         }
+        if (path.EndsWith("torrents/files", StringComparison.Ordinal))
+        {
+            lock (Held)
+                return Ok(Files.TryGetValue(query["hash"] ?? "", out var files)
+                    ? "[" + string.Join(",", files.Select((f, i) =>
+                        $$"""{"name":"{{f.Path}}","size":1048576,"index":{{i}},"priority":{{f.Priority}},"progress":0}""")) + "]"
+                    : "[]");
+        }
+        if (path.EndsWith("torrents/filePrio", StringComparison.Ordinal))
+        {
+            var form = HttpUtility.ParseQueryString(body);
+            lock (Held)
+            {
+                var files = Files[form["hash"]!];
+                var priority = int.Parse(form["priority"]!, System.Globalization.CultureInfo.InvariantCulture);
+                foreach (var id in (form["id"] ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var i = int.Parse(id, System.Globalization.CultureInfo.InvariantCulture);
+                    files[i] = (files[i].Path, priority);
+                }
+            }
+            return Ok("");
+        }
+        if (path.EndsWith("torrents/start", StringComparison.Ordinal)) return Ok("");
         if (path.EndsWith("torrents/addTags", StringComparison.Ordinal) || path.EndsWith("torrents/removeTags", StringComparison.Ordinal))
         {
             var form = HttpUtility.ParseQueryString(body);
@@ -136,8 +235,9 @@ public sealed partial class TorrentClientStub : HttpMessageHandler
         }
         if (path.EndsWith("torrents/info", StringComparison.Ordinal))
         {
+            var only = query["hashes"];
             lock (Held)
-                return Ok("[" + string.Join(",", Held.Select(h =>
+                return Ok("[" + string.Join(",", Held.Where(h => only is null || h.Key == only).Select(h =>
                     $$"""{"hash":"{{h.Key}}","name":"{{h.Value.Name}}","state":"downloading","progress":{{h.Value.Progress.ToString(System.Globalization.CultureInfo.InvariantCulture)}},"size":1048576,"content_path":"/x","seq_dl":true,"tags":"{{string.Join(", ", h.Value.Tags)}}"}""")) + "]");
         }
         return new HttpResponseMessage(HttpStatusCode.NotFound);
@@ -276,13 +376,77 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
 
             Assert.Equal(HttpStatusCode.Conflict, pressed.StatusCode);
             Assert.Equal("full", reply!.Outcome);
-            Assert.Equal(new StreamSlots(2, 2), reply.Streams);
+            // Other tests' downloads may be arriving too; the two here are enough to fill both slots.
+            Assert.Equal(2, reply.Streams!.Limit);
+            Assert.True(reply.Streams.Used >= 2);
         }
         finally
         {
             fixture.Torrents.Held.TryRemove("aaa", out _);
             fixture.Torrents.Held.TryRemove("bbb", out _);
         }
+    }
+
+    [Fact]
+    public async Task An_episode_is_fetched_out_of_its_season_and_the_room_waits_on_that_episode()
+    {
+        // The first episode is here and its season's torrent says so; the room asks for the second.
+        fixture.AddEpisode("show-s01e01", WatchNowFixture.Show, "Show", 1, 1);
+        using var pressed = await Member().PostAsJsonAsync("/api/watch", new WatchNowRequest
+        {
+            ImdbId = WatchNowFixture.Show, Episodes = [new EpisodePick(1, 2)], Room = "show-night",
+        });
+        Assert.Equal("preparing", (await pressed.Content.ReadFromJsonAsync<WatchNowReply>())!.Outcome);
+
+        await Until(() => fixture.Torrents.Held.TryGetValue(WatchNowFixture.ShowHash, out var held)
+            && held.Tags.Contains("watch:show-night:s01e02"));
+        Assert.Equal(7, fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "E02.720p.mkv"));
+        Assert.Equal(0, fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "E03.720p.mkv"));
+        await Until(() => Room("show-night").Preparing?.Stage == PreparingStages.Downloading);
+        Assert.Equal("Show S01E02", Room("show-night").Preparing!.Name);
+
+        // The torrent being watchable for the first episode does not put the first in the room.
+        fixture.Torrents.Tag(WatchNowFixture.ShowHash, TorrentTags.Watchable, TorrentTags.Library("show-s01e01"));
+        await Task.Delay(TimeSpan.FromSeconds(4));
+        Assert.Null(Room("show-night").TitleId);
+
+        // The second arriving does.
+        fixture.AddEpisode("show-s01e02", WatchNowFixture.Show, "Show", 1, 2);
+        await Until(() => Room("show-night").TitleId == "show-s01e02");
+    }
+
+    [Fact]
+    public async Task An_episode_here_already_is_loaded_into_the_room_at_once()
+    {
+        fixture.AddEpisode("show-s01e01", WatchNowFixture.Show, "Show", 1, 1);
+        using var pressed = await Member().PostAsJsonAsync("/api/watch", new WatchNowRequest
+        {
+            ImdbId = WatchNowFixture.Show, Episodes = [new EpisodePick(1, 1)], Room = "show-here",
+        });
+        var reply = await pressed.Content.ReadFromJsonAsync<WatchNowReply>();
+
+        Assert.Equal("inLibrary", reply!.Outcome);
+        Assert.Equal("show-s01e01", Room("show-here").TitleId);
+    }
+
+    [Fact]
+    public async Task The_episode_after_the_one_a_room_watches_is_fetched_ahead_and_only_once()
+    {
+        fixture.AddEpisode("show-s01e02", WatchNowFixture.Show, "Show", 1, 2);
+        var sessions = fixture.Services.GetRequiredService<SessionStore>();
+        sessions.Join("show-watching", "conn-1", new Participant { UserId = "6002", DisplayName = "Jo" });
+        sessions.LoadTitle("show-watching", "show-s01e02", new Actor("6002", "Jo"));
+        var ahead = fixture.Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>().OfType<Api.Shows.NextEpisodes>().Single();
+
+        await ahead.PassAsync(CancellationToken.None);
+
+        Assert.True(fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "E03.720p.mkv") > 0);
+        var tags = fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags;
+        Assert.DoesNotContain(tags, t => t.StartsWith(TorrentTags.RequesterPrefix, StringComparison.Ordinal) && t.EndsWith("6002", StringComparison.Ordinal));
+
+        // The neighbours of the episode being watched name the next as on its way rather than here.
+        var neighbours = await Member().GetFromJsonAsync<System.Text.Json.Nodes.JsonObject>("/api/titles/show-s01e02/neighbours");
+        Assert.Equal(3, (int)neighbours!["fetchable"]!["number"]!);
     }
 
     [Fact]

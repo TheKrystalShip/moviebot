@@ -24,7 +24,9 @@ public sealed class Downloads(
     /// <param name="watchRoom">
     /// The site room waiting to watch it, for Watch now, which loads it there once it can be opened.
     /// </param>
-    public async Task<StartDownloadReply> StartAsync(StartDownloadRequest request, CancellationToken ct, string? watchRoom = null)
+    /// <param name="watchEpisode">For a show's release, the episode of it the room waits on.</param>
+    public async Task<StartDownloadReply> StartAsync(StartDownloadRequest request, CancellationToken ct,
+        string? watchRoom = null, EpisodeNumber? watchEpisode = null)
     {
         if (offered.Resolve(request.TorrentId) is not { } release)
             return new StartDownloadReply { Outcome = "noLongerOffered" };
@@ -41,10 +43,15 @@ public sealed class Downloads(
                 // Whoever asked is told when it can be watched; on Discord directly only where no
                 // channel will announce it to them.
                 tags.Add(TorrentTags.Requester(requester));
-                tags.Add(TorrentTags.Tell);
-                if (channel is null) tags.Add(TorrentTags.TellDirect);
+                // An episode watched now is not news: its season's torrent may be watchable already
+                // for another episode, and the room the person is in shows the one they pressed.
+                if (watchEpisode is null)
+                {
+                    tags.Add(TorrentTags.Tell);
+                    if (channel is null) tags.Add(TorrentTags.TellDirect);
+                }
             }
-            if (watchRoom is not null) tags.Add(TorrentTags.Watch(watchRoom));
+            if (watchRoom is not null) tags.Add(TorrentTags.Watch(watchRoom, watchEpisode));
 
             // The room is the reason for the download. Whichever pass sees the film become
             // watchable, in whichever process is running by then, loads it there.

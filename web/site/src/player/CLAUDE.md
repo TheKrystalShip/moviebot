@@ -60,7 +60,10 @@ more.
   controls the whole time it plays, from `/api/titles/{id}/neighbours` (the episodes either side among
   those the library holds), and from its closing stretch — the last chapter when that is the credits,
   else the last two minutes — next is offered over the film. Either one puts the other episode on for
-  the whole room, as picking a film does.
+  the whole room, as picking a film does. When the episode right after is not here but the tracker
+  has it (`fetchable`), next fetches it into the room at the quality of the one playing, and the room
+  shows it arriving over the film; the server has usually fetched it ahead already. The Activity
+  spends nothing, so there next is the next episode here.
 - **A control that already answers a key keeps it.** The scrub bar and the volume slider handle the
   arrows when focused; taking them globally as well moves the film, or the volume, twice for one press.
 - **What somebody else did to the room is said over the film, to everyone but them**, with their mark

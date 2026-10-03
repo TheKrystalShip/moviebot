@@ -45,7 +45,8 @@ public static class ShowEndpoints
 
         // The episodes either side of one the library holds, which is what a player's previous and
         // next move the room to. Absent at either end.
-        app.MapGet("/api/titles/{id}/neighbours", (string id, TitleLibrary library, ShowStore shows) =>
+        app.MapGet("/api/titles/{id}/neighbours", async (string id, TitleLibrary library, ShowStore shows,
+            ShowOfferCache offers, CancellationToken ct) =>
         {
             if (library.Get(id) is not { } manifest) return Results.NotFound();
             if (manifest.Episode is null || manifest.Film?.ImdbId is not { } show)
@@ -55,25 +56,42 @@ public static class ShowEndpoints
             var at = titles.FindIndex(t => t.Id == id);
             var previous = at > 0 ? titles[at - 1] : null;
             var next = at >= 0 && at < titles.Count - 1 ? titles[at + 1] : null;
+
+            // The episode right after this one, when it is not the next one here and the tracker
+            // offers it: what next fetches. A tracker that cannot be asked offers nothing.
+            EpisodeIdentity? fetchable = null;
+            if (shows.EpisodeAfter(show, manifest.Episode) is { } after
+                && (next?.Episode is not { } here || here.Season != after.Season || here.Number != after.Number))
+            {
+                try
+                {
+                    if (ShowOfferCache.Offers(await offers.GetAsync(show, ct), new EpisodeNumber(after.Season, after.Number)))
+                        fetchable = after;
+                }
+                catch (TrackerException)
+                {
+                }
+            }
+
             return Results.Ok(new EpisodeNeighbours(
                 previous, next,
                 shows.EpisodeName(show, manifest.Episode),
                 shows.EpisodeName(show, previous?.Episode),
-                shows.EpisodeName(show, next?.Episode)));
+                shows.EpisodeName(show, next?.Episode),
+                fetchable,
+                shows.EpisodeName(show, fetchable)));
         });
 
         // What the tracker offers for a show, season by season: packs and single episodes, each best
         // first, every one remembered so a download can name it.
-        app.MapGet("/api/shows/{imdbId}/releases", async (string imdbId, IShowSearch search,
-            OfferedReleases offered, CancellationToken ct) =>
+        app.MapGet("/api/shows/{imdbId}/releases", async (string imdbId, ShowOfferCache cache, CancellationToken ct) =>
         {
             if (!FilmStore.IsImdbId(imdbId))
                 return Results.Json(new ErrorReply("That is not an IMDb id."), ApiJsonContext.Default.ErrorReply,
                     statusCode: StatusCodes.Status400BadRequest);
             try
             {
-                var ranked = await search.ByShowAsync(imdbId, ct);
-                offered.Remember(ranked.Seasons.SelectMany(s => s.Packs.Concat(s.Episodes.SelectMany(e => e.Releases))));
+                var ranked = await cache.GetAsync(imdbId, ct);
                 return Results.Ok(new ShowOffers(
                     [.. ranked.Seasons.Select(s => new SeasonOffers(
                         s.Season,

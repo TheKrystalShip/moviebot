@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.79.0] - 2026-10-03
+
+### Added
+
+- **Every episode the tracker has can be played.** On a show's page an episode not here that the
+  tracker offers plays from its row: Watch now for that episode, out of its season's pack at 720p,
+  playing in the room as it arrives. Only an episode the tracker does not have is marked so.
+- **The next episode is ready before it is wanted.** While a room watches an episode, the API fetches
+  the one after it, one ahead and no further, at the quality of the one being watched, out of the
+  season's pack. The player's next, and the next offered at the end of an episode, fetch the one
+  right after into the room when it is not here yet, showing it arrive over the film.
+- **Download a season, first episode first.** Each season on a show's page has Download season (or
+  the others not here yet); its episodes are fetched with the first at the torrent client's highest
+  priority and the second at its next.
+- What the tracker offers for a show is asked once per ten minutes, shared by the show page, Watch
+  now and the prefetch. `/api/titles/{id}/neighbours` carries `fetchable`.
+
+### Fixed
+
+- Watch now on an episode out of a season's torrent waits on that episode: the room is loaded once
+  its own title can play, rather than with whichever episode of the torrent was watchable first, and
+  the panel's progress is that episode's file. It owes nobody a "ready" notification.
+
 ## [1.78.2] - 2026-10-03
 
 ### Fixed

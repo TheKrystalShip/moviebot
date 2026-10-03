@@ -35,6 +35,15 @@ and this directory is where the API calls them.
   waits on, or that an occupied room is playing. Each is a download and a live transcode at once.
 - **Only a release from a digital source up is offered or picked**, the same floor that decides when a
   wish is out: a camcorder recording is not what Watch now means.
+- **A room watching a show waits on one episode, not on its torrent.** A season is one torrent and
+  another episode of it may be watchable long before the one pressed, so the tag names the episode
+  and the room is loaded once that episode's own title can play.
+- **The next episode is fetched ahead, one and no further** (`Shows/NextEpisodes`), at the quality of
+  the one being watched and out of the season's pack, so a season stays one torrent. More than one
+  ahead is disk spent for a season's stay on episodes nobody may watch.
+- **The tracker is asked about a show once per ten minutes** (`Shows/ShowOfferCache`): the show page,
+  every episode on it, Watch now and the prefetcher all read the same answer, and the tracker caps
+  how often a member may call it.
 
 ## Keeps and the library's clock
 

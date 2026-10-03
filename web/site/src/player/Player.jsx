@@ -105,6 +105,29 @@ function episodeWords(title, name) {
 }
 
 /**
+ * Where next goes: the episode right after this one, fetched into the room while it arrives, when it
+ * is not here but the tracker has it (the Activity spends nothing, so there it is the next one here);
+ * else the next episode the library holds. Null at the end.
+ */
+function nextOf(around, manifest, embed) {
+  if (!around) return null;
+  if (around.fetchable && !embed) {
+    return {
+      words: [episodeCode(around.fetchable), around.fetchableName].filter(Boolean).join(" · "),
+      go: (room) => api.watchNow({
+        imdbId: manifest.film.imdbId,
+        episodes: [{ season: around.fetchable.season, episode: around.fetchable.number }],
+        room: environment().sessionId(),
+        // The quality of the episode being watched, read from its picture as the server reads it.
+        quality: manifest.video && manifest.video.width >= 1800 ? "1080p" : "720p",
+      }),
+    };
+  }
+  if (around.next) return { words: episodeWords(around.next, around.nextName), go: (room) => room.pickTitle(around.next.id) };
+  return null;
+}
+
+/**
  * The episodes either side of the one playing, asked once per episode. A film has none, and a
  * question that fails answers with none: the controls it feeds are an addition to the player.
  */
@@ -212,6 +235,11 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   const [fullscreen, setFullscreen] = React.useState(false);
   const idleTimer = React.useRef(null);
   const around = useNeighbours(manifest);
+  const next = nextOf(around, manifest, embed);
+  // A failed fetch over a film still playing is this viewer's to put away; the room keeps it.
+  const [dismissed, setDismissed] = React.useState(null);
+  const goNext = () => Promise.resolve(next.go(room)).catch(() =>
+    setAnnouncement({ text: "That episode could not be fetched.", actor: null, key: Date.now() }));
 
   // The stored number is the loudness asked for; the element is given the amplitude that makes it.
   React.useEffect(() => {
@@ -381,13 +409,18 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
       {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} onJoin={() => room.joinPlayback()} />}
       {view.unplayable && <Message icon="circle-alert" title="This film cannot play here" text={view.unplayable} />}
       {view.fatal && <Message icon="circle-alert" title={view.fatal} action={!embed && onBack ? { label: "Back", go: onBack } : null} />}
-      {!view.fatal && view.state && !titleHeld && view.state.preparing && view.state.preparing.stage !== "failed" && (
-        <Fetching preparing={view.state.preparing} onBack={!embed ? onBack : null} />
+      {/* What the room waits on, over whatever it holds: a film pressed into an empty room, or the
+          next episode fetched while the last one is still on screen. */}
+      {!view.fatal && view.state && view.state.preparing && view.state.preparing.stage !== "failed" && (
+        <Fetching preparing={view.state.preparing} onBack={!embed && !titleHeld ? onBack : null} />
       )}
-      {!view.fatal && view.state && !titleHeld && view.state.preparing && view.state.preparing.stage === "failed" && (
+      {!view.fatal && view.state && view.state.preparing && view.state.preparing.stage === "failed"
+        && fetchKey(view.state.preparing) !== dismissed && (
         <Message icon="circle-alert" title={`${view.state.preparing.name} could not be fetched`}
           text={fetchProblem(view.state.preparing)}
-          action={!embed && onBack ? { label: "Back", go: onBack } : null} />
+          action={titleHeld
+            ? { label: "Keep watching", go: () => setDismissed(fetchKey(view.state.preparing)) }
+            : !embed && onBack ? { label: "Back", go: onBack } : null} />
       )}
       {!view.fatal && view.state && !titleHeld && !view.state.preparing && (
         <Message icon="clapperboard" title="Nothing playing yet"
@@ -420,10 +453,10 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
                     onClick={() => room.pickTitle(around.previous.id)}>
                     <Icon name="skip-back" size={19} />
                   </button>
-                  <button type="button" className="mp-icon" disabled={!(around && around.next)}
-                    aria-label={around && around.next ? `Next episode: ${episodeWords(around.next, around.nextName)}` : "No next episode here"}
-                    title={around && around.next ? `Next episode · ${episodeWords(around.next, around.nextName)}` : "No next episode here"}
-                    onClick={() => room.pickTitle(around.next.id)}>
+                  <button type="button" className="mp-icon" disabled={!next}
+                    aria-label={next ? `Next episode: ${next.words}` : "No next episode here"}
+                    title={next ? `Next episode · ${next.words}` : "No next episode here"}
+                    onClick={goNext}>
                     <Icon name="skip-forward" size={19} />
                   </button>
                 </>
@@ -446,10 +479,10 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
           </div>
         ))}
 
-      {manifest && view.ready && around && around.next && size !== "tiny" && inClosingStretch(manifest, clock.position) && (
-        <button type="button" className="mp-nextup" onClick={() => room.pickTitle(around.next.id)}>
+      {manifest && view.ready && next && !(view.state && view.state.preparing) && size !== "tiny" && inClosingStretch(manifest, clock.position) && (
+        <button type="button" className="mp-nextup" onClick={goNext}>
           <span className="mp-nextup__label">Next episode</span>
-          <span className="mp-nextup__name">{episodeWords(around.next, around.nextName)}</span>
+          <span className="mp-nextup__name">{next.words}</span>
           <Icon name="skip-forward" size={18} />
         </button>
       )}
@@ -761,6 +794,9 @@ function Fetching({ preparing, onBack }) {
     </div>
   );
 }
+
+/** One failed fetch, as a viewer puts it away. */
+const fetchKey = (preparing) => `${preparing.imdbId}:${preparing.name}:${preparing.problem}`;
 
 /** Why a film a room waited on will not arrive, in words. */
 function fetchProblem(preparing) {

@@ -146,7 +146,10 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<WishSweep>());
 
 // Watch now: a film fetched and played in a site room as soon as it can be opened.
 builder.Services.AddOptions<WatchOptions>().Bind(builder.Configuration.GetSection(WatchOptions.Section));
+builder.Services.AddSingleton<ShowOfferCache>();
 builder.Services.AddSingleton<WatchNow>();
+// The episode after the one a room is watching, fetched so next has something to play.
+builder.Services.AddHostedService<NextEpisodes>();
 builder.Services.AddHostedService<WatchNowLoader>();
 
 // Who keeps which film, and the rule for when a settled film that nobody keeps leaves. Both are

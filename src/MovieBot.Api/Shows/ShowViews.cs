@@ -100,9 +100,15 @@ public sealed record ShowSummary
 /// The episodes either side of one, among those the library holds, with what each of the three is
 /// called where the show's description says.
 /// </summary>
+/// <summary>
+/// The episodes either side of one among those the library holds, and, when the episode right after
+/// it is not here, that episode as the tracker offers it (<see cref="Fetchable"/>), which a player's
+/// next fetches into the room.
+/// </summary>
 public sealed record EpisodeNeighbours(
     TitleSummary? Previous, TitleSummary? Next,
-    string? Name = null, string? PreviousName = null, string? NextName = null);
+    string? Name = null, string? PreviousName = null, string? NextName = null,
+    EpisodeIdentity? Fetchable = null, string? FetchableName = null);
 
 public static class ShowViews
 {
@@ -276,6 +282,18 @@ public static class ShowViews
         showImdbId is null || episode is null ? null
         : store.Held(showImdbId)?.Seasons.FirstOrDefault(s => s.Number == episode.Season)?
             .Episodes.FirstOrDefault(e => e.Number == episode.Number)?.Name;
+
+    /// <summary>
+    /// The episode after one, as the film database lists the show: the next of its season, else the
+    /// first of the next season. Null at the end, and for a show the database has not described.
+    /// </summary>
+    public static EpisodeIdentity? EpisodeAfter(this ShowStore store, string showImdbId, EpisodeIdentity episode) =>
+        store.Held(showImdbId)?.Seasons
+            .Where(s => s.Number >= 1)
+            .SelectMany(s => s.Episodes.Select(e => new EpisodeIdentity { Season = s.Number, Number = e.Number }))
+            .Where(e => e.Season > episode.Season || (e.Season == episode.Season && e.Number > episode.Number))
+            .OrderBy(e => e.Season).ThenBy(e => e.Number)
+            .FirstOrDefault();
 
     public static List<TitleSummary> Ordered(IReadOnlyList<TitleSummary> episodes) =>
         [.. episodes.Where(e => e.Episode is not null)

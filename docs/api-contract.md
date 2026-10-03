@@ -29,7 +29,7 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET,HEAD /films/{imdbId}/{poster.jpg,backdrop.jpg,cast-N.jpg}` | the artwork kept beside a description. Open: it is public artwork and an `<img>` carries no token |
 | `GET /api/shows` | `ShowSummary[]` — the shows the library holds, one entry each: `{imdbId?, title, firstYear?, lastYear?, status?, details?, seasons, episodes, addedAt?, sizeBytes, lastPlayed?, resume?, firstTitleId}` |
 | `GET /api/shows/{imdbId}` | `ShowView` — a show as the film database describes it, in the library or not, every season with its episodes joined with the library and the asking person's progress. `404` when neither the database nor the library knows it, `503` when the database cannot be asked and nothing is kept |
-| `GET /api/titles/{id}/neighbours` | `{previous?, next?, name?, previousName?, nextName?}` — the episodes either side of one, among those the library holds, as `TitleSummary`, and what each of the three is called where the show's description says; all absent for a film. 404 for a title the library does not hold |
+| `GET /api/titles/{id}/neighbours` | `{previous?, next?, name?, previousName?, nextName?, fetchable?, fetchableName?}` — the episodes either side of one, among those the library holds, as `TitleSummary`, and what each is called where the show's description says; `fetchable` (`{season, number}`) is the episode right after this one when it is not here and the tracker offers it, which a player's next fetches into the room. All absent for a film. 404 for a title the library does not hold |
 | `GET,HEAD /shows/{imdbId}/{poster.jpg,backdrop.jpg,cast-N.jpg,sNNeMM.jpg}` | a show's artwork and its episodes' stills, open like a film's |
 | `GET /api/me/preferences` | `ViewerPreferences` — how the token's person watches; every field absent for somebody who set nothing. `403` for the service key, which names nobody |
 | `PUT /api/me/preferences` | `ViewerPreferences` → the stored `ViewerPreferences`. A blank language or a height that is not positive is stored as absent |
@@ -216,6 +216,19 @@ problem?, refusal?}`, pushed to everybody in it: `stage` is `finding` (the relea
 room as `watch:<room>`; once the hand-off marks it watchable the film is loaded into the room and
 played as the person who pressed it, and `preparing` goes. A download watched this way still owes its
 requester a "ready" notification, which is not sent while they are in a room playing it.
+
+An episode is watched the same way, named in `episodes` (the first is the one the room waits on).
+One already playable here is loaded at once. Otherwise it comes from `torrentId`, or from the show's
+releases at `quality` (`720p` unless `1080p` is asked): the season's pack at it, fetching the one
+file, else a release of the episode alone, else either at what the tracker has. The download carries
+`watch:<room>:s05e03`, and the room is loaded once that episode's own title can play, since its
+season's torrent may be watchable for another episode already; `progress` is that episode's file.
+An episode watched now owes nobody a "ready" notification.
+
+**The episode after the one a room watches is fetched ahead**, one and no more, at the quality of
+the one being watched (1080p for a picture 1800 or more wide, else 720p), out of the season's pack
+where there is one. Nobody is named as having asked, so nobody is told. What the tracker offers for
+a show is asked once per ten minutes and shared by the show page, Watch now and this.
 
 ### Notifications
 

@@ -8,6 +8,7 @@ using TheKrystalShip.MovieBot.Acquire.Tracker;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Sessions;
+using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Acquisition;
@@ -43,6 +44,7 @@ public sealed class WatchNow(
     SessionStore sessions,
     RoomControls controls,
     WishList wishes,
+    ShowOfferCache showOffers,
     IOptions<NotifyOptions> notify,
     IOptions<WatchOptions> options,
     ILogger<WatchNow> logger)
@@ -125,6 +127,15 @@ public sealed class WatchNow(
             return new WatchNowReply { Outcome = "inLibrary", Room = room, LibraryId = title.Id };
         }
 
+        // A show is watched an episode at a time: the first picked is the one the room waits on.
+        EpisodeNumber? episode = request.Episodes is { Count: > 0 } picked
+            ? new EpisodeNumber(picked[0].Season, picked[0].Episode) : null;
+        if (episode is { } wanted && PlayableEpisode(library, request.ImdbId, wanted) is { } here)
+        {
+            await controls.ApplyAsync(room, "load", asker, a => sessions.LoadTitle(room, here, a), ct: ct);
+            return new WatchNowReply { Outcome = "inLibrary", Room = room, LibraryId = here };
+        }
+
         var all = await DownloadsOrNullAsync(ct);
         if (all is not null && request.Episodes is null && DownloadOf(all, request.ImdbId) is { } arriving)
         {
@@ -132,7 +143,7 @@ public sealed class WatchNow(
             await acquisition.TagAsync(arriving.Hash, TorrentTags.Watch(room), ct);
             await PrepareAsync(room, new RoomPreparing
             {
-                ImdbId = request.ImdbId, Name = await NameAsync(request.ImdbId, null, ct),
+                ImdbId = request.ImdbId, Name = await NameAsync(request.ImdbId, null, null, ct),
                 Stage = PreparingStages.Downloading, Progress = arriving.Progress,
             }, ct);
             return new WatchNowReply { Outcome = "preparing", Room = room };
@@ -145,20 +156,31 @@ public sealed class WatchNow(
         await PrepareAsync(room, new RoomPreparing
         {
             ImdbId = request.ImdbId,
-            Name = await NameAsync(request.ImdbId, chosen, ct),
+            Name = await NameAsync(request.ImdbId, chosen, episode, ct),
             Stage = PreparingStages.Finding,
             Release = chosen is null ? null : Label(chosen),
         }, ct);
 
         // The person is in the room by the time this is decided, watching it be found.
-        _ = Task.Run(() => FetchAsync(room, request, chosen, asker));
+        _ = Task.Run(() => FetchAsync(room, request, episode, chosen, asker));
         return new WatchNowReply { Outcome = "preparing", Room = room };
     }
 
-    private async Task FetchAsync(string room, WatchNowRequest request, Release? chosen, Actor asker)
+    /// <summary>
+    /// An episode the library holds and can play now, as the hand-off judges it: finished, or with a
+    /// head to play up to. Null when it is not here or has nothing to play yet.
+    /// </summary>
+    internal static string? PlayableEpisode(TitleLibrary library, string showImdbId, EpisodeNumber episode) =>
+        library.EpisodesOf(showImdbId)
+            .Where(e => e.Manifest.Episode!.Season == episode.Season && e.Manifest.Episode.Number == episode.Episode)
+            .Where(e => e.Manifest.Status == TitleStatus.Ready || (e.Manifest.Status == TitleStatus.Transcoding && e.Manifest.HeadSeconds > 0))
+            .Select(e => e.Id)
+            .FirstOrDefault();
+
+    private async Task FetchAsync(string room, WatchNowRequest request, EpisodeNumber? episode, Release? chosen, Actor asker)
     {
         var ct = CancellationToken.None;
-        var name = await NameAsync(request.ImdbId, chosen, ct);
+        var name = await NameAsync(request.ImdbId, chosen, episode, ct);
         RoomPreparing Failed(string problem, string? refusal = null) => new()
         {
             ImdbId = request.ImdbId, Name = name, Stage = PreparingStages.Failed, Problem = problem, Refusal = refusal,
@@ -166,7 +188,10 @@ public sealed class WatchNow(
 
         try
         {
-            var release = chosen ?? await PickAsync(request, ct);
+            var release = chosen ?? (episode is { } wanted
+                ? ShowOfferCache.Pick(await showOffers.GetAsync(request.ImdbId, ct), wanted,
+                    request.Quality == "1080p" ? Resolution.Hd1080 : Resolution.Hd720)
+                : await PickAsync(request, ct));
             if (release is null)
             {
                 await PrepareAsync(room, Failed("notOffered"), ct);
@@ -174,12 +199,14 @@ public sealed class WatchNow(
             }
 
             offered.Remember([release]);
+            // A release picked here is one more source of a name the catalogue could not give.
+            if (chosen is null) name = await NameAsync(request.ImdbId, release, episode, ct);
             var reply = await downloads.StartAsync(new StartDownloadRequest
             {
                 TorrentId = release.TorrentId,
                 RequestedBy = asker,
                 Episodes = request.Episodes,
-            }, ct, watchRoom: room);
+            }, ct, watchRoom: room, watchEpisode: episode);
 
             switch (reply.Outcome)
             {
@@ -225,17 +252,22 @@ public sealed class WatchNow(
     /// What the room calls the film while it waits: the catalogue's name, which is the one every page
     /// shows, else the release's, which is often the film's name in another language.
     /// </summary>
-    private async Task<string> NameAsync(string imdbId, Release? release, CancellationToken ct)
+    /// <remarks>An episode is its show's name and its place, <c>Slow Horses S05E03</c>, as the library names it.</remarks>
+    private async Task<string> NameAsync(string imdbId, Release? release, EpisodeNumber? episode, CancellationToken ct)
     {
         try
         {
-            if ((await catalogue.LookupAsync(imdbId, ct))?.Display is { Length: > 0 } named) return named;
+            if (await catalogue.LookupAsync(imdbId, ct) is { } found)
+            {
+                if (episode is { } e) return $"{found.Title} {e}";
+                if (found.Display is { Length: > 0 } named) return named;
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
             logger.LogDebug(ex, "The title index could not name {Imdb}.", imdbId);
         }
-        return release?.Display ?? imdbId;
+        return episode is { } fallback && release is not null ? $"{release.Title} {fallback}" : release?.Display ?? imdbId;
     }
 
     /// <summary>A release as the panel names it: <c>1080p WEB</c>.</summary>
@@ -346,8 +378,9 @@ public sealed class WatchNowLoader(
         }
     }
 
-    private async Task TendAsync(DownloadStatus download, string tag, string room, CancellationToken ct)
+    private async Task TendAsync(DownloadStatus download, string tag, WatchTag watch, CancellationToken ct)
     {
+        var room = watch.Room;
         var current = sessions.GetOrCreate(room).Preparing;
         var imdbId = download.Tags.Select(TorrentTags.ReadImdb).FirstOrDefault(i => i is not null) ?? current?.ImdbId ?? "";
         var name = current?.Name ?? ReleaseParser.ParseName(download.Name).Display;
@@ -362,8 +395,14 @@ public sealed class WatchNowLoader(
             return;
         }
 
-        var libraryId = download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null);
-        if (download.Tags.Contains(TorrentTags.Watchable) && libraryId is not null && library.Get(libraryId) is not null)
+        // A film is ready when the hand-off marks its torrent; an episode when its own title can
+        // play, since its season's torrent may have been marked for another episode long before.
+        var libraryId = watch.Episode is { } episode
+            ? WatchNow.PlayableEpisode(library, imdbId, episode)
+            : download.Tags.Contains(TorrentTags.Watchable)
+                ? download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null)
+                : null;
+        if (libraryId is not null && library.Get(libraryId) is not null)
         {
             var requester = download.Tags.Select(TorrentTags.ReadRequester).FirstOrDefault(r => r is not null)
                 ?.ToString(CultureInfo.InvariantCulture);
@@ -380,8 +419,20 @@ public sealed class WatchNowLoader(
         {
             ImdbId = imdbId, Name = name, Stage = PreparingStages.Downloading, Release = current?.Release,
             // Hundredths: a push per pass is as often as the panel is redrawn, and no oftener.
-            Progress = Math.Round(download.Progress, 2),
+            Progress = Math.Round(watch.Episode is { } wanted ? await EpisodeProgressAsync(download, wanted, ct) : download.Progress, 2),
         }, ct);
+    }
+
+    /// <summary>
+    /// How much of one episode's file has arrived. A season's torrent reports its picked files
+    /// together, and the room waits on one of them.
+    /// </summary>
+    private async Task<double> EpisodeProgressAsync(DownloadStatus download, EpisodeNumber episode, CancellationToken ct)
+    {
+        var files = await acquisition.FilesAsync(download.Hash, ct);
+        var mapped = EpisodeFiles.Map(files.Select(f => (f.Name, f.Size)), EpisodeMarker.Read(download.Name));
+        var path = mapped.FirstOrDefault(f => f.Episodes.Contains(episode))?.Path;
+        return files.FirstOrDefault(f => f.Name == path)?.Progress ?? download.Progress;
     }
 
     private Task PrepareAsync(string room, RoomPreparing preparing, CancellationToken ct) =>
