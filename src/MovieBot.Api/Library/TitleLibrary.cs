@@ -19,6 +19,18 @@ public sealed record TitleSummary
     /// properly without fetching each one.
     /// </summary>
     public FilmIdentity? Film { get; init; }
+
+    /// <summary>What the film takes on disk, transcoded: every rung, every track.</summary>
+    public long? SizeBytes { get; init; }
+
+    /// <summary>When the film came into the library: when its directory was made.</summary>
+    public DateTimeOffset? AddedAt { get; init; }
+
+    /// <summary>
+    /// What the film database says about the film, as far as a listing shows it; absent until the
+    /// film has been described.
+    /// </summary>
+    public Films.FilmFacts? Details { get; init; }
 }
 
 /// <summary>
@@ -54,6 +66,7 @@ public sealed class TitleLibrary(
         foreach (var id in roots.Ids())
         {
             if (Get(id) is not { } manifest) continue;
+            var footprint = Footprint(id);
 
             summaries.Add(new TitleSummary
             {
@@ -63,7 +76,9 @@ public sealed class TitleLibrary(
                 Status = manifest.Status,
                 HeadSeconds = manifest.HeadSeconds,
                 Poster = manifest.Poster,
-                Film = manifest.Film
+                Film = manifest.Film,
+                SizeBytes = footprint?.SizeBytes,
+                AddedAt = footprint?.AddedAt
             });
         }
 
@@ -123,6 +138,34 @@ public sealed class TitleLibrary(
             : tracks.Select(t => pinned.TryGetValue(t.Id, out var pin) ? t with { Pin = pin } : t).ToList();
 
         return manifest;
+    }
+
+    private sealed record FootprintEntry(long SizeBytes, DateTimeOffset AddedAt, DateTime ManifestWriteUtc);
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, FootprintEntry> _footprints = new();
+
+    /// <summary>
+    /// What a film takes on disk and when it arrived. Walking a film's segments is thousands of
+    /// files, so it is measured again only when the manifest moves: a finished film's size is
+    /// fixed, and a transcoding one rewrites its manifest as it grows.
+    /// </summary>
+    private FootprintEntry? Footprint(string id)
+    {
+        if (DirectoryOf(id) is not { } directory || LastWriteOf(id) is not { } written) return null;
+        if (_footprints.TryGetValue(id, out var known) && known.ManifestWriteUtc == written) return known;
+        try
+        {
+            var size = new DirectoryInfo(directory)
+                .EnumerateFiles("*", SearchOption.AllDirectories)
+                .Sum(f => f.Length);
+            var entry = new FootprintEntry(size, new DateTimeOffset(Directory.GetCreationTimeUtc(directory), TimeSpan.Zero), written);
+            _footprints[id] = entry;
+            return entry;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return known;
+        }
     }
 
     /// <summary>When the manifest on disk was last written, or null when there is none.</summary>

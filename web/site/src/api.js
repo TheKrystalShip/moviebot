@@ -43,6 +43,7 @@ export const api = {
   titles: () => call("GET", "/api/titles"),
   title: (id) => call("GET", `/api/titles/${enc(id)}`),
   retention: (id) => call("GET", `/api/titles/${enc(id)}/retention`),
+  film: (imdbId) => call("GET", `/api/films/${enc(imdbId)}`),
   rooms: () => call("GET", "/api/sessions"),
   downloads: () => call("GET", "/api/downloads"),
   keeps: () => call("GET", "/api/keeps"),
@@ -57,13 +58,13 @@ export const api = {
 };
 
 /**
- * Where a film's poster is. The poster beside the film is served to anyone, because Discord's own
- * servers fetch it for a viewer's presence; the catalogue's is the fallback for a film the ingest
- * found no artwork for.
+ * Where a film's poster is, always on this server. The poster beside the film comes first; the copy
+ * the API keeps from the film database is the fallback for a film the ingest found no artwork for.
+ * The page never reaches the database or the title index itself.
  */
 export function posterUrl(title) {
   if (title && title.poster) return `/media/${enc(title.id)}/${enc(title.poster)}`;
-  return (title && title.film && title.film.posterUrl) || null;
+  return (title && title.details && title.details.posterUrl) || null;
 }
 
 /** What to call a film: the catalogue's name and year where there is one. */

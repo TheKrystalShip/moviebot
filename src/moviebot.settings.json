@@ -108,6 +108,27 @@
     "MinimumSource": "Web"
   },
 
+  // How each person watches, kept by the API. An empty Preferences writes preferences.json in the
+  // state directory.
+  "People": {
+    "Preferences": ""
+  },
+
+  // The film database that describes a film: credits, certificate, genres, overview, artwork. The
+  // API asks it, keeps what it said and the artwork under Directory (an empty one is films/ in the
+  // state directory), serves its own copies, and asks again after RefreshDays. The token is a
+  // credential and is set only in the environment as Tmdb__ReadAccessToken; without one, films are
+  // described by the title index alone. Region picks whose certificate a film is shown with.
+  "Tmdb": {
+    "BaseUrl": "https://api.themoviedb.org/3",
+    "ImageBaseUrl": "https://image.tmdb.org/t/p",
+    "Language": "en-US",
+    "Region": "US",
+    "TimeoutSeconds": 15,
+    "Directory": "",
+    "RefreshDays": 14
+  },
+
   // Listening in a voice channel. Off unless enabled: everyone in a channel the bot joins is heard.
   "Voice": {
     "Enabled": false,

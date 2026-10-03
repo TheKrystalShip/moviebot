@@ -3,8 +3,12 @@ import { api, clock, filmName } from "../api.js";
 import { useLoad, staysFor } from "../data.js";
 import { Empty, Failed, PageHead, PosterCard } from "../components/Film.jsx";
 
+const rating = (t) => (t.details && t.details.rating) || 0;
+
 const SORTS = [
+  { id: "added", label: "Recently added", compare: (a, b) => (b.addedAt || "").localeCompare(a.addedAt || "") },
   { id: "name", label: "Name", compare: (a, b) => filmName(a).localeCompare(filmName(b)) },
+  { id: "rating", label: "Rating", compare: (a, b) => rating(b) - rating(a) },
   { id: "year", label: "Year", compare: (a, b) => ((b.film && b.film.year) || 0) - ((a.film && a.film.year) || 0) },
   { id: "length", label: "Length", compare: (a, b) => a.durationSeconds - b.durationSeconds },
 ];
@@ -14,7 +18,8 @@ export function Library() {
   const titles = useLoad(() => api.titles(), []);
   const keeps = useLoad(() => api.keeps().catch(() => []), []);
   const [filter, setFilter] = React.useState("all");
-  const [sort, setSort] = React.useState("name");
+  const [genre, setGenre] = React.useState(null);
+  const [sort, setSort] = React.useState("added");
 
   const keptBy = new Map((keeps.data || []).filter((k) => k.libraryId).map((k) => [k.libraryId, k]));
   const all = titles.data || [];
@@ -27,7 +32,12 @@ export function Library() {
   ];
   const active = filters.find((f) => f.id === filter) || filters[0];
   const order = SORTS.find((s) => s.id === sort) || SORTS[0];
-  const shown = all.filter(active.test).sort(order.compare);
+  // The genres the shelf actually holds, most common first: a genre nothing here is in is no filter.
+  const genreCounts = new Map();
+  for (const t of all) for (const g of (t.details && t.details.genres) || []) genreCounts.set(g, (genreCounts.get(g) || 0) + 1);
+  const genres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const inGenre = (t) => !genre || !!(t.details && t.details.genres.includes(genre));
+  const shown = all.filter((t) => active.test(t) && inGenre(t)).sort(order.compare);
 
   return (
     <div className="kc-page">
@@ -49,6 +59,17 @@ export function Library() {
           ))}
         </div>
       </div>
+
+      {genres.length > 0 && (
+        <div className="kc-chips kc-chips--genres">
+          <button type="button" className={"kc-chip" + (!genre ? " kc-chip--on" : "")} onClick={() => setGenre(null)}>Every genre</button>
+          {genres.map(([g, n]) => (
+            <button key={g} type="button" className={"kc-chip" + (g === genre ? " kc-chip--on" : "")} onClick={() => setGenre(g === genre ? null : g)}>
+              {g}<span>{n}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <Failed error={titles.error} onRetry={titles.reload} />
 

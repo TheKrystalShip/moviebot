@@ -164,7 +164,9 @@ quotes.
 | `Tracker__Username`, `Tracker__Passkey` | Your tracker username and passkey |
 | `Selection__AllowedCategories__0` | A tracker category films may come from, spelled exactly as on the tracker. Add `__1`, `__2` and so on for more |
 
-Leave the three keys under "Internal keys" as they are. `OpenSubtitles__ApiKey` is optional.
+Leave the three keys under "Internal keys" as they are. `OpenSubtitles__ApiKey` and
+`Tmdb__ReadAccessToken` are optional; the second is the "API Read Access Token" from your TMDB
+account's API settings, not the shorter "API Key".
 Save and exit the same way.
 
 ## Step 5: Start qBittorrent

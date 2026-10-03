@@ -25,6 +25,8 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `POST /api/sessions/{id}/seek` | `RoomChanged` |
 | `POST /api/sessions/{id}/seek-relative` | `RoomChanged` |
 | `GET,HEAD /media/{id}/**` | playlists, segments, subtitles, poster. Opened by `?mt=` or the bearer token |
+| `GET /api/films/{imdbId}` | `FilmView` — a film as the film database describes it, in the library or not, with artwork at this server's addresses. `404` when the database holds no film under the id, `503` when it cannot be asked and nothing is kept |
+| `GET,HEAD /films/{imdbId}/{poster.jpg,backdrop.jpg,cast-N.jpg}` | the artwork kept beside a description. Open: it is public artwork and an `<img>` carries no token |
 | `GET /api/me/preferences` | `ViewerPreferences` — how the token's person watches; every field absent for somebody who set nothing. `403` for the service key, which names nobody |
 | `PUT /api/me/preferences` | `ViewerPreferences` → the stored `ViewerPreferences`. A blank language or a height that is not positive is stored as absent |
 
@@ -203,7 +205,26 @@ the same moment. A player that loaded the master earlier offers them after it lo
 A track with `available: false` is listed on purpose — a language that is simply missing from the
 menu reads as a bug. Render it disabled with its `reason`, do not hide it.
 
-`TitleSummary` is `{id, title, durationSeconds, status, headSeconds?, poster?}`.
+`TitleSummary` is `{id, title, durationSeconds, status, headSeconds?, poster?, film?, sizeBytes?,
+addedAt?, details?}`. `details` is what the film database said, as far as a listing shows it —
+`{rating?, votes, certification?, genres, runtimeMinutes?, overview?, directors, posterUrl?,
+backdropUrl?}` — and is absent for a film not yet described; the listing never waits on the network
+for it.
+
+```jsonc
+// FilmView: GET /api/films/{imdbId}
+{
+  "imdbId": "tt0113277", "tmdbId": 949, "title": "Heat", "year": 1995, "releaseDate": "1995-12-15",
+  "runtimeMinutes": 170, "certification": "R", "genres": ["Crime", "Drama", "Action"],
+  "overview": "…", "tagline": "…", "rating": 7.9, "votes": 8740,   // TMDB's own rating, absent with no votes
+  "directors": ["Michael Mann"], "writers": ["Michael Mann"],
+  "cast": [{ "name": "Al Pacino", "character": "Lt. Vincent Hanna", "portraitUrl": "/films/tt0113277/cast-0.jpg" }],
+  "originalLanguage": "en", "languages": ["English", "Spanish"], "countries": ["United States of America"],
+  "posterUrl": "/films/tt0113277/poster.jpg", "backdropUrl": "/films/tt0113277/backdrop.jpg"
+}
+```
+
+Everything here is TMDB's, and a surface showing it credits TMDB, as its terms ask.
 
 `RoomSummary` is `{sessionId, titleId?, name?, durationSeconds?, paused, positionSeconds,
 participants}`. `name` is what the film is called, `positionSeconds` is where the room was when

@@ -4,6 +4,31 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.63.0] - 2026-10-03
+
+### Added
+
+- **Films are described by TMDB.** The API asks TMDB about every film in the library and every film
+  somebody is waiting on, keeps each description and its artwork (poster, backdrop, cast portraits)
+  under `films/` in its state directory, serves its own copies, and asks again after
+  `Tmdb:RefreshDays`. `GET /api/films/{imdbId}` answers for any film, in the library or not;
+  artwork is at `/films/{imdbId}/…`, open like a poster. Set `Tmdb__ReadAccessToken` (TMDB's "API
+  Read Access Token") in the environment to turn it on.
+- `GET /api/titles` carries, per film, what TMDB said as far as a listing shows it (`details`: rating,
+  votes, certificate, genres, runtime, overview, directors, poster, backdrop), its size on disk
+  (`sizeBytes`) and when it arrived (`addedAt`).
+- Krystal Cinema shows it to the design: a film's page has its certificate, TMDB's rating, genres,
+  overview, director, writers and stars, the cast with their portraits and roles, and a details grid
+  (released, language, country, what is on this server, when it was added, the IMDb id). The home
+  page leads with the newest film; the library filters by genre and sorts by rating and by when a
+  film arrived.
+- An About page, and a footer on every page crediting TMDB as its terms ask.
+
+### Changed
+
+- The site fetches nothing from outside its own origin: posters a film lacks, and a wished film's
+  poster, come from the API's kept copies.
+
 ## [1.62.0] - 2026-10-03
 
 ### Added

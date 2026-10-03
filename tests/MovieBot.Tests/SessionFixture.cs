@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Configuration;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
+using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Core;
@@ -94,6 +95,9 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
                 ["Download:Root"] = StateRoot,
                 ["Notify:Path"] = Path.Combine(StateRoot, "wishes.json"),
                 ["People:Preferences"] = Path.Combine(StateRoot, "preferences.json"),
+                // The film database, answered by the test.
+                ["Tmdb:ReadAccessToken"] = "a-test-token",
+                ["Tmdb:Directory"] = Path.Combine(StateRoot, "films"),
             }));
 
         builder.ConfigureServices(services =>
@@ -101,8 +105,12 @@ public sealed class SessionFixture : WebApplicationFactory<Program>
             services.RemoveAll<IReleaseSearch>();
             services.AddSingleton<IReleaseSearch>(new AssistantHost.OneRelease());
             services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new AssistantHost.CatalogueStub());
+            services.AddHttpClient<TmdbClient>().ConfigurePrimaryHttpMessageHandler(() => FilmDatabase);
         });
     }
+
+    /// <summary>The film database, as the tests answer it; it counts what it was asked.</summary>
+    public FilmDatabaseStub FilmDatabase { get; } = new();
 
     /// <summary>What the Activity would have been given after signing in with Discord.</summary>
     public string TokenFor(string roomId, string userId = "u", string displayName = "Someone") =>

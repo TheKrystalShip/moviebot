@@ -31,6 +31,7 @@ The dev server proxies `/api`, `/media` and `/hub` to the API (`MOVIEBOT_API`, d
 | `/leaving` | Every downloaded film and how long it stays, kept or not |
 | `/downloads` | What is downloading and seeding, read again every few seconds |
 | `/profile` | The theme, and signing out |
+| `/about` | What the site is, and where its film details come from |
 | `/signin` | The door, and where Discord sends the browser back to |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from |
 | `/embed/` | The Discord Activity: the same player with no site around it |
@@ -111,6 +112,13 @@ who asked for it.
 - **The design is the UI and the API is the authority for its data.** Nothing is drawn from a
   fixture: what the design shows, the API serves, and a row the API has nothing for is left out rather
   than filled in.
+- **Everything is fetched from this origin.** Film details and their artwork come from TMDB through
+  the API, which keeps them and serves its own copies under `/films/`; no page reaches TMDB, IMDb or
+  any other outside host itself.
+- **TMDB is credited wherever its data is shown.** Its terms are free personal use with attribution:
+  every page ends with its logo and notice ("This product uses the TMDB API but is not endorsed or
+  certified by TMDB."), and `/about` says what comes from it. The logo is TMDB's own, from its
+  attribution page, in `src/assets/tmdb.svg`.
 - **One module attaches the token.** `src/api.js` is the only place a bearer is added to a call to
   the API; the assistant's client is given a way to read the token, never the token itself. A 401
   signs the browser out.

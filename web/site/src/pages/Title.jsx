@@ -2,20 +2,26 @@ import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
 import { api, clock, filmName, posterUrl } from "../api.js";
 import { useLoad, staysFor } from "../data.js";
-import { navigate } from "../router.js";
+import { goBack } from "../router.js";
+import { useSession } from "../session.js";
 import { Empty, Failed, PosterArt, watchLink } from "../components/Film.jsx";
+import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes, since } from "../components/FilmDetails.jsx";
 
 /**
- * One film in the library: what it is, what it can be watched with, and how long it stays.
+ * One film in the library: what it is, who made it and who is in it, how long it stays, and watch.
  *
- * Only what the API knows is shown. The catalogue gives the name, the year and the billing; the
- * manifest gives the length, the picture and the tracks; the retention rule gives how long it stays.
+ * What the film is comes from the film database through the API, which keeps it; what is on this
+ * server — its length, its picture, its size, how long it stays — comes from the library.
  */
 export function Title({ id }) {
   const manifest = useLoad(() => api.title(id), [id]);
+  const listing = useLoad(() => api.titles().then((all) => all.find((t) => t.id === id) || null), [id]);
+  const imdbId = manifest.data && manifest.data.film && manifest.data.film.imdbId;
+  const details = useLoad(() => (imdbId ? api.film(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId]);
   const retention = useLoad(() => api.retention(id).catch(() => null), [id]);
   const rooms = useLoad(() => api.rooms(), [id]);
   const [busy, setBusy] = React.useState(false);
+  const session = useSession();
 
   if (manifest.error && manifest.error.status === 404) {
     return <div className="kc-page"><Empty title="Not in the library">This film has left the library, or never arrived.</Empty></div>;
@@ -25,11 +31,11 @@ export function Title({ id }) {
   const m = manifest.data;
   const title = { id: m.id, title: m.title, poster: m.poster, film: m.film };
   const film = m.film || {};
+  const d = details.data;
+  const summary = listing.data;
   const kept = retention.data;
   const room = (rooms.data || []).find((r) => r.titleId === m.id);
-  const audio = m.audio.filter((a) => a.kind === "feature");
-  const subtitles = m.subtitles.filter((s) => s.kind === "feature");
-  const poster = posterUrl(title);
+  const backdrop = (d && d.backdropUrl) || posterUrl(title);
 
   const keep = async (keeping) => {
     setBusy(true);
@@ -45,63 +51,80 @@ export function Title({ id }) {
     }
   };
 
+  const facts = [
+    ["Released", d && d.releaseDate ? new Date(d.releaseDate).getFullYear() : film.year],
+    ["Language", d && d.languages.length ? d.languages.join(", ") : null],
+    ["Country", d && d.countries.length ? d.countries.join(", ") : null],
+    ["On this server", [pictureClass(m.video), summary && summary.sizeBytes ? bytes(summary.sizeBytes) : null].filter(Boolean).join(" · ") || null, true],
+    ["Added", summary && summary.addedAt ? since(summary.addedAt) : null],
+    ["IMDb", film.imdbId, true],
+  ];
+
   return (
     <div className="kc-page kc-title">
-      <button type="button" className="kc-back" onClick={() => window.history.length > 1 ? window.history.back() : navigate("/library")}>
+      <button type="button" className="kc-back" onClick={() => goBack("/library")}>
         <Icon name="arrow-left" size={14} />Back
       </button>
 
-      <section className="kc-title__head">
-        {poster && <div className="kc-title__backdrop" style={{ backgroundImage: `url("${poster}")` }} />}
-        <PosterArt title={title} className="kc-title__poster" />
-        <div className="kc-title__body">
-          <span className="kc-eyebrow">Film</span>
-          <h1>{film.name || m.title}</h1>
-          <div className="kc-featured__meta">
-            {film.year && <span>{film.year}</span>}
-            <span>{clock(m.durationSeconds)}</span>
-            {m.video && pictureClass(m.video) && <span className="kc-tag">{pictureClass(m.video)}</span>}
-            {m.video && m.video.sourceHdr && m.video.sourceHdr !== "sdr" && <span className="kc-tag">{m.video.sourceHdr.toUpperCase()}</span>}
-          </div>
-          {m.status === "transcoding" && (
-            <span className="kc-note">Still being prepared{m.headSeconds ? `: watchable up to ${clock(m.headSeconds)}` : ""}.</span>
-          )}
-          {m.status === "failed" && <span className="kc-note kc-note--danger">This film could not be prepared, so it cannot be played.</span>}
-          {film.starring && <span className="kc-featured__starring">Starring <b>{film.starring}</b></span>}
+      <section className="kc-tt">
+        {backdrop && <div className="kc-tt__art" style={{ backgroundImage: `url("${backdrop}")` }} />}
+        <div className="kc-tt__shade" />
+        <div className="kc-tt__grid">
+          <PosterArt title={title} className="kc-tt__poster" />
+          <div className="kc-tt__body">
+            <span className="kc-eyebrow kc-eyebrow--muted">Movie</span>
+            <h1>{(d && d.title) || film.name || m.title}</h1>
+            <div className="kc-tt__meta">
+              {(film.year || (d && d.year)) && <span>{film.year || d.year}</span>}
+              {d && d.certification && <span className="kc-cert">{d.certification}</span>}
+              <span>{clock(m.durationSeconds)}</span>
+            </div>
+            {d && (d.rating || d.genres.length > 0) && (
+              <div className="kc-tt__score-row">
+                {d.rating && <FilmScore rating={d.rating} votes={d.votes} />}
+                <Genres names={d.genres} />
+              </div>
+            )}
+            {d && d.overview && <p className="kc-tt__overview">{d.overview}</p>}
+            {m.status === "transcoding" && (
+              <span className="kc-note">Still being prepared{m.headSeconds ? `: watchable up to ${clock(m.headSeconds)}` : ""}.</span>
+            )}
+            {m.status === "failed" && <span className="kc-note kc-note--danger">This film could not be prepared, so it cannot be played.</span>}
+            {d ? <Credits film={d} /> : film.starring && <Credits film={{ directors: [], writers: [], cast: film.starring.split(", ").map((name) => ({ name })) }} />}
 
-          <div className="kc-actions">
-            {m.status !== "failed" && (
-              <a className="kc-btn kc-btn--primary" {...watchLink(m.id, room && room.sessionId)}>
-                <Icon name={room ? "users" : "play"} size={18} />{room ? `Join the room (${room.participants})` : "Watch"}
-              </a>
-            )}
-            {kept && (kept.keeper
-              ? <button type="button" className="kc-btn" disabled={busy} onClick={() => keep(false)}><Icon name="pin-off" size={17} />Let it go</button>
-              : <button type="button" className="kc-btn" disabled={busy} onClick={() => keep(true)}><Icon name="pin" size={17} />Keep</button>)}
-            {kept && <span className="kc-pill">{staysFor(kept)}</span>}
-            {film.imdbId && (
-              <a className="kc-btn kc-btn--ghost" href={`https://www.imdb.com/title/${film.imdbId}/`} target="_blank" rel="noreferrer">
-                <Icon name="external-link" size={16} />IMDb
-              </a>
-            )}
+            <div className="kc-actions">
+              {m.status !== "failed" && (
+                <a className="kc-btn kc-btn--primary kc-btn--lg" {...watchLink(m.id, room && room.sessionId)}>
+                  <Icon name={room ? "users" : "play"} size={18} />{room ? `Join the room (${room.participants})` : "Watch"}
+                </a>
+              )}
+              {kept && (kept.keeper
+                ? <button type="button" className="kc-btn kc-btn--lg" disabled={busy} onClick={() => keep(false)}><Icon name="pin-off" size={17} />Un-keep</button>
+                : <button type="button" className="kc-btn kc-btn--lg" disabled={busy} onClick={() => keep(true)}><Icon name="pin" size={17} />Keep</button>)}
+              {kept && (
+                <span className="kc-tt__stay">
+                  <span className="kc-pill">{kept.keeper ? (session && kept.keeper === session.user.id ? "kept by you" : "kept") : staysFor(kept).toLowerCase()}</span>
+                  <span className="kc-tt__stay-note">{kept.keeper ? "Stays for everyone until someone un-keeps it." : kept.isFinished ? "Leaves when its seeding is done, unless somebody keeps it." : "Still downloading."}</span>
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="kc-facts">
-        <Fact label="Audio">{audio.length ? audio.map((a) => a.label).join(" · ") : "None"}</Fact>
-        <Fact label="Subtitles">
-          {subtitles.length
-            ? subtitles.map((s) => s.label + (s.available ? "" : " (picture track, not shown)")).join(" · ")
-            : "None yet. Ask the assistant to fetch some."}
-        </Fact>
-        {m.chapters && m.chapters.length > 0 && <Fact label="Chapters">{m.chapters.length}</Fact>}
-        <Fact label="On disk">
-          {kept
-            ? kept.keeper ? "Kept, so it stays." : kept.isFinished ? `Leaves after ${staysFor(kept).replace(" left", "")} more of seeding, unless somebody keeps it.` : "Still downloading."
-            : "Added by hand, so it is on no clock."}
-        </Fact>
+      {d && d.cast.length > 0 && (
+        <section className="kc-section">
+          <h2>Cast</h2>
+          <CastGrid cast={d.cast} />
+        </section>
+      )}
+
+      <section className="kc-section">
+        <h2>Details</h2>
+        <FactGrid facts={facts} />
       </section>
+
+      {d && <p className="kc-attribution-note">Film details and artwork from TMDB.</p>}
     </div>
   );
 }
@@ -110,21 +133,12 @@ export function Title({ id }) {
  * The picture's class, read from its width: a scope film is cropped top and bottom, so its height
  * says 804 where the release, and anybody choosing it, says 1080p.
  */
-function pictureClass(video) {
-  if (!video.width) return null;
+export function pictureClass(video) {
+  if (!video || !video.width) return null;
   if (video.width >= 3200) return "4K";
   if (video.width >= 1800) return "1080p";
   if (video.width >= 1200) return "720p";
   return "SD";
-}
-
-function Fact({ label, children }) {
-  return (
-    <div className="kc-fact">
-      <span className="kc-fact__label">{label}</span>
-      <span className="kc-fact__value">{children}</span>
-    </div>
-  );
 }
 
 export function keepWords(reply, name) {

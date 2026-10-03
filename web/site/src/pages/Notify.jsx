@@ -5,6 +5,7 @@ import { useLoad } from "../data.js";
 import { navigate } from "../router.js";
 import { Empty, Failed, PageHead } from "../components/Film.jsx";
 import { NotOutYet } from "./Search.jsx";
+import { KeptPoster } from "../components/FilmDetails.jsx";
 
 /**
  * Films somebody is waiting on: ones that cannot be downloaded yet. The server asks the tracker about
@@ -67,7 +68,7 @@ export function Notify() {
         <div className="kc-rows">
           {(wishes.data || []).map((wish) => (
             <div key={wish.imdbId} className="kc-row">
-              {wish.posterUrl ? <img className="kc-row__thumb" src={wish.posterUrl} alt="" /> : <span className="kc-row__thumb" />}
+              <KeptPoster imdbId={wish.imdbId} />
               <div className="kc-row__text">
                 <span className="kc-row__title">{wish.display}</span>
                 {wish.starring && <span className="kc-row__sub">{wish.starring}</span>}

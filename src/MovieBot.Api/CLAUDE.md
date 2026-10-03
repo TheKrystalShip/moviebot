@@ -36,6 +36,12 @@ and keeps are `Acquisition/CLAUDE.md`.
   `/embed/`. It is the fallback rather than the default-files middleware that does this, because an
   endpoint matched ahead of the static files means they never see the request. Paths under `/api`,
   `/media` and `/hub` stay a 404.
+- **The film database is reached by this service alone, and asked once per film.** `Films/FilmStore`
+  keeps each description and every image it names under one directory per film in the state
+  directory, serves its own copies at `/films/{imdbId}/…`, and asks again only once a copy is
+  `Tmdb:RefreshDays` old; a database that cannot be reached then costs freshness and nothing else.
+  `FilmWarmer` keeps every library film and every wished film described, so a listing reads only
+  what is kept and never waits on the network. No page talks to the database or its image store.
 - **A person's own settings are asked for by token, never by id.** `/api/me/preferences` answers for
   whoever the token names, so there is no route by which anybody reads or writes anybody else's; the
   service key names nobody and is refused there.

@@ -7,6 +7,8 @@ using TheKrystalShip.MovieBot.Api;
 using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Discord;
+using TheKrystalShip.MovieBot.Acquire.Tmdb;
+using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Subtitles;
@@ -63,11 +65,21 @@ builder.Services.AddSingleton<SessionKeeper>();
 
 // How each person watches, which follows them from the site into the Activity and back.
 builder.Services.AddSingleton(sp => new PreferenceStore(
-    sp.GetRequiredService<IConfiguration>()["People:Preferences"]
-        ?? Path.Combine(
-            Environment.GetEnvironmentVariable("STATE_DIRECTORY")?.Split(':').FirstOrDefault()
-                ?? Directory.GetCurrentDirectory(), "preferences.json"),
+    StatePath(sp.GetRequiredService<IConfiguration>()["People:Preferences"], "preferences.json"),
     sp.GetRequiredService<ILogger<PreferenceStore>>()));
+
+// What a film is, from the film database, kept on disk with its artwork and served from here.
+builder.Services.Configure<TmdbOptions>(builder.Configuration.GetSection(TmdbOptions.Section));
+builder.Services.AddOptions<FilmStoreOptions>().Bind(builder.Configuration.GetSection(TmdbOptions.Section));
+builder.Services.AddHttpClient<TmdbClient>((sp, http) =>
+    http.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<TmdbOptions>>().Value.TimeoutSeconds));
+builder.Services.AddSingleton(sp => new FilmStore(
+    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.Directory, "films"),
+    sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
+    sp.GetRequiredService<IServiceScopeFactory>(),
+    TimeProvider.System,
+    sp.GetRequiredService<ILogger<FilmStore>>()));
+builder.Services.AddHostedService<FilmWarmer>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SessionKeeper>());
 
 // The subtitle index. Searching costs nothing and only a download spends the day's allowance, so
@@ -185,7 +197,10 @@ app.MapGet("/api/config", (IOptions<DiscordAuthOptions> discord, IConfiguration 
         discord.Value.ClientId,
         configuration["Api:PublicBaseUrl"] is { Length: > 0 } url ? url.TrimEnd('/') : null)));
 
-app.MapGet("/api/titles", (TitleLibrary library) => Results.Ok(library.List()));
+// Each title with what the film database said about it, from what is kept: a listing never waits
+// on the network, and a film not described yet is listed without it.
+app.MapGet("/api/titles", (TitleLibrary library, FilmStore films) =>
+    Results.Ok(library.List().Select(t => t with { Details = films.Facts(t.Film?.ImdbId) }).ToList()));
 
 app.MapGet("/api/titles/{id}", (string id, TitleLibrary library) =>
     library.Get(id) is { } manifest ? Results.Ok(manifest) : Results.NotFound());
@@ -205,6 +220,7 @@ app.MapGet("/api/titles/{id}/ticket", (
 app.MapSubtitles();
 app.MapAcquisition();
 app.MapPeople();
+app.MapFilms();
 
 // Every room, for the bot: it holds no state of its own, so what to say about rooms it reads
 // from here each time it is about to say it.
@@ -359,6 +375,18 @@ if (roots.Cold is { } coldRoot)
 }
 
 app.Run();
+
+// A path a setting names, or the name under the directory systemd makes for this service and hands
+// over in the environment (the first, when it names several), and the working directory without one.
+// An empty setting is the default, which is what the shipped settings file spells it as.
+static string StatePath(string? configured, string name) =>
+    !string.IsNullOrWhiteSpace(configured)
+        ? Path.GetFullPath(configured)
+        : Path.Combine(
+            Environment.GetEnvironmentVariable("STATE_DIRECTORY")?.Split(':').FirstOrDefault() is { Length: > 0 } state
+                ? state
+                : Directory.GetCurrentDirectory(),
+            name);
 
 /// <summary>What the Activity posts after Discord hands it an authorization code.</summary>
 public sealed record DiscordCodeRequest(string Code, string? RedirectUri, string? SessionId);

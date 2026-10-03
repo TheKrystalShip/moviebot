@@ -3,6 +3,7 @@ import { api, clock, filmName, posterUrl } from "../api.js";
 import { useLoad, staysFor } from "../data.js";
 import { linkProps } from "../router.js";
 import { Empty, Failed, PosterArt, PosterCard, Shelf, watchLink } from "../components/Film.jsx";
+import { FilmScore, since } from "../components/FilmDetails.jsx";
 
 const LEAVING_SOON_DAYS = 3;
 
@@ -26,7 +27,7 @@ export function Home() {
       && k.remainingSeconds < LEAVING_SOON_DAYS * 86400)
     .sort((a, b) => a.remainingSeconds - b.remainingSeconds);
 
-  const featured = watching.length > 0 ? byId.get(watching[0].titleId) : pickOfTheDay(library);
+  const featured = newest(library);
 
   if (titles.error && !titles.data) return <div className="kc-page"><Failed error={titles.error} onRetry={titles.reload} /></div>;
   if (titles.loading && !titles.data) return <div className="kc-page" />;
@@ -86,28 +87,35 @@ export function Home() {
   );
 }
 
-/** The film at the top: the one a room is watching, or otherwise one from the shelf for the day. */
+/** The film at the top: the newest on the shelf, with what the film database says about it. */
 function Featured({ title, room }) {
-  const poster = posterUrl(title);
+  const d = title.details;
+  const art = (d && d.backdropUrl) || posterUrl(title);
   const film = title.film || {};
   return (
     <section className="kc-featured">
-      {poster && <div className="kc-featured__art" style={{ backgroundImage: `url("${poster}")` }} />}
+      {art && <div className="kc-featured__art" style={{ backgroundImage: `url("${art}")` }} />}
       <div className="kc-featured__scrim" />
       <div className="kc-featured__body">
-        <span className="kc-eyebrow">{room ? "Watching now" : "From the library"}</span>
+        <span className="kc-eyebrow">{room ? "Watching now" : title.addedAt ? `Added ${since(title.addedAt).toLowerCase()}` : "From the library"}</span>
         <h1>{film.name || title.title}</h1>
         <div className="kc-featured__meta">
+          {d && d.rating && <FilmScore rating={d.rating} votes={d.votes} compact />}
           {film.year && <span>{film.year}</span>}
+          {d && d.certification && <span className="kc-cert">{d.certification}</span>}
           <span>{clock(title.durationSeconds)}</span>
+          {d && d.genres.length > 0 && <span>{d.genres.join(" · ")}</span>}
         </div>
-        {film.starring && <span className="kc-featured__starring">Starring <b>{film.starring}</b></span>}
+        {d && d.overview && <p className="kc-featured__overview">{d.overview}</p>}
+        {d && d.directors.length > 0
+          ? <span className="kc-featured__starring">Directed by <b>{d.directors.join(", ")}</b></span>
+          : film.starring && <span className="kc-featured__starring">Starring <b>{film.starring}</b></span>}
         <div className="kc-actions">
           <a className="kc-btn kc-btn--primary" {...watchLink(title.id, room && room.sessionId)}>
             <Icon name={room ? "users" : "play"} size={18} />{room ? "Join the room" : "Watch"}
           </a>
           <a className="kc-btn" {...linkProps("/title/" + encodeURIComponent(title.id))}>
-            <Icon name="info" size={18} />More about it
+            <Icon name="info" size={18} />More info
           </a>
         </div>
       </div>
@@ -115,10 +123,9 @@ function Featured({ title, room }) {
   );
 }
 
-/** One ready film for the day: the same all day, a different one tomorrow. */
-function pickOfTheDay(library) {
+/** The newest ready film: what arrived last is what is worth putting at the top. */
+function newest(library) {
   const ready = library.filter((t) => t.status === "ready");
-  if (ready.length === 0) return library[0] || null;
-  const day = Math.floor(Date.now() / 86400000);
-  return ready[day % ready.length];
+  const pool = ready.length > 0 ? ready : library;
+  return pool.reduce((best, t) => (!best || (t.addedAt || "") > (best.addedAt || "") ? t : best), null);
 }
