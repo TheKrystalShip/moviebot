@@ -271,19 +271,23 @@ public sealed partial class RoomTools(
 
         if (manifest.Chapters.Count > 0) text.AppendLine($"{manifest.Chapters.Count} chapters.");
 
-        if (await api.RetentionAsync(title.Id, ct) is { } kept) text.AppendLine(StaysNote(kept));
+        if (await api.StayAsync(title.Id, ct) is { } stay && StaysNote(stay) is { } note) text.AppendLine(note);
 
         return Tell(text.ToString().TrimEnd());
     }
 
-    /// <summary>How long a film stays on disk, in one sentence.</summary>
-    public static string StaysNote(KeptFilmView film)
+    /// <summary>
+    /// How long a film stays in the library, in one sentence, or null for a film that has not settled
+    /// and is on no clock yet.
+    /// </summary>
+    public static string? StaysNote(TitleStay stay)
     {
-        if (film.Keeper is not null) return "Somebody has kept it, so it stays.";
+        if (stay.KeeperId is not null) return $"{stay.KeeperName ?? stay.KeeperId} has kept it, so it stays.";
+        if (stay.DaysLeft is not { } days) return null;
 
-        return film.IsFinished
-            ? $"Leaves after {Retention.Describe(TimeSpan.FromSeconds(film.RemainingSeconds))} more of seeding, unless somebody keeps it."
-            : $"Leaves after {Retention.Describe(TimeSpan.FromSeconds(film.WindowSeconds))} of seeding once it has downloaded, unless somebody keeps it.";
+        return days == 0
+            ? "Leaves today unless somebody plays or keeps it."
+            : $"Leaves in {days} {(days == 1 ? "day" : "days")} unless somebody plays or keeps it.";
     }
 
     private async Task<string> DownloadStatusAsync(CancellationToken ct)
@@ -297,8 +301,7 @@ public sealed partial class RoomTools(
             .Select(d =>
             {
                 var watchable = !d.IsFinished && d.IsWatchable ? ", already watchable" : "";
-                var kept = d.IsKept ? ", kept" : "";
-                return $"- {d.Name}: {d.Summary}{watchable}{kept}";
+                return $"- {d.Name}: {d.Summary}{watchable}";
             })));
     }
 
@@ -882,40 +885,35 @@ public sealed partial class RoomTools(
         var (title, refusal) = await ResolveAsync(query, ct);
         if (title is null) return refusal!;
 
-        var downloads = await api.ListDownloadsAsync(ct);
-        var behind = downloads.FirstOrDefault(d => d.LibraryId == title.Id);
-        if (behind is null)
-            return Tell($"No download stands behind {title.Name}, so it is on no clock and is never pruned.");
+        var stay = await api.StayAsync(title.Id, ct);
+        if (stay is null) return Tell($"{title.Name} has just left the library.");
 
-        if (keeping && behind.IsKept) return Tell($"{title.Name} is already kept.");
-        if (!keeping && !behind.IsKept) return Tell($"{title.Name} is not kept, so it is already on the clock to be pruned.");
+        if (keeping && stay.KeeperId is not null) return Tell($"{title.Name} is already kept.");
+        if (!keeping && stay.KeeperId is null) return Tell($"{title.Name} is not kept, so it is already on the library's clock.");
 
         var asker = Asker;
-        var hash = behind.Hash;
+        var id = title.Id;
         var kind = keeping ? KeepFilm : LetGo;
 
         return Propose(kind,
-            keeping ? $"keep {title.Name} from being pruned" : $"let {title.Name} go back on the clock to be pruned",
+            keeping ? $"keep {title.Name} in the library" : $"let {title.Name} go back on the library's clock",
             title.Name,
             async ct2 =>
             {
-                var reply = keeping ? await api.KeepAsync(hash, asker, ct2) : await api.ReleaseKeepAsync(hash, asker, ct2);
-                var done = reply.Outcome is "kept" or "released" or "alreadyKept" or "notKept";
+                var now = keeping ? await api.KeepAsync(id, asker, ct2) : await api.ReleaseKeepAsync(id, asker, ct2);
+                var done = now is not null && (now.KeeperId is not null) == keeping;
                 return new ConfirmOutcome
                 {
-                    Text = reply.Outcome switch
-                    {
-                        "kept" => $"{title.Name} is kept, so it stays.",
-                        "alreadyKept" => $"{title.Name} was already kept.",
-                        "released" => $"{title.Name} is no longer kept. " + (reply.Film is { } film ? StaysNote(film) : ""),
-                        "notKept" => $"{title.Name} was not kept.",
-                        "unavailable" => "The torrent client is not answering, so nothing changed.",
-                        _ => $"Nothing on disk answers to {title.Name} any more.",
-                    },
+                    Text = now is null
+                        ? $"{title.Name} has left the library, so there is nothing to change."
+                        : keeping
+                            ? done ? $"{title.Name} is kept, so it stays." : $"{title.Name} was already kept."
+                            : done ? $"{title.Name} is no longer kept. " + StaysNote(now)
+                                   : $"{title.Name} was kept again before this went through.",
                     Success = done,
                     Verdict = done ? "accepted" : "failed",
                     Kind = kind,
-                    Keep = reply,
+                    Keep = now,
                 };
             });
     }

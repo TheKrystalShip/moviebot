@@ -17,20 +17,20 @@ public static class KeepSlashCommand
     public static SlashCommandProperties Build() =>
         new SlashCommandBuilder()
             .WithName(Name)
-            .WithDescription("Keep a film on disk instead of letting it be pruned")
+            .WithDescription("Keep a film in the library instead of letting it leave")
             .AddOption(new SlashCommandOptionBuilder()
                 .WithName(Add)
-                .WithDescription("Keep a film. It will not be pruned until somebody removes the keep")
+                .WithDescription("Keep a film. It will not leave until somebody removes the keep")
                 .WithType(ApplicationCommandOptionType.SubCommand)
                 .AddOption(
                     FilmOption,
                     ApplicationCommandOptionType.String,
-                    "Which of the films on disk",
+                    "Which of the films in the library",
                     isRequired: true,
                     isAutocomplete: true))
             .AddOption(new SlashCommandOptionBuilder()
                 .WithName(Remove)
-                .WithDescription("Stop keeping a film, so it is pruned once it has seeded long enough")
+                .WithDescription("Stop keeping a film, so it leaves once nobody has played it for a while")
                 .WithType(ApplicationCommandOptionType.SubCommand)
                 .AddOption(
                     FilmOption,
@@ -40,7 +40,7 @@ public static class KeepSlashCommand
                     isAutocomplete: true))
             .AddOption(new SlashCommandOptionBuilder()
                 .WithName(List)
-                .WithDescription("Every film on disk, who keeps it, and when the rest leave")
+                .WithDescription("Every settled film, who keeps it, and when the rest leave")
                 .WithType(ApplicationCommandOptionType.SubCommand))
             .Build();
 }

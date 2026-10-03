@@ -1,5 +1,6 @@
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
+using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Acquisition;
@@ -98,20 +99,52 @@ public static class AcquisitionEndpoints
             return Results.NoContent();
         }).AddEndpointFilter(ServiceOnly);
 
-        group.MapGet("/keeps", async (Keeps keeps, CancellationToken ct) =>
-            await keeps.ListAsync(ct) is { } films
-                ? Results.Ok(films)
-                : Unanswered("The torrent client is not answering."));
+        // How long each film stays in the library, and who keeps it. A film the library does not hold
+        // is a 404, since nothing about one that is not there would be a fact.
+        group.MapGet("/titles/{id}/stay", (string id, LibraryClock library) =>
+            library.StayOf(id) is { } stay ? Results.Ok(stay) : NoSuchTitle());
 
-        group.MapPut("/keeps/{hash}", async (string hash, KeepRequest request, HttpContext context, Keeps keeps, CancellationToken ct) =>
-            Results.Ok(await keeps.KeepAsync(hash, Asker(context, request.RequestedBy), ct)));
+        group.MapGet("/stays", (LibraryClock library) => Results.Ok(library.Stays().ToList()));
 
-        group.MapPost("/keeps/{hash}/release", async (string hash, KeepRequest request, HttpContext context, Keeps keeps, CancellationToken ct) =>
-            Results.Ok(await keeps.ReleaseAsync(hash, Asker(context, request.RequestedBy), ct)));
+        // A member keeps as themselves. A service names who it keeps for, and without a name there is
+        // nobody to record.
+        group.MapPut("/titles/{id}/keep", async (string id, HttpContext context,
+            LibraryClock library, KeepStore keeps, TimeProvider clock, ILogger<KeepStore> logger) =>
+        {
+            if (library.StayOf(id) is null) return NoSuchTitle();
+            if (Asker(context, await NamedAsync(context)) is not { } asker) return NoKeeper();
 
-        group.MapGet("/titles/{id}/retention", async (string id, Keeps keeps, CancellationToken ct) =>
-            await keeps.ForTitleAsync(id, ct) is { } film ? Results.Ok(film) : Results.NoContent());
+            var keep = keeps.Add(id, asker.UserId, clock.GetUtcNow());
+            if (keep.KeeperId == asker.UserId)
+                logger.LogInformation("{User} kept {Id}.", asker.DisplayName, id);
+
+            return Results.Ok(library.StayOf(id));
+        });
+
+        group.MapDelete("/titles/{id}/keep", async (string id, HttpContext context,
+            LibraryClock library, KeepStore keeps, ILogger<KeepStore> logger) =>
+        {
+            if (library.StayOf(id) is null) return NoSuchTitle();
+            if (Asker(context, await NamedAsync(context)) is not { } asker) return NoKeeper();
+
+            if (keeps.Remove(id)) logger.LogInformation("{User} let {Id} go.", asker.DisplayName, id);
+
+            return Results.Ok(library.StayOf(id));
+        });
+
+        // What the hand-off deletes: the settled films whose time is up. It is asked by the one process
+        // that writes the media roots, and a member has no business with it.
+        group.MapGet("/library/due", (LibraryClock library) => Results.Ok(library.Due().ToArray()))
+            .AddEndpointFilter(ServiceOnly);
     }
+
+    private static IResult NoSuchTitle() =>
+        Results.Json(new ErrorReply("The library holds no film under that id."), ApiJsonContext.Default.ErrorReply,
+            statusCode: StatusCodes.Status404NotFound);
+
+    private static IResult NoKeeper() =>
+        Results.Json(new ErrorReply("Name who is asking."), ApiJsonContext.Default.ErrorReply,
+            statusCode: StatusCodes.Status400BadRequest);
 
     private static IResult Unanswered(string what) =>
         Results.Json(new ErrorReply(what), ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status502BadGateway);
@@ -120,9 +153,33 @@ public static class AcquisitionEndpoints
     private static RoomTokenPayload? MemberOf(HttpContext context) =>
         context.Items.TryGetValue("room-token", out var token) ? token as RoomTokenPayload : null;
 
-    /// <summary>Who asked: the member a token names, or the person a service vouches for.</summary>
-    private static Actor Asker(HttpContext context, Actor named) =>
-        MemberOf(context) is { } member ? new Actor(member.UserId, member.DisplayName) : named;
+    /// <summary>
+    /// The person a service named in the body, or null when the body names nobody. Read here and not
+    /// bound: a member's request carries no body at all, and a route that declares one is not matched
+    /// by a request without it.
+    /// </summary>
+    private static async Task<KeepRequest?> NamedAsync(HttpContext context)
+    {
+        if (!context.Request.HasJsonContentType()) return null;
+
+        try
+        {
+            return await context.Request.ReadFromJsonAsync(ManifestJsonContext.Default.KeepRequest, context.RequestAborted);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Who asked: the member a token names, or the person a service vouches for. Null when a service
+    /// vouched for nobody.
+    /// </summary>
+    private static Actor? Asker(HttpContext context, KeepRequest? request) =>
+        MemberOf(context) is { } member
+            ? new Actor(member.UserId, member.DisplayName)
+            : request?.RequestedBy is { UserId.Length: > 0 } named ? named : null;
 
     /// <summary>
     /// Lets through the service key and a member's token. The middleware has already let the request

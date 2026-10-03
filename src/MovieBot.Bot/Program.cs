@@ -132,8 +132,8 @@ builder.Services.AddSingleton<WatchCommand>();
 // and the API has never heard of a Discord message.
 builder.Services.AddSingleton<LaunchCards>();
 
-// Keeps a film from being pruned, and says on every launch how long a film has left. The keep is
-// a note on the torrent, read by the hand-off when it decides what goes.
+// Keeps a film in the library, and says on every launch how long a film has left. The keep is the
+// API's, which the library's clock reads when it decides what goes.
 builder.Services.AddSingleton<KeepCommand>();
 builder.Services.AddSingleton<IFilmRetention>(sp => sp.GetRequiredService<KeepCommand>());
 

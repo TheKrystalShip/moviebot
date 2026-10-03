@@ -49,10 +49,11 @@ builder.Services.AddSingleton(sp =>
 });
 builder.Services.AddSingleton<ColdStore>();
 
-// The one question this asks the API: which films the rooms hold, so none is pruned from under
-// a room. Reached with the service key, because the rooms are behind the same door as the films.
+// What this asks the API: which films the rooms hold, so none is removed from under a room, and
+// which settled films the library's clock says are due. Reached with the service key, because both
+// are behind the same door as the films.
 builder.Services.Configure<ApiOptions>(builder.Configuration.GetSection(ApiOptions.Section));
-builder.Services.AddHttpClient<OccupiedRooms>((sp, http) =>
+void ReachApi(IServiceProvider sp, HttpClient http)
 {
     var api = sp.GetRequiredService<IOptions<ApiOptions>>().Value;
     http.BaseAddress = new Uri(api.BaseUrl.TrimEnd('/') + "/");
@@ -60,7 +61,11 @@ builder.Services.AddHttpClient<OccupiedRooms>((sp, http) =>
 
     if (api.ServiceKey.Length > 0)
         http.DefaultRequestHeaders.Add("X-MovieBot-Service", api.ServiceKey);
-});
+}
+
+builder.Services.AddHttpClient<OccupiedRooms>(ReachApi);
+builder.Services.AddHttpClient<DueTitles>(ReachApi);
+builder.Services.AddSingleton<ISeedingDownloads, ClientDownloads>();
 
 // A one-shot pass over films already in the library, for the ones that arrived before there was
 // anywhere to keep a name or a poster. It is the same resolver the ingest uses, pointed at
@@ -76,6 +81,7 @@ if (args.Contains("--backfill"))
 
 builder.Services.AddHostedService<HandoffWorker>();
 builder.Services.AddHostedService<RetentionWorker>();
+builder.Services.AddHostedService<LibraryWorker>();
 builder.Services.AddHostedService<SettleWorker>();
 
 builder.Logging.AddSimpleConsole(o => o.SingleLine = true);

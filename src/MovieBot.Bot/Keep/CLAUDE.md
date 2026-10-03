@@ -1,13 +1,17 @@
 # Keeping a film
 
-A downloaded film nobody keeps leaves after a week of seeding; the hand-off does the pruning
-(`src/MovieBot.Handoff/CLAUDE.md`).
+A settled film nobody plays or keeps leaves the library after a while; the API decides which and the
+hand-off deletes them (`src/MovieBot.Handoff/CLAUDE.md`, "The library's clock").
 
-- **A keep is a tag on the torrent, and it names who set it.** Every process that decides a download's
-  fate already reads its tags. Anyone may keep a film and anyone may let it go, and the row says who
-  did, which beats deciding who is allowed to.
+- **A keep is the API's, by library id, and it names who set it.** It lives with the library's clock
+  and not on the film's torrent, which is let go of long before the film is. Anyone may keep a film
+  and anyone may let it go, and the record says who did, which beats deciding who is allowed to. The
+  bot acts with the service key and names the person.
+- **A film already kept stays its first keeper's.** `/keep add` on a kept film says who has it
+  rather than changing hands; `/keep remove` on one nobody keeps says so.
 - **The launch and the ready announcement say how long a film stays in one sentence**,
   `KeepCommand.Notice`, so the message that starts a film and the one that announced it cannot
   disagree about when it leaves. The list is the short form of the same figures.
-- A title put in the library by hand is on no clock, and the launch says nothing about how long it
-  stays.
+- **A film that has not settled is on no clock, and the sentence says nothing.** It counts from
+  the moment it settles on the cold disk, and before then any number would be invented. The same is
+  true of a title put in the library by hand on a host with no cold disk.

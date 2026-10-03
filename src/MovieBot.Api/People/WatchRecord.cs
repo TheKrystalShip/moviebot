@@ -26,6 +26,9 @@ public sealed class WatchData
     public Dictionary<string, Dictionary<string, WatchEntry>> People { get; init; } = [];
 
     public Dictionary<string, TitlePlay> Titles { get; init; } = [];
+
+    /// <summary>When this record began. Before it, plays went unrecorded rather than unmade.</summary>
+    public DateTimeOffset? Since { get; set; }
 }
 
 [JsonSourceGenerationOptions(
@@ -65,7 +68,19 @@ public sealed class WatchRecord : IPlayHistory, IDisposable
         _logger = logger;
         _writeDelay = writeDelay ?? TimeSpan.FromSeconds(3);
         _data = Read();
+        if (_data.Since is null)
+        {
+            _data.Since = DateTimeOffset.UtcNow;
+            lock (_gate) Schedule();
+        }
     }
+
+    /// <summary>
+    /// When the record began, which is as far back as "not played" can be known. A film with no play
+    /// recorded is one nobody played since then, not one nobody ever played, so the library's clock
+    /// counts from no earlier than this.
+    /// </summary>
+    public DateTimeOffset RecordingSince => _data.Since ?? DateTimeOffset.UtcNow;
 
     /// <summary>
     /// Notes that somebody watched a film up to a position at an instant. The latest sample is the

@@ -48,11 +48,11 @@ namespace TheKrystalShip.MovieBot.Core;
 [JsonSerializable(typeof(IReadOnlyList<AvailableWish>))]
 [JsonSerializable(typeof(List<AvailableWish>))]
 [JsonSerializable(typeof(WishesTold))]
-[JsonSerializable(typeof(KeptFilmView))]
-[JsonSerializable(typeof(IReadOnlyList<KeptFilmView>))]
-[JsonSerializable(typeof(List<KeptFilmView>))]
+[JsonSerializable(typeof(TitleStay))]
+[JsonSerializable(typeof(IReadOnlyList<TitleStay>))]
+[JsonSerializable(typeof(List<TitleStay>))]
 [JsonSerializable(typeof(KeepRequest))]
-[JsonSerializable(typeof(KeepReply))]
+[JsonSerializable(typeof(string[]))]
 public partial class ManifestJsonContext : JsonSerializerContext;
 
 public static class ManifestJson

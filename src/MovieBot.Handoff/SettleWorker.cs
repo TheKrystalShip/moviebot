@@ -109,7 +109,7 @@ public sealed class SettleWorker(
         // A film a room is watching stays where it is. Both copies are whole for the moment they
         // overlap, so moving one out from under a room is safe — but a pass that cannot reach the
         // API cannot tell an empty library from an unreachable one, and the same caution that
-        // keeps a film from being pruned under a room applies to spending two minutes of the
+        // keeps a film from being removed under a room applies to spending two minutes of the
         // disk it is being read from.
         var held = await rooms.HeldTitlesAsync(ct);
         if (held is null) return;

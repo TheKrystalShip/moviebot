@@ -54,7 +54,8 @@ Playback starts seconds after a film is requested, while it is still being trans
    list of films people are waiting on.
 5. **The hand-off** watches for downloads, picks the feature file, and runs ingest while the
    download is still arriving, so the film is announced as soon as it can be played. It also
-   prunes downloads nobody has kept.
+   removes a download's torrent and files once it has seeded long enough, and removes a settled film
+   from the library once it has gone its time without a play and nobody keeps it.
 6. **The assistant** answers what people say or type to MovieBot with a small local language
    model, acting through the API: it can move a room, put a film on, and propose a download, a wish
    or a keep for somebody to agree to. It speaks the same chat protocol as the KGSM assistant, so one
@@ -73,7 +74,7 @@ A single transcode serves the whole room because there is only one playhead. On 
 | `/watch title:<name>` | Loads a film into the room for the voice channel you are in, downloading it first if needed |
 | `/download film:<name>` | Fetches a film without playing it, so it is ready later |
 | `/notify add\|list\|cancel` | Waits on a film that cannot be downloaded yet, and announces when it can |
-| `/keep add\|remove\|list` | Keeps a downloaded film past its retention period, or lets it go |
+| `/keep add\|remove\|list` | Keeps a film in the library past its time without a play, or lets it go |
 | `/voice join\|status\|leave` | Listens in the voice channel for spoken commands |
 
 See [`src/MovieBot.Bot/README.md`](src/MovieBot.Bot/README.md) for the bot, and

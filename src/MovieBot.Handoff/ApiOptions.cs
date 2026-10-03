@@ -1,7 +1,8 @@
 namespace TheKrystalShip.MovieBot.Handoff;
 
 /// <summary>
-/// Where the API is, for the one question the hand-off asks it: which films the rooms hold.
+/// Where the API is, for what the hand-off asks it: which films the rooms hold, and which settled
+/// films the library's clock says are due.
 /// </summary>
 public sealed class ApiOptions
 {

@@ -1,40 +1,24 @@
 using System.Globalization;
 using Microsoft.Extensions.Logging;
-using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Bot.Keep;
 
 /// <summary>
-/// One film on disk, as the retention rule sees it.
+/// One film in the library, as the library's clock sees it.
 /// </summary>
-/// <param name="Hash">The download's identity, which is what a menu row hands back.</param>
-/// <param name="Name">What to call the film: the library's name where it has one, the release's otherwise.</param>
-/// <param name="Release">What it arrived as.</param>
-/// <param name="Keeper">Who kept it, or null when nobody has.</param>
-/// <param name="Remaining">How much more seeding it has before it is due to go.</param>
-/// <param name="IsFinished">Whether the download is complete. Seeding, and so the clock, starts then.</param>
-/// <param name="Window">How long a film nobody keeps seeds before it goes.</param>
-public sealed record KeptFilm(
-    string Hash,
-    string Name,
-    string Release,
-    ulong? Keeper,
-    TimeSpan Remaining,
-    bool IsFinished,
-    TimeSpan Window)
+/// <param name="TitleId">The library id, which is what a menu row hands back.</param>
+/// <param name="Name">What to call the film.</param>
+/// <param name="Keeper">Who kept it: a Discord id, or null when nobody has.</param>
+/// <param name="KeeperName">What the API calls the keeper, for a keeper that is not a Discord id.</param>
+/// <param name="DaysLeft">Whole days before it leaves, or null when it is kept or has not settled.</param>
+public sealed record KeptFilm(string TitleId, string Name, string? Keeper, string? KeeperName, int? DaysLeft)
 {
     public bool IsKept => Keeper is not null;
 
-    public static KeptFilm From(KeptFilmView view) => new(
-        view.Hash,
-        view.Name,
-        view.Release,
-        ulong.TryParse(view.Keeper, NumberStyles.None, CultureInfo.InvariantCulture, out var keeper) ? keeper : null,
-        TimeSpan.FromSeconds(view.RemainingSeconds),
-        view.IsFinished,
-        TimeSpan.FromSeconds(view.WindowSeconds));
+    public static KeptFilm From(TitleStay stay, string name) =>
+        new(stay.TitleId, name, stay.KeeperId, stay.KeeperName, stay.DaysLeft);
 }
 
 public enum KeepStatus
@@ -51,10 +35,10 @@ public enum KeepStatus
     /// <summary>Nobody had kept it, so there was nothing to undo.</summary>
     NotKept,
 
-    /// <summary>Nothing on disk answers to that.</summary>
+    /// <summary>The library holds no such film.</summary>
     NotFound,
 
-    /// <summary>The torrent client could not be asked.</summary>
+    /// <summary>The API could not be asked.</summary>
     Unavailable,
 }
 
@@ -67,76 +51,88 @@ public sealed record KeepResult(KeepStatus Status, string Message, KeptFilm? Fil
 public interface IFilmRetention
 {
     /// <summary>
-    /// The sentence for a film in the library, or null when no download stands behind it: a
-    /// film put there by hand is on no clock, and saying anything about it would be invented.
+    /// The sentence for a film in the library, or null when the film is on no clock: one that has
+    /// not settled has not started counting, and saying anything about it would be invented.
     /// </summary>
     Task<string?> NoticeForAsync(string libraryId, CancellationToken ct);
 }
 
 /// <summary>
-/// Keeps a film from being pruned, lets one go again, and says where every film on disk stands, by
-/// asking the API — which writes the keep as a note on the torrent, where the hand-off reads it when
-/// it decides what to prune. Anyone may keep a film and anyone may let it go, and the row says who
-/// did. What stays here is how a Discord channel is told.
+/// Keeps a film in the library, lets one go again, and says where every settled film stands, by
+/// asking the API, which holds the keeps and the library's clock. Anyone may keep a film and anyone
+/// may let it go, and the record says who did. What stays here is how a Discord channel is told.
 /// </summary>
 public sealed class KeepCommand(MovieBotApiClient api, ILogger<KeepCommand> logger) : IFilmRetention
 {
-    /// <summary>Every download, with the library's name for it where the library has one.</summary>
-    public async Task<IReadOnlyList<KeptFilm>> ListAsync(CancellationToken ct) =>
-        (await api.ListKeepsAsync(ct)).Select(KeptFilm.From).ToList();
-
-    public async Task<KeepResult> KeepAsync(string hash, ulong userId, string displayName, CancellationToken ct)
+    /// <summary>Every settled film, soonest to leave first, the kept ones after them.</summary>
+    public async Task<IReadOnlyList<KeptFilm>> ListAsync(CancellationToken ct)
     {
-        KeepReply reply;
+        var stays = await api.ListStaysAsync(ct);
+        var names = await NamesAsync(ct);
+        return stays.Select(s => KeptFilm.From(s, NameOf(names, s.TitleId))).ToList();
+    }
+
+    /// <summary>Every film in the library, for choosing one to keep.</summary>
+    public async Task<IReadOnlyList<(string TitleId, string Name)>> TitlesAsync(CancellationToken ct) =>
+        (await api.ListTitlesAsync(ct)).Select(t => (t.Id, t.Name)).ToList();
+
+    public async Task<KeepResult> KeepAsync(string titleId, ulong userId, string displayName, CancellationToken ct)
+    {
         try
         {
-            reply = await api.KeepAsync(hash, new Actor(userId.ToString(), displayName), ct);
+            var before = await api.StayAsync(titleId, ct);
+            if (before is null) return NotFound();
+
+            var name = NameOf(await NamesAsync(ct), titleId);
+            if (before.KeeperId is not null) return Describe(KeepStatus.AlreadyKept, before, name);
+
+            var after = await api.KeepAsync(titleId, new Actor(userId.ToString(CultureInfo.InvariantCulture), displayName), ct);
+            if (after is null) return NotFound();
+
+            return Describe(after.KeeperId == userId.ToString(CultureInfo.InvariantCulture)
+                ? KeepStatus.Kept : KeepStatus.AlreadyKept, after, name);
         }
         catch (MovieBotApiException ex)
         {
-            logger.LogWarning(ex, "The API could not be asked to keep {Hash}.", hash);
+            logger.LogWarning(ex, "The API could not be asked to keep {Id}.", titleId);
             return Unavailable();
         }
-
-        return Describe(reply);
     }
 
-    public async Task<KeepResult> ReleaseAsync(string hash, ulong userId, string displayName, CancellationToken ct)
+    public async Task<KeepResult> ReleaseAsync(string titleId, ulong userId, string displayName, CancellationToken ct)
     {
-        KeepReply reply;
         try
         {
-            reply = await api.ReleaseKeepAsync(hash, new Actor(userId.ToString(), displayName), ct);
+            var before = await api.StayAsync(titleId, ct);
+            if (before is null) return NotFound();
+
+            var name = NameOf(await NamesAsync(ct), titleId);
+            if (before.KeeperId is null) return Describe(KeepStatus.NotKept, before, name);
+
+            var after = await api.ReleaseKeepAsync(titleId, new Actor(userId.ToString(CultureInfo.InvariantCulture), displayName), ct);
+            if (after is null) return NotFound();
+
+            return Describe(KeepStatus.Released, after, name);
         }
         catch (MovieBotApiException ex)
         {
-            logger.LogWarning(ex, "The API could not be asked to release {Hash}.", hash);
+            logger.LogWarning(ex, "The API could not be asked to release {Id}.", titleId);
             return Unavailable();
         }
-
-        return Describe(reply);
     }
 
-    /// <summary>
-    /// What the API's answer to a keep or a release is told as in a channel, whoever asked for it:
-    /// <c>/keep</c>, or the assistant once somebody agreed.
-    /// </summary>
-    public static KeepResult Describe(KeepReply reply)
+    /// <summary>What the API's answer to a keep or a release is told as in a channel.</summary>
+    public static KeepResult Describe(KeepStatus status, TitleStay stay, string name)
     {
-        var film = reply.Film is { } view ? KeptFilm.From(view) : null;
-        return (reply.Outcome, film) switch
+        var film = KeptFilm.From(stay, name);
+        return status switch
         {
-            ("kept", { } kept) => new KeepResult(KeepStatus.Kept,
-                $"{kept.Name} stays. It will not be pruned until somebody runs /keep remove.", kept),
-            ("alreadyKept", { } kept) => new KeepResult(KeepStatus.AlreadyKept,
-                kept.Keeper is { } keeper
-                    ? $"{kept.Name} is already kept, by {Mention(keeper)}."
-                    : $"{kept.Name} is already kept.", kept),
-            ("released", { } released) => new KeepResult(KeepStatus.Released,
-                $"{released.Name} is no longer kept. {Notice(released)}", released),
-            ("notKept", { } loose) => new KeepResult(KeepStatus.NotKept, $"{loose.Name} was not kept.", loose),
-            ("unavailable", _) => Unavailable(),
-            _ => NotFound(),
+            KeepStatus.Kept => new KeepResult(status,
+                $"{name} stays. It will not leave the library until somebody runs /keep remove.", film),
+            KeepStatus.AlreadyKept => new KeepResult(status, $"{name} is already kept, by {Who(film)}.", film),
+            KeepStatus.Released => new KeepResult(status, $"{name} is no longer kept. {Notice(film)}".TrimEnd(), film),
+            KeepStatus.NotKept => new KeepResult(status, $"{name} was not kept.", film),
+            _ => throw new ArgumentOutOfRangeException(nameof(status)),
         };
     }
 
@@ -144,40 +140,48 @@ public sealed class KeepCommand(MovieBotApiClient api, ILogger<KeepCommand> logg
     {
         try
         {
-            return await api.RetentionAsync(libraryId, ct) is { } view ? Notice(KeptFilm.From(view)) : null;
+            return await api.StayAsync(libraryId, ct) is { } stay ? Notice(KeptFilm.From(stay, libraryId)) : null;
         }
         catch (MovieBotApiException ex)
         {
-            logger.LogDebug(ex, "The retention of {Id} could not be read.", libraryId);
+            logger.LogDebug(ex, "The stay of {Id} could not be read.", libraryId);
             return null;
         }
     }
 
     /// <summary>
-    /// The one sentence about how long a film stays, for every surface that says it.
+    /// The one sentence about how long a film stays, for every surface that says it, or null for a
+    /// film that has not settled.
     /// </summary>
-    public static string Notice(KeptFilm film)
+    public static string? Notice(KeptFilm film)
     {
-        if (film.Keeper is { } keeper)
-            return $"Kept by {Mention(keeper)}, so it stays.";
+        if (film.IsKept) return $"Kept by {Who(film)}, so it stays.";
+        if (film.DaysLeft is not { } days) return null;
 
-        if (!film.IsFinished)
-            return $"Leaves after {Retention.Describe(film.Window)} of seeding once it has "
-                   + "downloaded, unless somebody keeps it with /keep add.";
-
-        return $"Leaves after {Retention.Describe(film.Remaining)} more of seeding, unless somebody "
-               + "keeps it with /keep add.";
+        return days == 0
+            ? "Leaves today unless somebody plays or keeps it with /keep add."
+            : $"Leaves in {days} {(days == 1 ? "day" : "days")} unless somebody plays or keeps it with /keep add.";
     }
 
     /// <summary>
-    /// A mention rather than a name, because a tag carries an id and a person renames themselves.
-    /// Rendered as a name wherever the message forbids mentions, which every message here does.
+    /// A mention rather than a name where the keeper is a Discord id, because a person renames
+    /// themselves. Rendered as a name wherever the message forbids mentions, which every message
+    /// here does.
     /// </summary>
-    public static string Mention(ulong userId) => $"<@{userId}>";
+    public static string Who(KeptFilm film) =>
+        ulong.TryParse(film.Keeper, NumberStyles.None, CultureInfo.InvariantCulture, out var id)
+            ? $"<@{id}>"
+            : film.KeeperName ?? film.Keeper ?? "nobody";
+
+    private async Task<Dictionary<string, string>> NamesAsync(CancellationToken ct) =>
+        (await api.ListTitlesAsync(ct)).ToDictionary(t => t.Id, t => t.Name, StringComparer.Ordinal);
+
+    private static string NameOf(Dictionary<string, string> names, string titleId) =>
+        names.GetValueOrDefault(titleId) ?? titleId;
 
     private static KeepResult NotFound() => new(KeepStatus.NotFound,
-        "Nothing on disk answers to that. Pick a film from the suggestions.");
+        "The library holds no film like that. Pick a film from the suggestions.");
 
     private static KeepResult Unavailable() => new(KeepStatus.Unavailable,
-        "The torrent client is not answering, so nothing changed. Try again in a moment.");
+        "The library is not answering, so nothing changed. Try again in a moment.");
 }

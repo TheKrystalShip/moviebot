@@ -31,7 +31,6 @@ public sealed class DiscordBotService(
     NotifyCommand notify,
     KeepCommand keep,
     LaunchCards cards,
-    TheKrystalShip.MovieBot.Acquire.Download.Retention retention,
     TheKrystalShip.MovieBot.Acquire.Download.AcquisitionService acquisition,
     TheKrystalShip.MovieBot.Acquire.Imdb.ImdbClient catalogue,
     IVoiceSessions voiceSessions,
@@ -633,7 +632,7 @@ public sealed class DiscordBotService(
                 case KeepSlashCommand.List:
                     await command.DeferAsync(ephemeral: true);
                     await command.FollowupAsync(
-                        embed: KeepEmbed.List(await keep.ListAsync(CancellationToken.None), retention),
+                        embed: KeepEmbed.List(await keep.ListAsync(CancellationToken.None)),
                         ephemeral: true, allowedMentions: AllowedMentions.None);
                     return;
 
@@ -801,9 +800,9 @@ public sealed class DiscordBotService(
     }
 
     /// <summary>
-    /// What /keep offers as somebody types: the films on disk that are not kept for a keep being
-    /// added, and the kept ones for a keep being removed. The value behind a row is the
-    /// download's hash, which is what the command acts on.
+    /// What /keep offers as somebody types: every film in the library for a keep being added, and the
+    /// kept ones for a keep being removed. The value behind a row is the library id, which is what
+    /// the command acts on.
     /// </summary>
     private async Task<IEnumerable<AutocompleteResult>> KeepChoicesAsync(
         SocketAutocompleteInteraction interaction, string typed)
@@ -812,19 +811,16 @@ public sealed class DiscordBotService(
             .FirstOrDefault(o => o.Type == ApplicationCommandOptionType.SubCommand)?.Name;
 
         var removing = subcommand == KeepSlashCommand.Remove;
-        var films = await keep.ListAsync(CancellationToken.None);
+
+        IEnumerable<(string TitleId, string Name)> films = removing
+            ? (await keep.ListAsync(CancellationToken.None)).Where(f => f.IsKept).Select(f => (f.TitleId, f.Name))
+            : await keep.TitlesAsync(CancellationToken.None);
 
         return films
-            .Where(f => f.IsKept == removing)
             .Where(f => typed.Trim().Length == 0
-                        || f.Name.Contains(typed, StringComparison.OrdinalIgnoreCase)
-                        || f.Release.Contains(typed, StringComparison.OrdinalIgnoreCase))
+                        || f.Name.Contains(typed, StringComparison.OrdinalIgnoreCase))
             .Take(MaximumChoices)
-            .Select(f => new AutocompleteResult(
-                Choice(removing || !f.IsFinished
-                    ? f.Name
-                    : $"{f.Name} — leaves after {TheKrystalShip.MovieBot.Acquire.Download.Retention.Describe(f.Remaining)}"),
-                f.Hash));
+            .Select(f => new AutocompleteResult(Choice(f.Name), f.TitleId));
     }
 
     /// <summary>Discord shows at most this many autocomplete choices.</summary>

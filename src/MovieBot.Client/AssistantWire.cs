@@ -47,7 +47,8 @@ public sealed record ConfirmOutcome
 
     public AddWishReply? Wish { get; init; }
 
-    public KeepReply? Keep { get; init; }
+    /// <summary>Where the film stands once a keep or a let-go ran; <see cref="Kind"/> says which.</summary>
+    public TitleStay? Keep { get; init; }
 
     public SubtitleAdded? Subtitle { get; init; }
 

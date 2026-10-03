@@ -110,7 +110,7 @@ at which point `/watch`, or "put it on", starts it. Asking to *watch* a film tha
 the other tool and still switches the room to it once it arrives, so what separates the two is
 whether a film was asked for now or for later.
 
-A film fetched this way is on the same clock as any other download: ask to keep it if it is for
+A film fetched this way is on the same clock as any other film: ask to keep it if it is for
 a weekend away.
 
 **Downloading a specific release**

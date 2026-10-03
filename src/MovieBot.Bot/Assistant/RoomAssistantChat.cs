@@ -345,12 +345,6 @@ public sealed class RoomAssistantChat(
             return;
         }
 
-        if (result?.Keep is { } keep)
-        {
-            await chat.SendMessageAsync(Fit(KeepCommand.Describe(keep).Message), allowedMentions: AllowedMentions.None);
-            return;
-        }
-
         await chat.SendMessageAsync(Fit(reply.Text), allowedMentions: AllowedMentions.None);
     }
 

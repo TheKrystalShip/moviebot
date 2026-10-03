@@ -256,7 +256,7 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
     }
 
     [Fact]
-    public void What_was_watched_survives_a_restart_and_is_written_after_a_delay()
+    public async Task What_was_watched_survives_a_restart_and_is_written_after_a_delay()
     {
         var path = Path.Combine(fixture.StateRoot, $"watch-{Guid.NewGuid():n}.json");
         var at = DateTimeOffset.UtcNow;
@@ -265,7 +265,7 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
         {
             first.Record("u", Film, 100, 6000, at);
             Assert.False(File.Exists(path));
-            Eventually(() => File.Exists(path)).GetAwaiter().GetResult();
+            await Eventually(() => File.Exists(path));
         }
 
         var second = new WatchRecord(path, NullLogger<WatchRecord>.Instance);
