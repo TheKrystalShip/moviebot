@@ -127,7 +127,7 @@ function Frame({ session, route }) {
             open={false}
             collapsed={dock.desktop && collapsed}
             onToggleCollapse={() => setCollapsed((c) => !c)}
-            top={<SidebarSearch />}
+            top={<SidebarSearch collapsed={dock.desktop && collapsed} />}
             closeNav
             foot={<>
               <BellNavItem />
@@ -181,14 +181,24 @@ function Page({ route }) {
 }
 
 /** The search field at the top of the sidebar: Enter searches the library and the tracker. */
-function SidebarSearch() {
+function SidebarSearch({ collapsed }) {
   const [q, setQ] = React.useState("");
+  // The Search page's field, smaller and without its button. The collapsed rail has no room for
+  // typing, so there it is the same box holding the icon, opening the Search page.
+  if (collapsed) {
+    return (
+      <button type="button" className="kc-search kc-search--sidebar kc-search--icon" aria-label="Search" data-tip="Search"
+        onClick={() => navigate("/search")}>
+        <Icon name="search" size={17} />
+      </button>
+    );
+  }
   return (
-    <form className="sidebar__search kc-sidebar-search" onSubmit={(e) => {
+    <form className="kc-search kc-search--sidebar" onSubmit={(e) => {
       e.preventDefault();
       if (q.trim()) navigate("/search?q=" + encodeURIComponent(q.trim()));
     }}>
-      <Icon name="search" size={16} />
+      <Icon name="search" size={17} />
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search" />
     </form>
   );

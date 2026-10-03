@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.83.2] - 2026-10-03
+
+### Changed
+
+- The sidebar's search is the Search page's field, smaller and without its button; on the collapsed
+  rail it is the same box holding the icon, opening the Search page.
+
 ## [1.83.1] - 2026-10-03
 
 ### Fixed
