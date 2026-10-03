@@ -49,6 +49,13 @@ and keeps are `Acquisition/CLAUDE.md`; notifications, pushes and invites are
   `Films/PopularNow` keeps the week's trending films and shows under `popular/`, the list and one
   poster per entry and nothing more, asked for every six hours and served at `/api/popular` and
   `/popular/{imdbId}.jpg`; an entry's page asks for the rest of it when it is opened.
+- **The shelf is listed from memory.** `Library/LibraryListing` rebuilds the library's list every
+  ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/shows/{imdbId}` and a title's
+  neighbours read that list. Building it asks the filesystem about every title, and on hotbox, short
+  of memory while a transcode runs, the kernel forgets those answers within seconds and the cold
+  root is a spinning disk: built per request, a listing costs a second. A change on disk reaches the
+  shelf within ten seconds. What must be exact reads `TitleLibrary` directly: a title's own
+  manifest, a room's head, and whether a film is here before anything is fetched.
 - **An episode is a title, and a show is its episodes grouped.** Every route that serves a title
   serves an episode unchanged; `/api/shows` and `/api/shows/{imdbId}` group the library's episodes by
   the show their manifest names and join them with the show's description, and an episode's

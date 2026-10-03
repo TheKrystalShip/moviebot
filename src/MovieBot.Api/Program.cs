@@ -48,6 +48,8 @@ builder.Services.AddSingleton(sp => new TitleLibrary(
     sp.GetRequiredService<SubtitleStore>(),
     sp.GetRequiredService<PinStore>(),
     sp.GetRequiredService<ILogger<TitleLibrary>>()));
+builder.Services.AddSingleton<LibraryListing>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryListing>());
 builder.Services.AddSingleton<SessionStore>();
 
 // Every change to a room, whichever door it arrived by: the hub for a player in the room, HTTP for
@@ -278,13 +280,13 @@ app.MapGet("/api/config", (IOptions<DiscordAuthOptions> discord, IConfiguration 
 // Each title with what the film database said about it, from what is kept: a listing never waits
 // on the network, and a film not described yet is listed without it. Each carries the asking
 // person's progress and when the film was last played, and a caller that is nobody gets no progress.
-app.MapGet("/api/titles", (HttpContext context, TitleLibrary library, FilmStore films, ShowStore shows,
+app.MapGet("/api/titles", (HttpContext context, LibraryListing library, FilmStore films, ShowStore shows,
     WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
 {
     var person = PeopleEndpoints.Person(context);
     var viewing = sessions.Viewing();
     var now = clock.GetUtcNow();
-    return Results.Ok(library.List()
+    return Results.Ok(library.Titles()
         .Select(t => (t with
         {
             // An episode is described by its show.

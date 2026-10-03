@@ -13,7 +13,7 @@ which one it is under changes no URL. Left empty, the whole library is the media
 |---|---|
 | `GET /health` | `{"status":"ok","rooms":n,"watching":n,"coldStorage"?}` — occupied rooms and people, no names. `coldStorage` carries what is wrong with the disk films are kept on and is absent when nothing is, which is also the answer when there is no such disk |
 | `GET /api/config` | `{discordClientId, publicBaseUrl?}` |
-| `GET /api/titles` | `TitleSummary[]` |
+| `GET /api/titles` | `TitleSummary[]`. The library as listed at most ten seconds ago, as are the episodes `/api/shows` and `/api/shows/{imdbId}` group; a person's progress and last plays on it are current |
 | `GET /api/titles/{id}` | `Manifest`, or 404 |
 | `GET /api/titles/{id}/ticket` | `{ticket, expiresAt}` — what a request for this film's bytes carries, or 404 |
 | `GET /api/sessions` | `RoomSummary[]` — every room, what it is watching, how many are in it |

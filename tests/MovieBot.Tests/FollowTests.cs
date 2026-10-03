@@ -262,6 +262,7 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
             Audio = [], Subtitles = [],
         };
         ManifestJson.WriteAtomic(Path.Combine(_fixture.MediaRoot, id, "manifest.json"), manifest);
+        _fixture.Services.GetRequiredService<LibraryListing>().Refresh();
     }
 
     private void Watched(string userId, string titleId) =>

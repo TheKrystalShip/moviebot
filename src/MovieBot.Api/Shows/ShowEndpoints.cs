@@ -14,13 +14,13 @@ public static class ShowEndpoints
     public static void MapShows(this WebApplication app)
     {
         // The shows the library holds, one entry each, with the asking person's place in each.
-        app.MapGet("/api/shows", (HttpContext context, TitleLibrary library, ShowStore shows,
+        app.MapGet("/api/shows", (HttpContext context, LibraryListing library, ShowStore shows,
             WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
             Results.Ok(shows.Summaries(Titles(context, library, record, people, sessions, clock))));
 
         // A show by its IMDb id, in the library or not: the page somebody picks episodes on shows it
         // as fully as one on the shelf.
-        app.MapGet("/api/shows/{imdbId}", async (string imdbId, HttpContext context, TitleLibrary library,
+        app.MapGet("/api/shows/{imdbId}", async (string imdbId, HttpContext context, LibraryListing library,
             ShowStore shows, LibraryClock stays, WatchRecord record, PersonDirectory people,
             SessionStore sessions, FollowStore follows, TimeProvider clock, CancellationToken ct) =>
         {
@@ -47,14 +47,14 @@ public static class ShowEndpoints
 
         // The episodes either side of one the library holds, which is what a player's previous and
         // next move the room to. Absent at either end.
-        app.MapGet("/api/titles/{id}/neighbours", async (string id, TitleLibrary library, ShowStore shows,
+        app.MapGet("/api/titles/{id}/neighbours", async (string id, TitleLibrary library, LibraryListing listing, ShowStore shows,
             ShowOfferCache offers, CancellationToken ct) =>
         {
             if (library.Get(id) is not { } manifest) return Results.NotFound();
             if (manifest.Episode is null || manifest.Film?.ImdbId is not { } show)
                 return Results.Ok(new EpisodeNeighbours(null, null));
 
-            var titles = ShowViews.Ordered([.. library.List().Where(t => t.Film?.ImdbId == show)]);
+            var titles = ShowViews.Ordered([.. listing.Titles().Where(t => t.Film?.ImdbId == show)]);
             var at = titles.FindIndex(t => t.Id == id);
             var previous = at > 0 ? titles[at - 1] : null;
             var next = at >= 0 && at < titles.Count - 1 ? titles[at + 1] : null;
@@ -125,12 +125,12 @@ public static class ShowEndpoints
     }
 
     /// <summary>The library's titles with the asking person's plays, as the listing carries them.</summary>
-    private static List<TitleSummary> Titles(HttpContext context, TitleLibrary library, WatchRecord record,
+    private static List<TitleSummary> Titles(HttpContext context, LibraryListing library, WatchRecord record,
         PersonDirectory people, SessionStore sessions, TimeProvider clock)
     {
         var person = PeopleEndpoints.Person(context);
         var viewing = sessions.Viewing();
         var now = clock.GetUtcNow();
-        return [.. library.List().Select(t => t.WithPlays(person, record, people, viewing, now))];
+        return [.. library.Titles().Select(t => t.WithPlays(person, record, people, viewing, now))];
     }
 }

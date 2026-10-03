@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.85.1] - 2026-10-04
+
+### Fixed
+
+- The shelf loads without waiting on the disks. `/api/titles`, `/api/shows`, a show's page and a
+  title's neighbours read a list of the library the API rebuilds every ten seconds in the background,
+  so a title arriving, changing state or moving to the cold disk reaches them within ten seconds.
+
 ## [1.85.0] - 2026-10-04
 
 ### Added

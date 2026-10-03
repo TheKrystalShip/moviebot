@@ -2,7 +2,9 @@ using System.Net.Http.Json;
 using Xunit;
 using Discord;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Launch;
 using TheKrystalShip.MovieBot.Bot.Watch;
@@ -116,10 +118,12 @@ public sealed class WatchCommandTests(SessionFixture fixture) : IClassFixture<Se
     }
 
     /// <summary>
-    /// Writes a manifest into the media root the API is serving. The library is read from the
-    /// filesystem on every request, so a title added here is a title the bot can be asked for.
+    /// Writes a manifest into the media root the API is serving, and has the listing read the disk
+    /// again at once rather than on its next pass, so a title added here is a title the bot can be
+    /// asked for.
     /// </summary>
-    private void AddTitle(string id, string title) =>
+    private void AddTitle(string id, string title)
+    {
         ManifestJson.WriteAtomic(Path.Combine(fixture.MediaRoot, id, "manifest.json"), new Manifest
         {
             Id = id,
@@ -137,6 +141,8 @@ public sealed class WatchCommandTests(SessionFixture fixture) : IClassFixture<Se
             Audio = [],
             Subtitles = []
         });
+        fixture.Services.GetRequiredService<LibraryListing>().Refresh();
+    }
 
     [Fact]
     public async Task A_transcoding_film_launches_because_it_is_watchable_already()
