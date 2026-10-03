@@ -81,12 +81,13 @@ public sealed partial class RoomTools(
     public const string AddWish = "add_wish";
     public const string KeepFilm = "keep_film";
     public const string LetGo = "let_go";
+    public const string DownloadShow = "download_show";
 
     /// <summary>Every tool this dispatcher implements, which <see cref="ToolCatalog"/> holds the file to.</summary>
     public static readonly IReadOnlyList<string> Names =
     [
         RoomState, ListRooms, GetTitle, DownloadStatus, WishListTool, Resume, Pause, Seek, SeekRelative,
-        WatchFilm, DownloadFilm, DownloadOnly, FetchSubtitle, AddWish, KeepFilm, LetGo,
+        WatchFilm, DownloadFilm, DownloadOnly, FetchSubtitle, AddWish, KeepFilm, LetGo, DownloadShow,
     ];
 
     /// <summary>
@@ -100,7 +101,7 @@ public sealed partial class RoomTools(
     public static readonly IReadOnlySet<string> Proposals =
         new HashSet<string>(StringComparer.Ordinal)
         {
-            DownloadFilm, DownloadOnly, FetchSubtitle, AddWish, KeepFilm, LetGo,
+            DownloadFilm, DownloadOnly, FetchSubtitle, AddWish, KeepFilm, LetGo, DownloadShow,
         };
 
     /// <summary>The tools that move the room, which is what a question about why the film stopped is answered from.</summary>
@@ -197,6 +198,7 @@ public sealed partial class RoomTools(
                 AddWish => await ProposeWishAsync(call.Arg("imdb_id"), ct),
                 KeepFilm => await ProposeKeepAsync(call.Arg("title"), keeping: true, ct),
                 LetGo => await ProposeKeepAsync(call.Arg("title"), keeping: false, ct),
+                DownloadShow => await ProposeShowAsync(call.Arg("show"), call.Arg("season"), call.Arg("episodes"), call.Arg("quality"), ct),
                 _ => $"There is no tool called {call.Name}. Use one of the tools you were given.",
             };
         }
@@ -780,6 +782,77 @@ public sealed partial class RoomTools(
                 Verdict = started ? "accepted" : "failed",
                 Kind = tool,
                 Download = reply,
+            };
+        });
+    }
+
+    /// <summary>
+    /// Proposes fetching episodes of a show: the show named in the catalogue, the tracker's releases
+    /// for the season planned the way the site's request sheet and /show plan them, at 720p unless
+    /// 1080p was asked for. Only the planned files are fetched, and nothing starts until somebody
+    /// agrees.
+    /// </summary>
+    private async Task<string> ProposeShowAsync(
+        string? name, string? seasonText, string? episodesText, string? qualityText, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return $"{DownloadShow} needs the show's name as show.";
+        if (!int.TryParse(seasonText, NumberStyles.None, CultureInfo.InvariantCulture, out var season) || season < 1)
+            return Tell("Which season do they want?", "Ask them, then call this again with the season.");
+
+        var shows = await api.FindShowsAsync(name, ct);
+        if (shows.Count == 0)
+            return Tell($"Nothing in the catalogue is a show called {name}.",
+                "If they meant a film, call watch_film or download_only instead.");
+        var show = shows[0];
+
+        var offers = await api.ShowReleasesAsync(show.ImdbId, ct);
+        if (ShowPlan.Episodes(offers, season, episodesText) is not { } picked)
+            return $"episodes must be numbers and ranges such as 1-3, 5, or left out for the whole season.";
+
+        var quality = qualityText?.Trim() is "1080p" or "1080" ? "1080p" : ShowPlan.DefaultQuality;
+        var plan = ShowPlan.For(offers, picked, quality);
+        if (plan.Downloads.Count == 0)
+            return Tell(offers.Seasons.Count == 0
+                    ? $"The tracker has nothing of {show.Display}."
+                    : $"The tracker has nothing of {show.Display} season {season}. It has season{(offers.Seasons.Count == 1 ? "" : "s")} {string.Join(", ", offers.Seasons.Select(x => x.Season))}.",
+                "Nothing was downloaded.");
+
+        var count = plan.Downloads.Sum(d => d.Episodes?.Count ?? 1);
+        var which = string.IsNullOrWhiteSpace(episodesText) ? $"season {season}" : $"season {season} episodes {episodesText!.Trim()}";
+        var gigabytes = plan.Bytes / (double)(1L << 30);
+        var describes = string.Create(CultureInfo.InvariantCulture,
+            $"fetch {show.Title} {which} ({count} {(count == 1 ? "episode" : "episodes")}) at {quality}, about {gigabytes:0.#} GB");
+        var room = turn.Room;
+        var asker = Asker;
+
+        return Propose(DownloadShow, describes, show.Title, async ct2 =>
+        {
+            StartDownloadReply? first = null;
+            var started = 0;
+            foreach (var planned in plan.Downloads)
+            {
+                var reply = await api.StartDownloadAsync(new StartDownloadRequest
+                {
+                    TorrentId = planned.Release.TorrentId,
+                    RequestedBy = asker,
+                    NotifyChannelId = room?.ChannelId,
+                    Episodes = planned.Episodes,
+                }, ct2);
+                first ??= reply;
+                if (reply.Outcome == "started") started++;
+            }
+
+            return new ConfirmOutcome
+            {
+                Text = started > 0
+                    ? $"Downloading {show.Title} {which}. The first episode is watchable as soon as enough of it has transcoded."
+                    : first?.Outcome == "refused"
+                        ? $"The download was refused: {first.Refusal}"
+                        : "The tracker or the torrent client is not answering, so nothing started.",
+                Success = started > 0,
+                Verdict = started > 0 ? "accepted" : "failed",
+                Kind = DownloadShow,
+                Download = first,
             };
         });
     }

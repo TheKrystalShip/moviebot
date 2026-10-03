@@ -121,6 +121,20 @@ export interface SubtitleSearch {
   explanation?: string;
 }
 
+export interface EpisodePlace {
+  season: number;
+  number: number;
+}
+
+/** The episodes either side of one the library holds, and what each is called where that is known. */
+export interface EpisodeNeighbours {
+  previous?: TitleSummary;
+  next?: TitleSummary;
+  name?: string;
+  previousName?: string;
+  nextName?: string;
+}
+
 /** One point in the film with a name, as the container already records it. */
 export interface Chapter {
   startSeconds: number;
@@ -150,6 +164,8 @@ export interface Manifest {
   error?: string;
   poster?: string;
   film?: FilmIdentity;
+  /** An episode's place in its show, which `film` then names; absent for a film. */
+  episode?: EpisodePlace;
   source?: SourceFingerprint;
   /** Languages the source carries that were not extracted, so an absent one is explained. */
   otherLanguages?: string[];

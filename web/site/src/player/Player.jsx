@@ -1,6 +1,7 @@
 import React from "react";
 import { Icon } from "@thekrystalship/krystal-ui";
 import { PlayerRoom } from "./engine/room.ts";
+import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";
 import { formatTime } from "./engine/format.ts";
 import { prefs } from "./engine/prefs.ts";
@@ -70,11 +71,61 @@ function namesOf(list) {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
-/** The film's year and length, which is what the line under its name says. */
-function filmLine(manifest) {
+/**
+ * What the line under the name says: a film's year and length; an episode's place in its show and
+ * its own name, "S2 · E4 · Woe's Hollow".
+ */
+function filmLine(manifest, around) {
+  if (manifest.episode) {
+    return [episodeCode(manifest.episode), around && around.name].filter(Boolean).join(" · ");
+  }
   const minutes = Math.round(manifest.durationSeconds / 60);
   const length = minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`;
   return [manifest.film && manifest.film.year, length].filter(Boolean).join(" · ");
+}
+
+const episodeCode = (episode) => `S${episode.season} · E${episode.number}`;
+
+/** An episode either side, as a button names it: "S2 · E5 · Defiant Jazz". */
+function episodeWords(title, name) {
+  return [title && title.episode ? episodeCode(title.episode) : title && title.title, name].filter(Boolean).join(" · ");
+}
+
+/**
+ * The episodes either side of the one playing, asked once per episode. A film has none, and a
+ * question that fails answers with none: the controls it feeds are an addition to the player.
+ */
+function useNeighbours(manifest) {
+  const id = manifest && manifest.episode ? manifest.id : null;
+  const [around, setAround] = React.useState(null);
+  React.useEffect(() => {
+    setAround(null);
+    if (!id) return undefined;
+    let live = true;
+    api.neighbours(id).then((n) => live && setAround(n), () => {});
+    return () => { live = false; };
+  }, [id]);
+  return around;
+}
+
+/**
+ * The stretch at the end of an episode where its next is offered in front of everything: from the
+ * last chapter when the last chapter is the credits, else the last two minutes.
+ */
+function inClosingStretch(manifest, position) {
+  const duration = manifest.durationSeconds;
+  const chapters = manifest.chapters || [];
+  const last = chapters.length > 1 ? chapters[chapters.length - 1] : null;
+  const from = last && last.startSeconds >= duration * 0.85 ? last.startSeconds : duration - 120;
+  return duration > 0 && position >= from;
+}
+
+/** The chapter a moment is in, or null for a film that records none. */
+export function chapterAt(chapters, seconds) {
+  if (!chapters || chapters.length < 2) return null;
+  let at = null;
+  for (const c of chapters) if (c.startSeconds <= seconds + 0.5) at = c;
+  return at;
 }
 
 const filmName = (manifest) => (manifest.film && manifest.film.name) || manifest.title;
@@ -147,6 +198,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   const [volume, setVolume] = React.useState(() => ({ position: prefs.volume(), muted: prefs.muted() }));
   const [fullscreen, setFullscreen] = React.useState(false);
   const idleTimer = React.useRef(null);
+  const around = useNeighbours(manifest);
 
   // The stored number is the loudness asked for; the element is given the amplitude that makes it.
   React.useEffect(() => {
@@ -274,7 +326,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
           )}
           <div className="mp-top__title">
             <span className="mp-top__name">{filmName(manifest)}</span>
-            {size !== "tiny" && <span className="mp-top__sub">{filmLine(manifest)}</span>}
+            {size !== "tiny" && <span className="mp-top__sub">{filmLine(manifest, around)}</span>}
           </div>
           <div className="mp-top__room">
             <div className="mp-avatars">{everyone.map((p) => <Avatar key={p.userId} person={p} />)}</div>
@@ -315,7 +367,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
         : (
           <div className="mp-bottom">
             <ScrubBar duration={duration} position={clock.position} ready={view.transcodeHead} buffered={clock.buffered}
-              thumbnails={view.thumbnails} onSeek={(s) => room.seek(s)} onHold={hold} />
+              thumbnails={view.thumbnails} chapters={manifest.chapters} onSeek={(s) => room.seek(s)} onHold={hold} />
             <div className="mp-controls">
               <button type="button" className="mp-play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => room.togglePlay()}>
                 <Icon name={clock.paused ? "play" : "pause"} size={compact ? 18 : 20} />
@@ -326,8 +378,28 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
               <button type="button" className="mp-icon" aria-label={`Forward ${SkipSeconds} seconds`} title={`Forward ${SkipSeconds} seconds (l)`} onClick={() => room.seekBy(SkipSeconds)}>
                 <Icon name="rotate-cw" size={19} />
               </button>
+              {manifest.episode && (
+                <>
+                  <button type="button" className="mp-icon" disabled={!(around && around.previous)}
+                    aria-label={around && around.previous ? `Previous episode: ${episodeWords(around.previous, around.previousName)}` : "No previous episode here"}
+                    title={around && around.previous ? `Previous episode · ${episodeWords(around.previous, around.previousName)}` : "No previous episode here"}
+                    onClick={() => room.pickTitle(around.previous.id)}>
+                    <Icon name="skip-back" size={19} />
+                  </button>
+                  <button type="button" className="mp-icon" disabled={!(around && around.next)}
+                    aria-label={around && around.next ? `Next episode: ${episodeWords(around.next, around.nextName)}` : "No next episode here"}
+                    title={around && around.next ? `Next episode · ${episodeWords(around.next, around.nextName)}` : "No next episode here"}
+                    onClick={() => room.pickTitle(around.next.id)}>
+                    <Icon name="skip-forward" size={19} />
+                  </button>
+                </>
+              )}
               <Volume position={volume.position} muted={volume.muted} onChange={changeVolume} onNudge={nudgeVolume} />
               <span className="mp-controls__gap" />
+              {(manifest.chapters || []).length > 1 && (
+                <MenuButton kind="chapters" icon="list" value={(chapterAt(manifest.chapters, clock.position) || {}).title || "Chapters"}
+                  open={menu === "chapters"} compact={compact} onClick={() => openMenu("chapters")} />
+              )}
               <MenuButton kind="subs" icon="captions" value={subtitleValue(view)} open={menu === "subs"} compact={compact} onClick={() => openMenu("subs")} />
               {manifest.audio.length > 1 && <MenuButton kind="audio" icon="audio-lines" value={audioValue(view)} open={menu === "audio"} compact={compact} onClick={() => openMenu("audio")} />}
               {hasQualityChoice(view) && <MenuButton kind="quality" icon="gauge" value={qualityValue(view)} open={menu === "quality"} compact={compact} onClick={() => openMenu("quality")} />}
@@ -340,7 +412,15 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
           </div>
         ))}
 
-      {menu !== null && manifest && <Menu kind={menu} view={view} room={room} sheet={sheet} onClose={() => setMenu(null)} />}
+      {manifest && view.ready && around && around.next && size !== "tiny" && inClosingStretch(manifest, clock.position) && (
+        <button type="button" className="mp-nextup" onClick={() => room.pickTitle(around.next.id)}>
+          <span className="mp-nextup__label">Next episode</span>
+          <span className="mp-nextup__name">{episodeWords(around.next, around.nextName)}</span>
+          <Icon name="skip-forward" size={18} />
+        </button>
+      )}
+
+      {menu !== null && manifest && <Menu kind={menu} view={view} room={room} sheet={sheet} position={clock.position} onClose={() => setMenu(null)} />}
       {overflow && manifest && (
         <Overflow view={view} volume={volume} onVolume={changeVolume} onNudge={nudgeVolume} embed={embed}
           onPick={(kind) => { setOverflow(false); setMenu(kind); }} onClose={() => setOverflow(false)} />

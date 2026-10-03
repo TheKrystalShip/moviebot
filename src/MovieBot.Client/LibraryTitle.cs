@@ -23,14 +23,21 @@ public sealed record LibraryTitle
     /// <summary>A file name under the title's media directory, absent when the film has no artwork.</summary>
     public string? Poster { get; init; }
 
-    /// <summary>Which film this is: its name, its year, its billing and its page.</summary>
+    /// <summary>Which film this is: its name, its year, its billing and its page; for an episode, its show.</summary>
     public FilmIdentity? Film { get; init; }
 
+    /// <summary>For an episode, its place in the show; null for a film.</summary>
+    public EpisodeIdentity? Episode { get; init; }
+
     /// <summary>
-    /// What to call the film. The catalogue's name where there is one, and the title the ingest
-    /// derived from the release otherwise — never the release itself where anything better exists.
+    /// What to call the title. A film by the catalogue's name where there is one, and the title the
+    /// ingest derived from the release otherwise — never the release itself where anything better
+    /// exists. An episode by its show's name and its place, <c>Severance S02E04</c>, since every
+    /// episode of a show shares the show's name and year.
     /// </summary>
-    public string Name => Film?.Display ?? Title;
+    public string Name => Episode is { } episode && Film?.Name is { Length: > 0 } show
+        ? $"{show} {episode.Label}"
+        : Film?.Display ?? Title;
 }
 
 /// <summary>

@@ -45,7 +45,7 @@ public static class ShowEndpoints
 
         // The episodes either side of one the library holds, which is what a player's previous and
         // next move the room to. Absent at either end.
-        app.MapGet("/api/titles/{id}/neighbours", (string id, TitleLibrary library) =>
+        app.MapGet("/api/titles/{id}/neighbours", (string id, TitleLibrary library, ShowStore shows) =>
         {
             if (library.Get(id) is not { } manifest) return Results.NotFound();
             if (manifest.Episode is null || manifest.Film?.ImdbId is not { } show)
@@ -53,9 +53,13 @@ public static class ShowEndpoints
 
             var titles = ShowViews.Ordered([.. library.List().Where(t => t.Film?.ImdbId == show)]);
             var at = titles.FindIndex(t => t.Id == id);
+            var previous = at > 0 ? titles[at - 1] : null;
+            var next = at >= 0 && at < titles.Count - 1 ? titles[at + 1] : null;
             return Results.Ok(new EpisodeNeighbours(
-                at > 0 ? titles[at - 1] : null,
-                at >= 0 && at < titles.Count - 1 ? titles[at + 1] : null));
+                previous, next,
+                shows.EpisodeName(show, manifest.Episode),
+                shows.EpisodeName(show, previous?.Episode),
+                shows.EpisodeName(show, next?.Episode)));
         });
 
         // What the tracker offers for a show, season by season: packs and single episodes, each best
@@ -83,6 +87,14 @@ public static class ShowEndpoints
                     statusCode: StatusCodes.Status502BadGateway);
             }
         }).AddEndpointFilter(AcquisitionEndpoints.ServiceOrMember);
+
+        // The shows the title index offers for a name, for a search box: a show is fetched by its
+        // seasons from its own page, which is where these lead.
+        app.MapGet("/api/shows/find", async (string? q, Acquire.Imdb.ImdbClient index, CancellationToken ct) =>
+            Results.Ok((await index.SuggestShowsAsync(q ?? "", ct))
+                .Select(s => new Core.FilmView { ImdbId = s.ImdbId, Title = s.Title, Year = s.Year, Display = s.Display })
+                .ToList()))
+            .AddEndpointFilter(AcquisitionEndpoints.ServiceOrMember);
 
         app.MapMethods("/shows/{imdbId}/{file}", ["GET", "HEAD"], (string imdbId, string file, ShowStore store, HttpContext context) =>
         {

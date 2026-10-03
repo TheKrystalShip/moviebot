@@ -42,7 +42,7 @@ public sealed class StagedAction
     /// <summary>The verb a client shows, from the tool that proposed it.</summary>
     public string Verb => Kind switch
     {
-        RoomTools.DownloadFilm or RoomTools.DownloadOnly => "download",
+        RoomTools.DownloadFilm or RoomTools.DownloadOnly or RoomTools.DownloadShow => "download",
         RoomTools.FetchSubtitle => "fetch_subtitle",
         RoomTools.AddWish => "wish",
         RoomTools.KeepFilm => "keep",

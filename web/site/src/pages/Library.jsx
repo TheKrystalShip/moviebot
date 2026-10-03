@@ -5,7 +5,7 @@ import {
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useSession } from "../session.js";
-import { Empty, Failed, FilmCard, PageHead } from "../components/Film.jsx";
+import { Empty, Failed, FilmCard, PageHead, ShowCard } from "../components/Film.jsx";
 
 const rating = (t) => (t.details && t.details.rating) || 0;
 const year = (t) => (t.film && t.film.year) || 0;
@@ -29,6 +29,93 @@ const KINDS = {
  * ordered the way somebody asks. The kind is the API's word for what a title is.
  */
 export function Library({ kind = "film" }) {
+  return kind === "show" ? <ShowLibrary /> : <FilmLibrary />;
+}
+
+const SHOW_SORTS = [
+  { value: "added", label: "Recently added", defaultDir: "desc", compare: (a, b) => (a.addedAt || "").localeCompare(b.addedAt || "") },
+  { value: "name", label: "Name", defaultDir: "asc", compare: (a, b) => a.title.localeCompare(b.title) },
+  { value: "rating", label: "Rating", defaultDir: "desc", compare: (a, b) => rating(a) - rating(b) },
+  { value: "year", label: "First aired", defaultDir: "desc", compare: (a, b) => (a.firstYear || 0) - (b.firstYear || 0) },
+];
+
+/**
+ * Every show the library holds, one card each however many of its episodes are here, searched by
+ * name, narrowed by genre and stay, and ordered the way somebody asks.
+ */
+function ShowLibrary() {
+  const shows = useLoad(() => api.shows(), []);
+  const stays = useLoad(() => api.stays().catch(() => []), []);
+  const titles = useLoad(() => api.titles().catch(() => []), []);
+  const me = (useSession() || {}).user;
+  const f = useFilters({ search: "", stay: "any", genre: "all" });
+  const [sort, setSort] = React.useState({ key: "added", dir: "desc" });
+
+  // A show's stay on its card is the season that leaves first.
+  const showOf = new Map((titles.data || []).filter((t) => t.episode).map((t) => [t.id, t.film && t.film.imdbId]));
+  const stayOf = new Map();
+  for (const s of stays.data || []) {
+    const show = showOf.get(s.titleId);
+    if (!show) continue;
+    const known = stayOf.get(show);
+    if (!known || (s.daysLeft ?? 1e9) < (known.daysLeft ?? 1e9)) stayOf.set(show, s);
+  }
+
+  const all = shows.data || [];
+  const stayFilters = [
+    { value: "any", label: "Any", test: () => true },
+    { value: "kept", label: "Kept", test: (s) => !!(stayOf.get(s.imdbId) && stayOf.get(s.imdbId).keeperId) },
+    { value: "clock", label: "On the clock", test: (s) => !!(stayOf.get(s.imdbId) && !stayOf.get(s.imdbId).keeperId) },
+  ];
+  const genreCounts = new Map();
+  for (const s of all) for (const g of (s.details && s.details.genres) || []) genreCounts.set(g, (genreCounts.get(g) || 0) + 1);
+  const genres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+  const stay = stayFilters.find((s) => s.value === f.values.stay) || stayFilters[0];
+  const inGenre = (s) => f.values.genre === "all" || !!(s.details && s.details.genres.includes(f.values.genre));
+  const query = f.debouncedQuery.trim().toLowerCase();
+  const order = SHOW_SORTS.find((s) => s.value === sort.key) || SHOW_SORTS[0];
+  const shown = all
+    .filter((s) => (!query || s.title.toLowerCase().includes(query)) && stay.test(s) && inGenre(s))
+    .sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
+
+  const option = (o) => ({ value: o.value, label: o.label, count: all.filter(o.test).length });
+  const fields = [
+    { id: "stay", label: "Stay", value: f.values.stay, onChange: (v) => f.set("stay", v), default: "any", options: stayFilters.map(option) },
+    {
+      id: "genre", label: "Genre", value: f.values.genre, onChange: (v) => f.set("genre", v), default: "all", hidden: genres.length === 0,
+      options: [{ value: "all", label: "Every genre" }, ...genres.map(([g, n]) => ({ value: g, label: g, count: n }))],
+    },
+  ];
+
+  return (
+    <div className="kc-page">
+      <PageHead title="TV Shows" sub={shows.data ? `${all.length} ${all.length === 1 ? "show" : "shows"}` : null} />
+
+      {all.length > 0 && (
+        <Toolbar>
+          <ToolbarSearch value={f.query} onChange={f.setQuery} pending={f.searchPending} placeholder="Search shows…" />
+          <ToolbarFilters fields={fields} onReset={() => f.setQuery("")} />
+          <ToolbarSort value={sort.key} dir={sort.dir} onChange={(key, dir) => setSort({ key, dir })} options={SHOW_SORTS} />
+          <ToolbarSpacer />
+          <ToolbarCount shown={shown.length} total={all.length} unit="shows" />
+        </Toolbar>
+      )}
+
+      <Failed error={shows.error} onRetry={shows.reload} />
+      {shows.data && all.length === 0 && <Empty icon="tv" title="No shows yet">Search for a show to fetch its episodes.</Empty>}
+      {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
+      {shown.length > 0 && (
+        <div className="kc-grid">
+          {shown.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} stay={stayOf.get(s.imdbId)} me={me} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilmLibrary() {
+  const kind = "film";
   const titles = useLoad(() => api.titles(), []);
   const stays = useLoad(() => api.stays().catch(() => []), []);
   const me = (useSession() || {}).user;

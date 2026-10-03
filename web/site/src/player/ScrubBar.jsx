@@ -41,7 +41,7 @@ function frameStyle(strip, url, at, width) {
  *
  * The thin variant is the bar alone, for a frame too small to carry anything beside it.
  */
-export function ScrubBar({ duration, position, ready, buffered, thumbnails, onSeek, onHold, thin = false }) {
+export function ScrubBar({ duration, position, ready, buffered, thumbnails, chapters, onSeek, onHold, thin = false }) {
   const barRef = React.useRef(null);
   const [hover, setHover] = React.useState(null);
   const [drag, setDrag] = React.useState(null);
@@ -89,6 +89,14 @@ export function ScrubBar({ duration, position, ready, buffered, thumbnails, onSe
   const shown = drag ?? position;
   const pointed = drag ?? hover;
   const unreached = (seconds) => ready !== null && seconds > ready;
+  // A chapter's start is a mark on the bar, and pointing anywhere names the chapter it is in.
+  const marks = (chapters || []).length > 1 ? chapters.filter((c) => c.startSeconds > 0.5 && c.startSeconds < duration) : [];
+  const chapterOf = (seconds) => {
+    if ((chapters || []).length < 2) return null;
+    let at = null;
+    for (const c of chapters) if (c.startSeconds <= seconds + 0.5) at = c;
+    return at && at.title ? at.title : null;
+  };
 
   const bar = (
     <div ref={barRef} className={"mp-scrub" + (pointed !== null ? " is-pointed" : "") + (drag !== null ? " is-dragging" : "")}
@@ -100,6 +108,7 @@ export function ScrubBar({ duration, position, ready, buffered, thumbnails, onSe
         {ready !== null && <div className="mp-scrub__ready" style={{ width: percent(ready, duration) }} />}
         <div className="mp-scrub__buffered" style={{ width: percent(buffered, duration) }} />
         <div className="mp-scrub__played" style={{ width: percent(shown, duration) }} />
+        {!thin && marks.map((c) => <div key={c.startSeconds} className="mp-scrub__chapter" style={{ left: percent(c.startSeconds, duration) }} />)}
         {hover !== null && drag === null && <div className="mp-scrub__marker" style={{ left: percent(hover, duration) }} />}
         <div className="mp-scrub__knob" style={{ left: percent(shown, duration) }} />
       </div>
@@ -110,6 +119,7 @@ export function ScrubBar({ duration, position, ready, buffered, thumbnails, onSe
               {unreached(pointed) && <div className="mp-scrub__unreached"><Icon name="hourglass" size={16} />Not ready yet</div>}
             </div>
           )}
+          {chapterOf(pointed) && <span className="mp-scrub__chapter-name">{chapterOf(pointed)}</span>}
           <span className="mp-scrub__time">{formatTime(pointed)}</span>
         </div>
       )}

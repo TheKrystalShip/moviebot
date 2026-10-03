@@ -43,6 +43,14 @@ export const api = {
   titles: () => call("GET", "/api/titles"),
   title: (id) => call("GET", `/api/titles/${enc(id)}`),
   film: (imdbId) => call("GET", `/api/films/${enc(imdbId)}`),
+
+  // Shows: the library's, one by its IMDb id (in the library or not), and the episodes either side
+  // of one, which the player moves the room to.
+  shows: () => call("GET", "/api/shows"),
+  show: (imdbId) => call("GET", `/api/shows/${enc(imdbId)}`),
+  findShows: (q) => call("GET", `/api/shows/find?q=${enc(q)}`),
+  showReleases: (imdbId) => call("GET", `/api/shows/${enc(imdbId)}/releases`),
+  neighbours: (id) => call("GET", `/api/titles/${enc(id)}/neighbours`),
   rooms: () => call("GET", "/api/sessions"),
   downloads: () => call("GET", "/api/downloads"),
 
@@ -66,7 +74,9 @@ export const api = {
 
   releases: (q) => call("GET", `/api/releases?q=${enc(q)}`),
   releasesFor: (imdb) => call("GET", `/api/releases?imdb=${enc(imdb)}`),
-  download: (torrentId) => call("POST", "/api/downloads", { torrentId, requestedBy: { userId: "", displayName: "" } }),
+  // `episodes` ([{season, episode}]) fetches only those out of a show's release.
+  download: (torrentId, episodes) =>
+    call("POST", "/api/downloads", { torrentId, requestedBy: { userId: "", displayName: "" }, ...(episodes ? { episodes } : {}) }),
   wishes: () => call("GET", "/api/wishes"),
   wish: (chosen) => call("POST", "/api/wishes", { chosen, requestedBy: { userId: "", displayName: "" } }),
   cancelWish: (imdbId) => call("DELETE", `/api/wishes/${enc(imdbId)}`),
@@ -82,9 +92,23 @@ export function posterUrl(title) {
   return (title && title.details && title.details.posterUrl) || null;
 }
 
-/** What to call a film: the catalogue's name and year where there is one. */
+/**
+ * What to call a title: a film by the catalogue's name and year where there is one, an episode by its
+ * show's name and its place in it.
+ */
 export function filmName(title) {
   const film = title && title.film;
+  if (title && title.episode && film && film.name) return `${film.name} · ${episodeCode(title.episode)}`;
   if (film && film.name) return film.year ? `${film.name} (${film.year})` : film.name;
   return (title && title.title) || "";
+}
+
+/** An episode's place as the design writes it: "S2 · E4". */
+export function episodeCode(episode) {
+  return episode ? `S${episode.season} · E${episode.number}` : "";
+}
+
+/** Where a show's page is. */
+export function showHref(imdbId) {
+  return "/show/" + encodeURIComponent(imdbId);
 }

@@ -4,7 +4,7 @@ import { useLoad } from "../data.js";
 import { useSession } from "../session.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, since } from "../time.js";
-import { ContinueCard, Empty, Failed, FilmCard, PosterArt, watchLink } from "../components/Film.jsx";
+import { ContinueCard, Empty, Failed, FilmCard, PosterArt, ShowCard, watchLink } from "../components/Film.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
 
 const RECENT_DAYS = 14;
@@ -22,28 +22,42 @@ export function Home() {
   const rooms = useLoad(() => api.rooms(), [], { every: 15000 });
   const stays = useLoad(() => api.stays().catch(() => []), []);
   const progress = useLoad(() => api.progress().catch(() => []), []);
+  const showList = useLoad(() => api.shows().catch(() => []), []);
 
   const library = (titles.data || []).filter((t) => t.status !== "failed");
   const byId = new Map(library.map((t) => [t.id, t]));
+  const shows = showList.data || [];
+  const showByImdb = new Map(shows.filter((s) => s.imdbId).map((s) => [s.imdbId, s]));
+  // An episode stands for its show on a shelf.
+  const showOfTitle = (t) => t && t.episode && t.film && showByImdb.get(t.film.imdbId);
   // Watching now means somebody is there: an empty room is kept a while after the last person leaves.
   const watching = (rooms.data || []).filter((r) => r.titleId && r.participants > 0 && byId.has(r.titleId));
-  // What leaves next: every settled film nobody has kept, soonest first.
+  // What leaves next: every settled film and season nobody has kept, soonest first. A season is one
+  // entry, as the API lists it.
   const leaving = (stays.data || [])
     .filter((s) => s.settled && !s.keeperId && s.daysLeft != null && byId.has(s.titleId))
     .sort((a, b) => a.daysLeft - b.daysLeft);
   const continuing = (progress.data || []).filter((p) => byId.has(p.titleId));
-  const recent = library
-    .filter((t) => t.addedAt && Date.now() - Date.parse(t.addedAt) <= RECENT_DAYS * DAY_MS)
-    .sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+  const isRecent = (at) => at && Date.now() - Date.parse(at) <= RECENT_DAYS * DAY_MS;
   const films = library.filter((t) => t.kind !== "show");
-  const shows = library.filter((t) => t.kind === "show");
+  const recent = [
+    ...films.filter((t) => isRecent(t.addedAt)).map((t) => ({ film: t, at: t.addedAt })),
+    ...shows.filter((s) => isRecent(s.addedAt)).map((s) => ({ show: s, at: s.addedAt })),
+  ].sort((a, b) => b.at.localeCompare(a.at));
   const stayOf = new Map((stays.data || []).map((s) => [s.titleId, s]));
-  const recentIds = new Set(recent.map((t) => t.id));
+  const recentIds = new Set(recent.filter((r) => r.film).map((r) => r.film.id));
   const card = (t) => (
     <FilmCard title={t} stay={stayOf.get(t.id)} me={me} room={watching.find((r) => r.titleId === t.id)} isNew={recentIds.has(t.id)} />
   );
+  const either = (item) => (item.show ? <ShowCard show={item.show} stay={item.stay} me={me} /> : card(item.film));
+  const keyOf = (item) => (item.show ? "show:" + (item.show.imdbId || item.show.firstTitleId) : item.film.id);
+  const leavingItems = leaving.map((s) => {
+    const t = byId.get(s.titleId);
+    const show = showOfTitle(t);
+    return show ? { show, stay: s } : { film: t };
+  });
 
-  const featured = newest(library);
+  const featured = newest(films);
 
   if (titles.error && !titles.data) return <div className="kc-page"><Failed error={titles.error} onRetry={titles.reload} /></div>;
   if (titles.loading && !titles.data) return <div className="kc-page" />;
@@ -93,16 +107,16 @@ export function Home() {
       {recent.length > 0 && (
         <Rail
           variant="posters" icon="sparkles" title="Recently added" count={recent.length}
-          items={recent} itemKey={(t) => t.id}
-          renderItem={card} />
+          items={recent} itemKey={keyOf}
+          renderItem={either} />
       )}
 
-      {leaving.length > 0 && (
+      {leavingItems.length > 0 && (
         <Rail
-          variant="posters" icon="hourglass" title="Leaving soon" count={leaving.length}
+          variant="posters" icon="hourglass" title="Leaving soon" count={leavingItems.length}
           onViewAll={() => navigate("/leaving")} viewAllLabel="See all"
-          items={leaving.map((s) => byId.get(s.titleId))} itemKey={(t) => t.id}
-          renderItem={card} />
+          items={leavingItems} itemKey={(item) => (item.show ? "season:" + item.stay.unit : item.film.id)}
+          renderItem={either} />
       )}
 
       {films.length > 0 && (
@@ -117,8 +131,8 @@ export function Home() {
         <Rail
           variant="posters" icon="tv" title="TV Shows" count={shows.length}
           onViewAll={() => navigate("/tv")} viewAllLabel="All shows"
-          items={shows} itemKey={(t) => t.id}
-          renderItem={card} />
+          items={shows} itemKey={(s) => s.imdbId || s.firstTitleId}
+          renderItem={(s) => <ShowCard show={s} me={me} />} />
       )}
     </div>
   );

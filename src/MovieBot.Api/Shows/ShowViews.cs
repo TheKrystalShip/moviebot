@@ -96,8 +96,13 @@ public sealed record ShowSummary
     public required string FirstTitleId { get; init; }
 }
 
-/// <summary>The episodes either side of one, among those the library holds.</summary>
-public sealed record EpisodeNeighbours(TitleSummary? Previous, TitleSummary? Next);
+/// <summary>
+/// The episodes either side of one, among those the library holds, with what each of the three is
+/// called where the show's description says.
+/// </summary>
+public sealed record EpisodeNeighbours(
+    TitleSummary? Previous, TitleSummary? Next,
+    string? Name = null, string? PreviousName = null, string? NextName = null);
 
 public static class ShowViews
 {
@@ -152,8 +157,9 @@ public static class ShowViews
             .Where(e => e.Episode is not null)
             .ToDictionary(e => (e.Episode!.Season, e.Episode.Number));
 
-        // Every season the database lists, and any the library holds that it does not.
-        var described = stored?.Seasons ?? [];
+        // Every season the database lists with an episode in it, and any the library holds that it
+        // does not. An announced season with no episodes yet has nothing to show or pick.
+        var described = (stored?.Seasons ?? []).Where(s => s.Episodes.Count > 0).ToList();
         var numbers = described.Select(s => s.Number)
             .Concat(held.Keys.Select(k => k.Season))
             .Distinct().Order();
@@ -264,6 +270,12 @@ public static class ShowViews
             .OrderBy(s => s.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
+
+    /// <summary>An episode's own name as the kept description of its show has it, or null.</summary>
+    public static string? EpisodeName(this ShowStore store, string? showImdbId, EpisodeIdentity? episode) =>
+        showImdbId is null || episode is null ? null
+        : store.Held(showImdbId)?.Seasons.FirstOrDefault(s => s.Number == episode.Season)?
+            .Episodes.FirstOrDefault(e => e.Number == episode.Number)?.Name;
 
     public static List<TitleSummary> Ordered(IReadOnlyList<TitleSummary> episodes) =>
         [.. episodes.Where(e => e.Episode is not null)

@@ -1,13 +1,25 @@
 import { Icon, toast } from "@thekrystalship/krystal-ui";
-import { api, filmName } from "../api.js";
+import { api, filmName, showHref } from "../api.js";
 import { SOON_DAYS, leaveRule, stayWords, useLoad } from "../data.js";
 import { useSession } from "../session.js";
 import { ago } from "../time.js";
 import { Empty, Failed, PageHead, PosterArt } from "../components/Film.jsx";
 import { linkProps } from "../router.js";
 
+/** A film by its name; a season of a show, which stays and leaves as one, by the show's and its number. */
+function unitName(title) {
+  return title.episode && title.film && title.film.name
+    ? `${title.film.name} · Season ${title.episode.season}` : filmName(title);
+}
+
+function unitHref(title) {
+  return title.episode && title.film && title.film.imdbId
+    ? `${showHref(title.film.imdbId)}?season=${title.episode.season}`
+    : "/title/" + encodeURIComponent(title.id);
+}
+
 /**
- * Every settled film and how long it stays. A film nobody keeps leaves after a spell without a play;
+ * Every settled film and season, and how long it stays. A film nobody keeps leaves after a spell without a play;
  * keeping it holds it for everybody until somebody lets it go.
  */
 export function Leaving() {
@@ -25,7 +37,7 @@ export function Leaving() {
   ];
 
   const act = async (row, keeping) => {
-    const name = filmName(byId.get(row.titleId));
+    const name = unitName(byId.get(row.titleId));
     try {
       if (keeping) await api.keep(row.titleId);
       else await api.unkeep(row.titleId);
@@ -51,10 +63,10 @@ export function Leaving() {
             {group.rows.map((row) => {
               const title = byId.get(row.titleId);
               return (
-                <div key={row.titleId} className="kc-row">
-                  <a {...linkProps("/title/" + encodeURIComponent(title.id))}><PosterArt title={title} className="kc-row__thumb" /></a>
+                <div key={row.unit || row.titleId} className="kc-row">
+                  <a {...linkProps(unitHref(title))}><PosterArt title={title} className="kc-row__thumb" /></a>
                   <div className="kc-row__text">
-                    <span className="kc-row__title">{filmName(title)}</span>
+                    <span className="kc-row__title">{unitName(title)}</span>
                     <span className="kc-row__sub">{row.lastPlayedAt ? `Last played ${ago(row.lastPlayedAt)}` : "Not played yet"}</span>
                   </div>
                   <span className={"kc-pill" + (group.id === "soon" ? " kc-pill--warn" : "")}>{stayWords(row, me)}</span>

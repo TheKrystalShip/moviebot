@@ -4,6 +4,32 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.76.0] - 2026-10-03
+
+### Added
+
+- **Krystal Cinema has shows.** `/show/<imdbId>` is a show's page from the design, in the library or
+  not: what it is, its seasons as chips flagged with how long each stays, each season's episodes with
+  their stills, how far the person got and play, Resume where they left off, and Keep season. The
+  request sheet picks seasons and episodes to download, 720p by default with 1080p offered, with what
+  each costs on disk. `/tv` lists shows one card each; Home's TV Shows, Recently added and Leaving soon
+  rows carry shows and seasons; Search finds shows in the catalogue; an episode's `/title/` forwards
+  to its show.
+- **The player shows chapters** as marks on the scrub bar, named under the pointer, and as a Chapters
+  menu that moves the room. An episode has previous and next episode controls the whole time it
+  plays, and next is offered over the film from its closing stretch; neither moves on by itself.
+- **`/show`** in Discord fetches a season of a show, or the episodes named, at 720p unless 1080p is
+  asked for; the assistant's **`download_show`** proposes the same. Both plan with `ShowPlan`, the
+  site's own plan.
+- `GET /api/shows/find?q=` names shows from the catalogue; `/api/titles/{id}/neighbours` carries each
+  episode's name.
+
+### Changed
+
+- A library title that is an episode is named by its show and its place (`Severance S02E04`) in the
+  bot.
+- An announced season with no episodes yet is left off a show's page.
+
 ## [1.75.0] - 2026-10-03
 
 ### Added

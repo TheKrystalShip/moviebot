@@ -46,11 +46,17 @@ export function Genres({ names }) {
   return <div className="kc-genres">{names.map((g) => <span key={g} className="kc-genre">{g}</span>)}</div>;
 }
 
-/** Director, writers and the top of the billing, as the design lays them out. */
+/**
+ * Director, writers and the top of the billing, as the design lays them out; a show names its
+ * creators in the director's place.
+ */
 export function Credits({ film }) {
+  const creators = film.creators || [];
+  const directors = film.directors || [];
   const rows = [
-    [film.directors.length > 1 ? "Directors" : "Director", film.directors.join(", ")],
-    ["Writers", film.writers.join(", ")],
+    [creators.length > 1 ? "Creators" : "Creator", creators.join(", ")],
+    [directors.length > 1 ? "Directors" : "Director", directors.join(", ")],
+    ["Writers", (film.writers || []).join(", ")],
     ["Stars", film.cast.slice(0, 4).map((c) => c.name).join(" · ")],
   ].filter(([, v]) => v);
   if (rows.length === 0) return null;

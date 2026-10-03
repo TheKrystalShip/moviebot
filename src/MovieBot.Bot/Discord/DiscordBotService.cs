@@ -116,11 +116,11 @@ public sealed class DiscordBotService(
                 // The overwrite is the whole command set, so every command has to be in this
                 // one call: registering them separately leaves only the last one standing.
                 await guild.BulkOverwriteApplicationCommandAsync(
-                    [WatchSlashCommand.Build(), DownloadSlashCommand.Build(), NotifySlashCommand.Build(),
-                     KeepSlashCommand.Build(), VoiceSlashCommand.Build()]);
+                    [WatchSlashCommand.Build(), DownloadSlashCommand.Build(), ShowSlashCommand.Build(),
+                     NotifySlashCommand.Build(), KeepSlashCommand.Build(), VoiceSlashCommand.Build()]);
 
-                logger.LogInformation("Registered /{Watch}, /{Download}, /{Notify}, /{Keep} and /{Voice} in {GuildName}",
-                    WatchSlashCommand.Name, DownloadSlashCommand.Name, NotifySlashCommand.Name,
+                logger.LogInformation("Registered /{Watch}, /{Download}, /{Show}, /{Notify}, /{Keep} and /{Voice} in {GuildName}",
+                    WatchSlashCommand.Name, DownloadSlashCommand.Name, ShowSlashCommand.Name, NotifySlashCommand.Name,
                     KeepSlashCommand.Name, VoiceSlashCommand.Name, guild.Name);
             }
             catch (Exception ex)
@@ -139,6 +139,7 @@ public sealed class DiscordBotService(
         {
             WatchSlashCommand.Name => HandleWatchAsync(command),
             DownloadSlashCommand.Name => HandleDownloadAsync(command),
+            ShowSlashCommand.Name => HandleShowAsync(command),
             NotifySlashCommand.Name => HandleNotifyAsync(command),
             KeepSlashCommand.Name => HandleKeepAsync(command),
             VoiceSlashCommand.Name => HandleVoiceAsync(command),
@@ -521,6 +522,106 @@ public sealed class DiscordBotService(
     /// <paramref name="roomName"/> is the whole difference between the two commands: named, the
     /// film plays there as soon as it can be watched; null, it is fetched and nothing else happens.
     /// </summary>
+    /// <summary>
+    /// Fetches some or all of one season of a show: the tracker's packs and single episodes are
+    /// planned the way the site's request sheet plans them, at 720p unless 1080p is asked for, and
+    /// only the picked episodes' files are fetched. Each download is announced here like a film's.
+    /// </summary>
+    private async Task HandleShowAsync(SocketSlashCommand command)
+    {
+        try
+        {
+            if (command.GuildId is not { } guildId || !_guilds.Contains(guildId))
+            {
+                await command.RespondAsync(
+                    "This bot only answers in the server it is configured for.", ephemeral: true);
+                return;
+            }
+
+            string? Option(string name) => command.Data.Options.FirstOrDefault(o => o.Name == name)?.Value?.ToString();
+            var imdbId = Option(ShowSlashCommand.ShowOption) ?? "";
+            var season = int.TryParse(Option(ShowSlashCommand.SeasonOption), out var s) ? s : 0;
+            var quality = Option(ShowSlashCommand.QualityOption) ?? ShowPlan.DefaultQuality;
+            var requestedBy = (command.User as IGuildUser)?.DisplayName ?? command.User.Username;
+
+            await command.DeferAsync();
+
+            if (!imdbId.StartsWith("tt", StringComparison.Ordinal))
+            {
+                await command.FollowupAsync("Pick a show from the list. The menu searches the catalogue as you type.",
+                    allowedMentions: AllowedMentions.None);
+                return;
+            }
+
+            var offers = await api.ShowReleasesAsync(imdbId, CancellationToken.None);
+            if (ShowPlan.Episodes(offers, season, Option(ShowSlashCommand.EpisodesOption)) is not { } picked)
+            {
+                await command.FollowupAsync("Name the episodes as numbers and ranges, such as 1-3, 5, or leave them out for the whole season.",
+                    allowedMentions: AllowedMentions.None);
+                return;
+            }
+
+            var plan = ShowPlan.For(offers, picked, quality);
+            if (plan.Downloads.Count == 0)
+            {
+                await command.FollowupAsync(
+                    offers.Seasons.Count == 0
+                        ? offers.EmptyExplanation ?? "The tracker has nothing of that show."
+                        : $"The tracker has nothing of season {season}. It offers season{(offers.Seasons.Count == 1 ? "" : "s")} {string.Join(", ", offers.Seasons.Select(x => x.Season))}.",
+                    allowedMentions: AllowedMentions.None);
+                return;
+            }
+
+            var started = 0;
+            foreach (var planned in plan.Downloads)
+            {
+                var reply = await api.StartDownloadAsync(new Core.StartDownloadRequest
+                {
+                    TorrentId = planned.Release.TorrentId,
+                    RequestedBy = new Core.Actor(command.User.Id.ToString(), requestedBy),
+                    NotifyChannelId = command.ChannelId?.ToString(),
+                    Episodes = planned.Episodes,
+                }, CancellationToken.None);
+
+                var result = DownloadCommand.Describe(reply, intoRoom: false);
+                if (result.Outcome == DownloadOutcome.Started) started++;
+                await PostStartedAsync(command, result with
+                {
+                    Message = result.Outcome == DownloadOutcome.Started
+                        ? $"Downloading {EpisodeWords(planned)} at {planned.Release.Resolution ?? quality}. "
+                          + "The first is announced here as soon as it can be watched."
+                        : result.Message,
+                }, roomName: null);
+            }
+
+            if (started > 0 && (plan.OtherQuality > 0 || plan.NotOffered.Count > 0))
+                await command.FollowupAsync(
+                    string.Join(" ", new[]
+                    {
+                        plan.OtherQuality > 0 ? $"{plan.OtherQuality} of them {(plan.OtherQuality == 1 ? "is" : "are")} not offered at {quality} and {(plan.OtherQuality == 1 ? "comes" : "come")} at the quality the tracker has." : null,
+                        plan.NotOffered.Count > 0 ? $"The tracker has nothing of episode{(plan.NotOffered.Count == 1 ? "" : "s")} {string.Join(", ", plan.NotOffered.Select(p => p.Episode))}." : null,
+                    }.Where(x => x is not null)),
+                    allowedMentions: AllowedMentions.None);
+        }
+        catch (MovieBotApiException ex)
+        {
+            logger.LogWarning(ex, "The /{Command} command could not reach the API", ShowSlashCommand.Name);
+            await command.FollowupAsync("The tracker or the MovieBot API is not answering. Try again in a minute.",
+                allowedMentions: AllowedMentions.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "The /{Command} command failed", ShowSlashCommand.Name);
+            await TryReportFailure(command);
+        }
+    }
+
+    /// <summary>"3 episodes of Severance S02" for a pack picked from; the release's own name for a single episode.</summary>
+    private static string EpisodeWords(PlannedDownload planned) =>
+        planned.Episodes is { Count: > 0 } episodes
+            ? $"{episodes.Count} {(episodes.Count == 1 ? "episode" : "episodes")} of {planned.Release.Display}"
+            : planned.Release.Display;
+
     private async Task PostStartedAsync(SocketSlashCommand command, DownloadResult result, string? roomName)
     {
         if (result.Outcome != DownloadOutcome.Started || result.Release is null)
@@ -694,6 +795,15 @@ public sealed class DiscordBotService(
             if (interaction.Data.CommandName == DownloadSlashCommand.Name)
             {
                 await interaction.RespondAsync(await DownloadChoicesAsync(interaction, typed));
+                return;
+            }
+
+            // /show names a show from the catalogue; a show is fetched by its seasons, so the
+            // tracker is asked only once one is picked.
+            if (interaction.Data.CommandName == ShowSlashCommand.Name)
+            {
+                var shows = typed.Trim().Length < 2 ? [] : await api.FindShowsAsync(typed, CancellationToken.None);
+                await interaction.RespondAsync(shows.Take(25).Select(s => new AutocompleteResult(Choice(s.Display), s.ImdbId)));
                 return;
             }
 

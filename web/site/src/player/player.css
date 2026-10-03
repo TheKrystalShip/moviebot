@@ -261,6 +261,24 @@
   font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: #fff;
   background: rgba(0, 0, 0, 0.6); padding: 2px 8px; border-radius: 999px;
 }
+.mp-scrub__chapter { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: rgba(11, 15, 20, 0.85); }
+.mp-scrub__chapter-name {
+  font-size: 12.5px; font-weight: 600; color: #fff; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* ── Next episode, at the end of one ── */
+.mp-nextup {
+  position: absolute; right: 24px; bottom: 120px; z-index: 4;
+  display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 18px; border-radius: var(--r-sm);
+  border: none; background: var(--krystal-teal); color: var(--fg-inverse); font: inherit; cursor: pointer;
+  box-shadow: var(--shadow-pop); animation: mp-rise 160ms var(--ease-out);
+}
+.mp-nextup:hover { background: var(--krystal-teal-hover); }
+.mp-nextup__label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.8; }
+.mp-nextup__name { font-size: 15px; font-weight: 600; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-frame--compact .mp-nextup { right: 12px; bottom: 112px; height: 46px; }
+.mp-icon:disabled { opacity: 0.35; cursor: default; }
 
 /* ── Menus ── */
 .mp-popover {

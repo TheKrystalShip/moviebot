@@ -1,5 +1,6 @@
 import React from "react";
 import { Icon } from "@thekrystalship/krystal-ui";
+import { formatTime } from "./engine/format.ts";
 
 const languageNames = (() => {
   try { return new Intl.DisplayNames(undefined, { type: "language" }); } catch { return null; }
@@ -41,25 +42,42 @@ export function qualityValue(view) {
 /** Whether there is anything to choose between. One rung is no choice at all. */
 export const hasQualityChoice = (view) => view.qualityLevels.length > 1;
 
-export const MenuTitles = { subs: "Subtitles", audio: "Audio track", quality: "Quality" };
+export const MenuTitles = { subs: "Subtitles", audio: "Audio track", quality: "Quality", chapters: "Chapters" };
 
 /**
  * One menu over the film: a popover above the control bar where the frame is wide, a sheet from
- * the bottom edge where it is not. Everything in one is this viewer's own, and the header says so.
+ * the bottom edge where it is not. Every menu but one holds this viewer's own choice, and the header
+ * says so; the chapters move the whole room, like the scrub bar, and say that instead.
  */
-export function Menu({ kind, view, room, sheet, onClose }) {
+export function Menu({ kind, view, room, sheet, position, onClose }) {
   const body = kind === "subs" ? <SubtitleOptions view={view} room={room} />
     : kind === "audio" ? <AudioOptions view={view} room={room} onClose={onClose} />
-      : <QualityOptions view={view} room={room} onClose={onClose} />;
+      : kind === "chapters" ? <ChapterOptions view={view} room={room} position={position} onClose={onClose} />
+        : <QualityOptions view={view} room={room} onClose={onClose} />;
   return (
     <>
       {sheet && <div className="mp-sheet-scrim" onClick={onClose} />}
       <div className={(sheet ? "mp-sheet" : "mp-popover") + (kind === "subs" ? " mp-popover--wide" : "") + " mp-menu"} role="menu" aria-label={MenuTitles[kind]}>
         {sheet && <div className="mp-sheet__grabber" />}
-        <div className="mp-menu__head">{MenuTitles[kind]}<span className="mp-menu__aside">just for you</span></div>
+        <div className="mp-menu__head">{MenuTitles[kind]}<span className="mp-menu__aside">{kind === "chapters" ? "for everyone" : "just for you"}</span></div>
         {body}
       </div>
     </>
+  );
+}
+
+/** The film's chapters, the one playing marked; picking one takes the whole room there. */
+function ChapterOptions({ view, room, position, onClose }) {
+  const chapters = view.manifest.chapters || [];
+  let current = -1;
+  chapters.forEach((c, i) => { if (c.startSeconds <= position + 0.5) current = i; });
+  return (
+    <div className="mp-menu__list">
+      {chapters.map((c, i) => (
+        <Option key={i} on={i === current} label={c.title || `Chapter ${i + 1}`} sub={formatTime(c.startSeconds)}
+          onPick={() => { room.seek(c.startSeconds); onClose(); }} />
+      ))}
+    </div>
   );
 }
 

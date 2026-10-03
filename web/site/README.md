@@ -17,7 +17,7 @@ npm run verify:mobile  # every page on iPhones and Galaxies, against a scratch s
 npm run verify:pwa     # installable, and the service worker keeps only what it may (verify/pwa.mjs)
 ```
 
-The dev server proxies `/api`, `/media` and `/hub` to the API (`MOVIEBOT_API`, default
+The dev server proxies `/api`, `/media`, `/films`, `/shows` and `/hub` to the API (`MOVIEBOT_API`, default
 `http://127.0.0.1:8099`) and `/assistant` to moviebot-assistant (`MOVIEBOT_ASSISTANT`, default
 `http://127.0.0.1:8191`), which is what the vhost does in production.
 
@@ -26,8 +26,9 @@ The dev server proxies `/api`, `/media` and `/hub` to the API (`MOVIEBOT_API`, d
 | Path | What it is |
 |---|---|
 | `/` | A film to watch, then a row each for where the person left off, the rooms watching something now, what was recently added, what leaves next, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail` |
-| `/movies`, `/tv` | Every film, or every show, with krystal-ui's `Toolbar`: a search by name, one Filters popover (state, stay, genre) with the active ones as chips, and a sort with its direction |
-| `/title/<id>` | One film: what it is, who played it last, how long it stays, keep or let go, and watch or resume |
+| `/movies`, `/tv` | Every film, or every show (one card each, however many of its episodes are here), with krystal-ui's `Toolbar`: a search by name, one Filters popover (state, stay, genre) with the active ones as chips, and a sort with its direction |
+| `/title/<id>` | One film: what it is, who played it last, how long it stays, keep or let go, and watch or resume. An episode's id forwards to its show's page at its season |
+| `/show/<imdbId>?season=` | One show, in the library or not: what it is, its seasons as chips with how long each stays, each season's episodes with their stills and how far this person got, resume, keep a season, and the request sheet that picks seasons and episodes to download at 720p (the default) or 1080p |
 | `/search?q=` | The library first, then the tracker's releases to fetch, and a film with no release yet to wait on; reached from the sidebar's search field, and on a phone from the Search tab |
 | `/notify` | The films the signed-in person is waiting on |
 | `/leaving` | Every settled film and how long it stays, kept or not |

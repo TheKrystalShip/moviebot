@@ -7,7 +7,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Assistant</RootNamespace>
     <AssemblyName>moviebot-assistant</AssemblyName>
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
 
     <!-- The agent loop's conversation store is SQLite through a native library, and the loop itself
          is not built for the ahead-of-time compiler, so this runs on the JIT. A worker that runs for

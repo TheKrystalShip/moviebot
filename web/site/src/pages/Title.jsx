@@ -1,8 +1,8 @@
 import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
-import { api, filmName, posterUrl } from "../api.js";
+import { api, filmName, posterUrl, showHref } from "../api.js";
 import { leaveRule, stayWords, useLoad } from "../data.js";
-import { goBack } from "../router.js";
+import { goBack, navigate } from "../router.js";
 import { useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, watchLink } from "../components/Film.jsx";
@@ -25,6 +25,14 @@ export function Title({ id }) {
   const [busy, setBusy] = React.useState(false);
   const session = useSession();
   const me = session && session.user;
+
+  // An episode is shown on its show's page, at its season.
+  const episodeOf = manifest.data && manifest.data.episode && manifest.data.film && manifest.data.film.imdbId
+    ? `${showHref(manifest.data.film.imdbId)}?season=${manifest.data.episode.season}` : null;
+  React.useEffect(() => {
+    if (episodeOf) navigate(episodeOf, { replace: true });
+  }, [episodeOf]);
+  if (episodeOf) return <div className="kc-page" />;
 
   if (manifest.error && manifest.error.status === 404) {
     return <div className="kc-page"><Empty title="Not in the library">This film has left the library, or never arrived.</Empty></div>;

@@ -10,6 +10,7 @@ import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { Home } from "./pages/Home.jsx";
 import { Library } from "./pages/Library.jsx";
 import { Title } from "./pages/Title.jsx";
+import { Show } from "./pages/Show.jsx";
 import { Search } from "./pages/Search.jsx";
 import { Notify } from "./pages/Notify.jsx";
 import { Leaving } from "./pages/Leaving.jsx";
@@ -26,7 +27,7 @@ const Dark = () => <div style={{ position: "fixed", inset: 0, background: "#000"
 const NAV = [
   { page: "home", path: "/", icon: "house", label: "Home" },
   { page: "movies", path: "/movies", icon: "clapperboard", label: "Movies" },
-  { page: "tv", path: "/tv", icon: "tv", label: "TV Shows" },
+  { page: "tv", path: "/tv", icon: "tv", label: "TV Shows", also: ["show"] },
 ];
 
 const LIFECYCLE = [
@@ -38,7 +39,7 @@ const LIFECYCLE = [
 // tab opens the dock rather than a page.
 const TABS = [
   { id: "home", path: "/", icon: "house", label: "Home", pages: ["home", "leaving"] },
-  { id: "library", path: "/movies", icon: "clapperboard", label: "Library", pages: ["movies", "tv", "title"] },
+  { id: "library", path: "/movies", icon: "clapperboard", label: "Library", pages: ["movies", "tv", "title", "show"] },
   { id: "search", path: "/search", icon: "search", label: "Search", pages: ["search"] },
   { id: "assistant", icon: "bot", label: "Assistant" },
   { id: "me", path: "/profile", icon: "user", label: "Me", pages: ["profile", "notify"] },
@@ -90,7 +91,7 @@ function Frame({ session, route }) {
 
   const go = (path) => navigate(path);
   const item = (n) => (
-    <NavItem key={n.page} icon={n.icon} label={n.label} active={route.page === n.page} onClick={() => go(n.path)} />
+    <NavItem key={n.page} icon={n.icon} label={n.label} active={route.page === n.page || (n.also || []).includes(route.page)} onClick={() => go(n.path)} />
   );
   // A tab leaves the dock for its page. The tab of the page already open takes it back to its top.
   const tab = (t) => t.path
@@ -149,6 +150,7 @@ function Page({ route }) {
     case "movies": return <Library key="film" kind="film" />;
     case "tv": return <Library key="show" kind="show" />;
     case "title": return route.arg ? <Title key={route.arg} id={route.arg} /> : <Library kind="film" />;
+    case "show": return route.arg ? <Show key={route.arg} imdbId={route.arg} query={route.query} /> : <Library kind="show" />;
     case "search": return <Search query={route.query} />;
     case "notify": return <Notify />;
     case "leaving": return <Leaving />;

@@ -1,6 +1,6 @@
 import React from "react";
 import { Icon, ShowcaseCard } from "@thekrystalship/krystal-ui";
-import { filmName, posterUrl } from "../api.js";
+import { episodeCode, filmName, posterUrl, showHref } from "../api.js";
 import { SOON_DAYS, stayWords } from "../data.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, timeLeft } from "../time.js";
@@ -100,6 +100,38 @@ export function FilmCard({ title, stay, me, room, isNew }) {
       action={ready
         ? { label: room ? "Join" : progress ? "Resume" : "Watch", onClick: () => navigate(watchHref(title.id, room && room.sessionId, progress && progress.positionSeconds)) }
         : { label: "View" }} />
+  );
+}
+
+/**
+ * A show on a shelf, the same card as a film's: its poster and name, rating, years and seasons, where
+ * this person picks up or how long it stays, and Watch or Resume into the episode that is next.
+ */
+export function ShowCard({ show, stay, me }) {
+  const d = show.details;
+  const resume = show.resume;
+  const leavingSoon = stay && stay.settled && !stay.keeperId && stay.daysLeft != null && stay.daysLeft <= SOON_DAYS;
+  const status =
+    resume ? { tone: "active", icon: "history", label: `${episodeCode({ season: resume.season, number: resume.episode })}${resume.positionSeconds > 0 ? " · " + timeLeft(resume.durationSeconds - resume.positionSeconds) : ""}` }
+    : stay && stay.keeperId ? { tone: "success", icon: "bookmark-check", label: stayWords(stay, me) }
+    : stay && stay.settled && stay.daysLeft != null ? { tone: leavingSoon ? "warning" : null, icon: "hourglass", label: `S${stay.season} · ${stayWords(stay, me)}` }
+    : d && d.genres.length > 0 ? { label: d.genres.slice(0, 2).join(" · ") }
+    : null;
+  const to = resume ? resume.titleId : show.firstTitleId;
+
+  return (
+    <ShowcaseCard
+      name={show.title}
+      art={d && d.posterUrl ? `url("${d.posterUrl}")` : null}
+      onPick={() => navigate(show.imdbId ? showHref(show.imdbId) : "/title/" + encodeURIComponent(show.firstTitleId))}
+      corner={leavingSoon ? { icon: "hourglass", label: `S${stay.season} · ${stayWords(stay, me)}`, title: "Leaves unless somebody plays or keeps it" } : null}
+      specs={[
+        { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
+        { icon: "calendar", value: show.firstYear || null, label: "First aired" },
+        { icon: "layers", value: show.seasons.length, label: show.seasons.length === 1 ? "Season" : "Seasons" },
+      ]}
+      status={status}
+      action={{ label: resume ? "Resume" : "Watch", onClick: () => navigate(watchHref(to, null, resume && resume.positionSeconds)) }} />
   );
 }
 

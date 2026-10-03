@@ -48,7 +48,14 @@ more.
   hand resting on a keyboard could trigger, and why a drag on the scrub bar says where letting go takes
   everybody before it is let go.
 - **Every menu holds this viewer's own choice, and its header says so.** Volume, subtitles, audio and
-  quality never reach the hub.
+  quality never reach the hub. The one exception is Chapters, which moves the room like the scrub bar
+  and says "for everyone"; a chapter's start is also a mark on the bar, and pointing names the
+  chapter.
+- **Moving between episodes is a button, never automatic.** An episode has previous and next
+  controls the whole time it plays, from `/api/titles/{id}/neighbours` (the episodes either side among
+  those the library holds), and from its closing stretch — the last chapter when that is the credits,
+  else the last two minutes — next is offered over the film. Either one puts the other episode on for
+  the whole room, as picking a film does.
 - **A control that already answers a key keeps it.** The scrub bar and the volume slider handle the
   arrows when focused; taking them globally as well moves the film, or the volume, twice for one press.
 - **What somebody else did to the room is said over the film, to everyone but them**, with their mark

@@ -3,7 +3,8 @@
 The Discord half. `/watch` resolves a film, opens the room's session on the API and hands the
 room a launch — and when the film is not here, searches the tracker, starts the download and hands
 the room the launch the moment the film can be watched. `/download` fetches a film and stops there,
-so the next one can be got ready while a room watches this one. `/notify` watches for a film that
+so the next one can be got ready while a room watches this one. `/show` fetches episodes of a
+show, a season at a time. `/notify` watches for a film that
 cannot be downloaded yet and says so when it can. `/voice join` brings the bot into a voice channel
 to listen, so the film can be paused, resumed and skipped by saying so, and anything else said to it
 is put to the assistant, which answers in the channel's chat.
@@ -160,6 +161,27 @@ ready is how anybody starts it.
 The reply is the progress message, which the same updater keeps current and the same watcher
 announces, because a download fetched for later is a download.
 
+## Fetching a show
+
+```
+/show show:<name> season:<n> [episodes:<1-3, 5>] [quality:<720p|1080p>]
+```
+
+A show is fetched a season at a time. The menu searches the catalogue for shows and never films,
+and the tracker is asked once a show is picked, for every season it offers under the show's id.
+
+- **The plan is the site's.** `ShowPlan` in `MovieBot.Client` decides which releases fetch the picked
+  episodes, the same decision the site's request sheet and the assistant's `download_show` make: a
+  season's pack at the asked quality first, fetching only the picked files out of it; single
+  episodes where there is no pack; another quality only where the asked one is not offered, said so
+  in a follow-up.
+- **720p unless 1080p is asked for.** A season is many hours, and 720p takes a third of the space.
+- **Leaving episodes out takes the whole season**; naming them takes only those, as numbers and
+  ranges.
+- **Each download is a download.** Every planned torrent posts its own progress message and is
+  announced when its first episode can be watched, on the same clock as any film; `/keep` on an
+  episode keeps its whole season.
+
 ## Listening in a voice channel
 
 `/voice join` brings the bot into the voice channel the person running it is in. From then on,
@@ -246,6 +268,9 @@ answered with one sentence saying so, and everything else the bot does goes on a
   it hands back is one that keeps the room's fate as it already is. A fetch for later turning into
   a switch one tool call further on is exactly the failure the split exists to prevent, and
   `AssistantRoutingTests` measures both directions.
+- **A show is `download_show`**: a season, all of it or the episodes named, planned like `/show` and
+  proposed for somebody to agree to. It never takes the room either; an episode is watched by asking
+  for it like a film.
 - **A download is always of a release the model was shown.** A torrent id it writes without the
   tool having offered it is refused, and a release of a film the library already holds is refused
   too.

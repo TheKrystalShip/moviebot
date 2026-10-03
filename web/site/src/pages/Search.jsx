@@ -1,9 +1,9 @@
 import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
-import { api, filmName } from "../api.js";
+import { api, filmName, showHref } from "../api.js";
 import { useLoad } from "../data.js";
-import { navigate } from "../router.js";
-import { Empty, Failed, FilmCard, PageHead } from "../components/Film.jsx";
+import { linkProps, navigate } from "../router.js";
+import { Empty, Failed, FilmCard, PageHead, ShowCard } from "../components/Film.jsx";
 
 /**
  * Finding a film: what the library holds first, then what the tracker offers to fetch, and, for a
@@ -17,14 +17,16 @@ export function Search({ query }) {
 
   const titles = useLoad(() => api.titles(), []);
   const tracker = useLoad(() => (q ? api.releases(q) : Promise.resolve(null)), [q]);
+  const found = useLoad(() => (q ? api.findShows(q).catch(() => []) : Promise.resolve([])), [q]);
+  const libraryShows = useLoad(() => api.shows().catch(() => []), []);
 
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const named = (name) => words.every((w) => name.toLowerCase().includes(w));
   const inLibrary = q
-    ? (titles.data || []).filter((t) => {
-      const name = (filmName(t) + " " + t.id).toLowerCase();
-      return words.every((w) => name.includes(w));
-    })
+    ? (titles.data || []).filter((t) => t.kind !== "show" && named(filmName(t) + " " + t.id))
     : [];
+  const showsHere = q ? (libraryShows.data || []).filter((s) => named(s.title)) : [];
+  const heldShows = new Set((libraryShows.data || []).map((s) => s.imdbId));
 
   const submit = (e) => {
     e.preventDefault();
@@ -44,10 +46,33 @@ export function Search({ query }) {
         <>
           <section className="kc-shelf">
             <div className="kc-shelf__head"><h2>In the library</h2></div>
-            {inLibrary.length > 0
-              ? <div className="kc-grid">{inLibrary.map((t) => <FilmCard key={t.id} title={t} />)}</div>
+            {inLibrary.length + showsHere.length > 0
+              ? (
+                <div className="kc-grid">
+                  {inLibrary.map((t) => <FilmCard key={t.id} title={t} />)}
+                  {showsHere.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} />)}
+                </div>
+              )
               : <span className="kc-quiet">Nothing in the library is called that.</span>}
           </section>
+
+          {(found.data || []).length > 0 && (
+            <section className="kc-shelf">
+              <div className="kc-shelf__head"><h2>Shows</h2></div>
+              <div className="kc-rows">
+                {found.data.map((s) => (
+                  <a key={s.imdbId} className="kc-row kc-row--link" {...linkProps(showHref(s.imdbId))}>
+                    <span className="kc-row__icon"><Icon name="tv" size={16} /></span>
+                    <div className="kc-row__text">
+                      <span className="kc-row__title">{s.display}</span>
+                      <span className="kc-row__sub">TV series{heldShows.has(s.imdbId) ? " · in the library" : ""}</span>
+                    </div>
+                    <span className="kc-btn kc-btn--ghost"><Icon name={heldShows.has(s.imdbId) ? "play" : "download"} size={16} />{heldShows.has(s.imdbId) ? "Open" : "Pick episodes"}</span>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="kc-shelf">
             <div className="kc-shelf__head"><h2>On the tracker</h2></div>

@@ -1,6 +1,6 @@
 import { environment } from './environment';
 import type {
-  Manifest, Participant, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary, ViewerPreferences
+  EpisodeNeighbours, Manifest, Participant, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary, ViewerPreferences
 } from './types';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -41,6 +41,10 @@ function authHeaders(): Record<string, string> {
 export const api = {
   titles: () => getJson<TitleSummary[]>('/api/titles'),
   manifest: (id: string) => getJson<Manifest>(`/api/titles/${encodeURIComponent(id)}`),
+
+  /** The episodes either side of one, which previous and next move the room to. */
+  neighbours: (id: string) =>
+    getJson<EpisodeNeighbours>(`/api/titles/${encodeURIComponent(id)}/neighbours`),
 
   /** What a request for this film's bytes carries instead of who is asking. */
   mediaTicket: (id: string) =>
