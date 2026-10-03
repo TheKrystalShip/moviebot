@@ -5,9 +5,11 @@ these routes and present what they answer (`docs/api-contract.md`, "Fetching fil
 the title index, the torrent client, the disk budget and the tag vocabulary are moviebot-acquire's,
 and this directory is where the API calls them.
 
-- **Only the service key spends anything.** A room token proves somebody signed in through Discord;
-  it does not let them fill the disk or spend the tracker's ratio. The service names the person on
-  every act, and the tags and the log record that person.
+- **Only the service key and a member spend anything.** An Activity's token proves somebody signed
+  in through Discord; it does not let them fill the disk or spend the tracker's ratio. A member's
+  token says Discord confirmed they are in the server, which is what a slash command takes. A service
+  names the person on every act; a member is the person, and what their request says about who asked
+  is replaced by the token. Either way the tags and the log record that person.
 - **A download names a release this API offered.** `OfferedReleases` remembers what a search or a
   picker answered, and a pick is resolved against it. An id nothing offered is refused before the
   torrent client is asked, so a client cannot fetch whatever torrent id it likes.

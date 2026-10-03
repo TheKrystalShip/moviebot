@@ -87,11 +87,24 @@ segment delivered as `application/octet-stream`: `application/vnd.apple.mpegurl`
 ### Fetching films
 
 The API is the one writer of downloads, wishes and keeps. These routes spend the disk and the
-tracker's ratio, so they answer the **service key** (`X-MovieBot-Service`) alone: a room token is a
-`403`. A service names the person it acts for on every act as `requestedBy: {id, name}`, and that is
-who the download's tags and the log record. The shapes are in `src/MovieBot.Core/Acquisition.cs`;
+tracker's ratio, so they answer the **service key** (`X-MovieBot-Service`) or a **member's token**,
+one whose `member` claim says Discord confirmed at sign-in that its bearer is in the server; any
+other token is a `403`. A service names the person it acts for on every act as
+`requestedBy: {id, name}`, and that is who the download's tags and the log record. A member is the
+person: `requestedBy` and `userId` are taken from the token whatever the request says, and a
+member's download or wish names no Discord channel. `/wishes/available` and `/wishes/{imdbId}/told`
+are the bot's, and answer the service key alone. The shapes are in `src/MovieBot.Core/Acquisition.cs`;
 the API reads the tracker, `QBittorrent`, `Download`, `Selection`, `Retention` and `Notify` settings
 to serve them.
+
+### Signing in
+
+`POST /api/auth/discord/callback` takes `{code, redirectUri?, sessionId?}` and answers
+`{accessToken, roomToken, user}`. The Activity sends the code its SDK was given and no redirect; it
+only opens inside the server, and its token says nothing more than who is watching. The site sends
+the code from the OAuth2 redirect, asked for with `identify guilds.members.read`, and its
+`redirectUri`: then the token is issued only to a member of one of `Discord.GuildIds`, and carries
+`member`. Somebody outside the server is a `403`; a Discord that cannot say is a `502`.
 
 | Route | Returns |
 |---|---|

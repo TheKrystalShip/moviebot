@@ -18,8 +18,9 @@ public sealed record Caller(string UserId, string DisplayName, bool Service)
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>A person carries the token the API gave them</b> when they signed in with Discord, checked with
-/// the key the API signed it with. This service mints nothing and keeps no sessions.
+/// <b>A person carries the token the API gave them</b> when they signed in on the site, checked with
+/// the key the API signed it with, and it has to say they are a member of the server. This service
+/// mints nothing and keeps no sessions.
 /// </para>
 /// <para>
 /// <b>A service carries the service key and names the person it speaks for</b> in
@@ -54,6 +55,9 @@ public sealed class Callers(IOptions<AssistantAuthOptions> options, TimeProvider
         var payload = RoomToken.Validate(
             RoomToken.FromAuthorization(request.Headers.Authorization.ToString()), auth.SigningKey, clock.GetUtcNow());
 
-        return payload is null ? null : new Caller(payload.UserId, payload.DisplayName, Service: false);
+        // Only a member's token: the tools spend things through the service key, so a person here
+        // may do what a member may do on the site, and an Activity's token was never asked whether
+        // its bearer is one.
+        return payload is { Member: true } ? new Caller(payload.UserId, payload.DisplayName, Service: false) : null;
     }
 }

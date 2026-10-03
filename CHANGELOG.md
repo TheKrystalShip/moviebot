@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.60.0] - 2026-10-03
+
+### Added
+
+- **Members of the server sign in on the site.** The OAuth2 callback, given a `redirectUri`, asks
+  Discord whether the person is in one of `Discord.GuildIds` (`guilds.members.read`) and issues a
+  token only to a member, carrying `member`. Somebody outside the server is refused. The Activity's
+  sign-in, which sends no redirect, is unchanged.
+- **A member may fetch films as themselves.** Release search, downloads, wishes and keeps answer a
+  member's token as well as the service key; who asked is taken from the token, and a member's
+  download or wish names no Discord channel. Announcing wishes stays the bot's.
+
+### Changed
+
+- moviebot-assistant answers a person only on a member's token.
+
 ## [1.59.0] - 2026-10-03
 
 ### Changed

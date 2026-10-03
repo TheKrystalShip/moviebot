@@ -31,8 +31,10 @@ sentence, so a client words its message from facts rather than parsing text.
 
 ## Who is asking
 
-- **A person carries the token the API gave them** at Discord sign-in, checked with `Auth:SigningKey`.
-  This service mints nothing and keeps no sessions.
+- **A person carries the token the API gave them** at sign-in on the site, checked with
+  `Auth:SigningKey`, and it must be a member's: the tools spend things through the service key, so a
+  person here may do what a member may do on the site. This service mints nothing and keeps no
+  sessions.
 - **A service carries `X-MovieBot-Service`** (`Auth:ServiceKey`) **and names the person** in
   `X-MovieBot-Acting: userId|displayName`, the name percent-encoded. It names who, never what.
 - **Only a service names a room.** A room is what gives a turn the room tools (`RoomTools.RoomOnly`)

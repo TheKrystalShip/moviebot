@@ -234,13 +234,37 @@ app.MapPost("/api/auth/discord/callback", async (
     if (user is null)
         return Results.BadRequest(new ErrorReply("Discord issued a token it then would not answer for."));
 
+    // A sign-in through the redirect is the site's, reachable by anybody with a Discord account, so
+    // it is for members of the server alone. The Activity sends no redirect: it only opens inside
+    // that server.
+    var member = false;
+    if (!string.IsNullOrWhiteSpace(request.RedirectUri))
+    {
+        if (options.Value.GuildIds.Length == 0)
+            return Results.Json(new ErrorReply("No server is configured, so nobody can sign in here."),
+                ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status503ServiceUnavailable);
+
+        switch (await discord.IsMemberOfAnyAsync(accessToken, options.Value.GuildIds, ct))
+        {
+            case null:
+                return Results.Json(new ErrorReply("Discord could not say whether you are in the server. Try again."),
+                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status502BadGateway);
+            case false:
+                return Results.Json(new ErrorReply("Krystal Cinema is for members of the server MovieBot plays films in."),
+                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        member = true;
+    }
+
     var auth = authOptions.Value;
     var roomToken = RoomToken.Issue(new RoomTokenPayload
     {
         UserId = user.Id,
         DisplayName = user.DisplayName,
         RoomId = request.SessionId ?? "",
-        ExpiresAtUnix = DateTimeOffset.UtcNow.Add(auth.TokenLifetime).ToUnixTimeSeconds()
+        ExpiresAtUnix = DateTimeOffset.UtcNow.Add(auth.TokenLifetime).ToUnixTimeSeconds(),
+        Member = member,
     }, auth.SigningKey);
 
     // The access token goes back so the SDK can complete authenticate(); it is the browser's own
@@ -272,7 +296,8 @@ app.MapPost("/api/auth/service-token", (
         UserId = request.UserId,
         DisplayName = request.DisplayName,
         RoomId = request.RoomId,
-        ExpiresAtUnix = DateTimeOffset.UtcNow.Add(auth.TokenLifetime).ToUnixTimeSeconds()
+        ExpiresAtUnix = DateTimeOffset.UtcNow.Add(auth.TokenLifetime).ToUnixTimeSeconds(),
+        Member = request.Member,
     }, auth.SigningKey)));
 });
 
@@ -306,8 +331,11 @@ app.Run();
 /// <summary>What the Activity posts after Discord hands it an authorization code.</summary>
 public sealed record DiscordCodeRequest(string Code, string? RedirectUri, string? SessionId);
 
-/// <summary>A token for a caller that has no Discord user of its own.</summary>
-public sealed record ServiceTokenRequest(string RoomId, string UserId, string DisplayName);
+/// <summary>
+/// A token for a caller that has no Discord user of its own. <see cref="Member"/> is the service's to
+/// vouch for, as everything else in the request is.
+/// </summary>
+public sealed record ServiceTokenRequest(string RoomId, string UserId, string DisplayName, bool Member = false);
 
 /// <summary>Exposed so the test project can drive the app in-process.</summary>
 public partial class Program;

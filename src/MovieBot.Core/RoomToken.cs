@@ -6,16 +6,26 @@ using System.Text.Json.Serialization;
 namespace TheKrystalShip.MovieBot.Core;
 
 /// <summary>Who the bearer is, proven by Discord and vouched for by the API.</summary>
-/// <param name="RoomId">The room the Activity was opened in; empty for a sign-in that names none.</param>
 public sealed record RoomTokenPayload
 {
     [JsonPropertyName("sub")] public required string UserId { get; init; }
     [JsonPropertyName("name")] public required string DisplayName { get; init; }
+
+    /// <summary>The room the Activity was opened in; empty for a sign-in that names none.</summary>
     [JsonPropertyName("room")] public required string RoomId { get; init; }
+
     [JsonPropertyName("exp")] public required long ExpiresAtUnix { get; init; }
+
+    /// <summary>
+    /// Discord said, at sign-in, that this person is a member of the server MovieBot serves. A member
+    /// may do on the site what a slash command lets them do in the server. An Activity's token does
+    /// not carry it: the Activity is only ever opened inside that server, and asks Discord for nothing
+    /// more than who is watching.
+    /// </summary>
+    [JsonPropertyName("member")] public bool Member { get; init; }
 }
 
-[JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault)]
 [JsonSerializable(typeof(RoomTokenPayload))]
 internal partial class RoomTokenJsonContext : JsonSerializerContext;
 

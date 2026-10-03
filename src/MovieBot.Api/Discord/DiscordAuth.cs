@@ -16,6 +16,12 @@ public sealed class DiscordAuthOptions
     /// <summary>The OAuth2 client secret. A credential: it comes from the environment, never a file in the repo.</summary>
     public string ClientSecret { get; set; } = "";
 
+    /// <summary>
+    /// The servers MovieBot serves, the same list the bot registers its commands in. Signing in on the
+    /// site needs membership of one of them.
+    /// </summary>
+    public string[] GuildIds { get; set; } = [];
+
     public bool IsConfigured => ClientId.Length > 0 && ClientSecret.Length > 0;
 }
 
@@ -80,6 +86,30 @@ public sealed class DiscordAuthClient(HttpClient http, ILogger<DiscordAuthClient
 
         var token = await response.Content.ReadFromJsonAsync(ApiJsonContext.Default.TokenResponse, ct);
         return string.IsNullOrEmpty(token?.AccessToken) ? null : token.AccessToken;
+    }
+
+    /// <summary>
+    /// Whether the person the token belongs to is a member of any of these servers, which needs the
+    /// <c>guilds.members.read</c> scope. Null when Discord could not say: a refusal of the question is
+    /// not an answer to it.
+    /// </summary>
+    public async Task<bool?> IsMemberOfAnyAsync(string accessToken, IEnumerable<string> guildIds, CancellationToken ct)
+    {
+        foreach (var guildId in guildIds.Where(g => !string.IsNullOrWhiteSpace(g)))
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get,
+                $"https://discord.com/api/v10/users/@me/guilds/{Uri.EscapeDataString(guildId)}/member");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            using var response = await http.SendAsync(request, ct);
+            if (response.IsSuccessStatusCode) return true;
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) continue;
+
+            logger.LogWarning("Discord refused the membership lookup in {Guild}: {Status}", guildId, (int)response.StatusCode);
+            return null;
+        }
+
+        return false;
     }
 
     public async Task<DiscordUser?> GetUserAsync(string accessToken, CancellationToken ct)

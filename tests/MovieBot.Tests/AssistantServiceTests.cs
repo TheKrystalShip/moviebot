@@ -53,13 +53,14 @@ internal sealed class AssistantService(SessionFixture api) : WebApplicationFacto
         });
     }
 
-    /// <summary>A person, carrying the token the API gave them.</summary>
-    public HttpClient As(string userId, string name)
+    /// <summary>A person, carrying the token the API gave them: a member's, unless said otherwise.</summary>
+    public HttpClient As(string userId, string name, bool member = true)
     {
         var client = CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", RoomToken.Issue(new RoomTokenPayload
         {
-            UserId = userId, DisplayName = name, RoomId = "", ExpiresAtUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+            UserId = userId, DisplayName = name, RoomId = "", Member = member,
+            ExpiresAtUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
         }, SessionFixture.SigningKey));
         return client;
     }
@@ -93,6 +94,14 @@ public sealed class AssistantServiceTests(SessionFixture fixture) : IClassFixtur
     public async Task Nobody_without_a_token_or_the_key_is_answered()
     {
         using var response = await _service.CreateClient().PostAsJsonAsync("/turn", new { prompt = "hello" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_token_that_does_not_say_its_bearer_is_a_member_is_not_answered()
+    {
+        using var response = await _service.As("4242", "Haru", member: false).PostAsJsonAsync("/turn", new { prompt = "hello" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
