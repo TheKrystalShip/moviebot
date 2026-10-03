@@ -28,13 +28,6 @@ invite, for which film. The API has never heard of a Discord message, so a bot t
 this down would leave every card it had posted looking live for good. They are one JSON file in
 the state directory systemd hands the service, written whole and moved into place on every change.
 
-The assistant adds a third: `assistant.db`, each voice channel's conversation with the assistant,
-one conversation per room, which is what lets "why did it stop?" be answered a minute after somebody
-said "pause". A room silent for `Assistant__IdleResetMinutes` starts its conversation over on the
-next thing said in it, so the model is never handed an evening-old exchange to copy; every turn
-stays in the file. Beside it the bot writes `llm-warmup.json`, the request that warms the model, for the
-model's own unit to replay when it starts.
-
 ## Configuration
 
 Settings come from `moviebot.settings.json`, the file every MovieBot program shares: the copy
@@ -59,13 +52,9 @@ setting as the environment variable that overrides it; in the file, `Voice__Trig
 | `Voice__CommandQuietMs` | no | How long somebody has to stop sounding after the trigger before a request that is not a room verb counts as finished. Defaults to 600. A room verb does not wait for it: "pause" is acted on as soon as two readings agree on it, while the room keeps talking. |
 | `Voice__ScanWindowMs`, `Voice__ScanStrideMs` | no | How much of each person's latest speech is looked through for the trigger, and how often: 3000 and 500 by default. The window must stay under moviebot-speech's four-second scan window. |
 | `Voice__LogTranscripts` | no | Whether what was heard is written to the log: requests at information level, and everything scanned for the trigger at debug. Off by default: a voice channel is full of things nobody said to the bot. |
-| `Assistant__Enabled` | no | Whether a spoken request that is not a room verb is put to the model. Off by default; off, those requests are answered by nothing. |
-| `Assistant__PromptDirectory` | no | Where `system.md` and `tools.json` are read from, relative to the binary. Defaults to `prompts`, which is where the build puts them. |
-| `Assistant__OfferMinutes` | no | How long a proposed download, fetch, wish or keep waits for somebody to agree. Defaults to 10. |
+| `Assistant__Enabled` | no | Whether a spoken request that is not a room verb is put to moviebot-assistant. Off by default; off, those requests are answered by nothing. |
+| `Assistant__BaseUrl` | no | Where moviebot-assistant answers. Defaults to `http://127.0.0.1:8191`. The bot proves itself there with `Api__ServiceKey`, the key the assistant knows as `Auth__ServiceKey`. |
 | `Assistant__ConfirmWindowSeconds` | no | How long the bot listens for a spoken yes or no to a proposal without the trigger. Defaults to 20; 0 leaves the buttons as the only way to agree. |
-| `Assistant__LibraryInContext` | no | The most films of the library written into every turn. Defaults to 60. |
-| `Assistant__IdleResetMinutes` | no | How long a room's conversation sits silent before the next request or room verb starts it over. Defaults to 15; 0 keeps one conversation for the life of the room. |
-| `Llm__Endpoint` | no | Where the model answers. `moviebot.settings.json` carries moviebot-llm's `http://127.0.0.1:8190`, with the model's context window and a temperature of 0. |
 | `Speech__SocketPath` | no | Where moviebot-speech answers. Defaults to `/run/moviebot-speech/speech.sock`, the same key the speech host reads. |
 
 The two credentials are read under their own names. They sit above the settings files and
@@ -218,10 +207,13 @@ and the words go first to a gate that knows a handful of verbs, with no model in
 
 ## Asking the assistant
 
-What the gate does not read goes to moviebot-llm, a small model on hotbox's card, with the room's
-tools in its hands. It is the agent loop from `TheKrystalShip.Llm`, built per turn in this process,
-so its tools are the bot's own commands: loading a film is `/watch`'s code, a download is the tracker
-pick's, a wish is `/notify`'s and a keep is `/keep`'s.
+What the gate does not read goes to moviebot-assistant as a turn in this room, asked by the person
+who said it. The assistant answers with moviebot-llm, a small model on hotbox's card, and holds the
+room's conversation, its tools and what it proposed (`src/MovieBot.Assistant/CLAUDE.md`). Every act
+its tools take is the API's, so loading a film, a download, a wish and a keep are the same acts as
+`/watch`, the tracker pick, `/notify` and `/keep`, and a confirmed one is posted in the same words
+and embeds. The bot has no engine of its own: when the assistant cannot be reached, the request is
+answered with one sentence saying so, and everything else the bot does goes on as before.
 
 - **It answers in writing, in the voice channel's chat.** The film's sound plays in every browser,
   so anything said out loud would be said over the film for everybody. What was heard is posted
@@ -238,8 +230,9 @@ pick's, a wish is `/notify`'s and a keep is `/keep`'s.
   `Assistant:ConfirmWindowSeconds` is the same answer. One token backs both, so whichever comes
   first acts and the other finds it spent. The window takes the next thing its speaker says, and
   anything that is neither a yes nor a no spends it without a word: in a room watching a film that
-  is a remark about the film, and asking again would open a window that takes the next remark too. Anyone may agree; the act is done as whoever asked, so
-  the download pings them and the wish is theirs. A proposal is held in memory and expires.
+  is a remark about the film, and asking again would open a window that takes the next remark too.
+  Anyone may agree; the act is done as whoever asked, so the download pings them and the wish is
+  theirs. The assistant holds the proposal in memory, and it expires.
 - **Asking for a film always ends in something to act on.** Watching, playing, finding and
   downloading a film are one tool. When the library has the film it goes on; when it does not, the
   best release the tracker offers is proposed, and when the tracker has none the model is given what
@@ -258,8 +251,8 @@ pick's, a wish is `/notify`'s and a keep is `/keep`'s.
   too.
 - **When the model writes nothing, what the tools said is the answer.** This model ends its turn
   straight after a tool result more often than not, so an act comes back as "Moved to 29:51." — the
-  tool's own words, written for the room — rather than as silence. A proposal or a launch card
-  posts its own message and adds nothing.
+  tool's own words, written for the room — rather than as silence. A turn that only proposed
+  something answers with the line saying it waits for confirmation.
 - **A written reply is held to what the turn did.** A reply claiming to have acted — "I have loaded
   Heat" — on a turn that moved no room, launched nothing and proposed nothing, and a figure of four
   or more digits that nothing the turn was given contains, each send the model back once with what
@@ -280,13 +273,13 @@ pick's, a wish is `/notify`'s and a keep is `/keep`'s.
   summary once a turn reports most of the context window used.
 - **Answering does not hold up the room verbs.** A turn takes a second or more and every spoken
   command goes through one queue, so turns run beside it; turns in one room still run one at a time.
-- **The instructions are short on purpose.** `prompts/system.md` is a few sentences. A longer one
-  listing rules and naming tools made this model write its tool calls out as text, and routing
-  failed across the board; the rules that matter live in each tool's description and in what each
-  tool returns. `system.md` is read again every turn, `tools.json` once at startup, and the bot
-  refuses to start when `tools.json` and the tools it implements disagree.
-- **Warmed on startup.** The bot sends its real instructions and catalog through the model as it
-  starts, and writes the same request for the model's unit to replay when that restarts.
+- **The instructions are short on purpose.** The assistant's `prompts/system.md` is a few sentences.
+  A longer one listing rules and naming tools made this model write its tool calls out as text, and
+  routing failed across the board; the rules that matter live in each tool's description and in
+  what each tool returns. `system.md` is read again every turn, `tools.json` once at startup, and the
+  assistant refuses to start when `tools.json` and the tools it implements disagree.
+- **Warmed on startup.** The assistant sends its real instructions and catalog through the model as
+  it starts, and writes the same request for the model's unit to replay when that restarts.
 
 `AssistantRoutingTests` checks which tool the shipped instructions and catalog lead the real model
 to, and runs only when `MOVIEBOT_LIVE_LLM` names an endpoint:

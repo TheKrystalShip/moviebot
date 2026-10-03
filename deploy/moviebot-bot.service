@@ -17,8 +17,8 @@ EnvironmentFile=/etc/moviebot/moviebot.env
 Environment=DOTNET_EnableDiagnostics=0
 
 # Listening in a voice channel reaches moviebot-speech over its socket; libdave, opus and libsodium
-# are what a voice connection needs from the system. The assistant's conversation and the model's
-# warm-up request are written in the state directory below.
+# are what a voice connection needs from the system. What the room verbs do not cover goes to
+# moviebot-assistant over loopback.
 
 # A dropped gateway connection is normal; the bot reconnects, and a crash should not need a person.
 Restart=always
@@ -28,9 +28,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 
-# The launch cards still standing and the assistant's conversation are what the bot writes down,
-# and this is the only place it may write. systemd makes the directory and names it in
-# STATE_DIRECTORY.
+# The launch cards still standing are what the bot writes down, and this is the only place it may
+# write. systemd makes the directory and names it in STATE_DIRECTORY.
 StateDirectory=moviebot-bot
 
 # The settings file is read from the account's XDG configuration directory.

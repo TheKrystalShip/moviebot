@@ -97,6 +97,15 @@ public sealed class NotifyCommand(MovieBotApiClient api, ILogger<NotifyCommand> 
                 "The MovieBot API is not answering, so nothing was noted. Try again in a minute.");
         }
 
+        return Describe(reply);
+    }
+
+    /// <summary>
+    /// What the API's answer to a wish is told as in a channel, whoever asked for it: <c>/notify</c>,
+    /// or the assistant once somebody agreed.
+    /// </summary>
+    public static NotifyResult Describe(AddWishReply reply)
+    {
         var wish = reply.Wish is { } view ? Wish.From(view) : null;
         var name = wish?.Display ?? reply.FilmTitle ?? reply.ImdbId;
         var title = wish?.Title ?? reply.FilmTitle ?? reply.ImdbId;

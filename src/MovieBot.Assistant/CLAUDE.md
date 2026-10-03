@@ -34,7 +34,7 @@ sentence, so a client words its message from facts rather than parsing text.
 - **A person carries the token the API gave them** at Discord sign-in, checked with `Auth:SigningKey`.
   This service mints nothing and keeps no sessions.
 - **A service carries `X-MovieBot-Service`** (`Auth:ServiceKey`) **and names the person** in
-  `X-MovieBot-Acting: userId|displayName`. It names who, never what.
+  `X-MovieBot-Acting: userId|displayName`, the name percent-encoded. It names who, never what.
 - **Only a service names a room.** A room is what gives a turn the room tools (`RoomTools.RoomOnly`)
   and the room's conversation, `room:<sessionId>`, shared by everyone in it; the bot knows which voice
   channel somebody is standing in. A person's turn names none, whatever the body says: it gets the
@@ -66,6 +66,44 @@ sentence, so a client words its message from facts rather than parsing text.
   and are then corrected. `RoomTools.Acted` is what a claim is held against, and it must cover every
   tool that changes something. A reply that leaves a proposal unmentioned has the pending note
   appended, so it is in the text every client renders.
+- **A reply asking for an id, or announcing a film nothing put on, is sent back.** `RoomIdRequest`
+  sends back a reply asking for an id the tools find themselves: the model repeats such a reply from
+  its own conversation, and a line in the instructions does not stop it on every history.
+  `RoomLoadingClaim` sends back "Loading Heat..." on a turn that put nothing on, which has no subject
+  for the first-person check to find.
+- **Asking for a film is one tool, `watch_film`, and it always comes back with something to act on.**
+  Given a search and a load as separate tools, the model stops at the first answer and says a film is
+  not in the library without asking the tracker. `watch_film` puts the film on when the library has
+  it. Otherwise it asks the tracker, puts on a library film the title index names under another
+  spelling, and proposes the ranker's best release, because after a tool answers the model ends its
+  turn far more often than it calls the next one. When the tracker has no release it gives the imdb id
+  `add_wish` takes. Other films the words could mean are listed, earliest first. With no room, the
+  film is found to open and a download is fetched for the library.
+- **`watch_film` reads what the model wrote the way the film is listed, not the way it was typed.** The
+  model retypes ids with the punctuation changed, words doubled and the year invented, so the matcher
+  compares words and ignores punctuation. A film named whole under a year nobody said is put on,
+  because the year is the model's; when the person said a number, the year may be what picks the film,
+  so it is not put on. Replies to a film that could not be picked are written for the model: the films
+  it could have been by name, earliest first.
+- **A film named by its place in a series is counted here, in the order the films came out.** "The
+  second Pirates of the Caribbean" and "step up 2" are read from the person's words, which the model
+  often drops when it writes the name down, and the catalogue's films sharing the name are counted by
+  year. The index's own order is what people search for this week.
+- **Carrying on is `resume`, never `play`.** A tool named `play` is what the model calls for "play"
+  followed by a film's name, and the room carries on with the film it already holds.
+- **A room's conversation lasts as long as the room keeps talking.** Once it has been silent for
+  `Assistant:IdleResetMinutes`, the next request or room verb starts it over with the store's `Reset`,
+  which replays nothing before it and keeps every turn on disk. Requests to a room are mostly
+  unrelated, and a follow-up comes within minutes of what it follows. A person's chat is never started
+  over: a new one is theirs to start.
+- **A room's conversation is part of what is measured.** A request that routes correctly in a fresh
+  conversation can fail in a room's real one, because earlier replies are examples the model copies. A
+  routing failure seen live is reproduced by replaying that room's turns before it is judged fixed;
+  `tests/MovieBot.Tests/Replays` holds those turns and `RoomReplayRoutingTests` replays them.
+- **The harness around the loop is shared, and the films are not.** Reading the prompts and
+  `tools.json`, the catalog's agreement with `RoomTools.Names`, proposal tokens, the reply checks and
+  compaction come from `TheKrystalShip.Agent` in tks-agent. What the tools do, which of them wait for a
+  person, and the words a room is acted on in are this repository's.
 - **A turn is not the request that started it.** It runs one at a time per conversation, up to three
   wait, and every surface of the conversation can attach to it; the request going away ends nothing,
   a stop does.

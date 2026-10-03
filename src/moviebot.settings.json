@@ -116,11 +116,13 @@
   },
 
   // The assistant: moviebot-assistant answers what people say to MovieBot, with the language model
-  // below, and listens on Listen. Enabled is whether the bot puts a spoken request the room verbs do
-  // not cover to it; off unless enabled.
+  // below, and listens on Listen; the bot reaches it at BaseUrl. Enabled is whether the bot puts a
+  // spoken request the room verbs do not cover to it; off unless enabled.
   "Assistant": {
     "Enabled": false,
     "Listen": "http://127.0.0.1:8191",
+    "BaseUrl": "http://127.0.0.1:8191",
+    "ConfirmWindowSeconds": 20,
     "OfferMinutes": 10,
     "LibraryInContext": 60,
     "IdleResetMinutes": 15

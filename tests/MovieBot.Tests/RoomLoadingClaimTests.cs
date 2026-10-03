@@ -1,4 +1,4 @@
-using TheKrystalShip.MovieBot.Bot.Assistant;
+using TheKrystalShip.MovieBot.Assistant;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;

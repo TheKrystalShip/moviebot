@@ -1,12 +1,58 @@
 using System.Text.Json.Serialization;
 using TheKrystalShip.MovieBot.Core;
 
-namespace TheKrystalShip.MovieBot.Assistant.Wire;
+namespace TheKrystalShip.MovieBot.Client.Assistant;
 
-// The frames of the assistant wire contract (kgsm-llm/docs/wire-contract.md, version 2.1), in the
-// shapes this service sends, plus the one frame this product adds: `launch`. Every frame carries its
-// own `type`, an absent optional field is omitted rather than null, and a client ignores what it does
-// not know.
+// moviebot-assistant's wire: the frames of the assistant wire contract (kgsm-llm/docs/wire-contract.md,
+// version 2.1) in the shapes the service sends, plus the one frame this product adds, `launch`, and
+// the bodies its routes take and answer. Here rather than in the service so the bot compiles against
+// it without the service: every frame carries its own `type`, an absent optional field is omitted
+// rather than null, and a client ignores what it does not know.
+
+/// <summary>
+/// The room-verb tools the bot records into a room's conversation when it carries one out itself.
+/// They are tools of the assistant's catalog, so the names are the contract.
+/// </summary>
+public static class RoomVerbTools
+{
+    public const string Resume = "resume";
+    public const string Pause = "pause";
+    public const string SeekRelative = "seek_relative";
+}
+
+/// <summary>A room a turn is about: the session it is, and what people call it.</summary>
+/// <param name="ChannelId">The Discord channel announcements for the room go to, when it has one.</param>
+public sealed record TurnRoom(string SessionId, string Name, string? ChannelId = null);
+
+/// <summary>
+/// What carrying out a proposal came to: a sentence, whether it may be presented as done, and the
+/// API's own answer, which a client words its own message from.
+/// </summary>
+/// <param name="Verdict">
+/// <c>accepted</c> when the API took the act, <c>refused</c> when nothing ran, <c>failed</c> when it
+/// ran and said no.
+/// </param>
+public sealed record ConfirmOutcome
+{
+    public required string Text { get; init; }
+
+    public required bool Success { get; init; }
+
+    public required string Verdict { get; init; }
+
+    /// <summary>The tool that proposed it: <c>download_film</c> is a download into the room it was proposed in.</summary>
+    public string? Kind { get; init; }
+
+    public StartDownloadReply? Download { get; init; }
+
+    public AddWishReply? Wish { get; init; }
+
+    public KeepReply? Keep { get; init; }
+
+    public SubtitleAdded? Subtitle { get; init; }
+
+    public static ConfirmOutcome Refused(string text) => new() { Text = text, Success = false, Verdict = "refused" };
+}
 
 /// <summary>One frame on a turn or event stream. <see cref="Type"/> is also the SSE event name.</summary>
 [JsonDerivedType(typeof(TextDelta))]
@@ -45,14 +91,16 @@ public sealed record ToolResultFrame(string Id, string Tool, string Summary) : F
 /// <summary>What a proposal is done to.</summary>
 public sealed record CommandSubject(string Resource, string Id);
 
-/// <summary>An act staged for somebody to agree to. <see cref="Token"/> is what <c>POST /confirm</c> takes.</summary>
+/// <summary>
+/// An act staged for somebody to agree to. <see cref="Token"/> is what <c>POST /confirm</c> takes.
+/// <see cref="Describes"/> is the act in the words somebody would use and <see cref="AskedBy"/> who
+/// asked for it, so a client can say what was agreed to without parsing <see cref="Confirm"/>.
+/// </summary>
 public sealed record CommandProposed(
-    string Id, string Verb, CommandSubject Subject, string Confirm, string Token, string? Reason = null) : Frame
+    string Id, string Verb, CommandSubject Subject, string Confirm, string Token,
+    string? Describes = null, string? AskedBy = null, string? Reason = null) : Frame
 {
     public override string Type => "command.proposed";
-
-    public static CommandProposed From(StagedAction action) =>
-        new(action.Id, action.Verb, new CommandSubject("film", action.Subject), action.Confirm, action.Token);
 }
 
 /// <summary>

@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Client;
+using TheKrystalShip.MovieBot.Client.Assistant;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Assistant;

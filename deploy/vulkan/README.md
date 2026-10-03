@@ -70,14 +70,14 @@ The warm-up only warms the shape it is sent. Measured on hotbox after a restart:
 | a different prompt and catalog, first time | 1,093 ms |
 | the same, second time | 244 ms |
 
-So the warm-up is the bot's own request. Every time moviebot-bot starts with the assistant on, it
-writes its instructions and tool catalog as a llama-server request to
-`/var/lib/moviebot-bot/llm-warmup.json` and sends it through the model; `warm-llm.sh` runs as this
-unit's `ExecStartPost` and replays that file, so systemd does not report the service active until a
-request of that shape has been all the way through. The bot is the only thing that knows the shape,
-which is why it writes the file. `warmup.json` beside the script stands in on a host where the bot
-has never run with the assistant on; a warm-up of the wrong shape leaves the first real request cold
-and looks like it worked.
+So the warm-up is the assistant's own request. Every time moviebot-assistant starts, it writes its
+instructions and tool catalog as a llama-server request to
+`/var/lib/moviebot-assistant/llm-warmup.json` and sends it through the model; `warm-llm.sh` runs as
+this unit's `ExecStartPost` and replays that file, so systemd does not report the service active until
+a request of that shape has been all the way through. The assistant is the only thing that knows the
+shape, which is why it writes the file. `warmup.json` beside the script stands in on a host where the
+assistant has never run; a warm-up of the wrong shape leaves the first real request cold and looks
+like it worked.
 
 ## Measured on hotbox
 

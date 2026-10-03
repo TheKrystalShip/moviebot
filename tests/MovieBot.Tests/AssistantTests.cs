@@ -4,7 +4,7 @@ using TheKrystalShip.Agent;
 using TheKrystalShip.Agent.Replies;
 using TheKrystalShip.Llm.Models;
 using TheKrystalShip.MovieBot.Assistant;
-using TheKrystalShip.MovieBot.Assistant.Wire;
+using TheKrystalShip.MovieBot.Client.Assistant;
 using TheKrystalShip.MovieBot.Core;
 using Xunit;
 

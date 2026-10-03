@@ -4,6 +4,7 @@ using TheKrystalShip.Discord.Voice;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Assistant;
 using TheKrystalShip.MovieBot.Bot.Sessions;
+using TheKrystalShip.MovieBot.Client.Assistant;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Bot.Voice;
@@ -181,9 +182,9 @@ public sealed class RoomVoiceCommandHandler(
         var at = FilmClock.Format(change.Push.State.PositionSeconds);
         var (tool, arguments, outcome) = reading.Kind switch
         {
-            RoomVerbKind.Pause => (RoomTools.Pause, new Dictionary<string, string?>(), $"Paused at {at}."),
-            RoomVerbKind.Play => (RoomTools.Resume, new Dictionary<string, string?>(), $"Playing from {at}."),
-            _ => (RoomTools.SeekRelative,
+            RoomVerbKind.Pause => (RoomVerbTools.Pause, new Dictionary<string, string?>(), $"Paused at {at}."),
+            RoomVerbKind.Play => (RoomVerbTools.Resume, new Dictionary<string, string?>(), $"Playing from {at}."),
+            _ => (RoomVerbTools.SeekRelative,
                 new Dictionary<string, string?>
                 {
                     ["seconds"] = reading.Seconds.ToString(System.Globalization.CultureInfo.InvariantCulture),

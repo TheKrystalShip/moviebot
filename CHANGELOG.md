@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.59.0] - 2026-10-03
+
+### Changed
+
+- **The bot is a client of moviebot-assistant, with no engine of its own.** A spoken request the room
+  verbs do not cover is a `POST /turn` naming the room and the speaker; a `launch` frame becomes the
+  launch card `/watch` posts; the buttons and a spoken yes carry the service's token to
+  `POST /confirm`, as whoever agreed; and a room verb is written into the room's conversation with
+  `POST /rooms/record`. With the assistant unreachable a request is told so in one sentence, and the
+  room verbs, slash commands and announcements are unaffected.
+- A confirmed download, wish or keep is posted in the same words and embeds as the slash command
+  (`DownloadCommand.Describe`, `NotifyCommand.Describe`, `KeepCommand.Describe`), and a download gets
+  its progress message as before.
+- The bot no longer carries the agent loop, the prompts, the conversation store or the model client.
+  `Assistant.BaseUrl` names the service; `Assistant.ConfirmWindowSeconds` stays the bot's.
+- The assistant wire's shapes are in `MovieBot.Client`, so the bot builds without the assistant's
+  project. A proposal frame carries `describes` and `askedBy`, and a speaker's name in
+  `X-MovieBot-Acting` is percent-encoded.
+
 ## [1.58.0] - 2026-10-03
 
 ### Added

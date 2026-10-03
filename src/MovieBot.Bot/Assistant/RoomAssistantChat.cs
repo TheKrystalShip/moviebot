@@ -1,10 +1,16 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.Discord.Voice;
+using TheKrystalShip.MovieBot.Bot.Download;
+using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Bot.Launch;
+using TheKrystalShip.MovieBot.Bot.Notify;
+using TheKrystalShip.MovieBot.Bot.Sessions;
+using TheKrystalShip.MovieBot.Client.Assistant;
 
 namespace TheKrystalShip.MovieBot.Bot.Assistant;
 
@@ -29,7 +35,7 @@ public interface IRoomAssistant
     Task HandleButtonAsync(SocketMessageComponent component);
 }
 
-/// <summary>The host with no model: requests the gate cannot read are heard and answered by nothing.</summary>
+/// <summary>The host with no assistant: requests the gate cannot read are heard and answered by nothing.</summary>
 public sealed class NoRoomAssistant : IRoomAssistant
 {
     public bool IsEnabled => false;
@@ -40,9 +46,16 @@ public sealed class NoRoomAssistant : IRoomAssistant
 }
 
 /// <summary>
-/// Answers in the voice channel's own chat.
+/// Puts what is said to moviebot-assistant as the person who said it, and answers in the voice
+/// channel's own chat.
 /// </summary>
 /// <remarks>
+/// <para>
+/// <b>The bot is a client, with no engine of its own.</b> The turn, the tools, the conversation and
+/// the proposals are the assistant's. What stays here is Discord: what was heard, the launch card, the
+/// buttons, the progress message and the announcement. An assistant that cannot be reached is said so
+/// in the channel, and the room verbs, the slash commands and the announcements go on without it.
+/// </para>
 /// <para>
 /// <b>Written, never spoken.</b> The film's sound plays in every viewer's browser, so anything the bot
 /// said would be said over the film for everybody. A message is read by whoever cares and ignored by
@@ -53,23 +66,26 @@ public sealed class NoRoomAssistant : IRoomAssistant
 /// inexplicable unless the room can see what the bot thought it was asked.
 /// </para>
 /// <para>
-/// <b>A proposal is a message with two buttons, and a spoken yes is the same answer.</b> Both redeem
-/// one token, so whichever comes first carries the act out and the other finds it spent. The prompt is
-/// edited to say who agreed, or that it was dropped or expired, so a button that does nothing any more
-/// says why where it stands.
+/// <b>A proposal is a message with two buttons, and a spoken yes is the same answer.</b> Both carry the
+/// assistant's token, which redeems once, so whichever comes first carries the act out and the other
+/// finds it spent. Whoever agrees is who the bot speaks for, and the act is still done as the person
+/// who asked. The prompt is edited to say who agreed, or that it was dropped, so a button that does
+/// nothing any more says why where it stands.
 /// </para>
 /// <para>
 /// <b>Answering does not hold up the room verbs.</b> A turn takes a second or more, and every spoken
-/// command goes through one queue; "pause" said while the model is working on something else would
-/// otherwise wait for it. Turns in one room still run one at a time, because they share a
-/// conversation.
+/// command goes through one queue; "pause" said while the assistant is working on something else would
+/// otherwise wait for it.
 /// </para>
 /// </remarks>
 public sealed class RoomAssistantChat(
     DiscordSocketClient discord,
-    RoomAssistant assistant,
-    StagedActions staged,
+    AssistantClient assistant,
+    MovieBotApiClient api,
+    ILaunchPresenter presenter,
+    IFilmRetention retention,
     LaunchCards cards,
+    DownloadCommand downloads,
     VoiceAttention attention,
     IVoiceChimes chimes,
     IOptions<AssistantOptions> options,
@@ -79,9 +95,15 @@ public sealed class RoomAssistantChat(
     public const string ConfirmPrefix = "assistant:confirm:";
     public const string DropPrefix = "assistant:drop:";
 
+    public const string Unreachable =
+        "I couldn't reach the assistant just now, so nothing happened. The room verbs still work.";
+
     private const int MessageLimit = 2000;
 
-    private readonly ConcurrentDictionary<ulong, SemaphoreSlim> _rooms = new();
+    /// <summary>The prompts this process posted, by token, so a spoken answer closes the right message.</summary>
+    private readonly ConcurrentDictionary<string, Prompt> _prompts = new();
+
+    private sealed record Prompt(ulong ChannelId, ulong MessageId, string Describes, string AskedBy);
 
     public bool IsEnabled => true;
 
@@ -89,8 +111,6 @@ public sealed class RoomAssistantChat(
     {
         _ = Task.Run(async () =>
         {
-            var room = _rooms.GetOrAdd(command.ChannelId, _ => new SemaphoreSlim(1, 1));
-            await room.WaitAsync();
             try
             {
                 await AnswerAsync(command, CancellationToken.None);
@@ -98,10 +118,6 @@ public sealed class RoomAssistantChat(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Assistant: failed to answer {Speaker}", command.SpeakerName);
-            }
-            finally
-            {
-                room.Release();
             }
         });
     }
@@ -116,40 +132,83 @@ public sealed class RoomAssistantChat(
 
         await chat.SendMessageAsync(Heard(command), allowedMentions: AllowedMentions.None);
 
-        var turn = TurnFor(command);
-        RoomAnswer answer;
-        using (chat.EnterTypingState())
-            answer = await assistant.AskAsync(turn, command.Text, ct);
-
-        foreach (var launch in answer.Launched)
+        TurnReply reply;
+        try
         {
-            var posted = await chat.SendMessageAsync(
-                launch.Text, embed: launch.Embed, components: launch.Components, allowedMentions: AllowedMentions.None);
-            if (launch.Invite is { } invite) cards.Add(invite, command.ChannelId, posted.Id);
+            using (chat.EnterTypingState())
+                reply = await assistant.TurnAsync(RoomOf(command), SpeakerOf(command), command.Text, ct);
+        }
+        catch (AssistantUnavailableException ex)
+        {
+            logger.LogWarning(ex, "Assistant: {Speaker}'s request went unanswered", command.SpeakerName);
+            await chat.SendMessageAsync(Unreachable, allowedMentions: AllowedMentions.None);
+            return;
         }
 
-        if (!string.IsNullOrWhiteSpace(answer.Text))
-            await chat.SendMessageAsync(Fit(answer.Text), allowedMentions: AllowedMentions.None);
+        foreach (var launch in reply.Launches)
+            await PostLaunchAsync(chat, command, launch, ct);
 
-        foreach (var proposal in answer.Proposed)
+        if (!string.IsNullOrWhiteSpace(reply.Text))
+            await chat.SendMessageAsync(Fit(reply.Text), allowedMentions: AllowedMentions.None);
+
+        foreach (var proposal in reply.Proposals)
         {
+            var describes = proposal.Describes ?? proposal.Subject.Id;
+            var asker = proposal.AskedBy ?? command.SpeakerName;
             var prompt = await chat.SendMessageAsync(
-                Fit($"{proposal.AskedByName} asked me to **{proposal.Describes}**. Go ahead?"),
+                Fit($"{asker} asked me to **{describes}**. Go ahead?"),
                 components: Buttons(proposal.Token),
                 allowedMentions: AllowedMentions.None);
-            proposal.PromptMessageId = prompt.Id;
+            _prompts[proposal.Token] = new Prompt(command.ChannelId, prompt.Id, describes, asker);
         }
 
-        if (answer.Proposed.Count > 0 && options.Value.ConfirmWindowSeconds > 0)
+        if (reply.Proposals.Count > 0 && options.Value.ConfirmWindowSeconds > 0)
         {
             attention.Expect(command.SpeakerId, command.ChannelId, new VoiceWaiting(
                 VoiceWaitingFor.Confirmation,
                 clock.GetUtcNow() + TimeSpan.FromSeconds(options.Value.ConfirmWindowSeconds),
-                [.. answer.Proposed.Select(p => p.Token)],
-                string.Join(" and ", answer.Proposed.Select(p => p.Describes)),
-                answer.Proposed[0].Kind));
+                [.. reply.Proposals.Select(p => p.Token)],
+                string.Join(" and ", reply.Proposals.Select(p => p.Describes ?? p.Subject.Id)),
+                reply.Proposals[0].Verb));
 
             await chimes.PlayAsync(command.GuildId, VoiceChime.Listening, ct);
+        }
+    }
+
+    /// <summary>
+    /// The card for a film the assistant put on in the room: the same card <c>/watch</c> posts, worded
+    /// by what happened to the room. The room was changed by the assistant before the frame arrived.
+    /// </summary>
+    private async Task PostLaunchAsync(IMessageChannel chat, VoiceCommand command, LaunchFrame launch, CancellationToken ct)
+    {
+        try
+        {
+            var library = await api.ListTitlesAsync(ct);
+            if (library.FirstOrDefault(t => t.Id == launch.TitleId) is not { } title)
+            {
+                logger.LogWarning("Assistant: {Title} was put on and is not in the library", launch.TitleId);
+                return;
+            }
+
+            var card = await presenter.PresentAsync(new LaunchRequest
+            {
+                SessionId = launch.SessionId ?? RoomSession.IdFor(command.ChannelId),
+                Title = title,
+                VoiceChannelId = command.ChannelId,
+                VoiceChannelName = ChannelName(command),
+                RequestedBy = launch.RequestedBy,
+                Replaced = launch.Replaced is { } replaced ? library.FirstOrDefault(t => t.Name == replaced) : null,
+                AlreadyWatching = launch.AlreadyWatching,
+                OnDisk = await retention.NoticeForAsync(title.Id, ct),
+            }, ct);
+
+            var posted = await chat.SendMessageAsync(
+                card.Text, embed: card.Embed, components: card.Components, allowedMentions: AllowedMentions.None);
+            if (card.Invite is { } invite) cards.Add(invite, command.ChannelId, posted.Id);
+        }
+        catch (MovieBotApiException ex)
+        {
+            logger.LogWarning(ex, "Assistant: the card for {Title} could not be made", launch.TitleId);
         }
     }
 
@@ -179,19 +238,35 @@ public sealed class RoomAssistantChat(
 
         await chat.SendMessageAsync(Heard(command), allowedMentions: AllowedMentions.None);
 
-        var approval = new Approval(command.SpeakerId, command.SpeakerName);
+        var speaker = SpeakerOf(command);
         foreach (var token in waiting.Tokens ?? [])
         {
+            var prompt = _prompts.GetValueOrDefault(token);
             if (intent == SpokenIntent.Affirm)
-                await CarryOutAsync(chat, token, approval, ct);
+                await CarryOutAsync(chat, token, prompt?.MessageId, speaker, ct);
             else
-                await DropAsync(chat, token, approval);
+                await DropAsync(chat, token, prompt?.MessageId, speaker);
         }
     }
 
-    public void RecordAct(
-        VoiceCommand command, string tool, IReadOnlyDictionary<string, string?> arguments, string outcome) =>
-        assistant.RecordAct(TurnFor(command), command.Text, tool, arguments, outcome);
+    public void RecordAct(VoiceCommand command, string tool, IReadOnlyDictionary<string, string?> arguments, string outcome)
+    {
+        // Best effort, and never waited on: the film has already moved, and a record that could not be
+        // written is not a reason to hold up the next verb.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await assistant.RecordAsync(
+                    new RecordRequest(RoomOf(command), command.Text, tool, arguments, outcome),
+                    SpeakerOf(command), CancellationToken.None);
+            }
+            catch (AssistantUnavailableException ex)
+            {
+                logger.LogDebug(ex, "Assistant: {Speaker}'s {Tool} was not recorded", command.SpeakerName, tool);
+            }
+        });
+    }
 
     public async Task HandleButtonAsync(SocketMessageComponent component)
     {
@@ -203,72 +278,110 @@ public sealed class RoomAssistantChat(
         // Acknowledged at once: carrying out a download takes longer than Discord waits for a press.
         await component.DeferAsync();
 
-        var approval = new Approval(component.User.Id, name);
+        var speaker = new Speaker(component.User.Id, name);
         if (confirming)
-            await CarryOutAsync(component.Channel, token, approval, CancellationToken.None);
+            await CarryOutAsync(component.Channel, token, component.Message.Id, speaker, CancellationToken.None);
         else
-            await DropAsync(component.Channel, token, approval);
+            await DropAsync(component.Channel, token, component.Message.Id, speaker);
     }
 
-    private async Task CarryOutAsync(IMessageChannel chat, string token, Approval approval, CancellationToken ct)
+    private async Task CarryOutAsync(IMessageChannel chat, string token, ulong? promptId, Speaker agreed, CancellationToken ct)
     {
-        if (staged.Take(token) is not { } proposal)
+        _prompts.TryRemove(token, out var prompt);
+
+        ConfirmReply? reply;
+        try
+        {
+            reply = await assistant.ConfirmAsync(token, agreed, ct);
+        }
+        catch (AssistantUnavailableException ex)
+        {
+            logger.LogWarning(ex, "Assistant: {Approver}'s agreement went unanswered", agreed.DisplayName);
+            await chat.SendMessageAsync(Unreachable, allowedMentions: AllowedMentions.None);
+            return;
+        }
+
+        if (reply is null)
         {
             await chat.SendMessageAsync(
-                $"That proposal has already been answered or has expired, {approval.DisplayName}. Ask again if it is still wanted.",
+                $"That proposal has already been answered or has expired, {agreed.DisplayName}. Ask again if it is still wanted.",
                 allowedMentions: AllowedMentions.None);
             return;
         }
 
-        await ClosePromptAsync(chat, proposal, $"{approval.DisplayName} agreed: {proposal.Describes}.");
-        logger.LogInformation(
-            "Assistant: {Approver} agreed to {What}, asked for by {Asker}",
-            approval.DisplayName, proposal.Describes, proposal.AskedByName);
+        var describes = prompt?.Describes ?? "that";
+        await ClosePromptAsync(chat, promptId, prompt, $"{agreed.DisplayName} agreed: {describes}.");
+        logger.LogInformation("Assistant: {Approver} agreed to {What} ({Verdict})", agreed.DisplayName, describes, reply.Outcome.Verdict);
 
-        StagedOutcome outcome;
-        try
-        {
-            outcome = await proposal.Run(ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Assistant: carrying out {What} failed", proposal.Describes);
-            outcome = new StagedOutcome($"That did not work: {ex.Message}");
-        }
-
-        var posted = await chat.SendMessageAsync(
-            Fit(outcome.Message), embed: outcome.Embed, allowedMentions: AllowedMentions.None);
-
-        if (outcome.AfterPosted is { } after)
-        {
-            try { await after(posted); }
-            catch (Exception ex) { logger.LogWarning(ex, "Assistant: follow-up to {What} failed", proposal.Describes); }
-        }
+        await PostOutcomeAsync(chat, reply, ct);
     }
 
-    private async Task DropAsync(IMessageChannel chat, string token, Approval approval)
+    /// <summary>
+    /// What was agreed to, told the way the slash commands tell it: the same sentence, the same
+    /// embed, and for a download the progress message that follows it.
+    /// </summary>
+    private async Task PostOutcomeAsync(IMessageChannel chat, ConfirmReply reply, CancellationToken ct)
     {
-        if (staged.Take(token) is { } proposal)
-            await ClosePromptAsync(chat, proposal, $"{approval.DisplayName} dropped it: {proposal.Describes}. Nothing happened.");
+        var result = reply.Result;
+
+        if (result?.Download is { } download)
+        {
+            var intoRoom = result.Kind == "download_film";
+            var told = DownloadCommand.Describe(download, intoRoom);
+            var embed = told.Release is { } release && told.Outcome == DownloadOutcome.Started
+                ? DownloadEmbed.Starting(release, intoRoom ? (chat as IChannel)?.Name : null)
+                : null;
+            var posted = await chat.SendMessageAsync(Fit(told.Message), embed: embed, allowedMentions: AllowedMentions.None);
+
+            if (told.Hash is { } hash && told.Outcome == DownloadOutcome.Started)
+                await downloads.RecordProgressMessageAsync(hash, chat.Id, posted.Id, ct);
+            return;
+        }
+
+        if (result?.Wish is { } wish)
+        {
+            var told = NotifyCommand.Describe(wish);
+            await chat.SendMessageAsync(Fit(told.Message), embed: WishEmbed.For(told), allowedMentions: AllowedMentions.None);
+            return;
+        }
+
+        if (result?.Keep is { } keep)
+        {
+            await chat.SendMessageAsync(Fit(KeepCommand.Describe(keep).Message), allowedMentions: AllowedMentions.None);
+            return;
+        }
+
+        await chat.SendMessageAsync(Fit(reply.Text), allowedMentions: AllowedMentions.None);
+    }
+
+    /// <summary>
+    /// Takes the buttons off a dropped proposal and says so. The token is left to expire: nothing
+    /// spends it, and the buttons that could have are gone.
+    /// </summary>
+    private async Task DropAsync(IMessageChannel chat, string token, ulong? promptId, Speaker dropped)
+    {
+        _prompts.TryRemove(token, out var prompt);
+        var describes = prompt?.Describes ?? "that";
+        await ClosePromptAsync(chat, promptId, prompt, $"{dropped.DisplayName} dropped it: {describes}. Nothing happened.");
     }
 
     /// <summary>Takes the buttons off a prompt and says what became of it, where the prompt stands.</summary>
-    private async Task ClosePromptAsync(IMessageChannel chat, StagedAction proposal, string closing)
+    private async Task ClosePromptAsync(IMessageChannel chat, ulong? messageId, Prompt? prompt, string closing)
     {
-        if (proposal.PromptMessageId is not { } messageId) return;
+        if (messageId is not { } id) return;
 
         try
         {
-            await chat.ModifyMessageAsync(messageId, message =>
+            await chat.ModifyMessageAsync(id, message =>
             {
-                message.Content = Fit($"{proposal.AskedByName} asked me to {proposal.Describes}.\n{closing}");
+                message.Content = Fit(prompt is null ? closing : $"{prompt.AskedBy} asked me to {prompt.Describes}.\n{closing}");
                 message.Components = new ComponentBuilder().Build();
                 message.AllowedMentions = AllowedMentions.None;
             });
         }
         catch (Exception ex)
         {
-            logger.LogDebug(ex, "Assistant: the prompt for {What} could not be closed", proposal.Describes);
+            logger.LogDebug(ex, "Assistant: a prompt could not be closed");
         }
     }
 
@@ -278,10 +391,17 @@ public sealed class RoomAssistantChat(
             .WithButton("Drop it", DropPrefix + token, ButtonStyle.Secondary)
             .Build();
 
-    private RoomTurn TurnFor(VoiceCommand command) =>
-        new(command.GuildId, command.ChannelId,
-            (discord.GetChannel(command.ChannelId) as IChannel)?.Name ?? "this room",
-            command.SpeakerId, command.SpeakerName);
+    /// <summary>The room is the voice channel; announcements for it go to that channel's chat.</summary>
+    private TurnRoom RoomOf(VoiceCommand command)
+    {
+        var id = command.ChannelId.ToString(CultureInfo.InvariantCulture);
+        return new TurnRoom(RoomSession.IdFor(command.ChannelId), ChannelName(command), id);
+    }
+
+    private string ChannelName(VoiceCommand command) =>
+        (discord.GetChannel(command.ChannelId) as IChannel)?.Name ?? "this room";
+
+    private static Speaker SpeakerOf(VoiceCommand command) => new(command.SpeakerId, command.SpeakerName);
 
     private static string Heard(VoiceCommand command) => $"**{command.SpeakerName}:** {command.Text}";
 

@@ -7,7 +7,7 @@ using TheKrystalShip.Llm.Models;
 using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
-using TheKrystalShip.MovieBot.Assistant.Wire;
+using TheKrystalShip.MovieBot.Client.Assistant;
 using TheKrystalShip.MovieBot.Client;
 using TheKrystalShip.MovieBot.Core;
 
@@ -64,10 +64,10 @@ public sealed partial class RoomTools(
     /// the model answers "play" followed by a film's name with it, passing the name as an argument it
     /// does not take, and the room carries on with the film it was already watching.
     /// </summary>
-    public const string Resume = "resume";
-    public const string Pause = "pause";
+    public const string Resume = RoomVerbTools.Resume;
+    public const string Pause = RoomVerbTools.Pause;
     public const string Seek = "seek";
-    public const string SeekRelative = "seek_relative";
+    public const string SeekRelative = RoomVerbTools.SeekRelative;
     public const string WatchFilm = "watch_film";
     public const string DownloadFilm = "download_film";
     /// <summary>

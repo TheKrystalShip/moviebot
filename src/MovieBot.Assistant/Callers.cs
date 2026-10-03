@@ -23,7 +23,8 @@ public sealed record Caller(string UserId, string DisplayName, bool Service)
 /// </para>
 /// <para>
 /// <b>A service carries the service key and names the person it speaks for</b> in
-/// <c>X-MovieBot-Acting: userId|displayName</c>. It names who, never what: the person's tools and
+/// <c>X-MovieBot-Acting: userId|displayName</c>, the name percent-encoded because a header is ASCII
+/// and a name is not. It names who, never what: the person's tools and
 /// conversation follow from the turn, so a service cannot ask for more than the person it names could.
 /// </para>
 /// </remarks>
@@ -46,7 +47,7 @@ public sealed class Callers(IOptions<AssistantAuthOptions> options, TimeProvider
             var acting = request.Headers[ActingHeader].ToString();
             var bar = acting.IndexOf('|');
             return bar > 0 && bar < acting.Length - 1
-                ? new Caller(acting[..bar].Trim(), acting[(bar + 1)..].Trim(), Service: true)
+                ? new Caller(acting[..bar].Trim(), Uri.UnescapeDataString(acting[(bar + 1)..].Trim()), Service: true)
                 : new Caller("", "MovieBot", Service: true);
         }
 

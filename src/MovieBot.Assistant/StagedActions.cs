@@ -1,39 +1,9 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.Agent.Confirmations;
-using TheKrystalShip.MovieBot.Core;
+using TheKrystalShip.MovieBot.Client.Assistant;
 
 namespace TheKrystalShip.MovieBot.Assistant;
-
-/// <summary>
-/// What carrying out a proposal came to: a sentence, whether it may be presented as done, and the
-/// facts a client words its own message from.
-/// </summary>
-/// <param name="Verdict">
-/// <c>accepted</c> when the API took the act, <c>refused</c> when nothing ran, <c>failed</c> when it
-/// ran and said no.
-/// </param>
-public sealed record ConfirmOutcome
-{
-    public required string Text { get; init; }
-
-    public required bool Success { get; init; }
-
-    public required string Verdict { get; init; }
-
-    /// <summary>The tool that proposed it.</summary>
-    public string? Kind { get; init; }
-
-    public StartDownloadReply? Download { get; init; }
-
-    public AddWishReply? Wish { get; init; }
-
-    public KeepReply? Keep { get; init; }
-
-    public SubtitleAdded? Subtitle { get; init; }
-
-    public static ConfirmOutcome Refused(string text) => new() { Text = text, Success = false, Verdict = "refused" };
-}
 
 /// <summary>
 /// Something the assistant proposed that spends disk, a daily allowance or a film's place on the
@@ -82,6 +52,10 @@ public sealed class StagedAction
 
     /// <summary>The prompt a client puts beside its buttons.</summary>
     public string Confirm => $"{AskedByName} asked me to {Describes}. Go ahead?";
+
+    /// <summary>The frame that hands it to a client.</summary>
+    public CommandProposed Frame() =>
+        new(Id, Verb, new CommandSubject("film", Subject), Confirm, Token, Describes, AskedByName);
 }
 
 /// <summary>

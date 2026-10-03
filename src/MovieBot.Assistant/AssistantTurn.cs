@@ -1,8 +1,6 @@
-namespace TheKrystalShip.MovieBot.Assistant;
+using TheKrystalShip.MovieBot.Client.Assistant;
 
-/// <summary>A room a turn is about: the session it is, and what people call it.</summary>
-/// <param name="ChannelId">The Discord channel announcements for the room go to, when it has one.</param>
-public sealed record TurnRoom(string SessionId, string Name, string? ChannelId = null);
+namespace TheKrystalShip.MovieBot.Assistant;
 
 /// <summary>
 /// Who asked, and what about. Everything a tool acts on is this room, when there is one, and

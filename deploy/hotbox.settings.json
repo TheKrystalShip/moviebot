@@ -54,7 +54,8 @@
     "LogTranscripts": true
   },
 
-  // What is said that the room verbs do not cover goes to the model moviebot-llm holds.
+  // What is said that the room verbs do not cover goes to moviebot-assistant, which answers with the
+  // model moviebot-llm holds.
   "Assistant": {
     "Enabled": true
   }

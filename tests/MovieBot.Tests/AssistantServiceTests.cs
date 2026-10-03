@@ -12,7 +12,7 @@ using TheKrystalShip.Llm.Interfaces;
 using TheKrystalShip.Llm.Models;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Assistant;
-using TheKrystalShip.MovieBot.Assistant.Wire;
+using TheKrystalShip.MovieBot.Client.Assistant;
 using TheKrystalShip.MovieBot.Core;
 using Xunit;
 

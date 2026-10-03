@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text;
 using System.Threading.Channels;
+using TheKrystalShip.MovieBot.Client.Assistant;
 
 namespace TheKrystalShip.MovieBot.Assistant.Wire;
 

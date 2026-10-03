@@ -6,7 +6,7 @@ using TheKrystalShip.Llm.Agent;
 using TheKrystalShip.Llm.Conversation;
 using TheKrystalShip.Llm.Interfaces;
 using TheKrystalShip.Llm.Models;
-using TheKrystalShip.MovieBot.Assistant.Wire;
+using TheKrystalShip.MovieBot.Client.Assistant;
 
 namespace TheKrystalShip.MovieBot.Assistant;
 
@@ -149,7 +149,7 @@ public sealed class CinemaAssistant(
         void HandOver()
         {
             for (; handedProposals < tools.Proposed.Count; handedProposals++)
-                emit(CommandProposed.From(tools.Proposed[handedProposals]));
+                emit(tools.Proposed[handedProposals].Frame());
             for (; handedLaunches < tools.Launched.Count; handedLaunches++)
                 emit(tools.Launched[handedLaunches]);
         }

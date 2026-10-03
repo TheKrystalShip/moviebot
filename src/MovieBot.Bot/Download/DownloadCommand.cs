@@ -105,18 +105,25 @@ public sealed class DownloadCommand(
                 "The MovieBot API is not answering, so nothing started. Try again in a minute.");
         }
 
-        return reply.Outcome switch
-        {
-            "started" => new DownloadResult(DownloadOutcome.Started,
-                request.RoomId is null
-                    ? "Downloading. It will be announced here when it can be watched."
-                    : "Downloading. It starts in your voice channel as soon as enough of it has "
-                      + "arrived, and you will be pinged here.",
-                reply.Release, reply.Hash),
-            "noLongerOffered" => new DownloadResult(DownloadOutcome.NoLongerOffered, Stale),
-            "refused" => new DownloadResult(DownloadOutcome.Refused, reply.Refusal ?? "The download was refused.", reply.Release),
-            _ => new DownloadResult(DownloadOutcome.TrackerUnavailable,
-                "Could not reach the tracker or the torrent client. Try again in a minute.", reply.Release),
-        };
+        return Describe(reply, intoRoom: request.RoomId is not null);
     }
+
+    /// <summary>
+    /// What the API's answer to a download is told as in a channel, whoever asked for it: a slash
+    /// command, or the assistant once somebody agreed.
+    /// </summary>
+    /// <param name="intoRoom">Whether the film starts in the voice channel once it can be watched.</param>
+    public static DownloadResult Describe(StartDownloadReply reply, bool intoRoom) => reply.Outcome switch
+    {
+        "started" => new DownloadResult(DownloadOutcome.Started,
+            intoRoom
+                ? "Downloading. It starts in your voice channel as soon as enough of it has "
+                  + "arrived, and you will be pinged here."
+                : "Downloading. It will be announced here when it can be watched.",
+            reply.Release, reply.Hash),
+        "noLongerOffered" => new DownloadResult(DownloadOutcome.NoLongerOffered, Stale),
+        "refused" => new DownloadResult(DownloadOutcome.Refused, reply.Refusal ?? "The download was refused.", reply.Release),
+        _ => new DownloadResult(DownloadOutcome.TrackerUnavailable,
+            "Could not reach the tracker or the torrent client. Try again in a minute.", reply.Release),
+    };
 }

@@ -8,7 +8,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Bot</RootNamespace>
     <AssemblyName>moviebot-bot</AssemblyName>
-    <Version>0.24.0</Version>
+    <Version>1.0.0</Version>
 
     <!-- The JIT is where this process's memory goes, not the heap, and a method compiled once at
          full optimisation is held once. Startup time is nothing to a worker that runs for weeks,
@@ -24,9 +24,6 @@
   <ItemGroup>
     <!-- The shared settings file, shipped beside the binary as the defaults. -->
     <Content Include="../moviebot.settings.json" Link="moviebot.settings.json" CopyToOutputDirectory="PreserveNewest" />
-
-    <!-- The assistant's instructions and tool descriptions, read from beside the binary. -->
-    <Content Include="prompts/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -47,24 +44,8 @@
          of a transcript are speech. A few kilobytes and no native code: the model is in the other
          process. -->
     <PackageReference Include="TheKrystalShip.Speech" Version="1.2.0" />
-
-    <!-- The agent loop and its conversation store, for what somebody says that the room verbs do not
-         cover. The model is moviebot-llm, reached over loopback; nothing of it runs in this process. -->
-    <PackageReference Include="TheKrystalShip.Llm" Version="2.4.0" />
-
-    <!-- What an assistant needs around the loop and belongs to no product: the prompt directory, the
-         catalog file and its agreement check, the checks a reply is held to, compaction, and the
-         single-use handle a proposal is redeemed by. -->
-    <PackageReference Include="TheKrystalShip.Agent" Version="1.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
-  </ItemGroup>
-
-  <!-- GHSA-2m69-gcr7-jv3q is on the native SQLite the conversation store pulls in, and no build of it
-       fixes the advisory. The database is this bot's own conversation, reached by no SQL anybody else
-       writes and no network. Scoped to that advisory alone. -->
-  <ItemGroup>
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
   </ItemGroup>
 
   <ItemGroup>
@@ -74,6 +55,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../MovieBot.Core/MovieBot.Core.csproj" />
+
+    <!-- The API client, and the wire moviebot-assistant speaks: the bot reaches both through it, and
+         builds without the assistant's own project. -->
     <ProjectReference Include="../MovieBot.Client/MovieBot.Client.csproj" />
 
     <!-- The acquiring half of the pipeline, from the repository beside this one. It is a library

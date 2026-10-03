@@ -85,7 +85,7 @@ which strips the prefix (`nginx-moviebot.conf`).
 - **The state directories are what no re-ingest can rebuild.** systemd hands the API
   `/var/lib/moviebot` — the rooms, the wish list, and the subtitles fetched from outside, each of
   which cost one of a limited daily allowance — the bot `/var/lib/moviebot-bot`, holding the launch
-  cards still standing and its own conversation, and the assistant `/var/lib/moviebot-assistant`,
+  cards still standing, and the assistant `/var/lib/moviebot-assistant`,
   holding the conversations and the warm-up request `moviebot-llm` replays when it starts.
 - **The cold disk is named in the settings file and proved by a marker file.** `Media.ColdRoot` and
   `Handoff.ColdRoot` point at the volume finished films are kept on, and it is used only while a

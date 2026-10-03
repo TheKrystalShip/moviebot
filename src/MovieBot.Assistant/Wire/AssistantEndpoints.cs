@@ -1,6 +1,7 @@
 using System.Text.Json;
 using TheKrystalShip.Llm.Interfaces;
 using TheKrystalShip.Llm.Models;
+using TheKrystalShip.MovieBot.Client.Assistant;
 
 namespace TheKrystalShip.MovieBot.Assistant.Wire;
 
@@ -86,7 +87,7 @@ public static class AssistantEndpoints
                 .ToList();
 
             return Json(new ConversationDetail(id, summary.Title, turns,
-                [.. staged.Pending(full).Select(CommandProposed.From)], false, false));
+                [.. staged.Pending(full).Select(a => a.Frame())], false, false));
         });
 
         app.MapDelete("/conversations/{id}", (string id, HttpRequest request, Callers callers, IConversationStore store, EventStreams streams) =>
@@ -231,7 +232,7 @@ public static class AssistantEndpoints
         {
             var answer = await live.Finished;
             await Write(context, Json(new TurnReply(answer.Text, answer.TurnId, answer.Failed,
-                [.. answer.Proposed.Select(CommandProposed.From)], answer.Launched)));
+                [.. answer.Proposed.Select(a => a.Frame())], answer.Launched)));
             return;
         }
 

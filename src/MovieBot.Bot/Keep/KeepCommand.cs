@@ -98,16 +98,7 @@ public sealed class KeepCommand(MovieBotApiClient api, ILogger<KeepCommand> logg
             return Unavailable();
         }
 
-        var film = reply.Film is { } view ? KeptFilm.From(view) : null;
-        return reply.Outcome switch
-        {
-            "kept" => new KeepResult(KeepStatus.Kept,
-                $"{film!.Name} stays. It will not be pruned until somebody runs /keep remove.", film),
-            "alreadyKept" => new KeepResult(KeepStatus.AlreadyKept,
-                $"{film!.Name} is already kept, by {Mention(film.Keeper!.Value)}.", film),
-            "unavailable" => Unavailable(),
-            _ => NotFound(),
-        };
+        return Describe(reply);
     }
 
     public async Task<KeepResult> ReleaseAsync(string hash, ulong userId, string displayName, CancellationToken ct)
@@ -123,13 +114,28 @@ public sealed class KeepCommand(MovieBotApiClient api, ILogger<KeepCommand> logg
             return Unavailable();
         }
 
+        return Describe(reply);
+    }
+
+    /// <summary>
+    /// What the API's answer to a keep or a release is told as in a channel, whoever asked for it:
+    /// <c>/keep</c>, or the assistant once somebody agreed.
+    /// </summary>
+    public static KeepResult Describe(KeepReply reply)
+    {
         var film = reply.Film is { } view ? KeptFilm.From(view) : null;
-        return reply.Outcome switch
+        return (reply.Outcome, film) switch
         {
-            "released" => new KeepResult(KeepStatus.Released,
-                $"{film!.Name} is no longer kept. {Notice(film)}", film),
-            "notKept" => new KeepResult(KeepStatus.NotKept, $"{film!.Name} was not kept.", film),
-            "unavailable" => Unavailable(),
+            ("kept", { } kept) => new KeepResult(KeepStatus.Kept,
+                $"{kept.Name} stays. It will not be pruned until somebody runs /keep remove.", kept),
+            ("alreadyKept", { } kept) => new KeepResult(KeepStatus.AlreadyKept,
+                kept.Keeper is { } keeper
+                    ? $"{kept.Name} is already kept, by {Mention(keeper)}."
+                    : $"{kept.Name} is already kept.", kept),
+            ("released", { } released) => new KeepResult(KeepStatus.Released,
+                $"{released.Name} is no longer kept. {Notice(released)}", released),
+            ("notKept", { } loose) => new KeepResult(KeepStatus.NotKept, $"{loose.Name} was not kept.", loose),
+            ("unavailable", _) => Unavailable(),
             _ => NotFound(),
         };
     }
