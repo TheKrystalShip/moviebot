@@ -3,10 +3,9 @@ import {
   Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, useFilters,
 } from "@thekrystalship/krystal-ui";
 import { api, filmName } from "../api.js";
-import { stayWords, useLoad } from "../data.js";
+import { useLoad } from "../data.js";
 import { useSession } from "../session.js";
-import { clock } from "../time.js";
-import { Empty, Failed, PageHead, PosterCard } from "../components/Film.jsx";
+import { Empty, Failed, FilmCard, PageHead } from "../components/Film.jsx";
 
 const rating = (t) => (t.details && t.details.rating) || 0;
 const year = (t) => (t.film && t.film.year) || 0;
@@ -97,13 +96,7 @@ export function Library({ kind = "film" }) {
       {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
       {shown.length > 0 && (
         <div className="kc-grid">
-          {shown.map((t) => (
-            <PosterCard
-              key={t.id}
-              title={t}
-              note={t.status === "transcoding" ? "Still preparing" : t.status === "failed" ? "Could not be prepared" : stayWords(stayOf.get(t.id), me) || clock(t.durationSeconds)}
-              tone={t.status === "failed" ? "danger" : stayOf.get(t.id) && !stayOf.get(t.id).keeperId ? "warn" : null} />
-          ))}
+          {shown.map((t) => <FilmCard key={t.id} title={t} stay={stayOf.get(t.id)} me={me} />)}
         </div>
       )}
     </div>

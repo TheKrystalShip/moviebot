@@ -1,8 +1,9 @@
 import React from "react";
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Icon, ShowcaseCard } from "@thekrystalship/krystal-ui";
 import { filmName, posterUrl } from "../api.js";
-import { linkProps } from "../router.js";
-import { timeLeft } from "../time.js";
+import { SOON_DAYS, stayWords } from "../data.js";
+import { linkProps, navigate } from "../router.js";
+import { clock, timeLeft } from "../time.js";
 
 /**
  * Where a film is watched: a room of its own for whoever opens it, or the room somebody is already
@@ -56,14 +57,49 @@ export function PosterArt({ title, className = "", children }) {
   );
 }
 
-/** A film on a shelf: its poster, its name, and one line under it. */
-export function PosterCard({ title, note, tone }) {
+/**
+ * A film on a shelf, as krystal-ui's ShowcaseCard: the poster with the name on it, its rating, year
+ * and length, one line saying where it stands, and Watch. What a page knows beside the film — its
+ * stay, a room watching it, whether it is new — is optional, and a card without it says less rather
+ * than guessing. How far the person got comes with the title itself.
+ *
+ * The one status line, in precedence order: a film not ready says so; then a room watching it; then
+ * how far this person got; then its stay (a keep, or days left on the clock); then its genres.
+ */
+export function FilmCard({ title, stay, me, room, isNew }) {
+  const film = title.film || {};
+  const d = title.details;
+  const progress = title.progress && !title.progress.finished && title.progress.positionSeconds > 0 ? title.progress : null;
+  const poster = posterUrl(title);
+  const ready = title.status === "ready";
+  const leavingSoon = stay && stay.settled && !stay.keeperId && stay.daysLeft != null && stay.daysLeft <= SOON_DAYS;
+
+  const status =
+    title.status === "transcoding" ? { tone: "notice", icon: "loader", label: "Still preparing" }
+    : title.status === "failed" ? { tone: "warning", icon: "triangle-alert", label: "Could not be prepared" }
+    : room ? { tone: "active", icon: "users", label: room.paused ? "A room has it paused" : "A room is watching" }
+    : progress ? { tone: "active", icon: "history", label: timeLeft(Math.max(0, title.durationSeconds - progress.positionSeconds)) }
+    : stay && stay.keeperId ? { tone: "success", icon: "bookmark-check", label: stayWords(stay, me) }
+    : stay && stay.settled && stay.daysLeft != null ? { tone: leavingSoon ? "warning" : null, icon: "hourglass", label: stayWords(stay, me) }
+    : d && d.genres.length > 0 ? { label: d.genres.slice(0, 2).join(" · ") }
+    : null;
+
   return (
-    <a className="kc-poster" {...linkProps("/title/" + encodeURIComponent(title.id))}>
-      <PosterArt title={title} />
-      <span className="kc-poster__name">{filmName(title)}</span>
-      {note && <span className={"kc-poster__note" + (tone ? " kc-poster__note--" + tone : "")}>{note}</span>}
-    </a>
+    <ShowcaseCard
+      name={film.name || title.title}
+      art={poster ? `url("${poster}")` : null}
+      onPick={() => navigate("/title/" + encodeURIComponent(title.id))}
+      corner={leavingSoon ? { icon: "hourglass", label: stayWords(stay, me), title: "Leaves unless somebody plays or keeps it" } : null}
+      badge={isNew ? { tone: "info", label: "New" } : null}
+      specs={[
+        { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
+        { icon: "calendar", value: film.year || null, label: "Year" },
+        { icon: "clock", value: title.durationSeconds ? clock(title.durationSeconds) : null, label: "Length" },
+      ]}
+      status={status}
+      action={ready
+        ? { label: room ? "Join" : progress ? "Resume" : "Watch", onClick: () => navigate(watchHref(title.id, room && room.sessionId, progress && progress.positionSeconds)) }
+        : { label: "View" }} />
   );
 }
 

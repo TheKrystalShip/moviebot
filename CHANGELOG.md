@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.71.0] - 2026-10-03
+
+### Changed
+
+- **A film on a shelf is krystal-ui's `ShowcaseCard`**, the card the Control Panel's catalog shows a
+  game with: the poster with the name on it, a "New" badge for the last two weeks, a caution chip
+  when it leaves within three days, its rating, year and length, one status line (preparing, a room
+  watching it, how much is left for this person, kept, days left, or its genres), and Watch, Resume
+  or Join. It is the card on the home page's poster rows, Movies, TV Shows and Search; the shelves
+  keep every card at about 190px or wider so none of it is clipped.
+- **The footer links krystal-ui** among the source repositories, and its rooms-watching note has no
+  dot.
+
 ## [1.70.0] - 2026-10-03
 
 ### Changed

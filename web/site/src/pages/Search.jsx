@@ -1,10 +1,9 @@
 import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
 import { api, filmName } from "../api.js";
-import { clock } from "../time.js";
 import { useLoad } from "../data.js";
 import { navigate } from "../router.js";
-import { Empty, Failed, PageHead, PosterCard } from "../components/Film.jsx";
+import { Empty, Failed, FilmCard, PageHead } from "../components/Film.jsx";
 
 /**
  * Finding a film: what the library holds first, then what the tracker offers to fetch, and, for a
@@ -46,7 +45,7 @@ export function Search({ query }) {
           <section className="kc-shelf">
             <div className="kc-shelf__head"><h2>In the library</h2></div>
             {inLibrary.length > 0
-              ? <div className="kc-grid">{inLibrary.map((t) => <PosterCard key={t.id} title={t} note={clock(t.durationSeconds)} />)}</div>
+              ? <div className="kc-grid">{inLibrary.map((t) => <FilmCard key={t.id} title={t} />)}</div>
               : <span className="kc-quiet">Nothing in the library is called that.</span>}
           </section>
 

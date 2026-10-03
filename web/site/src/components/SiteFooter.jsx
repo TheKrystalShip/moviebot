@@ -18,6 +18,7 @@ const SOURCE = [
   { name: "TheKrystalShip", href: "https://github.com/TheKrystalShip", glyph: <GithubMark size={18} />, featured: true, sub: "Where everything here is built" },
   { name: "moviebot", href: "https://github.com/TheKrystalShip/moviebot", icon: "git-branch", sub: "Rooms, the player and this site" },
   { name: "moviebot-acquire", href: "https://github.com/TheKrystalShip/moviebot-acquire", icon: "git-branch", sub: "Finding and fetching films" },
+  { name: "krystal-ui", href: "https://github.com/TheKrystalShip/krystal-ui", icon: "git-branch", sub: "The design system this site is drawn with" },
 ];
 
 /**
@@ -33,7 +34,6 @@ export function SiteFooter() {
       mark={markUrl}
       wordmark="Krystal Cinema"
       tagline="The server's films, watched together: everyone in a room sees the same moment, from this site or from a Discord voice channel."
-      live={playing > 0}
       note={playing > 0 ? (playing === 1 ? "A room is watching now" : `${playing} rooms are watching now`) : "Self-hosted and open source"}
       groups={[
         { label: "Browse", links: BROWSE },

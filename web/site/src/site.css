@@ -79,12 +79,8 @@ button { font-family: inherit; }
 }
 .kc-poster-art--wide { aspect-ratio: 16 / 9; }
 
-.kc-poster { display: flex; flex-direction: column; gap: 6px; min-width: 0; cursor: pointer; }
-.kc-poster:hover .kc-poster-art { border-color: var(--border-strong); }
 .kc-poster__name { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kc-poster__note { font-size: 12px; color: var(--fg-3); }
-.kc-poster__note--warn { color: var(--warning-fg); }
-.kc-poster__note--danger { color: var(--danger); }
 
 .kc-page > * { min-width: 0; }
 .kc-shelf { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -94,7 +90,9 @@ button { font-family: inherit; }
 .kc-tone--warn { color: var(--warning-fg); }
 .kc-tone--accent { color: var(--krystal-teal); }
 
-.kc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px 16px; }
+/* Film cards carry three facts under the poster, and read clean down to about 165px wide. */
+.kc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
+@media (max-width: 430px) { .kc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
 
 .kc-room { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .kc-room:hover .kc-poster-art { border-color: var(--border-strong); }
@@ -129,19 +127,32 @@ button { font-family: inherit; }
 .kc-segmented__option:hover { color: var(--fg-1); }
 .kc-segmented__option.is-on { background: var(--krystal-teal-dim); color: var(--krystal-teal-hover); font-weight: 600; }
 /* How many cards each of the home page's shelves shows (krystal-ui's Rail), by the shelf's own
-   width. Fractional on purpose: the card cut off at the right edge is what says there is more. */
-.rail--posters .rail__track { --rail-per-view: 7.4; }
+   width. Fractional on purpose: the card cut off at the right edge is what says there is more. A
+   film card stays at about 190px or wider: at 165px its length and a "1h 50m left" beside Resume
+   are clipped. */
+.rail--posters .rail__track { --rail-per-view: 6.2; }
 .rail--wide .rail__track { --rail-per-view: 3.4; }
+@container rail (max-width: 1350px) {
+  .rail--posters .rail__track { --rail-per-view: 5.2; }
+}
 @container rail (max-width: 1100px) {
-  .rail--posters .rail__track { --rail-per-view: 5.4; }
+  .rail--posters .rail__track { --rail-per-view: 4.3; }
   .rail--wide .rail__track { --rail-per-view: 2.4; }
 }
-@container rail (max-width: 760px) {
+@container rail (max-width: 900px) {
   .rail--posters .rail__track { --rail-per-view: 3.4; }
+}
+@container rail (max-width: 760px) {
   .rail--wide .rail__track { --rail-per-view: 1.6; }
 }
+@container rail (max-width: 700px) {
+  .rail--posters .rail__track { --rail-per-view: 2.6; }
+}
+@container rail (max-width: 540px) {
+  .rail--posters .rail__track { --rail-per-view: 2.1; }
+}
 @container rail (max-width: 430px) {
-  .rail--posters .rail__track { --rail-per-view: 2.4; }
+  .rail--posters .rail__track { --rail-per-view: 1.7; }
   .rail--wide .rail__track { --rail-per-view: 1.15; }
 }
 
