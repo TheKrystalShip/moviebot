@@ -10,7 +10,7 @@ sync controller, the stream, the room) and the components draw what `engine/room
 
 Everything that differs between the site and the Activity is behind `Environment`
 (`engine/environment.ts`): where the API is, how a manifest-relative media path becomes a URL, which
-room this is, which film the launch named, who the viewer is, the link that hands the room to someone
+room this is, which film the launch named and where in it to start, who the viewer is, the link that hands the room to someone
 else, and where their presence is shown. Nothing else reads `location` or builds a URL. The site's
 room is the address and its viewer whoever signed in; the Activity's room is the voice channel and its
 viewer whoever Discord says, so `engine/discordEnvironment.ts` is the other implementation and nothing

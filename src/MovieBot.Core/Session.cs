@@ -88,7 +88,9 @@ public sealed record SeekClamped
 /// Puts a film into a room from outside it. The bot uses this because an Activity is launched
 /// from a URL it never writes, so a query string cannot carry the choice.
 /// </summary>
-public sealed record SetTitleRequest(string TitleId, string? UserId, string? DisplayName);
+/// <param name="StartSeconds">Where in the film the room starts; omitted is the beginning.</param>
+public sealed record SetTitleRequest(
+    string TitleId, string? UserId, string? DisplayName, double? StartSeconds = null);
 
 /// <summary>
 /// What a room control answers: the state the room was sent, and the clamp when the position asked

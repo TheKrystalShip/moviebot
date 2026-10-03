@@ -176,7 +176,7 @@ public sealed class WatchCommandTests(SessionFixture fixture) : IClassFixture<Se
         var sessionId = channel.ToString();
 
         await using var viewer = await fixture.ConnectAsync(sessionId, "u1", "Bob");
-        await viewer.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle);
+        await viewer.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
         await viewer.InvokeAsync<SessionStatePush>("Play", 1200.0);
 
         var presenter = new RecordingPresenter();
@@ -203,7 +203,7 @@ public sealed class WatchCommandTests(SessionFixture fixture) : IClassFixture<Se
         var sessionId = channel.ToString();
 
         await using var viewer = await fixture.ConnectAsync(sessionId, "u1", "Bob");
-        await viewer.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle);
+        await viewer.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
         var before = (await viewer.InvokeAsync<SessionStatePush>("Play", 1200.0)).State;
 
         var presenter = new RecordingPresenter();

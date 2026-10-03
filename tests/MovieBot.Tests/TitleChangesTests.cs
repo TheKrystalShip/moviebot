@@ -22,7 +22,7 @@ public sealed class TitleChangesTests(SessionFixture fixture) : IClassFixture<Se
             if (manifest.Thumbnails is not null) pushed.TrySetResult(manifest);
         });
 
-        await viewer.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.TranscodingTitle);
+        await viewer.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.TranscodingTitle, null);
 
         // The transcode moving on: a further head, and the preview sheet written after the main
         // pass. Rewritten the way the ingest does it.

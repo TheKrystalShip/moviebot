@@ -30,7 +30,7 @@ public sealed class RoomListingTests : IClassFixture<SessionFixture>
             .Build();
         await connection.StartAsync();
         await connection.InvokeAsync<SessionStatePush>("Join", room, "u1", "Someone");
-        await connection.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle);
+        await connection.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
         await connection.InvokeAsync<SessionStatePush>("Play", 120.0);
 
         var rooms = await service.GetFromJsonAsync(

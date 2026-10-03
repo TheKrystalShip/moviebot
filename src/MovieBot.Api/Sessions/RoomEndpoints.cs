@@ -42,7 +42,7 @@ public static class RoomEndpoints
 
             var change = await controls.ApplyAsync(
                 sessionId, "load", ActorFor(request.UserId, request.DisplayName),
-                actor => sessions.LoadTitle(sessionId, request.TitleId, actor), ct: ct);
+                actor => sessions.LoadTitle(sessionId, request.TitleId, actor, request.StartSeconds), ct: ct);
 
             return Results.Ok(change.Push);
         });

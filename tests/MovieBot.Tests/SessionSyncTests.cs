@@ -22,7 +22,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
         await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
 
         var bobSaw = NextPush(bob, "StateChanged");
-        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle);
+        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
         await bobSaw;
 
         var playSeen = NextPush(bob, "StateChanged");
@@ -41,7 +41,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
         await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
         await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
 
-        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle);
+        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
 
         var revisions = new List<long>();
         revisions.Add((await alice.InvokeAsync<SessionStatePush>("Play", 10.0)).State.Revision);
@@ -64,7 +64,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
         await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
         await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
 
-        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.TranscodingTitle);
+        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.TranscodingTitle, null);
 
         var clampNotice = Next<SeekClamped>(alice, "SeekClamped");
         var bobGotClamp = Next<SeekClamped>(bob, "SeekClamped");
@@ -89,7 +89,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
         var session = NewSession();
         await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
 
-        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.TranscodingTitle);
+        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.TranscodingTitle, null);
         var result = await alice.InvokeAsync<SessionStatePush>("Seek", 120.0);
 
         Assert.Equal(120.0, result.State.PositionSeconds, 3);
@@ -102,7 +102,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
         var session = NewSession();
         await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
 
-        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle);
+        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
         var result = await alice.InvokeAsync<SessionStatePush>("Seek", 5000.0);
 
         Assert.Equal(5000.0, result.State.PositionSeconds, 3);

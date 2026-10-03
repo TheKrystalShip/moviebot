@@ -19,7 +19,7 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET /api/sessions` | `RoomSummary[]` — every room, what it is watching, how many are in it |
 | `GET /api/sessions/{id}` | `SessionStatePush` — creates the session if new |
 | `GET /api/sessions/{id}/participants` | `Participant[]` |
-| `POST /api/sessions/{id}/title` | `SessionStatePush` — puts a film in the room, or 404 if the library has no such title |
+| `POST /api/sessions/{id}/title` | `SessionStatePush` — puts a film in the room, or 404 if the library has no such title. The body is `{titleId, userId?, displayName?, startSeconds?}`; `startSeconds` puts the room there instead of at the beginning, held to the transcode head like a seek |
 | `POST /api/sessions/{id}/play` | `RoomChanged` |
 | `POST /api/sessions/{id}/pause` | `RoomChanged` |
 | `POST /api/sessions/{id}/seek` | `RoomChanged` |
@@ -29,6 +29,14 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET,HEAD /films/{imdbId}/{poster.jpg,backdrop.jpg,cast-N.jpg}` | the artwork kept beside a description. Open: it is public artwork and an `<img>` carries no token |
 | `GET /api/me/preferences` | `ViewerPreferences` — how the token's person watches; every field absent for somebody who set nothing. `403` for the service key, which names nobody |
 | `PUT /api/me/preferences` | `ViewerPreferences` → the stored `ViewerPreferences`. A blank language or a height that is not positive is stored as absent |
+| `GET /api/me/progress` | `ProgressEntry[]` — the films the token's person started and did not finish, newest first: `{titleId, name, positionSeconds, durationSeconds, remainingSeconds, lastWatchedAt}`. A film the library no longer holds is left out. `403` for the service key |
+| `GET /api/me/history` | `HistoryEntry[]` — every film the token's person watched, newest first: `{titleId, name, positionSeconds, durationSeconds, finished, lastWatchedAt}`. `finished` is a position past 90 % of the film. `403` for the service key |
+| `DELETE /api/me/history/{titleId}` | `204` — forgets the person's entry for the film, and so their progress in it. The film's own last play stays. `403` for the service key |
+
+What is recorded is sampled from rooms: every 30 seconds each person in a room that is **playing** a
+film is credited with the room's position, so a paused room left open ages nothing. Opening a film
+at `/r/{room}?title={id}&at={seconds}` into an empty room starts it there; a room already holding a
+film ignores `at`.
 
 ```jsonc
 // ViewerPreferences: the defaults a film starts with, for a person wherever they sign in
@@ -212,10 +220,13 @@ A track with `available: false` is listed on purpose — a language that is simp
 menu reads as a bug. Render it disabled with its `reason`, do not hide it.
 
 `TitleSummary` is `{id, title, durationSeconds, status, headSeconds?, poster?, film?, sizeBytes?,
-addedAt?, details?}`. `details` is what the film database said, as far as a listing shows it —
-`{rating?, votes, certification?, genres, runtimeMinutes?, overview?, directors, posterUrl?,
-backdropUrl?}` — and is absent for a film not yet described; the listing never waits on the network
-for it.
+addedAt?, details?, progress?, lastPlayed?}`. `details` is what the film database said, as far as a
+listing shows it — `{rating?, votes, certification?, genres, runtimeMinutes?, overview?, directors,
+posterUrl?, backdropUrl?}` — and is absent for a film not yet described; the listing never waits on
+the network for it. `progress` is `{positionSeconds, finished, lastWatchedAt}` for the person the
+token names, absent when they have not watched the film and always absent for the service key.
+`lastPlayed` is `{at, byName?}`, the last time anybody played the film, absent when nobody has;
+`byName` is absent when that person's name was never heard.
 
 ```jsonc
 // FilmView: GET /api/films/{imdbId}
@@ -246,7 +257,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | Method | Signature | Notes |
 |---|---|---|
 | `Join` | `(sessionId, userId, displayName) → SessionStatePush` | call first; everything else throws until you do |
-| `LoadTitle` | `(titleId) → SessionStatePush` | from 0; a playing room keeps playing, a paused one stays paused |
+| `LoadTitle` | `(titleId, startSeconds: double?) → SessionStatePush` | from `startSeconds`, held to the transcode head, or from 0 when null; a playing room keeps playing, a paused one stays paused. Both arguments are always sent, null for no start |
 | `Play` | `(atSeconds) → SessionStatePush` | |
 | `Pause` | `(atSeconds) → SessionStatePush` | |
 | `Seek` | `(toSeconds) → SessionStatePush` | may be clamped |

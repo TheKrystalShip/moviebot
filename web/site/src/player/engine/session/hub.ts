@@ -83,8 +83,9 @@ export class SessionHub {
     return this.join();
   }
 
-  loadTitle(titleId: string): Promise<SessionStatePush> {
-    return this.connection.invoke<SessionStatePush>('LoadTitle', titleId);
+  /** Puts a film on for the room, from the beginning or from `startSeconds`. */
+  loadTitle(titleId: string, startSeconds: number | null = null): Promise<SessionStatePush> {
+    return this.connection.invoke<SessionStatePush>('LoadTitle', titleId, startSeconds);
   }
 
   play(atSeconds: number): Promise<SessionStatePush> {

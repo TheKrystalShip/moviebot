@@ -68,8 +68,18 @@ builder.Services.AddSingleton(sp => new PreferenceStore(
     StatePath(sp.GetRequiredService<IConfiguration>()["People:Preferences"], "preferences.json"),
     sp.GetRequiredService<ILogger<PreferenceStore>>()));
 
-// When each film was last played, which the library's clock reads.
-builder.Services.AddSingleton<IPlayHistory, NoPlayHistory>();
+// What each Discord id is called, so an id on a record can be shown as a person.
+builder.Services.AddSingleton(sp => new PersonDirectory(
+    StatePath(sp.GetRequiredService<IConfiguration>()["People:Directory"], "people.json"),
+    sp.GetRequiredService<ILogger<PersonDirectory>>()));
+
+// What each person has watched and when each film was last played, which the library's clock reads.
+builder.Services.AddSingleton(sp => new WatchRecord(
+    StatePath(sp.GetRequiredService<IConfiguration>()["People:Watch"], "watch.json"),
+    sp.GetRequiredService<ILogger<WatchRecord>>()));
+builder.Services.AddSingleton<IPlayHistory>(sp => sp.GetRequiredService<WatchRecord>());
+builder.Services.AddSingleton<WatchSampler>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<WatchSampler>());
 
 // What a film is, from the film database, kept on disk with its artwork and served from here.
 builder.Services.Configure<TmdbOptions>(builder.Configuration.GetSection(TmdbOptions.Section));
@@ -201,9 +211,16 @@ app.MapGet("/api/config", (IOptions<DiscordAuthOptions> discord, IConfiguration 
         configuration["Api:PublicBaseUrl"] is { Length: > 0 } url ? url.TrimEnd('/') : null)));
 
 // Each title with what the film database said about it, from what is kept: a listing never waits
-// on the network, and a film not described yet is listed without it.
-app.MapGet("/api/titles", (TitleLibrary library, FilmStore films) =>
-    Results.Ok(library.List().Select(t => t with { Details = films.Facts(t.Film?.ImdbId) }).ToList()));
+// on the network, and a film not described yet is listed without it. Each carries the asking
+// person's progress and when the film was last played, and a caller that is nobody gets no progress.
+app.MapGet("/api/titles", (HttpContext context, TitleLibrary library, FilmStore films,
+    WatchRecord record, PersonDirectory people) =>
+{
+    var person = PeopleEndpoints.Person(context);
+    return Results.Ok(library.List()
+        .Select(t => (t with { Details = films.Facts(t.Film?.ImdbId) }).WithPlays(person, record, people))
+        .ToList());
+});
 
 app.MapGet("/api/titles/{id}", (string id, TitleLibrary library) =>
     library.Get(id) is { } manifest ? Results.Ok(manifest) : Results.NotFound());
@@ -248,6 +265,7 @@ app.MapPost("/api/auth/discord/callback", async (
     IOptions<DiscordAuthOptions> options,
     DiscordAuthClient discord,
     IOptions<AuthOptions> authOptions,
+    PersonDirectory people,
     CancellationToken ct) =>
 {
     if (!options.Value.IsConfigured)
@@ -287,6 +305,8 @@ app.MapPost("/api/auth/discord/callback", async (
         member = true;
     }
 
+    people.Remember(user.Id, user.DisplayName);
+
     var auth = authOptions.Value;
     var roomToken = RoomToken.Issue(new RoomTokenPayload
     {
@@ -308,7 +328,8 @@ app.MapPost("/api/auth/discord/callback", async (
 app.MapPost("/api/auth/service-token", (
     ServiceTokenRequest request,
     HttpContext context,
-    IOptions<AuthOptions> authOptions) =>
+    IOptions<AuthOptions> authOptions,
+    PersonDirectory people) =>
 {
     var auth = authOptions.Value;
     var offered = context.Request.Headers["X-MovieBot-Service"].ToString();
@@ -320,6 +341,8 @@ app.MapPost("/api/auth/service-token", (
     {
         return Results.Unauthorized();
     }
+
+    people.Remember(request.UserId, request.DisplayName);
 
     return Results.Ok(new ServiceTokenReply(RoomToken.Issue(new RoomTokenPayload
     {
