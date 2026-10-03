@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.84.1] - 2026-10-04
+
+### Fixed
+
+- A show's card labels its first year "Year", as a movie's does, on one line, so a rail's cards
+  stand level.
+
 ## [1.84.0] - 2026-10-03
 
 ### Changed

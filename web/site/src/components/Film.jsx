@@ -127,7 +127,7 @@ export function ShowCard({ show, stay, me }) {
       corner={leavingSoon ? { icon: "hourglass", label: `S${stay.season} · ${stayWords(stay, me)}`, title: "Leaves unless somebody plays or keeps it" } : null}
       specs={[
         { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
-        { icon: "calendar", value: show.firstYear || null, label: "First aired" },
+        { icon: "calendar", value: show.firstYear || null, label: "Year" },
         { icon: "layers", value: show.seasons.length, label: show.seasons.length === 1 ? "Season" : "Seasons" },
       ]}
       status={status}
