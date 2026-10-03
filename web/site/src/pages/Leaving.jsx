@@ -1,12 +1,10 @@
 import { Icon, toast } from "@thekrystalship/krystal-ui";
 import { api, filmName } from "../api.js";
-import { leaveRule, stayWords, useLoad } from "../data.js";
+import { SOON_DAYS, leaveRule, stayWords, useLoad } from "../data.js";
 import { useSession } from "../session.js";
 import { ago } from "../time.js";
 import { Empty, Failed, PageHead, PosterArt } from "../components/Film.jsx";
 import { linkProps } from "../router.js";
-
-const SOON_DAYS = 3;
 
 /**
  * Every settled film and how long it stays. A film nobody keeps leaves after a spell without a play;

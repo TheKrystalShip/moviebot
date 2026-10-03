@@ -29,6 +29,9 @@ export function useLoad(load, deps, { every } = {}) {
   return { ...state, reload: () => setTick((t) => t + 1) };
 }
 
+/** Days left at which a film on the library's clock is about to leave, and said so in warning colour. */
+export const SOON_DAYS = 3;
+
 /** The library's rule in words, from the stay the API answered, which carries the rule itself. */
 export function leaveRule(stay) {
   const days = stay && stay.leaveAfterDays;

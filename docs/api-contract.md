@@ -193,6 +193,7 @@ at the hub's negotiate. A token without a `jti` is valid until `exp` and is not 
   "title": "Gladiator 2000 Extended Cut",
   "durationSeconds": 43.501,
   "status": "transcoding",        // "transcoding" | "ready" | "failed"
+  "kind": "film",                 // "film" | "show"; a manifest without it is a film
   "headSeconds": 20.0,            // absent once ready
   "error": "…",                   // present only when status is "failed"
   "poster": "poster.jpg",         // absent when the container carried no cover art
@@ -243,8 +244,8 @@ the same moment. A player that loaded the master earlier offers them after it lo
 A track with `available: false` is listed on purpose — a language that is simply missing from the
 menu reads as a bug. Render it disabled with its `reason`, do not hide it.
 
-`TitleSummary` is `{id, title, durationSeconds, status, headSeconds?, poster?, film?, sizeBytes?,
-addedAt?, details?, progress?, lastPlayed?}`. `details` is what the film database said, as far as a
+`TitleSummary` is `{id, title, durationSeconds, status, kind, headSeconds?, poster?, film?, sizeBytes?,
+addedAt?, details?, progress?, lastPlayed?}`. `kind` is `"film"` or `"show"`, as the manifest says. `details` is what the film database said, as far as a
 listing shows it — `{rating?, votes, certification?, genres, runtimeMinutes?, overview?, directors,
 posterUrl?, backdropUrl?}` — and is absent for a film not yet described; the listing never waits on
 the network for it. `progress` is `{positionSeconds, finished, lastWatchedAt}` for the person the

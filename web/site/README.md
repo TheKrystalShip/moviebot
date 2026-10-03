@@ -23,7 +23,7 @@ The dev server proxies `/api`, `/media` and `/hub` to the API (`MOVIEBOT_API`, d
 
 | Path | What it is |
 |---|---|
-| `/` | A film to watch, then a row each for where the person left off, the rooms watching something now, what is on its way, what is leaving soon, and the whole shelf, each krystal-ui's scroll-snapped `Rail` |
+| `/` | A film to watch, then a row each for where the person left off, the rooms watching something now, what was recently added, what leaves next, what is on its way, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail` |
 | `/library` | Every film, narrowed by state and ordered by name, year or length |
 | `/title/<id>` | One film: what it is, who played it last, how long it stays, keep or let go, and watch or resume |
 | `/search?q=` | The library first, then the tracker's releases to fetch, and a film with no release yet to wait on |

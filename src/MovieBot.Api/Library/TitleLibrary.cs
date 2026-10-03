@@ -10,6 +10,10 @@ public sealed record TitleSummary
     public required string Title { get; init; }
     public required double DurationSeconds { get; init; }
     public required TitleStatus Status { get; init; }
+
+    /// <summary>Whether the title is a film or part of a show, as its manifest says.</summary>
+    public required TitleKind Kind { get; init; }
+
     public double? HeadSeconds { get; init; }
     public string? Poster { get; init; }
 
@@ -83,6 +87,7 @@ public sealed class TitleLibrary(
                 Title = manifest.Title,
                 DurationSeconds = manifest.DurationSeconds,
                 Status = manifest.Status,
+                Kind = manifest.Kind,
                 HeadSeconds = manifest.HeadSeconds,
                 Poster = manifest.Poster,
                 Film = manifest.Film,

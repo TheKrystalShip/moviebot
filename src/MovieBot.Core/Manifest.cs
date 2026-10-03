@@ -18,6 +18,15 @@ public enum TitleStatus
 }
 
 /// <summary>
+/// What a title is: a film, or an episode of a show. A manifest that does not say is a film.
+/// </summary>
+public enum TitleKind
+{
+    [JsonStringEnumMemberName("film")] Film,
+    [JsonStringEnumMemberName("show")] Show
+}
+
+/// <summary>
 /// Whether a track belongs to the film or to a commentary over it. Driven by ffmpeg's
 /// <c>comment</c> disposition, and the reason a 48-track subtitle list is navigable.
 /// </summary>
@@ -87,6 +96,9 @@ public sealed class Manifest
     /// Which film this is, as opposed to which file it came from. Null when nothing identified it.
     /// </summary>
     public FilmIdentity? Film { get; set; }
+
+    /// <summary>Whether the title is a film or part of a show.</summary>
+    public TitleKind Kind { get; init; }
 
     /// <summary>
     /// Settable for the same reason as <see cref="Subtitles"/>, and null until it is known. A

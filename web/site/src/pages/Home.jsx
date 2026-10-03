@@ -1,18 +1,20 @@
 import { Icon, Rail } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../api.js";
-import { useLoad, stayWords } from "../data.js";
+import { SOON_DAYS, useLoad, stayWords } from "../data.js";
 import { useSession } from "../session.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, since } from "../time.js";
 import { ContinueCard, Empty, Failed, PosterArt, PosterCard, watchLink } from "../components/Film.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
 
-const LEAVING_SOON_DAYS = 3;
+const RECENT_DAYS = 14;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The front page: a film to watch, where this person left off, the rooms watching something now,
- * what is on its way, what is about to leave, and the shelf. Every row is something the API
- * measured; a row with nothing in it is left out rather than drawn empty.
+ * what arrived lately, what leaves next, what is on its way, and the shelf split into films and
+ * shows. Every row is something the API measured; a row with nothing in it is left out rather than
+ * drawn empty.
  */
 export function Home() {
   const session = useSession();
@@ -28,9 +30,16 @@ export function Home() {
   // Watching now means somebody is there: an empty room is kept a while after the last person leaves.
   const watching = (rooms.data || []).filter((r) => r.titleId && r.participants > 0 && byId.has(r.titleId));
   const arriving = (downloads.data || []).filter((d) => !d.isFinished);
+  // What leaves next: every settled film nobody has kept, soonest first.
   const leaving = (stays.data || [])
-    .filter((s) => s.settled && !s.keeperId && s.daysLeft != null && s.daysLeft <= LEAVING_SOON_DAYS && byId.has(s.titleId));
+    .filter((s) => s.settled && !s.keeperId && s.daysLeft != null && byId.has(s.titleId))
+    .sort((a, b) => a.daysLeft - b.daysLeft);
   const continuing = (progress.data || []).filter((p) => byId.has(p.titleId));
+  const recent = library
+    .filter((t) => t.addedAt && Date.now() - Date.parse(t.addedAt) <= RECENT_DAYS * DAY_MS)
+    .sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+  const films = library.filter((t) => t.kind !== "show");
+  const shows = library.filter((t) => t.kind === "show");
 
   const featured = newest(library);
 
@@ -79,6 +88,25 @@ export function Home() {
           )} />
       )}
 
+      {recent.length > 0 && (
+        <Rail
+          variant="posters" icon="sparkles" title="Recently added" count={recent.length}
+          items={recent} itemKey={(t) => t.id}
+          renderItem={(t) => (
+            <PosterCard title={t} note={t.status === "transcoding" ? "Still preparing" : since(t.addedAt)} />
+          )} />
+      )}
+
+      {leaving.length > 0 && (
+        <Rail
+          variant="posters" icon="hourglass" title="Leaving soon" count={leaving.length}
+          onViewAll={() => navigate("/leaving")} viewAllLabel="See all"
+          items={leaving} itemKey={(s) => s.titleId}
+          renderItem={(s) => (
+            <PosterCard title={byId.get(s.titleId)} note={stayWords(s, me)} tone={s.daysLeft <= SOON_DAYS ? "warn" : undefined} />
+          )} />
+      )}
+
       {arriving.length > 0 && (
         <Rail
           variant="arriving" icon="download" title="On its way" count={arriving.length}
@@ -92,23 +120,27 @@ export function Home() {
           )} />
       )}
 
-      {leaving.length > 0 && (
+      {films.length > 0 && (
         <Rail
-          variant="posters" icon="hourglass" title="Leaving soon" count={leaving.length}
-          onViewAll={() => navigate("/leaving")} viewAllLabel="See all"
-          items={leaving} itemKey={(s) => s.titleId}
-          renderItem={(s) => <PosterCard title={byId.get(s.titleId)} note={stayWords(s, me)} tone="warn" />} />
+          variant="posters" icon="clapperboard" title="Movies" count={films.length}
+          onViewAll={() => navigate("/library")} viewAllLabel="All movies"
+          items={films} itemKey={(t) => t.id}
+          renderItem={(t) => <ShelfCard title={t} />} />
       )}
 
-      <Rail
-        variant="posters" icon="clapperboard" title="In the library" count={library.length}
-        onViewAll={() => navigate("/library")} viewAllLabel="All films"
-        items={library} itemKey={(t) => t.id}
-        renderItem={(t) => (
-          <PosterCard title={t} note={t.status === "transcoding" ? "Still preparing" : clock(t.durationSeconds)} />
-        )} />
+      {shows.length > 0 && (
+        <Rail
+          variant="posters" icon="tv" title="TV Shows" count={shows.length}
+          items={shows} itemKey={(t) => t.id}
+          renderItem={(t) => <ShelfCard title={t} />} />
+      )}
     </div>
   );
+}
+
+/** A title on the shelf, with how long it runs, or that it is not ready yet. */
+function ShelfCard({ title }) {
+  return <PosterCard title={title} note={title.status === "transcoding" ? "Still preparing" : clock(title.durationSeconds)} />;
 }
 
 /** The film at the top: the newest on the shelf, with what the film database says about it. */

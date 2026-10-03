@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.69.0] - 2026-10-03
+
+### Added
+
+- **A title says whether it is a film or a show.** The manifest carries `kind` (`"film"` or
+  `"show"`; a manifest that does not say is a film) and `/api/titles` carries it on every summary.
+- **The home page has a Recently added row** (what came into the library in the last two weeks,
+  newest first) and splits the shelf into **Movies** and **TV Shows**; a row with nothing in it is
+  left out. **Leaving soon** lists every settled film nobody has kept, soonest first, with the ones
+  three days or less from leaving in the warning colour.
+
 ## [1.68.0] - 2026-10-03
 
 ### Changed
