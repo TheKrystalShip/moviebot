@@ -221,18 +221,21 @@ public sealed class WatchNow(
     private Task PrepareAsync(string room, RoomPreparing preparing, CancellationToken ct) =>
         controls.ReportAsync(room, preparing, ct);
 
-    /// <summary>What the room calls the film while it waits: the release's name, else the catalogue's.</summary>
+    /// <summary>
+    /// What the room calls the film while it waits: the catalogue's name, which is the one every page
+    /// shows, else the release's, which is often the film's name in another language.
+    /// </summary>
     private async Task<string> NameAsync(string imdbId, Release? release, CancellationToken ct)
     {
-        if (release is not null) return release.Display;
         try
         {
-            return (await catalogue.LookupAsync(imdbId, ct))?.Display ?? imdbId;
+            if ((await catalogue.LookupAsync(imdbId, ct))?.Display is { Length: > 0 } named) return named;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
-            return imdbId;
+            logger.LogDebug(ex, "The title index could not name {Imdb}.", imdbId);
         }
+        return release?.Display ?? imdbId;
     }
 
     /// <summary>A release as the panel names it: <c>1080p WEB</c>.</summary>

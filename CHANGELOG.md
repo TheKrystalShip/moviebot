@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.78.2] - 2026-10-03
+
+### Fixed
+
+- A room waiting on a Watch now names the film as the catalogue does, the name every page shows,
+  rather than as its release does, which is often the film's name in another language.
+
 ## [1.78.1] - 2026-10-03
 
 ### Fixed
