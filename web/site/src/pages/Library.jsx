@@ -1,4 +1,7 @@
 import React from "react";
+import {
+  Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, useFilters,
+} from "@thekrystalship/krystal-ui";
 import { api, filmName } from "../api.js";
 import { stayWords, useLoad } from "../data.js";
 import { useSession } from "../session.js";
@@ -6,89 +9,103 @@ import { clock } from "../time.js";
 import { Empty, Failed, PageHead, PosterCard } from "../components/Film.jsx";
 
 const rating = (t) => (t.details && t.details.rating) || 0;
+const year = (t) => (t.film && t.film.year) || 0;
 
+// Each comparator orders ascending; the toolbar's direction reverses it.
 const SORTS = [
-  { id: "added", label: "Recently added", compare: (a, b) => (b.addedAt || "").localeCompare(a.addedAt || "") },
-  { id: "name", label: "Name", compare: (a, b) => filmName(a).localeCompare(filmName(b)) },
-  { id: "rating", label: "Rating", compare: (a, b) => rating(b) - rating(a) },
-  { id: "year", label: "Year", compare: (a, b) => ((b.film && b.film.year) || 0) - ((a.film && a.film.year) || 0) },
-  { id: "length", label: "Length", compare: (a, b) => a.durationSeconds - b.durationSeconds },
+  { value: "added", label: "Recently added", defaultDir: "desc", compare: (a, b) => (a.addedAt || "").localeCompare(b.addedAt || "") },
+  { value: "name", label: "Name", defaultDir: "asc", compare: (a, b) => filmName(a).localeCompare(filmName(b)) },
+  { value: "rating", label: "Rating", defaultDir: "desc", compare: (a, b) => rating(a) - rating(b) },
+  { value: "year", label: "Year", defaultDir: "desc", compare: (a, b) => year(a) - year(b) },
+  { value: "length", label: "Length", defaultDir: "asc", compare: (a, b) => a.durationSeconds - b.durationSeconds },
 ];
 
-/** Every film on the shelf, narrowed by what state it is in and ordered the way somebody asks. */
-export function Library() {
+const KINDS = {
+  film: { title: "Movies", unit: ["movie", "movies"], empty: "No movies yet" },
+  show: { title: "TV Shows", unit: ["show", "shows"], empty: "No shows yet" },
+};
+
+/**
+ * Every title of one kind on the shelf, searched by name, narrowed by state, stay and genre, and
+ * ordered the way somebody asks. The kind is the API's word for what a title is.
+ */
+export function Library({ kind = "film" }) {
   const titles = useLoad(() => api.titles(), []);
   const stays = useLoad(() => api.stays().catch(() => []), []);
   const me = (useSession() || {}).user;
-  const [filter, setFilter] = React.useState("all");
-  const [genre, setGenre] = React.useState(null);
-  const [sort, setSort] = React.useState("added");
+  const f = useFilters({ search: "", state: "all", stay: "any", genre: "all" });
+  const [sort, setSort] = React.useState({ key: "added", dir: "desc" });
+  const words = KINDS[kind] || KINDS.film;
 
   const stayOf = new Map((stays.data || []).map((s) => [s.titleId, s]));
-  const all = titles.data || [];
-  const filters = [
-    { id: "all", label: "All", test: () => true },
-    { id: "ready", label: "Ready", test: (t) => t.status === "ready" },
-    { id: "preparing", label: "Preparing", test: (t) => t.status === "transcoding" },
-    { id: "kept", label: "Kept", test: (t) => !!(stayOf.get(t.id) && stayOf.get(t.id).keeperId) },
-    { id: "clock", label: "On the clock", test: (t) => !!(stayOf.get(t.id) && !stayOf.get(t.id).keeperId) },
+  const all = (titles.data || []).filter((t) => (kind === "show" ? t.kind === "show" : t.kind !== "show"));
+
+  const states = [
+    { value: "all", label: "All", test: () => true },
+    { value: "ready", label: "Ready", test: (t) => t.status === "ready" },
+    { value: "preparing", label: "Preparing", test: (t) => t.status === "transcoding" },
+    { value: "failed", label: "Could not be prepared", test: (t) => t.status === "failed" },
   ];
-  const active = filters.find((f) => f.id === filter) || filters[0];
-  const order = SORTS.find((s) => s.id === sort) || SORTS[0];
+  const stayFilters = [
+    { value: "any", label: "Any", test: () => true },
+    { value: "kept", label: "Kept", test: (t) => !!(stayOf.get(t.id) && stayOf.get(t.id).keeperId) },
+    { value: "clock", label: "On the clock", test: (t) => !!(stayOf.get(t.id) && !stayOf.get(t.id).keeperId) },
+  ];
   // The genres the shelf actually holds, most common first: a genre nothing here is in is no filter.
   const genreCounts = new Map();
   for (const t of all) for (const g of (t.details && t.details.genres) || []) genreCounts.set(g, (genreCounts.get(g) || 0) + 1);
   const genres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  const inGenre = (t) => !genre || !!(t.details && t.details.genres.includes(genre));
-  const shown = all.filter((t) => active.test(t) && inGenre(t)).sort(order.compare);
+
+  const state = states.find((s) => s.value === f.values.state) || states[0];
+  const stay = stayFilters.find((s) => s.value === f.values.stay) || stayFilters[0];
+  const inGenre = (t) => f.values.genre === "all" || !!(t.details && t.details.genres.includes(f.values.genre));
+  const query = f.debouncedQuery.trim().toLowerCase();
+  const matches = (t) => !query || filmName(t).toLowerCase().includes(query);
+  const order = SORTS.find((s) => s.value === sort.key) || SORTS[0];
+  const shown = all
+    .filter((t) => matches(t) && state.test(t) && stay.test(t) && inGenre(t))
+    .sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
+
+  const option = (o) => ({ value: o.value, label: o.label, count: all.filter(o.test).length });
+  const fields = [
+    { id: "state", label: "State", value: f.values.state, onChange: (v) => f.set("state", v), default: "all", options: states.map(option) },
+    { id: "stay", label: "Stay", value: f.values.stay, onChange: (v) => f.set("stay", v), default: "any", options: stayFilters.map(option) },
+    {
+      id: "genre", label: "Genre", value: f.values.genre, onChange: (v) => f.set("genre", v), default: "all", hidden: genres.length === 0,
+      options: [{ value: "all", label: "Every genre" }, ...genres.map(([g, n]) => ({ value: g, label: g, count: n }))],
+    },
+  ];
+  const unit = all.length === 1 ? words.unit[0] : words.unit[1];
 
   return (
     <div className="kc-page">
-      <PageHead title="Library" sub={titles.data ? `${all.length} ${all.length === 1 ? "film" : "films"}` : null} />
-      <div className="kc-toolbar">
-        <div className="kc-chips">
-          {filters.map((f) => (
-            <button key={f.id} type="button" className={"kc-chip" + (f.id === filter ? " kc-chip--on" : "")} onClick={() => setFilter(f.id)}>
-              {f.label}<span>{all.filter(f.test).length}</span>
-            </button>
-          ))}
-        </div>
-        <div className="kc-sort">
-          <span>Sort</span>
-          {SORTS.map((s) => (
-            <button key={s.id} type="button" className={"kc-chip" + (s.id === sort ? " kc-chip--on" : "")} onClick={() => setSort(s.id)}>
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHead title={words.title} sub={titles.data ? `${all.length} ${unit}` : null} />
 
-      {genres.length > 0 && (
-        <div className="kc-chips kc-chips--genres">
-          <button type="button" className={"kc-chip" + (!genre ? " kc-chip--on" : "")} onClick={() => setGenre(null)}>Every genre</button>
-          {genres.map(([g, n]) => (
-            <button key={g} type="button" className={"kc-chip" + (g === genre ? " kc-chip--on" : "")} onClick={() => setGenre(g === genre ? null : g)}>
-              {g}<span>{n}</span>
-            </button>
-          ))}
-        </div>
+      {all.length > 0 && (
+        <Toolbar>
+          <ToolbarSearch value={f.query} onChange={f.setQuery} pending={f.searchPending} placeholder={`Search ${words.unit[1]}…`} />
+          <ToolbarFilters fields={fields} onReset={() => f.setQuery("")} />
+          <ToolbarSort value={sort.key} dir={sort.dir} onChange={(key, dir) => setSort({ key, dir })} options={SORTS} />
+          <ToolbarSpacer />
+          <ToolbarCount shown={shown.length} total={all.length} unit={words.unit[1]} />
+        </Toolbar>
       )}
 
       <Failed error={titles.error} onRetry={titles.reload} />
 
-      {titles.data && shown.length === 0
-        ? <Empty title="Nothing here">No film matches this filter.</Empty>
-        : (
-          <div className="kc-grid">
-            {shown.map((t) => (
-              <PosterCard
-                key={t.id}
-                title={t}
-                note={t.status === "transcoding" ? "Still preparing" : t.status === "failed" ? "Could not be prepared" : stayWords(stayOf.get(t.id), me) || clock(t.durationSeconds)}
-                tone={t.status === "failed" ? "danger" : stayOf.get(t.id) && !stayOf.get(t.id).keeperId ? "warn" : null} />
-            ))}
-          </div>
-        )}
+      {titles.data && all.length === 0 && <Empty icon={kind === "show" ? "tv" : "clapperboard"} title={words.empty} />}
+      {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
+      {shown.length > 0 && (
+        <div className="kc-grid">
+          {shown.map((t) => (
+            <PosterCard
+              key={t.id}
+              title={t}
+              note={t.status === "transcoding" ? "Still preparing" : t.status === "failed" ? "Could not be prepared" : stayWords(stayOf.get(t.id), me) || clock(t.durationSeconds)}
+              tone={t.status === "failed" ? "danger" : stayOf.get(t.id) && !stayOf.get(t.id).keeperId ? "warn" : null} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

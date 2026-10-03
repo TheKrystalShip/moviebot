@@ -110,7 +110,7 @@ function Offer({ offer, best }) {
         <span className="kc-row__sub kc-mono">{offer.releaseName}</span>
       </div>
       {state === "started"
-        ? <button type="button" className="kc-btn kc-btn--ghost" onClick={() => navigate("/downloads")}><Icon name="download" size={16} />Downloading</button>
+        ? <button type="button" className="kc-btn kc-btn--ghost" disabled><Icon name="check" size={16} />On its way</button>
         : <button type="button" className="kc-btn kc-btn--primary" disabled={state === "busy"} onClick={fetchIt}><Icon name="download" size={16} />Download</button>}
     </div>
   );

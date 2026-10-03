@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.70.0] - 2026-10-03
+
+### Changed
+
+- **The sidebar is Home, Movies and TV Shows**, then Notify me and Leaving soon. Search is the field
+  at the top of the sidebar. `/movies` and `/tv` are each kind's shelf.
+- **Movies and TV Shows use krystal-ui's `Toolbar`**, the bar the Control Panel's lists use: a
+  search by name, one Filters popover (state, stay, genre, each option with its count) whose active
+  filters show as chips, a sort with its direction, and how many of how many are shown.
+- **The assistant dock can be pinned** beside the page or float over it, from the pin in the chat's
+  header, as in the Control Panel.
+
+### Removed
+
+- The Downloads page and the home page's "On its way" row. A film being fetched shows on the shelf
+  as preparing; a release started from Search says it is on its way.
+
 ## [1.69.0] - 2026-10-03
 
 ### Added

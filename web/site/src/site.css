@@ -49,18 +49,6 @@ button { font-family: inherit; }
 .kc-btn--ghost { background: transparent; border-color: var(--border-subtle); color: var(--fg-2); }
 .kc-btn--wide { width: 100%; justify-content: center; height: 46px; }
 
-.kc-chips, .kc-sort { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.kc-sort > span { font-size: 12.5px; color: var(--fg-3); margin-right: 2px; }
-.kc-chip {
-  height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border-subtle);
-  background: transparent; color: var(--fg-2); font-size: 13px; font-weight: 600;
-  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-}
-.kc-chip span { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-3); }
-.kc-chip:hover { border-color: var(--border-strong); color: var(--fg-1); }
-.kc-chip--on { background: var(--krystal-teal-dim); border-color: var(--border-accent); color: var(--krystal-teal); }
-.kc-chip--on span { color: var(--krystal-teal); }
-.kc-toolbar { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
 
 .kc-pill, .kc-tag {
   display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: var(--r-sm);
@@ -140,31 +128,21 @@ button { font-family: inherit; }
 }
 .kc-segmented__option:hover { color: var(--fg-1); }
 .kc-segmented__option.is-on { background: var(--krystal-teal-dim); color: var(--krystal-teal-hover); font-weight: 600; }
-.kc-arriving {
-  box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
-  padding: 14px; min-height: 96px; border-radius: var(--r-sm); border: 1px solid var(--border-subtle);
-  background: var(--surface-2);
-}
-
 /* How many cards each of the home page's shelves shows (krystal-ui's Rail), by the shelf's own
    width. Fractional on purpose: the card cut off at the right edge is what says there is more. */
 .rail--posters .rail__track { --rail-per-view: 7.4; }
-.rail--wide .rail__track,
-.rail--arriving .rail__track { --rail-per-view: 3.4; }
+.rail--wide .rail__track { --rail-per-view: 3.4; }
 @container rail (max-width: 1100px) {
   .rail--posters .rail__track { --rail-per-view: 5.4; }
-  .rail--wide .rail__track,
-  .rail--arriving .rail__track { --rail-per-view: 2.4; }
+  .rail--wide .rail__track { --rail-per-view: 2.4; }
 }
 @container rail (max-width: 760px) {
   .rail--posters .rail__track { --rail-per-view: 3.4; }
-  .rail--wide .rail__track,
-  .rail--arriving .rail__track { --rail-per-view: 1.6; }
+  .rail--wide .rail__track { --rail-per-view: 1.6; }
 }
 @container rail (max-width: 430px) {
   .rail--posters .rail__track { --rail-per-view: 2.4; }
-  .rail--wide .rail__track,
-  .rail--arriving .rail__track { --rail-per-view: 1.15; }
+  .rail--wide .rail__track { --rail-per-view: 1.15; }
 }
 
 /* ── The featured film ───────────────────────────────────────────────────────────────── */
@@ -277,7 +255,6 @@ button { font-family: inherit; }
 .kc-factgrid__value { font-size: 13.5px; color: var(--fg-1); overflow-wrap: anywhere; }
 .kc-attribution-note { margin: 0; font-size: 12px; color: var(--fg-4); }
 .kc-featured__overview { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--fg-2); max-width: 560px; }
-.kc-chips--genres { margin-top: -6px; }
 
 /* ── About, and the footer every page ends with (krystal-ui's Footer) ───────────────────── */
 .kc-about__block { display: flex; flex-direction: column; gap: 10px; max-width: 680px; }

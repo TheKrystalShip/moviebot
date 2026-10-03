@@ -7,7 +7,8 @@ import { navigate } from "../router.js";
 const page = (name, path, icon, sub) => ({ name, href: path, icon, sub, onClick: () => navigate(path) });
 
 const BROWSE = [
-  page("Library", "/library", "clapperboard", "Every film on the shelf"),
+  page("Movies", "/movies", "clapperboard", "Every film on the shelf"),
+  page("TV Shows", "/tv", "tv", "Every show on the shelf"),
   page("Leaving soon", "/leaving", "hourglass", "Films on their way out"),
   page("Notify me", "/notify", "bell-plus", "Films you are waiting for"),
   page("About", "/about", "info", "This site, and where film details come from"),

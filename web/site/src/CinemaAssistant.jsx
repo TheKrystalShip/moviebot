@@ -59,12 +59,16 @@ function FilmCards({ cards }) {
   );
 }
 
-export function CinemaAssistant({ session, docked, onClose, onExpand }) {
+export function CinemaAssistant({ session, docked, dock, onClose, onExpand }) {
   const user = session && session.user;
   return (
     <Chat
       user={user ? { name: user.name, display: user.name, userId: user.id, displayName: user.name } : null}
       docked={docked}
+      showPin={!!dock && dock.desktop}
+      pinned={dock && dock.pinned}
+      pinDisabled={!!dock && !dock.canPush}
+      onTogglePin={dock && dock.togglePin}
       onClose={onClose}
       onExpand={onExpand}
       assistantHost={HOST}

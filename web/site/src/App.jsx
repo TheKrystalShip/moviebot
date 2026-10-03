@@ -13,7 +13,6 @@ import { Title } from "./pages/Title.jsx";
 import { Search } from "./pages/Search.jsx";
 import { Notify } from "./pages/Notify.jsx";
 import { Leaving } from "./pages/Leaving.jsx";
-import { Downloads } from "./pages/Downloads.jsx";
 import { Profile } from "./pages/Profile.jsx";
 import { SignIn } from "./pages/SignIn.jsx";
 import { About } from "./pages/About.jsx";
@@ -26,9 +25,8 @@ const Dark = () => <div style={{ position: "fixed", inset: 0, background: "#000"
 
 const NAV = [
   { page: "home", path: "/", icon: "house", label: "Home" },
-  { page: "library", path: "/library", icon: "clapperboard", label: "Library" },
-  { page: "search", path: "/search", icon: "search", label: "Search" },
-  { page: "downloads", path: "/downloads", icon: "download", label: "Downloads" },
+  { page: "movies", path: "/movies", icon: "clapperboard", label: "Movies" },
+  { page: "tv", path: "/tv", icon: "tv", label: "TV Shows" },
 ];
 
 const LIFECYCLE = [
@@ -61,7 +59,7 @@ export function App() {
       <React.Suspense fallback={<Dark />}>
         <SiteRoom key={route.arg} room={route.arg} title={route.query.get("title")}
           onBack={() => goBack(route.query.get("title") ? "/title/" + encodeURIComponent(route.query.get("title")) : "/")}
-          onEmpty={() => navigate("/library")} />
+          onEmpty={() => navigate("/movies")} />
       </React.Suspense>
     );
   }
@@ -109,7 +107,7 @@ function Frame({ session, route }) {
         }
         aside={<>
           <Dock dock={dock}>
-            {dock.open && <CinemaAssistant session={session} docked onClose={() => dock.setOpen(false)} />}
+            {dock.open && <CinemaAssistant session={session} docked dock={dock} onClose={() => dock.setOpen(false)} />}
           </Dock>
           {!dock.open && <DockFab onClick={() => dock.setOpen(true)} />}
         </>}>
@@ -124,12 +122,12 @@ function Frame({ session, route }) {
 function Page({ route }) {
   switch (route.page) {
     case "home": return <Home />;
-    case "library": return <Library />;
-    case "title": return route.arg ? <Title key={route.arg} id={route.arg} /> : <Library />;
+    case "movies": return <Library key="film" kind="film" />;
+    case "tv": return <Library key="show" kind="show" />;
+    case "title": return route.arg ? <Title key={route.arg} id={route.arg} /> : <Library kind="film" />;
     case "search": return <Search query={route.query} />;
     case "notify": return <Notify />;
     case "leaving": return <Leaving />;
-    case "downloads": return <Downloads />;
     case "profile": return <Profile query={route.query} />;
     case "about": return <About />;
     default: return <Home />;

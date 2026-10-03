@@ -12,8 +12,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The front page: a film to watch, where this person left off, the rooms watching something now,
- * what arrived lately, what leaves next, what is on its way, and the shelf split into films and
- * shows. Every row is something the API measured; a row with nothing in it is left out rather than
+ * what arrived lately, what leaves next, and the shelf split into films and shows. Every row is something the API measured; a row with nothing in it is left out rather than
  * drawn empty.
  */
 export function Home() {
@@ -21,7 +20,6 @@ export function Home() {
   const me = session && session.user;
   const titles = useLoad(() => api.titles(), []);
   const rooms = useLoad(() => api.rooms(), [], { every: 15000 });
-  const downloads = useLoad(() => api.downloads().catch(() => []), [], { every: 10000 });
   const stays = useLoad(() => api.stays().catch(() => []), []);
   const progress = useLoad(() => api.progress().catch(() => []), []);
 
@@ -29,7 +27,6 @@ export function Home() {
   const byId = new Map(library.map((t) => [t.id, t]));
   // Watching now means somebody is there: an empty room is kept a while after the last person leaves.
   const watching = (rooms.data || []).filter((r) => r.titleId && r.participants > 0 && byId.has(r.titleId));
-  const arriving = (downloads.data || []).filter((d) => !d.isFinished);
   // What leaves next: every settled film nobody has kept, soonest first.
   const leaving = (stays.data || [])
     .filter((s) => s.settled && !s.keeperId && s.daysLeft != null && byId.has(s.titleId))
@@ -107,23 +104,10 @@ export function Home() {
           )} />
       )}
 
-      {arriving.length > 0 && (
-        <Rail
-          variant="arriving" icon="download" title="On its way" count={arriving.length}
-          onViewAll={() => navigate("/downloads")} viewAllLabel="All downloads"
-          items={arriving} itemKey={(d) => d.hash}
-          renderItem={(d) => (
-            <div className="kc-arriving">
-              <span className="kc-poster__name">{d.name}</span>
-              <span className="kc-poster__note">{d.summary}{d.isWatchable ? " · watchable now" : ""}</span>
-            </div>
-          )} />
-      )}
-
       {films.length > 0 && (
         <Rail
           variant="posters" icon="clapperboard" title="Movies" count={films.length}
-          onViewAll={() => navigate("/library")} viewAllLabel="All movies"
+          onViewAll={() => navigate("/movies")} viewAllLabel="All movies"
           items={films} itemKey={(t) => t.id}
           renderItem={(t) => <ShelfCard title={t} />} />
       )}
@@ -131,6 +115,7 @@ export function Home() {
       {shows.length > 0 && (
         <Rail
           variant="posters" icon="tv" title="TV Shows" count={shows.length}
+          onViewAll={() => navigate("/tv")} viewAllLabel="All shows"
           items={shows} itemKey={(t) => t.id}
           renderItem={(t) => <ShelfCard title={t} />} />
       )}

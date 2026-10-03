@@ -70,7 +70,7 @@ export function Title({ id }) {
 
   return (
     <div className="kc-page kc-title">
-      <button type="button" className="kc-back" onClick={() => goBack("/library")}>
+      <button type="button" className="kc-back" onClick={() => goBack(summary && summary.kind === "show" ? "/tv" : "/movies")}>
         <Icon name="arrow-left" size={14} />Back
       </button>
 
