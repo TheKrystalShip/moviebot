@@ -75,6 +75,11 @@ more.
 
 ## What it fetches
 
+- **Nothing outside this server.** The artwork behind the frame is the poster saved beside the title,
+  else the copy the API keeps for the film or the show (`/films/<imdb>/poster.jpg`,
+  `/shows/<imdb>/poster.jpg`). The manifest's `posterUrl` records where the ingest took its poster
+  from and is never loaded.
+
 - **Everything except the poster needs the token or the film's ticket, including anything CSS
   fetches.** A background image is fetched by the browser and carries no header of ours, so the preview
   sheet is fetched in code and drawn from a blob.

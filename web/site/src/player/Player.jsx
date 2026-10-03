@@ -86,6 +86,18 @@ function filmLine(manifest, around) {
 
 const episodeCode = (episode) => `S${episode.season} · E${episode.number}`;
 
+/**
+ * The artwork behind the frame, always from this server: the poster saved beside the title, else the
+ * copy the API keeps from the film database for the film, or for the show an episode belongs to.
+ */
+function posterOf(manifest) {
+  if (!manifest) return null;
+  if (manifest.poster) return environment().mediaUrl(manifest.id, manifest.poster);
+  const imdbId = manifest.film && manifest.film.imdbId;
+  if (!imdbId) return null;
+  return environment().apiUrl(`/${manifest.episode ? "shows" : "films"}/${encodeURIComponent(imdbId)}/poster.jpg`);
+}
+
 /** An episode either side, as a button names it: "S2 · E5 · Defiant Jazz". */
 function episodeWords(title, name) {
   return [title && title.episode ? episodeCode(title.episode) : title && title.title, name].filter(Boolean).join(" · ");
@@ -308,7 +320,8 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
     && ((titleHeld && !manifest) || view.catchingUp || view.stalled);
   const sheet = compact;
 
-  const frameStyle = { "--mp-poster": manifest && manifest.film && manifest.film.posterUrl ? `url("${manifest.film.posterUrl}")` : "none" };
+  const backdrop = posterOf(manifest);
+  const frameStyle = { "--mp-poster": backdrop ? `url("${backdrop}")` : "none" };
 
   return (
     <div className={"mp-stage" + (shown ? " is-shown" : " is-idle") + (view.ready ? " is-playing-film" : "")} style={frameStyle}

@@ -68,16 +68,14 @@ export interface SubtitleTrack {
 }
 
 /**
- * Which film this is, as opposed to which file it came from. Separate from the fingerprint
- * because an id for the film stays true across every copy of it, where a hash describes one.
+ * Which film this is, as the catalogue names it, as opposed to which file it came from. The
+ * artwork's source address is left out: the page takes artwork from this server only.
  */
-/** Which film this is, as the catalogue names it. */
 export interface FilmIdentity {
   imdbId?: string;
   name?: string;
   year?: number;
   starring?: string;
-  posterUrl?: string;
 }
 
 /**

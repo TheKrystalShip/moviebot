@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.76.1] - 2026-10-03
+
+### Fixed
+
+- The player's backdrop is the poster saved beside the title, or the API's copy for the film or the
+  show, so the page loads no artwork from the title index's servers.
+
 ## [1.76.0] - 2026-10-03
 
 ### Added
