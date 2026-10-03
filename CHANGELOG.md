@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.72.0] - 2026-10-03
+
+### Added
+
+- **`npm run verify:mobile`**, a harness for Krystal Cinema on phones (`web/site/verify/mobile/`): every
+  page and every tapped-open state, on iPhones drawn by WebKit and Galaxies drawn by Chromium, against
+  a scratch site with a library and people of its own. Each view is measured for what reads as broken
+  on a phone — sideways scrolling, something past the screen's edge, text cut off or running into other
+  text, a tap that opens nothing, small or covered controls — and photographed, with a contact sheet
+  per view putting every phone side by side.
+
+### Fixed
+
+- **A room on a phone has its way back.** The player called any frame 440px wide or narrower
+  "popped out" and drew it as one row with no Back and no Invite, which every phone held upright is; a
+  frame is now popped out only when it is small both ways, and a phone gets the compact player.
+- **Sort and Filters fit on a phone** (krystal-ui 0.5.1): they span the toolbar instead of running off
+  the right edge.
+- **A film card two-up on a phone** keeps its rating, year and length apart by letting their icons go.
+
 ## [1.71.0] - 2026-10-03
 
 ### Changed

@@ -56,7 +56,9 @@ more.
   that advanced the room's revision counts: a resync hands back a state already seen.
 - **The frame decides the layout, not the device.** A wide frame has labelled controls and popovers; a
   compact one (an Activity at its default size, a phone) has icons and menus as sheets from the bottom
-  edge; a tiny one (a popped-out Activity) is one row with an overflow menu. A mouse click on the film
+  edge; a tiny one (a popped-out Activity, small in both directions) is one row with an overflow menu.
+  Width alone does not make a frame tiny: a phone held upright is as narrow as a popped-out view, and
+  is compact, keeping its way back and its invite. A mouse click on the film
   plays or pauses it; a touch shows or hides the controls, because a thumb reaching for the screen is
   reaching for them.
 - **Fullscreen exists only where the browser grants it.** Inside Discord's iframe it is not given to an

@@ -236,6 +236,7 @@ async function layoutChecks(browser) {
   for (const [name, size, expected] of [
     ['wide', { width: 1440, height: 810 }, 'wide'],
     ['an Activity at 640×360', { width: 640, height: 360 }, 'compact'],
+    ['a phone held upright, 390×844', { width: 390, height: 844 }, 'compact'],
     ['a popped-out 400×225', { width: 400, height: 225 }, 'tiny'],
   ]) {
     const page = await viewer(browser, 'v7', 'Fay', size);

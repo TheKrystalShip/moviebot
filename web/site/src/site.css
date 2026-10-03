@@ -126,6 +126,13 @@ button { font-family: inherit; }
 }
 .kc-segmented__option:hover { color: var(--fg-1); }
 .kc-segmented__option.is-on { background: var(--krystal-teal-dim); color: var(--krystal-teal-hover); font-weight: 600; }
+/* A film card on a phone's two-up grid keeps its rating, year and length and lets their icons go:
+   "1h 28m" with its icon is wider than a third of a card that narrow, and runs into the next fact. */
+@container showcase (max-width: 210px) {
+  .showcase-spec__ico { display: none; }
+  .showcase-spec { padding: 0 3px; }
+}
+
 /* How many cards each of the home page's shelves shows (krystal-ui's Rail), by the shelf's own
    width. Fractional on purpose: the card cut off at the right edge is what says there is more. A
    film card stays at about 190px or wider: at 165px its length and a "1h 50m left" beside Resume

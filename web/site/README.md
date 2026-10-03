@@ -13,6 +13,7 @@ npm run lint
 npm run check      # the player's engine, types only
 npm run build      # -> dist/; scripts/build-player.sh installs it into the API's wwwroot
 npm run verify     # the player in a real browser, against a running API and dev server
+npm run verify:mobile  # every page on iPhones and Galaxies, against a scratch site (verify/mobile/)
 ```
 
 The dev server proxies `/api`, `/media` and `/hub` to the API (`MOVIEBOT_API`, default
@@ -98,6 +99,11 @@ Playwright's own download), the API (`MOVIEBOT_API`, `MOVIEBOT_SERVICE_KEY`, `MO
 media root) and a film (`MOVIEBOT_TITLE`) with more than one audio track and a subtitle track. A jsdom
 mount has no media pipeline, so it agrees with itself while the film never decodes a frame; a real
 browser is the only thing that catches what matters here.
+
+`npm run verify:mobile` looks at every page and every tapped-open state on a set of iPhones (WebKit)
+and Galaxies (Chromium), against a scratch site with a library and a person of its own, and leaves a
+screenshot per view per phone, a contact sheet per view and a report of what reads as broken on a
+phone. How to run it, what it measures and how to add a page or a phone: `verify/mobile/README.md`.
 
 ## The assistant
 

@@ -32,7 +32,8 @@ export default [
   },
 
   {
-    files: ["vite.config.*", "eslint.config.js"],
+    // The checks under verify/ run in Node and drive a browser, so they see both.
+    files: ["vite.config.*", "eslint.config.js", "verify/**/*.mjs"],
     languageOptions: { globals: { ...globals.node } },
   },
 ];

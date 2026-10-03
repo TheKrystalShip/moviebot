@@ -21,7 +21,11 @@ const PositionTickMs = 250;
 
 /** Below this width controls go icon-only and menus become sheets. */
 const CompactWidth = 720;
-/** At or below this, the frame is a popped-out view and the controls are one row. */
+/**
+ * A popped-out view is small both ways, and its controls are one row: a frame at or below TinyWidth
+ * in each direction, or at or below TinyHeight tall. A phone held upright is as narrow as one but
+ * several times taller, and is compact.
+ */
 const TinyWidth = 440;
 const TinyHeight = 260;
 
@@ -82,7 +86,8 @@ function useFrameSize(ref) {
     if (!el) return undefined;
     const measure = () => {
       const { width, height } = el.getBoundingClientRect();
-      setSize(width <= TinyWidth || height <= TinyHeight ? "tiny" : width < CompactWidth ? "compact" : "wide");
+      const popped = (width <= TinyWidth && height <= TinyWidth) || height <= TinyHeight;
+      setSize(popped ? "tiny" : width < CompactWidth ? "compact" : "wide");
     };
     measure();
     const observer = new ResizeObserver(measure);
