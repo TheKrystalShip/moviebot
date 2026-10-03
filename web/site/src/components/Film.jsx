@@ -43,7 +43,7 @@ export function ContinueCard({ title, progress, remainingSeconds, room }) {
  * A film's poster. The catalogue's artwork where there is some, and otherwise the name set on a
  * tinted card, so a film with no artwork is still a film on the shelf rather than a gap.
  */
-export function PosterArt({ title, className = "" }) {
+export function PosterArt({ title, className = "", children }) {
   const url = posterUrl(title);
   const [failed, setFailed] = React.useState(false);
   return (
@@ -51,6 +51,7 @@ export function PosterArt({ title, className = "" }) {
       {url && !failed
         ? <img src={url} alt="" loading="lazy" onError={() => setFailed(true)} />
         : <span className="kc-poster-art__name">{filmName(title)}</span>}
+      {children}
     </div>
   );
 }
@@ -100,14 +101,3 @@ export function Failed({ error, onRetry }) {
   );
 }
 
-export function Shelf({ title, icon, more, children }) {
-  return (
-    <section className="kc-shelf">
-      <div className="kc-shelf__head">
-        <h2>{icon && <Icon name={icon} size={18} />}{title}</h2>
-        {more && <a className="kc-shelf__more" {...linkProps(more.href)}>{more.label} →</a>}
-      </div>
-      <div className="kc-shelf__row">{children}</div>
-    </section>
-  );
-}

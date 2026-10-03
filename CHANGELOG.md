@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.68.0] - 2026-10-03
+
+### Changed
+
+- **The home page's rows are krystal-ui's `Rail`**, the shelf the Control Panel's dashboard uses: each
+  row is a titled card with a count, scrolled freely by swipe, trackpad or shift-wheel and settling on
+  a card, with arrows when it overflows, the next card peeking at the right edge, and a "View all" link
+  where a page has the rest. How many cards a row shows follows the row's own width. The library row
+  reaches every film rather than the first eighteen.
+
 ## [1.67.0] - 2026-10-03
 
 ### Changed

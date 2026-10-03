@@ -1,10 +1,10 @@
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Icon, Rail } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../api.js";
 import { useLoad, stayWords } from "../data.js";
 import { useSession } from "../session.js";
-import { linkProps } from "../router.js";
+import { linkProps, navigate } from "../router.js";
 import { clock, since } from "../time.js";
-import { ContinueCard, Empty, Failed, PosterArt, PosterCard, Shelf, watchLink } from "../components/Film.jsx";
+import { ContinueCard, Empty, Failed, PosterArt, PosterCard, watchLink } from "../components/Film.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
 
 const LEAVING_SOON_DAYS = 3;
@@ -49,58 +49,64 @@ export function Home() {
       {featured && <Featured title={featured} room={watching.find((r) => r.titleId === featured.id)} />}
 
       {continuing.length > 0 && (
-        <Shelf title="Continue watching" icon="history">
-          {continuing.map((p) => (
+        <Rail
+          variant="wide" icon="history" title="Continue watching" count={continuing.length}
+          items={continuing} itemKey={(p) => p.titleId}
+          renderItem={(p) => (
             <ContinueCard
-              key={p.titleId}
               title={byId.get(p.titleId)}
               progress={p}
               remainingSeconds={p.remainingSeconds}
               room={watching.find((r) => r.titleId === p.titleId)} />
-          ))}
-        </Shelf>
+          )} />
       )}
 
       {watching.length > 0 && (
-        <Shelf title="Watching now" icon="users">
-          {watching.map((room) => (
-            <a key={room.sessionId} className="kc-room" {...watchLink(room.titleId, room.sessionId)}>
-              <PosterArt title={byId.get(room.titleId)} className="kc-poster-art--wide" />
-              <span className="kc-room__join"><Icon name="users" size={14} />Join</span>
+        <Rail
+          variant="wide" icon="users" title="Watching now" count={watching.length}
+          items={watching} itemKey={(room) => room.sessionId}
+          renderItem={(room) => (
+            <a className="kc-room" {...watchLink(room.titleId, room.sessionId)}>
+              <PosterArt title={byId.get(room.titleId)} className="kc-poster-art--wide">
+                <span className="kc-room__join"><Icon name="users" size={14} />Join</span>
+              </PosterArt>
               <span className="kc-poster__name">{filmName(byId.get(room.titleId))}</span>
               <span className="kc-poster__note">
                 {room.participants} watching · {room.paused ? "paused" : "playing"} at{" "}
                 <span className="kc-mono">{clock(room.positionSeconds)}</span>
               </span>
             </a>
-          ))}
-        </Shelf>
+          )} />
       )}
 
       {arriving.length > 0 && (
-        <Shelf title="On its way" icon="download" more={{ href: "/downloads", label: "All downloads" }}>
-          {arriving.map((d) => (
-            <div key={d.hash} className="kc-arriving">
+        <Rail
+          variant="arriving" icon="download" title="On its way" count={arriving.length}
+          onViewAll={() => navigate("/downloads")} viewAllLabel="All downloads"
+          items={arriving} itemKey={(d) => d.hash}
+          renderItem={(d) => (
+            <div className="kc-arriving">
               <span className="kc-poster__name">{d.name}</span>
               <span className="kc-poster__note">{d.summary}{d.isWatchable ? " · watchable now" : ""}</span>
             </div>
-          ))}
-        </Shelf>
+          )} />
       )}
 
       {leaving.length > 0 && (
-        <Shelf title="Leaving soon" icon="hourglass" more={{ href: "/leaving", label: "See all" }}>
-          {leaving.map((s) => (
-            <PosterCard key={s.titleId} title={byId.get(s.titleId)} note={stayWords(s, me)} tone="warn" />
-          ))}
-        </Shelf>
+        <Rail
+          variant="posters" icon="hourglass" title="Leaving soon" count={leaving.length}
+          onViewAll={() => navigate("/leaving")} viewAllLabel="See all"
+          items={leaving} itemKey={(s) => s.titleId}
+          renderItem={(s) => <PosterCard title={byId.get(s.titleId)} note={stayWords(s, me)} tone="warn" />} />
       )}
 
-      <Shelf title="In the library" icon="clapperboard" more={{ href: "/library", label: `All ${library.length}` }}>
-        {library.slice(0, 18).map((t) => (
-          <PosterCard key={t.id} title={t} note={t.status === "transcoding" ? "Still preparing" : clock(t.durationSeconds)} />
-        ))}
-      </Shelf>
+      <Rail
+        variant="posters" icon="clapperboard" title="In the library" count={library.length}
+        onViewAll={() => navigate("/library")} viewAllLabel="All films"
+        items={library} itemKey={(t) => t.id}
+        renderItem={(t) => (
+          <PosterCard title={t} note={t.status === "transcoding" ? "Still preparing" : clock(t.durationSeconds)} />
+        )} />
     </div>
   );
 }

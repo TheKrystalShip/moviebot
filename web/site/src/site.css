@@ -102,25 +102,20 @@ button { font-family: inherit; }
 .kc-shelf { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .kc-shelf__head { display: flex; align-items: flex-end; gap: 12px; }
 .kc-shelf__head h2 { margin: 0; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.kc-shelf__more { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--krystal-teal); }
-.kc-shelf__row {
-  display: grid; grid-auto-flow: column; grid-auto-columns: 168px; gap: 16px;
-  overflow-x: auto; padding-bottom: 6px;
-}
 .kc-count { font-family: var(--font-mono); font-size: 12px; color: var(--fg-3); font-weight: 500; }
 .kc-tone--warn { color: var(--warning-fg); }
 .kc-tone--accent { color: var(--krystal-teal); }
 
 .kc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px 16px; }
 
-.kc-room { position: relative; display: flex; flex-direction: column; gap: 6px; grid-column: span 2; }
-.kc-shelf__row .kc-room { width: 352px; }
+.kc-room { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.kc-room:hover .kc-poster-art { border-color: var(--border-strong); }
 .kc-room__join {
-  position: absolute; right: 10px; top: calc(352px * 9 / 16 - 40px); height: 28px; padding: 0 12px;
+  position: absolute; right: 10px; bottom: 10px; height: 28px; padding: 0 12px;
   border-radius: var(--r-sm); background: var(--krystal-teal); color: var(--fg-inverse);
   display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600;
 }
-.kc-continue { display: flex; flex-direction: column; gap: 6px; min-width: 0; cursor: pointer; grid-column: span 2; }
+.kc-continue { display: flex; flex-direction: column; gap: 6px; min-width: 0; cursor: pointer; }
 .kc-continue:hover .kc-poster-art { border-color: var(--border-strong); }
 .kc-continue .kc-poster-art__name { display: none; }
 .kc-continue__play {
@@ -146,9 +141,30 @@ button { font-family: inherit; }
 .kc-segmented__option:hover { color: var(--fg-1); }
 .kc-segmented__option.is-on { background: var(--krystal-teal-dim); color: var(--krystal-teal-hover); font-weight: 600; }
 .kc-arriving {
-  display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; padding: 14px;
-  width: 260px; min-height: 96px; border-radius: var(--r-sm); border: 1px solid var(--border-subtle);
-  background: var(--surface-1);
+  box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
+  padding: 14px; min-height: 96px; border-radius: var(--r-sm); border: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+}
+
+/* How many cards each of the home page's shelves shows (krystal-ui's Rail), by the shelf's own
+   width. Fractional on purpose: the card cut off at the right edge is what says there is more. */
+.rail--posters .rail__track { --rail-per-view: 7.4; }
+.rail--wide .rail__track,
+.rail--arriving .rail__track { --rail-per-view: 3.4; }
+@container rail (max-width: 1100px) {
+  .rail--posters .rail__track { --rail-per-view: 5.4; }
+  .rail--wide .rail__track,
+  .rail--arriving .rail__track { --rail-per-view: 2.4; }
+}
+@container rail (max-width: 760px) {
+  .rail--posters .rail__track { --rail-per-view: 3.4; }
+  .rail--wide .rail__track,
+  .rail--arriving .rail__track { --rail-per-view: 1.6; }
+}
+@container rail (max-width: 430px) {
+  .rail--posters .rail__track { --rail-per-view: 2.4; }
+  .rail--wide .rail__track,
+  .rail--arriving .rail__track { --rail-per-view: 1.15; }
 }
 
 /* ── The featured film ───────────────────────────────────────────────────────────────── */
