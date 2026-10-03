@@ -131,6 +131,13 @@ button { font-family: inherit; }
 }
 .kc-segmented__option:hover { color: var(--fg-1); }
 .kc-segmented__option.is-on { background: var(--krystal-teal-dim); color: var(--krystal-teal-hover); font-weight: 600; }
+/* Full width, its options sharing it equally, the chosen one raised rather than tinted. */
+.kc-segmented--fill { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--surface-1); }
+.kc-segmented--fill .kc-segmented__option { height: 38px; font-size: 14px; color: var(--fg-3); }
+.kc-segmented--fill .kc-segmented__option.is-on { background: var(--surface-3); color: var(--fg-1); }
+/* The library's Movies | TV shows switch is the phone's; a wide screen has a sidebar entry for each. */
+.kc-kind-switch { display: none; }
+@media (max-width: 768px) { .kc-kind-switch { display: grid; } }
 /* A film card on a phone's two-up grid keeps its rating, year and length and lets their icons go:
    "1h 28m" with its icon is wider than a third of a card that narrow, and runs into the next fact. */
 @container showcase (max-width: 210px) {

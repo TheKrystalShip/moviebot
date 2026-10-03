@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.82.1] - 2026-10-03
+
+### Fixed
+
+- On a phone the library has its Movies | TV shows switch under the heading, as the mobile design
+  draws it: the Library tab is the phone's one way in, and it only ever reached the movies.
+
 ## [1.82.0] - 2026-10-03
 
 ### Changed

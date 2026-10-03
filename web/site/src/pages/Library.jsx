@@ -5,6 +5,7 @@ import {
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useSession } from "../session.js";
+import { navigate } from "../router.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard } from "../components/Film.jsx";
 
 const rating = (t) => (t.details && t.details.rating) || 0;
@@ -30,6 +31,25 @@ const KINDS = {
  */
 export function Library({ kind = "film" }) {
   return kind === "show" ? <ShowLibrary /> : <FilmLibrary />;
+}
+
+/**
+ * Movies or TV shows, on a phone. Its Library tab is the one way into either, where a wide screen
+ * has a sidebar entry for each; picking one replaces the page rather than stacking on it.
+ */
+function KindSwitch({ kind }) {
+  const options = [{ kind: "film", label: "Movies", path: "/movies" }, { kind: "show", label: "TV shows", path: "/tv" }];
+  return (
+    <div className="kc-segmented kc-segmented--fill kc-kind-switch" role="radiogroup" aria-label="Library">
+      {options.map((o) => (
+        <button key={o.kind} type="button" role="radio" aria-checked={o.kind === kind}
+          className={"kc-segmented__option" + (o.kind === kind ? " is-on" : "")}
+          onClick={() => { if (o.kind !== kind) navigate(o.path, { replace: true }); }}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 const SHOW_SORTS = [
@@ -91,6 +111,7 @@ function ShowLibrary() {
   return (
     <div className="kc-page">
       <PageHead title="TV Shows" sub={shows.data ? `${all.length} ${all.length === 1 ? "show" : "shows"}` : null} />
+      <KindSwitch kind="show" />
 
       {all.length > 0 && (
         <Toolbar>
@@ -166,6 +187,7 @@ function FilmLibrary() {
   return (
     <div className="kc-page">
       <PageHead title={words.title} sub={titles.data ? `${all.length} ${unit}` : null} />
+      <KindSwitch kind={kind} />
 
       {all.length > 0 && (
         <Toolbar>
