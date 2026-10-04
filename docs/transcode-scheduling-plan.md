@@ -1,293 +1,206 @@
 # Transcode scheduling, backfill and placement
 
-A plan, not canon. When a phase lands, what it settles moves into the `CLAUDE.md` beside the code
-it governs (`src/MovieBot.Ingest/`, `src/MovieBot.Handoff/`, `src/MovieBot.Api/`,
-`src/MovieBot.Core/`, `web/site/src/player/`) and its section here is struck.
+A plan, not canon. What it settles moves into the `CLAUDE.md` beside the code it governs
+(`src/MovieBot.Ingest/`, `src/MovieBot.Handoff/`, `src/MovieBot.Api/Transcode/`,
+`src/MovieBot.Core/`, `web/site/src/player/`) when it lands, and its section here is struck. When
+the last phase lands, this file is deleted.
 
 ## 1. What this is for
 
-The card is a fixed resource shared by every transcode, and today it is divided without regard to
-who is watching what. This plan makes the GPU's time follow demand:
+The card is a fixed resource shared by every transcode. This plan makes the GPU's time follow
+demand:
 
 - a quality somebody is watching is kept comfortably ahead of the room's playhead before anything
   else runs;
 - a film a room has just asked for starts at once, never behind a film nobody is watching;
 - spare capacity goes first to the unwatched qualities of watched films, then to films nobody holds;
-- when no room is playing, the card backfills what the library is missing;
-- a transcode is written to the SSD when it fits and to the cold disk when it does not, and a film
-  a room is watching is moved only once nobody is.
+- when no room is playing, the card backfills what the library is owed: rungs it lacks, and rungs
+  made at a quality the library has moved past.
 
-**Out of scope: the dialogue boost.** It runs on the CPU and pins all four cores for minutes, and
-how it is made is being re-evaluated separately. It keeps exactly its current behaviour: made after
-the main pass, before the status turns ready. It is not scheduled, not paused and not backfilled by
-anything here.
+**Out of scope: the dialogue boost.** It runs on the CPU, pins all four cores for minutes, and how
+it is made is being re-evaluated separately. It keeps its current place: made after the video and
+audio, before the title turns ready. Nothing here schedules, pauses or backfills it.
 
-## 2. What was measured
+## 2. What stands
 
-On hotbox (Quadro P2000, one NVENC and one NVDEC engine, no session cap; AMD Athlon X4 860K), with
-the hand-off's own ffmpeg (`/opt/ffmpeg-p2000`), 180 s of an 8-bit H.264 1920x1040 source, video
-only, `h264_nvenc -preset p5 -cq 19`:
+These are canon and are not restated here:
 
-| Configuration | Speed per output | NVENC | NVDEC | CPU (of 4 cores) |
-|---|---|---|---|---|
-| 1080 alone | 12.2x | 93% | 53% | 73% |
-| 720 alone, CPU scale | 11.4x | 42% | 50% | 85% |
-| 1080 + 720, today's command (two decodes, CPU scale) | 6.3x | 73% | 57% | 82% |
-| 1080 + 720, one decode, `split` | 8.4x | 94% | 36% | 81% |
-| 1080 + 720 + 480, one decode, `split` | 6.3x | 82% | 29% | 86% |
-| 720 alone, `h264_cuvid -resize` | 20.1x | 56% | 89% | 61% |
-| 1080 + 720, separate processes, decoder resize | 9.0x | 95% | 83% | — |
-| 1080 + 720 + 480, separate processes, decoder resize | 7.0x | 82% | 96% | — |
-| two separate 1080 jobs | 6.3x each | — | — | — |
-| 1080, `-preset p3` | 13.1x | 93% | 58% | 51% |
+| Piece | Authority |
+|---|---|
+| One ffmpeg per video rung, audio across two processes, decoder resize, `-surfaces 32`, CQ 25 | `src/MovieBot.Ingest/CLAUDE.md` |
+| The planner: tiers, two budgets, hysteresis, hold vs park, whole films vs `PerRung`, owed work computed from manifests, `maySettle` | `src/MovieBot.Api/Transcode/CLAUDE.md` |
+| `GET /api/transcode/plan`, `PUT /api/transcode/status` | `docs/api-contract.md`, shapes in `src/MovieBot.Core/Transcode.cs` |
+| Per-rung heads in the manifest and room state, player level capping, per-rung seek clamp, viewer quality reported up the hub | `web/site/src/player/CLAUDE.md`, `src/MovieBot.Api/Sessions/CLAUDE.md` |
+| Placement: the reservation in `TranscodeLedger`, media root then cold root then wait | `src/MovieBot.Handoff/CLAUDE.md` |
+| `--reencode`: CQ 23 from the top rung, staged and swapped by rename on the title's disk | `src/MovieBot.Handoff/CLAUDE.md` |
 
-What follows from it:
-
-- **NVENC is the ceiling**, at about 12x realtime of 1080p pixel rate, and concurrent processes
-  divide it evenly. Pausing reorders GPU time; it never creates more of it.
-- **Today's main pass leaves about a third on the table**: two decodes copying frames to system
-  memory and a CPU scale on a four-core machine hold it to 6.3x where the encoder could carry 9x.
-- **With decoder-side resizing, NVDEC becomes the second limit** once three processes each decode
-  the full source.
-- **Production runs slower than these numbers**: 2.7x to 4x for two-rung 1080p films in the
-  hand-off's log. Audio encoding shares the CPU, a second ingest usually runs alongside, and a source
-  still arriving holds the reader back. Those were not separated, and phase 1 re-measures with audio.
-- **Not measured yet**: decoder resize ahead of `tonemap_opencl` on an HDR source; the VRAM and RAM a
-  stopped ffmpeg holds; the cold disk under concurrent transcode writes, a settle copy and playback.
-  The resize heights in the table were slightly under the source's aspect, so those rows flatter a
-  little.
-- The ffmpeg build has no `scale_cuda` or `scale_npp`. Decoder resize (`-resize` on the `*_cuvid`
-  decoders) is what keeps scaling off the CPU, and it exists only where NVDEC decodes the source.
-  H.264 Hi10P is not one of those on Pascal and decodes in software.
-- `llama-server` (the assistant's model) shares the card: 1.4 GiB of its 5 GiB VRAM resident. Its
-  compute contention with NVENC is small, but its memory is part of the budget a set of paused
-  transcodes has to fit in.
+What does not yet exist: the hand-off neither fetches the plan nor reports status. It starts first
+passes on its own rules under `MaxConcurrentIngests`, a unit cannot resume from a segment, and
+nothing executes a `rung-add`.
 
 ## 3. Roles
 
 | Piece | Owns | Never does |
 |---|---|---|
-| `MovieBot.Api` | **The planner.** Demand (rooms, playheads, what viewers want), what each title is owed, the priority order, placement, when a film may settle. Publishes a desired state. | Run ffmpeg, write the media roots, touch the GPU. |
-| `MovieBot.Handoff` | **The executor.** Starts, pauses, resumes and stops work units to match the desired state; reports what is running, at what speed, and how far each output has got. Measures disks and owns every write to the media roots. | Decide priority from rooms. |
-| `MovieBot.Ingest` | **A stateless library** performing one unit of work it is handed, with explicit inputs and outputs. | Know about rooms, other units, or the schedule. |
+| `MovieBot.Api` | **The planner.** Demand (rooms, playheads, what viewers want), what each title is owed, the priority order, when a film may settle. Publishes a desired state. | Run ffmpeg, write the media roots, touch the GPU, choose a disk. |
+| `MovieBot.Handoff` | **The executor.** Starts, holds, parks, resumes and stops units to match the desired state; reports what is running, at what speed, how far each output has got, and what is owed that has not begun. Resolves each unit's input, chooses its disk, finishes titles, owns every write to the media roots. | Decide priority from rooms. |
+| `MovieBot.Ingest` | **A stateless library** performing one unit it is handed, with explicit inputs and outputs. | Know about rooms, other units, or the schedule. |
 
-The split follows the library clock already in place: the API decides what is due
-(`GET /api/library/due`) and the hand-off acts on it, being the only process allowed to write the
-media roots. The API does not run transcodes because it is redeployed more often than anything else,
-and a restart would kill every transcode in flight; its unit also has neither the media roots nor
-the GPU.
+**Placement is the executor's.** It measures the disks and holds the ledger lock that makes placing
+and claiming one step. The plan's `placement` field is removed from the wire, from
+`TranscodePlanUnit` and from `docs/api-contract.md`.
 
-## 4. Desired state, not commands
+## 4. The executor's loop
 
-The API publishes **what should be true**; the hand-off reconciles toward it. A restart of either
-side loses nothing, because the next reconcile computes the same answer from the same facts.
+- **Reconcile.** The hand-off fetches the plan and reconciles toward it every 2 to 5 s while any unit
+  is running, held or parked, or any room is playing; on its existing `PollSeconds` otherwise.
+  Polling is the mechanism. A pushed nudge is added only if a room starting a film measurably waits
+  on the poll, and even then the plan is fetched, never carried in the nudge.
+- **Report.** Each reconcile ends with `PUT /api/transcode/status`: every unit it knows, the disks'
+  readings, and the owed entries (section 5).
+- **The key is the unit id.** The in-flight set keyed by download hash (and hash and file for an
+  episode) becomes a map from unit id to the process running it. Ids are stable for as long as the
+  work is owed (`src/MovieBot.Api/Transcode/CLAUDE.md`), so a unit is never started twice.
+- **Input is resolved here.** A unit names a title and a rung; the hand-off maps it to the source:
+  the download's feature file (or the episode's file) while the download holds it, else the title's
+  top rung for a lower rung or a re-encode. A missing top rung with no source is reported `failed`
+  with that reason, not attempted.
+- **Disk is chosen here**, at the unit's start, by `TranscodePlacement` as today. A unit with no room
+  stays parked and is reported so, with the reason; the plan keeps ranking it.
+- **Finishing a title is the hand-off's.** When every unit of a title reports `done`, the hand-off
+  runs what follows the main pass today (subtitles, preview sheet, dialogue boost, the ready status,
+  markers for an episode) exactly as it does now. Finishing is not a plan unit and spends nothing from
+  the GPU budgets.
+- **One gate over SIGSTOP and SIGCONT per process.** `ReadAheadGuard` and the plan both feed it; a
+  process runs only when neither wants it stopped, and neither sends a signal itself.
+- **When the API cannot answer, the executor falls back**: new downloads are ingested on the local
+  rules up to `MaxConcurrentIngests`, everything running keeps running, a held unit with no plan
+  behind it is resumed, nothing new is held, no backfill runs and nothing settles. Doing work that
+  turns out unneeded is recoverable; a library that stops ingesting because the planner is down is
+  not. `MaxConcurrentIngests` survives only as this ceiling.
+- **Failures back off.** A unit that fails is reported with its reason, retried after a back-off that
+  doubles from one minute to an hour, and never in a loop. A first pass that fails is surfaced the way
+  a failed ingest is now.
+- **Restart.** Every unit the executor ran is either complete (`#EXT-X-ENDLIST`) or resumable from
+  its last whole segment, and the next reconcile resumes it. Ledger claims are cleared at start, as
+  now, and a resumed unit claims again.
 
-- **`GET /api/transcode/plan`**: an ordered list of work units, each with its id, its kind and
-  inputs (section 5), a disposition (`run`, `hold`, `park`) and a placement for new output. Order
-  is priority; the executor runs from the top within its measured budget.
-- **`PUT /api/transcode/status`**: the executor's report, sent each reconcile: every unit it knows,
-  its state (`running`, `held`, `parked`, `done`, `failed` with the reason), its live speed from
-  ffmpeg's progress, each output's head in seconds, the disk it writes to, and the disks' readings.
-  The planner reads heads and speeds from here, not from guesses.
-- **Cadence.** The hand-off reconciles every 2 to 5 s while anything is running or any room is
-  playing, and on its existing poll otherwise. A room starting a film is the case latency matters
-  for; if polling proves too slow there, the API pushes a nudge and the plan is still fetched, never
-  carried in the nudge.
-- **When the API cannot answer, the hand-off falls back to today's behaviour**: new downloads are
-  ingested up to a fixed ceiling, everything running keeps running, nothing new is held. This is the
-  opposite of the rule for deletions, deliberately: doing work that turns out unneeded is
-  recoverable, and a library that stops ingesting because the planner is down is not.
-- **One owner of SIGSTOP and SIGCONT per process.** `ReadAheadGuard` already stops and resumes the
-  transcode of an arriving source. A process runs only when neither the guard nor the plan wants it
-  stopped; both feed one gate in the executor, and neither sends a signal directly.
+## 5. Films the planner cannot see yet
 
-## 5. Work units
+The planner reads titles from manifests, and a film still downloading has none until its transcode
+begins. The executor's report gains an **owed** list: every download or episode file it would
+ingest and has not started, each with its title id, kind (film or episode), the show and its season
+and episode number for an episode, and what a probe gives once enough has arrived to read the
+container (duration, width, height, HDR, decodable on NVDEC). The planner ranks these as first-pass
+work: tier 2 when a room has asked for it, tier 5 otherwise. An owed entry not yet probed is ranked
+but not admitted.
 
-Each unit is something `MovieBot.Ingest` can do alone and repeat safely.
+- **Episodes are titles like films, in order.** Among first passes of one show, the earlier episode
+  ranks first. An episode a room is watching makes the next episode of the same show, when it is
+  owed, rank as tier 4: wanted soon.
+- This is a contract change on both sides: `TranscodeStatus` gains `owed`, `docs/api-contract.md`
+  says so, and both deploy together.
 
-- **`video-rung`**: one quality of one title, from a given segment number to the end, into a given
-  directory. Its own ffmpeg process, decoding on NVDEC with `-resize` to the rung's size where the
-  decoder supports it, falling back to a CPU scale where it does not. Keyframes are forced on the
-  same timestamp expression as today, so a rung started later, or resumed, opens segment *n* on the
-  same frame as every other rung.
-- **`audio`**: every audio rendition of a title, in one process, from the same demux rule as today
-  (each rendition through its own demuxer).
-- **`rung-add`**: a backfilled quality published into a finished title (section 8).
+## 6. Resuming and pausing
 
-**Resuming from a segment** is the new capability every unit needs: `-ss` at the boundary of the
-first missing segment, `-hls_flags append_list`, `-start_number`, and the output timestamps offset
-to continue the existing ones. The playlist's last complete segment is the resume point; a partial
-segment is deleted first.
+**Resuming from a segment** is the capability every unit needs: `-ss` at the boundary of the first
+missing segment, `-hls_flags append_list`, `-start_number`, and output timestamps offset to continue
+the existing ones. The playlist's last complete segment is the resume point; a partial segment is
+deleted first. Keyframes are forced on the same timestamp expression as now, so a rung resumed
+opens segment *n* on the same frame as every other rung. Resuming has to hold for:
 
-**Two kinds of pause**:
+- an SDR source on NVDEC with decoder resize;
+- an HDR source through `tonemap_opencl`;
+- a Hi10P source decoded in software;
+- an audio process carrying several renditions, each resumed from its own playlist's last whole
+  segment;
+- a source still arriving, behind `ReadAheadGuard`.
 
-- **Hold**: SIGSTOP. Instant, keeps the process's state, costs the memory it holds. For contention
-  measured in minutes: a room starting while a third rung runs.
-- **Park**: stop the process and resume from the last whole segment later. Costs a few seconds of
-  restart and one partial segment. For anything held long: backfill when a room starts playing, a
-  hold that has lasted past a threshold, or more held processes than the VRAM and RAM budget allows.
+**A resume keeps the quality the rung began at.** The manifest records `cq` per rendition when a
+rung starts, and a resumed rung is encoded at that value, so one playlist never mixes two qualities.
+A rung left at an outdated quality is owed again by backfill (section 7) and redone whole.
 
-**What "head" means changes.** The manifest carries a head per rung and for audio, read from each
-playlist's `#EXTINF` sums as today. A title's playable head for a viewer is the minimum of their
-rung's head and the audio head.
+**Two kinds of pause.** Hold is SIGSTOP: instant, keeps the process's state, costs its memory. Park
+stops the process; it resumes from the last whole segment. **Hold ships disabled** (`MaxHeld: 0`,
+every pause a park) until these are measured on hotbox and the settings set from them:
 
-## 6. The scheduling policy
+- the VRAM and RAM a stopped ffmpeg holds, for SDR with decoder resize, HDR through tonemapping, and
+  Hi10P, against hotbox's 7.7 GiB, no swap, and `llama-server`'s 1.4 GiB resident on the card;
+- the NVDEC ceiling in concurrent source decodes, which replaces the `NvdecBudget` of 20;
+- the NVENC budget checked against production throughput with audio and two concurrent titles.
 
-Each reconcile the planner ranks every unit and marks as many `run` as the budget allows, from the
-top:
+## 7. Backfill
 
-1. **Watched and short of lead.** A rung somebody in a playing room wants, whose head is less than
-   the lead target (initially 120 s) past the room's playhead. Audio for the same title alongside.
-2. **A film a room has just asked for**, its top rung first. A room never waits behind a film nobody
-   holds; the work that makes room for it is held or parked.
-3. **Watched and comfortably ahead.**
-4. **Unwatched rungs of films in rooms**, so a switch later has somewhere to go.
-5. **Films nobody holds** that are still owed their first pass.
-6. **Backfill** (section 8), only while no room is playing.
+**Owed is computed, never recorded.** Each plan compares every finished title's manifest with what
+it should hold, and each difference is a tier-6 `rung-add` unit:
 
-- **Budget.** Two per-host settings measured on the card, the way `MaxConcurrentIngests` is now: an
-  NVENC budget in 1080p-equivalents of realtime, and an NVDEC budget in source decodes of realtime.
-  A unit costs its pixel area against the first and one decode against the second. The executor's
-  reported speeds are compared against the model and a persistent gap is logged, never silently
-  absorbed.
-- **Hysteresis.** A unit is not held within a minimum run time of being started, and the lead target
-  has a band, so two units of similar rank do not swap every reconcile.
-- **"Playing"** is a room with somebody in it, playing or paused. A room merely holding a title
-  (`OccupiedRooms`' sense) is not demand: rooms are kept idle for a while and would pin work for
-  nobody.
-- **"Wants"** is the rung the viewer's player would choose, not the one it plays (section 7). A viewer
-  capped at 720p because 1080p is behind wants 1080p, and that is the demand that must be served.
-- **Hi10P and anything else NVDEC refuses** is costed as a software decode: its CPU cost, not an
-  NVDEC slot. Phase 1 measures what it actually costs on this CPU.
+- **a missing rung**: one `Ladder.For` gives the source's dimensions and the manifest lacks;
+- **an outdated rung**: one whose rendition records no `cq`, on a settled title.
 
-## 7. The player: per-rung heads and what a viewer wants
+`--reencode` is folded into this and removed: the planner owes what the tool selected, and the
+executor carries it out with the tool's method.
 
-Pausing any single rung is unsafe until both of these land: hls.js switching to a rung that is behind
-the playhead stalls the viewer until it catches up.
+- **The source decides what can be made.** With the source on disk, anything the first pass would
+  make, at the ingest's quality. Without it, from the title's top rung at CQ 23 (`Reencoder`'s
+  measured choice): a lower rung, or the top rung itself when it is outdated. A second generation is
+  acceptable going down and in place, never going up. Owed backfill does not hold a source past the
+  tracker's clock.
+- **Made on the title's own disk and swapped by rename.** A unit writes into a dotted staging
+  directory on the title's root (`.reencode/<id>`); under the title's lock (`TitleLocks`) the staged
+  rung is moved in, and the master playlist and manifest are rewritten through a temp file and a
+  rename. A replaced rung's old directory is moved out first and deleted last; a pass stopped between
+  the moves is repaired by the next, as `--reencode` repairs now.
+- **New segments are named apart** (`q23-seg00000.m4s`) where a rung replaces one already served,
+  because segments are served immutable.
+- **Adding a rung needs no room to be idle**; replacing one needs no room playing that title, since a
+  player holding the old initialisation segment cannot decode the new one. A replacement due while
+  the title is played stays owed. A player holding the old master sees a new rung when it next loads
+  the film, at most `max-age=300` later.
+- **Backfill runs only while no room is playing** and is parked the moment one starts. A cold volume
+  that is out skips every title on it.
 
-- **Per-rung heads on the room.** The room state carries a head per rung instead of one
-  `TranscodeHead`. The player caps its levels to the rungs whose head covers the playhead plus a
-  margin (`hls.autoLevelCapping` or the level list it allows), and lifts the cap as a rung catches up.
-  The seek clamp uses the head of the best rung that covers the target, so one lagging rung never
-  clamps a whole room.
-- **What each viewer would choose, reported up.** The player sends the API the rung it plays and the
-  rung its ABR would pick unconstrained (from hls.js's bandwidth estimate against the advertised
-  bitrates), on change and at a slow heartbeat. It goes up only: never into the shared room state,
-  never broadcast. This is a relaxation of the player's rule that quality never reaches the hub; the
-  rule becomes that a viewer's quality is never shared with the room. Where the browser plays HLS
-  itself (Safari on iOS), nothing is known and the planner assumes the top rung.
-- Segment requests cannot stand in for this report: hotrod's nginx caches segments with
-  `proxy_cache_lock`, so one fetch per segment reaches hotbox however many viewers there are.
+## 8. Settling
 
-## 8. Backfill
+**`maySettle` replaces `SettleGate`.** The settle worker reads the title's disposition from the
+current plan; without a plan nothing settles, as now when the API cannot say. Nothing settles onto
+the cold root while a transcode writes to it, as now.
 
-**What is owed is computed, never recorded.** Each pass, the planner compares every manifest with the
-ladder a title of that source should have (`VideoLadder.For`) and lists what is missing. A separate
-ledger of owed work would drift from the disk; the manifest is what players are served and is
-therefore the truth. The hand-off already works out what an episode is owed this way.
+**The cold disk is not measured further.** A transcode writes two-second segments of about two
+megabytes sequentially, settling stands aside while one writes to the cold root, and that is taken
+as sufficient. `src/MovieBot.Core/CLAUDE.md` is rewritten to state the rule as it stands: transcodes
+may be written to the platter, settle copies wait for them.
 
-- **The source decides what can be made.**
-  - With the source on disk: anything the first pass would have made.
-  - Without it (the tracker's clock removed it): a lower rung only, transcoded from the top rung. A
-    second generation of lossy H.264 is acceptable going down and never going up. A missing top
-    rung without its source is not backfillable and is reported, not attempted.
-  - Owed backfill does not hold a source past the tracker's clock.
-- **Publishing into a finished title.** A ready title is today treated as a directory nothing will
-  add to; backfill makes that false, so the add is made atomic:
-  1. the rung is written into a staging directory on the SSD when it fits, else beside the title on
-     its own disk;
-  2. under the title's lock (`TitleLocks`, the one settling and the marker pass take), the staging
-     directory is moved into the title, the manifest and master playlist are rewritten through a
-     temp file and an atomic move;
-  3. a title on the cold disk whose rung was staged on the SSD is copied across under the same
-     ordering settling uses, and the staging copy deleted last.
-  A player holding the old master simply does not see the new rung until it next loads the film.
-  The ready master playlist is served with `max-age=300`, so that is the longest a viewer waits to
-  see it.
-- **A cold volume that is out** skips every title on it, as every other pass does.
-- **Backfill runs only while no room is playing** and parks the moment one starts.
+## 9. Viewer quality, counted
 
-## 9. Placement: where a transcode is written
+The API keeps a running tally of the heights viewers want and play: per height, the seconds watched
+and the number of sessions, with no person, room or connection kept. It persists across restarts in
+MovieBot's state directory and is readable over the service key. Its one consumer is the decision in
+phase 4.
 
-**The torrents stay on the SSD** until the tracker's clock removes them, as they do now.
-
-**A transcode chooses its disk when it starts, against a reservation.** Its size is predictable from
-the ladder's bitrates and the duration: the top two rungs and their audio come to about 6 GB an hour.
-The rule:
-
-1. The SSD, when the reservation fits within what the download budget leaves after its own
-   reservations.
-2. Otherwise the cold disk, when its volume is present and the reservation fits.
-3. Otherwise the transcode waits. It does not start and fail partway, which is how
-   `stardust-2007` ended with `No space left on device` writing its manifest.
-
-The reservation is accounted in the same place as the downloads' (`DiskBudget` in moviebot-acquire),
-not counted twice by two owners each believing the free space is theirs. It replaces the static
-`Download.ReservedGiB` held for "the transcode written beside" a download, which is a guess at one
-film where the reservation is the sum of the actual ones.
-
-**Writing a transcode to the cold disk changes a rule** that `src/MovieBot.Core/CLAUDE.md` states
-flat: nothing seek-heavy and no scratch space on the platter. A transcode writes two-second segments
-of about two megabytes, sequentially, at a few megabytes a second, which is within what the disk
-streams. The rule is rewritten to what is measured once phase 4 measures the worst case: two
-transcodes writing, a settle copy, and a viewer reading. While any transcode writes to the cold
-disk, nothing settles onto it.
-
-**A film settles when it is ready and no room is playing it.** Settling is already built so that it
-never breaks a read in progress (copy, check, one rename, delete the original last, every request
-resolving the title's disk afresh), but its copy saturates the disk the viewer is about to read
-from. Waiting costs nothing: the film is finished and no longer grows. Whether a film may settle
-becomes a disposition the planner publishes, and the hand-off's settle worker acts on it.
-
-**When the SSD is short and watched films are being kept on it**, downloads win: a download refused
-for space stops new films arriving at all, while a held film only waits. New transcodes stop choosing
-the SSD while it is under pressure, and nothing is moved off under a playing room to make room.
-
-## 10. Failure modes to keep in view
-
-- The API unreachable: the executor's fallback (section 4). Nothing held stays held forever; a held
-  unit with no plan behind it is resumed.
-- The executor restarting: every unit it ran is either complete (its playlist has `#EXT-X-ENDLIST`)
-  or resumable from its last whole segment; the next reconcile resumes it.
-- The cold volume vanishing under a transcode writing to it: the unit fails, its partial output is
-  unreadable anyway, and the next reconcile places it again from scratch.
-- A unit failing repeatedly: reported in the status with its reason, backed off, and not retried in a
-  loop. One that fails on the first pass of a new download is surfaced the same way the hand-off
-  reports a failed ingest now.
-- Stopped processes exhausting VRAM or RAM (hotbox has 7.7 GiB and no swap): the park threshold is a
-  count and a memory budget, measured in phase 1.
-
-## 11. Phases
+## 10. Phases
 
 Each phase is shippable alone and leaves the system working.
 
-1. **One process per rung and one for audio, decoder resize.** Ingest only. Same outputs, same
-   manifest, same single head (the minimum, as now). Measure: real films with audio, two concurrent
-   ingests, an HDR source through decoder resize and `tonemap_opencl`, a Hi10P source, the memory of
-   a stopped process. Acceptance: two-rung throughput at or near the encoder ceiling, no regression
-   in quality or alignment (segment *n* of each rung opens on the same frame).
-2. **Resume from a segment, and hold and park in the executor.** Ingest gains the resume input;
-   hand-off gains the single gate over SIGSTOP and SIGCONT shared with `ReadAheadGuard`. Still driven
-   by today's local rules.
-3. **The planner, whole films only.** `GET /api/transcode/plan` and `PUT /api/transcode/status`, the
-   ranking at film granularity (every rung of a film runs or holds together), the fallback. This
-   alone serves the "a new room never waits" case and replaces `MaxConcurrentIngests` with the
-   measured budget.
-4. **Placement.** The reservation in the shared disk budget, the SSD-then-cold rule, waiting when
-   neither fits, settling gated on no room playing, the cold-disk measurement and the
-   `MovieBot.Core` rule rewritten to it.
-5. **Per-rung heads and the viewer's report.** Room state, player capping, the seek clamp, the
-   report up to the API. Only after this does the planner rank and hold individual rungs.
-6. **Backfill.** Owed work computed from manifests, `rung-add`, publishing into a finished title,
-   lower rungs from the top rung where the source is gone.
-7. **A third rung, if it earns it.** The reports from phase 5 say whether viewers fall below 720p.
-   480p costs about 17% more disk per film; making it only while somebody needs it and dropping it
-   at settle is the option that costs no disk at all.
+1. **Resume, the gate, and the measurements.** Ingest gains the resume input for every case in
+   section 6; the hand-off gains the one SIGSTOP/SIGCONT gate shared with `ReadAheadGuard`, still on
+   its local rules. Measure what section 6 lists and set `MaxHeld`, `NvdecBudget` and `NvencBudget`
+   from it. Acceptance: a unit parked and resumed mid-film is frame-aligned with its sibling rungs and
+   plays through the join; a Hi10P and an HDR film each survive a park.
+2. **The executor follows the plan.** Reconcile and report (section 4), the owed list and episodes
+   in order (section 5), input resolution, finishing on all-done, the fallback, back-off, `placement`
+   removed from the wire, `maySettle` replacing `SettleGate`, and `PerRung` turned on. API and
+   hand-off deploy together. Acceptance: a room asking for a new film while two unwatched films
+   transcode gets its film started within one reconcile; the API stopped mid-transcode leaves every
+   unit running; the reported speeds against the model are logged and any persistent gap named.
+3. **Backfill.** Owed rungs and outdated rungs (section 7), the swap by rename, `--reencode` removed.
+   Acceptance: a settled CQ 19 film with only its top rung comes out with both rungs at CQ 23 with
+   nobody playing, and is left alone while a room plays it.
+4. **A third rung, if it earns it.** The tally (section 9) is built with phase 2 and read here: it
+   says whether viewers want below 720p. 480p costs about 17% more disk per film; making it only while
+   somebody needs it and dropping it at settle costs no disk at all.
 
-## 12. Open questions
+## 11. Open questions
 
-- The lead target and its band: 120 s is a starting point. The real constraint is how long a rung
-  takes to recover from a hold at the speed it gets back.
-- Whether the plan should be pushed rather than polled, once phase 3 shows the latency.
-- Whether a viewer's reported quality is kept beyond the session, for the planner to anticipate a
-  person who always watches at 720p. Kept nowhere until there is a reason.
+- The lead target and its band: 120 s and 30 s are starting points. The real constraint is how long
+  a rung takes to recover from a pause at the speed it gets back, which phase 2 shows.
+- Whether the plan should be pushed rather than polled, once phase 2 shows the latency.
