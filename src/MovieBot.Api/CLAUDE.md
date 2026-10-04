@@ -41,8 +41,8 @@ and keeps are `Acquisition/CLAUDE.md`; notifications, pushes and invites are
   keeps each description and every image it names under one directory per film in the state
   directory, serves its own copies at `/films/{imdbId}/…`, and asks again only once a copy is
   `Tmdb:RefreshDays` old; a database that cannot be reached then costs freshness and nothing else.
-  `FilmWarmer` keeps every library film and every wished film described, so a listing reads only
-  what is kept and never waits on the network. No page talks to the database or its image store.
+  `FilmWarmer` keeps every library film, every wished film and every listed title described, so a
+  listing reads only what is kept and never waits on the network. No page talks to the database or its image store.
   A show is kept the same way by `Shows/ShowStore` under `shows/`, its description and every season's
   episodes asked for together with their stills, and served at `/shows/{imdbId}/…`; the warmer keeps
   every show the library holds described. An episode's show is never asked of the film side.
@@ -62,9 +62,9 @@ and keeps are `Acquisition/CLAUDE.md`; notifications, pushes and invites are
   `details` on `/api/titles` are its show's.
 - **A person's own settings are asked for by token, never by id.** `/api/me/preferences` answers for
   whoever the token names, so there is no route by which anybody reads or writes anybody else's; the
-  service key names nobody and is refused there. Progress, history, devices and follows
-  (`/api/me/progress`, `/api/me/history`, `/api/me/sessions`, `/api/me/follows`) are asked for the
-  same way.
+  service key names nobody and is refused there. Progress, history, devices, follows and lists
+  (`/api/me/progress`, `/api/me/history`, `/api/me/sessions`, `/api/me/follows`, `/api/me/lists`) are
+  asked for the same way.
 - **A followed show is watched by `Shows/FollowWatcher`, and what it announces is kept.** A follow
   starts from a baseline, the latest episode already due, so only later episodes are news. An episode
   is due from the day after its air date, an air date being a date read against UTC, and is looked for
@@ -74,6 +74,13 @@ and keeps are `Acquisition/CLAUDE.md`; notifications, pushes and invites are
   (`follows.json`) so a restart never tells anybody twice. A followed show's description is asked of
   the film database again after `Follow:RefreshHours`, which is what brings a new episode into view.
   The rules for who is told what are in `Notifications/CLAUDE.md`.
+- **A list is keyed by the title's IMDb id, never by a library id** (`Lists/`). The library is what
+  comes and goes; a film saved for later outlives leaving it and is the same entry when it comes
+  back, and a title that was never here is saved from its catalogue page the same way. Whether it is
+  here, and whether the asking person watched it, are joined in when the list is read, from the
+  library as listed and the watch record, and never stored. A list is shown to its owner and its
+  members only, so somebody else asking for it is answered as if it did not exist. `later` in a route
+  is the asking person's own Watch later, which has no members. Everything is in `lists.json`.
 - **What a person watched comes from the room, the one source of where a film is** (`People/`). A
   room's state is a position at an instant and everything between two changes follows from it, so
   nothing polls the rooms. `SessionStore` raises `Watched` when a stretch of playing ends — a pause,

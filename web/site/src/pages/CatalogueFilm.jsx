@@ -6,6 +6,7 @@ import { goBack, navigate } from "../router.js";
 import { Empty, Failed } from "../components/Film.jsx";
 import { CastGrid, Credits, FilmScore, Genres } from "../components/FilmDetails.jsx";
 import { FilmRequestSheet } from "../components/RequestSheet.jsx";
+import { SaveButton } from "../components/SaveButton.jsx";
 import { wishWords } from "./Discover.jsx";
 import { defaultOffer, watchNow } from "../watchNow.js";
 
@@ -129,6 +130,7 @@ export function CatalogueFilm({ imdbId }) {
               {a && a.notOut && (a.waiting
                 ? <button type="button" className="kc-btn kc-btn--accent kc-btn--lg" disabled={busy} onClick={stopWaiting}><Icon name="bell-ring" size={18} />Notifying</button>
                 : <button type="button" className="kc-btn kc-btn--primary kc-btn--lg" disabled={busy} onClick={wait}><Icon name="bell-plus" size={18} />Notify</button>)}
+              <SaveButton imdbId={imdbId} kind="film" title={d.title} />
               {a && a.notOut && <span className="kc-note">{waitingWords}</span>}
             </div>
             {a && offer && !arriving && (

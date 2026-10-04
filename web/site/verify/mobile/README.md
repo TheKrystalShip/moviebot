@@ -46,8 +46,9 @@ days ago so that a film nobody has played is close to leaving. The film database
 token read from a file, and what it says is kept between runs.
 
 `stage.mjs` then puts in what a person would see: the viewer partway through three films, a film they
-keep, and two others watching in rooms of their own, one of them a film about to leave. It does it
-through the API and the room hub, never by writing a file. The viewer is signed in with a member's
+keep, two others watching in rooms of their own, one of them a film about to leave, a Watch later
+with a note on one film, a list of the viewer's shared with Ben, and one of Ana's the viewer may add
+to. It does it through the API and the room hub, never by writing a file. The viewer is signed in with a member's
 token signed by the scratch API's own key, which is what signing in on the site hands back.
 
 ## What is measured

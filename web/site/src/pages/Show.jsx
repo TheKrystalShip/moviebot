@@ -8,6 +8,7 @@ import { ago, airDay, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, watchLink } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes } from "../components/FilmDetails.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
+import { SaveButton } from "../components/SaveButton.jsx";
 import { RequestSheet, plan } from "../components/RequestSheet.jsx";
 import { watchNow } from "../watchNow.js";
 import { downloadWords } from "./Discover.jsx";
@@ -148,6 +149,7 @@ export function Show({ imdbId, query }) {
                 </button>
               )}
               {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
+              {s.imdbId && <SaveButton imdbId={s.imdbId} kind="show" title={s.title} />}
               {resume && (
                 <span className="kc-mono kc-quiet">
                   {episodeCode({ season: resume.season, number: resume.episode })}

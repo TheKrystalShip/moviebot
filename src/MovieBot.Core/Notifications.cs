@@ -23,6 +23,9 @@ public static class NotificationKinds
 
     /// <summary>Somebody asked this person into their room.</summary>
     public const string Invite = "invite";
+
+    /// <summary>Somebody put this person on one of their lists.</summary>
+    public const string Shared = "shared";
 }
 
 /// <summary>One line in a person's notifications, as the bell lists it.</summary>
@@ -73,6 +76,8 @@ public sealed record NotificationPreferences
 
     public bool Episode { get; init; } = true;
 
+    public bool Shared { get; init; } = true;
+
     /// <summary>Off unless asked for: every keep of anything a person watched adds up.</summary>
     public bool Kept { get; init; }
 
@@ -84,6 +89,7 @@ public sealed record NotificationPreferences
         NotificationKinds.Leaving => Leaving,
         NotificationKinds.Episode => Episode,
         NotificationKinds.Kept => Kept,
+        NotificationKinds.Shared => Shared,
         _ => true,
     };
 }

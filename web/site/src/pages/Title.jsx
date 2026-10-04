@@ -7,6 +7,7 @@ import { useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, watchLink } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes } from "../components/FilmDetails.jsx";
+import { SaveButton } from "../components/SaveButton.jsx";
 
 /**
  * One film in the library: what it is, who made it and who is in it, how long it stays, and watch.
@@ -119,6 +120,7 @@ export function Title({ id }) {
               {held && (held.keeperId
                 ? <button type="button" className="kc-btn kc-btn--lg" disabled={busy} onClick={() => keep(false)}><Icon name="pin-off" size={17} />Un-keep</button>
                 : <button type="button" className="kc-btn kc-btn--lg" disabled={busy} onClick={() => keep(true)}><Icon name="pin" size={17} />Keep</button>)}
+              {film.imdbId && <SaveButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
               {held && (
                 <span className="kc-tt__stay">
                   <span className="kc-pill">{stayWords(held, me)}</span>

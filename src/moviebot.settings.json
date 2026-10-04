@@ -157,6 +157,12 @@
     "GiveUpDays": 14
   },
 
+  // Lists of films and shows to watch later, everybody's Watch later and the lists they named and
+  // shared. Path is the file holding them (an empty one is lists.json in the state directory).
+  "Lists": {
+    "Path": ""
+  },
+
   // The film database that describes a film: credits, certificate, genres, overview, artwork. The
   // API asks it, keeps what it said and the artwork under Directory (an empty one is films/ in the
   // state directory), serves its own copies, and asks again after RefreshDays. The token is a

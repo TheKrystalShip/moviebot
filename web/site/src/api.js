@@ -79,6 +79,18 @@ export const api = {
   preferences: () => call("GET", "/api/me/preferences"),
   setPreferences: (preferences) => call("PUT", "/api/me/preferences", preferences),
 
+  // Lists of films and shows to watch later. `later` names the signed-in person's own Watch later;
+  // asked about a title, each list says whether it holds it.
+  lists: (holding) => call("GET", "/api/me/lists" + (holding ? `?holding=${enc(holding)}` : "")),
+  list: (id) => call("GET", `/api/lists/${enc(id)}`),
+  createList: (name) => call("POST", "/api/lists", { name }),
+  renameList: (id, name) => call("PATCH", `/api/lists/${enc(id)}`, { name }),
+  deleteList: (id) => call("DELETE", `/api/lists/${enc(id)}`),
+  saveToList: (id, imdbId, kind, note) => call("PUT", `/api/lists/${enc(id)}/entries/${enc(imdbId)}`, { kind, note }),
+  removeFromList: (id, imdbId) => call("DELETE", `/api/lists/${enc(id)}/entries/${enc(imdbId)}`),
+  setListMember: (id, userId, role) => call("PUT", `/api/lists/${enc(id)}/members/${enc(userId)}`, { role }),
+  removeListMember: (id, userId) => call("DELETE", `/api/lists/${enc(id)}/members/${enc(userId)}`),
+
   // The shows this person follows, and whether each is fetched when a new episode airs.
   follows: () => call("GET", "/api/me/follows"),
   follow: (imdbId, autoDownload) => call("PUT", `/api/me/follows/${enc(imdbId)}`, { autoDownload }),

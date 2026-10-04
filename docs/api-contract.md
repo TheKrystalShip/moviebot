@@ -275,6 +275,37 @@ token's person's own: there is no route by which anybody reads or changes anybod
   absent otherwise; `nextEpisode` is `{season, episode, name?, airDate}` and absent when the database
   names none.
 
+### Lists
+
+A list holds films and shows somebody means to watch later. Every person has a Watch later, which is
+theirs alone, and makes as many named lists as they like, each of which its owner may share with
+people the server has a name for. A list is shown to its owner and its members and to nobody else:
+for anybody else a list's id is a `404`, never a `403`. The shapes are in `src/MovieBot.Api/Lists/`.
+
+| Route | Returns |
+|---|---|
+| `GET /api/me/lists?holding=` | `ListSummary[]` — the lists the token's person can see, their Watch later first and then the rest most recently changed first: `{id, name, watchLater, role, owner, members, count, updatedAt, posters, holds?}`. `role` is `owner`, `editor` or `viewer`; `owner` is `{userId, name?}`; `members` are `{userId, name?, role, since}`; `posters` are the newest entries' posters, at most four. With `holding` (an IMDb id) each list says in `holds` whether it holds that title |
+| `POST /api/lists` | `ListView` for `{name}` — a new list the token's person owns. `400` for a name blank or over 80 characters once trimmed, `409` past 100 lists |
+| `GET /api/lists/{id}` | `ListView` — `{list: ListSummary, entries}`, the entries newest saved first: `{imdbId, kind, title, year?, posterUrl?, rating?, runtimeMinutes?, genres, addedAt, addedBy, note?, libraryId?, inLibrary, watched}`. `addedBy` is `{userId, name?}`; `libraryId` is the title that plays a film the library holds; `inLibrary` is true for a film the library holds or a show with any episode here; `watched` is the asking person having watched the film through, and never set for a show |
+| `PATCH /api/lists/{id}` | `ListSummary` for `{name}` — the owner renames it |
+| `DELETE /api/lists/{id}` | `204` — the owner deletes it, for everyone on it |
+| `PUT /api/lists/{id}/entries/{imdbId}` | `ListEntryView` for `{kind, note?}` — saves a `film` or a `show` to the list, or changes the note of one already on it. An owner or an editor. `400` for an id that is not an IMDb id, a kind that is neither, or a note over 500 characters; `404` when the film database has no title of that kind under the id; `503` when it cannot be asked; `409` past 2000 entries |
+| `DELETE /api/lists/{id}/entries/{imdbId}` | `204` — takes it off; also when it was not on it |
+| `PUT /api/lists/{id}/members/{userId}` | `ListSummary` for `{role}` — the owner puts somebody on the list as an `editor` or a `viewer`, or changes which. `404` for somebody the server has no name for, `409` past 50 members |
+| `DELETE /api/lists/{id}/members/{userId}` | `204` — the owner takes somebody off, or a member takes themselves off, which is leaving |
+
+- **`later` is the asking person's Watch later.** It is listed before anybody saves anything and
+  written on the first save. It has no members and keeps its name, so renaming, deleting or sharing it
+  is a `409`.
+- **An entry keeps the moment it was first saved.** Saving a title that is already on the list changes
+  its note and nothing else: an absent `note` leaves it, an empty one clears it, and `addedAt` and
+  `addedBy` stay.
+- **What a list may do is its role.** An `owner` renames, deletes and says who is on it; an `editor`
+  saves and takes off; a `viewer` reads. A role that does not allow a change is a `403`.
+- **Somebody put on a list is told once**, by a `shared` notification opening `/lists/{id}`.
+- **An entry is described from what is kept.** Saving asks the film database about a title new to the
+  list; the API then keeps every listed title described, so reading a list never waits on the network.
+
 ### Notifications
 
 A notification is one sentence for one person, kept for their bell and, where they allow its kind,
@@ -286,7 +317,7 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 |---|---|
 | `GET /api/me/notifications` | `NotificationsReply` — `{unread, items: [{id, kind, text, url?, action?, createdAt, read}]}`, newest first; a person keeps their newest 50, none older than 30 days |
 | `POST /api/me/notifications/read` | 204 for `{ids?}` — marks those read, or all of them when none are named |
-| `GET /api/me/notifications/preferences` | `NotificationPreferences` — `{available, ready, leaving, episode, kept}`, which kinds are pushed; everything but `kept` is on until switched off |
+| `GET /api/me/notifications/preferences` | `NotificationPreferences` — `{available, ready, leaving, episode, shared, kept}`, which kinds are pushed; everything but `kept` is on until switched off |
 | `PUT /api/me/notifications/preferences` | `NotificationPreferences`, as stored |
 | `GET /api/push/key` | `{publicKey}` — this server's VAPID key, base64url, which a browser subscribes with |
 | `GET /api/me/push?endpoint=` | `{subscribed, devices}` — whether that browser is registered to this person, and how many are |
@@ -301,16 +332,17 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
   can be watched, or could not be made watchable. `leaving`: something they watched leaves the
   library within a day. `episode`: a new episode of a show they follow is out and the tracker offers
   it, "Show S5 · E4 is out.", opening `/show/{imdbId}?season={n}`. `kept`: somebody else kept, or
-  let go of, something they watched. `invite`:
+  let go of, something they watched. `shared`: somebody put them on one of their lists, "Ana shared
+  their list Friday night with you.", opening `/lists/{id}`. `invite`:
   somebody asked them into a room; an invite is pushed whatever the person chose.
 - **One thing is said once.** Each notification carries the thing it is about, and a person holding a
   notification about it is not told again: a download once, a wish once, a title leaving once per
-  date it is due, since a play moves the date, an episode once.
+  date it is due, since a play moves the date, an episode once, a list once per person put on it.
 - **A switch holds back the push and the message, not the record.** A kind switched off still lands
   in the bell.
 - **A Discord message stands in for a push only where the bot does not already tell the person.** A
   download or a wish asked for in a channel is announced there, mentioning them, so no message
-  follows; one asked for on the site, a title leaving, a keep and an invite are messaged.
+  follows; one asked for on the site, a title leaving, a keep, a shared list and an invite are messaged.
 - **The text is written once for every surface.** It mentions nobody and names no command, so the
   bell, the push and the Discord message show it as it is.
 - **Taken is all that is known.** A push service accepting a push is not a phone showing it, and

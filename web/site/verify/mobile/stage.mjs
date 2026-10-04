@@ -32,8 +32,10 @@ export function memberToken(signingKey, person, hours = 6) {
   return `${body}.${b64(createHmac("sha256", signingKey).update(body).digest())}`;
 }
 
-async function call(api, token, method, path) {
-  const response = await fetch(api + path, { method, headers: { Authorization: `Bearer ${token}` } });
+async function call(api, token, method, path, body) {
+  const headers = { Authorization: `Bearer ${token}` };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const response = await fetch(api + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) throw new Error(`${method} ${path}: ${response.status} ${await response.text()}`);
   return response.status === 204 ? null : response.json();
 }
@@ -95,8 +97,24 @@ export async function stage(api, signingKey, { tmdb = true } = {}) {
     await sitIn(api, signingKey, OTHERS[1], "verify-ben", fresh[2].id, 900, false),
   ];
 
+  // Lists: the viewer's Watch later with a note on one, a list of the viewer's shared with Ben, and
+  // one of Ana's the viewer may add to. Joining a room is what taught the API everybody's name.
+  const save = (who, list, title, note) => call(api, who, "PUT",
+    `/api/lists/${encodeURIComponent(list)}/entries/${encodeURIComponent(title.film.imdbId)}`, { kind: "film", note });
+  const named = ready.filter((t) => t.film && t.film.imdbId);
+  for (const [i, title] of named.slice(0, 4).entries()) await save(token, "later", title, i === 1 ? "The one Ana keeps quoting" : undefined);
+  const mine = await call(api, token, "POST", "/api/lists", { name: "Rainy Sunday" });
+  for (const title of named.slice(2, 4)) await save(token, mine.list.id, title);
+  await call(api, token, "PUT", `/api/lists/${mine.list.id}/members/${OTHERS[1].id}`, { role: "viewer" });
+  const ana = memberToken(signingKey, OTHERS[0]);
+  const theirs = await call(api, ana, "POST", "/api/lists", { name: "Friday night with the group" });
+  for (const title of named.slice(4, 7)) await save(ana, theirs.list.id, title);
+  await call(api, ana, "PUT", `/api/lists/${theirs.list.id}/members/${VIEWER.id}`, { role: "editor" });
+  await save(token, theirs.list.id, named[0]);
+
   return {
     token,
+    list: theirs.list.id,
     film: fresh[0],
     leaving: settled[2],
     kept: settled[1],

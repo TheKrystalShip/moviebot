@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.86.0] - 2026-10-04
+
+### Added
+
+- Lists of films and shows to watch later. Everybody has a Watch later, and makes as many named lists
+  as they like. Save on a film's or a show's page puts it on Watch later in one press; once it is
+  saved, the same button opens every list the person can add to and makes a new one. Every entry
+  keeps when it was first saved, who saved it, and an optional note.
+- A Lists page in the sidebar and in the phone's Library switch. One list's page puts the newest saved
+  first under Today, Yesterday, This week and each month. It can be searched by title and note,
+  narrowed by kind, by whether the library holds the title and by whether the person watched it, and
+  sorted by date added, name, year, rating or length.
+- Sharing a list: its owner puts people on it as editors, who add to it and take off it, or viewers,
+  who read it. Somebody put on a list is told with a `shared` notification, which has its own switch.
+  A list is shown to nobody else.
+- `/api/me/lists`, `/api/lists` and `/api/lists/{id}` with its entries and members
+  (`docs/api-contract.md`, Lists). Lists are kept in `lists.json` in the state directory
+  (`Lists:Path`).
+
 ## [1.85.1] - 2026-10-04
 
 ### Fixed

@@ -34,11 +34,15 @@ export function Library({ kind = "film" }) {
 }
 
 /**
- * Movies or TV shows, on a phone. Its Library tab is the one way into either, where a wide screen
- * has a sidebar entry for each; picking one replaces the page rather than stacking on it.
+ * Movies, TV shows or lists, on a phone. Its Library tab is the one way into any of them, where a
+ * wide screen has a sidebar entry for each; picking one replaces the page rather than stacking on it.
  */
-function KindSwitch({ kind }) {
-  const options = [{ kind: "film", label: "Movies", path: "/movies" }, { kind: "show", label: "TV shows", path: "/tv" }];
+export function KindSwitch({ kind }) {
+  const options = [
+    { kind: "film", label: "Movies", path: "/movies" },
+    { kind: "show", label: "TV shows", path: "/tv" },
+    { kind: "lists", label: "Lists", path: "/lists" },
+  ];
   return (
     <div className="kc-segmented kc-segmented--fill kc-kind-switch" role="radiogroup" aria-label="Library">
       {options.map((o) => (

@@ -608,6 +608,61 @@ button.kc-episode:disabled { cursor: progress; }
   .kc-follow__menu { min-width: min(280px, calc(100vw - 32px)); }
 }
 
+/* ── Saving and lists ── the save menu is the follow menu's, a list's card is its newest posters. */
+.kc-follow__menu.kc-save__menu { position: fixed; z-index: 50; }
+.kc-save__name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.kc-save__name svg { color: var(--fg-3); flex-shrink: 0; }
+.kc-save__new { display: flex; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--border-subtle); }
+.kc-save__new input, .kc-list-rename input, .kc-list-note input {
+  flex: 1; min-width: 0; height: 40px; padding: 0 12px; border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong); background: var(--surface-0); color: var(--fg-1); font: inherit; font-size: 14px;
+}
+.kc-save__new input:focus, .kc-list-rename input:focus, .kc-list-note input:focus { outline: none; border-color: var(--border-accent); }
+.kc-drawer .kc-follow__option { padding: 14px 16px; }
+
+.kc-lists { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.kc-list-card { display: flex; flex-direction: column; gap: 4px; color: inherit; text-decoration: none; min-width: 0; }
+.kc-list-card:hover .kc-list-card__name { color: var(--krystal-teal-hover); }
+.kc-list-card__art {
+  aspect-ratio: 1; border-radius: var(--r-sm); overflow: hidden; background: var(--surface-2); color: var(--fg-4);
+  display: grid; place-items: center; margin-bottom: 6px; border: 1px solid var(--border-subtle);
+}
+.kc-list-card__art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.kc-list-card__art--2, .kc-list-card__art--3, .kc-list-card__art--4 { grid-template-columns: 1fr 1fr; place-items: stretch; }
+.kc-list-card__art--2 { grid-template-rows: 1fr; }
+.kc-list-card__art--3, .kc-list-card__art--4 { grid-template-rows: 1fr 1fr; }
+.kc-list-card__art--3 img:first-child { grid-row: span 2; }
+.kc-list-card__name { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14.5px; min-width: 0; }
+.kc-list-card__name svg { color: var(--fg-3); flex-shrink: 0; }
+
+.kc-list-actions { display: flex; gap: 8px; }
+.kc-list-actions .kc-btn { height: 36px; padding: 0 12px; }
+.kc-btn--danger { border-color: transparent; background: var(--danger); color: var(--fg-inverse); }
+.kc-list-rename { display: flex; gap: 8px; align-items: center; }
+.kc-list-rename input { height: 44px; font-size: 20px; font-weight: 700; min-width: min(360px, 60vw); }
+.kc-list-group { display: flex; flex-direction: column; gap: 10px; }
+.kc-list-group__head { margin: 6px 0 0; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); }
+.kc-list-entry .kc-row__sub .kc-pill { height: 20px; padding: 0 7px; font-size: 11px; }
+.kc-list-entry__note { font-size: 13px; color: var(--fg-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.kc-list-entry__actions { display: flex; gap: 6px; margin-left: auto; }
+.kc-list-entry__actions .kc-btn { width: 36px; height: 36px; padding: 0; justify-content: center; }
+.kc-list-note { display: flex; gap: 8px; margin-top: 4px; }
+
+.kc-people { display: flex; flex-direction: column; padding: 8px 22px 16px; overflow-y: auto; }
+.kc-people__row { display: flex; align-items: center; gap: 10px; min-height: 48px; border-bottom: 1px solid var(--border-subtle); }
+.kc-people__name { flex: 1; min-width: 0; font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kc-people__add { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; padding-top: 14px; }
+@media (max-width: 720px) {
+  .kc-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .kc-list-actions { margin-left: 0; }
+  .kc-row.kc-list-entry { flex-wrap: nowrap; align-items: flex-start; }
+  .kc-list-entry .kc-row__text { flex-basis: auto; }
+  .kc-list-entry__actions { flex-direction: column; }
+  .kc-list-note { flex-wrap: wrap; }
+  .kc-people__add { grid-template-columns: minmax(0, 1fr) auto; }
+  .kc-people__add .k-select:first-child { grid-column: 1 / -1; }
+}
+
 /* ── Subtitle style ── the preview stays in view beside the choices, above them on a phone. */
 .kc-cue-style { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; align-items: start; padding: 10px 14px 14px; }
 .kc-cue-style .kc-cue-preview { position: sticky; top: 16px; }

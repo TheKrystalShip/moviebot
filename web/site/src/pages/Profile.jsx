@@ -227,6 +227,7 @@ const KINDS = [
   { id: "leaving", title: "Something I watched leaves tomorrow", sub: "One push per title, the day before it leaves." },
   { id: "kept", title: "Someone keeps or un-keeps a title I watched", sub: "Off by default, since it can get chatty." },
   { id: "episode", title: "New episodes of shows you follow" },
+  { id: "shared", title: "Someone shares a list with me" },
 ];
 
 /** What this browser says about receiving pushes, when it cannot be switched on here. */

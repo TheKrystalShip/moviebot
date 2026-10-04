@@ -10,6 +10,7 @@ using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Library;
+using TheKrystalShip.MovieBot.Api.Lists;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Subtitles;
 using TheKrystalShip.MovieBot.Acquire.Configuration;
@@ -196,6 +197,12 @@ builder.Services.AddSingleton(sp => new FollowStore(
 builder.Services.AddSingleton<FollowWatcher>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FollowWatcher>());
 
+// Lists of films and shows to watch later, and what turns one into what a page shows.
+builder.Services.AddSingleton(sp => new ListStore(
+    StatePath(sp.GetRequiredService<IConfiguration>()["Lists:Path"], "lists.json"),
+    sp.GetRequiredService<ILogger<ListStore>>()));
+builder.Services.AddSingleton<ListPresenter>();
+
 // The client id is the application id, which the settings file names once for the bot and the
 // API together.
 builder.Services.AddOptions<DiscordAuthOptions>()
@@ -317,6 +324,7 @@ app.MapDevices();
 app.MapFilms();
 app.MapShows();
 app.MapFollows();
+app.MapLists();
 app.MapNotifications();
 
 // Every room, for the bot: it holds no state of its own, so what to say about rooms it reads

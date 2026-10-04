@@ -63,4 +63,5 @@ export const KIND = {
   kept: { icon: "pin", tone: "neutral" },
   invite: { icon: "user-plus", tone: "teal" },
   episode: { icon: "tv", tone: "teal" },
+  shared: { icon: "bookmark", tone: "teal" },
 };

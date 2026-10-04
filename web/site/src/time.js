@@ -27,6 +27,20 @@ export function ago(iso, now = Date.now()) {
   return days === 1 ? "yesterday" : `${days} days ago`;
 }
 
+/**
+ * The stretch of time an instant falls in, for heading a list ordered by when things happened:
+ * "Today", "Yesterday", "This week", then the month, with its year when it is not this one.
+ */
+export function dayGroup(iso, now = new Date()) {
+  const at = new Date(iso);
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const day = 24 * 3600 * 1000;
+  if (at.getTime() >= midnight) return "Today";
+  if (at.getTime() >= midnight - day) return "Yesterday";
+  if (at.getTime() >= midnight - 6 * day) return "This week";
+  return at.toLocaleDateString("en-GB", at.getFullYear() === now.getFullYear() ? { month: "long" } : { month: "long", year: "numeric" });
+}
+
 /** The same, starting a sentence. */
 export function since(iso) {
   const text = ago(iso);
