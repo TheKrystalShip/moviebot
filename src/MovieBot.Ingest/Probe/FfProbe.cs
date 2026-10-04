@@ -30,9 +30,14 @@ public static class FfProbe
     /// <summary>Magic bytes that open an MKV/Matroska container (EBML header).</summary>
     private static readonly byte[] MatroskaMagic = [0x1a, 0x45, 0xdf, 0xa3];
 
-    public static async Task<ProbeResult> RunAsync(string sourcePath, CancellationToken ct = default)
+    /// <param name="waitForHeader">
+    /// Whether to wait for a download's header to land first. A finished title's own playlist is
+    /// text and whole, and is probed as it is.
+    /// </param>
+    public static async Task<ProbeResult> RunAsync(
+        string sourcePath, CancellationToken ct = default, bool waitForHeader = true)
     {
-        await WaitForHeaderAsync(sourcePath, ct);
+        if (waitForHeader) await WaitForHeaderAsync(sourcePath, ct);
 
         var info = new ProcessStartInfo("ffprobe")
         {

@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.93.0] - 2026-10-04
+
+### Added
+
+- `moviebot-handoff --reencode [id...]` encodes the library's settled films again at quality 23,
+  from each film's own top rung, one at a time and only while no room is playing anything and no
+  transcode is running. A film that has only its top quality gains the 720p step-down on the way.
+  Matching the quality of a film encoded from its source at 25 takes 23 from the top rung, which
+  is about 42% smaller than the rung it replaces. A film is swapped only when nobody is playing it,
+  and its new segments carry new names so no cache mixes them with the old ones. `--now` skips the
+  wait, for trying one film. Handoff 0.15.0, Ingest 1.15.0.
+- Each quality in a film's manifest records the constant quality it was encoded at (`cq`), which
+  is how a film already gone over is told from one that is owed. Core 1.25.0.
+
 ## [1.92.0] - 2026-10-04
 
 ### Changed

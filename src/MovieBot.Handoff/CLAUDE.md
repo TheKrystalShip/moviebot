@@ -151,6 +151,29 @@ not a title sequence a viewer wants to skip.
   episode of a season can be given its sequence by the second. Fingerprints already kept are reused. It
   reads both roots and refuses to run while the cold volume is out, like `--backfill`.
 
+## Encoding the library again (`LibraryReencode`)
+
+`moviebot-handoff --reencode [id...]` encodes settled films again at the library's quality, from
+each film's own top rung (`Reencoder` in the ingest, which holds the measured choice of quality). A
+film is owed the pass while a rung of it records no quality or its ladder has a rung it lacks, so a
+film with only the top rung gains the step-down on the way, and a film goes over once.
+
+- **It runs as its own process beside the service and shares no lock with it,** so it takes only
+  films the service leaves alone: settled ones, under the cold root and not the media root. The
+  manifest is read again right before it is written.
+- **It waits for the library to be idle before each film:** no room playing anything and no
+  transcode running. A viewer's playback reads the same disk and a requested film's transcode wants
+  the card, and neither waits on this. `--now` skips the wait, for trying one film.
+- **A film is swapped only when no room is playing it.** A player holding the old initialisation
+  segment cannot decode the new rungs. One that is played meanwhile is left as it was and is owed
+  again.
+- **The new segments are named apart** (`q23-seg00000.m4s`), because a segment is served as
+  immutable and the old ones are still in caches under their own names.
+- **Everything happens on the cold disk by rename.** The rungs are written under the cold root's
+  dotted `.reencode/<id>`; the swap moves the old rungs into it and the new ones out of it, then
+  writes the master and the manifest. A pass that stops between the two moves is undone by the next
+  one, which moves back any rung the film is missing.
+
 ## Settling onto the cold disk (`SettleWorker`, `ColdStore`)
 
 The model of the two roots is `src/MovieBot.Core/CLAUDE.md`.

@@ -400,8 +400,8 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
     "sourceCodec": "hevc",
     "sourceHdr": "hdr10+dovi-p8.1",
     "renditions": [
-      { "name": "800p", "bitrateKbps": 9000, "width": 1920, "height": 800, "uri": "v0/index.m3u8", "headSeconds": 20.0 },
-      { "name": "536p", "bitrateKbps": 4000, "width": 1280, "height": 536, "uri": "v1/index.m3u8", "headSeconds": 28.5 }
+      { "name": "800p", "bitrateKbps": 9000, "width": 1920, "height": 800, "uri": "v0/index.m3u8", "cq": 25, "headSeconds": 20.0 },
+      { "name": "536p", "bitrateKbps": 4000, "width": 1280, "height": 536, "uri": "v1/index.m3u8", "cq": 25, "headSeconds": 28.5 }
     ]
   },
   "audio": [
@@ -429,7 +429,8 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 ```
 
 `kind` is `"feature"` or `"commentary"`; `source` is `"embedded-text"`, `"sidecar"` or
-`"bitmap"`. All `uri` values are relative to `/media/{id}/`.
+`"bitmap"`. All `uri` values are relative to `/media/{id}/`. A rendition's `cq` is the constant
+quality it was encoded at, absent where none is recorded.
 
 **Heads.** While a title transcodes, each rendition's `headSeconds` and the manifest's
 `audioHeadSeconds` say how far that playlist has reached, and `headSeconds` is the shortest of them.

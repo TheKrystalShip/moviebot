@@ -126,6 +126,14 @@ public sealed record IngestOptions
     /// </summary>
     public int SegmentSeconds { get; init; } = Ladder.SegmentSeconds;
 
+    /// <summary>
+    /// Put before the name of every segment and initialisation file a rung writes. A segment is
+    /// served as immutable for a year, so a rung encoded again under the URLs of the encode it
+    /// replaces would be mixed with the old one in any cache that kept it; a different name is a
+    /// different URL.
+    /// </summary>
+    public string SegmentPrefix { get; init; } = "";
+
     /// <summary>Overrides HDR auto-detection. Tone-mapping an SDR source washes it out.</summary>
     public bool? ForceToneMap { get; init; }
 

@@ -121,7 +121,7 @@ public sealed class Manifest
     /// </summary>
     public SourceFingerprint? Source { get; set; }
 
-    public required VideoInfo Video { get; init; }
+    public required VideoInfo Video { get; set; }
     /// <summary>
     /// Settable because a track can be added after the transcode: the dialogue-boost mix is made
     /// once the main pass is done and is listed only when it is whole.
@@ -396,6 +396,14 @@ public sealed record Rendition
     public int Height { get; init; }
 
     public required string Uri { get; init; }
+
+    /// <summary>
+    /// The NVENC constant quality this rung is encoded at. Zero where the document records none,
+    /// which is a rung encoded at 19 and owed a pass at the library's quality; absent from the
+    /// document when zero.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Cq { get; init; }
 
     /// <summary>
     /// How far this rung's playlist has reached while the title is transcoding. Rungs advance at

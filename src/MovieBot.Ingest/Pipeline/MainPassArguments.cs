@@ -218,8 +218,8 @@ internal sealed class MainPassArguments(IngestOptions options)
         // completion, which turns it into an ordinary complete VOD with nothing to clean up.
         "-hls_playlist_type", "event",
         "-hls_segment_type", "fmp4",
-        "-hls_fmp4_init_filename", "init.mp4",
-        "-hls_segment_filename", Path.Combine(directory, "seg%05d.m4s"),
+        "-hls_fmp4_init_filename", $"{options.SegmentPrefix}init.mp4",
+        "-hls_segment_filename", Path.Combine(directory, $"{options.SegmentPrefix}seg%05d.m4s"),
         Path.Combine(directory, "index.m3u8")
     ];
 

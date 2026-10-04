@@ -668,7 +668,8 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                         BitrateKbps = r.BitrateKbps,
                         Width = r.Width,
                         Height = r.Height,
-                        Uri = r.Uri
+                        Uri = r.Uri,
+                        Cq = options.Cq
                     })
                     .ToList()
             },

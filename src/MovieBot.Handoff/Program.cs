@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -94,6 +95,31 @@ if (args.Contains("--backfill-markers"))
 
     return await host.Services.GetRequiredService<MarkerBackfill>()
         .RunAsync(host.Services.GetRequiredService<MediaRoots>(), CancellationToken.None);
+}
+
+// Encodes the settled films again at the library's quality, while nobody is watching. It runs for
+// hours, so a stop signal ends the encode in flight and leaves that film as it was.
+if (args.Contains("--reencode"))
+{
+    builder.Logging.AddSimpleConsole(o => o.SingleLine = true);
+    builder.Services.AddSingleton<LibraryReencode>();
+    using var host = builder.Build();
+
+    using var stopping = new CancellationTokenSource();
+    void Stop(PosixSignalContext context) { context.Cancel = true; stopping.Cancel(); }
+    using var onTerm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, Stop);
+    using var onInt = PosixSignalRegistration.Create(PosixSignal.SIGINT, Stop);
+
+    var only = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
+    try
+    {
+        return await host.Services.GetRequiredService<LibraryReencode>()
+            .RunAsync(only, waitForIdle: !args.Contains("--now"), stopping.Token);
+    }
+    catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+    {
+        return 130;
+    }
 }
 
 builder.Services.AddHostedService<HandoffWorker>();
