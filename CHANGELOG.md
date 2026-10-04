@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.87.1] - 2026-10-04
+
+### Changed
+
+- The front page shows Watch later after Watching now, so Continue watching and Watching now are the
+  first two rows.
+
 ## [1.87.0] - 2026-10-04
 
 ### Added

@@ -15,8 +15,8 @@ const RECENT_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * The front page: a film to watch, where this person left off, their Watch later, the rooms watching
- * something now, what arrived lately, what leaves next, and the shelf split into films and shows.
+ * The front page: a film to watch, where this person left off, the rooms watching something now,
+ * their Watch later, what arrived lately, what leaves next, and the shelf split into films and shows.
  * Every row is something the API measured; a row with nothing in it is left out rather than drawn
  * empty.
  */
@@ -95,14 +95,6 @@ export function Home() {
           )} />
       )}
 
-      {saved.length > 0 && (
-        <Rail
-          variant="posters" icon="bookmark" title="Watch later" count={saved.length}
-          onViewAll={() => navigate(listPath("later"))} viewAllLabel="See all"
-          items={saved} itemKey={(e) => e.imdbId}
-          renderItem={(e) => <SavedCard entry={e} />} />
-      )}
-
       {watching.length > 0 && (
         <Rail
           variant="wide" icon="users" title="Watching now" count={watching.length}
@@ -119,6 +111,14 @@ export function Home() {
               </span>
             </a>
           )} />
+      )}
+
+      {saved.length > 0 && (
+        <Rail
+          variant="posters" icon="bookmark" title="Watch later" count={saved.length}
+          onViewAll={() => navigate(listPath("later"))} viewAllLabel="See all"
+          items={saved} itemKey={(e) => e.imdbId}
+          renderItem={(e) => <SavedCard entry={e} />} />
       )}
 
       {recent.length > 0 && (
