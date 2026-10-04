@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.86.1] - 2026-10-04
+
+### Changed
+
+- Lists are called Saved, after the button that fills them, and are a page of their own at `/saved`
+  beside Home and Discover in the sidebar. On a phone, Me leads to it.
+- The front page has a Watch later row after Continue watching, each title with Watch when the
+  library holds it, and See all opening the list.
+- A list's rows no longer carry a mark for being in the library; the library filter still narrows by it.
+
 ## [1.86.0] - 2026-10-04
 
 ### Added

@@ -25,14 +25,14 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular` and `/hu
 
 | Path | What it is |
 |---|---|
-| `/` | A film to watch, then a row each for where the person left off, the rooms watching something now, what was recently added, what leaves next, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail`. The Movies and TV Shows rows end in a tile that opens Discover |
+| `/` | A film to watch, then a row each for where the person left off, their Watch later (with Watch on a film the library holds, and See all opening it), the rooms watching something now, what was recently added, what leaves next, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail`. The Movies and TV Shows rows end in a tile that opens Discover |
 | `/movies`, `/tv` | Every film, or every show (one card each, however many of its episodes are here), with krystal-ui's `Toolbar`: a search by name, one Filters popover (state, stay, genre) with the active ones as chips, and a sort with its direction. On a phone a Movies \| TV shows switch under the heading moves between the two |
 | `/title/<id>` | One film: what it is, who played it last, how long it stays, keep or let go, save, and watch or resume. An episode's id forwards to its show's page at its season |
 | `/show/<imdbId>?season=` | One show, in the library or not: what it is, its seasons as chips with how long each stays, each season's episodes with their stills and how far this person got, resume, keep a season, and the request sheet that picks seasons and episodes to download at 720p (the default) or 1080p. Every episode the tracker has plays from its row while it arrives, each season can be downloaded whole, first episode first, and with nothing of it here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them |
 | `/film/<imdbId>` | A film that is not here: what it is, and Watch (now, while it arrives) and Download (1080p, the default, or 720p, with the size of each) when the tracker offers it, the download's progress while it is on its way, or Notify when it is not out digitally yet, and Save. A film in the library forwards to its `/title/` |
 | `/discover?q=` | Finding anything to watch, here or not. A large field and, with nothing typed, the films and shows popular this week (`/api/popular`), each marked when the library holds it and otherwise leading to its `/film/` or `/show/` page. With a query, the library first, then the catalogue's films and shows, each leading to its page, then the tracker's releases, asked for when that row is opened and opened by itself when the catalogue found nothing. `/`, Ctrl+K or Cmd+K anywhere outside a text field opens it with the field focused, and a fine pointer focuses the field on arrival |
-| `/lists` | The signed-in person's lists, Watch later first, then the rest most recently changed first, each its newest posters, name and size, and whose it is when it is somebody else's; and making a new one. On a phone a Movies \| TV shows \| Lists switch under the heading moves between the three |
-| `/lists/<id>` | One list (`later` is the person's own Watch later): its titles newest saved first under Today, Yesterday, This week and each month, with krystal-ui's `Toolbar` to search titles and notes, narrow by kind, library and watched, and sort. Each row says when it was saved, by whom on a shared list, its note, and whether it is here or watched; an owner or editor edits the note and takes it off. Its owner renames it, deletes it, and puts people on it as editors or viewers; a member leaves it |
+| `/saved` | Saved: the signed-in person's lists, Watch later first, then the rest most recently changed first, each its newest posters, name and size, and whose it is when it is somebody else's; and making a new one |
+| `/saved/<id>` | One list (`later` is the person's own Watch later): its titles newest saved first under Today, Yesterday, This week and each month, with krystal-ui's `Toolbar` to search titles and notes, narrow by kind, library and watched, and sort. Each row says when it was saved, by whom on a shared list, its note, and whether the person watched it; an owner or editor edits the note and takes it off. Its owner renames it, deletes it, and puts people on it as editors or viewers; a member leaves it |
 | `/notify` | The films the signed-in person is waiting on |
 | `/leaving` | Every settled film and how long it stays, kept or not |
 | `/profile?tab=` | The signed-in person: History (with a way to remove a film), Requests, Following (each followed show with its next episode, whether new episodes are downloaded, and Unfollow), Notifications, Playback (subtitle and audio language, quality, skipping intros and recaps automatically, how subtitles look with a preview of them, theme) and Sessions (the devices signed in, signing one or all others out), and signing out |
@@ -49,10 +49,11 @@ any list the button reads Saved and opens the lists the person can add to, each 
 holds the title, and New list, which makes one and saves to it: a popover beside the button on a wide
 screen, the drawer on a phone.
 
-Wide screens get around by the sidebar, which has Discover under Home. A phone has krystal-ui's
-`TabBar` along its bottom edge instead, and no drawer: Home (lit on `/` and `/leaving`), Library
-(`/movies`, lit on `/tv`, `/lists` and a title too), Discover (lit on a `/film/` page too), Assistant, which opens the dock above the bar rather than a page, and Me
-(`/profile`, lit on `/notify` too). The tab of the page already open scrolls it back to its top. The
+Wide screens get around by the sidebar, which has Discover and Saved under Home. A phone has
+krystal-ui's `TabBar` along its bottom edge instead, and no drawer: Home (lit on `/` and `/leaving`),
+Library (`/movies`, lit on `/tv` and a title too), Discover (lit on a `/film/` page too), Assistant,
+which opens the dock above the bar rather than a page, and Me (`/profile`, lit on `/notify` and
+`/saved` too), whose page leads to Saved. The tab of the page already open scrolls it back to its top. The
 pages no tab names are linked from the footer every page ends with.
 
 ## Signing in

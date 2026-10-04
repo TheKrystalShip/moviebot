@@ -14,7 +14,7 @@ import { Show } from "./pages/Show.jsx";
 import { CatalogueFilm } from "./pages/CatalogueFilm.jsx";
 import { Discover, DISCOVER_FIELD } from "./pages/Discover.jsx";
 import { Notify } from "./pages/Notify.jsx";
-import { ListPage, Lists } from "./pages/Lists.jsx";
+import { ListPage, Saved } from "./pages/Saved.jsx";
 import { Leaving } from "./pages/Leaving.jsx";
 import { Profile } from "./pages/Profile.jsx";
 import { SignIn } from "./pages/SignIn.jsx";
@@ -31,12 +31,12 @@ const Dark = () => <div style={{ position: "fixed", inset: 0, background: "#000"
 const HOME = [
   { page: "home", path: "/", icon: "house", label: "Home" },
   { page: "discover", path: "/discover", icon: "compass", label: "Discover", also: ["film"] },
+  { page: "saved", path: "/saved", icon: "bookmark", label: "Saved" },
 ];
 
 const LIBRARY = [
   { page: "movies", path: "/movies", icon: "clapperboard", label: "Movies" },
   { page: "tv", path: "/tv", icon: "tv", label: "TV Shows", also: ["show"] },
-  { page: "lists", path: "/lists", icon: "bookmark", label: "Lists" },
 ];
 
 const LIFECYCLE = [
@@ -48,10 +48,10 @@ const LIFECYCLE = [
 // tab opens the dock rather than a page.
 const TABS = [
   { id: "home", path: "/", icon: "house", label: "Home", pages: ["home", "leaving"] },
-  { id: "library", path: "/movies", icon: "clapperboard", label: "Library", pages: ["movies", "tv", "title", "show", "lists"] },
+  { id: "library", path: "/movies", icon: "clapperboard", label: "Library", pages: ["movies", "tv", "title", "show"] },
   { id: "discover", path: "/discover", icon: "compass", label: "Discover", pages: ["discover", "film"] },
   { id: "assistant", icon: "bot", label: "Assistant" },
-  { id: "me", path: "/profile", icon: "user", label: "Me", pages: ["profile", "notify"] },
+  { id: "me", path: "/profile", icon: "user", label: "Me", pages: ["profile", "notify", "saved"] },
 ];
 
 /**
@@ -201,8 +201,7 @@ function Page({ route }) {
     case "show": return route.arg ? <Show key={route.arg} imdbId={route.arg} query={route.query} /> : <Library kind="show" />;
     case "film": return route.arg ? <CatalogueFilm key={route.arg} imdbId={route.arg} /> : <Discover query={route.query} />;
     case "discover": return <Discover query={route.query} />;
-    case "lists": return route.arg ? <ListPage key={route.arg} id={route.arg} /> : <Lists />;
-    case "notify": return <Notify />;
+    case "saved": return route.arg ? <ListPage key={route.arg} id={route.arg} /> : <Saved />;    case "notify": return <Notify />;
     case "leaving": return <Leaving />;
     case "profile": return <Profile query={route.query} />;
     case "about": return <About />;

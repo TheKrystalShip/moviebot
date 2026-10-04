@@ -9,7 +9,7 @@ const page = (name, path, icon, sub) => ({ name, href: path, icon, sub, onClick:
 const BROWSE = [
   page("Movies", "/movies", "clapperboard", "Every movie on the shelf"),
   page("TV Shows", "/tv", "tv", "Every show on the shelf"),
-  page("Lists", "/lists", "bookmark", "What you saved for later"),
+  page("Saved", "/saved", "bookmark", "What you saved for later"),
   page("Leaving soon", "/leaving", "hourglass", "On their way out"),
   page("Notify me", "/notify", "bell-plus", "Movies you are waiting for"),
   page("About", "/about", "info", "This site, and where its details come from"),

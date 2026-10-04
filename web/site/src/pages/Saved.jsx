@@ -1,17 +1,19 @@
 import React from "react";
 import {
-  Icon, Modal, Select, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, toast, useFilters,
+  Icon, Modal, Select, ShowcaseCard, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, toast, useFilters,
 } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { linkProps, navigate } from "../router.js";
 import { useSession } from "../session.js";
 import { ago, clock, dayGroup } from "../time.js";
-import { Empty, Failed, PageHead } from "../components/Film.jsx";
+import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
-import { KindSwitch } from "./Library.jsx";
 
 const count = (n) => `${n} ${n === 1 ? "title" : "titles"}`;
+
+/** Where a list is: `later` is the person's own Watch later. */
+export const listHref = (id) => "/saved/" + encodeURIComponent(id);
 
 /** Where an entry leads: the library's own page for a film it holds, otherwise the catalogue's. */
 function entryHref(e) {
@@ -19,8 +21,30 @@ function entryHref(e) {
   return e.libraryId ? "/title/" + encodeURIComponent(e.libraryId) : "/film/" + encodeURIComponent(e.imdbId);
 }
 
+/**
+ * A saved title on a shelf, the same card as the library's: its poster and name, rating, year and
+ * length, when it was saved, and Watch for a film the library holds.
+ */
+export function SavedCard({ entry: e }) {
+  return (
+    <ShowcaseCard
+      name={e.title}
+      art={e.posterUrl ? `url("${e.posterUrl}")` : null}
+      onPick={() => navigate(entryHref(e))}
+      specs={[
+        { icon: "star", value: e.rating ? e.rating.toFixed(1) : null, label: "Rating" },
+        { icon: "calendar", value: e.year || null, label: "Year" },
+        { icon: "clock", value: e.runtimeMinutes ? clock(e.runtimeMinutes * 60) : null, label: "Length" },
+      ]}
+      status={{ icon: "bookmark", label: `Saved ${ago(e.addedAt)}` }}
+      action={e.libraryId
+        ? { label: "Watch", onClick: () => navigate(watchHref(e.libraryId)) }
+        : { label: "View" }} />
+  );
+}
+
 /** Every list the signed-in person can see, their Watch later first, and making a new one. */
-export function Lists() {
+export function Saved() {
   const lists = useLoad(() => api.lists(), []);
   const me = (useSession() || {}).user || {};
   const [naming, setNaming] = React.useState(false);
@@ -33,7 +57,7 @@ export function Lists() {
     setBusy(true);
     try {
       const made = await api.createList(name.trim());
-      navigate("/lists/" + encodeURIComponent(made.list.id));
+      navigate(listHref(made.list.id));
     } catch (error) {
       toast.fromError(error, "Could not make that list");
       setBusy(false);
@@ -42,14 +66,13 @@ export function Lists() {
 
   return (
     <div className="kc-page">
-      <PageHead title="Lists">
+      <PageHead title="Saved">
         {!naming && (
           <button type="button" className="kc-btn kc-head__action" onClick={() => setNaming(true)}>
             <Icon name="list-plus" size={16} />New list
           </button>
         )}
       </PageHead>
-      <KindSwitch kind="lists" />
       {naming && (
         <form className="kc-search" onSubmit={create}>
           <Icon name="list" size={17} />
@@ -71,7 +94,7 @@ export function Lists() {
 function ListCard({ list, me }) {
   const theirs = list.owner.userId !== me;
   return (
-    <a className="kc-list-card" {...linkProps("/lists/" + encodeURIComponent(list.id))}>
+    <a className="kc-list-card" {...linkProps(listHref(list.id))}>
       <span className={"kc-list-card__art kc-list-card__art--" + Math.min(list.posters.length, 4)}>
         {list.posters.length === 0 && <Icon name={list.watchLater ? "clock" : "list"} size={28} />}
         {list.posters.map((p) => <img key={p} src={p} alt="" loading="lazy" />)}
@@ -179,7 +202,7 @@ export function ListPage({ id }) {
     try {
       await api.deleteList(list.id);
       toast.info(`Deleted ${list.name}.`);
-      navigate("/lists", { replace: true });
+      navigate("/saved", { replace: true });
     } catch (error) {
       toast.fromError(error, "Could not delete it");
     }
@@ -189,7 +212,7 @@ export function ListPage({ id }) {
     try {
       await api.removeListMember(list.id, me.id);
       toast.info(`You left ${list.name}.`);
-      navigate("/lists", { replace: true });
+      navigate("/saved", { replace: true });
     } catch (error) {
       toast.fromError(error, "Could not leave it");
     }
@@ -292,7 +315,6 @@ function EntryRow({ entry: e, listId, editable, shared, onChange }) {
         <span className="kc-row__sub">
           {facts.join(" · ")}
           {e.rating ? <FilmScore rating={e.rating} votes={0} compact /> : null}
-          {e.inLibrary && <span className="kc-pill kc-pill--info">here</span>}
           {e.watched && <span className="kc-pill">watched</span>}
         </span>
         <span className="kc-row__sub" title={new Date(e.addedAt).toLocaleString()}>

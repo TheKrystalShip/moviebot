@@ -7,15 +7,17 @@ import { clock, since } from "../time.js";
 import { ContinueCard, Empty, Failed, FilmCard, PosterArt, ShowCard, watchLink } from "../components/Film.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
 import { BellButton } from "../components/Bell.jsx";
+import { SavedCard, listHref } from "./Saved.jsx";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 
 const RECENT_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * The front page: a film to watch, where this person left off, the rooms watching something now,
- * what arrived lately, what leaves next, and the shelf split into films and shows. Every row is
- * something the API measured; a row with nothing in it is left out rather than drawn empty.
+ * The front page: a film to watch, where this person left off, their Watch later, the rooms watching
+ * something now, what arrived lately, what leaves next, and the shelf split into films and shows.
+ * Every row is something the API measured; a row with nothing in it is left out rather than drawn
+ * empty.
  */
 export function Home() {
   const session = useSession();
@@ -25,6 +27,8 @@ export function Home() {
   const stays = useLoad(() => api.stays().catch(() => []), []);
   const progress = useLoad(() => api.progress().catch(() => []), []);
   const showList = useLoad(() => api.shows().catch(() => []), []);
+  const later = useLoad(() => api.list("later").catch(() => null), []);
+  const saved = (later.data && later.data.entries) || [];
 
   const library = (titles.data || []).filter((t) => t.status !== "failed");
   const byId = new Map(library.map((t) => [t.id, t]));
@@ -88,6 +92,14 @@ export function Home() {
               remainingSeconds={p.remainingSeconds}
               room={watching.find((r) => r.titleId === p.titleId)} />
           )} />
+      )}
+
+      {saved.length > 0 && (
+        <Rail
+          variant="posters" icon="bookmark" title="Watch later" count={saved.length}
+          onViewAll={() => navigate(listHref("later"))} viewAllLabel="See all"
+          items={saved} itemKey={(e) => e.imdbId}
+          renderItem={(e) => <SavedCard entry={e} />} />
       )}
 
       {watching.length > 0 && (

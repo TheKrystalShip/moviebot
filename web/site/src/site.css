@@ -635,6 +635,11 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-list-card__name { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14.5px; min-width: 0; }
 .kc-list-card__name svg { color: var(--fg-3); flex-shrink: 0; }
 
+.kc-profile__saved { display: none; }
+.kc-profile__saved .kc-row__title { flex: 1; }
+.kc-profile__saved svg { color: var(--fg-3); }
+@media (max-width: 768px) { .kc-profile__saved { display: flex; } }
+
 .kc-list-actions { display: flex; gap: 8px; }
 .kc-list-actions .kc-btn { height: 36px; padding: 0 12px; }
 .kc-btn--danger { border-color: transparent; background: var(--danger); color: var(--fg-inverse); }

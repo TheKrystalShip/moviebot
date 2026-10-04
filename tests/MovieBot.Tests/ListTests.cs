@@ -198,7 +198,7 @@ public sealed class ListTests(SessionFixture fixture) : IClassFixture<SessionFix
         var inbox = (await member.GetFromJsonAsync<NotificationsReply>("/api/me/notifications"))!;
         var told = Assert.Single(inbox.Items, n => n.Kind == NotificationKinds.Shared);
         Assert.Equal("Ana shared their list Documentaries with you.", told.Text);
-        Assert.Equal($"/lists/{id}", told.Url);
+        Assert.Equal($"/saved/{id}", told.Url);
     }
 
     [Fact]

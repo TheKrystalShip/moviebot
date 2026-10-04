@@ -302,7 +302,7 @@ for anybody else a list's id is a `404`, never a `403`. The shapes are in `src/M
   `addedBy` stay.
 - **What a list may do is its role.** An `owner` renames, deletes and says who is on it; an `editor`
   saves and takes off; a `viewer` reads. A role that does not allow a change is a `403`.
-- **Somebody put on a list is told once**, by a `shared` notification opening `/lists/{id}`.
+- **Somebody put on a list is told once**, by a `shared` notification opening `/saved/{id}`.
 - **An entry is described from what is kept.** Saving asks the film database about a title new to the
   list; the API then keeps every listed title described, so reading a list never waits on the network.
 
@@ -333,7 +333,7 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
   library within a day. `episode`: a new episode of a show they follow is out and the tracker offers
   it, "Show S5 · E4 is out.", opening `/show/{imdbId}?season={n}`. `kept`: somebody else kept, or
   let go of, something they watched. `shared`: somebody put them on one of their lists, "Ana shared
-  their list Friday night with you.", opening `/lists/{id}`. `invite`:
+  their list Friday night with you.", opening `/saved/{id}`. `invite`:
   somebody asked them into a room; an invite is pushed whatever the person chose.
 - **One thing is said once.** Each notification carries the thing it is about, and a person holding a
   notification about it is not told again: a download once, a wish once, a title leaving once per

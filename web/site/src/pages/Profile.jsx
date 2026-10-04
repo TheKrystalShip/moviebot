@@ -38,6 +38,11 @@ export function Profile({ query }) {
           <Icon name="log-out" size={16} />Sign out
         </button>
       </PageHead>
+      <a className="kc-row kc-row--link kc-profile__saved" {...linkProps("/saved")}>
+        <Icon name="bookmark" size={18} />
+        <span className="kc-row__title">Saved</span>
+        <Icon name="chevron-right" size={18} />
+      </a>
       <SubTabs tabs={TABS} active={tab} onChange={(id) => navigate("/profile?tab=" + id, { replace: true })} />
       {tab === "history" && <History />}
       {tab === "requests" && <Requests user={user} />}
