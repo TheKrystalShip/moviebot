@@ -31,6 +31,9 @@ internal sealed class MainPassArguments(IngestOptions options)
 {
     private const string ProbeWindow = "200M";
 
+    /// <summary>Decode surfaces the cuvid decoder holds; see <see cref="SourceInput"/>.</summary>
+    private const string CuvidSurfaces = "32";
+
     /// <summary>
     /// The cuvid decoder for a source, or null where NVDEC cannot decode it. Measured on the
     /// card's generation (Pascal): H.264 decodes only as 8-bit 4:2:0, HEVC as 4:2:0 at 8 or 10
@@ -186,6 +189,11 @@ internal sealed class MainPassArguments(IngestOptions options)
         {
             case VideoDecode.Cuvid:
                 args.Add("-c:v"); args.Add(CuvidDecoder(video!)!);
+                // The decoder's default surface pool is too small for a source with B-frames:
+                // a surface is reused before the frame on it has been handed on, and that frame
+                // goes out as one from 7 to 9 frames later. Measured on an x264 Blu-ray rip, the
+                // first 11.5 minutes carried 74 to 82 such frames, in bursts; with this pool, none.
+                args.Add("-surfaces"); args.Add(CuvidSurfaces);
                 if (scaledTo is not null)
                 {
                     args.Add("-resize");

@@ -74,6 +74,23 @@ public sealed class MainPassArgumentsTests
     }
 
     [Fact]
+    public void The_cuvid_decoder_holds_enough_surfaces_for_a_source_with_b_frames()
+    {
+        var video = Stream("h264", "yuv420p");
+        var ladder = VideoLadder.For(1920, 1040, Options);
+        var builder = new MainPassArguments(Options);
+
+        foreach (var rung in ladder)
+        {
+            var args = builder.Video(video, rung, "/out", toneMap: false, VideoDecode.Cuvid);
+
+            // The option belongs to the decoder, so it has to come before the input it opens.
+            Assert.Equal("32", Value(args, "-surfaces"));
+            Assert.True(args.IndexOf("-surfaces") < args.IndexOf("-i"));
+        }
+    }
+
+    [Fact]
     public void The_top_rung_is_decoded_without_a_resize()
     {
         var video = Stream("h264", "yuv420p");

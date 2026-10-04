@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.91.1] - 2026-10-04
+
+### Fixed
+
+- A film decoded on the card no longer flashes single frames from a third of a second ahead. The
+  cuvid decoder's default surface pool is too small for a source with B-frames, so now and then a
+  surface was reused before its frame was handed on and a later frame went out in its place, in
+  bursts that every viewer saw as the picture hopping forward and back. The decoder now holds 32
+  surfaces. Measured on the first 11.5 minutes of an x264 Blu-ray rip: 74 and 82 such frames on two
+  runs before, none after. Ingest 1.13.1.
+
 ## [1.91.0] - 2026-10-04
 
 ### Added
