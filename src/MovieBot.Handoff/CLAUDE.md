@@ -29,6 +29,32 @@ is about not losing that.
   ingest replaces a title's directory wholesale, so a second start would delete what the first is
   writing. The in-flight set, keyed by download hash for a film and by hash and file for an
   episode, is what prevents it.
+- **A transcode chooses its disk when it starts, against a reservation** (`TranscodePlacement`).
+  The size is the ladder's bitrates and each audio track's, times the running time from a probe, plus
+  an overhead for framing, playlists and artwork (`TranscodeEstimate`). The media root takes it when
+  it fits what that volume has left after the downloads still arriving and the other transcodes still
+  writing; otherwise the cold root, when its volume is present and has the room; otherwise the film
+  is not started. It stays owed, is asked about again each poll, and the reason is logged once when it
+  begins to wait. A transcode that began and then ran out of room would stop partway with a manifest
+  nobody can finish, in front of a room.
+- **The reservation is one account, kept in the acquire library's `DiskBudget`.** A running transcode
+  holds a claim in the `TranscodeLedger`: files in the dotted `.transcode-reservations` directory
+  under the media root, which this process writes and the API and the bot read, because they start the
+  downloads. It is under the media root because this unit can always write there and nowhere under the
+  downloads, and the dot keeps `MediaRoots.Ids`, settling, backfill and the library's listing from
+  taking it for a title. A ledger that cannot be written or read never stops a download or a
+  transcode: the failure is a logged warning and the claims count as none. `DiskBudget` subtracts a claim's unwritten
+  remainder (its size less what is already in the title's directory) from a download's headroom, and
+  the placement subtracts the downloads still arriving from the room a transcode is judged against,
+  so neither side counts the free space as its own. A claim is released when its transcode ends and
+  every claim is cleared when this process starts, which is what removes one a dead process left.
+  Placement is decided and claimed under one lock, so two films that each fit are not both placed on a
+  disk that holds one.
+- **A transcode on the cold root keeps every invariant of the two roots**
+  (`src/MovieBot.Core/CLAUDE.md`). Before it starts, under the title's lock, the media root's copy is
+  cleared (`ColdStore.ClearWorking`), as a transcode on the media root clears the settled one; and
+  nothing is cleared while the cold volume is out, in which case the film stays owed. A film made on
+  the cold root is never settled, and the library's clock reads it only once it is ready.
 - **A film owing a transcode and a film being watchable are different facts with different tags.**
   `ingest` survives until the transcode finishes; `watchable` is set seconds into it and is what the
   announcement waits for. One tag cannot answer both: clearing it to let the announcement out would
@@ -131,7 +157,17 @@ The model of the two roots is `src/MovieBot.Core/CLAUDE.md`.
 
 - **A film settles when its manifest says it is ready, and not before.** The subtitles, the cover art
   and the preview sheet are all written before the status turns, so a film that reports itself ready
-  is a directory nothing is going to add to.
+  is a directory nothing is going to add to. Only the media root is read for films owed a move: a
+  film made on the cold root is already where it is kept.
+- **A film settles only when no room is playing it** (`SettleGate`). A room is playing a title when
+  somebody is connected to it, running or paused (`RoomSummary.Participants`); a room merely holding
+  the title does not count. Both copies are whole while they overlap, so a copy under a viewer would
+  break nothing, but it saturates the disk the viewer is about to read from, and waiting costs
+  nothing: a finished film does not grow, and it settles on a later pass once nobody is playing it.
+  If the API cannot say, nothing settles that pass.
+- **Nothing settles onto the cold root while a transcode writes to it.** Each film checks the ledger
+  before its copy, so a transcode that begins between two copies holds the next one back, and a
+  title a transcode is making is never owed a move, whichever root it is on.
 - **The move is a copy, and it is ordered so that every failure before the last step is harmless.**
   The two roots are different filesystems, so nothing about it is atomic on its own: the film is
   assembled under `.incoming` on the cold root, checked against what was read, committed to the disk
@@ -180,7 +216,7 @@ acts on it and what is checked first.
 
 ### The library's clock (`LibraryWorker`)
 
-A settled film, one whose directory is on the cold root alone, leaves once it has gone
+A settled film, one that is ready and whose directory is on the cold root alone, leaves once it has gone
 `Library:LeaveAfterDays` without a play, unless somebody keeps it. The rule is the API's alone
 (`LibraryClock`), because the plays and the keeps are its records; the hand-off asks `GET
 /api/library/due` and deletes what comes back, being the only process allowed to write the media

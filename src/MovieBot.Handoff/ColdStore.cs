@@ -41,6 +41,30 @@ public sealed class ColdStore(MediaRoots roots, ILogger<ColdStore> logger)
     }
 
     /// <summary>
+    /// Takes a title off the media root, so that the cold root holds the only copy while the film
+    /// is being made there.
+    ///
+    /// The cold root is resolved first, so a copy left on the media root would be invisible while
+    /// the transcode ran and would come back as the film the moment the cold directory went, and a
+    /// finished one would be settled over the transcode's own output. Returns false, and removes
+    /// nothing, when the cold volume is not there: a title is never removed on the strength of a
+    /// disk that cannot be seen.
+    /// </summary>
+    public bool ClearWorking(string id)
+    {
+        if (!roots.ColdReady) return false;
+
+        var working = roots.WorkingDirectoryOf(id);
+        if (!Directory.Exists(working)) return true;
+
+        Directory.Delete(working, recursive: true);
+        logger.LogInformation("{Id} is being made again on cold storage; its copy under {MediaRoot} is gone.",
+            id, roots.Hot);
+
+        return true;
+    }
+
+    /// <summary>
     /// Clears what a settle interrupted partway through. A film half copied is worth nothing and
     /// the film it was copied from is still where it was, so there is nothing to recover.
     /// </summary>

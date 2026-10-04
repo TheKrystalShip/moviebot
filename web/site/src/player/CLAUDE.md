@@ -54,7 +54,8 @@ more.
   hand resting on a keyboard could trigger, and why a drag on the scrub bar says where letting go takes
   everybody before it is let go.
 - **Every menu holds this viewer's own choice, except Chapters.** Volume, subtitles, audio and
-  quality never reach the hub. Chapters moves the room like the scrub bar; a chapter's start is also
+  quality are never shared with the room. Volume, subtitles and audio never leave the browser; a
+  viewer's quality is reported up to the server alone (below). Chapters moves the room like the scrub bar; a chapter's start is also
   a mark on the bar, and pointing names the chapter. No menu explains itself: its header is its name.
 - **Moving between episodes is a button, never automatic.** An episode has previous and next
   controls the whole time it plays, from `/api/titles/{id}/neighbours` (the episodes either side among
@@ -113,6 +114,26 @@ more.
   Discord's iframe it is not given to an Activity, and the player already fills the frame there.
 - **Quality is offered only where there is a choice.** A film with one rung has nothing to choose
   between, and where the browser plays HLS itself it chooses for itself and says nothing about it.
+
+## Quality while a film is still being written (`engine/media/heads.ts`, `stream.ts`)
+
+- **The player stays on rungs written past the playhead.** While a title transcodes, its manifest
+  gives each rung's head. hls.js is capped, for its own choice and for a rung the viewer holds, to the
+  rungs whose head is at least `CapMarginSeconds` past the playhead, and the cap rises as a rung
+  catches up. A rung the playhead has outrun is left for one that covers it before the buffer runs
+  dry: switching to a rung behind the playhead stalls the film until that rung arrives. When no rung
+  covers the playhead the one furthest along is used. Nothing is capped for a ready title, a manifest
+  that records one head, or a browser that plays HLS itself.
+- **A viewer's quality is never shared with the room.** It is not in the room's state and not in any
+  broadcast. The player tells the server which rung it plays and which rung it wants, when either
+  changes and on a slow heartbeat, over the hub connection it already holds (`ReportQuality`). In Auto
+  the wanted rung is the one hls.js's own choice would pick with nothing holding it back (its bandwidth
+  estimate against the advertised bitrates); a viewer who holds a rung wants no more than it, so it is
+  the lower of that rung and the connection's pick.
+  The server keeps it per connection, in memory, for its own planning. A browser that plays HLS itself
+  reports nothing and is taken to want the tallest rung. Segment requests cannot say this: a shared
+  cache answers a whole room from one fetch.
+- **The scrub bar's shaded edge is the best rung's head**, the same limit the server holds seeks to.
 
 ## What it fetches
 

@@ -71,7 +71,9 @@ Driven entirely by what the container says, because the sample film makes every 
   can only drop to a rung that exists, and a viewer who cannot sustain the top bitrate stops for good
   at whatever second the buffer empties. `v0` is the source's own size and `v1` is 1280 wide, and both
   are forced to a keyframe on each segment boundary so segment *n* of one opens on the same frame as
-  segment *n* of the other, which is what makes a switch mid-film seamless. A source no wider than the
+  segment *n* of the other, which is what makes a switch mid-film seamless. Each rung is its own
+  process and the expression is the only thing tying them together; the first frame of segment *n*
+  has the same timestamp in both, on SDR and on tone-mapped HDR, and is a keyframe. A source no wider than the
   step-down keeps one rung, because upscaling spends a second copy of the film on no more picture. The
   ladder stops at two: every rung is a full copy on a disk that holds the whole library.
 - **A rung advertises the size it is encoded at**, because a player sizes its buffer from what it is
@@ -87,6 +89,10 @@ Driven entirely by what the container says, because the sample film makes every 
 - **`headSeconds` is the shortest of the written playlists, read from the `#EXTINF` sums** — not
   ffmpeg's own progress. A frame the encoder has read is not watchable until its segment is closed and
   listed, and video that exists without its audio is not playable at all.
+- **Each rung and the audio carry a head of their own beside it.** Every rendition's `headSeconds` and
+  the manifest's `audioHeadSeconds` (the shortest audio playlist) are read from the same sums on the
+  same poll, so the overall head is the minimum of them. All of them are absent once the title is
+  ready; a manifest without them reads as every rung being at the overall head.
 - **The manifest is written through a temp file and an atomic move.** The API polls it during a
   transcode and must never observe a partial document.
 
@@ -98,14 +104,50 @@ Driven entirely by what the container says, because the sample film makes every 
   every option combination tried. `tonemap_opencl` is the working path, and it is measured on the card
   that does the work rather than assumed. If a future build fixes libplacebo it is the better filter,
   but verify before switching.
-- **Decode on NVDEC (`-hwaccel cuda`), always.** Software decode of a 16 Mbps HEVC Main 10 source
-  costs 35 s of CPU per 40 s of film against 5.5 s on the GPU, and pins every core for the length of a
-  feature. Frames land in system memory, which is where `tonemap_opencl` wants them.
-- **Every rung and every audio rendition reads the source through its own demuxer.** One demuxer
-  shared between outputs runs at the pace of the fastest consumer and queues packets for the slower
-  ones in memory without bound — measured at 9 MB a second on a 1080p rip with four audio tracks,
-  which exhausts hotbox a third of the way into a feature and gets the transcode killed.
-  `ReadAheadGuard` takes the furthest of the descriptors as the read position.
+- **The main pass is one ffmpeg process per video rung and two for the audio**
+  (`Ffmpeg/TranscodeUnit.cs`, command lines from `Pipeline/MainPassArguments.cs`), running side by
+  side. A unit owns its process, its progress and its guard, so it can be started, watched and ended
+  without the others, and each carries the group it makes: a rung's directory, or `audio`, which
+  all of a title's audio units share, so whatever holds or resumes a title's audio addresses them
+  together. The first unit to fail ends the rest and its error is the one reported: a film missing
+  any rendition cannot be handed to a player, and a guard's message replaces ffmpeg's report that it
+  was killed. Measured on 300 s of 8-bit H.264 1920x1040 with two audio tracks, the main pass runs
+  at 6.2x to 6.7x against 5.2x to 5.5x as one process. The two video units finish together at about
+  8.5x with the card to themselves.
+- **Audio renditions are dealt out to two processes, a track at a time** (`AudioGroups`), and a
+  process holds a demuxer per rendition. ffmpeg decodes and encodes every rendition of a process on
+  one thread (18 s per 300 s for two tracks at 160k and 96k, 27 s at the 256k the renditions are made
+  at), so one process makes a film's audio the last unit to finish. Splitting it was measured on
+  hotbox's four cores with one, two, three and five audio processes: Two Towers (five 7.x tracks)
+  runs at 4.3x to 4.6x whichever, End of Watch (two tracks) at 5.6x to 6.7x with one and 6.1x to
+  6.4x with two. The cores are already full, with a load of 8 to 10, so the split does not buy
+  speed; what it changes is which unit finishes last. `headSeconds` is still the shortest playlist
+  across all units, audio playlists included.
+- **Decode on NVDEC, always, and scale in the decoder where there is one.** Software decode of a
+  16 Mbps HEVC Main 10 source costs 35 s of CPU per 40 s of film against 5.5 s on the GPU, and pins
+  every core for the length of a feature. A source whose codec has a `*_cuvid` decoder here (H.264
+  8-bit 4:2:0, HEVC 4:2:0 at 8 or 10 bits, VP9 8-bit; `MainPassArguments.CuvidDecoder`) is decoded
+  with it, and the step-down is produced at its size by `-resize`, whose height is the one
+  `VideoLadder` advertises. The step-down alone runs at 19.6x that way against 9.1x with a CPU scale
+  behind `-hwaccel cuda`. Frames land in system memory, which is where `tonemap_opencl` wants them;
+  keeping them on the card from decoder to encoder was measured and is slower (7.8x for the pair
+  against 8.6x), so the `format` filter stays.
+- **A decoder that cannot open the source gives way to the generic path.** A cuvid unit that fails
+  having written nothing runs again with `-hwaccel cuda` and a CPU `scale`; one that fails after
+  writing has failed. H.264 High 10 is not decodable by NVDEC on this card's generation and is
+  decoded in software with no hardware attempt. Two software decodes run at 2.5x on a 5-minute
+  Hi10P clip; one decode feeding both rungs through `split` ran at 4.4x video only, which is what a
+  library of Hi10P sources would want in place of a process per rung.
+- **Tone-mapping runs after the decoder's scale**, so the step-down is mapped from frames already
+  at its size and is tagged bt709 like the top rung. On the 1080p Dolby Vision HEVC clip measured,
+  the main pass runs at 4.6x against 2.6x, the mean luma of both rungs agrees with the previous
+  output to within one level, and each video process holds 580 to 650 MB of RAM and 350 to 390 MiB
+  of GPU memory against 390 to 470 MB and 220 to 270 MiB on SDR. A stopped process keeps all of it.
+- **Every audio rendition reads the source through its own demuxer.** One demuxer shared between
+  outputs runs at the pace of the fastest consumer and queues packets for the slower ones in memory
+  without bound — measured at 9 MB a second on a 1080p rip with four audio tracks, which exhausts
+  hotbox a third of the way into a feature and gets the transcode killed. A rung is a process with
+  one demuxer of its own, so it holds the same property.
 - **The concurrency ceiling belongs to the card, and is measured rather than reasoned about.**
   `Handoff.MaxConcurrentIngests` is set per host in its settings file, because a GPU saturates at an aggregate rate and
   jobs past that point only divide the same throughput into thinner slices. What matters is not the
@@ -144,12 +186,15 @@ CLI changes.
   film with stillness and silence in it and nothing anywhere to say so.
 - **`ReadAheadGuard` watches rather than trusts.** The reader's position comes from the kernel
   (`/proc/<pid>/fdinfo`), the arrived length from whoever is fetching the file. When the gap closes the
-  process is stopped and resumed when it opens.
+  process is stopped and resumed when it opens. Every process of the main pass has a guard of its own,
+  because each reads the source through descriptors of its own; the audio process has one descriptor
+  per rendition and the furthest is its position.
 - **The guard fails closed.** If it cannot find the descriptor, it refuses rather than running on: a
   position it cannot read pauses, and one it never found at all aborts the transcode. Running unguarded
   produces corruption that looks like success, which is worse than a failure that says so.
-- **A guard that cannot do its job kills the transcode.** It is awaited after the transcode so its
-  message replaces ffmpeg's, which would only report that it was killed.
+- **A guard that cannot do its job kills its process, and with it the pass.** It is awaited after the
+  process so its message replaces ffmpeg's, which would only report that it was killed, and the
+  other units are ended like any failed unit's siblings.
 - **Subtitles wait for the whole file.** They have to be demuxed from a complete one, so where a
   source is still arriving they are extracted after the main pass, and a track is advertised in the
   manifest only once its own file is whole. A `.vtt` that is still being written is never served.

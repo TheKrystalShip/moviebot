@@ -4,6 +4,40 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.91.0] - 2026-10-04
+
+### Added
+
+- The API plans what the card should be transcoding. `GET /api/transcode/plan` ranks every unit of
+  work owed in the library (each quality of a film still being made, its audio, and each quality a
+  finished film lacks) by who is watching: a watched film short of its lead first, a film a room has
+  just asked for next, backfill last and only while no room plays. It spends two budgets measured on
+  the card, the encoder in 1080p-equivalents of realtime and the decoder in source decodes, and says
+  of every unit whether to run, hold or park it, and of every finished film whether it may settle.
+  `PUT /api/transcode/status` takes the executor's report. The plan is computed on every request and
+  never stored. Api 1.28.0, Core 1.24.0.
+- Each quality of a film being made carries its own head in the manifest, and so does its audio. The
+  room's state carries them too (`rungHeads`, `audioHead`); a seek is clamped to the best quality's
+  head, held back to the audio's, and the player only offers the qualities that have caught up to
+  the playhead plus thirty seconds. Each player reports the quality it plays and the one it would
+  choose to the server over the hub (`ReportQuality`), which plans by it and never shares it with
+  the room.
+- A transcode chooses its disk when it starts. Its size is estimated from the ladder and the running
+  time and reserved against the media root's free space, shared with the downloads still arriving;
+  a film that does not fit is written to the cold disk directly, and one that fits neither waits
+  rather than running out of room partway. Handoff 0.14.0.
+
+### Changed
+
+- Each quality of a film is encoded by its own ffmpeg process, decoded and scaled on the card where
+  the source allows, and the audio by two processes sharing the title's tracks. A 1080p film with
+  audio transcodes about a fifth faster and an HDR one about three quarters faster; cancelling an
+  ingest ends every ffmpeg it started. Ingest 1.13.0.
+- A film settles onto the cold disk only when no room with somebody connected is playing it, and
+  never while a transcode writes to the cold disk.
+- The quality ladder (bitrates, the 720p step-down and the segment length) is defined once in Core,
+  and the ingest's defaults are taken from it.
+
 ## [1.90.0] - 2026-10-04
 
 ### Changed

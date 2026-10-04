@@ -153,6 +153,34 @@ are the bot's, and answer the service key alone. The shapes are in `src/MovieBot
 the API reads the tracker, `QBittorrent`, `Download`, `Selection`, `Library` and `Notify` settings
 to serve them.
 
+### Transcode plan
+
+What the card should be doing, published for the hand-off to carry out, and the hand-off's report of
+what it is doing. Both answer the **service key** alone: a plan names every film and what rooms are
+watching. The shapes are in `src/MovieBot.Core/Transcode.cs`; the rules are in
+`src/MovieBot.Api/Transcode/CLAUDE.md`.
+
+| Route | Answers |
+|---|---|
+| `GET /api/transcode/plan` | `TranscodePlan`, computed from the rooms, the manifests and the last report at the moment it is asked |
+| `PUT /api/transcode/status` | 204 for `TranscodeStatus`; the report replaces the previous one |
+
+`TranscodePlan` is `{plannedAt, executorReporting, units, titles}`. `units` is most urgent first, each
+`{id, kind, titleId, rung?, fromSegment, disposition, rank, tier, reason, placement?}`: `kind` is
+`video-rung`, `audio` or `rung-add`; `rung` is `{directory, width, height, bitrateKbps}` and is absent
+on audio; `fromSegment` is the first segment still to be made; `disposition` is `run`, `hold` or
+`park`; `tier` is the policy tier, one to six; `placement` is absent until placement decides. The `id`
+names what the unit is and does not change as it progresses. `titles` holds one `{titleId, maySettle}`
+for each finished film, and `maySettle` is true unless a room with somebody connected has it set,
+paused or playing. `executorReporting` is false
+when the last report is older than `Transcode:StatusStaleSeconds` or none has come, and the plan then
+rests on manifests alone.
+
+`TranscodeStatus` is `{units, disks?}`. Each unit is `{id, state, reason?, speed?, heads?, disk?,
+since?}`: `state` is `running`, `held`, `parked`, `done` or `failed`; `speed` is output seconds per
+wall second; `heads` is seconds of film by output name, a rung's directory or `audio`; `since` is
+when the unit entered its state. Each disk is `{name, freeBytes, totalBytes}`.
+
 ### Signing in
 
 `POST /api/auth/discord/callback` takes `{code, redirectUri?, sessionId?}` and answers
@@ -361,7 +389,8 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
   "status": "transcoding",        // "transcoding" | "ready" | "failed"
   "kind": "film",                 // "film" | "show"; a manifest without it is a film
   "episode": { "season": 2, "number": 4 },  // an episode's place in its show, which "film" then names; absent for a film
-  "headSeconds": 20.0,            // absent once ready
+  "headSeconds": 20.0,            // absent once ready; the shortest playlist: every rung and the audio have reached this
+  "audioHeadSeconds": 31.0,       // how far the audio has reached; absent once ready, and absent when audio is not tracked apart from the rungs
   "error": "…",                   // present only when status is "failed"
   "poster": "poster.jpg",         // absent when the container carried no cover art
   "master": "master.m3u8",        // load THIS, not a bare video rendition
@@ -371,8 +400,8 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
     "sourceCodec": "hevc",
     "sourceHdr": "hdr10+dovi-p8.1",
     "renditions": [
-      { "name": "800p", "bitrateKbps": 9000, "width": 1920, "height": 800, "uri": "v0/index.m3u8" },
-      { "name": "536p", "bitrateKbps": 4000, "width": 1280, "height": 536, "uri": "v1/index.m3u8" }
+      { "name": "800p", "bitrateKbps": 9000, "width": 1920, "height": 800, "uri": "v0/index.m3u8", "headSeconds": 20.0 },
+      { "name": "536p", "bitrateKbps": 4000, "width": 1280, "height": 536, "uri": "v1/index.m3u8", "headSeconds": 28.5 }
     ]
   },
   "audio": [
@@ -401,6 +430,12 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 
 `kind` is `"feature"` or `"commentary"`; `source` is `"embedded-text"`, `"sidecar"` or
 `"bitmap"`. All `uri` values are relative to `/media/{id}/`.
+
+**Heads.** While a title transcodes, each rendition's `headSeconds` and the manifest's
+`audioHeadSeconds` say how far that playlist has reached, and `headSeconds` is the shortest of them.
+All of them are absent once the title is `ready`. A manifest with no rendition `headSeconds` says
+every rung is at the overall head. A title is playable as far as its best rung, held back to the
+audio.
 
 **Load `master`, not `video.renditions[].uri`.** The master playlist is what binds the audio
 renditions to the video; a player handed a bare video rendition plays the film silently with no
@@ -504,13 +539,14 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `Seek` | `(toSeconds) → SessionStatePush` | may be clamped |
 | `ServerTime` | `() → DateTimeOffset` | for clock-offset estimation |
 | `Buffering` | `(waiting: bool)` | this viewer's player has been waiting for the film past a stutter, or is playing again. Moves nothing; the roster carries it |
+| `ReportQuality` | `(playingHeight: int?, wantedHeight: int?)` | the rung height this viewer plays, and the one its own adaptive choice would pick with nothing holding it back; on change and about every 30 s. Answers nothing and is sent to nobody: the server keeps it per connection for its transcode planner and drops it when the connection leaves. A player that cannot say (native HLS) sends nothing, and is taken to want the tallest rung |
 
 **Receive:**
 
 | Event | Payload |
 |---|---|
 | `StateChanged` | `SessionStatePush` — sent to everyone including the caller |
-| `SeekClamped` | `{requestedSeconds, grantedSeconds, headSeconds}` — sent to the caller only |
+| `SeekClamped` | `{requestedSeconds, grantedSeconds, headSeconds}` — sent to the caller only; `headSeconds` is the best rung's head held back to the audio, which is at least `transcodeHead` |
 | `ParticipantsChanged` | `Participant[]` = `{userId, displayName, buffering}[]` — sent when somebody joins, leaves, or starts or stops waiting for the film |
 | `TitleChanged` | `Manifest` — the manifest of the title this room holds changed: head, preview sheet, subtitles, status. Sent to every room holding the title, within a couple of seconds of the write |
 
@@ -527,7 +563,12 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
     "updatedBy": { "userId": "u1", "displayName": "Alice" },
     "revision": 7,
     "epoch": "3f1c...",            // which run of the room the revision belongs to
-    "transcodeHead": 300.0         // absent once the title is ready
+    "transcodeHead": 300.0,        // the shortest playlist; absent once the title is ready
+    "rungHeads": [                 // each rung's reach, by advertised height; absent once ready and for a manifest that records one head
+      { "height": 1080, "seconds": 300.0 },
+      { "height": 720, "seconds": 900.0 }
+    ],
+    "audioHead": 1000.0            // absent unless the manifest tracks audio apart
   },
   "serverTime": "2026-09-01T18:22:07.456+00:00"
 }

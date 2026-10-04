@@ -22,7 +22,8 @@ public sealed class ReadAheadGuard(
     ISourceAvailability availability,
     string sourcePath,
     long marginBytes,
-    Action<string>? log = null)
+    Action<string>? log = null,
+    TimeSpan? openTimeout = null)
 {
     private const int SIGSTOP = 19;
     private const int SIGCONT = 18;
@@ -45,7 +46,7 @@ public sealed class ReadAheadGuard(
     /// How long the descriptor is given to appear before guarding is declared impossible. ffmpeg
     /// opens its input almost immediately; this is generous rather than tight.
     /// </summary>
-    private static readonly TimeSpan OpenTimeout = TimeSpan.FromSeconds(15);
+    private readonly TimeSpan _openTimeout = openTimeout ?? TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// Watches until the source is complete or the token is cancelled. Always resumes the process
@@ -107,7 +108,7 @@ public sealed class ReadAheadGuard(
     /// </summary>
     private async Task<bool> WaitForOpenAsync(Process process, CancellationToken ct)
     {
-        var deadline = DateTimeOffset.UtcNow + OpenTimeout;
+        var deadline = DateTimeOffset.UtcNow + _openTimeout;
 
         while (DateTimeOffset.UtcNow < deadline)
         {
@@ -154,9 +155,9 @@ public sealed class ReadAheadGuard(
     ///
     /// The descriptor is found by resolving each of the process's open files rather than assuming
     /// an index: ffmpeg opens the source somewhere among its own pipes and outputs, and which
-    /// number it lands on is not ours to predict. The transcode opens the source once per
-    /// rendition, so every descriptor on it is read and the furthest one is the position: that is
-    /// the reader closest to running past what has arrived.
+    /// number it lands on is not ours to predict. A process that opens the source once per
+    /// rendition has several, so every descriptor on it is read and the furthest one is the
+    /// position: that is the reader closest to running past what has arrived.
     /// </summary>
     private long ReadPosition(int pid)
     {

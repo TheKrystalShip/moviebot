@@ -73,7 +73,7 @@ public sealed record IngestOptions
     /// symmetric gigabit link, there is no reason to go lower and little visible reason to go
     /// higher.
     /// </summary>
-    public string VideoBitrate { get; init; } = "9M";
+    public string VideoBitrate { get; init; } = $"{Ladder.TopKbps}k";
 
     /// <summary>
     /// The width the second rung is scaled to, and the bitrate it is encoded at.
@@ -87,8 +87,8 @@ public sealed record IngestOptions
     /// the whole library. A source narrower than this is served by the top rung alone: upscaling
     /// spends the space and carries no more picture than the source has.
     /// </summary>
-    public int StepDownWidth { get; init; } = 1280;
-    public string StepDownBitrate { get; init; } = "4M";
+    public int StepDownWidth { get; init; } = Ladder.StepDownWidth;
+    public string StepDownBitrate { get; init; } = $"{Ladder.StepDownKbps}k";
 
     /// <summary>NVENC constant-quality target. Lower is better quality and a larger file.</summary>
     public int Cq { get; init; } = 19;
@@ -112,7 +112,7 @@ public sealed record IngestOptions
     /// two megabytes, small enough to complete over a path that has slowed. The cost is a keyframe
     /// every two seconds, which the encoder pays for in a few per cent of bitrate.
     /// </summary>
-    public int SegmentSeconds { get; init; } = 2;
+    public int SegmentSeconds { get; init; } = Ladder.SegmentSeconds;
 
     /// <summary>Overrides HDR auto-detection. Tone-mapping an SDR source washes it out.</summary>
     public bool? ForceToneMap { get; init; }

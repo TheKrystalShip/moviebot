@@ -3,6 +3,7 @@ import Hls from 'hls.js';
 import { environment } from '../environment';
 import type { Manifest, ThumbnailStrip } from '../types';
 import { buildMasterPlaylist, masterPlaylistUrl, type MasterPlaylist } from './masterPlaylist';
+import { covers, rungReach, wantedHeight } from './heads';
 import { ensureTicket, hasTicket, ticketedLoader, ticketedMediaUrl } from './mediaTicket';
 import { findSubtitle } from './tracks';
 
@@ -24,6 +25,12 @@ export interface StreamEvents {
    * the browser plays the stream itself, because it chooses for itself and says nothing about it.
    */
   onQuality(levels: QualityLevel[], playingHeight: number | null): void;
+  /**
+   * The rung this viewer plays and the rung the connection would have them on with nothing holding
+   * it back, raised when either changes and on a slow heartbeat. Never raised where the browser
+   * plays the stream itself: it says nothing about what it chooses.
+   */
+  onViewerQuality(playingHeight: number | null, wantedHeight: number | null): void;
 }
 
 /** One rung of the film's ladder. */
@@ -60,6 +67,15 @@ const NoDecoderMessage =
 /** A stall shorter than this is a stutter, and showing a spinner at it is worse than ignoring it. */
 const StallGraceMs = 400;
 
+/** How often the rungs the player may use are checked against the playhead, and the viewer's choice re-read. */
+const WatchIntervalMs = 2_000;
+
+/** A change in what the viewer wants waits this long after the last report, so a bandwidth estimate hovering at a boundary is not a stream of messages. */
+const ReportSettleMs = 5_000;
+
+/** The viewer's quality is said again this often while it holds still, so the server never relies on one message. */
+const ReportHeartbeatMs = 30_000;
+
 /**
  * What a media fetch outside hls.js carries.
  *
@@ -94,6 +110,10 @@ export class FilmStream {
   private thumbnailUrl: string | null = null;
   /** The height this viewer holds the film at, or null to let the connection decide. */
   private quality: number | null = null;
+  /** Set while the player holds a rung other than the one the viewer or the connection chose, because the chosen one is behind the playhead. */
+  private stepDown = false;
+  private watchTimer: number | null = null;
+  private reported: { playing: number | null; wanted: number | null; at: number } | null = null;
   private stallTimer: number | null = null;
   /** Set once the loaded film reached metadata, and cleared by the next load or by giving up. */
   private ready = false;
@@ -192,8 +212,12 @@ export class FilmStream {
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (audioId !== undefined) this.selectAudio(audioId);
         this.selectQuality(this.quality);
+        this.watchTimer = window.setInterval(() => this.watch(), WatchIntervalMs);
       });
-      hls.on(Hls.Events.LEVEL_SWITCHED, () => this.reportQuality());
+      hls.on(Hls.Events.LEVEL_SWITCHED, () => {
+        this.reportQuality();
+        this.reportViewerQuality();
+      });
       hls.attachMedia(this.video);
       hls.loadSource(this.masterUrl);
     } else if (this.video.canPlayType('application/vnd.apple.mpegurl') !== '') {
@@ -231,7 +255,15 @@ export class FilmStream {
       this.manifest = { ...this.manifest, thumbnails: fresh.thumbnails };
       void this.loadThumbnails(fresh);
     }
-    this.manifest = { ...this.manifest, subtitles: fresh.subtitles };
+    this.manifest = {
+      ...this.manifest,
+      subtitles: fresh.subtitles,
+      status: fresh.status,
+      headSeconds: fresh.headSeconds,
+      audioHeadSeconds: fresh.audioHeadSeconds,
+      video: fresh.video
+    };
+    this.limitLevels();
   }
 
   selectAudio(trackId: string): void {
@@ -265,15 +297,118 @@ export class FilmStream {
     this.quality = height;
     const hls = this.hls;
     if (hls === null || hls.levels.length === 0) return;
-    if (height === null) {
-      hls.nextLevel = -1;
-    } else {
-      const ranked = hls.levels.map((level, index) => ({ index, height: level.height }));
-      const fits = ranked.filter((level) => level.height <= height).sort((a, b) => b.height - a.height);
-      const shortest = [...ranked].sort((a, b) => a.height - b.height);
-      hls.nextLevel = (fits[0] ?? shortest[0]).index;
-    }
+    const index = this.chosenLevel();
+    hls.nextLevel = index;
+    this.stepDown = false;
+    this.limitLevels();
     this.reportQuality();
+  }
+
+  /** The level the viewer's choice names, or -1 to let the connection decide. */
+  private chosenLevel(): number {
+    const hls = this.hls;
+    if (hls === null || this.quality === null) return -1;
+    const height = this.quality;
+    const ranked = hls.levels.map((level, index) => ({ index, height: level.height }));
+    const fits = ranked.filter((level) => level.height <= height).sort((a, b) => b.height - a.height);
+    const shortest = [...ranked].sort((a, b) => a.height - b.height);
+    return (fits[0] ?? shortest[0]).index;
+  }
+
+  /**
+   * Keeps hls.js, whether it is choosing or holding the viewer's rung, on rungs written far enough
+   * past the playhead. A rung behind it stalls the film until the transcode catches up, so the cap
+   * rises as rungs do, and a rung the playhead has outrun is left for one that covers it before
+   * the buffer runs dry. Nothing is capped for a ready title or a manifest that records one head,
+   * and nothing is capped where the browser plays the stream itself.
+   */
+  private limitLevels(): void {
+    const hls = this.hls;
+    const manifest = this.manifest;
+    if (hls === null || manifest === null || hls.levels.length < 2) return;
+
+    const reach = rungReach(manifest);
+    if (reach === null) {
+      if (hls.autoLevelCapping !== -1) hls.autoLevelCapping = -1;
+      if (this.stepDown) {
+        this.stepDown = false;
+        hls.nextLevel = this.chosenLevel();
+      }
+      return;
+    }
+
+    const playhead = this.video.currentTime;
+    const covered = hls.levels
+      .map((level, index) => ({ index, ok: covers(reach, manifest.headSeconds, level.height, playhead) }))
+      .filter((level) => level.ok)
+      .map((level) => level.index);
+
+    // Nothing covers the playhead when the transcode is closer than the margin: the rung that has
+    // got furthest is the best there is.
+    const furthest = hls.levels.reduce((best, level, index) => {
+      const seconds = reach.find((rung) => rung.height === level.height)?.seconds ?? manifest.headSeconds ?? 0;
+      return seconds > best.seconds ? { index, seconds } : best;
+    }, { index: 0, seconds: -1 }).index;
+    const allowed = covered.length > 0 ? covered : [furthest];
+    const ceiling = Math.max(...allowed);
+    hls.autoLevelCapping = ceiling;
+
+    // The nearest allowed rung at or below the one in question, else the lowest above it.
+    const nearest = (index: number) =>
+      [...allowed].filter((level) => level <= index).sort((a, b) => b - a)[0] ?? Math.min(...allowed);
+
+    const chosen = this.chosenLevel();
+    if (chosen >= 0) {
+      const target = nearest(chosen);
+      this.stepDown = target !== chosen;
+      if (hls.manualLevel !== target) hls.nextLevel = target;
+      return;
+    }
+
+    // The connection is choosing. The cap holds what it picks from here, and a rung it is already
+    // on that no longer covers is left at once.
+    const current = hls.loadLevel >= 0 ? hls.loadLevel : hls.currentLevel;
+    if (current >= 0 && !allowed.includes(current)) {
+      hls.nextLevel = nearest(current);
+      this.stepDown = true;
+    } else if (this.stepDown && allowed.length === ceiling + 1) {
+      hls.nextLevel = -1;
+      this.stepDown = false;
+    }
+  }
+
+  /** Once per interval: the cap against where the playhead has got to, and what the viewer would choose. */
+  private watch(): void {
+    this.limitLevels();
+    this.reportViewerQuality();
+  }
+
+  /**
+   * Says what rung this viewer plays and what their connection would have them on, to whoever is
+   * listening: on a change that has held for a few seconds, and on a heartbeat while it holds still.
+   */
+  private reportViewerQuality(): void {
+    const hls = this.hls;
+    if (hls === null || hls.levels.length === 0) return;
+
+    const current = hls.currentLevel;
+    const playing = current >= 0 ? hls.levels[current]?.height ?? null : null;
+    const wanted = wantedHeight(
+      hls.levels.map((level) => ({ height: level.height, bitrate: level.bitrate })),
+      hls.bandwidthEstimate,
+      current,
+      hls.config.abrBandWidthFactor,
+      hls.config.abrBandWidthUpFactor,
+      this.quality === null ? null : hls.levels[this.chosenLevel()]?.height ?? null
+    );
+
+    const now = Date.now();
+    const last = this.reported;
+    const changed = last === null || last.playing !== playing || last.wanted !== wanted;
+    if (last !== null && (!changed || now - last.at < ReportSettleMs) && now - last.at < ReportHeartbeatMs) return;
+
+    this.reported = { playing, wanted, at: now };
+    this.events.onViewerQuality(playing, wanted);
   }
 
   private reportQuality(): void {
@@ -396,6 +531,10 @@ export class FilmStream {
 
   private teardownSource(): void {
     this.clearSubtitle();
+    if (this.watchTimer !== null) window.clearInterval(this.watchTimer);
+    this.watchTimer = null;
+    this.stepDown = false;
+    this.reported = null;
     this.hls?.destroy();
     this.hls = null;
     if (this.masterUrl !== null && this.masterUrlIsBlob) URL.revokeObjectURL(this.masterUrl);

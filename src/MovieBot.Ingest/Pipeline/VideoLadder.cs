@@ -1,4 +1,5 @@
 using System.Globalization;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Ingest.Pipeline;
 
@@ -49,45 +50,22 @@ public static class VideoLadder
     /// </summary>
     public static List<VideoRung> For(int sourceWidth, int sourceHeight, IngestOptions options)
     {
-        var rungs = new List<VideoRung>
-        {
-            new()
-            {
-                Directory = "v0",
-                Width = sourceWidth,
-                Height = sourceHeight,
-                BitrateKbps = ParseBitrate(options.VideoBitrate),
-                ScaleFilter = null
-            }
-        };
+        var shape = Ladder.For(
+            sourceWidth, sourceHeight, ParseBitrate(options.VideoBitrate),
+            options.StepDownWidth, ParseBitrate(options.StepDownBitrate));
 
-        var stepDown = options.StepDownWidth;
-        var stepDownKbps = ParseBitrate(options.StepDownBitrate);
-        if (sourceWidth <= 0 || sourceHeight <= 0 || sourceWidth <= stepDown || stepDownKbps <= 0)
-            return rungs;
-
-        rungs.Add(new VideoRung
+        return shape.Select(r => new VideoRung
         {
-            Directory = "v1",
-            Width = stepDown,
-            Height = ScaledHeight(sourceWidth, sourceHeight, stepDown),
-            BitrateKbps = stepDownKbps,
+            Directory = r.Directory,
+            Width = r.Width,
+            Height = r.Height,
+            BitrateKbps = r.BitrateKbps,
             // -2 asks ffmpeg for the height that keeps the source's aspect ratio, rounded to the
             // nearest even number. H.264 requires even dimensions.
-            ScaleFilter = $"scale={stepDown.ToString(CultureInfo.InvariantCulture)}:-2"
-        });
-
-        return rungs;
-    }
-
-    /// <summary>
-    /// What <c>scale=w:-2</c> produces. The manifest advertises this, so it is computed the same
-    /// way ffmpeg computes it and the two cannot disagree.
-    /// </summary>
-    private static int ScaledHeight(int sourceWidth, int sourceHeight, int targetWidth)
-    {
-        var exact = (double)sourceHeight * targetWidth / sourceWidth;
-        return Math.Max(2, (int)Math.Round(exact / 2, MidpointRounding.AwayFromZero) * 2);
+            ScaleFilter = r.Directory == Ladder.TopDirectory
+                ? null
+                : $"scale={r.Width.ToString(CultureInfo.InvariantCulture)}:-2"
+        }).ToList();
     }
 
     /// <summary>Reads <c>9M</c>, <c>4500k</c> or a bare number of kbps.</summary>

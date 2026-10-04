@@ -107,7 +107,7 @@ public sealed class WishesTests : IDisposable
             Root = Path.Combine(_dir, "downloads"), ReservedGiB = 0,
         });
         var acquisition = new AcquisitionService(
-            tracker, torrents, new DiskBudget(download, NullLogger<DiskBudget>.Instance),
+            tracker, torrents, new DiskBudget(download, new TranscodeLedger(Options.Create(new TranscodeLedgerOptions()), NullLogger<TranscodeLedger>.Instance), NullLogger<DiskBudget>.Instance),
             download, NullLogger<AcquisitionService>.Instance);
 
         var search = new StubSearch(offered ?? []);

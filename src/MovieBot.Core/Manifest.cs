@@ -76,6 +76,13 @@ public sealed class Manifest
     /// </summary>
     public double? HeadSeconds { get; set; }
 
+    /// <summary>
+    /// How far the audio renditions have reached, the shortest of them. Null once the title is
+    /// ready, and null on a manifest that does not track rungs separately, which reads as audio
+    /// being at <see cref="HeadSeconds"/>.
+    /// </summary>
+    public double? AudioHeadSeconds { get; set; }
+
     /// <summary>Set when the transcode fails, so a stalled player can say why.</summary>
     public string? Error { get; set; }
 
@@ -389,6 +396,14 @@ public sealed record Rendition
     public int Height { get; init; }
 
     public required string Uri { get; init; }
+
+    /// <summary>
+    /// How far this rung's playlist has reached while the title is transcoding. Rungs advance at
+    /// their own pace, so this is at or past <see cref="Manifest.HeadSeconds"/>, which is the
+    /// shortest of them. Null once the title is ready, and null on a manifest that does not track
+    /// rungs separately, which reads as the rung being at the overall head.
+    /// </summary>
+    public double? HeadSeconds { get; set; }
 
     /// <summary>This rung's size: its own where it states one, the source's where it does not.</summary>
     public (int Width, int Height) SizeIn(VideoInfo video) =>

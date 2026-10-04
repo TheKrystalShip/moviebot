@@ -2,6 +2,7 @@ import { api } from './api';
 import { environment, type Identity } from './environment';
 import { formatTime } from './format';
 import { prefs } from './prefs';
+import { playableHead, playableHeadOf } from './media/heads';
 import { FilmStream, type QualityLevel } from './media/stream';
 import { defaultAudioId } from './media/tracks';
 import { describeChange } from './session/changes';
@@ -61,7 +62,7 @@ export interface RoomView {
   subtitleTrack: TextTrack | null;
   audioId: string | null;
   subtitleId: string | null;
-  /** How far the transcode has reached, or null once the whole film is written. */
+  /** How far the film can be played to, on the best rung that has audio under it, or null once the whole film is written. */
   transcodeHead: number | null;
   /** The room could not be joined at all. */
   fatal: string | null;
@@ -157,7 +158,8 @@ export class PlayerRoom {
       },
       onThumbnails: (strip, url) => this.set({ thumbnails: strip !== null && url !== null ? { strip, url } : null }),
       onSubtitleTrack: (track) => this.set({ subtitleTrack: track }),
-      onQuality: (levels, playingHeight) => this.set({ qualityLevels: levels, playingHeight })
+      onQuality: (levels, playingHeight) => this.set({ qualityLevels: levels, playingHeight }),
+      onViewerQuality: (playing, wanted) => void this.hub?.reportQuality(playing, wanted)
     });
   }
 
@@ -344,7 +346,7 @@ export class PlayerRoom {
     }
 
     if (this.view.manifest?.status === 'transcoding') {
-      this.set({ transcodeHead: state.transcodeHead ?? this.view.manifest.headSeconds ?? 0 });
+      this.set({ transcodeHead: playableHeadOf(state) ?? playableHead(this.view.manifest) ?? 0 });
     }
   }
 
@@ -385,7 +387,7 @@ export class PlayerRoom {
       manifest,
       audioId,
       subtitleId,
-      transcodeHead: manifest.status === 'transcoding' ? (manifest.headSeconds ?? 0) : null
+      transcodeHead: playableHead(manifest)
     });
     void this.showPresence();
 
@@ -407,7 +409,7 @@ export class PlayerRoom {
     this.stream.follow(fresh);
     this.set({
       manifest: fresh,
-      transcodeHead: fresh.status === 'transcoding' ? (fresh.headSeconds ?? 0) : null
+      transcodeHead: playableHead(fresh)
     });
   }
 

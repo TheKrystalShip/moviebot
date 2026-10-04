@@ -96,7 +96,7 @@ public sealed class DownloadCommandTests : IDisposable
         // No reserve: the test directory sits on whatever small volume the runner has.
         var download = Options.Create(new DownloadOptions { Root = root, ReservedGiB = 0 });
         var acquisition = new AcquisitionService(
-            tracker, torrents, new DiskBudget(download, NullLogger<DiskBudget>.Instance),
+            tracker, torrents, new DiskBudget(download, new TranscodeLedger(Options.Create(new TranscodeLedgerOptions()), NullLogger<TranscodeLedger>.Instance), NullLogger<DiskBudget>.Instance),
             download, NullLogger<AcquisitionService>.Instance);
 
         // A row has to have been offered before it can be picked, which is how the surface works

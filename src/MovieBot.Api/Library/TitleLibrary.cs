@@ -202,15 +202,11 @@ public sealed class TitleLibrary(
     }
 
     /// <summary>
-    /// The head a seek is judged against: how far the transcode has reached, or null when the
-    /// title is complete and the whole film is seekable.
+    /// The head a seek is judged against: how far the best rung has reached with audio under it,
+    /// or null when the title is complete and the whole film is seekable.
     /// </summary>
-    public double? HeadOf(string? titleId)
-    {
-        if (titleId is null) return null;
-        var manifest = Get(titleId);
-        return manifest?.Status == TitleStatus.Transcoding ? manifest.HeadSeconds : null;
-    }
+    public double? HeadOf(string? titleId) =>
+        titleId is not null && Get(titleId) is { } manifest ? TranscodeHeads.PlayableOf(manifest) : null;
 
     /// <summary>
     /// What a title stays or leaves with as one. A film is its own unit. An episode's is its season,

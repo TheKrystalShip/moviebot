@@ -11,6 +11,7 @@ npm install        # @thekrystalship/krystal-ui comes from GitHub Packages, whic
 npm run dev        # http://localhost:5175
 npm run lint
 npm run check      # the player's engine, types only
+npm test           # the engine's pure rung logic (verify/heads.test.mjs)
 npm run build      # -> dist/; scripts/build-player.sh installs it into the API's wwwroot
 npm run verify     # the player in a real browser, against a running API and dev server
 npm run verify:routes  # every address, cold and by its flows, against a scratch site (verify/routes.mjs)

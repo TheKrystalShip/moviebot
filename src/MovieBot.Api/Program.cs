@@ -20,6 +20,7 @@ using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.KGSM.WebPush;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Shows;
+using TheKrystalShip.MovieBot.Api.Transcode;
 using TheKrystalShip.MovieBot.Core;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -52,6 +53,10 @@ builder.Services.AddSingleton(sp => new TitleLibrary(
 builder.Services.AddSingleton<LibraryListing>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryListing>());
 builder.Services.AddSingleton<SessionStore>();
+
+// What each connected viewer would watch at, for the transcode planner. In memory and per
+// connection: a viewer's quality never joins a room's state.
+builder.Services.AddSingleton<ViewerQuality>();
 
 // Every change to a room, whichever door it arrived by: the hub for a player in the room, HTTP for
 // the bot and for a spoken command.
@@ -170,6 +175,15 @@ builder.Services.AddSingleton(sp => new KeepStore(
 // A keeper is shown by the name this gives, and by their id where it gives none.
 builder.Services.AddSingleton<KeeperNames>(sp => sp.GetRequiredService<PersonDirectory>().NameOf);
 builder.Services.AddSingleton<LibraryClock>();
+
+// What the GPU should be doing, published for the hand-off to carry out. The quality each viewer
+// wants is what their players report to the hub, and each output's head is the manifest's.
+builder.Services.AddOptions<TranscodeOptions>().Bind(builder.Configuration.GetSection(TranscodeOptions.Section));
+builder.Services.AddSingleton<IViewerQuality>(sp => sp.GetRequiredService<ViewerQuality>());
+builder.Services.AddSingleton<IManifestHeads, ManifestHeads>();
+builder.Services.AddSingleton<TranscodeCatalog>();
+builder.Services.AddSingleton<TranscodeStatusStore>();
+builder.Services.AddSingleton<TranscodePlanService>();
 
 // Telling people things: the bell, the pushes to their browsers, and the Discord messages the bot
 // sends where no push reaches them.
@@ -319,6 +333,7 @@ app.MapGet("/api/titles/{id}/ticket", (
 
 app.MapSubtitles();
 app.MapAcquisition();
+app.MapTranscode();
 app.MapPeople();
 app.MapDevices();
 app.MapFilms();

@@ -62,6 +62,8 @@ public static class FfmpegProcess
         foreach (var argument in arguments)
             info.ArgumentList.Add(argument);
 
+        ct.ThrowIfCancellationRequested();
+
         using var process = Process.Start(info)
             ?? throw new FfmpegException("Could not start ffmpeg. Is it on PATH?");
 
@@ -108,7 +110,27 @@ public static class FfmpegProcess
             }
         }, ct);
 
-        await process.WaitForExitAsync(ct);
+        try
+        {
+            await process.WaitForExitAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            // A cancelled run ends its process and waits for it: disposing the handle of a
+            // process that is still running leaves it encoding with nothing watching it.
+            try
+            {
+                if (!process.HasExited) process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+                // Already gone, which is the outcome that was wanted.
+            }
+
+            await process.WaitForExitAsync(CancellationToken.None);
+            throw;
+        }
+
         await Task.WhenAll(stderrTask, progressTask);
 
         if (process.ExitCode != 0)

@@ -74,9 +74,19 @@ public sealed class LibraryClockTests : IDisposable
     {
         var directory = Path.Combine(Cold, id);
         Directory.CreateDirectory(directory);
-        File.WriteAllText(Path.Combine(directory, "manifest.json"), "{}");
+        File.WriteAllText(Path.Combine(directory, "manifest.json"), ManifestOf(id, "ready"));
         return directory;
     }
+
+    /// <summary>A manifest the library can read, in the given status.</summary>
+    private static string ManifestOf(string id, string status) => $$"""
+        {
+          "id": "{{id}}", "title": "{{id}}", "durationSeconds": 600.0,
+          "status": "{{status}}", "master": "master.m3u8",
+          "video": { "width": 1280, "height": 720, "sourceCodec": "h264", "sourceHdr": "sdr", "renditions": [] },
+          "audio": [], "subtitles": []
+        }
+        """;
 
     /// <summary>The film's creation time on the cold disk, which is when it settled, and the clock set a span after it.</summary>
     private DateTimeOffset SettledAt(string id, TimeSpan after)
@@ -185,6 +195,24 @@ public sealed class LibraryClockTests : IDisposable
         // The room moves on, and the film's time has been up the whole while.
         _sessions.LoadTitle("room", "collateral-2004", Somebody);
         Assert.Equal(["heat-1995"], clock.Due());
+    }
+
+    [Fact]
+    public void A_film_still_transcoding_on_the_cold_disk_is_on_no_clock()
+    {
+        // Written straight to the cold root by the hand-off, so it is there alone and is not yet a
+        // film that has settled.
+        var directory = Settle("heat-1995");
+        File.WriteAllText(Path.Combine(directory, "manifest.json"), ManifestOf("heat-1995", "transcoding"));
+        var clock = Clock();
+        _time.SetUtcNow(DateTimeOffset.UtcNow.AddDays(365));
+
+        var stay = clock.StayOf("heat-1995")!;
+
+        Assert.False(stay.Settled);
+        Assert.Null(stay.LeavesAt);
+        Assert.Empty(clock.Due());
+        Assert.Empty(clock.Stays());
     }
 
     [Fact]

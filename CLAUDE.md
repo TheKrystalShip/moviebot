@@ -24,7 +24,7 @@ Three docs beside this one, each the authority for its own part: `docs/api-contr
 `MovieBot.Api` serves on the wire, `web/site/README.md` for Krystal Cinema, the site, and its player,
 which is also the Discord Activity, and `src/MovieBot.Bot/README.md` for the Discord surface. **The
 rules each part rests on live in a `CLAUDE.md` beside its code**: `deploy/`, `src/MovieBot.Api/` (with
-`Sessions/`, `Subtitles/` and `Acquisition/`), `src/MovieBot.Core/` (the two disks),
+`Sessions/`, `Subtitles/`, `Acquisition/` and `Transcode/`), `src/MovieBot.Core/` (the two disks),
 `src/MovieBot.Ingest/`, `src/MovieBot.Handoff/`, `src/MovieBot.Assistant/` (with the wire it serves),
 `src/MovieBot.Bot/` (and each of its feature directories), and `web/site/src/player/`.
 `src/MovieBot.Client` is the API client the bot and the assistant share.
@@ -43,8 +43,10 @@ and most of the design falls out of it:
 - A single transcode head has to outrun a single playhead, and it outruns it tenfold — which is what
   makes playback-while-transcoding practical rather than fiddly.
 - **Shared state is small**: title, paused, position at an anchor time, rate, who changed it,
-  revision, transcode head. Volume, subtitle choice, how subtitles are drawn, audio track and quality
-  are per-viewer preferences and never go on the wire. Shared volume is a way for one person to deafen
+  revision, transcode heads (overall, per rung and audio). Volume, subtitle choice, how subtitles are
+  drawn, audio track and quality are per-viewer preferences and never go into shared state; a
+  viewer's quality is reported up to the server alone, for its transcode planning, and never
+  broadcast. Shared volume is a way for one person to deafen
   everyone else, and one person needing subtitles, at the size they read at, should not put them on
   five other screens.
 - **The server is authoritative and there is no host.** Clients send intent; the API decides. Every

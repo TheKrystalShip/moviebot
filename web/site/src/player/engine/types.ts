@@ -21,6 +21,9 @@ export interface Rendition {
   width?: number;
   height?: number;
   uri: string;
+  /** How far this rung has reached while the title transcodes. Absent once ready, and on a
+   *  manifest that records one head, which says the rung is at `headSeconds`. */
+  headSeconds?: number;
 }
 
 export interface VideoInfo {
@@ -170,7 +173,10 @@ export interface Manifest {
   title: string;
   durationSeconds: number;
   status: TitleStatus;
+  /** The shortest playlist: how far every rung and the audio have reached. */
   headSeconds?: number;
+  /** How far the audio has reached, where the ingest tracks it apart from the rungs. */
+  audioHeadSeconds?: number;
   error?: string;
   poster?: string;
   film?: FilmIdentity;
@@ -207,10 +213,20 @@ export interface SessionState {
   revision: number;
   /** Which run of the room the revision belongs to. A room built again counts from zero again. */
   epoch: string;
-  /** How far the transcode has reached. Absent once the title is ready. */
+  /** How far every rung of the transcode has reached. Absent once the title is ready. */
   transcodeHead?: number;
+  /** How far each rung has reached, where the manifest tracks them apart. Absent otherwise. */
+  rungHeads?: RungHead[];
+  /** How far the audio has reached, where the manifest tracks it apart. Absent otherwise. */
+  audioHead?: number;
   /** The film the room waits on while it is fetched for a Watch now. Absent once it is in the room. */
   preparing?: RoomPreparing;
+}
+
+/** One rung's reach, by the height the master playlist advertises it at. */
+export interface RungHead {
+  height: number;
+  seconds: number;
 }
 
 /** A film being fetched for a room: found, arriving, or not coming. */

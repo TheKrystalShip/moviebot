@@ -2,8 +2,8 @@
 
 `docs/api-contract.md` is the authority for what this serves on the wire. Rooms are
 `Sessions/CLAUDE.md`; subtitles fetched from outside are `Subtitles/CLAUDE.md`; downloads, wishes
-and keeps are `Acquisition/CLAUDE.md`; notifications, pushes and invites are
-`Notifications/CLAUDE.md`.
+and keeps are `Acquisition/CLAUDE.md`; the plan the hand-off transcodes by is
+`Transcode/CLAUDE.md`; notifications, pushes and invites are `Notifications/CLAUDE.md`.
 
 - **The server is authoritative and there is no host.** Clients send intent; the store decides,
   stamps the server clock and assigns the next revision. A client never pushes state.

@@ -6,14 +6,15 @@ public sealed class HandoffOptions
     public const string Section = "Handoff";
 
     /// <summary>
-    /// Where the ingest writes. One of the two directories the API serves from, and the one every
-    /// film is made in: a film is in the library because it is under a root the API reads, so
-    /// writing anywhere else produces a transcode nobody can watch.
+    /// Where the ingest writes by preference. One of the two directories the API serves from, and
+    /// the one a film is made in when it fits: a film is in the library because it is under a root
+    /// the API reads, so writing anywhere else produces a transcode nobody can watch.
     /// </summary>
     public string MediaRoot { get; set; } = "";
 
     /// <summary>
-    /// Where a finished film is kept, once there is nothing left to write to it.
+    /// Where a finished film is kept, once there is nothing left to write to it, and where a film
+    /// is made when the media root has no room for its transcode.
     ///
     /// The disk a film is made on is the one the transcode writes in four-second pieces to for as
     /// long as it runs, with the download it reads from seeding beside it; the disk it is kept on

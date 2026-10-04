@@ -32,6 +32,7 @@ export class SessionHub {
 
   private connection: HubConnection;
   private probeTimer: number | null = null;
+  private lastQuality: [number | null, number | null] | null = null;
 
   constructor(
     private readonly identity: Identity,
@@ -63,6 +64,7 @@ export class SessionHub {
     this.connection.onreconnected(async () => {
       this.handlers.onStatus('connected');
       this.handlers.onState(await this.join(), true);
+      if (this.lastQuality !== null) void this.reportQuality(...this.lastQuality);
     });
   }
 
@@ -107,6 +109,22 @@ export class SessionHub {
       await this.connection.invoke('Buffering', waiting);
     } catch {
       /* The next change says it again. */
+    }
+  }
+
+  /**
+   * Tells the server which rung this viewer plays and which their connection would pick. It goes up
+   * only: the server keeps it for its own planning and sends it to nobody, so quality stays this
+   * viewer's. Kept and sent again after a reconnect, which leaves the server holding nothing for
+   * the new connection.
+   */
+  async reportQuality(playingHeight: number | null, wantedHeight: number | null): Promise<void> {
+    this.lastQuality = [playingHeight, wantedHeight];
+    if (!this.connected) return;
+    try {
+      await this.connection.invoke('ReportQuality', playingHeight, wantedHeight);
+    } catch {
+      /* The heartbeat says it again. */
     }
   }
 

@@ -14,6 +14,15 @@ door and miss the other.
   followed by a seek: in a playing room the round trip between the two comes out of the fifteen.
 - **Clamp seeks on the server, never in the client.** A client's head is always slightly stale, so
   client-side clamping yields a seek half the room accepts and half rejects.
+- **The clamp is the best rung's head, held back to the audio's.** A transcoding title's manifest
+  records each rung's head (`TranscodeHeads`), and a viewer is on one rung, so a lagging rung never
+  clamps the room. The room's state carries `transcodeHead` (the shortest playlist), `rungHeads` and
+  `audioHead`, and the player chooses among the rungs that cover its playhead.
+- **A viewer's quality never enters a room's state.** `ViewerQuality` holds what each connection's
+  player reports (`ReportQuality`) in memory, keyed by connection, for the transcode planner to read
+  as the wanted rung heights per room (`WantedHeights`, `WantedByRoom`). A viewer who has said
+  nothing wants the tallest rung of the room's film. It is dropped when the connection leaves, and no
+  state, push or broadcast carries it.
 - **`SeekClamped` reaches the caller alone.** Broadcasting it would show the whole room an error
   nobody else triggered. Down the hub that is a message to the caller; over HTTP it rides in the
   response body, because the caller that asked is the one thing a broadcast cannot reach.

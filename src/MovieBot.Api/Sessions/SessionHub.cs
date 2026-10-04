@@ -12,10 +12,14 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// reordering, duplication and skewed client clocks all harmless.
 /// </summary>
 public sealed class SessionHub(
-    SessionStore sessions, RoomControls controls, PersonDirectory people, ILogger<SessionHub> logger) : Hub
+    SessionStore sessions, RoomControls controls, PersonDirectory people, ViewerQuality quality,
+    ILogger<SessionHub> logger) : Hub
 {
     private const string SessionIdKey = "sessionId";
     private const string ActorKey = "actor";
+
+    /// <summary>The tallest picture a quality report may name: 8K.</summary>
+    private const int MaxHeight = 4320;
 
     /// <summary>
     /// Enters a session and receives its current state. A late joiner needs nothing else: the
@@ -32,6 +36,7 @@ public sealed class SessionHub(
 
         var participants = sessions.Join(sessionId, Context.ConnectionId,
             new Participant { UserId = userId, DisplayName = displayName });
+        quality.Join(sessionId, Context.ConnectionId);
 
         await Clients.Group(sessionId).SendAsync("ParticipantsChanged", participants);
         logger.LogInformation(
@@ -68,6 +73,18 @@ public sealed class SessionHub(
     }
 
     /// <summary>
+    /// Says which rung this viewer's player is on and which its own adaptive choice would pick. It
+    /// answers nothing and tells nobody: the report is kept for the transcode planner and goes no
+    /// further, so a viewer's quality stays theirs. Heights outside what a picture can be are dropped.
+    /// </summary>
+    public void ReportQuality(int? playingHeight, int? wantedHeight)
+    {
+        static int? InRange(int? height) => height is > 0 and <= MaxHeight ? height : null;
+        quality.Report(SessionId(), Context.ConnectionId,
+            new ViewerQualityReport(InRange(playingHeight), InRange(wantedHeight)));
+    }
+
+    /// <summary>
     /// Answers with the server's clock so a client can estimate its offset. Position is derived
     /// from that offset, so a viewer whose machine is a minute fast must not drag the room with it.
     /// </summary>
@@ -77,6 +94,7 @@ public sealed class SessionHub(
     {
         if (Context.Items.TryGetValue(SessionIdKey, out var value) && value is string sessionId)
         {
+            quality.Leave(sessionId, Context.ConnectionId);
             var participants = sessions.Leave(sessionId, Context.ConnectionId);
             logger.LogInformation(
                 "Connection {Connection} left session {SessionId} ({Count} left){Why}",

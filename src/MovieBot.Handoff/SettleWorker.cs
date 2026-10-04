@@ -1,8 +1,22 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Handoff;
+
+/// <summary>
+/// Which finished films may be moved on this pass.
+/// </summary>
+public static class SettleGate
+{
+    /// <summary>
+    /// The finished films no room is playing. When the rooms could not be read nothing is owed a
+    /// move this pass: moving later is harmless, and a copy under a viewer is not.
+    /// </summary>
+    public static IEnumerable<string> Owed(IEnumerable<string> finished, IReadOnlySet<string>? playing) =>
+        playing is null ? [] : finished.Where(id => !playing.Contains(id));
+}
 
 /// <summary>
 /// Moves finished films off the disk they were made on.
@@ -22,6 +36,7 @@ public sealed class SettleWorker(
     OccupiedRooms rooms,
     MediaRoots roots,
     TitleLocks locks,
+    TranscodeLedger transcodes,
     ILogger<SettleWorker> logger) : BackgroundService
 {
     /// <summary>
@@ -104,29 +119,43 @@ public sealed class SettleWorker(
         // room that asked for the new release would watch the old one until it finished.
         foreach (var id in BeingMade()) cold.ClearSettled(id);
 
-        var finished = Finished().ToList();
+        // A title a transcode is making is not owed a move, wherever it is being written: settling
+        // it would replace the directory the transcode is writing into.
+        var finished = Finished().Where(id => !transcodes.IsMaking(id)).ToList();
         if (finished.Count == 0) return;
 
-        // A film a room is watching stays where it is. Both copies are whole for the moment they
-        // overlap, so moving one out from under a room is safe — but a pass that cannot reach the
-        // API cannot tell an empty library from an unreachable one, and the same caution that
-        // keeps a film from being removed under a room applies to spending two minutes of the
-        // disk it is being read from.
-        var held = await rooms.HeldTitlesAsync(ct);
-        if (held is null) return;
+        // A film somebody is watching stays where it is. Both copies are whole for the moment they
+        // overlap, so moving one out from under a room is safe, but the copy saturates the disk
+        // the viewer would then be reading from, and waiting costs nothing: the film is finished
+        // and does not grow. A pass that cannot reach the API cannot tell an empty room from an
+        // unreachable one, and moves nothing.
+        var playing = await rooms.PlayingTitlesAsync(ct);
 
         // One at a time. The copy saturates the disk it writes to, and a second one alongside it
         // would only divide the same throughput while the transcode this is making room for is
         // reading the disk being drained.
-        foreach (var id in finished)
+        foreach (var id in SettleGate.Owed(finished, playing))
         {
             if (ct.IsCancellationRequested) return;
 
-            if (held.Contains(id))
+            // Checked per film rather than per pass: a transcode can begin writing to the cold
+            // disk between one copy and the next, and nothing is copied onto a disk while one
+            // is being written to.
+            if (transcodes.IsWritingUnder(roots.Cold!))
             {
-                logger.LogDebug("{Id} is finished but a room holds it; it settles later.", id);
-                continue;
+                if (!_reportedWriting)
+                {
+                    logger.LogInformation(
+                        "A transcode is writing to {ColdRoot}; finished films settle once it is done.",
+                        roots.Cold);
+
+                    _reportedWriting = true;
+                }
+
+                return;
             }
+
+            _reportedWriting = false;
 
             // Held for the whole copy, so a manifest rewritten meanwhile is either in the copy or
             // written after it, to the root the film is on by then.
@@ -134,6 +163,12 @@ public sealed class SettleWorker(
                 await cold.SettleAsync(id, ct);
         }
     }
+
+    /// <summary>
+    /// Whether the last pass held films back for a transcode writing to the cold disk, so that one
+    /// that runs for an hour is one line rather than one a minute.
+    /// </summary>
+    private bool _reportedWriting;
 
     /// <summary>
     /// The films on the hot root that are done being made.

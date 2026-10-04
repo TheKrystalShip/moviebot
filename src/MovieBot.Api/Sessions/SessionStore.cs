@@ -460,11 +460,25 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         return dropped;
     }
 
-    private SessionState WithCurrentHead(SessionState state) =>
-        state with { TranscodeHead = library.HeadOf(state.TitleId) };
+    private SessionState WithCurrentHead(SessionState state)
+    {
+        var manifest = state.TitleId is { } titleId ? library.Get(titleId) : null;
+        if (manifest is not { Status: TitleStatus.Transcoding })
+            return state with { TranscodeHead = null, RungHeads = null, AudioHead = null };
+
+        return state with
+        {
+            TranscodeHead = manifest.HeadSeconds,
+            RungHeads = TranscodeHeads.RungsOf(manifest),
+            AudioHead = TranscodeHeads.AudioOf(manifest)
+        };
+    }
 
     /// <summary>
-    /// Refuses a position past what has actually been transcoded.
+    /// Refuses a position past what has actually been transcoded on the best rung.
+    ///
+    /// A lagging rung never clamps the room: a viewer is on one rung, and the player steps down
+    /// to one that covers where it is.
     ///
     /// This is enforced here and never in the client. A client's idea of the head is always a
     /// little stale, so client-side clamping produces a seek that some of the room accepts and

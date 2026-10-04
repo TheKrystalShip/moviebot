@@ -7,7 +7,8 @@ public sealed record Actor(string UserId, string DisplayName);
 /// Everything the room shares. Deliberately small.
 ///
 /// Volume, subtitle selection, audio track and quality are not here and must never be added:
-/// they are per-viewer preferences. Shared volume is a way for one person to deafen everyone
+/// they are per-viewer preferences, and what a viewer plays or would choose is never shared with
+/// the room. Shared volume is a way for one person to deafen everyone
 /// else, and one person needing subtitles should not put them on five other screens.
 /// </summary>
 public sealed record SessionState
@@ -46,10 +47,23 @@ public sealed record SessionState
     public required string Epoch { get; init; }
 
     /// <summary>
-    /// How far the transcode has reached, mirrored from the title's manifest. Null once the film
-    /// is ready. While it is set, the server refuses seeks beyond it.
+    /// How far every rung of the transcode has reached, the shortest playlist, mirrored from the
+    /// title's manifest. Null once the film is ready. It is what a reader with no use for rungs
+    /// can say about the film: playable up to here on any quality.
     /// </summary>
     public double? TranscodeHead { get; init; }
+
+    /// <summary>
+    /// How far each rung has reached, for a title whose manifest tracks them separately: a player
+    /// switching to a rung behind its playhead stalls until that rung catches up, so it chooses
+    /// among the rungs that cover where it is. Null once the film is ready, and null for a manifest
+    /// that records a single head, which says every rung is at <see cref="TranscodeHead"/>.
+    /// The server refuses seeks beyond the best of these, held back to <see cref="AudioHead"/>.
+    /// </summary>
+    public IReadOnlyList<RungHead>? RungHeads { get; init; }
+
+    /// <summary>How far the audio has reached, where the manifest tracks it separately; otherwise null.</summary>
+    public double? AudioHead { get; init; }
 
     /// <summary>
     /// The film the room is waiting on, while it is fetched for somebody who pressed Watch now.

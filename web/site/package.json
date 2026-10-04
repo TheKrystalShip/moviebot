@@ -9,6 +9,7 @@
     "build": "vite build",
     "lint": "eslint src verify scripts public/sw.js",
     "check": "tsc -p .",
+    "test": "node --test verify/heads.test.mjs",
     "verify": "node verify/run.mjs",
     "verify:routes": "node verify/routes.mjs",
     "verify:mobile": "node verify/mobile/run.mjs",

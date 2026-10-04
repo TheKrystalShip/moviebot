@@ -91,13 +91,18 @@ public sealed class LibraryClock(
             .Select(s => s.TitleId)];
     }
 
-    /// <summary>Whether the film is on the cold disk alone: moved, and not being made again.</summary>
+    /// <summary>
+    /// Whether the film is on the cold disk alone and finished: moved, or made there, and not being
+    /// made again. A transcode written straight to the cold disk is on it but is not settled until
+    /// it is ready, so it is not on the clock while it runs or if it failed.
+    /// </summary>
     public bool IsSettled(string id)
     {
         if (!TitleLibrary.IsSafeId(id) || roots.Cold is null || !roots.ColdReady) return false;
 
         return Directory.Exists(Path.Combine(roots.Cold, id))
-               && !Directory.Exists(Path.Combine(roots.Hot, id));
+               && !Directory.Exists(Path.Combine(roots.Hot, id))
+               && library.Get(id)?.Status == TitleStatus.Ready;
     }
 
     /// <summary>

@@ -66,8 +66,9 @@
   },
 
   // Where qBittorrent saves downloads, and how much of the disk they may take. ReservedGiB stays
-  // free on that volume once a download lands, for the transcode written beside it when the media
-  // root shares the volume; 0 when nothing else writes there.
+  // free on that volume once a download lands, for the transcode of the film it admits, which
+  // holds no claim of its own until its ingest starts; 0 when nothing else writes there. The
+  // claims of transcodes already running are subtracted on top of it, as measured.
   "Download": {
     "Root": "/srv/moviebot/downloads",
     "MaximumGiB": 300,
@@ -106,6 +107,26 @@
   "Library": {
     "LeaveAfterDays": 7,
     "Keeps": ""
+  },
+
+  // What the API's planner decides the card should be doing, for the hand-off to carry out. A watched
+  // rung is kept LeadSeconds ahead of its room's playhead, with BandSeconds either side so two units of
+  // similar rank do not trade places on every plan; a unit runs MinRunSeconds before a less urgent one
+  // may hold it, and is parked rather than held after ParkAfterSeconds or beyond MaxHeld stopped
+  // processes. The two budgets are measured on the card: NvencBudget in 1080p-equivalents of
+  // realtime, NvdecBudget in source decodes. PerRung false runs and holds a film's rungs and audio
+  // together. The executor's report is trusted for StatusStaleSeconds.
+  "Transcode": {
+    "LeadSeconds": 120,
+    "BandSeconds": 30,
+    "MinRunSeconds": 60,
+    "ParkAfterSeconds": 120,
+    "MaxHeld": 3,
+    "NvencBudget": 12,
+    "NvdecBudget": 20,
+    "PerRung": false,
+    "StatusStaleSeconds": 30,
+    "CatalogRefreshSeconds": 10
   },
 
   // Films people are waiting on, watched for by the API. An empty Path writes wishes.json in the

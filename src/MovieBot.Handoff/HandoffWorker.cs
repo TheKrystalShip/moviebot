@@ -7,6 +7,7 @@ using TheKrystalShip.MovieBot.Acquire.Tracker;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Core;
 using TheKrystalShip.MovieBot.Ingest.Pipeline;
+using TheKrystalShip.MovieBot.Ingest.Probe;
 
 namespace TheKrystalShip.MovieBot.Handoff;
 
@@ -28,10 +29,31 @@ public sealed class HandoffWorker(
     MediaRoots roots,
     ColdStore cold,
     MarkerPass markers,
+    DiskBudget budget,
+    TranscodeLedger transcodes,
+    TitleLocks locks,
     IOptions<HandoffOptions> options,
     ILogger<HandoffWorker> logger) : BackgroundService
 {
     private readonly HandoffOptions _options = options.Value;
+
+    /// <summary>
+    /// What each transcode is expected to take, by the same key as the in-flight set. Probing a
+    /// source costs seconds, and a film that has to wait for room is asked about every pass.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, long> _estimates = new();
+
+    /// <summary>
+    /// The films waiting for room, so the reason is said once when a film begins to wait and not
+    /// on every poll for as long as it does.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _waiting = new();
+
+    /// <summary>
+    /// Held while a placement is decided and its claim recorded. Two films deciding at once would
+    /// each read the room before the other had taken any of it.
+    /// </summary>
+    private readonly SemaphoreSlim _placing = new(1, 1);
 
     /// <summary>
     /// What is being ingested right now, by download hash.
@@ -46,6 +68,10 @@ public sealed class HandoffWorker(
     {
         logger.LogInformation(
             "Watching for finished downloads, writing into {MediaRoot}.", roots.Hot);
+
+        // This process holds no transcode when it starts, so any claim on the ledger is one a
+        // process that died left behind.
+        transcodes.Clear();
 
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(_options.PollSeconds));
 
@@ -103,17 +129,192 @@ public sealed class HandoffWorker(
 
             if (!_inFlight.TryAdd(download.Hash, 0)) continue;
 
-            _ = Task.Run(async () =>
+            Start(download.Hash, () => PlaceAndIngestAsync(download, ct));
+        }
+    }
+
+    /// <summary>
+    /// Runs one ingest in the background, holding its slot in the in-flight set for as long as it
+    /// takes. A failure that reaches here is logged: nothing awaits the task, so an exception left
+    /// in it would be seen by nobody.
+    /// </summary>
+    private void Start(string key, Func<Task> work)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
             {
-                try
-                {
-                    await IngestAsync(download, ct);
-                }
-                finally
-                {
-                    _inFlight.TryRemove(download.Hash, out _);
-                }
-            }, ct);
+                await work();
+            }
+            catch (OperationCanceledException)
+            {
+                // The process is stopping; what is owed is owed again on the next start.
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "An ingest stopped unexpectedly.");
+            }
+            finally
+            {
+                _inFlight.TryRemove(key, out _);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Finds the film's file, chooses the disk it is made on, and ingests it there. A film that
+    /// has no room anywhere is left owed and asked about again on the next pass.
+    /// </summary>
+    private async Task PlaceAndIngestAsync(DownloadStatus download, CancellationToken ct)
+    {
+        var source = FilmFile.Locate(
+            download.ContentPath, (long)_options.MinimumFilmSizeMiB * (1 << 20));
+
+        if (source is null)
+        {
+            logger.LogError(
+                "Nothing that looks like a film in {Path} for {Name}.",
+                download.ContentPath, download.Name);
+
+            await FailAsync(download, ct);
+            return;
+        }
+
+        var id = LibraryId.For(download.Name);
+
+        Disk? disk;
+        try
+        {
+            disk = await PlaceAsync(download.Hash, download.Name, source, id, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The probe is what the ingest's own would be, and fails the same way for the same
+            // reasons: a source that cannot be read is a failed film, not one waiting for room.
+            logger.LogError(ex, "Could not size {Name} for placement.", download.Name);
+            await FailAsync(download, ct);
+            return;
+        }
+
+        if (disk is null) return;
+
+        try
+        {
+            await IngestAsync(download, source, id, disk.Value, ct);
+        }
+        finally
+        {
+            transcodes.Release(download.Hash);
+        }
+    }
+
+    /// <summary>
+    /// Chooses the disk a transcode is written to and takes its claim there, or returns null when
+    /// neither disk has the room.
+    ///
+    /// The room is read, decided on and claimed under one lock: each film's claim is subtracted
+    /// from what the next is judged against, which is what stops two films that each fit from
+    /// being placed on a disk that holds only one of them.
+    /// </summary>
+    private async Task<Disk?> PlaceAsync(
+        string key, string name, string source, string id, CancellationToken ct)
+    {
+        var needed = await EstimateAsync(key, source, ct);
+
+        await _placing.WaitAsync(ct);
+        try
+        {
+            // Read fresh each time: the downloads still arriving are part of what the disk has
+            // promised, and they change between passes.
+            var pending = DiskBudget.PendingBytes(await acquisition.ListAsync(ct));
+
+            var media = budget.ReadVolume(roots.Hot, pending);
+            var coldRoom = roots.ColdReady ? budget.ReadVolume(roots.Cold!, pending) : null;
+
+            var placement = TranscodePlacement.Decide(needed, media, coldRoom);
+            if (placement.Disk is not { } disk)
+            {
+                if (_waiting.TryAdd(key, 0))
+                    logger.LogWarning(
+                        "{Name} waits for disk and is asked about again each pass. {Reason}",
+                        name, placement.Reason);
+
+                return null;
+            }
+
+            _waiting.TryRemove(key, out _);
+
+            var root = disk == Disk.Cold ? roots.Cold! : roots.Hot;
+            transcodes.Reserve(new TranscodeReservation
+            {
+                Key = key,
+                Root = root,
+                TitleDirectory = Path.Combine(root, id),
+                Bytes = needed
+            });
+
+            logger.LogInformation(
+                "{Name} is made on {Disk}: {Needed:0.#} GiB reserved under {Root}.",
+                name, disk == Disk.Cold ? "cold storage" : "the media root",
+                needed / (double)(1L << 30), root);
+
+            return disk;
+        }
+        finally
+        {
+            _placing.Release();
+        }
+    }
+
+    /// <summary>
+    /// What a source's transcode will take, from the ladder and the running time. Probed once per
+    /// download or episode: the answer is a property of the file, and a probe of one that is still
+    /// arriving waits for its header.
+    /// </summary>
+    private async Task<long> EstimateAsync(string key, string source, CancellationToken ct)
+    {
+        if (_estimates.TryGetValue(key, out var known)) return known;
+
+        var probe = await FfProbe.RunAsync(source, ct);
+        var bytes = TranscodeEstimate.For(probe, new IngestOptions
+        {
+            SourcePath = source,
+            OutputRoot = roots.Hot,
+            SubtitleLanguages = _options.SubtitleLanguages
+        });
+
+        _estimates[key] = bytes;
+        return bytes;
+    }
+
+    /// <summary>
+    /// Makes the chosen root the only one holding the title, under the title's lock so a settle in
+    /// the middle of its copy finishes first, and returns the directory root to write into. Null
+    /// when the cold volume went away between the decision and now: the film stays owed rather
+    /// than being made somewhere it was not placed.
+    /// </summary>
+    private async Task<string?> PrepareAsync(string id, Disk disk, CancellationToken ct)
+    {
+        using (await locks.AcquireAsync(id, ct))
+        {
+            if (disk == Disk.Media)
+            {
+                // A copy that had settled onto cold storage would outlive the transcode and, being
+                // resolved first, be the one every room opened.
+                cold.ClearSettled(id);
+                return roots.Hot;
+            }
+
+            // The reverse: a copy under the media root would be invisible while the transcode ran
+            // and would reappear as the film the moment the cold directory went.
+            if (!cold.ClearWorking(id))
+            {
+                logger.LogWarning(
+                    "Cold storage is not there, so {Id} is not made on it now; it stays owed.", id);
+                return null;
+            }
+
+            return roots.Cold;
         }
     }
 
@@ -200,17 +401,45 @@ public sealed class HandoffWorker(
 
             if (!_inFlight.TryAdd(key, 0)) continue;
 
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await IngestEpisodeAsync(download, episode, progress >= 1, ct);
-                }
-                finally
-                {
-                    _inFlight.TryRemove(key, out _);
-                }
-            }, ct);
+            Start(key, () => PlaceAndIngestEpisodeAsync(download, episode, progress >= 1, ct));
+        }
+    }
+
+    /// <summary>
+    /// Chooses the disk an episode is made on, and ingests it there. An episode with no room
+    /// anywhere is left owed, as a film is.
+    /// </summary>
+    private async Task PlaceAndIngestEpisodeAsync(
+        DownloadStatus download, EpisodeFile file, bool whole, CancellationToken ct)
+    {
+        var key = EpisodeKey(download, file);
+
+        // The client names a file under the torrent's own folder, which sits in the directory the
+        // torrent's contents are in; a single-file torrent's contents are the file.
+        var source = Path.Combine(Path.GetDirectoryName(download.ContentPath) ?? "", file.Path);
+        var id = LibraryId.ForEpisode(download.Name, file.Episode);
+
+        Disk? disk;
+        try
+        {
+            disk = await PlaceAsync(key, $"{file.Episode} of {download.Name}", source, id, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Could not size {Episode} of {Name} for placement.", file.Episode, download.Name);
+            _failedEpisodes.TryAdd(key, 0);
+            return;
+        }
+
+        if (disk is null) return;
+
+        try
+        {
+            await IngestEpisodeAsync(download, file, whole, source, id, disk.Value, ct);
+        }
+        finally
+        {
+            transcodes.Release(key);
         }
     }
 
@@ -237,12 +466,9 @@ public sealed class HandoffWorker(
     /// transcode until every picked episode is done, which the sweep decides.
     /// </summary>
     private async Task IngestEpisodeAsync(
-        DownloadStatus download, EpisodeFile file, bool whole, CancellationToken ct)
+        DownloadStatus download, EpisodeFile file, bool whole, string source, string id,
+        Disk disk, CancellationToken ct)
     {
-        // The client names a file under the torrent's own folder, which sits in the directory the
-        // torrent's contents are in; a single-file torrent's contents are the file.
-        var source = Path.Combine(Path.GetDirectoryName(download.ContentPath) ?? "", file.Path);
-        var id = LibraryId.ForEpisode(download.Name, file.Episode);
         var release = ReleaseParser.ParseName(download.Name);
 
         logger.LogInformation(
@@ -251,7 +477,7 @@ public sealed class HandoffWorker(
 
         try
         {
-            cold.ClearSettled(id);
+            if (await PrepareAsync(id, disk, ct) is not { } outputRoot) return;
             await acquisition.TagAsync(download.Hash, TorrentTags.Library(id), ct);
 
             var imdbId = download.Tags.Select(TorrentTags.ReadImdb).FirstOrDefault(i => i is not null);
@@ -266,7 +492,7 @@ public sealed class HandoffWorker(
             var options = new IngestOptions
             {
                 SourcePath = source,
-                OutputRoot = roots.Hot,
+                OutputRoot = outputRoot,
                 Id = id,
                 Title = $"{release.Title} {episode.Label}",
                 ImdbId = imdbId,
@@ -302,32 +528,19 @@ public sealed class HandoffWorker(
         }
     }
 
-    private async Task IngestAsync(DownloadStatus download, CancellationToken ct)
+    private async Task IngestAsync(
+        DownloadStatus download, string source, string id, Disk disk, CancellationToken ct)
     {
-        var source = FilmFile.Locate(
-            download.ContentPath, (long)_options.MinimumFilmSizeMiB * (1 << 20));
-
-        if (source is null)
-        {
-            logger.LogError(
-                "Nothing that looks like a film in {Path} for {Name}.",
-                download.ContentPath, download.Name);
-
-            await FailAsync(download, ct);
-            return;
-        }
-
-        var id = LibraryId.For(download.Name);
         var title = LibraryId.TitleFor(download.Name);
         logger.LogInformation(
             "Ingesting {Name} from {Source} as {Id} ({Title}), download at {Progress:P0}.",
             download.Name, Path.GetFileName(source), id, title, download.Progress);
 
         // A film made again under an id the library already holds replaces what was there, and
-        // the ingest clears only the directory it writes into. A copy that had settled onto cold
-        // storage would outlive it and, being the one resolved first, be the one every room
-        // opened — the previous release, under the name of the one somebody just asked for.
-        cold.ClearSettled(id);
+        // the ingest clears only the directory it writes into. A copy on the other root would
+        // outlive it and, if it is the cold one resolved first, be the one every room opened:
+        // the previous release, under the name of the one somebody just asked for.
+        if (await PrepareAsync(id, disk, ct) is not { } outputRoot) return;
 
         // Written on the torrent before anything else happens, so whatever waits for the film
         // to become watchable is holding the id it will go under by the time it does. A surface
@@ -361,7 +574,7 @@ public sealed class HandoffWorker(
         var options = new IngestOptions
         {
             SourcePath = source,
-            OutputRoot = roots.Hot,
+            OutputRoot = outputRoot,
             Id = id,
             Title = title,
             ImdbId = imdbId,

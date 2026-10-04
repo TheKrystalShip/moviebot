@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.Text;
 using TheKrystalShip.MovieBot.Core;
 using TheKrystalShip.MovieBot.Core.Subtitles;
@@ -19,6 +18,15 @@ namespace TheKrystalShip.MovieBot.Ingest.Pipeline;
 public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 {
     private const string ProbeWindow = "200M";
+
+    /// <summary>
+    /// How many processes the audio renditions are shared between. The host's four cores are
+    /// already full with the two video processes, so more audio processes do not make the pass
+    /// faster; two keep the encode of one track from queueing behind the others on one thread.
+    /// </summary>
+    private const int AudioProcesses = 2;
+
+    private readonly MainPassArguments arguments = new(options);
 
     public async Task<Manifest> RunAsync(CancellationToken ct = default)
     {
@@ -119,7 +127,10 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
         try
         {
-            ReadAheadGuard? guard = null;
+            // One guard per ffmpeg process: each reads the source through descriptors of its own
+            // and is held and resumed on its own.
+            var guards = new List<ReadAheadGuard>();
+            Func<ReadAheadGuard>? makeGuard = null;
 
             if (options.Availability is null)
             {
@@ -141,18 +152,27 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             {
                 // The file is still arriving, so nothing that has to reach its end can run yet.
                 // The main pass can, because it reads forwards and can be held back.
-                guard = new ReadAheadGuard(
-                    options.Availability, options.SourcePath, options.ReadAheadMarginBytes, log);
+                makeGuard = () =>
+                {
+                    var guard = new ReadAheadGuard(
+                        options.Availability, options.SourcePath, options.ReadAheadMarginBytes, log);
+                    lock (guards) guards.Add(guard);
+                    return guard;
+                };
             }
 
             log("Transcoding — playback opens as soon as the first segments land");
+            var transcoding = Stopwatch.StartNew();
             await RunMainPassAsync(video, audioStreams, ladder, outputDirectory, toneMap,
-                manifest, manifestPath, probe.Format.DurationSeconds, ct, guard);
+                manifest, manifestPath, probe.Format.DurationSeconds, ct, makeGuard);
+            log($"  transcoded in {transcoding.Elapsed:m\\:ss}"
+                + $" ({probe.Format.DurationSeconds / Math.Max(transcoding.Elapsed.TotalSeconds, 1):F1}x)");
 
-            if (guard is not null)
+            if (makeGuard is not null)
             {
-                if (guard.Pauses > 0)
-                    log($"  held back {guard.Pauses} times waiting for the download");
+                var pauses = guards.Sum(g => g.Pauses);
+                if (pauses > 0)
+                    log($"  held back {pauses} times waiting for the download");
 
                 // The main pass is held behind the download, so by the time it ends the file is
                 // usually whole already. Usually is not always: a short film on a slow torrent
@@ -189,6 +209,8 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
             manifest.Status = TitleStatus.Ready;
             manifest.HeadSeconds = null;
+            manifest.AudioHeadSeconds = null;
+            foreach (var rendition in manifest.Video.Renditions) rendition.HeadSeconds = null;
             ManifestJson.WriteAtomic(manifestPath, manifest);
             log($"Ready: {outputDirectory}");
             return manifest;
@@ -360,9 +382,9 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         string manifestPath,
         double durationSeconds,
         CancellationToken ct,
-        ReadAheadGuard? guard = null)
+        Func<ReadAheadGuard>? makeGuard = null)
     {
-        var arguments = BuildMainPassArguments(video, audioStreams, ladder, outputDirectory, toneMap);
+        var units = BuildUnits(video, audioStreams, ladder, outputDirectory, toneMap, makeGuard);
 
         var playlists = ladder
             .Select(r => Path.Combine(outputDirectory, r.Directory, "index.m3u8"))
@@ -371,50 +393,24 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             playlists.Add(Path.Combine(outputDirectory, $"a{i}", "index.m3u8"));
 
         using var polling = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var speed = 0d;
-
-        Task? guarding = null;
-
-        // The guard is attached the moment the process exists, because what it protects against
-        // begins with the first read. A guard that cannot do its job kills the transcode rather
-        // than letting it run on unwatched: the output of an unwatched run over a part-downloaded
-        // file is a film with silence and stillness in it and nothing to say so.
-        var transcode = FfmpegProcess.RunAsync(arguments, p => speed = p.Speed, ct,
-            onStarted: process =>
-            {
-                if (guard is not null) guarding = GuardAsync(guard, process);
-            });
-
-        async Task GuardAsync(ReadAheadGuard watching, Process process)
-        {
-            try
-            {
-                await watching.WatchAsync(process, ct);
-            }
-            catch
-            {
-                try
-                {
-                    if (!process.HasExited) process.Kill(entireProcessTree: true);
-                }
-                catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
-                {
-                    // Already gone, which is the outcome that was wanted.
-                }
-
-                throw;
-            }
-        }
 
         var headWatcher = Task.Run(async () =>
         {
             var announcedPlayable = false;
             while (!polling.Token.IsCancellationRequested)
             {
-                var head = HlsPlaylist.PlayableSeconds(playlists);
+                var heads = playlists.Select(path => HlsPlaylist.PlayableSeconds(path)).ToList();
+                var head = heads.Count == 0 ? 0 : heads.Min();
                 if (head > 0)
                 {
                     manifest.HeadSeconds = head;
+
+                    // Rungs and audio advance at their own pace; a player picks among the rungs
+                    // that cover its playhead, and the room's seek limit is the best of them.
+                    for (var i = 0; i < ladder.Count && i < manifest.Video.Renditions.Count; i++)
+                        manifest.Video.Renditions[i].HeadSeconds = heads[i];
+                    manifest.AudioHeadSeconds = audioStreams.Count == 0 ? null : heads.Skip(ladder.Count).Min();
+
                     ManifestJson.WriteAtomic(manifestPath, manifest);
 
                     if (!announcedPlayable)
@@ -425,7 +421,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
                     log($"  head {Format(head)} / {Format(durationSeconds)}"
                         + $"  ({head / Math.Max(durationSeconds, 1) * 100:F0}%)"
-                        + (speed > 0 ? $"  {speed:F1}x" : ""));
+                        + (Slowest(units) is > 0 and var speed ? $"  {speed:F1}x" : ""));
                 }
 
                 try { await Task.Delay(TimeSpan.FromSeconds(2), polling.Token); }
@@ -435,18 +431,74 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
         try
         {
-            await transcode;
+            await TranscodeUnit.RunAllAsync(units, ct);
         }
         finally
         {
             await polling.CancelAsync();
             await headWatcher;
-
-            // Awaited last and deliberately allowed to replace whatever the transcode reported.
-            // When the guard is the reason the transcode died, its message is the one that says
-            // what actually happened; ffmpeg's is that it was killed.
-            if (guarding is not null) await guarding;
         }
+    }
+
+    /// <summary>
+    /// The units of the main pass: a process for each video rung and one for every audio
+    /// rendition. They run side by side and share nothing but the source file, each reading it
+    /// through its own demuxer.
+    /// </summary>
+    private List<TranscodeUnit> BuildUnits(
+        ProbeStream video,
+        List<ProbeStream> audioStreams,
+        IReadOnlyList<VideoRung> ladder,
+        string outputDirectory,
+        bool toneMap,
+        Func<ReadAheadGuard>? makeGuard)
+    {
+        var units = new List<TranscodeUnit>();
+        var decode = MainPassArguments.DecodeFor(video);
+
+        foreach (var rung in ladder)
+        {
+            // The decoder that scales gives way to the generic hardware decode with a CPU scale
+            // when it cannot open the source, so a source the cuvid decoder refuses still
+            // transcodes.
+            var attempts = new List<IReadOnlyList<string>>
+            {
+                arguments.Video(video, rung, outputDirectory, toneMap, decode)
+            };
+            if (decode == VideoDecode.Cuvid)
+                attempts.Add(arguments.Video(video, rung, outputDirectory, toneMap, VideoDecode.Hwaccel));
+
+            var directory = Path.Combine(outputDirectory, rung.Directory);
+            units.Add(new TranscodeUnit(rung.Directory, rung.Directory, attempts,
+                () => Directory.EnumerateFiles(directory, "*.m4s").Any(), makeGuard, log));
+        }
+
+        // All of a title's audio is one group, so whatever holds or resumes it can address its
+        // processes together.
+        var groups = MainPassArguments.AudioGroups(audioStreams.Count, AudioProcesses);
+        for (var g = 0; g < groups.Count; g++)
+        {
+            var renditions = groups[g];
+            var directories = renditions.Select(i => Path.Combine(outputDirectory, $"a{i}")).ToList();
+            units.Add(new TranscodeUnit(groups.Count == 1 ? "audio" : $"audio.{g}", "audio",
+                [arguments.Audio(audioStreams, renditions, outputDirectory)],
+                () => directories.Any(d => Directory.EnumerateFiles(d, "*.m4s").Any()), makeGuard, log));
+        }
+
+        return units;
+    }
+
+    /// <summary>The slowest of the running units, which is the one every head waits on.</summary>
+    private static double Slowest(IEnumerable<TranscodeUnit> units)
+    {
+        var slowest = 0d;
+        foreach (var unit in units)
+        {
+            if (unit.Speed <= 0) continue;
+            slowest = slowest == 0 ? unit.Speed : Math.Min(slowest, unit.Speed);
+        }
+
+        return slowest;
     }
 
     /// <summary>
@@ -474,7 +526,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
         // One demuxer each, for the same reason as the main pass's renditions.
         foreach (var _ in feature)
-            AddSourceInput(args, hardwareDecode: false);
+            arguments.SourceInput(args, VideoDecode.Software, video: null, scaledTo: null);
 
         for (var j = 0; j < feature.Count; j++)
         {
@@ -488,7 +540,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             args.Add("-c:a"); args.Add("aac");
             args.Add("-b:a"); args.Add(options.PrimaryAudioBitrate);
             args.Add("-ac"); args.Add("2");
-            args.AddRange(HlsOutput(directory));
+            args.AddRange(arguments.HlsOutput(directory));
 
             boosted.Add(track with
             {
@@ -522,132 +574,6 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         MasterPlaylist.Write(outputDirectory, manifest);
         ManifestJson.WriteAtomic(manifestPath, manifest);
         log($"  dialogue boost mixed in {started.Elapsed:m\\:ss}");
-    }
-
-    private List<string> BuildMainPassArguments(
-        ProbeStream video, List<ProbeStream> audioStreams, IReadOnlyList<VideoRung> ladder,
-        string outputDirectory, bool toneMap)
-    {
-        var args = new List<string>();
-
-        if (toneMap)
-        {
-            // libplacebo is the better filter but fails to initialise its graph on this ffmpeg
-            // build; tonemap_opencl runs on the GPU and is what the measured 8.9x path uses.
-            args.Add("-init_hw_device"); args.Add("opencl=ocl");
-            args.Add("-filter_hw_device"); args.Add("ocl");
-        }
-
-        args.Add("-y");
-
-        // Every rendition reads the source through a demuxer of its own. One demuxer feeding video
-        // and audio runs at the pace of the fastest of them and queues the rest in memory without
-        // limit: measured on a 1080p Blu-ray rip with four audio tracks, 9 MB a second of wall
-        // clock, so a feature exhausts an 8 GB host a third of the way in and is killed. Separate
-        // demuxers each wait on their own consumer and hold flat at a few hundred megabytes, and
-        // the transcode runs faster for no longer copying the backlog around.
-        // Input i is video rung i; input ladder.Count + i is audio rendition i.
-
-        // Decode on NVDEC. Software-decoding a 16 Mbps HEVC Main 10 stream costs 35 s of CPU per
-        // 40 s of film against 5.5 s here, and saturates every core for the length of a feature
-        // while the GPU sits half idle. Frames land in system memory, which is where the OpenCL
-        // tone-map filter wants them anyway.
-        foreach (var _ in ladder)
-            AddSourceInput(args, hardwareDecode: true);
-        foreach (var _ in audioStreams)
-            AddSourceInput(args, hardwareDecode: false);
-
-        // --- video, one output per rung ---
-        var gop = GopSize(video.FrameRate(), options.SegmentSeconds);
-
-        for (var i = 0; i < ladder.Count; i++)
-        {
-            var rung = ladder[i];
-
-            args.Add("-map"); args.Add($"{i}:{video.Index}");
-            args.Add("-vf"); args.Add(FilterChain(toneMap, rung.ScaleFilter));
-
-            args.AddRange([
-                "-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr",
-                "-cq", options.Cq.ToString(CultureInfo.InvariantCulture),
-                "-b:v", rung.Bitrate,
-                "-maxrate", rung.Maxrate,
-                "-bufsize", rung.Bufsize,
-                "-profile:v", "high", "-level", "4.2",
-                "-g", gop.ToString(CultureInfo.InvariantCulture),
-                "-keyint_min", gop.ToString(CultureInfo.InvariantCulture),
-                "-sc_threshold", "0",
-                // Guarantees a keyframe exactly on each segment boundary whatever the frame rate,
-                // so a seek lands on the frame it was asked for rather than the nearest GOP. Every
-                // rung is cut on this same expression, which is what lets a player switch between
-                // them mid-film: segment n of one rung opens on the same frame as segment n of
-                // the next.
-                "-force_key_frames", $"expr:gte(t,n_forced*{options.SegmentSeconds})",
-                "-an", "-sn"
-            ]);
-            args.AddRange(HlsOutput(Path.Combine(outputDirectory, rung.Directory)));
-        }
-
-        // --- audio, one rendition per source track ---
-        for (var i = 0; i < audioStreams.Count; i++)
-        {
-            var stream = audioStreams[i];
-            args.Add("-map"); args.Add($"{ladder.Count + i}:{stream.Index}");
-            args.Add("-c:a"); args.Add("aac");
-            args.Add("-b:a"); args.Add(stream.IsCommentary
-                ? options.CommentaryAudioBitrate
-                : options.PrimaryAudioBitrate);
-            // Stereo everywhere: multichannel AAC over MSE is inconsistent across browsers, and
-            // most of a movie night is on headphones or laptop speakers.
-            args.Add("-ac"); args.Add("2");
-            args.AddRange(HlsOutput(Path.Combine(outputDirectory, $"a{i}")));
-        }
-
-        return args;
-    }
-
-    /// <summary>
-    /// What a rung's frames pass through on the way to the encoder.
-    ///
-    /// Tone-mapping runs before the scale, so the step-down is built from frames already in
-    /// bt709 and the mapping reads the full picture's statistics.
-    /// </summary>
-    private static string FilterChain(bool toneMap, string? scale)
-    {
-        var chain = toneMap
-            ? "format=p010le,hwupload,tonemap_opencl=tonemap=hable:desat=0"
-              + ":transfer=bt709:matrix=bt709:primaries=bt709:format=nv12,hwdownload,format=nv12"
-            : "format=yuv420p";
-
-        return scale is null ? chain : $"{chain},{scale}";
-    }
-
-    private void AddSourceInput(List<string> args, bool hardwareDecode)
-    {
-        args.Add("-probesize"); args.Add(ProbeWindow);
-        args.Add("-analyzeduration"); args.Add(ProbeWindow);
-        if (hardwareDecode) { args.Add("-hwaccel"); args.Add("cuda"); }
-        args.Add("-i"); args.Add(options.SourcePath);
-    }
-
-    private IEnumerable<string> HlsOutput(string directory) =>
-    [
-        "-f", "hls",
-        "-hls_time", options.SegmentSeconds.ToString(CultureInfo.InvariantCulture),
-        // EVENT rather than VOD: the playlist only ever appends, so a player can join and seek
-        // within what exists while ffmpeg is still writing. ffmpeg appends #EXT-X-ENDLIST on
-        // completion, which turns it into an ordinary complete VOD with nothing to clean up.
-        "-hls_playlist_type", "event",
-        "-hls_segment_type", "fmp4",
-        "-hls_fmp4_init_filename", "init.mp4",
-        "-hls_segment_filename", Path.Combine(directory, "seg%05d.m4s"),
-        Path.Combine(directory, "index.m3u8")
-    ];
-
-    private static int GopSize(double frameRate, int segmentSeconds)
-    {
-        if (frameRate <= 0) return 96;
-        return Math.Max(1, (int)Math.Round(frameRate * segmentSeconds));
     }
 
     // ---- Manifest -------------------------------------------------------------------

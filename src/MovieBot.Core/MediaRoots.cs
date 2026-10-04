@@ -9,7 +9,8 @@ public sealed record ColdStatus(bool Ready, string? Problem);
 /// A transcode writes a film in four-second pieces for as long as it runs, which is the part that
 /// wants a fast disk. Reading one back afterwards is a single playhead at a little over a
 /// megabyte a second, which any disk serves. So a film is made on the hot root and moved to the
-/// cold one once it is finished, and the cold root is where the library's capacity comes from.
+/// cold one once it is finished, and the cold root is where the library's capacity comes from. A
+/// film that does not fit the hot root is made on the cold one directly, and stays there.
 ///
 /// A title is in exactly one root. The cold root is resolved first, so during the moment a
 /// settling film is in both, every reader is already on the copy that is staying.
@@ -131,7 +132,7 @@ public sealed class MediaRoots
         return Directory.Exists(making) ? making : null;
     }
 
-    /// <summary>Where a title is written while it is being made, which is always the hot root.</summary>
+    /// <summary>Where a title is on the hot root: where it is made there, and where it waits to settle.</summary>
     public string WorkingDirectoryOf(string id) => Path.Combine(Hot, id);
 
     /// <summary>Where a title's files are once it has settled, or null when there is no cold root.</summary>
