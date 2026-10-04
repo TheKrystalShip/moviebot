@@ -70,7 +70,7 @@ public static class Program
         string? id = null;
         var bitrate = "9M";
         var stepDown = "4M";
-        var cq = 19;
+        var cq = IngestOptions.DefaultCq;
         var segment = 2;
         bool? toneMap = null;
         var force = false;
@@ -161,7 +161,7 @@ public static class Program
     }
 
     private static void PrintUsage() => Console.WriteLine(
-        """
+        $"""
         moviebot-ingest — prepare a film for shared playback
 
         Usage:
@@ -182,7 +182,7 @@ public static class Program
               --id <slug>        Output directory and manifest id. Default: derived from the title
               --bitrate <rate>   Top rung bitrate, e.g. 9M or 4500k. Default: 9M
               --step-down <rate> Second rung bitrate, at 1280 wide. 0 writes one rung. Default: 4M
-              --cq <n>           NVENC constant quality, lower is better. Default: 19
+              --cq <n>           NVENC constant quality, lower is better. Default: {IngestOptions.DefaultCq}
               --segment <sec>    Segment length; the GOP is pinned to match. Default: 2
               --tonemap <mode>   auto|on|off. Default: auto, from the source transfer function
               --force            Replace an existing output directory

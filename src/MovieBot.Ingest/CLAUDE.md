@@ -76,6 +76,13 @@ Driven entirely by what the container says, because the sample film makes every 
   has the same timestamp in both, on SDR and on tone-mapped HDR, and is a keyframe. A source no wider than the
   step-down keeps one rung, because upscaling spends a second copy of the film on no more picture. The
   ladder stops at two: every rung is a full copy on a disk that holds the whole library.
+- **Every rung is encoded at constant quality 25** (`IngestOptions.DefaultCq`), with the rung's
+  bitrate as the target and four thirds of it as the cap. The quality decides a film's size, and
+  the cap only bounds the grainiest. Scored with VMAF against the source on two-minute clips of four
+  kinds of source (grainy Blu-ray, Hi10P, a clean web release, animation), 25 keeps the mean between
+  93.6 and 96.8, within three points of 19 on each, at roughly half of 19's size; a difference a viewer notices is around
+  six. At 19 a clean web release comes out larger than its source. Spatial and temporal adaptive
+  quantization with B-frames made each clip about 30% larger at the same score.
 - **A rung advertises the size it is encoded at**, because a player sizes its buffer from what it is
   told. A film with a single rung states no size on it, and that rung is read as the source's own size
   — so a manifest never has to be rewritten to say what it already implies.

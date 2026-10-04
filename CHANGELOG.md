@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.92.0] - 2026-10-04
+
+### Changed
+
+- Films are transcoded at about half the size, with no difference a viewer would notice. Every
+  quality is encoded at constant quality 25. Scored against the source on clips of a grainy
+  Blu-ray, a Hi10P one, a clean web release and an animated film, the picture stays within three
+  VMAF points of what it was, and a clean web release no longer comes out larger than the file it
+  was made from. Films already in the library keep their size. Ingest 1.14.0.
+
 ## [1.91.1] - 2026-10-04
 
 ### Fixed
