@@ -19,18 +19,32 @@ public static class FfmpegProcess
     /// runs — reading its position, or holding it back — which nothing outside can do without a
     /// handle on it.
     /// </param>
+    /// <param name="yieldCpu">
+    /// Runs ffmpeg at the lowest scheduling priority, for work nobody is waiting on, so that it
+    /// takes only the CPU every other process on the host leaves idle. The priority is set through
+    /// <c>nice</c> before ffmpeg starts, because Linux keeps a priority per thread: lowering a running
+    /// process reaches its main thread and none of the encoding threads it has already started.
+    /// </param>
     public static async Task RunAsync(
         IEnumerable<string> arguments,
         Action<FfmpegProgress>? onProgress = null,
         CancellationToken ct = default,
-        Action<Process>? onStarted = null)
+        Action<Process>? onStarted = null,
+        bool yieldCpu = false)
     {
-        var info = new ProcessStartInfo("ffmpeg")
+        var info = new ProcessStartInfo(yieldCpu ? "nice" : "ffmpeg")
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false
         };
+
+        if (yieldCpu)
+        {
+            info.ArgumentList.Add("-n");
+            info.ArgumentList.Add("19");
+            info.ArgumentList.Add("ffmpeg");
+        }
 
         // -nostdin: without it ffmpeg competes for the terminal and can suspend a background run.
         info.ArgumentList.Add("-hide_banner");

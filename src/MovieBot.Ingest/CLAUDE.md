@@ -126,6 +126,11 @@ Driven entirely by what the container says, because the sample film makes every 
   ready, because settling moves the directory it writes into, and a track is listed only once its
   playlist is whole. The boosted renditions are numbered after the source's own tracks, so a viewer's
   saved track id names the same track either way.
+- **The boost runs at nice 19.** It fills every core for minutes on a host whose services rooms are
+  using — the API, the bot, speech and the model — and nobody waits on it, since the film is already
+  playable. `nice` ranks it against those services because all of them sit in hotbox's
+  `system.slice`, which does not split CPU between its units: setting `CPUWeight` on any unit there
+  gives each its own share, and from then on a niced thread yields only to its own unit's threads.
 
 ## Reading a source that is still arriving (`Ffmpeg/ReadAheadGuard.cs`)
 

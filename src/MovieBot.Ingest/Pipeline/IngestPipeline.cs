@@ -504,7 +504,9 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
         try
         {
-            await FfmpegProcess.RunAsync(args, ct: ct);
+            // The film is already playable, so the mix waits behind everything else on the host:
+            // the services rooms are using and the next film's main pass.
+            await FfmpegProcess.RunAsync(args, ct: ct, yieldCpu: true);
         }
         catch (FfmpegException ex)
         {

@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.90.0] - 2026-10-04
+
+### Changed
+
+- The dialogue-boost mix runs at the lowest CPU priority. It fills every core on hotbox for minutes
+  after a film turns playable, and while it did so at the same priority as everything else the API,
+  the bot, speech and the model all slowed under it; now it takes only what they leave idle, and
+  yields to the next film's main pass the same way. The mix sounds exactly as before. Ingest 1.12.0.
+
 ## [1.89.0] - 2026-10-04
 
 ### Changed
