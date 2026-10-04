@@ -1,9 +1,10 @@
 import { Icon, toast } from "@thekrystalship/krystal-ui";
-import { api, filmName, showHref } from "../api.js";
+import { api, filmName } from "../api.js";
 import { SOON_DAYS, leaveRule, stayWords, useLoad } from "../data.js";
 import { useSession } from "../session.js";
 import { ago } from "../time.js";
 import { Empty, Failed, PageHead, PosterArt } from "../components/Film.jsx";
+import { moviePath, showPath } from "../paths.js";
 import { linkProps } from "../router.js";
 
 /** A film by its name; a season of a show, which stays and leaves as one, by the show's and its number. */
@@ -14,8 +15,8 @@ function unitName(title) {
 
 function unitHref(title) {
   return title.episode && title.film && title.film.imdbId
-    ? `${showHref(title.film.imdbId)}?season=${title.episode.season}`
-    : "/title/" + encodeURIComponent(title.id);
+    ? showPath(title.film.imdbId, { season: title.episode.season })
+    : moviePath(title.id);
 }
 
 /**

@@ -113,7 +113,7 @@ public static class ListEndpoints
                     Kind = NotificationKinds.Shared,
                     Key = $"shared:{list.Id}:{userId}",
                     Text = $"{people.NameOf(person.UserId) ?? person.DisplayName} shared their list {list.Name} with you.",
-                    Url = $"/saved/{Uri.EscapeDataString(list.Id)}",
+                    Url = SitePaths.Saved(list.Id),
                     Action = "Open",
                 }, ct);
             }

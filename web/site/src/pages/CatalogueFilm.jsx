@@ -2,7 +2,9 @@ import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
-import { goBack, navigate } from "../router.js";
+import { useCrumb } from "../crumbs.js";
+import { moviePath } from "../paths.js";
+import { navigate } from "../router.js";
 import { Empty, Failed } from "../components/Film.jsx";
 import { CastGrid, Credits, FilmScore, Genres } from "../components/FilmDetails.jsx";
 import { FilmRequestSheet } from "../components/RequestSheet.jsx";
@@ -21,9 +23,11 @@ export function CatalogueFilm({ imdbId }) {
   const [requesting, setRequesting] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
 
+  useCrumb(film.data ? film.data.title : film.error && film.error.status === 404 ? "No such film" : null);
+
   const here = state.data && state.data.libraryId;
   React.useEffect(() => {
-    if (here) navigate("/title/" + encodeURIComponent(here), { replace: true });
+    if (here) navigate(moviePath(here), { replace: true });
   }, [here]);
   if (here) return <div className="kc-page" />;
 
@@ -82,10 +86,6 @@ export function CatalogueFilm({ imdbId }) {
 
   return (
     <div className="kc-page kc-title">
-      <button type="button" className="kc-back" onClick={() => goBack("/discover")}>
-        <Icon name="arrow-left" size={14} />Back
-      </button>
-
       <section className="kc-tt">
         {(d.backdropUrl || d.posterUrl) && <div className="kc-tt__art" style={{ backgroundImage: `url("${d.backdropUrl || d.posterUrl}")` }} />}
         <div className="kc-tt__shade" />

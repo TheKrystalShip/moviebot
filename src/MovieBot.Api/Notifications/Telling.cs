@@ -21,8 +21,33 @@ public static class Naming
     /// <summary>A film's page, or its show's opened on the season.</summary>
     public static string PathOf(Manifest manifest) =>
         manifest.Episode is { } episode && manifest.Film?.ImdbId is { Length: > 0 } show
-            ? $"/show/{Uri.EscapeDataString(show)}?season={episode.Season.ToString(CultureInfo.InvariantCulture)}"
-            : $"/title/{Uri.EscapeDataString(manifest.Id)}";
+            ? SitePaths.Show(show, episode.Season)
+            : SitePaths.Title(manifest.Id);
+}
+
+/// <summary>The pages of Krystal Cinema that a notification opens, as paths on the site's own origin.</summary>
+public static class SitePaths
+{
+    /// <summary>A title the library holds.</summary>
+    public static string Title(string titleId) => $"/movies/{Uri.EscapeDataString(titleId)}";
+
+    /// <summary>A show, opened on a season when one is given.</summary>
+    public static string Show(string imdbId, int? season = null) =>
+        $"/tv/{Uri.EscapeDataString(imdbId)}"
+        + (season is { } n ? $"/season/{n.ToString(CultureInfo.InvariantCulture)}" : "");
+
+    /// <summary>A film the library does not hold, in the catalogue.</summary>
+    public static string Film(string imdbId) => $"/discover/film/{Uri.EscapeDataString(imdbId)}";
+
+    /// <summary>The signed-in person's own page, on a tab; the default tab is the page itself.</summary>
+    public static string Profile(string? tab = null) => tab is { Length: > 0 } ? $"/profile/{Uri.EscapeDataString(tab)}" : "/profile";
+
+    /// <summary>A list somebody saved.</summary>
+    public static string Saved(string listId) => $"/saved/{Uri.EscapeDataString(listId)}";
+
+    /// <summary>A room, opened on a title when one is given.</summary>
+    public static string Room(string room, string? titleId = null) =>
+        $"/r/{Uri.EscapeDataString(room)}" + (titleId is null ? "" : $"?title={Uri.EscapeDataString(titleId)}");
 }
 
 /// <summary>
@@ -83,7 +108,7 @@ public sealed class ReadyNotices(
                     Kind = NotificationKinds.Ready,
                     Key = $"ready:{download.Hash}",
                     Text = failed ? $"{name} could not be made ready to watch." : $"{name} is ready to watch.",
-                    Url = failed || manifest is null ? "/profile?tab=requests" : Naming.PathOf(manifest),
+                    Url = failed || manifest is null ? SitePaths.Profile("requests") : Naming.PathOf(manifest),
                     Action = failed ? null : "Watch",
                     Direct = download.Tags.Contains(TorrentTags.TellDirect),
                 }, ct);

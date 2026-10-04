@@ -1,7 +1,8 @@
 import React from "react";
 import { Icon, ShowcaseCard } from "@thekrystalship/krystal-ui";
-import { episodeCode, filmName, posterUrl, showHref } from "../api.js";
+import { episodeCode, filmName, posterUrl } from "../api.js";
 import { SOON_DAYS, stayWords } from "../data.js";
+import { moviePath, roomPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, timeLeft } from "../time.js";
 
@@ -15,7 +16,7 @@ export function watchHref(titleId, sessionId, at) {
   const query = [];
   if (titleId) query.push(`title=${encodeURIComponent(titleId)}`);
   if (titleId && at > 0) query.push(`at=${Math.floor(at)}`);
-  return `/r/${encodeURIComponent(room)}` + (query.length ? "?" + query.join("&") : "");
+  return roomPath(room) + (query.length ? "?" + query.join("&") : "");
 }
 
 /** A link into a room, opened in place so the way back is the page it was opened from. */
@@ -88,7 +89,7 @@ export function FilmCard({ title, stay, me, room, isNew }) {
     <ShowcaseCard
       name={film.name || title.title}
       art={poster ? `url("${poster}")` : null}
-      onPick={() => navigate("/title/" + encodeURIComponent(title.id))}
+      onPick={() => navigate(moviePath(title.id))}
       corner={leavingSoon ? { icon: "hourglass", label: stayWords(stay, me), title: "Leaves unless somebody plays or keeps it" } : null}
       badge={isNew ? { tone: "info", label: "New" } : null}
       specs={[
@@ -123,7 +124,7 @@ export function ShowCard({ show, stay, me }) {
     <ShowcaseCard
       name={show.title}
       art={d && d.posterUrl ? `url("${d.posterUrl}")` : null}
-      onPick={() => navigate(show.imdbId ? showHref(show.imdbId) : "/title/" + encodeURIComponent(show.firstTitleId))}
+      onPick={() => navigate(show.imdbId ? showPath(show.imdbId) : moviePath(show.firstTitleId))}
       corner={leavingSoon ? { icon: "hourglass", label: `S${stay.season} · ${stayWords(stay, me)}`, title: "Leaves unless somebody plays or keeps it" } : null}
       specs={[
         { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },

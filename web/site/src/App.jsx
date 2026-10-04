@@ -7,6 +7,8 @@ import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 import { signOut, useSession } from "./session.js";
 import { goBack, navigate, useRoute } from "./router.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
+import { PLACES } from "./nav.js";
+import { discoverPath, homePath, libraryPath, moviePath, profilePath, signInPath, signInReturnPath } from "./paths.js";
 import { Home } from "./pages/Home.jsx";
 import { Library } from "./pages/Library.jsx";
 import { Title } from "./pages/Title.jsx";
@@ -19,40 +21,48 @@ import { Leaving } from "./pages/Leaving.jsx";
 import { Profile } from "./pages/Profile.jsx";
 import { SignIn } from "./pages/SignIn.jsx";
 import { About } from "./pages/About.jsx";
+import { NotFound } from "./pages/NotFound.jsx";
 import { SiteFooter } from "./components/SiteFooter.jsx";
 import { BellNavItem } from "./components/Bell.jsx";
 import { PageStage } from "./components/PageStage.jsx";
+import { Trail } from "./components/Trail.jsx";
 
 // The player carries hls.js, the hub client and Discord's SDK; only a room pays for them.
 const EmbedRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.EmbedRoom })));
 const SiteRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.SiteRoom })));
 const Dark = () => <div style={{ position: "fixed", inset: 0, background: "#000" }} />;
 
-const HOME = [
-  { page: "home", path: "/", icon: "house", label: "Home" },
-  { page: "discover", path: "/discover", icon: "compass", label: "Discover", also: ["film"] },
-  { page: "saved", path: "/saved", icon: "bookmark", label: "Saved" },
-];
+const place = (id) => ({ id, ...PLACES[id] });
+const HOME = ["home", "discover", "saved"].map(place);
+const LIBRARY = ["movies", "tv"].map(place);
+const LIFECYCLE = ["notify", "leaving"].map(place);
 
-const LIBRARY = [
-  { page: "movies", path: "/movies", icon: "clapperboard", label: "Movies" },
-  { page: "tv", path: "/tv", icon: "tv", label: "TV Shows", also: ["show"] },
-];
-
-const LIFECYCLE = [
-  { page: "notify", path: "/notify", icon: "bell-plus", label: "Notify me" },
-  { page: "leaving", path: "/leaving", icon: "hourglass", label: "Leaving soon" },
-];
-
-// A phone's way around: a tab for each place, lit on the pages that belong to it. The assistant's
-// tab opens the dock rather than a page.
+// A phone's way around: a tab for each place. The assistant's tab opens the dock rather than a page.
 const TABS = [
-  { id: "home", path: "/", icon: "house", label: "Home", pages: ["home", "leaving"] },
-  { id: "library", path: "/movies", icon: "clapperboard", label: "Library", pages: ["movies", "tv", "title", "show"] },
-  { id: "discover", path: "/discover", icon: "compass", label: "Discover", pages: ["discover", "film"] },
+  { ...place("home") },
+  { id: "library", path: PLACES.movies.path, icon: "clapperboard", label: "Library" },
+  { ...place("discover") },
   { id: "assistant", icon: "bot", label: "Assistant" },
-  { id: "me", path: "/profile", icon: "user", label: "Me", pages: ["profile", "notify", "saved"] },
+  { id: "me", path: PLACES.profile.path, icon: "user", label: "Me" },
 ];
+
+// What a page lights: the sidebar item and the phone's tab it belongs to, by the route's view. A view
+// not listed lights neither.
+const LIT = {
+  home: { item: "home", tab: "home" },
+  leaving: { item: "leaving", tab: "home" },
+  movies: { item: "movies", tab: "library" },
+  movie: { item: "movies", tab: "library" },
+  tv: { item: "tv", tab: "library" },
+  show: { item: "tv", tab: "library" },
+  discover: { item: "discover", tab: "discover" },
+  "discover-film": { item: "discover", tab: "discover" },
+  "discover-show": { item: "discover", tab: "discover" },
+  profile: { tab: "me" },
+  notify: { item: "notify", tab: "me" },
+  saved: { item: "saved", tab: "me" },
+  list: { item: "saved", tab: "me" },
+};
 
 /**
  * Krystal Cinema: the shelf, the films on their way and on their way out, and the assistant, for the
@@ -62,24 +72,24 @@ const TABS = [
 export function App() {
   const session = useSession();
   const route = useRoute();
-  const embedded = route.page === "embed";
+  const embedded = route.view === "embed";
 
   React.useEffect(() => {
-    if (!session && route.page !== "signin" && !embedded) {
-      navigate("/signin?next=" + encodeURIComponent(route.path + (route.query.toString() ? "?" + route.query : "")), { replace: true });
+    if (!session && route.view !== "signin" && !embedded) {
+      navigate(signInReturnPath(route.href), { replace: true });
     }
-  }, [session, route.page, route.path, route.query, embedded]);
+  }, [session, route.view, route.href, embedded]);
 
   // The Activity proves who is watching through Discord, so it answers to no site session.
   if (embedded) return <React.Suspense fallback={<Dark />}><EmbedRoom /></React.Suspense>;
-  if (route.page === "signin" || !session) return <><SignIn query={route.query} /><Toasts /></>;
+  if (route.view === "signin" || !session) return <><SignIn query={route.query} /><Toasts /></>;
   // A room fills the screen: the film is the page, and the way out is its back button.
-  if (route.page === "r" && route.arg) {
+  if (route.view === "room") {
     return (
       <React.Suspense fallback={<Dark />}>
         <SiteRoom key={route.arg} room={route.arg} title={route.query.get("title")}
-          onBack={() => goBack(route.query.get("title") ? "/title/" + encodeURIComponent(route.query.get("title")) : "/")}
-          onEmpty={() => navigate("/movies")} />
+          onBack={() => goBack(route.query.get("title") ? moviePath(route.query.get("title")) : homePath)}
+          onEmpty={() => navigate(libraryPath("film"))} />
       </React.Suspense>
     );
   }
@@ -92,22 +102,23 @@ function Frame({ session, route }) {
   // A phone has the tab bar and no drawer, so only the right edge's swipe, the dock's, is taken.
   useEdgeSwipe(false, noDrawer, dock.open, dock.setOpen);
   const mainRef = React.useRef(null);
-  useDiscoverKey(route.page === "discover");
+  useDiscoverKey(route.view === "discover");
 
   // A new page starts at its top, from the moment it is shown.
   const toTop = React.useCallback(() => {
     if (mainRef.current) mainRef.current.scrollTop = 0;
   }, []);
 
+  const lit = LIT[route.view] || {};
   const go = (path) => navigate(path);
   const item = (n) => (
-    <NavItem key={n.page} icon={n.icon} label={n.label} active={route.page === n.page || (n.also || []).includes(route.page)} onClick={() => go(n.path)} />
+    <NavItem key={n.id} icon={n.icon} label={n.label} active={lit.item === n.id} onClick={() => go(n.path)} />
   );
   // A tab leaves the dock for its page. The tab of the page already open takes it back to its top.
   const tab = (t) => t.path
     ? {
       id: t.id, icon: t.icon, label: t.label,
-      active: !dock.open && t.pages.includes(route.page),
+      active: !dock.open && lit.tab === t.id,
       onClick: () => {
         dock.setOpen(false);
         if (route.path === t.path && mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
@@ -140,8 +151,8 @@ function Frame({ session, route }) {
                 detail={session.user.username ? "@" + session.user.username : null}
                 collapsed={dock.desktop && collapsed}
                 items={[
-                  { icon: "user", label: "Profile", onClick: () => go("/profile") },
-                  { icon: "log-out", label: "Sign out", danger: true, onClick: () => { signOut(); navigate("/signin", { replace: true }); } },
+                  { icon: "user", label: "Profile", onClick: () => go(profilePath()) },
+                  { icon: "log-out", label: "Sign out", danger: true, onClick: () => { signOut(); navigate(signInPath, { replace: true }); } },
                 ]} />
             </>}>
             <SidebarGroup>{HOME.map(item)}</SidebarGroup>
@@ -156,7 +167,7 @@ function Frame({ session, route }) {
           {!dock.open && <DockFab onClick={() => dock.setOpen(true)} />}
         </>}
         tabBar={<TabBar items={TABS.map(tab)} />}>
-        <PageStage route={route} render={(r) => <Page route={r} />} onShown={toTop} />
+        <PageStage route={route} render={(r) => <Page route={r} />} above={(r) => <Trail route={r} />} onShown={toTop} />
         <SiteFooter />
       </AppShell>
       <Toasts />
@@ -184,7 +195,7 @@ function useDiscoverKey(onDiscover) {
         const field = document.querySelector(`.${DISCOVER_FIELD} input`);
         if (field) { field.focus(); field.select(); }
       } else {
-        navigate("/discover");
+        navigate(discoverPath());
       }
     };
     window.addEventListener("keydown", onKey);
@@ -193,18 +204,22 @@ function useDiscoverKey(onDiscover) {
 }
 
 function Page({ route }) {
-  switch (route.page) {
+  switch (route.view) {
     case "home": return <Home />;
     case "movies": return <Library key="film" kind="film" />;
     case "tv": return <Library key="show" kind="show" />;
-    case "title": return route.arg ? <Title key={route.arg} id={route.arg} /> : <Library kind="film" />;
-    case "show": return route.arg ? <Show key={route.arg} imdbId={route.arg} query={route.query} /> : <Library kind="show" />;
-    case "film": return route.arg ? <CatalogueFilm key={route.arg} imdbId={route.arg} /> : <Discover query={route.query} />;
+    case "movie": return <Title key={route.arg} id={route.arg} />;
+    case "show":
+    case "discover-show":
+      return <Show key={route.arg} imdbId={route.arg} season={route.season} inLibrary={route.view === "show"} />;
+    case "discover-film": return <CatalogueFilm key={route.arg} imdbId={route.arg} />;
     case "discover": return <Discover query={route.query} />;
-    case "saved": return route.arg ? <ListPage key={route.arg} id={route.arg} /> : <Saved />;    case "notify": return <Notify />;
+    case "saved": return <Saved />;
+    case "list": return <ListPage key={route.arg} id={route.arg} />;
+    case "notify": return <Notify />;
     case "leaving": return <Leaving />;
-    case "profile": return <Profile query={route.query} />;
+    case "profile": return <Profile tab={route.tab} />;
     case "about": return <About />;
-    default: return <Home />;
+    default: return <NotFound />;
   }
 }

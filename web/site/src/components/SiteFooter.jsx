@@ -2,17 +2,21 @@ import { Footer, GithubMark } from "@thekrystalship/krystal-ui";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
+import { PLACES } from "../nav.js";
 import { navigate } from "../router.js";
 
-const page = (name, path, icon, sub) => ({ name, href: path, icon, sub, onClick: () => navigate(path) });
+const page = (id, sub) => {
+  const { label, path, icon } = PLACES[id];
+  return { name: label, href: path, icon, sub, onClick: () => navigate(path) };
+};
 
 const BROWSE = [
-  page("Movies", "/movies", "clapperboard", "Every movie on the shelf"),
-  page("TV Shows", "/tv", "tv", "Every show on the shelf"),
-  page("Saved", "/saved", "bookmark", "What you saved for later"),
-  page("Leaving soon", "/leaving", "hourglass", "On their way out"),
-  page("Notify me", "/notify", "bell-plus", "Movies you are waiting for"),
-  page("About", "/about", "info", "This site, and where its details come from"),
+  page("movies", "Every movie on the shelf"),
+  page("tv", "Every show on the shelf"),
+  page("saved", "What you saved for later"),
+  page("leaving", "On their way out"),
+  page("notify", "Movies you are waiting for"),
+  page("about", "This site, and where its details come from"),
 ];
 
 const SOURCE = [

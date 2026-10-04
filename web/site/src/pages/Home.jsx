@@ -2,12 +2,13 @@ import { Icon, Rail } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
 import { useSession } from "../session.js";
+import { discoverPath, leavingPath, libraryPath, listPath, moviePath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, since } from "../time.js";
 import { ContinueCard, Empty, Failed, FilmCard, PosterArt, ShowCard, watchLink } from "../components/Film.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
 import { BellButton } from "../components/Bell.jsx";
-import { SavedCard, listHref } from "./Saved.jsx";
+import { SavedCard } from "./Saved.jsx";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 
 const RECENT_DAYS = 14;
@@ -97,7 +98,7 @@ export function Home() {
       {saved.length > 0 && (
         <Rail
           variant="posters" icon="bookmark" title="Watch later" count={saved.length}
-          onViewAll={() => navigate(listHref("later"))} viewAllLabel="See all"
+          onViewAll={() => navigate(listPath("later"))} viewAllLabel="See all"
           items={saved} itemKey={(e) => e.imdbId}
           renderItem={(e) => <SavedCard entry={e} />} />
       )}
@@ -130,7 +131,7 @@ export function Home() {
       {leavingItems.length > 0 && (
         <Rail
           variant="posters" icon="hourglass" title="Leaving soon" count={leavingItems.length}
-          onViewAll={() => navigate("/leaving")} viewAllLabel="See all"
+          onViewAll={() => navigate(leavingPath)} viewAllLabel="See all"
           items={leavingItems} itemKey={(item) => (item.show ? "season:" + item.stay.unit : item.film.id)}
           renderItem={either} />
       )}
@@ -138,7 +139,7 @@ export function Home() {
       {films.length > 0 && (
         <Rail
           variant="posters" icon="clapperboard" title="Movies" count={films.length}
-          onViewAll={() => navigate("/movies")} viewAllLabel="All movies"
+          onViewAll={() => navigate(libraryPath("film"))} viewAllLabel="All movies"
           items={[...films, MORE]} itemKey={(t) => (t === MORE ? "more" : t.id)}
           renderItem={(t) => (t === MORE ? <MoreTile label="Any movie" /> : card(t))} />
       )}
@@ -146,7 +147,7 @@ export function Home() {
       {shows.length > 0 && (
         <Rail
           variant="posters" icon="tv" title="TV Shows" count={shows.length}
-          onViewAll={() => navigate("/tv")} viewAllLabel="All shows"
+          onViewAll={() => navigate(libraryPath("show"))} viewAllLabel="All shows"
           items={[...shows, MORE]} itemKey={(s) => (s === MORE ? "more" : s.imdbId || s.firstTitleId)}
           renderItem={(s) => (s === MORE ? <MoreTile label="Any show" /> : <ShowCard show={s} me={me} />)} />
       )}
@@ -181,7 +182,7 @@ function Featured({ title, room }) {
           <a className="kc-btn kc-btn--primary" {...watchLink(title.id, room && room.sessionId)}>
             <Icon name={room ? "users" : "play"} size={18} />{room ? "Join the room" : "Watch"}
           </a>
-          <a className="kc-btn" {...linkProps("/title/" + encodeURIComponent(title.id))}>
+          <a className="kc-btn" {...linkProps(moviePath(title.id))}>
             <Icon name="info" size={18} />More info
           </a>
         </div>
@@ -196,7 +197,7 @@ const MORE = { more: true };
 /** The tile closing a shelf: past the last poster here is everything Discover can find. */
 function MoreTile({ label }) {
   return (
-    <a className="kc-more-tile" {...linkProps("/discover")}>
+    <a className="kc-more-tile" {...linkProps(discoverPath())}>
       <Icon name="compass" size={26} />
       <span>{label}</span>
     </a>

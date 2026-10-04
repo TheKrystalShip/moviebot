@@ -425,7 +425,7 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
         await Pass();
         var told = Assert.Single(Told("7011", imdb));
         Assert.Equal("Show " + _fixture.Database.Shows[imdb].TmdbId + " S1 · E3 is out.", told.Text);
-        Assert.Equal($"/show/{imdb}?season=1", told.Url);
+        Assert.Equal($"/tv/{imdb}/season/1", told.Url);
         Assert.Equal(1, Asked(imdb));
     }
 

@@ -1,8 +1,10 @@
 import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
-import { api, filmName, posterUrl, showHref } from "../api.js";
+import { api, filmName, posterUrl } from "../api.js";
 import { leaveRule, stayWords, useLoad } from "../data.js";
-import { goBack, navigate } from "../router.js";
+import { useCrumb } from "../crumbs.js";
+import { tvPath } from "../paths.js";
+import { navigate } from "../router.js";
 import { useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, watchLink } from "../components/Film.jsx";
@@ -27,9 +29,13 @@ export function Title({ id }) {
   const session = useSession();
   const me = session && session.user;
 
+  useCrumb(manifest.data
+    ? (details.data && details.data.title) || (manifest.data.film && manifest.data.film.name) || manifest.data.title
+    : manifest.error && manifest.error.status === 404 ? "Not in the library" : null);
+
   // An episode is shown on its show's page, at its season.
   const episodeOf = manifest.data && manifest.data.episode && manifest.data.film && manifest.data.film.imdbId
-    ? `${showHref(manifest.data.film.imdbId)}?season=${manifest.data.episode.season}` : null;
+    ? tvPath(manifest.data.film.imdbId, manifest.data.episode.season) : null;
   React.useEffect(() => {
     if (episodeOf) navigate(episodeOf, { replace: true });
   }, [episodeOf]);
@@ -79,10 +85,6 @@ export function Title({ id }) {
 
   return (
     <div className="kc-page kc-title">
-      <button type="button" className="kc-back" onClick={() => goBack(summary && summary.kind === "show" ? "/tv" : "/movies")}>
-        <Icon name="arrow-left" size={14} />Back
-      </button>
-
       <section className="kc-tt">
         {backdrop && <div className="kc-tt__art" style={{ backgroundImage: `url("${backdrop}")` }} />}
         <div className="kc-tt__shade" />

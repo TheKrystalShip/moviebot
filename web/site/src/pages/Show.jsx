@@ -2,7 +2,9 @@ import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
 import { api, episodeCode } from "../api.js";
 import { SOON_DAYS, leaveRule, stayWords, useLoad } from "../data.js";
-import { goBack } from "../router.js";
+import { useCrumb } from "../crumbs.js";
+import { showPath } from "../paths.js";
+import { navigate } from "../router.js";
 import { useSession } from "../session.js";
 import { ago, airDay, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, watchLink } from "../components/Film.jsx";
@@ -20,19 +22,34 @@ import { downloadWords } from "./Discover.jsx";
  *
  * What the show is comes from the film database through the API; which episodes are on this server,
  * how far this person got in each and how long each season stays comes from the library.
+ *
+ * The address says which season is open (`season`) and where the library stands (`inLibrary`: the
+ * shelf's address or Discover's). Both are the page's to correct once it knows the show: a show with
+ * an episode here belongs at the shelf's address, one without at Discover's, and a season the show
+ * does not have is dropped, each by replacing the address.
  */
-export function Show({ imdbId, query }) {
+export function Show({ imdbId, season, inLibrary }) {
   const show = useLoad(() => api.show(imdbId), [imdbId]);
   const library = useLoad(() => api.shows().then((all) => all.find((s) => s.imdbId === imdbId) || null).catch(() => null), [imdbId]);
   const rooms = useLoad(() => api.rooms(), [imdbId]);
   // What the tracker offers, so every episode it holds can be played; kept a few minutes by the API.
   const offers = useLoad(() => api.showReleases(imdbId).catch(() => null), [imdbId]);
-  const [season, setSeason] = React.useState(Number(query.get("season")) || null);
   const [requesting, setRequesting] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [starting, setStarting] = React.useState(false);
   const session = useSession();
   const me = session && session.user;
+
+  useCrumb(show.data ? show.data.title : show.error && show.error.status === 404 ? "No such show" : null);
+
+  const seasonsHere = show.data ? show.data.seasons : null;
+  const episodesHere = seasonsHere ? seasonsHere.some((x) => x.episodes.some((e) => e.titleId)) : null;
+  const hasSeason = seasonsHere ? seasonsHere.some((x) => x.number === season) : null;
+  React.useEffect(() => {
+    if (episodesHere === null) return;
+    navigate(showPath(imdbId, { held: episodesHere, season: hasSeason ? season : undefined }), { replace: true });
+  }, [imdbId, season, inLibrary, episodesHere, hasSeason]);
+  if (episodesHere !== null && (episodesHere !== inLibrary || (season != null && !hasSeason))) return <div className="kc-page" />;
 
   if (show.error && show.error.status === 404) {
     return <div className="kc-page"><Empty icon="tv" title="No such show">The film database has no show under this id.</Empty></div>;
@@ -48,7 +65,7 @@ export function Show({ imdbId, query }) {
     || seasons.find((x) => resume && x.number === resume.season)
     || seasons.find((x) => held(x.number))
     || seasons[0];
-  const episodesHere = seasons.reduce((n, x) => n + x.episodes.filter((e) => e.titleId).length, 0);
+  const episodeCountHere = seasons.reduce((n, x) => n + x.episodes.filter((e) => e.titleId).length, 0);
   const missing = seasons.some((x) => x.episodes.some((e) => !e.titleId));
   const first = seasons.flatMap((x) => x.episodes).find((e) => e.titleId);
   const play = resume || (first && { titleId: first.titleId, season: first.season, episode: first.number, positionSeconds: 0 });
@@ -95,17 +112,13 @@ export function Show({ imdbId, query }) {
     ["Network", s.networks.join(", ") || null],
     ["Language", s.languages.length ? s.languages.join(", ") : null],
     ["Country", s.countries.length ? s.countries.join(", ") : null],
-    ["On this server", episodesHere ? [`${episodesHere} of ${episodeCount} episodes`, library.data && library.data.sizeBytes ? bytes(library.data.sizeBytes) : null].filter(Boolean).join(" · ") : null, true],
+    ["On this server", episodeCountHere ? [`${episodeCountHere} of ${episodeCount} episodes`, library.data && library.data.sizeBytes ? bytes(library.data.sizeBytes) : null].filter(Boolean).join(" · ") : null, true],
     ["Added", library.data && library.data.addedAt ? since(library.data.addedAt) : null],
     ["IMDb", s.imdbId, true],
   ];
 
   return (
     <div className="kc-page kc-title">
-      <button type="button" className="kc-back" onClick={() => goBack("/tv")}>
-        <Icon name="arrow-left" size={14} />Back
-      </button>
-
       <section className="kc-tt">
         {(s.backdropUrl || s.posterUrl) && <div className="kc-tt__art" style={{ backgroundImage: `url("${s.backdropUrl || s.posterUrl}")` }} />}
         <div className="kc-tt__shade" />
@@ -175,7 +188,7 @@ export function Show({ imdbId, query }) {
               return (
                 <button key={x.number} type="button"
                   className={"kc-season-chip" + (x.number === current.number ? " is-on" : "")}
-                  onClick={() => setSeason(x.number)}>
+                  onClick={() => navigate(showPath(imdbId, { held: inLibrary, season: x.number }), { replace: true })}>
                   Season {x.number}
                   {stay && stay.keeperId && <span className="kc-season-chip__flag is-kept"><Icon name="pin" size={12} />Kept</span>}
                   {leaving && <span className={"kc-season-chip__flag" + (stay.daysLeft <= 1 ? " is-danger" : "")}><Icon name="hourglass" size={12} />{stayWords(stay, me)}</span>}

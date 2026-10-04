@@ -4,6 +4,8 @@ import {
 } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
+import { useCrumb } from "../crumbs.js";
+import { discoverFilmPath, listPath, moviePath, savedPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { useSession } from "../session.js";
 import { ago, clock, dayGroup } from "../time.js";
@@ -12,13 +14,10 @@ import { FilmScore } from "../components/FilmDetails.jsx";
 
 const count = (n) => `${n} ${n === 1 ? "title" : "titles"}`;
 
-/** Where a list is: `later` is the person's own Watch later. */
-export const listHref = (id) => "/saved/" + encodeURIComponent(id);
-
 /** Where an entry leads: the library's own page for a film it holds, otherwise the catalogue's. */
 function entryHref(e) {
-  if (e.kind === "show") return "/show/" + encodeURIComponent(e.imdbId);
-  return e.libraryId ? "/title/" + encodeURIComponent(e.libraryId) : "/film/" + encodeURIComponent(e.imdbId);
+  if (e.kind === "show") return showPath(e.imdbId);
+  return e.libraryId ? moviePath(e.libraryId) : discoverFilmPath(e.imdbId);
 }
 
 /**
@@ -57,7 +56,7 @@ export function Saved() {
     setBusy(true);
     try {
       const made = await api.createList(name.trim());
-      navigate(listHref(made.list.id));
+      navigate(listPath(made.list.id));
     } catch (error) {
       toast.fromError(error, "Could not make that list");
       setBusy(false);
@@ -94,7 +93,7 @@ export function Saved() {
 function ListCard({ list, me }) {
   const theirs = list.owner.userId !== me;
   return (
-    <a className="kc-list-card" {...linkProps(listHref(list.id))}>
+    <a className="kc-list-card" {...linkProps(listPath(list.id))}>
       <span className={"kc-list-card__art kc-list-card__art--" + Math.min(list.posters.length, 4)}>
         {list.posters.length === 0 && <Icon name={list.watchLater ? "clock" : "list"} size={28} />}
         {list.posters.map((p) => <img key={p} src={p} alt="" loading="lazy" />)}
@@ -152,6 +151,8 @@ export function ListPage({ id }) {
   const [people, setPeople] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
 
+  useCrumb(view.data ? view.data.list.name : view.error && view.error.status === 404 ? "No such list" : null);
+
   if (view.error && view.error.status === 404) {
     return <div className="kc-page"><Empty icon="list" title="No such list" /></div>;
   }
@@ -202,7 +203,7 @@ export function ListPage({ id }) {
     try {
       await api.deleteList(list.id);
       toast.info(`Deleted ${list.name}.`);
-      navigate("/saved", { replace: true });
+      navigate(savedPath, { replace: true });
     } catch (error) {
       toast.fromError(error, "Could not delete it");
     }
@@ -212,7 +213,7 @@ export function ListPage({ id }) {
     try {
       await api.removeListMember(list.id, me.id);
       toast.info(`You left ${list.name}.`);
-      navigate("/saved", { replace: true });
+      navigate(savedPath, { replace: true });
     } catch (error) {
       toast.fromError(error, "Could not leave it");
     }

@@ -1,7 +1,8 @@
 import React from "react";
 import { Icon, Rail, ShowcaseCard, toast } from "@thekrystalship/krystal-ui";
-import { api, filmName, showHref } from "../api.js";
+import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
+import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { Failed, FilmCard, PageHead, ShowCard, watchHref } from "../components/Film.jsx";
 
@@ -44,7 +45,7 @@ export function Discover({ query }) {
   const submit = (e) => {
     e.preventDefault();
     const typed = draft.trim();
-    navigate(typed ? "/discover?q=" + encodeURIComponent(typed) : "/discover");
+    navigate(discoverPath(typed));
   };
 
   return (
@@ -97,7 +98,7 @@ export function Discover({ query }) {
                   const held = (titles.data || []).find((t) => t.film && t.film.imdbId === f.imdbId && t.kind !== "show");
                   return (
                     <a key={f.imdbId} className="kc-row kc-row--link"
-                      {...linkProps(held ? "/title/" + encodeURIComponent(held.id) : "/film/" + encodeURIComponent(f.imdbId))}>
+                      {...linkProps(held ? moviePath(held.id) : discoverFilmPath(f.imdbId))}>
                       <span className="kc-row__icon"><Icon name="clapperboard" size={16} /></span>
                       <div className="kc-row__text">
                         <span className="kc-row__title">{f.display}</span>
@@ -116,7 +117,7 @@ export function Discover({ query }) {
               <div className="kc-shelf__head"><h2>Shows</h2></div>
               <div className="kc-rows">
                 {found.data.map((s) => (
-                  <a key={s.imdbId} className="kc-row kc-row--link" {...linkProps(showHref(s.imdbId))}>
+                  <a key={s.imdbId} className="kc-row kc-row--link" {...linkProps(showPath(s.imdbId, { held: heldShows.has(s.imdbId) }))}>
                     <span className="kc-row__icon"><Icon name="tv" size={16} /></span>
                     <div className="kc-row__text">
                       <span className="kc-row__title">{s.display}</span>
@@ -174,7 +175,7 @@ function TrackerReleases({ q, inLibrary }) {
  */
 function PopularCard({ entry, show = false, here, held }) {
   const inLibrary = show ? held : !!here;
-  const page = show ? showHref(entry.imdbId) : here ? "/title/" + encodeURIComponent(here.id) : "/film/" + encodeURIComponent(entry.imdbId);
+  const page = show ? showPath(entry.imdbId, { held }) : here ? moviePath(here.id) : discoverFilmPath(entry.imdbId);
   const playable = here && here.status === "ready";
   return (
     <ShowcaseCard

@@ -4,6 +4,31 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.87.0] - 2026-10-04
+
+### Added
+
+- A trail above every page of the site but the front page, Home first and then each level of the
+  address: Home / TV Shows / Breaking Bad / Season 3. Every level but the last is a link to the page it
+  names, and a film's, a show's or a list's level carries its name once the page has it.
+- A Not found page for an address the site does not have.
+- `npm run verify:routes` in `web/site`: every address loaded cold, with what it lands on and the
+  trail it shows, against the scratch site.
+
+### Changed
+
+- The site's addresses are hierarchical, each beginning with the address of the section it belongs
+  to. A film in the library is at `/movies/<id>`, a show the library holds an episode of at
+  `/tv/<imdbId>`, and what the library does not hold under Discover, at `/discover/film/<imdbId>` and
+  `/discover/show/<imdbId>`. A page that finds the library holds it, or does not, moves to the right
+  one. A season is `/season/<n>` on its show's address and a profile tab is `/profile/<tab>`, so both
+  survive a reload and can be linked to.
+- Addresses the site does not use in that form are rewritten to the one it does: `/title/`, `/show/`,
+  `/film/` and `/profile?tab=`, which links already sent carry, a trailing slash or a segment too
+  many, and a season or a tab the page does not have.
+- Notifications link to the new addresses.
+- The film and show pages have no Back button; the trail leads back up.
+
 ## [1.86.1] - 2026-10-04
 
 ### Changed

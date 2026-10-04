@@ -122,7 +122,7 @@ public static class NotificationEndpoints
                 Text = manifest is null
                     ? $"{person.DisplayName} invites you to their room."
                     : $"{person.DisplayName} invites you to watch {manifest.Film?.Display ?? manifest.Title} with them.",
-                Url = $"/r/{Uri.EscapeDataString(room)}" + (titleId is null ? "" : $"?title={Uri.EscapeDataString(titleId)}"),
+                Url = SitePaths.Room(room, titleId),
                 Action = "Join",
             }, ct);
 

@@ -5,6 +5,7 @@ import {
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useSession } from "../session.js";
+import { libraryPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard } from "../components/Film.jsx";
 
@@ -38,7 +39,7 @@ export function Library({ kind = "film" }) {
  * has a sidebar entry for each; picking one replaces the page rather than stacking on it.
  */
 function KindSwitch({ kind }) {
-  const options = [{ kind: "film", label: "Movies", path: "/movies" }, { kind: "show", label: "TV shows", path: "/tv" }];
+  const options = [{ kind: "film", label: "Movies", path: libraryPath("film") }, { kind: "show", label: "TV shows", path: libraryPath("show") }];
   return (
     <div className="kc-segmented kc-segmented--fill kc-kind-switch" role="radiogroup" aria-label="Library">
       {options.map((o) => (

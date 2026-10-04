@@ -1,4 +1,5 @@
 import React from "react";
+import { PageKey } from "../crumbs.js";
 import { LoadTracker } from "../data.js";
 
 /** The longest a page waits out of sight for its reads before it is shown as it stands. */
@@ -15,18 +16,22 @@ const READY_CAP_MS = 500;
  * always does. The address, the tab bar and the sidebar move at once, so the press is answered
  * whatever the page is still doing.
  *
- * A page is its path: a new query on the same path (a profile tab, a search) is the same page given
- * new words, and is drawn in place. Both pages are children of one keyed list, so the page prepared
- * out of sight is the one shown, never mounted a second time.
+ * A page is its route's key: its path less the part that only chooses what the page shows (a show's
+ * season, a profile tab), so a new season, a new tab or a new query on the same path (a search) is the
+ * same page given new words, and is drawn in place. Both pages are children of one keyed list, so the
+ * page prepared out of sight is the one shown, never mounted a second time.
+ *
+ * `above(route)` draws what sits over the stage once, for the route of the page shown, so it never
+ * runs ahead of the page it describes while the next is being prepared.
  */
-export function PageStage({ route, render, onShown }) {
-  const key = route.path;
+export function PageStage({ route, render, above, onShown }) {
+  const key = route.key;
   const [shown, setShown] = React.useState({ key, route });
   const [incoming, setIncoming] = React.useState(null);
   const [entering, setEntering] = React.useState(null);
   const box = React.useRef(null);
 
-  // A new query on the page already shown is drawn in place; a new path is prepared out of sight.
+  // A new query or sub-path on the page already shown is drawn in place; a new page is prepared out of sight.
   React.useEffect(() => {
     if (key === shown.key) {
       setShown({ key, route });
@@ -35,7 +40,7 @@ export function PageStage({ route, render, onShown }) {
       setIncoming({ key, route, tracker: makeTracker() });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, route.query.toString()]);
+  }, [key, route.path, route.query.toString()]);
 
   React.useEffect(() => {
     if (!incoming) return undefined;
@@ -63,17 +68,17 @@ export function PageStage({ route, render, onShown }) {
   const pages = [
     <div key={shown.key} className={"kc-stage__page" + (entering === shown.key ? " is-entering" : "")}
       onAnimationEnd={(e) => { if (e.target === e.currentTarget) setEntering(null); }}>
-      <LoadTracker.Provider value={null}>{render(shown.route)}</LoadTracker.Provider>
+      <PageKey.Provider value={shown.key}><LoadTracker.Provider value={null}>{render(shown.route)}</LoadTracker.Provider></PageKey.Provider>
     </div>,
   ];
   if (incoming) {
     pages.push(
       <div key={incoming.key} ref={box} className="kc-stage__page is-incoming" aria-hidden="true">
-        <LoadTracker.Provider value={incoming.tracker}>{render(incoming.route)}</LoadTracker.Provider>
+        <PageKey.Provider value={incoming.key}><LoadTracker.Provider value={incoming.tracker}>{render(incoming.route)}</LoadTracker.Provider></PageKey.Provider>
       </div>,
     );
   }
-  return <div className="kc-stage">{pages}</div>;
+  return <>{above && above(shown.route)}<div className="kc-stage">{pages}</div></>;
 }
 
 /**

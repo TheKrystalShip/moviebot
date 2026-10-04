@@ -2,6 +2,7 @@ import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
+import { discoverFilmPath, discoverPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { Empty, Failed, PageHead } from "../components/Film.jsx";
 import { NotOutYet } from "./Discover.jsx";
@@ -47,7 +48,7 @@ export function Notify() {
                 <span className="kc-row__title">{found.data.film ? found.data.film.display : query}</span>
                 <span className="kc-row__sub">It can be downloaded already.</span>
               </div>
-              <button type="button" className="kc-btn kc-btn--primary" onClick={() => navigate("/discover?q=" + encodeURIComponent(query))}>
+              <button type="button" className="kc-btn kc-btn--primary" onClick={() => navigate(discoverPath(query))}>
                 <Icon name="download" size={16} />See releases
               </button>
             </div>
@@ -70,7 +71,7 @@ export function Notify() {
             <div key={wish.imdbId} className="kc-row">
               <KeptPoster imdbId={wish.imdbId} />
               <div className="kc-row__text">
-                <a className="kc-row__title" {...linkProps("/film/" + encodeURIComponent(wish.imdbId))}>{wish.display}</a>
+                <a className="kc-row__title" {...linkProps(discoverFilmPath(wish.imdbId))}>{wish.display}</a>
                 {wish.starring && <span className="kc-row__sub">{wish.starring}</span>}
                 <span className="kc-row__sub">
                   {wish.subscribers.length === 1 ? "Only you are waiting" : `${wish.subscribers.length} people are waiting`}

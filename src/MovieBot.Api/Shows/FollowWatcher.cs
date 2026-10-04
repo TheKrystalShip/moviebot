@@ -231,7 +231,7 @@ public sealed class FollowWatcher(
                 Kind = NotificationKinds.Episode,
                 Key = $"episode:{show}:{FollowStore.Label(episode.Season, episode.Number)}",
                 Text = $"{title} {place} is out.",
-                Url = $"/show/{Uri.EscapeDataString(show)}?season={episode.Season.ToString(CultureInfo.InvariantCulture)}",
+                Url = SitePaths.Show(show, episode.Season),
                 Action = "Watch",
             }, ct);
         }

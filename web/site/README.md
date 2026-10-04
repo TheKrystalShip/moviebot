@@ -13,6 +13,7 @@ npm run lint
 npm run check      # the player's engine, types only
 npm run build      # -> dist/; scripts/build-player.sh installs it into the API's wwwroot
 npm run verify     # the player in a real browser, against a running API and dev server
+npm run verify:routes  # every address, cold and by its flows, against a scratch site (verify/routes.mjs)
 npm run verify:mobile  # every page on iPhones and Galaxies, against a scratch site (verify/mobile/)
 npm run verify:pwa     # installable, and the service worker keeps only what it may (verify/pwa.mjs)
 ```
@@ -27,22 +28,42 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular` and `/hu
 |---|---|
 | `/` | A film to watch, then a row each for where the person left off, their Watch later (with Watch on a film the library holds, and See all opening it), the rooms watching something now, what was recently added, what leaves next, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail`. The Movies and TV Shows rows end in a tile that opens Discover |
 | `/movies`, `/tv` | Every film, or every show (one card each, however many of its episodes are here), with krystal-ui's `Toolbar`: a search by name, one Filters popover (state, stay, genre) with the active ones as chips, and a sort with its direction. On a phone a Movies \| TV shows switch under the heading moves between the two |
-| `/title/<id>` | One film: what it is, who played it last, how long it stays, keep or let go, save, and watch or resume. An episode's id forwards to its show's page at its season |
-| `/show/<imdbId>?season=` | One show, in the library or not: what it is, its seasons as chips with how long each stays, each season's episodes with their stills and how far this person got, resume, keep a season, and the request sheet that picks seasons and episodes to download at 720p (the default) or 1080p. Every episode the tracker has plays from its row while it arrives, each season can be downloaded whole, first episode first, and with nothing of it here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them |
-| `/film/<imdbId>` | A film that is not here: what it is, and Watch (now, while it arrives) and Download (1080p, the default, or 720p, with the size of each) when the tracker offers it, the download's progress while it is on its way, or Notify when it is not out digitally yet, and Save. A film in the library forwards to its `/title/` |
-| `/discover?q=` | Finding anything to watch, here or not. A large field and, with nothing typed, the films and shows popular this week (`/api/popular`), each marked when the library holds it and otherwise leading to its `/film/` or `/show/` page. With a query, the library first, then the catalogue's films and shows, each leading to its page, then the tracker's releases, asked for when that row is opened and opened by itself when the catalogue found nothing. `/`, Ctrl+K or Cmd+K anywhere outside a text field opens it with the field focused, and a fine pointer focuses the field on arrival |
+| `/movies/<titleId>` | One film in the library: what it is, who played it last, how long it stays, keep or let go, save, and watch or resume. An episode's id forwards to its show's page at its season |
+| `/tv/<imdbId>`, `/tv/<imdbId>/season/<n>` | One show the library holds an episode of, at a season (the default season has no segment): what it is, its seasons as chips with how long each stays, each season's episodes with their stills and how far this person got, resume, keep a season, and the request sheet that picks seasons and episodes to download at 720p (the default) or 1080p. Every episode the tracker has plays from its row while it arrives, each season can be downloaded whole, first episode first, and with nothing of it here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them. A show the library holds nothing of forwards to its `/discover/show/` address |
+| `/discover/show/<imdbId>`, `/discover/show/<imdbId>/season/<n>` | The same page for a show the library holds no episode of, where its episodes are picked to download. A show the library holds an episode of forwards to its `/tv/` address |
+| `/discover/film/<imdbId>` | A film that is not here: what it is, and Watch (now, while it arrives) and Download (1080p, the default, or 720p, with the size of each) when the tracker offers it, the download's progress while it is on its way, or Notify when it is not out digitally yet, and Save. A film in the library forwards to its `/movies/` address |
+| `/discover`, `/discover?q=` | Finding anything to watch, here or not. A large field and, with nothing typed, the films and shows popular this week (`/api/popular`), each marked when the library holds it and otherwise leading to its `/discover/film/` or `/discover/show/` page. With a query, the library first, then the catalogue's films and shows, each leading to its page, then the tracker's releases, asked for when that row is opened and opened by itself when the catalogue found nothing. `/`, Ctrl+K or Cmd+K anywhere outside a text field opens it with the field focused, and a fine pointer focuses the field on arrival |
 | `/saved` | Saved: the signed-in person's lists, Watch later first, then the rest most recently changed first, each its newest posters, name and size, and whose it is when it is somebody else's; and making a new one |
 | `/saved/<id>` | One list (`later` is the person's own Watch later): its titles newest saved first under Today, Yesterday, This week and each month, with krystal-ui's `Toolbar` to search titles and notes, narrow by kind, library and watched, and sort. Each row says when it was saved, by whom on a shared list, its note, and whether the person watched it; an owner or editor edits the note and takes it off. Its owner renames it, deletes it, and puts people on it as editors or viewers; a member leaves it |
 | `/notify` | The films the signed-in person is waiting on |
 | `/leaving` | Every settled film and how long it stays, kept or not |
-| `/profile?tab=` | The signed-in person: History (with a way to remove a film), Requests, Following (each followed show with its next episode, whether new episodes are downloaded, and Unfollow), Notifications, Playback (subtitle and audio language, quality, skipping intros and recaps automatically, how subtitles look with a preview of them, theme) and Sessions (the devices signed in, signing one or all others out), and signing out |
+| `/profile`, `/profile/<tab>` | The signed-in person; History, the first tab, has no segment: History (with a way to remove a film), Requests, Following (each followed show with its next episode, whether new episodes are downloaded, and Unfollow), Notifications, Playback (subtitle and audio language, quality, skipping intros and recaps automatically, how subtitles look with a preview of them, theme) and Sessions (the devices signed in, signing one or all others out), and signing out |
 | `/about` | What the site is, and where its film details come from |
 | `/signin` | The door, and where Discord sends the browser back to |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from. A room waiting on a Watch now shows the film being found, arriving and starting, and plays it on its own |
 | `/embed/` | The Discord Activity: the same player with no site around it |
 
 A page is a path, so it can be linked to and reloaded: the API answers any path that is not its own
-with this site's index.
+with this site's index. Paths are hierarchical, each beginning with the path of the page it belongs
+under, and canonical: `src/paths.js` builds every address and `src/router.js` parses them. A trailing
+slash, an extra segment, a season or a profile tab that does not exist, and an address the API sent or a
+person holds in an earlier shape (`/title/<id>`, `/show/<id>?season=<n>`, `/film/<id>`,
+`/profile?tab=<t>`) all resolve to the canonical address by replacing the entry, so Back never lands on
+one. A first segment the site has no page for draws Not found and keeps the address as typed. A season
+and a profile tab are part of the address and not of the page: pressing one replaces the entry and the
+page stays where it is. Where the library stands decides a show's and a film's address: a film it holds
+is at `/movies/`, one it does not at `/discover/film/`, a show with an episode here at `/tv/` and
+one with none at `/discover/show/`, and the page forwards by replacing the entry when the address names
+the other.
+
+Every page but Home carries a breadcrumb trail above it (krystal-ui's `Breadcrumbs`), read from the
+address a level at a time: Home, the section, then the film, show, list, season or profile tab, each
+crumb but the last a link to the address prefix it names. `src/crumbs.js` builds it from the route and
+`src/nav.js` holds the section and tab names the sidebar, the footer, the tab bar and the trail share. A
+film's, show's or list's name is known once its page has loaded, so the page gives it to the trail
+(`useCrumb`), keyed to its own page so a name never outlives the page; until then the crumb is the id,
+and a page that finds nothing names that. The trail is drawn once, from the route of the page shown, so
+it never runs ahead of the page while the next is prepared. A search is not a crumb.
 
 Save, on a film's and a show's page, puts it on the person's Watch later in one press. Once it is on
 any list the button reads Saved and opens the lists the person can add to, each switched on where it
@@ -51,9 +72,10 @@ screen, the drawer on a phone.
 
 Wide screens get around by the sidebar, which has Discover and Saved under Home. A phone has
 krystal-ui's `TabBar` along its bottom edge instead, and no drawer: Home (lit on `/` and `/leaving`),
-Library (`/movies`, lit on `/tv` and a title too), Discover (lit on a `/film/` page too), Assistant,
+Library (lit under `/movies` and `/tv`), Discover (lit under `/discover`), Assistant,
 which opens the dock above the bar rather than a page, and Me (`/profile`, lit on `/notify` and
-`/saved` too), whose page leads to Saved. The tab of the page already open scrolls it back to its top. The
+`/saved` too), whose page leads to Saved. What each page lights is one table in `App.jsx`, by the route's
+view. The tab of the page already open scrolls it back to its top. The
 pages no tab names are linked from the footer every page ends with.
 
 ## Signing in
@@ -121,6 +143,14 @@ browser is the only thing that catches what matters here.
 and Galaxies (Chromium), against a scratch site with a library and a person of its own, and leaves a
 screenshot per view per phone, a contact sheet per view and a report of what reads as broken on a
 phone. How to run it, what it measures and how to add a page or a phone: `verify/mobile/README.md`.
+
+`npm run verify:routes` cold-loads every address in a fresh signed-in browser and checks where it lands and
+what it draws (the heading, the sidebar item and tab lit, Not found), including every earlier shape of an
+address and every non-canonical spelling; then the flows between addresses: a season chip and a profile
+tab write the address in place and survive a reload, a search keeps its query across Back, a forward does
+not bounce Back, and a signed-out deep link returns after sign-in. It runs against the scratch site
+`verify/mobile/scratch.sh` serves, whose library holds films and no show, so a show the library holds an
+episode of is the one case it does not reach.
 
 ## Installing
 

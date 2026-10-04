@@ -1,9 +1,11 @@
 import React from "react";
 import { Icon, Select, SettingsRow, SettingsSection, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal-ui";
 import { KIND } from "../notifications.js";
-import { api, episodeCode, filmName, showHref } from "../api.js";
+import { api, episodeCode, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { signOut, useSession } from "../session.js";
+import { PROFILE_TAB_FACES } from "../nav.js";
+import { moviePath, profilePath, savedPath, showPath, signInPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { ago, airDay } from "../time.js";
 import { Empty, Failed, PageHead, PosterArt } from "../components/Film.jsx";
@@ -11,39 +13,31 @@ import { KeptPoster } from "../components/FilmDetails.jsx";
 import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
 
-const TABS = [
-  { id: "history", icon: "history", label: "History" },
-  { id: "requests", icon: "inbox", label: "Requests" },
-  { id: "following", icon: "tv", label: "Following" },
-  { id: "notifications", icon: "bell-ring", label: "Notifications" },
-  { id: "playback", icon: "play", label: "Playback" },
-  { id: "sessions", icon: "monitor-smartphone", label: "Sessions" },
-];
+const TABS = PROFILE_TAB_FACES;
 
 /**
  * Who is signed in and everything that is theirs: what they watched, what they asked for, how they
  * like to watch, and the devices holding their sign-in. The tab is in the address, so a tab can be
  * linked to and reloaded.
  */
-export function Profile({ query }) {
+export function Profile({ tab: named }) {
+  const tab = named || TABS[0].id;
   const session = useSession();
   const user = session && session.user;
-  const requested = query.get("tab");
-  const tab = TABS.some((t) => t.id === requested) ? requested : TABS[0].id;
 
   return (
     <div className="kc-page kc-profile">
       <PageHead title={user ? user.name : "Profile"} sub={user ? "@" + user.username : null}>
-        <button type="button" className="kc-btn kc-head__action" onClick={() => { signOut(); navigate("/signin", { replace: true }); }}>
+        <button type="button" className="kc-btn kc-head__action" onClick={() => { signOut(); navigate(signInPath, { replace: true }); }}>
           <Icon name="log-out" size={16} />Sign out
         </button>
       </PageHead>
-      <a className="kc-row kc-row--link kc-profile__saved" {...linkProps("/saved")}>
+      <a className="kc-row kc-row--link kc-profile__saved" {...linkProps(savedPath)}>
         <Icon name="bookmark" size={18} />
         <span className="kc-row__title">Saved</span>
         <Icon name="chevron-right" size={18} />
       </a>
-      <SubTabs tabs={TABS} active={tab} onChange={(id) => navigate("/profile?tab=" + id, { replace: true })} />
+      <SubTabs tabs={TABS} active={tab} onChange={(id) => navigate(profilePath(id), { replace: true })} />
       {tab === "history" && <History />}
       {tab === "requests" && <Requests user={user} />}
       {tab === "following" && <Following />}
@@ -77,7 +71,7 @@ function History() {
       <div className="kc-rows">
         {rows.map((row) => {
           const title = byId.get(row.titleId);
-          const href = "/title/" + encodeURIComponent(row.titleId);
+          const href = moviePath(row.titleId);
           const fraction = row.finished ? 1 : Math.min(1, row.positionSeconds / Math.max(1, row.durationSeconds));
           const how = row.finished ? "Watched" : `${Math.round(100 * fraction)}% watched`;
           return (
@@ -157,7 +151,7 @@ function Requests({ user }) {
               </span>
               <div className="kc-row__text">
                 {d.libraryId
-                  ? <a className="kc-row__title" {...linkProps("/title/" + encodeURIComponent(d.libraryId))}>{d.name}</a>
+                  ? <a className="kc-row__title" {...linkProps(moviePath(d.libraryId))}>{d.name}</a>
                   : <span className="kc-row__title">{d.name}</span>}
                 <span className="kc-row__sub">{d.summary}</span>
               </div>
@@ -198,7 +192,7 @@ function Following() {
       {follows.data && rows.length === 0 && <Empty icon="tv" title="Not following anything">Follow a show from its page to hear when a new episode is out.</Empty>}
       <div className="kc-rows">
         {rows.map((row) => {
-          const href = showHref(row.imdbId);
+          const href = showPath(row.imdbId);
           const next = row.nextEpisode;
           return (
             <div key={row.imdbId} className="kc-row">

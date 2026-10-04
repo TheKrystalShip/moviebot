@@ -1,6 +1,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@thekrystalship/krystal-ui";
+import { profilePath } from "../paths.js";
 import { navigate } from "../router.js";
 import { ago } from "../time.js";
 import { KIND, markRead, useNotifications } from "../notifications.js";
@@ -140,7 +141,7 @@ function BellList({ onClose }) {
           );
         })}
       </div>
-      <button type="button" className="kc-bell__settings" onClick={() => { onClose(); navigate("/profile?tab=notifications"); }}>
+      <button type="button" className="kc-bell__settings" onClick={() => { onClose(); navigate(profilePath("notifications")); }}>
         <Icon name="settings-2" size={13} />Push notification settings
       </button>
     </>

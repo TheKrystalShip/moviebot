@@ -331,7 +331,7 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 - **Kinds.** `available`: a film somebody waits on can be downloaded. `ready`: a download they started
   can be watched, or could not be made watchable. `leaving`: something they watched leaves the
   library within a day. `episode`: a new episode of a show they follow is out and the tracker offers
-  it, "Show S5 · E4 is out.", opening `/show/{imdbId}?season={n}`. `kept`: somebody else kept, or
+  it, "Show S5 · E4 is out.", opening `/tv/{imdbId}/season/{n}`. `kept`: somebody else kept, or
   let go of, something they watched. `shared`: somebody put them on one of their lists, "Ana shared
   their list Friday night with you.", opening `/saved/{id}`. `invite`:
   somebody asked them into a room; an invite is pushed whatever the person chose.

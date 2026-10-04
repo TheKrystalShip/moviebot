@@ -150,8 +150,3 @@ export function filmName(title) {
 export function episodeCode(episode) {
   return episode ? `S${episode.season} · E${episode.number}` : "";
 }
-
-/** Where a show's page is. */
-export function showHref(imdbId) {
-  return "/show/" + encodeURIComponent(imdbId);
-}
