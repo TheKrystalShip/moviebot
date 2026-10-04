@@ -5,9 +5,10 @@ import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";
 import { formatTime } from "./engine/format.ts";
 import { prefs } from "./engine/prefs.ts";
-import { amplitudeFor } from "./engine/media/volume.ts";
+import { amplitudeFor, volumeIsSettable } from "./engine/media/volume.ts";
 import { bindShortcuts } from "./engine/media/shortcuts.ts";
 import { Cues } from "./Cues.jsx";
+import { GestureHud, useStageGestures } from "./Gestures.jsx";
 import { ScrubBar } from "./ScrubBar.jsx";
 import { Volume } from "./Volume.jsx";
 import { ago } from "../time.js";
@@ -276,6 +277,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   const [announcement, setAnnouncement] = React.useState(null);
   const [clock, setClock] = React.useState({ position: 0, buffered: 0, paused: true });
   const [volume, setVolume] = React.useState(() => ({ position: prefs.volume(), muted: prefs.muted() }));
+  const [brightness, setBrightness] = React.useState(() => prefs.brightness());
   const [fullscreen, setFullscreen] = React.useState(false);
   const idleTimer = React.useRef(null);
   const around = useNeighbours(manifest);
@@ -355,7 +357,18 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   const hold = React.useCallback((on) => setHeld((n) => Math.max(0, n + (on ? 1 : -1))), []);
   const shown = active || held > 0 || menu !== null || overflow || invite || clock.paused || !view.ready;
 
-  const canFullscreen = typeof document !== "undefined" && document.fullscreenEnabled;
+  // A phone holds the film sideways and full screen from the first press, so it has no button for
+  // either; leaving full screen gives both up until the next press on the film takes them back.
+  const phone = React.useMemo(() => window.matchMedia("(pointer: coarse)").matches, []);
+  const landscape = React.useRef(null);
+  React.useEffect(() => {
+    const held = environment().landscape(frameRef.current);
+    landscape.current = held;
+    return () => held.release();
+  }, [frameRef]);
+  const takeScreen = () => { if (landscape.current) landscape.current.enter(); };
+
+  const canFullscreen = typeof document !== "undefined" && document.fullscreenEnabled && !phone;
   React.useEffect(() => {
     const changed = () => setFullscreen(document.fullscreenElement === frameRef.current);
     document.addEventListener("fullscreenchange", changed);
@@ -385,15 +398,44 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
     return () => document.removeEventListener("keydown", escape);
   }, [closeAll]);
 
-  // A mouse click on the film plays or pauses it, or closes whatever was open over it. A touch
-  // shows the controls, or hides them when they are up: a thumb reaching for the screen is
-  // reaching for the controls, and pausing everybody's film is not what it meant.
+  const toggleControls = () => {
+    if (active) setActive(false);
+    else wake();
+  };
+  const settable = React.useMemo(() => volumeIsSettable(), []);
+  const gestures = useStageGestures({
+    duration: manifest ? manifest.durationSeconds : 0,
+    position: clock.position,
+    skipSeconds: SkipSeconds,
+    volume: volume.muted ? 0 : volume.position,
+    volumeSettable: settable,
+    brightness,
+    onTogglePlay: () => room.togglePlay(),
+    onToggleControls: toggleControls,
+    onSeek: (s) => room.seek(s),
+    onHold: hold,
+    onVolume: (level) => changeVolume(level, level > 0 ? false : volume.muted),
+    onBrightness: (level) => { prefs.setBrightness(level); setBrightness(level); },
+  });
+
+  // A mouse click on the film plays or pauses it, or closes whatever was open over it. A finger
+  // is read by the gestures once the film is in the element; before that, a touch only shows or
+  // hides what is over the frame.
   const pressStage = (e) => {
     if (e.target !== e.currentTarget) return;
     if (menu !== null || overflow || invite) { closeAll(); return; }
     if (e.pointerType === "mouse") { room.togglePlay(); wake(); return; }
-    if (active) setActive(false);
-    else wake();
+    if (view.ready) gestures.onPointerDown(e);
+    else toggleControls();
+  };
+  const moveOnStage = (e) => {
+    if (e.pointerType === "mouse") wake();
+    else gestures.onPointerMove(e);
+  };
+  const liftFromStage = (e) => {
+    if (e.pointerType === "mouse" || e.target !== e.currentTarget) return;
+    takeScreen();
+    gestures.onPointerUp(e);
   };
 
   const everyone = people(view);
@@ -405,13 +447,16 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   const waiting = !view.fatal && !view.unplayable && !view.gate && !preparing
     && ((titleHeld && !manifest) || view.catchingUp || view.stalled);
   const sheet = compact;
+  const swipe = gestures.hud && gestures.hud.kind === "seek" ? gestures.hud.at : null;
 
   const backdrop = posterOf(manifest);
   const frameStyle = { "--mp-poster": backdrop ? `url("${backdrop}")` : "none" };
 
   return (
     <div className={"mp-stage" + (shown ? " is-shown" : " is-idle") + (view.ready ? " is-playing-film" : "")} style={frameStyle}
-      onPointerMove={(e) => { if (e.pointerType === "mouse") wake(); }} onPointerDown={pressStage}>
+      onPointerDown={pressStage} onPointerMove={moveOnStage} onPointerUp={liftFromStage}
+      onPointerCancel={(e) => { if (e.pointerType !== "mouse") gestures.onPointerCancel(e); }}>
+      {brightness < 1 && <div className="mp-dim" style={{ opacity: 1 - brightness }} aria-hidden="true" />}
       <div className="mp-backdrop" aria-hidden="true" />
       <div className="mp-shade" aria-hidden="true" />
 
@@ -443,6 +488,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
           {announcement.text}
         </div>
       )}
+      <GestureHud hud={gestures.hud} />
       {view.notices.length > 0 && (
         <div className="mp-notices">
           {view.notices.map((n) => <div key={n.id} className={"mp-notice mp-notice--" + n.kind}>{n.text}</div>)}
@@ -452,7 +498,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
       {/* ── What stands in the middle of the frame ── */}
       {waiting && <div className="mp-spinner" role="status" aria-label="Waiting for the film"><Icon name="loader-circle" size={36} className="mp-spin" /></div>}
       {preparing && <Preparing manifest={manifest} head={view.transcodeHead} />}
-      {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} onJoin={() => room.joinPlayback()} />}
+      {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} onJoin={() => { takeScreen(); room.joinPlayback(); }} />}
       {view.unplayable && <Message icon="circle-alert" title="This cannot play here" text={view.unplayable} />}
       {view.fatal && <Message icon="circle-alert" title={view.fatal} action={!embed && onBack ? { label: "Back", go: onBack } : null} />}
       {/* What the room waits on, over whatever it holds: a film pressed into an empty room, or the
@@ -476,11 +522,11 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
 
       {/* ── Bottom controls ── */}
       {manifest && view.ready && (size === "tiny"
-        ? <TinyControls room={room} view={view} clock={clock} duration={duration} onHold={hold} onMore={() => { setMenu(null); setOverflow((o) => !o); }} />
+        ? <TinyControls room={room} view={view} clock={clock} duration={duration} onHold={hold} swipe={swipe} onMore={() => { setMenu(null); setOverflow((o) => !o); }} />
         : (
           <div className="mp-bottom">
             <ScrubBar duration={duration} position={clock.position} ready={view.transcodeHead} buffered={clock.buffered}
-              thumbnails={view.thumbnails} chapters={manifest.chapters} onSeek={(s) => room.seek(s)} onHold={hold} />
+              thumbnails={view.thumbnails} chapters={manifest.chapters} onSeek={(s) => room.seek(s)} onHold={hold} swipe={swipe} />
             <div className="mp-controls">
               <button type="button" className="mp-play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => room.togglePlay()}>
                 <Icon name={clock.paused ? "play" : "pause"} size={compact ? 18 : 20} />
@@ -562,14 +608,14 @@ function MenuButton({ kind, icon, value, open, compact, onClick }) {
 }
 
 /** The single row a popped-out frame has room for. */
-function TinyControls({ room, view, clock, duration, onHold, onMore }) {
+function TinyControls({ room, view, clock, duration, onHold, swipe, onMore }) {
   return (
     <div className="mp-tiny">
       <button type="button" className="mp-play mp-play--small" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => room.togglePlay()}>
         <Icon name={clock.paused ? "play" : "pause"} size={16} />
       </button>
       <ScrubBar thin duration={duration} position={clock.position} ready={view.transcodeHead} buffered={clock.buffered}
-        thumbnails={null} onSeek={(s) => room.seek(s)} onHold={onHold} />
+        thumbnails={null} onSeek={(s) => room.seek(s)} onHold={onHold} swipe={swipe} />
       <span className="mp-tiny__left">-{formatTime(Math.max(0, duration - clock.position))}</span>
       <button type="button" className="mp-icon" aria-label="More" onClick={onMore}><Icon name="ellipsis" size={18} /></button>
     </div>

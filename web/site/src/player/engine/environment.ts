@@ -3,7 +3,7 @@
  *
  * Everything that differs between the site and the Discord Activity lives here: where the API is,
  * how a manifest-relative media path becomes a URL, which room this is, which title the launch
- * named, and who the viewer is. The rest of the player asks the environment and never reads
+ * named, who the viewer is, and how the film is held sideways on a phone. The rest of the player asks the environment and never reads
  * `location` or builds a URL of its own, so a front door with rewritten paths and an externally
  * supplied identity is a different implementation of this interface and nothing else.
  */
@@ -27,6 +27,16 @@ export interface Presence {
   others: number;
   /** The poster's file name under the title's media directory, when the film has one. */
   poster: string | null;
+}
+
+/**
+ * The film held sideways on a phone while the player is open. A browser gives a page the whole
+ * screen and its orientation only in answer to a press, so `enter` is called from one; a front door
+ * that needs no press holds it from the start and `enter` does nothing.
+ */
+export interface Landscape {
+  enter(): void;
+  release(): void;
 }
 
 export interface Environment {
@@ -56,6 +66,31 @@ export interface Environment {
   roomUrl(): string | null;
   /** Shows what this viewer is watching, or nothing when null. A front door with nowhere to show it does nothing. */
   setPresence(presence: Presence | null): Promise<void>;
+  /** Holds `frame` sideways on a phone; the player releases it when it closes. */
+  landscape(frame: HTMLElement): Landscape;
+}
+
+type LockableOrientation = ScreenOrientation & { lock?(orientation: string): Promise<void> };
+
+/**
+ * On a phone's browser the frame takes the whole screen and the screen turns sideways, the one
+ * order Chrome accepts: an orientation is locked only for a page that is full screen. A browser
+ * that grants neither, which is every browser on an iPhone, leaves the turning to the person.
+ * Leaving full screen lets go of the orientation with it, and the next press takes both back.
+ */
+function browserLandscape(frame: HTMLElement): Landscape {
+  const phone = window.matchMedia('(pointer: coarse)').matches;
+  return {
+    enter: () => {
+      if (!phone || !document.fullscreenEnabled || document.fullscreenElement !== null) return;
+      frame.requestFullscreen({ navigationUI: 'hide' })
+        .then(() => (screen.orientation as LockableOrientation).lock?.('landscape'))
+        .catch(() => { /* A refusal leaves the film where it is, which is still watchable. */ });
+    },
+    release: () => {
+      if (document.fullscreenElement === frame) void document.exitFullscreen().catch(() => {});
+    }
+  };
 }
 
 /** Where Krystal Cinema keeps the signed-in session. */
@@ -101,7 +136,8 @@ export function createSiteEnvironment(sessionId: string, titleId: string | null)
       return { userId: session.user.id, displayName: session.user.name };
     },
     roomUrl: () => `${origin}/r/${encodeURIComponent(sessionId)}`,
-    setPresence: () => Promise.resolve()
+    setPresence: () => Promise.resolve(),
+    landscape: browserLandscape
   };
 }
 

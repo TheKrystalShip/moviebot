@@ -1,10 +1,10 @@
 /**
  * What this browser remembers for its viewer.
  *
- * Volume and the track picked for each film are this device's and never reach the hub: shared
- * volume is a way for one person to deafen everyone else, and one person needing subtitles should
- * not put them on five other screens. Volume is held here because it is about the speakers in front
- * of the person; a track choice is held per title because a track id only means anything inside the
+ * Volume, brightness and the track picked for each film are this device's and never reach the hub:
+ * shared volume is a way for one person to deafen everyone else, and one person needing subtitles
+ * should not put them on five other screens. Volume and brightness are held here because they are
+ * about the speakers and the screen in front of the person; a track choice is held per title because a track id only means anything inside the
  * film it came from. The person's defaults — languages and quality — are the API's to keep, so they
  * follow them from the site into the Activity.
  */
@@ -18,6 +18,8 @@ interface TitlePrefs {
 interface Prefs {
   volume: number;
   muted: boolean;
+  /** How bright the picture is drawn, from 1 (as the film was made) down to `MinBrightness`. */
+  brightness: number;
   byTitle: Record<string, TitlePrefs>;
 }
 
@@ -25,7 +27,7 @@ function empty(): Prefs {
   // Half volume to start. A film mastered for a cinema is punishing at full on laptop speakers,
   // and the first thing a new viewer would otherwise do is scramble for the control. Anyone who
   // has already set their own volume keeps it: this is only the starting point.
-  return { volume: 0.5, muted: false, byTitle: {} };
+  return { volume: 0.5, muted: false, brightness: 1, byTitle: {} };
 }
 
 function read(): Prefs {
@@ -36,6 +38,7 @@ function read(): Prefs {
     return {
       volume: typeof parsed.volume === 'number' ? parsed.volume : empty().volume,
       muted: parsed.muted === true,
+      brightness: typeof parsed.brightness === 'number' ? clampBrightness(parsed.brightness) : 1,
       byTitle: parsed.byTitle ?? {}
     };
   } catch {
@@ -51,6 +54,11 @@ function write(prefs: Prefs): void {
   }
 }
 
+/** The darkest the picture is drawn: dim enough for a dark room, never so dark it is gone. */
+export const MinBrightness = 0.2;
+
+export const clampBrightness = (value: number): number => Math.min(1, Math.max(MinBrightness, value));
+
 export const prefs = {
   volume: () => read().volume,
   muted: () => read().muted,
@@ -59,6 +67,14 @@ export const prefs = {
     const next = read();
     next.volume = volume;
     next.muted = muted;
+    write(next);
+  },
+
+  brightness: () => read().brightness,
+
+  setBrightness(brightness: number): void {
+    const next = read();
+    next.brightness = clampBrightness(brightness);
     write(next);
   },
 

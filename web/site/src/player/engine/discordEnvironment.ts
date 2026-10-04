@@ -1,4 +1,4 @@
-import { DiscordSDK } from '@discord/embedded-app-sdk';
+import { Common, DiscordSDK } from '@discord/embedded-app-sdk';
 import type { Environment, Identity, Presence } from './environment';
 
 /**
@@ -134,6 +134,13 @@ export async function createDiscordEnvironment(
     // The page's own origin is Discord's proxy, which opens nowhere outside the Activity. The
     // public address is the site, where the same room is open to anyone signed in.
     roomUrl: () => (publicBaseUrl === null ? null : `${publicBaseUrl}/r/${encodeURIComponent(sessionId)}`),
-    setPresence
+    setPresence,
+    // Discord turns its own window and asks for no press. A desktop client has nothing to turn
+    // and an older one lacks the command; neither is a reason to interrupt the film.
+    landscape: () => {
+      const lock = (lock_state: 1 | 3) => void sdk.commands.setOrientationLockState({ lock_state }).catch(() => {});
+      lock(Common.OrientationLockStateTypeObject.LANDSCAPE);
+      return { enter: () => {}, release: () => lock(Common.OrientationLockStateTypeObject.UNLOCKED) };
+    }
   };
 }

@@ -159,8 +159,9 @@ The site installs as an app, Krystal Cinema, from Android Chrome's "Install app"
 
 - **`public/manifest.webmanifest`** is what Chrome reads: name, standalone display, the canvas colour
   and a 192, a 512 and a maskable icon, without which it offers no install. It names no
-  `orientation`, because any value there overrides the phone's rotation lock in the installed app,
-  and a film is watched sideways by turning the phone.
+  `orientation`, because any value there holds every page of the installed app to it against the
+  phone's rotation lock. The player turns the screen sideways itself, for as long as it is open
+  (`src/player/CLAUDE.md`).
 - **`index.html`** carries what Safari reads instead: the home-screen icons and title, standalone
   display, the black status bar the page starts below, and a launch screen per iPhone and iPad size.
 - **The artwork** under `public/icons/` and `public/splash/` is written by `scripts/make-icons.mjs`

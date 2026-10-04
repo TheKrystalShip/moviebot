@@ -11,7 +11,8 @@ sync controller, the stream, the room) and the components draw what `engine/room
 Everything that differs between the site and the Activity is behind `Environment`
 (`engine/environment.ts`): where the API is, how a manifest-relative media path becomes a URL, which
 room this is, which film the launch named and where in it to start, who the viewer is, the link that hands the room to someone
-else, and where their presence is shown. Nothing else reads `location` or builds a URL. The site's
+else, where their presence is shown, and how the film is held sideways on a phone. Nothing else reads
+`location` or builds a URL. The site's
 room is the address and its viewer whoever signed in; the Activity's room is the voice channel and its
 viewer whoever Discord says, so `engine/discordEnvironment.ts` is the other implementation and nothing
 more.
@@ -80,11 +81,34 @@ more.
   compact one (an Activity at its default size, a phone) has icons and menus as sheets from the bottom
   edge; a tiny one (a popped-out Activity, small in both directions) is one row with an overflow menu.
   Width alone does not make a frame tiny: a phone held upright is as narrow as a popped-out view, and
-  is compact, keeping its way back and its invite. A mouse click on the film
-  plays or pauses it; a touch shows or hides the controls, because a thumb reaching for the screen is
-  reaching for them.
-- **Fullscreen exists only where the browser grants it.** Inside Discord's iframe it is not given to an
-  Activity, and the player already fills the frame there.
+  is compact, keeping its way back and its invite. A mouse click on the film plays or pauses it.
+- **A finger on the film is read as gestures** (`Gestures.jsx`), in three columns. A tap in the
+  middle plays or pauses the room; a tap at either side shows or hides the controls, and waits a
+  moment first to learn whether it is the first of two. Two taps at a side skip back or forward by
+  the same step as the buttons, and each further tap while the skip is gathering adds a step; the
+  skip goes to the room once, when the taps stop, because a second seek asked before the first is
+  answered is measured from a playhead that has not moved. A sweep sideways anywhere is the scrub
+  bar under the thumb: the width of the frame is the length of the film, the bar previews where
+  letting go lands, and nothing moves until it does. A sweep up or down at the right is this
+  viewer's volume, and at the left how bright the picture is drawn. Before the film is in the
+  element a touch only shows or hides what is over the frame.
+- **Brightness is how dark the picture is drawn, not the screen's.** A page has no hold on the
+  screen's backlight, so the left sweep fades a black layer over the film, from none to most of the
+  way. The subtitles sit above it at the brightness they were styled at. Like volume it is the
+  browser's to remember, since it is about the screen in front of the person.
+- **Volume is offered only where a page can set it.** iOS plays a page's media at the level the
+  hardware buttons set and ignores what the page asks, so there the right sweep does nothing.
+  Elsewhere it moves the player's own level, which the phone's media volume caps.
+- **A phone watches sideways and full screen, and has no button for either.** The front door holds
+  the film in landscape (`Environment.landscape`) while the player is open. A browser grants the
+  whole screen and its orientation only in answer to a press, so the site takes both on the Join
+  press or the next touch on the film, full screen first because Chrome locks an orientation only
+  for a page that is; leaving full screen gives both up until the next touch takes them back. A
+  browser that grants neither, which is every browser on an iPhone, leaves the turning to the
+  person. The Activity asks Discord, which turns its own window and needs no press. The manifest
+  names no orientation, so the rest of the installed site follows the phone's rotation lock.
+- **Fullscreen is a button only where the pointer is a mouse and the browser grants it.** Inside
+  Discord's iframe it is not given to an Activity, and the player already fills the frame there.
 - **Quality is offered only where there is a choice.** A film with one rung has nothing to choose
   between, and where the browser plays HLS itself it chooses for itself and says nothing about it.
 
@@ -120,8 +144,8 @@ more.
   language, audio language, quality, how subtitles look and whether stretches are skipped
   automatically come from `/api/me/preferences`, so they follow the person
   between the site and the Activity; the track picked for a film is held in `localStorage` per title,
-  because a track id means nothing outside the film it came from. Volume stays in the browser: it is
-  about the speakers in front of the person.
+  because a track id means nothing outside the film it came from. Volume and brightness stay in the
+  browser: they are about the speakers and the screen in front of the person.
 
 ## Each viewer's own presence
 

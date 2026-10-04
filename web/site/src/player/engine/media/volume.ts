@@ -24,3 +24,18 @@ export function amplitudeFor(position: number): number {
 
 /** One key press or one notch of the wheel. */
 export const VolumeStep = 0.05;
+
+/**
+ * Whether this browser lets a page set a media element's volume. iOS does not: the element plays
+ * at the level the hardware buttons set and reads back 1 whatever it was given, so a control that
+ * moves it would move nothing.
+ */
+export function volumeIsSettable(): boolean {
+  try {
+    const probe = document.createElement('audio');
+    probe.volume = 0.5;
+    return probe.volume === 0.5;
+  } catch {
+    return false;
+  }
+}

@@ -39,14 +39,18 @@ function frameStyle(strip, url, at, width) {
  * it lands. While a drag is held the bar says where letting go takes everybody, measured from
  * where the film is now.
  *
+ * `swipe` is a drag held somewhere else — a finger swept across the film — and the bar says where
+ * letting go of it takes everybody exactly as it says it for its own.
+ *
  * The thin variant is the bar alone, for a frame too small to carry anything beside it.
  */
-export function ScrubBar({ duration, position, ready, buffered, thumbnails, chapters, onSeek, onHold, thin = false }) {
+export function ScrubBar({ duration, position, ready, buffered, thumbnails, chapters, onSeek, onHold, swipe = null, thin = false }) {
   const barRef = React.useRef(null);
   const [hover, setHover] = React.useState(null);
-  const [drag, setDrag] = React.useState(null);
+  const [held, setDrag] = React.useState(null);
   const dragRef = React.useRef(null);
-  dragRef.current = drag;
+  dragRef.current = held;
+  const drag = held ?? swipe;
 
   const at = (clientX) => {
     const box = barRef.current.getBoundingClientRect();

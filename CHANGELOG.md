@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.88.0] - 2026-10-04
+
+### Added
+
+- Touch gestures on the player. A tap in the middle of the film plays or pauses it; a tap at either
+  side shows or hides the controls; two taps at a side skip back or forward ten seconds, and each
+  further tap adds ten more, sent to the room as one seek once the taps stop. A sweep sideways
+  anywhere on the film scrubs it, the width of the frame standing for the whole film, previewed on
+  the scrub bar and sent when the finger lifts. A sweep up or down at the right sets this viewer's
+  volume, where the browser lets a page set one (not on iOS), and at the left dims the picture,
+  which the browser remembers like volume. The subtitles stay at their own brightness.
+- On a phone the player takes the whole screen and turns it sideways on the Join press or the first
+  touch on the film, and takes both back on the next touch after leaving full screen. The Discord
+  Activity asks Discord to hold its window in landscape. iPhones grant neither, so there the phone is
+  turned by hand.
+
+### Changed
+
+- A phone's player has no full screen button, since it is always full screen.
+
 ## [1.87.1] - 2026-10-04
 
 ### Changed
