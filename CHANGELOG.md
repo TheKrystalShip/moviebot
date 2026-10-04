@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.89.0] - 2026-10-04
+
+### Changed
+
+- What somebody does to a room — playing, pausing, moving, changing the film — is said over the film
+  to everyone in it, the person who did it included, as "You paused" on their own screen and "Ada
+  paused" on everybody else's. It reads the same on every screen size, on the site and in the Discord
+  Activity.
+
 ## [1.88.0] - 2026-10-04
 
 ### Added

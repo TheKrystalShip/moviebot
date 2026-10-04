@@ -325,7 +325,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
     return () => window.clearInterval(timer);
   }, [video, room, view.state]);
 
-  // Somebody else's act on the room, said over the film with their mark beside it.
+  // An act on the room, anybody's, said over the film with their mark beside it.
   React.useEffect(() => room.onAnnounce((said) => {
     setAnnouncement({ ...said, key: Date.now() });
   }), [room]);

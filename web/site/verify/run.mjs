@@ -111,9 +111,13 @@ async function roomChecks(browser) {
   check('a later arrival on the same link does not load it again', !(await sent(bob)).includes('"LoadTitle"'));
 
   await press(bob, '.mp-play');
-  await ada.waitForSelector('.mp-event', { timeout: 5000 }).catch(() => null);
+  // Ada's own load of the film is said to her too, and may still be up.
+  await ada.waitForFunction(() => /Bob/.test(document.querySelector('.mp-event')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => null);
   const said = await ada.textContent('.mp-event').catch(() => '');
   check('a play by one is announced to the other, with who did it', /Bob/.test(said), said);
+  await bob.waitForSelector('.mp-event', { timeout: 5000 }).catch(() => null);
+  const own = await bob.textContent('.mp-event').catch(() => '');
+  check('and to the one who did it, as theirs', /^\S*You resumed$/.test(own.trim()), own);
   await wait(1500);
   check('and both are playing', !(await playhead(ada)).paused && !(await playhead(bob)).paused);
 

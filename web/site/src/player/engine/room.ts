@@ -77,7 +77,7 @@ export interface RoomView {
   preferences: ViewerPreferences;
 }
 
-/** What somebody else did to the room, and who did it. */
+/** What somebody in the room did to it, this viewer included, and who did it. */
 export interface Announcement {
   text: string;
   actor: Actor | null;
@@ -305,16 +305,16 @@ export class PlayerRoom {
   // ── What the room says ───────────────────────────────────────────────────────────────────
 
   private onState(state: SessionState, identity: Identity, launched: string | null): void {
-    // Said on screen to everyone but the person who did it: they pressed the key or the button,
-    // and the badge for their own seek is already up. Only a state that moved the room on from
-    // the last one counts; the first state is the room being joined, and a resync hands back a
-    // state already seen, and neither is anybody acting on it.
+    // Said on screen to everyone in the room, the person who did it included, so what one person
+    // sees happen is what everybody sees. Only a state that moved the room on from the last one
+    // counts; the first state is the room being joined, and a resync hands back a state already
+    // seen, and neither is anybody acting on it.
     const previous = this.previous;
     const advanced = previous !== null
       && state.epoch === previous.epoch
       && state.revision > previous.revision;
-    const change = advanced ? describeChange(state, previous) : null;
-    if (change !== null && state.updatedBy?.userId !== identity.userId) {
+    const change = advanced ? describeChange(state, previous, identity.userId) : null;
+    if (change !== null) {
       for (const announce of this.announcers) announce({ text: change, actor: state.updatedBy ?? null });
     }
 

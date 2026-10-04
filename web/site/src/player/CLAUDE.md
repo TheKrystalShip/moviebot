@@ -74,9 +74,11 @@ more.
   film too. No key is bound to it, for the reason above.
 - **A control that already answers a key keeps it.** The scrub bar and the volume slider handle the
   arrows when focused; taking them globally as well moves the film, or the volume, twice for one press.
-- **What somebody else did to the room is said over the film, to everyone but them**, with their mark
-  beside it. A pause looks like a stall and a seek inside the scene looks like nothing. Only a state
-  that advanced the room's revision counts: a resync hands back a state already seen.
+- **What anybody did to the room is said over the film, to everyone in it, them included**, with
+  their mark beside it: "Ada paused" for the others and "You paused" for Ada, on every frame size
+  and every front door. A pause looks like a stall and a seek inside the scene looks like nothing,
+  and the person who did it sees the same confirmation the room does. Only a state that advanced
+  the room's revision counts: a resync hands back a state already seen.
 - **The frame decides the layout, not the device.** A wide frame has labelled controls and popovers; a
   compact one (an Activity at its default size, a phone) has icons and menus as sheets from the bottom
   edge; a tiny one (a popped-out Activity, small in both directions) is one row with an overflow menu.

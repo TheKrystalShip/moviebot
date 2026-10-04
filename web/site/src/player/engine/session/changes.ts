@@ -6,11 +6,13 @@ import { formatTime } from '../format';
  *
  * The line under the player and the bubble in the middle of the screen both say it, and two
  * spellings of "paused" would have the room read as two different events. Null when the state
- * names nobody, which is a room restored or reset rather than one somebody touched.
+ * names nobody, which is a room restored or reset rather than one somebody touched. Given the
+ * viewer's own id, their own act is "You paused".
  */
-export function describeChange(state: SessionState, previous: SessionState | null): string | null {
-  const who = state.updatedBy?.displayName;
-  if (who === undefined) return null;
+export function describeChange(state: SessionState, previous: SessionState | null, viewerId?: string): string | null {
+  const actor = state.updatedBy;
+  if (actor === undefined || actor === null) return null;
+  const who = actor.userId === viewerId ? 'You' : actor.displayName;
 
   const what =
     previous === null || previous.titleId !== state.titleId
