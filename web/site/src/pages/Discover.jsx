@@ -6,7 +6,11 @@ import { useCan } from "../session.js";
 import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { Failed, FilmCard, PageHead, ShowCard, watchHref } from "../components/Film.jsx";
+import { FilmActions } from "../components/FilmActions.jsx";
+import { FilmScore } from "../components/FilmDetails.jsx";
+import { RequestSheet } from "../components/RequestSheet.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
+import { openingEpisode, watchOpening } from "../watchNow.js";
 
 /** The class the page's field carries, so the shortcut that opens the page can find it. */
 export const DISCOVER_FIELD = "kc-search--discover";
@@ -56,6 +60,7 @@ export function Discover({ query }) {
   const answeredIds = new Set(found.map((t) => t.imdbId));
   const libraryFilms = inLibrary.filter((t) => !(t.film && answeredIds.has(t.film.imdbId)));
   const libraryShowsNamed = showsHere.filter((s) => !answeredIds.has(s.imdbId));
+  const showsHereById = new Map((libraryShows.data || []).filter((s) => s.imdbId).map((s) => [s.imdbId, s]));
   const where = (t) => ({ here: t.kind === "film" ? filmsHere.get(t.imdbId) : null, held: t.kind === "show" && heldShows.has(t.imdbId) });
   const [best, ...rest] = found;
 
@@ -96,7 +101,7 @@ export function Discover({ query }) {
       {q && (
         <>
           {!answered && <ResultsSkeleton />}
-          {best && <BestMatch found={best} {...where(best)} />}
+          {best && <BestMatch key={best.imdbId} found={best} {...where(best)} shelf={showsHereById.get(best.imdbId)} />}
           {rest.length > 0 && (
             <section className="kc-shelf">
               <div className="kc-shelf__head"><h2>More results</h2></div>
@@ -190,9 +195,10 @@ function foundPage(found, here, held) {
 
 /**
  * The catalogue's first answer to a name, which is usually the one meant: large enough to recognise,
- * with its cast to tell it from another of the same name, and what can be done with it from here.
+ * with its cast to tell it from another of the same name, and the actions its own page offers, asked
+ * for as soon as it is shown, so it can be watched or fetched without opening it.
  */
-function BestMatch({ found, here, held }) {
+function BestMatch({ found, here, held, shelf }) {
   const show = found.kind === "show";
   const page = foundPage(found, here, held);
   const inLibrary = show ? held : !!here;
@@ -211,25 +217,91 @@ function BestMatch({ found, here, held }) {
           <span className="kc-eyebrow">{show ? "TV series" : "Movie"}</span>
           <h2><a {...linkProps(page)}>{found.title}</a></h2>
           <div className="kc-tt__meta">
+            <FilmScore rating={found.rating} votes={found.votes} compact />
             {found.year && <span className="kc-tt__year">{found.year}</span>}
             {inLibrary && <span className="kc-pill kc-pill--here"><Icon name="check" size={13} />In the library</span>}
           </div>
           {found.starring && <span className="kc-hit__cast">{found.starring}</span>}
-          <div className="kc-hit__actions">
-            {playable && (
-              <button type="button" className="kc-btn kc-btn--primary" onClick={() => navigate(watchHref(here.id))}>
-                <Icon name="play" size={16} />Watch
-              </button>
-            )}
-            <SaveButton imdbId={found.imdbId} kind={show ? "show" : "film"} title={found.title} />
-          </div>
+        </div>
+        <div className="kc-hit__more">
+          {found.overview && <p className="kc-hit__overview">{found.overview}</p>}
+          {show
+            ? <ShowMatchActions found={found} shelf={shelf} />
+            : here
+              ? (
+                <div className="kc-actions">
+                  {playable && (
+                    <button type="button" className="kc-btn kc-btn--primary kc-btn--lg" onClick={() => navigate(watchHref(here.id))}>
+                      <Icon name="play" size={18} />Watch
+                    </button>
+                  )}
+                  <SaveButton imdbId={found.imdbId} kind="film" title={found.title} />
+                </div>
+              )
+              : <FilmMatchActions found={found} />}
         </div>
       </div>
     </article>
   );
 }
 
-/** Any other answer, as a poster card: its year, whether it is a film or a show, and its cast. */
+/** A film that is not here, as its own page offers it: the tracker is asked as soon as it is shown. */
+function FilmMatchActions({ found }) {
+  const downloading = useCan("cinema:download");
+  const wishing = useCan("cinema:wish");
+  const state = useLoad(() => (downloading || wishing ? api.availability(found.imdbId) : Promise.resolve(null)), [found.imdbId, downloading, wishing]);
+  const film = { title: found.title, year: found.year, posterUrl: found.posterUrl, directors: [] };
+  return <FilmActions imdbId={found.imdbId} film={film} state={state} />;
+}
+
+/**
+ * A show as its own page offers it: Watch or Resume from the library when an episode is here,
+ * otherwise Watch its first episode while it arrives and Download, from its seasons as the film
+ * database lists them.
+ */
+function ShowMatchActions({ found, shelf }) {
+  const downloading = useCan("cinema:download");
+  const described = useLoad(() => (shelf || !downloading ? Promise.resolve(null) : api.show(found.imdbId).catch(() => null)), [found.imdbId, shelf, downloading]);
+  const [requesting, setRequesting] = React.useState(false);
+  const [starting, setStarting] = React.useState(false);
+  const s = described.data;
+  const opening = s && openingEpisode(s);
+  const resume = shelf && shelf.resume;
+
+  const watchFirst = async () => {
+    setStarting(true);
+    await watchOpening(s);
+    setStarting(false);
+  };
+
+  return (
+    <div className="kc-actions">
+      {shelf && (
+        <button type="button" className="kc-btn kc-btn--primary kc-btn--lg"
+          onClick={() => navigate(watchHref(resume ? resume.titleId : shelf.firstTitleId, null, resume && resume.positionSeconds))}>
+          <Icon name="play" size={18} />{resume ? "Resume" : "Watch"}
+        </button>
+      )}
+      {!shelf && downloading && !s && described.loading && <Skeleton w={120} h={48} r={8} />}
+      {!shelf && opening && (
+        <button type="button" className="kc-btn kc-btn--primary kc-btn--lg" disabled={starting} onClick={watchFirst}>
+          <Icon name="play" size={18} />Watch
+        </button>
+      )}
+      {!shelf && s && (
+        <button type="button" className="kc-btn kc-btn--lg" onClick={() => setRequesting(true)}>
+          <Icon name="download" size={17} />Download
+        </button>
+      )}
+      <SaveButton imdbId={found.imdbId} kind="show" title={found.title} />
+      {requesting && s && (
+        <RequestSheet show={s} onClose={() => setRequesting(false)} onStarted={() => setRequesting(false)} />
+      )}
+    </div>
+  );
+}
+
+/** Any other answer, as a poster card: its rating, year, whether it is a film or a show, and its cast. */
 function FoundCard({ found, here, held }) {
   const show = found.kind === "show";
   const inLibrary = show ? held : !!here;
@@ -241,6 +313,7 @@ function FoundCard({ found, here, held }) {
       art={found.posterUrl ? `url("${found.posterUrl}")` : null}
       onPick={() => navigate(foundPage(found, here, held))}
       specs={[
+        { icon: "star", value: found.rating != null ? found.rating.toFixed(1) : null, label: "Rating" },
         { icon: "calendar", value: found.year || null, label: "Year" },
         { icon: show ? "tv" : "clapperboard", value: show ? "Series" : "Movie", label: "Type" },
       ]}

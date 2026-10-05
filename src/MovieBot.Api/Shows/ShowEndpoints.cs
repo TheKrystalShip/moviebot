@@ -112,8 +112,8 @@ public static class ShowEndpoints
 
         // The shows the title index offers for a name, for a search box: a show is fetched by its
         // seasons from its own page, which is where these lead.
-        app.MapGet("/api/shows/find", async (string? q, Acquire.Imdb.ImdbClient index, CancellationToken ct) =>
-            Results.Ok((await index.SuggestShowsAsync(q ?? "", ct)).Select(FoundTitle.From).ToList()))
+        app.MapGet("/api/shows/find", async (string? q, Acquire.Imdb.ImdbClient index, TitleSearch search, CancellationToken ct) =>
+            Results.Ok(await search.FindAsync(index, q ?? "", SearchKinds.Shows, ct)))
             .RequireAction(CinemaActions.Download);
 
         // The artwork kept beside each description, open like any other: an <img> carries no token.

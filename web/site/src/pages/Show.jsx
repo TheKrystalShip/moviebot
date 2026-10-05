@@ -12,7 +12,7 @@ import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton, bytes } 
 import { FollowButton } from "../components/FollowButton.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { RequestSheet, plan } from "../components/RequestSheet.jsx";
-import { watchNow } from "../watchNow.js";
+import { openingEpisode, watchNow, watchOpening } from "../watchNow.js";
 import { downloadWords } from "./Discover.jsx";
 
 /**
@@ -75,23 +75,12 @@ export function Show({ imdbId, season, inLibrary }) {
   const play = resume || (first && { titleId: first.titleId, season: first.season, episode: first.number, positionSeconds: 0 });
   const room = play && (rooms.data || []).find((r) => r.titleId === play.titleId && r.participants > 0);
   // With nothing of the show here, Watch starts its first episode while it arrives.
-  const opening = seasons.filter((x) => x.number >= 1 && x.episodes.length > 0).map((x) => x.episodes[0])[0] || null;
+  const opening = openingEpisode(s);
 
   const watchFirst = async () => {
     setStarting(true);
-    try {
-      const offers = await api.showReleases(s.imdbId);
-      const picked = plan(offers, { [opening.season]: new Set([opening.number]) }, "720p").torrents[0];
-      if (!picked) {
-        toast.info(`The tracker has nothing of ${s.title} Season ${opening.season} to watch yet.`);
-        return;
-      }
-      await watchNow({ imdbId: s.imdbId, torrentId: picked.offer.torrentId, episodes: [{ season: opening.season, episode: opening.number }] });
-    } catch (error) {
-      toast.fromError(error, "That could not be started");
-    } finally {
-      setStarting(false);
-    }
+    await watchOpening(s);
+    setStarting(false);
   };
   const years = s.firstYear ? `${s.firstYear}–${s.inProduction ? "" : s.lastYear || ""}` : null;
   const episodeCount = seasons.reduce((n, x) => n + x.episodes.length, 0);

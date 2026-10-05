@@ -208,7 +208,9 @@
   // credential and is set only in the environment as Tmdb__ReadAccessToken; without one, films are
   // described by the title index alone. Region picks whose certificate a film is shown with. The
   // films and shows trending this week, with their posters, are kept under PopularDirectory (an empty
-  // one is popular/ in the state directory) and asked for again every few hours.
+  // one is popular/ in the state directory) and asked for again every few hours. A search result's
+  // rating and overview are kept under GlancesDirectory (an empty one is glances/ in the state
+  // directory): a year for a title out over a year, a week for anything newer.
   "Tmdb": {
     "BaseUrl": "https://api.themoviedb.org/3",
     "ImageBaseUrl": "https://image.tmdb.org/t/p",
@@ -218,6 +220,7 @@
     "Directory": "",
     "ShowsDirectory": "",
     "PopularDirectory": "",
+    "GlancesDirectory": "",
     "RefreshDays": 14
   },
 

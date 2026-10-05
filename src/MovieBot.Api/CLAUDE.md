@@ -62,6 +62,13 @@ and keeps are `Acquisition/CLAUDE.md`; the plan the hand-off transcodes by is
   `Films/PopularNow` keeps the week's trending films and shows under `popular/`, the list and one
   poster per entry and nothing more, asked for every six hours and served at `/api/popular` and
   `/popular/{imdbId}.jpg`; an entry's page asks for the rest of it when it is opened.
+  A search result's rating and overview are `Films/TitleGlances`, one lookup by IMDb id per title
+  kept under `glances/`: a title already described answers from its description, a search waits
+  for new lookups at most a second and a half, and a kept one is refreshed in the background, after
+  a year for a title out over a year and after a week for anything newer. A result's poster is the
+  one its page shows: the described title's kept poster, or the glance's, fetched once beside it and
+  served at `/glances/{imdbId}/poster.jpg`. `Acquisition/TitleSearch` holds the title index's answer
+  for a name in memory for an hour.
 - **The shelf is listed from memory.** `Library/LibraryListing` rebuilds the library's list every
   ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/shows/{imdbId}` and a title's
   neighbours read that list. Building it asks the filesystem about every title, and on hotbox, short

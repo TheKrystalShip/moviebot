@@ -4,6 +4,32 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-10-05
+
+### Added
+
+- **Discover's results carry the film database's rating, and the first answer what it is about.**
+  Each title the title index answers with is looked up by its IMDb id in the film database, every
+  title of a search at once; a title already described answers from its description. A lookup is
+  kept on disk under `glances/` (`Tmdb:GlancesDirectory`), a year for a title out over a year and a
+  week for anything newer, refreshed in the background so no search waits on a refresh, and a search
+  waits for new lookups at most a second and a half. The index's answer for a name is held in memory
+  for an hour. `FoundTitle` gains `rating`, `votes` and `overview`. Api 2.3.0, site 0.29.0.
+- **Discover's first answer offers what its page offers.** A film not here asks the tracker as soon as
+  it is shown and carries Watch, Download or Notify (`components/FilmActions.jsx`, which the film's
+  page uses too); a show carries Watch and Resume from the library, or Watch its first episode and
+  Download.
+
+### Changed
+
+- **A search result shows the poster its page shows.** `posterUrl` is the film database's poster,
+  served from here: the described title's kept one, or one fetched once beside its glance and served
+  at `/glances/{imdbId}/poster.jpg`. The title index's poster stands in only where the database has
+  none.
+- **The API keeps its connections to the title index and the film database open**, one handler each
+  for the life of the process, HTTP/2 where they speak it, and a ping every thirty seconds, so a
+  search asks over a connection already open. On moviebot-acquire 0.33.0.
+
 ## [2.3.0] - 2026-10-05
 
 ### Added

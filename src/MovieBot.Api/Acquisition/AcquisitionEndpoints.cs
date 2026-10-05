@@ -38,14 +38,14 @@ public static class AcquisitionEndpoints
         // The films the title index offers for a name, for a search box: each leads to its own page,
         // which is where whether it can be watched is asked. Finding a film is how a download and a
         // wish both begin.
-        group.MapGet("/films/find", async (string? q, ImdbClient index, CancellationToken ct) =>
-            Results.Ok((await index.SuggestAsync(q ?? "", ct)).Select(FoundTitle.From).ToList()))
+        group.MapGet("/films/find", async (string? q, ImdbClient index, TitleSearch search, CancellationToken ct) =>
+            Results.Ok(await search.FindAsync(index, q ?? "", SearchKinds.Films, ct)))
             .RequireAction(CinemaActions.Download, CinemaActions.Wish);
 
         // Films and shows together, in the index's own order, so the likeliest answer to a name comes
         // first whichever it is. A show is fetched by its seasons, so this takes downloading.
-        group.MapGet("/titles/find", async (string? q, ImdbClient index, CancellationToken ct) =>
-            Results.Ok((await index.SuggestTitlesAsync(q ?? "", ct)).Select(FoundTitle.From).ToList()))
+        group.MapGet("/titles/find", async (string? q, ImdbClient index, TitleSearch search, CancellationToken ct) =>
+            Results.Ok(await search.FindAsync(index, q ?? "", SearchKinds.Both, ct)))
             .RequireAction(CinemaActions.Download);
 
         // Whether a film can be watched and how: here, arriving, offered at 1080p and 720p, or not out.

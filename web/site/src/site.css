@@ -274,7 +274,13 @@ button { font-family: inherit; }
   filter: blur(36px) saturate(1.3); opacity: 0.45;
 }
 .kc-hit__shade { position: absolute; inset: 0; background: linear-gradient(to right, var(--canvas) 10%, transparent 90%); opacity: 0.7; }
-.kc-hit__grid { position: relative; display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 28px; padding: 24px; align-items: center; }
+.kc-hit__grid {
+  position: relative; display: grid; grid-template-columns: 170px minmax(0, 1fr); column-gap: 28px; row-gap: 12px;
+  grid-template-areas: "poster body" "poster more"; grid-template-rows: auto 1fr; padding: 24px; align-content: center;
+}
+.kc-hit__poster { grid-area: poster; align-self: center; }
+.kc-hit__body { grid-area: body; align-self: end; }
+.kc-hit__more { grid-area: more; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .kc-hit__poster {
   display: grid; place-items: center; width: 170px; aspect-ratio: 2 / 3; overflow: hidden;
   border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface-2); color: var(--fg-4);
@@ -284,15 +290,23 @@ button { font-family: inherit; }
 .kc-hit__body h2 { margin: 0; font-size: 30px; font-weight: 700; line-height: 1.15; letter-spacing: -0.015em; text-wrap: balance; }
 .kc-hit__body h2 a:hover { color: var(--krystal-teal-hover); }
 .kc-hit__cast { font-size: 14px; color: var(--fg-2); }
-.kc-hit__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.kc-hit__overview {
+  margin: 0; max-width: 68ch; font-size: 14px; line-height: 1.5; color: var(--fg-2); text-wrap: pretty;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
+}
+.kc-hit__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 /* A card's cast line is text alone, which ends in an ellipsis only as a block. */
 .kc-found .showcase-card__status:not([class*="--"]) { display: block; }
 .kc-found__skel-foot { display: grid; gap: 14px; padding: 12px 14px 16px; }
 .kc-pill--here { gap: 5px; border-color: transparent; background: var(--success-bg); color: var(--success-fg); }
 @media (max-width: 720px) {
-  .kc-hit__grid { grid-template-columns: 112px minmax(0, 1fr); gap: 16px; padding: 16px; align-items: start; }
-  .kc-hit__poster { width: 112px; }
-  .kc-hit__body { gap: 8px; }
+  .kc-hit__grid {
+    grid-template-columns: 112px minmax(0, 1fr); grid-template-areas: "poster body" "more more"; grid-template-rows: auto;
+    gap: 16px; padding: 16px;
+  }
+  .kc-hit__poster { width: 112px; align-self: start; }
+  .kc-hit__body { gap: 8px; align-self: center; }
+  .kc-hit__overview { font-size: 13.5px; }
   .kc-hit__body h2 { font-size: 22px; }
   .kc-hit__cast { font-size: 13px; }
 }

@@ -36,13 +36,15 @@ public sealed class FilmDatabaseStub : HttpMessageHandler
         var path = request.RequestUri!.AbsolutePath;
 
         if (path.EndsWith("/find/tt0113277")) return Json("""{ "movie_results": [ { "id": 949 } ] }""");
+        if (path.EndsWith("/find/tt0325980"))
+            return Json("""{ "movie_results": [ { "id": 22, "overview": "A blacksmith and a pirate.", "vote_average": 7.81, "vote_count": 21000, "release_date": "2003-07-09", "poster_path": "/pearl.jpg" } ] }""");
         if (path.Contains("/find/")) return Json("""{ "movie_results": [] }""");
         if (path.EndsWith("/movie/949")) return Json(Heat);
         if (path.EndsWith("/trending/movie/week"))
             return Json("""{ "results": [ { "id": 949, "title": "Heat", "release_date": "1995-12-15", "vote_average": 7.9, "vote_count": 8740, "poster_path": "/heat-poster.jpg" } ] }""");
         if (path.EndsWith("/trending/tv/week")) return Json("""{ "results": [] }""");
         if (path.EndsWith("/movie/949/external_ids")) return Json("""{ "imdb_id": "tt0113277" }""");
-        if (path.EndsWith("/heat-poster.jpg") || path.EndsWith("/pacino.jpg"))
+        if (path.EndsWith("/heat-poster.jpg") || path.EndsWith("/pacino.jpg") || path.EndsWith("/pearl.jpg"))
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([0xFF, 0xD8, 0xFF]) });
         return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
     }

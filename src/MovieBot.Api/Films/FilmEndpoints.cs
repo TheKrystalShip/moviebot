@@ -46,5 +46,14 @@ public static class FilmEndpoints
             context.Response.Headers.CacheControl = "public, max-age=86400";
             return Results.File(path, "image/jpeg", enableRangeProcessing: false);
         }).AllowAnonymous();
+
+        // A search result's poster, the one its page shows, fetched the first time it is asked for if
+        // the glance's own fetch has not kept it yet.
+        app.MapMethods("/glances/{imdbId}/poster.jpg", ["GET", "HEAD"], async (string imdbId, TitleGlances glances, HttpContext context) =>
+        {
+            if (await glances.PosterFileAsync(imdbId) is not { } path) return Results.NotFound();
+            context.Response.Headers.CacheControl = "public, max-age=86400";
+            return Results.File(path, "image/jpeg", enableRangeProcessing: false);
+        }).AllowAnonymous();
     }
 }

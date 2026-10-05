@@ -119,6 +119,7 @@ public class SessionFixture : WebApplicationFactory<Program>
                 ["Tmdb:Directory"] = Path.Combine(StateRoot, "films"),
                 ["Tmdb:ShowsDirectory"] = Path.Combine(StateRoot, "shows"),
                 ["Tmdb:PopularDirectory"] = Path.Combine(StateRoot, "popular"),
+                ["Tmdb:GlancesDirectory"] = Path.Combine(StateRoot, "glances"),
             }));
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(MoreSettings()));
 

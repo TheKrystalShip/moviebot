@@ -97,7 +97,8 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<WatchRecorder>());
 builder.Services.Configure<TmdbOptions>(builder.Configuration.GetSection(TmdbOptions.Section));
 builder.Services.AddOptions<FilmStoreOptions>().Bind(builder.Configuration.GetSection(TmdbOptions.Section));
 builder.Services.AddHttpClient<TmdbClient>((sp, http) =>
-    http.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<TmdbOptions>>().Value.TimeoutSeconds));
+    http.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<TmdbOptions>>().Value.TimeoutSeconds))
+    .KeepConnectionsOpen();
 builder.Services.AddSingleton(sp => new FilmStore(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.Directory, "films"),
     sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
@@ -110,6 +111,14 @@ builder.Services.AddSingleton(sp => new ShowStore(
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<ShowStore>>()));
+builder.Services.AddSingleton(sp => new TitleGlances(
+    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.GlancesDirectory, "glances"),
+    sp.GetRequiredService<FilmStore>(),
+    sp.GetRequiredService<ShowStore>(),
+    sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<TimeProvider>(),
+    sp.GetRequiredService<ILogger<TitleGlances>>()));
+builder.Services.AddSingleton<TitleSearch>();
 builder.Services.AddHostedService<FilmWarmer>();
 builder.Services.AddSingleton(sp => new PopularNow(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.PopularDirectory, "popular"),
