@@ -11,12 +11,13 @@ const clientFor = () => client;
 
 const HOST = { id: "cinema", name: "MovieBot", title: "MovieBot, the cinema's assistant" };
 
+// `label` is the button; `names` is how a proposal reads ahead of its film, where the two differ.
 const VERBS = {
   download: { label: "Download", icon: "download" },
-  wish: { label: "Notify me", icon: "bell-plus" },
+  wish: { label: "Notify me", names: "Get notified about", icon: "bell-plus" },
   keep: { label: "Keep", icon: "pin" },
-  release: { label: "Let go", icon: "pin-off" },
-  fetch_subtitle: { label: "Fetch subtitles", icon: "captions" },
+  release: { label: "Let go", names: "Let go of", icon: "pin-off" },
+  fetch_subtitle: { label: "Fetch subtitles", names: "Fetch subtitles for", icon: "captions" },
 };
 
 /**
@@ -36,6 +37,7 @@ const cinemaProfile = {
       meta: { label: verb.label, icon: verb.icon, tone: "info" },
       target: msg.subjectId || "",
       targetName: msg.subjectId || "",
+      title: verb.names && msg.subjectId ? verb.names + " " + msg.subjectId : undefined,
       runnable: true,
     };
   },

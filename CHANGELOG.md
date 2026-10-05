@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2026-10-05
+
+### Changed
+
+- **The assistant's chat is redrawn**, on krystal-ui 0.14.0: your messages as bubbles, one line for
+  the assistant's work, proper headings, lists and code in answers, one card per proposed action
+  that changes in place to its outcome, and quiet one-line events. A proposal reads as what it does
+  to the film ("Get notified about Dune: Part Two", "Fetch subtitles for …") while its button keeps
+  the short verb. Site 0.33.0.
+
 ## [2.7.1] - 2026-10-05
 
 ### Fixed
