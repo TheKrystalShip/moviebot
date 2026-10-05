@@ -34,16 +34,7 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
     /// <summary>Pausing wherever the room is, which is the plainest way to end a stretch of playing.</summary>
     private void Pause(string session) => Sessions.Pause(session, null, new Actor("w-pauser", "Pauser"));
 
-    private HttpClient As(string userId, string name = "Cy")
-    {
-        var client = fixture.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", RoomToken.Issue(new RoomTokenPayload
-        {
-            UserId = userId, DisplayName = name, RoomId = "", Member = true,
-            ExpiresAtUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
-        }, SessionFixture.SigningKey));
-        return client;
-    }
+    private HttpClient As(string userId, string name = "Cy") => fixture.CreatePersonClient(userId, name);
 
     /// <summary>Somebody in a room holding a film, playing it from a position.</summary>
     private async Task<HubConnection> Watching(string session, string userId, string name, string title, double at)
@@ -244,9 +235,8 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
     {
         var directory = fixture.Services.GetRequiredService<PersonDirectory>();
 
-        using var service = await fixture.CreateServiceClient().PostAsJsonAsync("/api/auth/service-token",
-            new ServiceTokenRequest("room", "w-bot-8", "Beatrice"));
-        service.EnsureSuccessStatusCode();
+        using var seen = await fixture.CreatePersonClient("w-bot-8", "Beatrice", via: "cinema-bot").GetAsync("/api/titles");
+        seen.EnsureSuccessStatusCode();
         Assert.Equal("Beatrice", directory.NameOf("w-bot-8"));
 
         await using var joined = await fixture.ConnectAsync(NewSession(), "w-joiner-8", "Jo");
@@ -264,9 +254,9 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
         using var history = await client.GetAsync("/api/me/history");
         using var forget = await client.DeleteAsync($"/api/me/history/{Film}");
 
-        Assert.Equal(HttpStatusCode.Forbidden, progress.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, history.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, forget.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, progress.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, history.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, forget.StatusCode);
     }
 
     [Fact]
@@ -300,8 +290,8 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
     {
         var session = NewSession();
 
-        using var response = await fixture.CreateServiceClient().PostAsJsonAsync(
-            $"/api/sessions/{session}/title", new SetTitleRequest(Film, "w-bot-11", "Bot", 600));
+        using var response = await fixture.CreatePersonClient("w-bot-11", "Bot").PostAsJsonAsync(
+            $"/api/sessions/{session}/title", new SetTitleRequest(Film, 600));
         response.EnsureSuccessStatusCode();
         var push = await response.Content.ReadFromJsonAsync<SessionStatePush>(
             new JsonSerializerOptions(JsonSerializerDefaults.Web) { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } });

@@ -79,7 +79,7 @@ builder.Services.AddSingleton(sp => new PreferenceStore(
     StatePath(sp.GetRequiredService<IConfiguration>()["People:Preferences"], "preferences.json"),
     sp.GetRequiredService<ILogger<PreferenceStore>>()));
 
-// What each Discord id is called, so an id on a record can be shown as a person.
+// What each account is called, so an id on a record can be shown as a person.
 builder.Services.AddSingleton(sp => new PersonDirectory(
     StatePath(sp.GetRequiredService<IConfiguration>()["People:Directory"], "people.json"),
     sp.GetRequiredService<ILogger<PersonDirectory>>()));
@@ -92,12 +92,6 @@ builder.Services.AddSingleton<IPlayHistory>(sp => sp.GetRequiredService<WatchRec
 // Written from the rooms as they change: the room is where a film's position lives.
 builder.Services.AddSingleton<WatchRecorder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WatchRecorder>());
-
-// The devices people are signed in on, which is what lets one be signed out from another.
-builder.Services.AddSingleton(sp => new DeviceSessions(
-    StatePath(sp.GetRequiredService<IConfiguration>()["People:Devices"], "devices.json"),
-    sp.GetRequiredService<TimeProvider>(),
-    sp.GetRequiredService<ILogger<DeviceSessions>>()));
 
 // What a film is, from the film database, kept on disk with its artwork and served from here.
 builder.Services.Configure<TmdbOptions>(builder.Configuration.GetSection(TmdbOptions.Section));
@@ -132,13 +126,17 @@ builder.Services.AddOptions<OpenSubtitlesOptions>()
 builder.Services.AddHttpClient<OpenSubtitlesClient>();
 builder.Services.AddOptions<RoomOptions>().Bind(builder.Configuration.GetSection(RoomOptions.Section));
 
-// Without a signing key nothing can be minted or checked, and the films would be served to
-// anybody who knows the hostname. Refusing to start is the only safe reading of a missing key.
+// Cinema signs nobody in. Every person arrives with an access token the identity provider minted,
+// checked against the provider's keys, and is let do what its actions claim lists.
+builder.Services.AddCinemaAuthentication();
+
+// Without the ticket key no film's bytes can be opened. Refusing to start says so once, where a
+// player that loads every page and plays nothing would say it to everybody.
 builder.Services.AddOptions<AuthOptions>()
     .Bind(builder.Configuration.GetSection(AuthOptions.Section))
-    .Validate(o => o.SigningKey.Length >= 32,
-        "Auth:SigningKey must be set to at least 32 characters. Discord is the only way in, and "
-        + "that is enforced with a signed token.")
+    .Validate(o => o.MediaTicketKey.Length >= 32,
+        "Auth:MediaTicketKey must be set to at least 32 characters. It signs the tickets a film's "
+        + "bytes are opened with.")
     .ValidateOnStart();
 builder.Services.AddHostedService<SessionReaper>();
 
@@ -217,8 +215,9 @@ builder.Services.AddSingleton(sp => new ListStore(
     sp.GetRequiredService<ILogger<ListStore>>()));
 builder.Services.AddSingleton<ListPresenter>();
 
-// The client id is the application id, which the settings file names once for the bot and the
-// API together.
+// The Activity's way in: its SDK code is redeemed with Cinema's own Discord application, whose client
+// id is the application id the settings file names once for the bot and the API together, and the
+// Discord token it buys is exchanged at the provider for one of the provider's.
 builder.Services.AddOptions<DiscordAuthOptions>()
     .Bind(builder.Configuration.GetSection(DiscordAuthOptions.Section))
     .PostConfigure<IConfiguration>((options, configuration) =>
@@ -227,6 +226,7 @@ builder.Services.AddOptions<DiscordAuthOptions>()
             options.ClientId = id;
     });
 builder.Services.AddHttpClient<DiscordAuthClient>(http => http.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient<TokenExchangeClient>(http => http.Timeout = TimeSpan.FromSeconds(10));
 
 // Every type that crosses the wire is named in a serializer context, and the two contexts are the
 // only resolver the hub and the endpoints have: nothing is reached by reflection, so a type left
@@ -259,21 +259,27 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
 var app = builder.Build();
 app.Logger.LogInformation("Settings: {Files}", MovieBotSettings.Describe());
 
+// Every record here is keyed by an account the provider named. Another provider's accounts are
+// strangers to every one of them, so the API refuses to start against one it was not told to adopt.
+var oidc = app.Services.GetRequiredService<IOptions<OidcOptions>>().Value;
+IssuerRecord.Enforce(oidc, StatePath(oidc.IssuerRecord, "issuer"), app.Logger);
+
 // Before anything can serve a request. A room restored after the first client has joined is a
 // room that client was already told did not exist.
 app.Services.GetRequiredService<SessionKeeper>().Restore();
 
 app.UseCors();
 
-// Everything below this line is closed unless the caller came through Discord.
-app.UseMiddleware<RequireTokenMiddleware>();
-
 // Krystal Cinema, whose player is also the Discord Activity, is served from this origin at its
 // root, which is what lets an Activity reach the page, the API, the media and the hub through a
-// single declared URL mapping instead of a set of them. Static files sit under wwwroot and never shadow
-// /api, /media or /hub, which are explicit routes.
+// single declared URL mapping instead of a set of them. Static files sit under wwwroot, open to
+// anybody, and never shadow /api, /media or /hub, which are explicit routes.
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+// Every route below names what it needs, and one that names nothing admits nobody.
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Occupancy, and no names: it is open, so what it may say is how many rooms are being watched and
 // nothing about who is in them. It is what makes a restart something that can be looked at first
@@ -287,16 +293,26 @@ app.MapGet("/health", (SessionStore sessions, MediaRoots roots) =>
     // checking on the service would find out why.
     return Results.Ok(new HealthReport(
         "ok", rooms.Count, rooms.Sum(r => r.Participants), roots.ColdState.Problem));
-});
+}).AllowAnonymous();
 
-// The application id is not a secret — it is in every invite link and in the Activity's own URL.
-// Serving it means the player needs no build-time configuration and no rebuild when it changes.
-// The public address rides along for the same reason: it is where Discord's own servers fetch a
-// poster from, which the page cannot learn from an origin that is Discord's proxy.
-app.MapGet("/api/config", (IOptions<DiscordAuthOptions> discord, IConfiguration configuration) =>
+// What the page needs before it can sign anybody in, none of it a secret: the provider and the client
+// the site signs in with, the claim a person's actions arrive in, and the Discord application id,
+// which is in every invite link and in the Activity's own URL. Serving it means the page needs no
+// build-time configuration and no rebuild when any of it changes. The public address rides along
+// for the same reason: it is where Discord's own servers fetch a poster from, which the page cannot
+// learn from an origin that is Discord's proxy.
+app.MapGet("/api/config", (IOptions<DiscordAuthOptions> discord, IOptions<OidcOptions> oidc, IConfiguration configuration) =>
     Results.Ok(new ClientConfig(
-        discord.Value.ClientId,
-        configuration["Api:PublicBaseUrl"] is { Length: > 0 } url ? url.TrimEnd('/') : null)));
+        discord.Value.ClientId is { Length: > 0 } clientId ? clientId : null,
+        configuration["Api:PublicBaseUrl"] is { Length: > 0 } url ? url.TrimEnd('/') : null,
+        oidc.Value.Issuer,
+        oidc.Value.SiteClientId,
+        oidc.Value.ActionsClaim)))
+    .AllowAnonymous();
+
+// The actions Cinema checks, for the provider to read, written from the same declarations every
+// route's check names.
+app.MapGet("/.well-known/tks-actions.json", () => Results.Ok(CinemaActions.Manifest())).AllowAnonymous();
 
 // Each title with what the film database said about it, from what is kept: a listing never waits
 // on the network, and a film not described yet is listed without it. Each carries the asking
@@ -314,10 +330,11 @@ app.MapGet("/api/titles", (HttpContext context, LibraryListing library, FilmStor
             Details = t.Kind == TitleKind.Show ? shows.Facts(t.Film?.ImdbId) : films.Facts(t.Film?.ImdbId),
         }).WithPlays(person, record, people, viewing, now))
         .ToList());
-});
+}).RequireActionOrService(CinemaActions.Watch);
 
 app.MapGet("/api/titles/{id}", (string id, TitleLibrary library) =>
-    library.Get(id) is { } manifest ? Results.Ok(manifest) : Results.NotFound());
+    library.Get(id) is { } manifest ? Results.Ok(manifest) : Results.NotFound())
+    .RequireActionOrService(CinemaActions.Watch);
 
 // What a player then carries on the film's own bytes, in place of who it is. Minted per request
 // rather than written into the manifest: the manifest is a file on disk that outlives any key.
@@ -329,152 +346,42 @@ app.MapGet("/api/titles/{id}/ticket", (
     var now = clock.GetUtcNow();
     return Results.Ok(new MediaTicketReply(
         MediaTicket.Issue(id, auth.Value, now), MediaTicket.ExpiresAt(now)));
-});
+}).RequireAction(CinemaActions.Watch);
 
 app.MapSubtitles();
 app.MapAcquisition();
 app.MapTranscode();
 app.MapPeople();
-app.MapDevices();
 app.MapFilms();
 app.MapShows();
 app.MapFollows();
 app.MapLists();
 app.MapNotifications();
 
-// Every room, for the bot: it holds no state of its own, so what to say about rooms it reads
-// from here each time it is about to say it.
-app.MapGet("/api/sessions", (SessionStore sessions) => Results.Ok(sessions.Summaries()));
+// Every room, for the bot as much as the site: it holds no state of its own, so what to say about
+// rooms it reads from here each time it is about to say it.
+app.MapGet("/api/sessions", (SessionStore sessions) => Results.Ok(sessions.Summaries()))
+    .RequireActionOrService(CinemaActions.Watch);
 
 app.MapGet("/api/sessions/{sessionId}", (string sessionId, SessionStore sessions) =>
     Results.Ok(new SessionStatePush
     {
         State = sessions.GetOrCreate(sessionId),
         ServerTime = DateTimeOffset.UtcNow
-    }));
+    }))
+    .RequireActionOrService(CinemaActions.Watch);
 
 app.MapGet("/api/sessions/{sessionId}/participants", (string sessionId, SessionStore sessions) =>
-    Results.Ok(sessions.Participants(sessionId)));
+    Results.Ok(sessions.Participants(sessionId)))
+    .RequireAction(CinemaActions.Watch);
 
 app.MapRooms();
-
-// The Activity's authenticate() handshake. The player sends the code it was given; the secret
-// needed to redeem it stays here, because a secret shipped to a browser is not a secret.
-app.MapPost("/api/auth/discord/callback", async (
-    DiscordCodeRequest request,
-    IOptions<DiscordAuthOptions> options,
-    DiscordAuthClient discord,
-    IOptions<AuthOptions> authOptions,
-    PersonDirectory people,
-    DeviceSessions devices,
-    HttpContext context,
-    CancellationToken ct) =>
-{
-    if (!options.Value.IsConfigured)
-        return Results.Problem("Discord OAuth is not configured on this server.", statusCode: 503);
-
-    if (string.IsNullOrWhiteSpace(request.Code))
-        return Results.BadRequest(new ErrorReply("A code is required."));
-
-    var accessToken = await discord.ExchangeCodeAsync(request.Code, options.Value, request.RedirectUri, ct);
-    if (accessToken is null)
-        return Results.BadRequest(new ErrorReply("Discord refused the code."));
-
-    var user = await discord.GetUserAsync(accessToken, ct);
-    if (user is null)
-        return Results.BadRequest(new ErrorReply("Discord issued a token it then would not answer for."));
-
-    // A sign-in through the redirect is the site's, reachable by anybody with a Discord account, so
-    // it is for members of the server alone. The Activity sends no redirect: it only opens inside
-    // that server.
-    var member = false;
-    if (!string.IsNullOrWhiteSpace(request.RedirectUri))
-    {
-        if (options.Value.GuildIds.Length == 0)
-            return Results.Json(new ErrorReply("No server is configured, so nobody can sign in here."),
-                ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status503ServiceUnavailable);
-
-        switch (await discord.IsMemberOfAnyAsync(accessToken, options.Value.GuildIds, ct))
-        {
-            case null:
-                return Results.Json(new ErrorReply("Discord could not say whether you are in the server. Try again."),
-                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status502BadGateway);
-            case false:
-                return Results.Json(new ErrorReply("Krystal Cinema is for members of the server MovieBot plays films in."),
-                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status403Forbidden);
-        }
-
-        member = true;
-    }
-
-    people.Remember(user.Id, user.DisplayName);
-
-    var auth = authOptions.Value;
-    var expiresAt = DateTimeOffset.UtcNow.Add(auth.TokenLifetime);
-    var tokenId = RoomToken.NewTokenId();
-    var roomToken = RoomToken.Issue(new RoomTokenPayload
-    {
-        UserId = user.Id,
-        DisplayName = user.DisplayName,
-        RoomId = request.SessionId ?? "",
-        ExpiresAtUnix = expiresAt.ToUnixTimeSeconds(),
-        Member = member,
-        TokenId = tokenId,
-    }, auth.SigningKey);
-
-    // The Activity's sign-in sends no redirect and the site's always does; the Activity's browser
-    // is Discord's own, so it is named for what it is.
-    devices.Record(tokenId, user.Id,
-        string.IsNullOrWhiteSpace(request.RedirectUri)
-            ? DeviceName.Activity
-            : DeviceName.FromUserAgent(context.Request.Headers.UserAgent.ToString()),
-        expiresAt);
-
-    // The access token goes back so the SDK can complete authenticate(); it is the browser's own
-    // token and is scoped to the Activity, unlike the secret that redeemed the code.
-    return Results.Ok(new DiscordSignIn(
-        accessToken, roomToken, new SignedInUser(user.Id, user.Username, user.DisplayName)));
-});
-
-// For the bot and for the browser checks: a caller that already proves itself with the service
-// key can be handed a token, because there is no Discord user for it to be.
-app.MapPost("/api/auth/service-token", (
-    ServiceTokenRequest request,
-    HttpContext context,
-    IOptions<AuthOptions> authOptions,
-    PersonDirectory people,
-    DeviceSessions devices) =>
-
-{
-    var auth = authOptions.Value;
-    var offered = context.Request.Headers["X-MovieBot-Service"].ToString();
-
-    if (auth.ServiceKey.Length == 0
-        || !System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
-               System.Text.Encoding.UTF8.GetBytes(offered),
-               System.Text.Encoding.UTF8.GetBytes(auth.ServiceKey)))
-    {
-        return Results.Unauthorized();
-    }
-
-    people.Remember(request.UserId, request.DisplayName);
-    var expiresAt = DateTimeOffset.UtcNow.Add(auth.TokenLifetime);
-    var tokenId = RoomToken.NewTokenId();
-    devices.Record(tokenId, request.UserId, DeviceName.Service, expiresAt);
-
-    return Results.Ok(new ServiceTokenReply(RoomToken.Issue(new RoomTokenPayload
-    {
-        UserId = request.UserId,
-        DisplayName = request.DisplayName,
-        RoomId = request.RoomId,
-        ExpiresAtUnix = expiresAt.ToUnixTimeSeconds(),
-        Member = request.Member,
-        TokenId = tokenId,
-    }, auth.SigningKey)));
-});
+app.MapActivitySignIn();
 
 app.MapMedia();
-app.MapHub<SessionHub>("/hub/session");
+
+// A room's connection is admitted when it opens, on the token it carries then.
+app.MapHub<SessionHub>("/hub/session").RequireAction(CinemaActions.Watch);
 
 // The site names its pages by path, so a film's page and a room can be linked to and reloaded. A GET
 // for a path that names no file, anywhere but under the API's, the media's and the hub's prefixes,
@@ -512,7 +419,7 @@ app.MapFallback(async (HttpContext context, IWebHostEnvironment environment, ICo
     }
 
     return Results.File(index.PhysicalPath, "text/html; charset=utf-8");
-});
+}).AllowAnonymous();
 
 var roots = app.Services.GetRequiredService<MediaRoots>();
 app.Logger.LogInformation("Serving media from {MediaRoot}", roots.Hot);
@@ -549,15 +456,6 @@ static string StatePath(string? configured, string name) =>
                 ? state
                 : Directory.GetCurrentDirectory(),
             name);
-
-/// <summary>What the Activity posts after Discord hands it an authorization code.</summary>
-public sealed record DiscordCodeRequest(string Code, string? RedirectUri, string? SessionId);
-
-/// <summary>
-/// A token for a caller that has no Discord user of its own. <see cref="Member"/> is the service's to
-/// vouch for, as everything else in the request is.
-/// </summary>
-public sealed record ServiceTokenRequest(string RoomId, string UserId, string DisplayName, bool Member = false);
 
 /// <summary>Exposed so the test project can drive the app in-process.</summary>
 public partial class Program;

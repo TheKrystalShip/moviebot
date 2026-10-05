@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Client.Assistant;
 
 namespace TheKrystalShip.MovieBot.Bot.Assistant;
@@ -12,14 +13,12 @@ public sealed class AssistantUnavailableException(string message, Exception? inn
 public sealed record Speaker(ulong UserId, string DisplayName);
 
 /// <summary>
-/// The bot's way to moviebot-assistant. It proves itself with the service key and names, on every
-/// call, the person it speaks for, which is all it ever names: what that person may do follows from
-/// the turn, so the bot cannot ask for more than they could.
+/// The bot's way to moviebot-assistant. Every call is made as the person it speaks for, with their
+/// token, which names the bot as the client acting for them: the assistant forwards it on every call
+/// its tools make, so the person can do nothing through it they could not do on the site.
 /// </summary>
 public sealed class AssistantClient(HttpClient http)
 {
-    public const string ActingHeader = "X-MovieBot-Acting";
-
     /// <summary>
     /// A turn in a room, answered whole. The bot posts the answer as one message, so it has no use for
     /// the steps as they happen, and a buffered turn is the one a dropped connection cannot leave half
@@ -27,7 +26,8 @@ public sealed class AssistantClient(HttpClient http)
     /// </summary>
     public async Task<TurnReply> TurnAsync(TurnRoom room, Speaker speaker, string said, CancellationToken ct)
     {
-        using var request = Request(HttpMethod.Post, "turn", speaker);
+        using var acting = ActingFor.Person(speaker.UserId);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "turn");
         request.Content = JsonContent.Create(new TurnRequest { Prompt = said, Room = room }, AssistantJsonContext.Default.TurnRequest);
         return await SendAsync(request, AssistantJsonContext.Default.TurnReply, "The turn", ct)
                ?? throw new AssistantUnavailableException("The assistant answered the turn with nothing.");
@@ -36,7 +36,8 @@ public sealed class AssistantClient(HttpClient http)
     /// <summary>Carries a proposal out as whoever agreed. Null when it was already answered, expired, or never was.</summary>
     public async Task<ConfirmReply?> ConfirmAsync(string token, Speaker agreed, CancellationToken ct)
     {
-        using var request = Request(HttpMethod.Post, "confirm", agreed);
+        using var acting = ActingFor.Person(agreed.UserId);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "confirm");
         request.Content = JsonContent.Create(new ConfirmRequest(token), AssistantJsonContext.Default.ConfirmRequest);
         return await SendAsync(request, AssistantJsonContext.Default.ConfirmReply, "The confirmation", ct, missing: true);
     }
@@ -44,18 +45,10 @@ public sealed class AssistantClient(HttpClient http)
     /// <summary>Writes a room verb the bot carried out into the room's conversation.</summary>
     public async Task RecordAsync(RecordRequest record, Speaker speaker, CancellationToken ct)
     {
-        using var request = Request(HttpMethod.Post, "rooms/record", speaker);
+        using var acting = ActingFor.Person(speaker.UserId);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "rooms/record");
         request.Content = JsonContent.Create(record, AssistantJsonContext.Default.RecordRequest);
         await SendAsync<RecordRequest>(request, null, "The record", ct);
-    }
-
-    private static HttpRequestMessage Request(HttpMethod method, string path, Speaker speaker)
-    {
-        var request = new HttpRequestMessage(method, path);
-        // A display name may hold any character and a header only ASCII, so the name is
-        // percent-encoded. The separator is the first bar.
-        request.Headers.Add(ActingHeader, $"{speaker.UserId}|{Uri.EscapeDataString(speaker.DisplayName)}");
-        return request;
     }
 
     private async Task<T?> SendAsync<T>(

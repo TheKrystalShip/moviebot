@@ -24,7 +24,6 @@ const FACES = {
   following: { icon: "tv", label: "Following" },
   notifications: { icon: "bell-ring", label: "Notifications" },
   playback: { icon: "play", label: "Playback" },
-  sessions: { icon: "monitor-smartphone", label: "Sessions" },
 };
 
 /** The profile's tabs in the order they are shown, each with its icon and name. */

@@ -137,10 +137,7 @@ public sealed class WishesTests : IDisposable
             Subtitles = [],
         });
 
-    private static AddWishRequest Ask(string chosen, string user = "10", string? channel = "1") => new()
-    {
-        Chosen = chosen, RequestedBy = new Actor(user, "Alice"), ChannelId = channel,
-    };
+    private static Asked Ask(string chosen, string user = "10") => new(new AddWishRequest { Chosen = chosen }, new Actor(user, "Alice"));
 
     [Fact]
     public async Task A_pasted_link_puts_the_person_on_the_list_for_the_film_it_names()
@@ -153,9 +150,7 @@ public sealed class WishesTests : IDisposable
 
         var kept = Assert.Single(_wishes.All());
         Assert.Equal("tt33612209", kept.ImdbId);
-        var person = Assert.Single(kept.Subscribers);
-        Assert.Equal(10UL, person.UserId);
-        Assert.Equal(1UL, person.ChannelId);
+        Assert.Equal("10", Assert.Single(kept.Subscribers).UserId);
     }
 
     [Fact]
@@ -164,15 +159,6 @@ public sealed class WishesTests : IDisposable
         var reply = await Desk().SubscribeAsync(Ask("tt33612209"), CancellationToken.None);
 
         Assert.Equal("subscribed", reply.Outcome);
-    }
-
-    /// <summary>Somebody asking from a page has no Discord channel, and is waiting all the same.</summary>
-    [Fact]
-    public async Task A_person_with_no_channel_is_kept_without_one()
-    {
-        await Desk().SubscribeAsync(Ask(Link, channel: null), CancellationToken.None);
-
-        Assert.Null(Assert.Single(Assert.Single(_wishes.All()).Subscribers).ChannelId);
     }
 
     [Fact]
@@ -287,4 +273,13 @@ public sealed class WishesTests : IDisposable
     {
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
     }
+}
+
+/// <summary>A wish as somebody asks for it: what they asked, and who the token said they are.</summary>
+internal sealed record Asked(AddWishRequest Request, Actor Asker);
+
+internal static class WishesAsking
+{
+    public static Task<AddWishReply> SubscribeAsync(this Wishes desk, Asked asked, CancellationToken ct) =>
+        desk.SubscribeAsync(asked.Request, asked.Asker, ct);
 }

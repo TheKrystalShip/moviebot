@@ -42,7 +42,7 @@ public sealed record StoredEntry
 
     public required DateTimeOffset AddedAt { get; init; }
 
-    /// <summary>The Discord id of whoever added it.</summary>
+    /// <summary>The account of whoever added it.</summary>
     public required string AddedBy { get; init; }
 
     public string? Note { get; init; }

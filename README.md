@@ -60,7 +60,8 @@ Playback starts seconds after a film is requested, while it is still being trans
    model, acting through the API: it can move a room, put a film on, and propose a download, a wish
    or a keep for somebody to agree to. It speaks the same chat protocol as the KGSM assistant, so one
    chat client serves both.
-7. **Krystal Cinema** is the site: the library in a browser, for members of the server. It searches,
+7. **Krystal Cinema** is the site: the library in a browser, for the people the identity provider
+   lets watch. It searches,
    fetches, keeps and waits on films through the API as the person signed in, carries the assistant
    in a dock, and opens the player, in a room of its own or in one a voice channel is watching.
 
@@ -165,9 +166,8 @@ local run, override the library path and supply the secrets:
 
 ```bash
 Media__Root=/absolute/path/to/media \
-Auth__SigningKey=<at least 32 random characters> \
-Discord__ApplicationId=<application id> \
-Discord__ClientSecret=<OAuth2 client secret> \
+Auth__MediaTicketKey=<at least 32 random characters> \
+Oidc__Issuer=<the identity provider's issuer> \
 dotnet run --project src/MovieBot.Api -c Release
 ```
 
@@ -180,9 +180,10 @@ npm install          # @thekrystalship/krystal-ui comes from GitHub Packages, wh
 npm run dev          # http://localhost:5175, talking to the API on :8099 and the assistant on :8191
 ```
 
-Everybody signs in through Discord: the site with the OAuth2 redirect, which lets in members of
-the server alone, and the Activity through the Embedded App SDK, with the application's URL mapping
-pointed at wherever the API is reachable.
+Everybody signs in at the identity provider: the site as its OpenID Connect client, and the Activity
+through the Embedded App SDK and the API, which needs `Discord__ApplicationId`,
+`Discord__ClientSecret` and `Oidc__ActivityClientSecret` for it, with the application's URL mapping
+pointed at wherever the API is reachable. See [Authentication](#authentication).
 
 ### Run the bot
 
@@ -194,6 +195,8 @@ dotnet user-secrets set "Discord:Token" "<token>" --project src/MovieBot.Bot
 
 Player__BaseUrl=https://movies.example.com \
 Discord__GuildIds__0=<guild id> \
+Oidc__Issuer=<the identity provider's issuer> Oidc__BotClientSecret=<the bot client's secret> \
+Api__ServiceKey=<the API's Auth__ServiceKey> \
 Tracker__BaseUrl=<tracker address> Tracker__Username=<name> Tracker__Passkey=<passkey> \
 Selection__AllowedCategories__0=<tracker category> \
 dotnet run --project src/MovieBot.Bot -c Release
@@ -214,8 +217,8 @@ lives in its XDG configuration directory, and is read in place of the defaults k
    `/etc/xdg/moviebot/`.
 
 The environment overrides any single key, written `Section__Key` (`Download__MaximumGiB=500`).
-Secrets go there rather than in the file: the bot token, the OAuth2 client secret, the signing and
-service keys, the tracker account and its category names. Each service logs which files it read
+Secrets go there rather than in the file: the bot token, the Discord and identity-provider client
+secrets, the media ticket and service keys, the tracker account and its category names. Each service logs which files it read
 when it starts.
 
 ## API
@@ -227,6 +230,7 @@ when it starts.
 | `GET /api/sessions/{id}` | a room's current shared state |
 | `GET,HEAD /media/{id}/**` | playlists, segments, subtitles, poster |
 | `/hub/session` | SignalR: `Join`, `LoadTitle`, `Play`, `Pause`, `Seek` |
+| `GET /.well-known/tks-actions.json` | the Cinema actions each route checks, for the identity provider |
 
 Every state push carries the server clock and a monotonic revision, so a client discards anything
 it has already seen. Playlists for a title still transcoding are served `no-store`; segments never
@@ -237,12 +241,24 @@ The full wire contract, including the manifest schema and the rules a client mus
 
 ## Authentication
 
-Discord is the only way in. Everything except sign-in, the player page and cover art requires a
-token, and a token is issued only after Discord confirms who somebody is. The API needs two keys:
+MovieBot signs nobody in. It is a client and a resource server of an OpenID Connect provider,
+tks-auth or any other that mints ES256 access tokens
+for the audience `cinema` listing the person's Cinema actions in a claim. Everything except sign-in,
+the pages, the configuration, cover art and the action manifest requires such a token, and each route
+checks the action it needs: `cinema:watch`, `cinema:download`, `cinema:wish` or `cinema:keep`.
 
-- `Auth:SigningKey` signs viewer tokens. The API refuses to start without it.
-- `Auth:ServiceKey` is shared with the bot and the hand-off, which have no Discord user of their own
-  to sign in as.
+- `Oidc:Issuer` names the provider. The API records it the first time it starts and refuses to start
+  against another until `Oidc:AdoptIssuer` names the new one, since every record is kept by the
+  provider's account ids.
+- The site is a public client (`Oidc:SiteClientId`) with the redirect `<origin>/signin`.
+- The Activity and the bot are confidential clients that exchange a Discord identity for a person's
+  token at the provider: `Oidc:ActivityClientId` with `Oidc:ActivityClientSecret`, and
+  `Oidc:BotClientId` with `Oidc:BotClientSecret`.
+- `Auth:MediaTicketKey` signs the tickets a film's bytes are opened with. The API refuses to start
+  without it.
+- `Auth:ServiceKey` is shared with the bot and the hand-off, for machine work that names nobody.
+
+[`docs/deploying.md`](docs/deploying.md) has the registration the provider needs.
 
 ## Deployment
 

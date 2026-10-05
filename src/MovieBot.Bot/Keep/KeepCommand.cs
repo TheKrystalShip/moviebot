@@ -40,6 +40,9 @@ public enum KeepStatus
 
     /// <summary>The API could not be asked.</summary>
     Unavailable,
+
+    /// <summary>The person's account may not keep films.</summary>
+    NotAllowed,
 }
 
 public sealed record KeepResult(KeepStatus Status, string Message, KeptFilm? Film = null);
@@ -76,7 +79,8 @@ public sealed class KeepCommand(MovieBotApiClient api, ILogger<KeepCommand> logg
     public async Task<IReadOnlyList<(string TitleId, string Name)>> TitlesAsync(CancellationToken ct) =>
         (await api.ListTitlesAsync(ct)).Select(t => (t.Id, t.Name)).ToList();
 
-    public async Task<KeepResult> KeepAsync(string titleId, ulong userId, string displayName, CancellationToken ct)
+    /// <summary>Keeps the film as the person the command runs for (<see cref="Api.ActingFor"/>).</summary>
+    public async Task<KeepResult> KeepAsync(string titleId, CancellationToken ct)
     {
         try
         {
@@ -86,11 +90,14 @@ public sealed class KeepCommand(MovieBotApiClient api, ILogger<KeepCommand> logg
             var name = NameOf(await NamesAsync(ct), titleId);
             if (before.KeeperId is not null) return Describe(KeepStatus.AlreadyKept, before, name);
 
-            var after = await api.KeepAsync(titleId, new Actor(userId.ToString(CultureInfo.InvariantCulture), displayName), ct);
+            var after = await api.KeepAsync(titleId, ct);
             if (after is null) return NotFound();
 
-            return Describe(after.KeeperId == userId.ToString(CultureInfo.InvariantCulture)
-                ? KeepStatus.Kept : KeepStatus.AlreadyKept, after, name);
+            return Describe(KeepStatus.Kept, after, name);
+        }
+        catch (MovieBotAccessDeniedException)
+        {
+            return NotAllowed();
         }
         catch (MovieBotApiException ex)
         {
@@ -99,7 +106,8 @@ public sealed class KeepCommand(MovieBotApiClient api, ILogger<KeepCommand> logg
         }
     }
 
-    public async Task<KeepResult> ReleaseAsync(string titleId, ulong userId, string displayName, CancellationToken ct)
+    /// <summary>Lets the film go as the person the command runs for (<see cref="Api.ActingFor"/>).</summary>
+    public async Task<KeepResult> ReleaseAsync(string titleId, CancellationToken ct)
     {
         try
         {
@@ -109,10 +117,14 @@ public sealed class KeepCommand(MovieBotApiClient api, ILogger<KeepCommand> logg
             var name = NameOf(await NamesAsync(ct), titleId);
             if (before.KeeperId is null) return Describe(KeepStatus.NotKept, before, name);
 
-            var after = await api.ReleaseKeepAsync(titleId, new Actor(userId.ToString(CultureInfo.InvariantCulture), displayName), ct);
+            var after = await api.ReleaseKeepAsync(titleId, ct);
             if (after is null) return NotFound();
 
             return Describe(KeepStatus.Released, after, name);
+        }
+        catch (MovieBotAccessDeniedException)
+        {
+            return NotAllowed();
         }
         catch (MovieBotApiException ex)
         {
@@ -163,15 +175,8 @@ public sealed class KeepCommand(MovieBotApiClient api, ILogger<KeepCommand> logg
             : $"Leaves in {days} {(days == 1 ? "day" : "days")} unless somebody plays or keeps it with /keep add.";
     }
 
-    /// <summary>
-    /// A mention rather than a name where the keeper is a Discord id, because a person renames
-    /// themselves. Rendered as a name wherever the message forbids mentions, which every message
-    /// here does.
-    /// </summary>
-    public static string Who(KeptFilm film) =>
-        ulong.TryParse(film.Keeper, NumberStyles.None, CultureInfo.InvariantCulture, out var id)
-            ? $"<@{id}>"
-            : film.KeeperName ?? film.Keeper ?? "nobody";
+    /// <summary>The keeper as the API names them: the name it last heard, or the account where it heard none.</summary>
+    public static string Who(KeptFilm film) => film.KeeperName ?? film.Keeper ?? "nobody";
 
     private async Task<Dictionary<string, string>> NamesAsync(CancellationToken ct) =>
         (await api.ListTitlesAsync(ct)).ToDictionary(t => t.Id, t => t.Name, StringComparer.Ordinal);
@@ -184,4 +189,7 @@ public sealed class KeepCommand(MovieBotApiClient api, ILogger<KeepCommand> logg
 
     private static KeepResult Unavailable() => new(KeepStatus.Unavailable,
         "The library is not answering, so nothing changed. Try again in a moment.");
+
+    private static KeepResult NotAllowed() => new(KeepStatus.NotAllowed,
+        "Your account does not let you keep films in Krystal Cinema.");
 }

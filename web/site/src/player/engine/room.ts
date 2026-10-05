@@ -215,7 +215,7 @@ export class PlayerRoom {
     const launched = env.titleId();
     const sessionId = env.sessionId();
 
-    const hub = new SessionHub(identity, sessionId, {
+    const hub = new SessionHub(sessionId, {
       onState: (push, resync) => this.controller?.applyPush(push, resync),
       onSeekClamped: (clamp) => this.clampNotice(clamp),
       onParticipants: (list) => {
@@ -560,7 +560,7 @@ export class PlayerRoom {
 
   /** Spends one of the day's downloads and adds the track for everyone in the room. */
   async fetchSubtitle(fileId: number): Promise<SubtitleTrack> {
-    const reply = await api.addSubtitle(this.requireTitle(), fileId, this.view.identity?.displayName ?? null);
+    const reply = await api.addSubtitle(this.requireTitle(), fileId);
     await this.refreshManifest();
     return reply.track;
   }
@@ -570,7 +570,7 @@ export class PlayerRoom {
    * person had actually watched before saying the track fits.
    */
   async pinSubtitle(trackId: string): Promise<void> {
-    await api.pinSubtitle(this.requireTitle(), trackId, this.view.identity?.displayName ?? null, this.video.currentTime);
+    await api.pinSubtitle(this.requireTitle(), trackId, this.video.currentTime);
     await this.refreshManifest();
   }
 

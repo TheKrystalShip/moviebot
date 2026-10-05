@@ -58,7 +58,6 @@ export const VIEWS = [
   { name: "profile-history", path: () => "/profile", ready: ".kc-page", full: true },
   { name: "profile-requests", path: () => "/profile/requests", ready: ".kc-page", full: true },
   { name: "profile-playback", path: () => "/profile/playback", ready: ".kc-page", full: true },
-  { name: "profile-sessions", path: () => "/profile/sessions", ready: ".kc-page", full: true },
   { name: "about", path: () => "/about", ready: ".kc-about", full: true },
   { name: "assistant", path: () => "/", ready: ".tabbar", act: tap(".tabbar__tab:nth-child(4)", ".assistant-dock--open") },
   {

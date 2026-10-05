@@ -29,8 +29,8 @@ public sealed record HistoryEntry(
 public sealed record TitleProgress(double PositionSeconds, bool Finished, DateTimeOffset LastWatchedAt);
 
 /// <summary>
-/// The last time anybody played a film and who it was: their Discord id, which a page compares with
+/// The last time anybody played a film and who it was: their account, which a page compares with
 /// the signed-in person's to say "you", and their name. <see cref="ByName"/> is absent when the
-/// person's name was never heard, which is never a Discord id put in its place.
+/// person's name was never heard, which is never an account id put in its place.
 /// </summary>
 public sealed record TitleLastPlayed(DateTimeOffset At, string ById, string? ByName);

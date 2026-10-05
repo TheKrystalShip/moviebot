@@ -4,11 +4,12 @@ import {
   useDock, useEdgeSwipe, useStoredFlag,
 } from "@thekrystalship/krystal-ui";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
-import { signOut, useSession } from "./session.js";
+import { can, restore, useSession } from "./session.js";
+import { leave } from "./leave.js";
 import { goBack, navigate, useRoute } from "./router.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { PLACES } from "./nav.js";
-import { discoverPath, homePath, libraryPath, moviePath, profilePath, signInPath, signInReturnPath } from "./paths.js";
+import { discoverPath, homePath, libraryPath, moviePath, profilePath, signInReturnPath } from "./paths.js";
 import { Home } from "./pages/Home.jsx";
 import { Library } from "./pages/Library.jsx";
 import { Title } from "./pages/Title.jsx";
@@ -19,7 +20,7 @@ import { Notify } from "./pages/Notify.jsx";
 import { ListPage, Saved } from "./pages/Saved.jsx";
 import { Leaving } from "./pages/Leaving.jsx";
 import { Profile } from "./pages/Profile.jsx";
-import { SignIn } from "./pages/SignIn.jsx";
+import { NoAccess, SignIn } from "./pages/SignIn.jsx";
 import { About } from "./pages/About.jsx";
 import { NotFound } from "./pages/NotFound.jsx";
 import { SiteFooter } from "./components/SiteFooter.jsx";
@@ -65,24 +66,28 @@ const LIT = {
 };
 
 /**
- * Krystal Cinema: the shelf, the films on their way and on their way out, and the assistant, for the
- * members of the server. Everything but the door needs somebody signed in, and a page asked for while
- * signed out is where the browser returns once they are.
+ * Krystal Cinema: the shelf, the films on their way and on their way out, and the assistant. Everything
+ * but the door needs somebody signed in, and a page asked for while signed out is where the browser
+ * returns once they are. Somebody signed in whose account may not watch is told there is nothing here
+ * for them yet.
  */
 export function App() {
   const session = useSession();
   const route = useRoute();
   const embedded = route.view === "embed";
+  const restored = useRestored(!embedded && route.view !== "signin");
 
   React.useEffect(() => {
-    if (!session && route.view !== "signin" && !embedded) {
+    if (restored && !session && route.view !== "signin" && !embedded) {
       navigate(signInReturnPath(route.href), { replace: true });
     }
-  }, [session, route.view, route.href, embedded]);
+  }, [restored, session, route.view, route.href, embedded]);
 
   // The Activity proves who is watching through Discord, so it answers to no site session.
   if (embedded) return <React.Suspense fallback={<Dark />}><EmbedRoom /></React.Suspense>;
-  if (route.view === "signin" || !session) return <><SignIn query={route.query} /><Toasts /></>;
+  if (route.view === "signin") return <><SignIn query={route.query} /><Toasts /></>;
+  if (!restored || !session) return <Dark />;
+  if (!can(session, "cinema:watch")) return <NoAccess onSignOut={leave} />;
   // A room fills the screen: the film is the page, and the way out is its back button.
   if (route.view === "room") {
     return (
@@ -152,12 +157,12 @@ function Frame({ session, route }) {
                 collapsed={dock.desktop && collapsed}
                 items={[
                   { icon: "user", label: "Profile", onClick: () => go(profilePath()) },
-                  { icon: "log-out", label: "Sign out", danger: true, onClick: () => { signOut(); navigate(signInPath, { replace: true }); } },
+                  { icon: "log-out", label: "Sign out", danger: true, onClick: leave },
                 ]} />
             </>}>
             <SidebarGroup>{HOME.map(item)}</SidebarGroup>
             <SidebarGroup>{LIBRARY.map(item)}</SidebarGroup>
-            <SidebarGroup>{LIFECYCLE.map(item)}</SidebarGroup>
+            <SidebarGroup>{LIFECYCLE.filter((n) => n.id !== "notify" || can(session, "cinema:wish")).map(item)}</SidebarGroup>
           </Sidebar>
         }
         aside={<>
@@ -176,6 +181,21 @@ function Frame({ session, route }) {
 }
 
 function noDrawer() {}
+
+/**
+ * Whether the session this browser holds has been picked up, renewing it first when its token has run
+ * out. Until it has, nothing is shown, so a signed-in person is never sent through the door.
+ */
+function useRestored(wanted) {
+  const [restored, setRestored] = React.useState(false);
+  React.useEffect(() => {
+    if (!wanted || restored) return;
+    let live = true;
+    restore().catch(() => null).finally(() => { if (live) setRestored(true); });
+    return () => { live = false; };
+  }, [wanted, restored]);
+  return restored;
+}
 
 /**
  * `/`, or Ctrl+K and Cmd+K, from anywhere but a field being typed in: to Discover with its field

@@ -1,7 +1,7 @@
 import { Icon, toast } from "@thekrystalship/krystal-ui";
 import { api, filmName } from "../api.js";
 import { SOON_DAYS, leaveRule, stayWords, useLoad } from "../data.js";
-import { useSession } from "../session.js";
+import { useCan, useSession } from "../session.js";
 import { ago } from "../time.js";
 import { Empty, Failed, PageHead, PosterArt } from "../components/Film.jsx";
 import { moviePath, showPath } from "../paths.js";
@@ -25,6 +25,7 @@ function unitHref(title) {
  */
 export function Leaving() {
   const session = useSession();
+  const keeping = useCan("cinema:keep");
   const me = session && session.user;
   const stays = useLoad(() => api.stays(), []);
   const titles = useLoad(() => api.titles(), []);
@@ -71,9 +72,9 @@ export function Leaving() {
                     <span className="kc-row__sub">{row.lastPlayedAt ? `Last played ${ago(row.lastPlayedAt)}` : "Not played yet"}</span>
                   </div>
                   <span className={"kc-pill" + (group.id === "soon" ? " kc-pill--warn" : "")}>{stayWords(row, me)}</span>
-                  {row.keeperId
+                  {keeping && (row.keeperId
                     ? <button type="button" className="kc-btn kc-btn--ghost" onClick={() => act(row, false)}><Icon name="pin-off" size={15} />Let go</button>
-                    : <button type="button" className="kc-btn" onClick={() => act(row, true)}><Icon name="pin" size={15} />Keep</button>}
+                    : <button type="button" className="kc-btn" onClick={() => act(row, true)}><Icon name="pin" size={15} />Keep</button>)}
                 </div>
               );
             })}

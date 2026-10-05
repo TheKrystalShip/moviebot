@@ -113,8 +113,6 @@ public sealed record WatchNowRequest
     public IReadOnlyList<EpisodePick>? Episodes { get; init; }
 
     public string? Room { get; init; }
-
-    public Actor? RequestedBy { get; init; }
 }
 
 /// <summary>

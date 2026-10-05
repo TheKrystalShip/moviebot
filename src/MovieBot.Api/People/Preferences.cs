@@ -4,8 +4,8 @@ using System.Text.Json.Serialization;
 namespace TheKrystalShip.MovieBot.Api.People;
 
 /// <summary>
-/// How one person watches, whichever door they come in by. The site and the Activity sign the same
-/// Discord account in, so these follow the person rather than the browser.
+/// How one person watches, whichever door they come in by. The site and the Activity both arrive
+/// with a token naming the same account, so these follow the person rather than the browser.
 /// </summary>
 public sealed record ViewerPreferences
 {
@@ -111,7 +111,7 @@ public sealed record SubtitleStyle
 internal partial class PreferencesJson : JsonSerializerContext;
 
 /// <summary>
-/// Everybody's preferences, in one file in the state directory, keyed by Discord user id.
+/// Everybody's preferences, in one file in the state directory, keyed by account.
 ///
 /// Written whole on every change: it is a few hundred bytes per person and changes when somebody
 /// opens a menu, so a write is cheap and rare, and a file written whole through a rename is never

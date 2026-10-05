@@ -5,7 +5,7 @@ import { environment } from '../environment';
 /**
  * What this viewer carries on a request for a film's bytes.
  *
- * The library and the rooms are opened by a room token, which says who somebody is. A segment is
+ * The library and the rooms are opened by the viewer's access token, which says who somebody is. A segment is
  * opened by a ticket, which says only which film and until when. That is what makes a film
  * cacheable: a shared cache will not answer a request carrying an `Authorization` header.
  *

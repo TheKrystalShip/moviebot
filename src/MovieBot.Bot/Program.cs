@@ -20,6 +20,7 @@ using TheKrystalShip.MovieBot.Bot.Presence;
 using TheKrystalShip.MovieBot.Bot.Voice;
 using TheKrystalShip.MovieBot.Bot.Watch;
 using TheKrystalShip.Discord.Voice;
+using TheKrystalShip.MovieBot.Core;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -56,6 +57,19 @@ builder.Services.AddOptions<PlayerOptions>()
         "Player:BaseUrl must be an absolute http or https address. It is the link people are handed.")
     .ValidateOnStart();
 
+// The bot is a confidential client of the identity provider that may act for people by their linked
+// Discord accounts: per command it exchanges the invoker's Discord id for their token, and every call
+// made for them carries it. Without the client's secret nothing can be done for anybody, which is a
+// misconfigured host, said at start-up rather than in front of a room.
+builder.Services.AddOptions<BotOidcOptions>()
+    .Bind(builder.Configuration.GetSection(BotOidcOptions.Section))
+    .Validate(o => IsWebAddress(o.Issuer), "Oidc:Issuer must be the identity provider's issuer, an absolute https address.")
+    .Validate(o => o.BotClientId.Length > 0 && o.BotClientSecret.Length > 0,
+        "Oidc:BotClientId and Oidc:BotClientSecret must name the bot's client at the identity provider.")
+    .ValidateOnStart();
+builder.Services.AddHttpClient<TokenExchangeClient>(http => http.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<PersonTokens>();
+
 builder.Services.AddHttpClient<MovieBotApiClient>((sp, http) =>
 {
     var api = sp.GetRequiredService<IOptions<ApiOptions>>().Value;
@@ -64,10 +78,10 @@ builder.Services.AddHttpClient<MovieBotApiClient>((sp, http) =>
     // last path segment, so the slash is not optional.
     http.BaseAddress = new Uri(api.BaseUrl.TrimEnd('/') + "/");
     http.Timeout = TimeSpan.FromSeconds(10);
-
-    if (api.ServiceKey.Length > 0)
-        http.DefaultRequestHeaders.Add("X-MovieBot-Service", api.ServiceKey);
-});
+})
+    // A command's calls carry the person's token; the rest is machine work on the service key.
+    .AddHttpMessageHandler(sp => new PersonAuthorization(
+        sp.GetRequiredService<PersonTokens>(), sp.GetRequiredService<IOptions<ApiOptions>>().Value.ServiceKey));
 
 // The one Discord endpoint the client library has no method for. Reached with the same token,
 // directly.
@@ -165,10 +179,6 @@ builder.Services.AddHostedService<RoomPresence>();
 // from the presence sweep because a card is a message in a text channel rather than a line under
 // a voice one, and the two are kept up to date on their own terms.
 builder.Services.AddHostedService<LaunchExpiry>();
-
-// Asks the tracker about the films people are waiting on, and tells them when one appears.
-builder.Services.AddHostedService<WishWatcher>();
-builder.Services.AddHostedService<DirectMessages>();
 
 var host = builder.Build();
 host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("MovieBot.Bot")

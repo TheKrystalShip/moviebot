@@ -19,6 +19,19 @@ public sealed record AssistantTurn(
     string ConversationId,
     bool Spoken = false)
 {
+    /// <summary>
+    /// The access token the turn arrived with, which every call its tools make to the API carries, so
+    /// the API decides what the person may do. Left out of the record's printed form.
+    /// </summary>
+    public string AccessToken { get; init; } = "";
+
+    private bool PrintMembers(System.Text.StringBuilder builder)
+    {
+        builder.Append($"Room = {Room}, SpeakerUserId = {SpeakerUserId}, SpeakerName = {SpeakerName}, ");
+        builder.Append($"ConversationId = {ConversationId}, Spoken = {Spoken}");
+        return true;
+    }
+
     /// <summary>The room's conversation, shared by everyone in it for the life of the room.</summary>
     public static string RoomConversation(string sessionId) => $"room:{sessionId}";
 

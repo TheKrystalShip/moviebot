@@ -3,7 +3,8 @@
 What people say or type to MovieBot is a turn here: the agent loop from `TheKrystalShip.Llm`, against
 moviebot-llm, with the harness from `TheKrystalShip.Agent`. The bot relays what is said in a voice
 channel; the Cinema site sends what is typed. Every act a tool takes is the API's
-(`docs/api-contract.md`), reached through `MovieBot.Client` with the service key.
+(`docs/api-contract.md`), reached through `MovieBot.Client` with the access token of the person the
+turn is for.
 
 ## The wire
 
@@ -21,7 +22,7 @@ so one chat client serves this and the KGSM assistant alike. The frames and bodi
 | `GET /commands`, `POST /commands/{name}` | `new` and `help` |
 | `GET /events`, `POST /events/attach` | the caller's stream of chat-list changes, and the turns of the chat it is attached to |
 | `GET /me`, `GET /speech` | who the caller is; whether this host hears and speaks (it does neither) |
-| `POST /rooms/record` | service only: a room verb the bot carried out, written into the room's conversation |
+| `POST /rooms/record` | relayed only: a room verb the bot carried out, written into the room's conversation |
 
 **One frame is this product's own: `launch`**, `{titleId, name, requestedBy, sessionId?, replaced?,
 alreadyWatching}` — a film put on in a room, or, with no `sessionId`, found for a person to open. Each
@@ -31,24 +32,27 @@ sentence, so a client words its message from facts rather than parsing text.
 
 ## Who is asking
 
-- **A person carries the token the API gave them** at sign-in on the site, checked with
-  `Auth:SigningKey`, and it must be a member's: the tools spend things through the service key, so a
-  person here may do what a member may do on the site. This service mints nothing and keeps no
-  sessions.
-- **A service carries `X-MovieBot-Service`** (`Auth:ServiceKey`) **and names the person** in
-  `X-MovieBot-Acting: userId|displayName`, the name percent-encoded. It names who, never what.
-- **Only a service names a room.** A room is what gives a turn the room tools (`RoomTools.RoomOnly`)
-  and the room's conversation, `room:<sessionId>`, shared by everyone in it; the bot knows which voice
-  channel somebody is standing in. A person's turn names none, whatever the body says: it gets the
-  library and fetching tools, and its conversation is `person:<userId>:<chatId>`, theirs alone.
+- **Every caller carries a person's access token, and the turn acts with it.** The token is validated
+  as the API validates it — the issuer `Oidc:Issuer`, the audience `cinema`, ES256, `at+jwt` — and
+  must hold `cinema:watch`. The tools reach the API with that same token, so what a person may do here
+  is exactly what the API lets them do, and a refusal comes back as one a tool words. This service
+  mints nothing, keeps no sessions and holds no key of its own.
+- **A relayed turn is a token with an `act` claim**: a client acting for the person, which is the bot
+  with the token it exchanged for the Discord user who spoke.
+- **Only a relayed turn names a room.** A room is what gives a turn the room tools
+  (`RoomTools.RoomOnly`) and the room's conversation, `room:<sessionId>`, shared by everyone in it; the
+  bot knows which voice channel somebody is standing in. A person's own turn names none, whatever the
+  body says: it gets the library and fetching tools, and its conversation is
+  `person:<userId>:<chatId>`, theirs alone.
 - **In a room anybody may agree to a proposal; on the site only the person who asked.** A refused
-  token is not spent, so a guess cannot cancel what its owner is about to approve.
+  token is not spent, so a guess cannot cancel what its owner is about to approve. The proposal is
+  carried out with the token of whoever agrees, since they are the one spending it.
 
 ## Rules the brain rests on
 
 - **Every act is the API's, and the tools only decide what to ask it.** A download, a wish and a keep
-  are carried out by the API as the person who asked, so the bot's slash commands and this service
-  cannot disagree about what one is.
+  are carried out by the API as the person whose token asks, so the bot's slash commands and this
+  service cannot disagree about what one is.
 - **Live state goes in the turn's context, never in the instructions.** The chat template renders the
   instructions ahead of the tool catalog, so a changing byte there re-reads the catalog and the
   conversation every turn. `AgentTurn.Context` is sent after the conversation.
@@ -62,7 +66,7 @@ sentence, so a client words its message from facts rather than parsing text.
   recorded, and what to do next is appended for the model alone. The model often writes nothing after
   a tool result, and the recorded sentence is then the reply, so it must never name a tool.
 - **Acting on the room is immediate; spending something is proposed.** Proposals wait for somebody to
-  agree, redeem one single-use token, expire, and are carried out as whoever asked.
+  agree, redeem one single-use token, expire, and are carried out as whoever agrees.
 - **A written reply is held to what the turn did**, by the checks in `TheKrystalShip.Agent`: a claim of
   acting on a turn that did nothing, and a figure nothing the turn was given contains, re-prompt once
   and are then corrected. `RoomTools.Acted` is what a claim is held against, and it must cover every

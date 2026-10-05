@@ -8,22 +8,24 @@ namespace TheKrystalShip.MovieBot.Api.People;
 internal partial class PersonDirectoryJson : JsonSerializerContext;
 
 /// <summary>
-/// Who a Discord id is called. Everything else this service keeps about a person is keyed by id,
-/// and an id is no use to somebody reading "last played by" or "kept by"; this is what turns one
-/// into a name.
+/// What each account is called. Everything else this service keeps about a person is keyed by the
+/// account the identity provider names them by, and an id is no use to somebody reading "last played
+/// by" or "kept by"; this is what turns one into a name.
 ///
-/// Told whenever the API issues a token and whenever somebody joins a room, which are the only two
-/// moments it hears a name at all. A name is overwritten by the latest one heard, so a person who
-/// renames themselves is called by the new name from their next visit.
+/// Told on every request that carries a token, which names the person and what they are called. A
+/// name is overwritten by the latest one heard, so a person who renames themselves is called by the
+/// new name from their next visit.
 ///
-/// Written whole through a rename when a name is new or changed. That is rare next to how often
-/// somebody joins a room, and a join that heard nothing new writes nothing.
+/// Written whole through a rename when a name is new or changed. That is rare next to how often a
+/// token arrives, and a request that heard nothing new writes nothing. When each person was last seen
+/// is held in memory alone: it says who is around, and a restart honestly knows nobody.
 /// </summary>
 public sealed class PersonDirectory
 {
     private readonly string _path;
     private readonly ILogger<PersonDirectory> _logger;
     private readonly Lock _gate = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> _seen = new(StringComparer.Ordinal);
     private Dictionary<string, string> _names;
 
     public PersonDirectory(string path, ILogger<PersonDirectory> logger)
@@ -58,6 +60,12 @@ public sealed class PersonDirectory
             Write(_names);
         }
     }
+
+    /// <summary>Notes that the person called the API themselves just now.</summary>
+    public void Seen(string userId, DateTimeOffset at) => _seen[userId] = at;
+
+    /// <summary>When each person was last seen, of those seen since the service started.</summary>
+    public IReadOnlyDictionary<string, DateTimeOffset> LastSeen() => _seen;
 
     private Dictionary<string, string> Read()
     {

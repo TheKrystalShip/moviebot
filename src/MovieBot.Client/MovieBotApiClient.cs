@@ -1,6 +1,8 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Client;
@@ -12,42 +14,39 @@ namespace TheKrystalShip.MovieBot.Client;
 /// for what. Every question is asked of the API at the moment it is asked, so a restart loses
 /// nothing and two processes would agree.
 /// </summary>
-public sealed class MovieBotApiClient(HttpClient http)
+/// <remarks>
+/// <b>A person's act is made with the person's token.</b> <see cref="As"/> is the client for one
+/// person: every request it makes carries their access token, so the API decides what they may do and
+/// records them as who did it. The client built by the container carries whatever its
+/// <see cref="HttpClient"/> was given, which for the bot is the service key: machine work that names
+/// nobody, such as reading the rooms and the downloads it shows in Discord.
+/// </remarks>
+public sealed class MovieBotApiClient
 {
-    /// <summary>The library, as the API currently sees it.</summary>
-    public async Task<IReadOnlyList<LibraryTitle>> ListTitlesAsync(CancellationToken ct)
+    private readonly HttpClient _http;
+    private readonly string? _bearer;
+
+    public MovieBotApiClient(HttpClient http) : this(http, null)
     {
-        try
-        {
-            var titles = await http.GetFromJsonAsync(
-                "api/titles", ClientJsonContext.Default.IReadOnlyListLibraryTitle, ct);
-            return titles ?? [];
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
-                                   && !ct.IsCancellationRequested)
-        {
-            throw new MovieBotApiException("The library could not be read.", ex);
-        }
     }
+
+    private MovieBotApiClient(HttpClient http, string? bearer)
+    {
+        _http = http;
+        _bearer = bearer;
+    }
+
+    /// <summary>This client, acting as the person <paramref name="accessToken"/> names.</summary>
+    public MovieBotApiClient As(string accessToken) => new(_http, accessToken);
+
+    /// <summary>The library, as the API currently sees it.</summary>
+    public async Task<IReadOnlyList<LibraryTitle>> ListTitlesAsync(CancellationToken ct) =>
+        await GetAsync("api/titles", ClientJsonContext.Default.IReadOnlyListLibraryTitle, "The library could not be read.", ct) ?? [];
 
     /// <summary>One film's whole manifest — its tracks, its subtitles, its chapters — or null when the library has no such title.</summary>
-    public async Task<Manifest?> GetTitleAsync(string titleId, CancellationToken ct)
-    {
-        try
-        {
-            using var response = await http.GetAsync($"api/titles/{Uri.EscapeDataString(titleId)}", ct);
-            if (response.StatusCode == HttpStatusCode.NotFound) return null;
-            if (!response.IsSuccessStatusCode)
-                throw new MovieBotApiException($"The API refused to describe {titleId}: {(int)response.StatusCode}.");
-
-            return await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.Manifest, ct);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
-                                   && !ct.IsCancellationRequested)
-        {
-            throw new MovieBotApiException($"{titleId} could not be read.", ex);
-        }
-    }
+    public Task<Manifest?> GetTitleAsync(string titleId, CancellationToken ct) =>
+        GetAsync($"api/titles/{Uri.EscapeDataString(titleId)}", ManifestJsonContext.Default.Manifest,
+            $"{titleId} could not be read.", ct, missing: true);
 
     /// <summary>
     /// The state of one room that already exists, or null when there is none. Read from the listing
@@ -67,37 +66,14 @@ public sealed class MovieBotApiClient(HttpClient http)
     /// </summary>
     public async Task<SessionState> OpenSessionAsync(string sessionId, CancellationToken ct)
     {
-        try
-        {
-            var push = await http.GetFromJsonAsync(
-                $"api/sessions/{Uri.EscapeDataString(sessionId)}",
-                ManifestJsonContext.Default.SessionStatePush, ct);
-
-            return push?.State
-                   ?? throw new MovieBotApiException("The session endpoint returned nothing.");
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
-                                   && !ct.IsCancellationRequested)
-        {
-            throw new MovieBotApiException("The session could not be opened.", ex);
-        }
+        var push = await GetAsync($"api/sessions/{Uri.EscapeDataString(sessionId)}",
+            ManifestJsonContext.Default.SessionStatePush, "The session could not be opened.", ct);
+        return push?.State ?? throw new MovieBotApiException("The session endpoint returned nothing.");
     }
 
     /// <summary>Every room, with what it is watching and how many are in it.</summary>
-    public async Task<IReadOnlyList<RoomSummary>> ListRoomsAsync(CancellationToken ct)
-    {
-        try
-        {
-            var rooms = await http.GetFromJsonAsync(
-                "api/sessions", ManifestJsonContext.Default.IReadOnlyListRoomSummary, ct);
-            return rooms ?? [];
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
-                                   && !ct.IsCancellationRequested)
-        {
-            throw new MovieBotApiException("The rooms could not be read.", ex);
-        }
-    }
+    public async Task<IReadOnlyList<RoomSummary>> ListRoomsAsync(CancellationToken ct) =>
+        await GetAsync("api/sessions", ManifestJsonContext.Default.IReadOnlyListRoomSummary, "The rooms could not be read.", ct) ?? [];
 
     /// <summary>
     /// Puts the film into the room before anyone opens it.
@@ -106,85 +82,48 @@ public sealed class MovieBotApiClient(HttpClient http)
     /// string to carry the choice in. The session carries it instead, and whoever joins finds the
     /// film already loaded.
     /// </summary>
-    public async Task<SessionState> SetSessionTitleAsync(
-        string sessionId, string titleId, string requestedBy, CancellationToken ct)
+    public async Task<SessionState> SetSessionTitleAsync(string sessionId, string titleId, CancellationToken ct)
     {
-        using var response = await http.PostAsJsonAsync(
-            $"api/sessions/{Uri.EscapeDataString(sessionId)}/title",
-            new SetTitleRequest(titleId, requestedBy, requestedBy),
-            ManifestJsonContext.Default.SetTitleRequest, ct);
-
-        if (!response.IsSuccessStatusCode)
-            throw new MovieBotApiException($"The API refused to load {titleId}: {(int)response.StatusCode}.");
-
-        var push = await response.Content.ReadFromJsonAsync(
-                       ManifestJsonContext.Default.SessionStatePush, ct)
-            ?? throw new MovieBotApiException("The API returned no session state.");
-
+        var push = await SendAsync(HttpMethod.Post, $"api/sessions/{Uri.EscapeDataString(sessionId)}/title",
+            new SetTitleRequest(titleId), ManifestJsonContext.Default.SetTitleRequest,
+            ManifestJsonContext.Default.SessionStatePush, $"The API refused to load {titleId}.", ct);
         return push.State;
     }
 
     /// <summary>Starts the room playing from wherever it is.</summary>
-    public Task<RoomChanged> PlayAsync(string sessionId, string userId, string displayName, CancellationToken ct) =>
-        ControlAsync(sessionId, "play",
-            new RoomPlaybackRequest(AtSeconds: null, userId, displayName),
-            ManifestJsonContext.Default.RoomPlaybackRequest, ct);
+    public Task<RoomChanged> PlayAsync(string sessionId, CancellationToken ct) =>
+        ControlAsync(sessionId, "play", new RoomPlaybackRequest(), ManifestJsonContext.Default.RoomPlaybackRequest, ct);
 
     /// <summary>Stops the room where it is.</summary>
-    public Task<RoomChanged> PauseAsync(string sessionId, string userId, string displayName, CancellationToken ct) =>
-        ControlAsync(sessionId, "pause",
-            new RoomPlaybackRequest(AtSeconds: null, userId, displayName),
-            ManifestJsonContext.Default.RoomPlaybackRequest, ct);
+    public Task<RoomChanged> PauseAsync(string sessionId, CancellationToken ct) =>
+        ControlAsync(sessionId, "pause", new RoomPlaybackRequest(), ManifestJsonContext.Default.RoomPlaybackRequest, ct);
 
     /// <summary>
     /// Moves the room by <paramref name="deltaSeconds"/> from where it is. Relative rather than a
     /// position computed here, because the film moves during the round trip.
     /// </summary>
-    public Task<RoomChanged> NudgeAsync(
-        string sessionId, double deltaSeconds, string userId, string displayName, CancellationToken ct) =>
-        ControlAsync(sessionId, "seek-relative",
-            new RoomNudgeRequest(deltaSeconds, userId, displayName),
-            ManifestJsonContext.Default.RoomNudgeRequest, ct);
+    public Task<RoomChanged> NudgeAsync(string sessionId, double deltaSeconds, CancellationToken ct) =>
+        ControlAsync(sessionId, "seek-relative", new RoomNudgeRequest(deltaSeconds), ManifestJsonContext.Default.RoomNudgeRequest, ct);
 
     /// <summary>Moves the room to a position in the film. The API clamps it to what can be played.</summary>
-    public Task<RoomChanged> SeekAsync(
-        string sessionId, double toSeconds, string userId, string displayName, CancellationToken ct) =>
-        ControlAsync(sessionId, "seek",
-            new RoomSeekRequest(toSeconds, userId, displayName),
-            ManifestJsonContext.Default.RoomSeekRequest, ct);
+    public Task<RoomChanged> SeekAsync(string sessionId, double toSeconds, CancellationToken ct) =>
+        ControlAsync(sessionId, "seek", new RoomSeekRequest(toSeconds), ManifestJsonContext.Default.RoomSeekRequest, ct);
 
     /// <summary>The English subtitles the index holds for a film, best fit first, without spending an allowance.</summary>
-    public async Task<SubtitleSearchView?> SearchSubtitlesAsync(string titleId, CancellationToken ct)
-    {
-        try
-        {
-            using var response = await http.GetAsync(
-                $"api/titles/{Uri.EscapeDataString(titleId)}/subtitles/search", ct);
-            if (response.StatusCode == HttpStatusCode.NotFound) return null;
-            if (!response.IsSuccessStatusCode)
-                throw new MovieBotApiException($"The subtitle search for {titleId} failed: {(int)response.StatusCode}.");
-
-            return await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.SubtitleSearchView, ct);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
-                                   && !ct.IsCancellationRequested)
-        {
-            throw new MovieBotApiException($"The subtitles for {titleId} could not be searched.", ex);
-        }
-    }
+    public Task<SubtitleSearchView?> SearchSubtitlesAsync(string titleId, CancellationToken ct) =>
+        GetAsync($"api/titles/{Uri.EscapeDataString(titleId)}/subtitles/search", ManifestJsonContext.Default.SubtitleSearchView,
+            $"The subtitles for {titleId} could not be searched.", ct, missing: true);
 
     /// <summary>
     /// Fetches one subtitle into the film for the whole room, which spends one of the day's
     /// downloads. The refusal is a sentence for the room: the allowance being spent says when it
     /// comes back.
     /// </summary>
-    public async Task<(SubtitleAdded? Added, string? Refusal)> AddSubtitleAsync(
-        string titleId, long fileId, string addedBy, CancellationToken ct)
+    public async Task<(SubtitleAdded? Added, string? Refusal)> AddSubtitleAsync(string titleId, long fileId, CancellationToken ct)
     {
-        using var response = await http.PostAsJsonAsync(
-            $"api/titles/{Uri.EscapeDataString(titleId)}/subtitles",
-            new AddSubtitleRequest(fileId, addedBy),
-            ManifestJsonContext.Default.AddSubtitleRequest, ct);
+        using var request = Request(HttpMethod.Post, $"api/titles/{Uri.EscapeDataString(titleId)}/subtitles");
+        request.Content = JsonContent.Create(new AddSubtitleRequest(fileId), ManifestJsonContext.Default.AddSubtitleRequest);
+        using var response = await _http.SendAsync(request, ct);
 
         if (response.IsSuccessStatusCode)
             return (await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.SubtitleAdded, ct), null);
@@ -195,9 +134,12 @@ public sealed class MovieBotApiClient(HttpClient http)
                 ? $"Today's subtitle downloads are spent. They come back at {at:HH:mm} UTC."
                 : "Today's subtitle downloads are spent.");
 
-        return (null, response.StatusCode == HttpStatusCode.NotFound
-            ? "The library no longer has that film."
-            : $"The subtitle could not be fetched ({(int)response.StatusCode}).");
+        return (null, response.StatusCode switch
+        {
+            HttpStatusCode.NotFound => "The library no longer has that film.",
+            HttpStatusCode.Forbidden => "Your account does not let you do that in Krystal Cinema.",
+            _ => $"The subtitle could not be fetched ({(int)response.StatusCode}).",
+        });
     }
 
     // ── Fetching films ─────────────────────────────────────────────────────────────────────────
@@ -243,64 +185,20 @@ public sealed class MovieBotApiClient(HttpClient http)
         SendAsync(HttpMethod.Post, "api/downloads", request, ManifestJsonContext.Default.StartDownloadRequest,
             ManifestJsonContext.Default.StartDownloadReply, "The download could not be started.", ct);
 
-    /// <summary>Every wish, or one person's when <paramref name="userId"/> is given.</summary>
-    public async Task<IReadOnlyList<WishView>> ListWishesAsync(string? userId, CancellationToken ct) =>
-        await GetAsync(userId is null ? "api/wishes" : $"api/wishes?userId={Uri.EscapeDataString(userId)}",
+    /// <summary>The wishes of the person this client acts as.</summary>
+    public async Task<IReadOnlyList<WishView>> ListWishesAsync(CancellationToken ct) =>
+        await GetAsync("api/wishes",
             ManifestJsonContext.Default.IReadOnlyListWishView, "The wishes could not be read.", ct) ?? [];
 
     public Task<AddWishReply> AddWishAsync(AddWishRequest request, CancellationToken ct) =>
         SendAsync(HttpMethod.Post, "api/wishes", request, ManifestJsonContext.Default.AddWishRequest,
             ManifestJsonContext.Default.AddWishReply, "The wish could not be made.", ct);
 
-    public async Task<CancelWishReply> CancelWishAsync(string userId, string chosen, CancellationToken ct) =>
-        await GetAsync($"api/wishes/{Uri.EscapeDataString(chosen)}?userId={Uri.EscapeDataString(userId)}",
+    public async Task<CancelWishReply> CancelWishAsync(string chosen, CancellationToken ct) =>
+        await GetAsync($"api/wishes/{Uri.EscapeDataString(chosen)}",
             ManifestJsonContext.Default.CancelWishReply, "The wish could not be cancelled.", ct,
             method: HttpMethod.Delete)
         ?? new CancelWishReply { Outcome = "notWaiting" };
-
-    /// <summary>The wishes the tracker can now answer, with whoever is still waiting on each.</summary>
-    public async Task<IReadOnlyList<AvailableWish>> AvailableWishesAsync(CancellationToken ct) =>
-        await GetAsync("api/wishes/available",
-            ManifestJsonContext.Default.IReadOnlyListAvailableWish, "The wishes could not be read.", ct) ?? [];
-
-    /// <summary>The notifications no push reached, waiting to be sent to their people on Discord.</summary>
-    public async Task<IReadOnlyList<DirectMessage>> DirectMessagesAsync(CancellationToken ct) =>
-        await GetAsync("api/notifications/direct",
-            ManifestJsonContext.Default.IReadOnlyListDirectMessage, "The messages owed could not be read.", ct) ?? [];
-
-    /// <summary>Reports how one Discord message went, which takes it off the queue.</summary>
-    public async Task DirectMessageSentAsync(string id, bool sent, CancellationToken ct)
-    {
-        try
-        {
-            using var response = await http.PostAsJsonAsync(
-                $"api/notifications/direct/{Uri.EscapeDataString(id)}", new DirectMessageReport(sent),
-                ManifestJsonContext.Default.DirectMessageReport, ct);
-            if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
-                throw new MovieBotApiException($"The API refused the report on message {id}: {(int)response.StatusCode}.");
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
-        {
-            throw new MovieBotApiException($"Message {id} could not be reported.", ex);
-        }
-    }
-
-    /// <summary>Reports the channels a wish was announced in, whose people the API then forgets.</summary>
-    public async Task WishesToldAsync(string imdbId, IReadOnlyList<string> channelIds, CancellationToken ct)
-    {
-        try
-        {
-            using var response = await http.PostAsJsonAsync(
-                $"api/wishes/{Uri.EscapeDataString(imdbId)}/told", new WishesTold(channelIds),
-                ManifestJsonContext.Default.WishesTold, ct);
-            if (!response.IsSuccessStatusCode)
-                throw new MovieBotApiException($"The API refused to forget {imdbId}: {(int)response.StatusCode}.");
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
-        {
-            throw new MovieBotApiException($"{imdbId} could not be marked as told.", ex);
-        }
-    }
 
     /// <summary>Every settled film and how long it stays, soonest to leave first, the kept ones last.</summary>
     public async Task<IReadOnlyList<TitleStay>> ListStaysAsync(CancellationToken ct) =>
@@ -312,48 +210,51 @@ public sealed class MovieBotApiClient(HttpClient http)
         GetAsync($"api/titles/{Uri.EscapeDataString(titleId)}/stay",
             ManifestJsonContext.Default.TitleStay, "The film's stay could not be read.", ct, missing: true);
 
-    /// <summary>Keeps a film as somebody; null when the library holds no such film.</summary>
-    public Task<TitleStay?> KeepAsync(string titleId, Actor requestedBy, CancellationToken ct) =>
-        ChangeKeepAsync(HttpMethod.Put, titleId, requestedBy, "The film could not be kept.", ct);
+    /// <summary>Keeps a film as the person this client acts as; null when the library holds no such film.</summary>
+    public Task<TitleStay?> KeepAsync(string titleId, CancellationToken ct) =>
+        GetAsync($"api/titles/{Uri.EscapeDataString(titleId)}/keep", ManifestJsonContext.Default.TitleStay,
+            "The film could not be kept.", ct, missing: true, method: HttpMethod.Put);
 
-    /// <summary>Lets a film go back on the library's clock as somebody; null when the library holds no such film.</summary>
-    public Task<TitleStay?> ReleaseKeepAsync(string titleId, Actor requestedBy, CancellationToken ct) =>
-        ChangeKeepAsync(HttpMethod.Delete, titleId, requestedBy, "The film could not be let go.", ct);
+    /// <summary>Lets a film go back on the library's clock as the person this client acts as; null when the library holds no such film.</summary>
+    public Task<TitleStay?> ReleaseKeepAsync(string titleId, CancellationToken ct) =>
+        GetAsync($"api/titles/{Uri.EscapeDataString(titleId)}/keep", ManifestJsonContext.Default.TitleStay,
+            "The film could not be let go.", ct, missing: true, method: HttpMethod.Delete);
 
-    private async Task<TitleStay?> ChangeKeepAsync(
-        HttpMethod method, string titleId, Actor requestedBy, string failure, CancellationToken ct)
+    /// <summary>
+    /// Whether the API is answering. Used at startup so an unreachable backend is reported once,
+    /// on the log, rather than for the first time in front of a room.
+    /// </summary>
+    public async Task<bool> IsHealthyAsync(CancellationToken ct)
     {
         try
         {
-            using var request = new HttpRequestMessage(method, $"api/titles/{Uri.EscapeDataString(titleId)}/keep")
-            {
-                Content = JsonContent.Create(new KeepRequest { RequestedBy = requestedBy }, ManifestJsonContext.Default.KeepRequest),
-            };
-            using var response = await http.SendAsync(request, ct);
-            if (response.StatusCode == HttpStatusCode.NotFound) return null;
-            if (!response.IsSuccessStatusCode)
-                throw new MovieBotApiException($"{failure} ({(int)response.StatusCode})");
-            return await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.TitleStay, ct)
-                ?? throw new MovieBotApiException(failure);
+            using var response = await _http.GetAsync("health", ct);
+            return response.StatusCode == HttpStatusCode.OK;
         }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException
                                    && !ct.IsCancellationRequested)
         {
-            throw new MovieBotApiException(failure, ex);
+            return false;
         }
     }
 
+    private HttpRequestMessage Request(HttpMethod method, string path)
+    {
+        var request = new HttpRequestMessage(method, path);
+        if (_bearer is { Length: > 0 }) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _bearer);
+        return request;
+    }
+
     private async Task<T?> GetAsync<T>(
-        string path, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> type, string failure,
+        string path, JsonTypeInfo<T> type, string failure,
         CancellationToken ct, bool missing = false, HttpMethod? method = null)
     {
         try
         {
-            using var request = new HttpRequestMessage(method ?? HttpMethod.Get, path);
-            using var response = await http.SendAsync(request, ct);
+            using var request = Request(method ?? HttpMethod.Get, path);
+            using var response = await _http.SendAsync(request, ct);
             if (missing && response.StatusCode == HttpStatusCode.NotFound) return default;
-            if (!response.IsSuccessStatusCode)
-                throw new MovieBotApiException($"{failure} ({(int)response.StatusCode})");
+            Ensure(response, failure);
             return await response.Content.ReadFromJsonAsync(type, ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
@@ -364,20 +265,15 @@ public sealed class MovieBotApiClient(HttpClient http)
     }
 
     private async Task<TResponse> SendAsync<TRequest, TResponse>(
-        HttpMethod method, string path, TRequest body,
-        System.Text.Json.Serialization.Metadata.JsonTypeInfo<TRequest> requestType,
-        System.Text.Json.Serialization.Metadata.JsonTypeInfo<TResponse> responseType,
-        string failure, CancellationToken ct)
+        HttpMethod method, string path, TRequest body, JsonTypeInfo<TRequest> requestType,
+        JsonTypeInfo<TResponse> responseType, string failure, CancellationToken ct)
     {
         try
         {
-            using var request = new HttpRequestMessage(method, path)
-            {
-                Content = JsonContent.Create(body, requestType),
-            };
-            using var response = await http.SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode)
-                throw new MovieBotApiException($"{failure} ({(int)response.StatusCode})");
+            using var request = Request(method, path);
+            request.Content = JsonContent.Create(body, requestType);
+            using var response = await _http.SendAsync(request, ct);
+            Ensure(response, failure);
             return await response.Content.ReadFromJsonAsync(responseType, ct)
                 ?? throw new MovieBotApiException(failure);
         }
@@ -393,35 +289,16 @@ public sealed class MovieBotApiClient(HttpClient http)
     /// and does not know where the film is, and the API resolves "wherever the room is" under the same
     /// lock as the change.
     /// </summary>
-    private async Task<RoomChanged> ControlAsync<TRequest>(
-        string sessionId, string control, TRequest request,
-        System.Text.Json.Serialization.Metadata.JsonTypeInfo<TRequest> requestType, CancellationToken ct)
+    private Task<RoomChanged> ControlAsync<TRequest>(
+        string sessionId, string control, TRequest request, JsonTypeInfo<TRequest> requestType, CancellationToken ct) =>
+        SendAsync(HttpMethod.Post, $"api/sessions/{Uri.EscapeDataString(sessionId)}/{control}", request, requestType,
+            ManifestJsonContext.Default.RoomChanged, $"The API refused {control} in {sessionId}.", ct);
+
+    /// <summary>A refusal of the person this client acts as is its own exception, which a surface words as one.</summary>
+    private static void Ensure(HttpResponseMessage response, string failure)
     {
-        using var response = await http.PostAsJsonAsync(
-            $"api/sessions/{Uri.EscapeDataString(sessionId)}/{control}", request, requestType, ct);
-
-        if (!response.IsSuccessStatusCode)
-            throw new MovieBotApiException($"The API refused {control} in {sessionId}: {(int)response.StatusCode}.");
-
-        return await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.RoomChanged, ct)
-            ?? throw new MovieBotApiException("The API returned no room change.");
-    }
-
-    /// <summary>
-    /// Whether the API is answering. Used at startup so an unreachable backend is reported once,
-    /// on the log, rather than for the first time in front of a room.
-    /// </summary>
-    public async Task<bool> IsHealthyAsync(CancellationToken ct)
-    {
-        try
-        {
-            using var response = await http.GetAsync("health", ct);
-            return response.StatusCode == HttpStatusCode.OK;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException
-                                   && !ct.IsCancellationRequested)
-        {
-            return false;
-        }
+        if (response.IsSuccessStatusCode) return;
+        if (response.StatusCode == HttpStatusCode.Forbidden) throw new MovieBotAccessDeniedException(failure);
+        throw new MovieBotApiException($"{failure} ({(int)response.StatusCode})");
     }
 }

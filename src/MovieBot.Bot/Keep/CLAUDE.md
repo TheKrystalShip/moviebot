@@ -4,9 +4,9 @@ A settled film nobody plays or keeps leaves the library after a while; the API d
 hand-off deletes them (`src/MovieBot.Handoff/CLAUDE.md`, "The library's clock").
 
 - **A keep is the API's, by library id, and it names who set it.** It lives with the library's clock
-  and not on the film's torrent, which is let go of long before the film is. Anyone may keep a film
-  and anyone may let it go, and the record says who did, which beats deciding who is allowed to. The
-  bot acts with the service key and names the person.
+  and not on the film's torrent, which is let go of long before the film is. Anyone holding
+  `cinema:keep` may keep a film and may let it go, and the record says who did. The bot acts with the
+  token it exchanged for the person who ran the command, so the API records them.
 - **A film already kept stays its first keeper's.** `/keep add` on a kept film says who has it
   rather than changing hands; `/keep remove` on one nobody keeps says so.
 - **The launch and the ready announcement say how long a film stays in one sentence**,

@@ -73,16 +73,28 @@ which strips the prefix (`nginx-moviebot.conf`).
   it, so a change arrives only once the API is published after that script has run. One origin serves
   the site, the player, the API, the media and the hub, because a Discord Activity maps one URL;
   Discord launches the Activity at the root, and the site's index takes that load to `/embed/`.
-- **Signing in to the site needs its redirect registered with Discord.** The application's OAuth2
-  redirects list `https://movies.thekrystalship.com/signin`; Discord refuses to send anybody back to
-  an address it was not given.
+- **People sign in at tks-auth, which knows Cinema as an application.** The issuer is
+  `https://auth.thekrystalship.com` (`Oidc.Issuer` in `deploy/hotbox.settings.json`), and Cinema is
+  registered there with the id and audience `cinema` and its manifest at
+  `https://movies.thekrystalship.com/.well-known/tks-actions.json`; its three clients are the site
+  (`cinema-site`, public, redirect `https://movies.thekrystalship.com/signin`), the API's exchange for
+  the Activity (`cinema-activity`, confidential, presenting Cinema's Discord application) and the bot
+  (`cinema-bot`, confidential, acting for linked Discord users). The two client secrets are
+  `Oidc__ActivityClientSecret` and `Oidc__BotClientSecret` in the environment file. The API records
+  the issuer in `/var/lib/moviebot/issuer` the first time it starts and refuses another until
+  `Oidc.AdoptIssuer` names it.
+- **The Activity's code is redeemed with Cinema's Discord application**, whose secret is
+  `Discord__ClientSecret` in the environment file; an Activity never redirects, so the application
+  needs no redirect registered for it.
 - **The units in `/etc/systemd/system/` are root-owned copies of `*.service` here, and every
   `systemctl` verb against them needs root.** There is no polkit grant on hotbox, so starting,
   stopping and restarting are as privileged as installing a changed unit: `systemctl restart` as the
   owning user is refused with *"interactive authentication required"* and nothing happens.
   Publishing the binaries is unprivileged and the restart that picks them up is not, so a deploy ends
   by saying what changed and handing over the command rather than working around the privilege.
-- **`/etc/moviebot/moviebot.env` holds the credentials** every unit reads, **and which tracker
+- **`/etc/moviebot/moviebot.env` holds the credentials** every unit reads — the bot's token, the
+  Discord and identity-provider client secrets, `Auth__MediaTicketKey` that signs media tickets and
+  the service key the hand-off and the bot's background passes present — **and which tracker
   this is**: `Tracker__BaseUrl`, `Tracker__Username`, `Tracker__Passkey` and the tracker's category
   names as `Selection__AllowedCategories__0`, `__1` and so on, with the show categories as
   `Selection__AllowedShowCategories__N`. The API, the bot and the hand-off refuse to start without

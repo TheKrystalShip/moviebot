@@ -1,7 +1,7 @@
 # Krystal Cinema
 
-MovieBot's site and its player: the library in a browser for members of the server MovieBot plays
-films in, and the Discord Activity, which is the same player. It is served by `MovieBot.Api` from the
+MovieBot's site and its player: the library in a browser for the people the identity provider lets
+watch, and the Discord Activity, which is the same player. It is served by `MovieBot.Api` from the
 root of its `wwwroot` and built on `@thekrystalship/krystal-ui`, the design system the KGSM Control
 Panel is built on too. The design is the Krystal Cinema project (desktop, mobile and embed pages); the
 API is the authority for everything it draws.
@@ -38,9 +38,9 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular` and `/hu
 | `/saved/<id>` | One list (`later` is the person's own Watch later): its titles newest saved first under Today, Yesterday, This week and each month, with krystal-ui's `Toolbar` to search titles and notes, narrow by kind, library and watched, and sort. Each row says when it was saved, by whom on a shared list, its note, and whether the person watched it; an owner or editor edits the note and takes it off. Its owner renames it, deletes it, and puts people on it as editors or viewers; a member leaves it |
 | `/notify` | The films the signed-in person is waiting on |
 | `/leaving` | Every settled film and how long it stays, kept or not |
-| `/profile`, `/profile/<tab>` | The signed-in person; History, the first tab, has no segment: History (with a way to remove a film), Requests, Following (each followed show with its next episode, whether new episodes are downloaded, and Unfollow), Notifications, Playback (subtitle and audio language, quality, skipping intros and recaps automatically, how subtitles look with a preview of them, theme) and Sessions (the devices signed in, signing one or all others out), and signing out |
+| `/profile`, `/profile/<tab>` | The signed-in person; History, the first tab, has no segment: History (with a way to remove a film), Requests, Following (each followed show with its next episode, whether new episodes are downloaded, and Unfollow), Notifications and Playback (subtitle and audio language, quality, skipping intros and recaps automatically, how subtitles look with a preview of them, theme); the account's page at the provider, and signing out |
 | `/about` | What the site is, and where its film details come from |
-| `/signin` | The door, and where Discord sends the browser back to |
+| `/signin` | The door, and where the identity provider sends the browser back to |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from. A room waiting on a Watch now shows the film being found, arriving and starting, and plays it on its own |
 | `/embed/` | The Discord Activity: the same player with no site around it |
 
@@ -81,11 +81,28 @@ pages no tab names are linked from the footer every page ends with.
 
 ## Signing in
 
-Discord is the only door. Signing in asks Discord for `identify guilds.members.read`; the API redeems
-the code, asks Discord whether the person is a member of the server, and issues its own token only to
-a member. That token is the bearer on every call to the API and to the assistant, and is kept in this
-browser under `cinema:session` until it expires. The redirect, `<origin>/signin`, is registered with
-the Discord application.
+Krystal Cinema signs nobody in. It is a public OpenID Connect client (`src/session.js`, on
+`oidc-client-ts`) of the provider `/api/config` names, with the client id it names: the door sends the
+browser there, authorization code with PKCE, and the provider sends it back to `<origin>/signin` with a
+code redeemed for an access token and a refresh token. The access token is the bearer on every call to
+the API, the hub and the assistant. It lives five minutes and is renewed by the refresh grant a minute
+before it runs out and whenever a call is refused; the session is kept in this browser's
+`localStorage` under `cinema.oidc.`, so a tab opened days later carries on without a bounce.
+
+The door is a button rather than a redirect, so a person who signed out stays out and the page can be
+installed from it. Signing out forgets this browser's tokens and nothing else; the account's page at
+the provider is where its sessions are listed and ended everywhere, and Profile links to it.
+
+The token lists the Cinema actions the person holds, in the claim `/api/config` names, and the page
+shows a control only to somebody holding the action it needs (`can` and `useCan` in `src/session.js`):
+Download and Watch on a film that is not here need `cinema:download`, Notify `cinema:wish`, Keep
+`cinema:keep`. An approved account without `cinema:watch` sees one page saying it has no access to
+Krystal Cinema, with Sign out and the account's page. The API checks every action again.
+
+The Activity signs in through the API instead, since it has no browser to redirect: the code the
+Embedded App SDK gives it is posted to `/api/auth/discord/callback`, which answers Discord's access
+token for the SDK and the provider's token for the person, and the same call with the Discord token is
+how it renews.
 
 ## Watching
 
@@ -97,7 +114,8 @@ because loading it again would send everyone back to the beginning.
 
 Discord launches the Activity at the root of its URL mapping. A load carrying Discord's launch
 parameters is the Activity's, so the index rewrites its address to `/embed/` before the page reads it,
-and the player signs the viewer in through the Embedded App SDK rather than the site's session.
+and the player signs the viewer in through the Embedded App SDK and the API rather than the site's
+session.
 
 How the player behaves, and why: `src/player/CLAUDE.md`.
 
@@ -185,7 +203,7 @@ krystal-ui's `pushBrowser` against `/api/push/key` and `/api/me/push`, and holds
 for each kind that is pushed, new episodes of followed shows among them. A browser can be pushed to only once it has a service worker, which is a
 production build; on an iPhone, only once the site is on the Home Screen, and the tab says so. The
 player's invite panel lists everybody who can be asked into the room and says, per person, whether
-the invite went out as a push or as a Discord message, never that it was seen.
+the invite went out as a push or waits in their bell, never that it was seen.
 
 Installing needs HTTPS, which localhost is exempt from. `npm run verify:pwa [origin]` asks a real
 Chromium whether the site is installable, decodes every icon and launch screen at the size it is
@@ -212,7 +230,8 @@ who asked for it.
   what comes from it. The logo is TMDB's own, from its
   attribution page, in `src/assets/tmdb.svg`.
 - **One module attaches the token.** `src/api.js` is the only place a bearer is added to a call to
-  the API; the assistant's client is given a way to read the token, never the token itself. A 401
-  signs the browser out.
+  the API; the assistant's client and the player are given a way to ask for a good token, never a
+  token to keep. A 401 renews the session once and makes the call again, and a second 401 signs the
+  browser out.
 - **Every act is the person's own.** The API takes who asked from the token, so the site sends no
   name of its own and cannot act for anybody else.

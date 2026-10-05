@@ -86,9 +86,8 @@ public sealed class NextEpisodes(
             var reply = await downloads.StartAsync(new StartDownloadRequest
             {
                 TorrentId = release.TorrentId,
-                RequestedBy = new Actor("", "MovieBot"),
                 Episodes = [new EpisodePick(next.Season, next.Episode)],
-            }, ct);
+            }, asker: null, ct);
             logger.LogInformation("Fetching {Show} {Episode} ahead of room {Room}: {Outcome}.",
                 manifest.Film.Name ?? show, next, room.SessionId, reply.Outcome);
         }

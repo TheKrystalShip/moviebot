@@ -55,10 +55,7 @@ public static class SitePaths
 ///
 /// Who is owed the news is written on the torrent when it starts (<see cref="TorrentTags.Tell"/>),
 /// beside who asked, and taken off once they have been told, so a restart in the middle of a long
-/// download tells them still and a download nobody was promised news of is never announced. A
-/// download asked for in a Discord channel is announced there by the bot, mentioning the person, so
-/// the Discord message stands in for a push only where no channel was named
-/// (<see cref="TorrentTags.TellDirect"/>).
+/// download tells them still and a download nobody was promised news of is never announced.
 /// </summary>
 public sealed class ReadyNotices(
     AcquisitionService acquisition,
@@ -98,25 +95,22 @@ public sealed class ReadyNotices(
 
             var id = download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null);
             if (download.Tags.Select(TorrentTags.ReadRequester).FirstOrDefault(r => r is not null) is { } requester
-                && !(id is not null && !failed && Watching(requester.ToString(CultureInfo.InvariantCulture), id)))
+                && !(id is not null && !failed && Watching(requester, id)))
             {
                 var manifest = id is null ? null : library.Get(id);
                 var name = manifest is null ? ReleaseParser.ParseName(download.Name).Display : Naming.Name(manifest);
 
-                await notifier.TellAsync(requester.ToString(CultureInfo.InvariantCulture), new NotificationDraft
+                await notifier.TellAsync(requester, new NotificationDraft
                 {
                     Kind = NotificationKinds.Ready,
                     Key = $"ready:{download.Hash}",
                     Text = failed ? $"{name} could not be made ready to watch." : $"{name} is ready to watch.",
                     Url = failed || manifest is null ? SitePaths.Profile("requests") : Naming.PathOf(manifest),
                     Action = failed ? null : "Watch",
-                    Direct = download.Tags.Contains(TorrentTags.TellDirect),
                 }, ct);
             }
 
             await acquisition.ClearTagAsync(download.Hash, TorrentTags.Tell, ct);
-            if (download.Tags.Contains(TorrentTags.TellDirect))
-                await acquisition.ClearTagAsync(download.Hash, TorrentTags.TellDirect, ct);
         }
     }
 

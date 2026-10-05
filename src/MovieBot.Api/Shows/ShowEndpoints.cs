@@ -1,6 +1,7 @@
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
 using TheKrystalShip.MovieBot.Api.Acquisition;
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
@@ -16,7 +17,8 @@ public static class ShowEndpoints
         // The shows the library holds, one entry each, with the asking person's place in each.
         app.MapGet("/api/shows", (HttpContext context, LibraryListing library, ShowStore shows,
             WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
-            Results.Ok(shows.Summaries(Titles(context, library, record, people, sessions, clock))));
+            Results.Ok(shows.Summaries(Titles(context, library, record, people, sessions, clock))))
+            .RequireAction(CinemaActions.Watch);
 
         // A show by its IMDb id, in the library or not: the page somebody picks episodes on shows it
         // as fully as one on the shelf.
@@ -43,7 +45,7 @@ public static class ShowEndpoints
             var person = PeopleEndpoints.Person(context);
             return Results.Ok(shows.View(imdbId, stored, episodes, stays.StayOf,
                 person is null ? null : follows.Get(person.UserId, imdbId)));
-        });
+        }).RequireAction(CinemaActions.Watch);
 
         // The episodes either side of one the library holds, which is what a player's previous and
         // next move the room to. Absent at either end.
@@ -82,7 +84,7 @@ public static class ShowEndpoints
                 shows.EpisodeName(show, next?.Episode),
                 fetchable,
                 shows.EpisodeName(show, fetchable)));
-        });
+        }).RequireAction(CinemaActions.Watch);
 
         // What the tracker offers for a show, season by season: packs and single episodes, each best
         // first, every one remembered so a download can name it.
@@ -106,7 +108,7 @@ public static class ShowEndpoints
                 return Results.Json(new ErrorReply("The tracker is not answering."), ApiJsonContext.Default.ErrorReply,
                     statusCode: StatusCodes.Status502BadGateway);
             }
-        }).AddEndpointFilter(AcquisitionEndpoints.ServiceOrMember);
+        }).RequireAction(CinemaActions.Download);
 
         // The shows the title index offers for a name, for a search box: a show is fetched by its
         // seasons from its own page, which is where these lead.
@@ -114,14 +116,15 @@ public static class ShowEndpoints
             Results.Ok((await index.SuggestShowsAsync(q ?? "", ct))
                 .Select(s => new Core.FilmView { ImdbId = s.ImdbId, Title = s.Title, Year = s.Year, Display = s.Display })
                 .ToList()))
-            .AddEndpointFilter(AcquisitionEndpoints.ServiceOrMember);
+            .RequireAction(CinemaActions.Download);
 
+        // The artwork kept beside each description, open like any other: an <img> carries no token.
         app.MapMethods("/shows/{imdbId}/{file}", ["GET", "HEAD"], (string imdbId, string file, ShowStore store, HttpContext context) =>
         {
             if (store.ImageFile(imdbId, file) is not { } path) return Results.NotFound();
             context.Response.Headers.CacheControl = "public, max-age=86400";
             return Results.File(path, "image/jpeg", enableRangeProcessing: false);
-        });
+        }).AllowAnonymous();
     }
 
     /// <summary>The library's titles with the asking person's plays, as the listing carries them.</summary>

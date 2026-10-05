@@ -46,13 +46,10 @@ public sealed class NotifyOptions
     }
 }
 
-/// <summary>One person waiting on a film, and where they asked to be told.</summary>
+/// <summary>One person waiting on a film, by the account the identity provider names them by.</summary>
 public sealed record WishSubscriber
 {
-    public required ulong UserId { get; init; }
-
-    /// <summary>The Discord channel the announcement goes to, or null for somebody who asked elsewhere.</summary>
-    public ulong? ChannelId { get; init; }
+    public required string UserId { get; init; }
 
     public required DateTimeOffset AskedAt { get; init; }
 }
@@ -61,9 +58,8 @@ public sealed record WishSubscriber
 /// A film somebody wants that cannot be downloaded yet, and everybody waiting on it.
 ///
 /// Keyed by the film rather than by the person: two people asking for the same film share one
-/// wish, one tracker call per sweep, and one announcement in each channel they asked in. What is
-/// kept about the film is what the catalogue said when it was asked, so the announcement can name
-/// it and show its poster without asking again.
+/// wish and one tracker call per sweep. What is kept about the film is what the catalogue said when
+/// it was asked, so a notification can name it and a page show its poster without asking again.
 /// </summary>
 public sealed record Wish
 {
@@ -84,8 +80,8 @@ public sealed record Wish
     [JsonIgnore]
     public string Display => Year is { } year ? $"{Title} ({year})" : Title;
 
-    /// <summary>The wish as it crosses the wire.</summary>
-    public WishView View() => new()
+    /// <summary>The wish as it crosses the wire, with the release that answers it once there is one.</summary>
+    public WishView View(ReleaseOffer? release = null) => new()
     {
         ImdbId = ImdbId,
         Title = Title,
@@ -95,10 +91,10 @@ public sealed record Wish
         PosterUrl = PosterUrl,
         Subscribers = Subscribers.Select(s => new WishSubscriberView
         {
-            UserId = s.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ChannelId = s.ChannelId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            UserId = s.UserId,
             AskedAt = s.AskedAt,
         }).ToList(),
+        Release = release,
     };
 }
 
@@ -133,6 +129,10 @@ public sealed class WishList
     private readonly Lock _gate = new();
     private List<Wish>? _wishes;
 
+    // The release each wish that has come out was found as. Held in memory only: the sweep finds it
+    // again on its first pass after a restart.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Release> _out = new(StringComparer.OrdinalIgnoreCase);
+
     public WishList(IOptions<NotifyOptions> options, ILogger<WishList> logger)
         : this(options.Value.ResolvePath(), logger)
     {
@@ -152,7 +152,7 @@ public sealed class WishList
     }
 
     /// <summary>The films one person is waiting on.</summary>
-    public IReadOnlyList<Wish> For(ulong userId)
+    public IReadOnlyList<Wish> For(string userId)
     {
         lock (_gate)
             return Loaded().Where(w => w.Subscribers.Any(s => s.UserId == userId)).ToList();
@@ -166,7 +166,7 @@ public sealed class WishList
 
     /// <summary>
     /// Adds a person to a film's wish, making the wish if it is the first. What is kept about the
-    /// film is what the catalogue said now, which stands in for it until the announcement.
+    /// film is what the catalogue said now, which stands in for it until the film is out.
     /// </summary>
     public (WishAdded Outcome, Wish Wish) Add(ImdbTitle film, WishSubscriber subscriber)
     {
@@ -204,7 +204,7 @@ public sealed class WishList
     }
 
     /// <summary>Takes one person off a film's wish. The wish goes with its last subscriber.</summary>
-    public Wish? Remove(ulong userId, string imdbId)
+    public Wish? Remove(string userId, string imdbId)
     {
         lock (_gate)
         {
@@ -224,37 +224,18 @@ public sealed class WishList
         }
     }
 
-    /// <summary>
-    /// Forgets everybody who asked in the given channels, because they have been told. Whoever
-    /// asked somewhere the message could not be sent stays, and the next sweep tries them again.
-    /// </summary>
-    public void Forget(string imdbId, IReadOnlySet<ulong> channelIds) =>
-        Forget(imdbId, s => s.ChannelId is { } channel && channelIds.Contains(channel));
+    /// <summary>Notes that a wished film is out, as this release.</summary>
+    public void MarkOut(string imdbId, Release release) => _out[imdbId] = release;
 
-    /// <summary>
-    /// Forgets everybody who asked without a channel, once they have been told through their own
-    /// notifications. Nobody announces to them in a channel, so nothing later would take them off.
-    /// </summary>
-    public void ForgetUnchannelled(string imdbId) =>
-        Forget(imdbId, s => s.ChannelId is null);
-
-    private void Forget(string imdbId, Func<WishSubscriber, bool> told)
+    /// <summary>The release a wished film came out as, or null while it is not out or nobody waits on it.</summary>
+    public Release? OutAs(string imdbId)
     {
-        lock (_gate)
-        {
-            var wishes = Loaded();
-            var index = wishes.FindIndex(w => Same(w.ImdbId, imdbId));
-            if (index < 0) return;
+        if (!_out.TryGetValue(imdbId, out var release)) return null;
+        if (Find(imdbId) is not null) return release;
 
-            var wish = wishes[index];
-            var remaining = wish.Subscribers.Where(s => !told(s)).ToList();
-            if (remaining.Count == wish.Subscribers.Count) return;
-
-            if (remaining.Count == 0) wishes.RemoveAt(index);
-            else wishes[index] = wish with { Subscribers = remaining };
-
-            Save(wishes);
-        }
+        // A film nobody waits on any longer is nobody's news.
+        _out.TryRemove(imdbId, out _);
+        return null;
     }
 
     private static bool Same(string a, string b) =>

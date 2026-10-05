@@ -10,12 +10,14 @@ sync controller, the stream, the room) and the components draw what `engine/room
 
 Everything that differs between the site and the Activity is behind `Environment`
 (`engine/environment.ts`): where the API is, how a manifest-relative media path becomes a URL, which
-room this is, which film the launch named and where in it to start, who the viewer is, the link that hands the room to someone
+room this is, which film the launch named and where in it to start, who the viewer is, a good access token
+(`freshToken`) and which Cinema actions it holds (`holds`), the link that hands the room to someone
 else, where their presence is shown, and how the film is held sideways on a phone. Nothing else reads
-`location` or builds a URL. The site's
-room is the address and its viewer whoever signed in; the Activity's room is the voice channel and its
-viewer whoever Discord says, so `engine/discordEnvironment.ts` is the other implementation and nothing
-more.
+`location` or builds a URL. The site's room is the address and its viewer whoever signed in; the
+Activity's room is the voice channel and its viewer whoever the token the API exchanged for its Discord
+sign-in names, so `engine/discordEnvironment.ts` is the other implementation and nothing more. The
+viewer's id and name are the token's `sub` and `name` on both, and the hub takes them from the
+connection's token rather than from anything the page sends.
 
 ## Starting playback
 
@@ -63,8 +65,8 @@ more.
   else the last two minutes — next is offered over the film. Either one puts the other episode on for
   the whole room, as picking a film does. When the episode right after is not here but the tracker
   has it (`fetchable`), next fetches it into the room at the quality of the one playing, and the room
-  shows it arriving over the film; the server has usually fetched it ahead already. The Activity
-  spends nothing, so there next is the next episode here.
+  shows it arriving over the film; the server has usually fetched it ahead already. Fetching takes
+  `cinema:download`, so for a viewer without it next is the next episode here.
 - **Skipping an intro or a recap is a button over the film, and it moves the room.** The manifest's
   `markers` name the stretches, and while the playhead is inside one the button asks the room to seek
   to its end, as the scrub bar does, so everyone skips together. It is offered only when playback

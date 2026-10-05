@@ -57,7 +57,7 @@ public sealed class RoomControls(
             + " ({Participants} in the room, via {Via})",
             actor.DisplayName, intent, result.State.Revision,
             result.State.Paused ? "paused" : "playing", result.State.PositionSeconds,
-            sessions.Participants(sessionId).Count, via ?? "http");
+            sessions.Participants(sessionId).Count, actor.Via is { } client ? $"{via ?? "http"} from {client}" : via ?? "http");
 
         await hub.Clients.Group(sessionId).SendAsync("StateChanged", push, ct);
 

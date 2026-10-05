@@ -65,16 +65,23 @@ since="$(date -u -d "-$clock_days days" +%Y-%m-%dT%H:%M:%S+00:00)"
 printf '{"people":{},"titles":{},"since":"%s"}\n' "$since" > "$dir/state/watch.json"
 
 # Keys of the scratch API's own, made once and kept beside it for run.mjs.
-if [[ ! -f "$dir/keys.env" ]]; then
+if [[ ! -f "$dir/keys.env" ]] || ! grep -q '^MEDIA_TICKET_KEY=' "$dir/keys.env"; then
   umask 077
   {
-    echo "SIGNING_KEY=$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
+    echo "MEDIA_TICKET_KEY=$(head -c 32 /dev/urandom | base64 | tr -d '\n')"
     echo "SERVICE_KEY=$(head -c 24 /dev/urandom | base64 | tr -d '\n=+/')"
   } > "$dir/keys.env"
 fi
 # shellcheck disable=SC1091
 source "$dir/keys.env"
-printf 'PORT=%s\n' "$port" > "$dir/api.env"
+issuer_port=$((port + 1))
+printf 'PORT=%s\nISSUER_PORT=%s\n' "$port" "$issuer_port" > "$dir/api.env"
+
+# The identity provider the scratch API trusts, standing in for tks-auth; the checks mint tokens with
+# its key (verify/issuer.mjs). It goes when the API does.
+node "$site/verify/issuer.mjs" serve "$dir" "$issuer_port" &
+issuer_pid=$!
+trap 'kill "$issuer_pid" 2>/dev/null' EXIT
 
 tmdb=()
 if [[ -n "${MOVIEBOT_VERIFY_TMDB_TOKEN_FILE:-}" ]]; then
@@ -84,15 +91,16 @@ fi
 echo "Scratch Krystal Cinema on http://127.0.0.1:$port: $i films, $cold_count on the clock since $since."
 cd "$dir/api"
 # The API refuses to start without a tracker category; the harness reaches no tracker.
-exec env \
+env \
   STATE_DIRECTORY="$dir/state" \
   ASPNETCORE_WEBROOT="$site/dist" \
   Media__Root="$dir/library/media" \
   Media__ColdRoot="$dir/library/cold" \
   Subtitles__Root="$dir/state/subtitles" \
   Tmdb__Directory="$dir/films" \
-  Auth__SigningKey="$SIGNING_KEY" \
+  Auth__MediaTicketKey="$MEDIA_TICKET_KEY" \
   Auth__ServiceKey="$SERVICE_KEY" \
+  Oidc__Issuer="http://127.0.0.1:$issuer_port" \
   Selection__AllowedCategories__0=1 \
   Kestrel__Endpoints__Http__Url="http://127.0.0.1:$port" \
   "${tmdb[@]}" \

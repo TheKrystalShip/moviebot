@@ -18,9 +18,10 @@ namespace TheKrystalShip.MovieBot.Assistant.Wire;
 /// has finished.
 /// </para>
 /// <para>
-/// <b>Only a service names a room.</b> A room on a turn is what lets it move the film for everyone, and
-/// the bot is what knows which voice channel somebody is standing in. A person on the site asks about
-/// films; their turn names none, whatever the body says.
+/// <b>Only a client relaying a person names a room.</b> A room on a turn is what lets it move the film
+/// for everyone, and the bot is what knows which voice channel somebody is standing in: its token for
+/// the person names it as the client acting for them. A person on the site asks about films; their
+/// turn names none, whatever the body says.
 /// </para>
 /// </remarks>
 public static class AssistantEndpoints
@@ -34,7 +35,7 @@ public static class AssistantEndpoints
 
         app.MapGet("/me", (HttpRequest request, Callers callers) =>
             callers.Resolve(request) is { } caller
-                ? Json(new MeReply(caller.UserId, caller.DisplayName, caller.Service))
+                ? Json(new MeReply(caller.UserId, caller.DisplayName, caller.Relayed))
                 : Refuse());
 
         // Speech is the bot's, in a voice channel. The site has neither a microphone nor a voice here.
@@ -52,7 +53,7 @@ public static class AssistantEndpoints
         // a question about it a minute later is answered by an assistant that knows.
         app.MapPost("/rooms/record", async (HttpRequest request, Callers callers, CinemaAssistant assistant) =>
         {
-            if (callers.Resolve(request) is not { Service: true } caller || caller.UserId.Length == 0) return Refuse();
+            if (callers.Resolve(request) is not { Relayed: true } caller) return Refuse();
             if (await Read(request, AssistantJsonContext.Default.RecordRequest) is not { } body) return Bad("A record names a room, a tool and an outcome.");
 
             assistant.RecordAct(AssistantTurn.InRoom(body.Room, caller.UserId, caller.DisplayName),
@@ -200,12 +201,6 @@ public static class AssistantEndpoints
             return;
         }
 
-        if (caller.UserId.Length == 0)
-        {
-            await Write(context, Bad($"A service names the person it speaks for in {Callers.ActingHeader}."));
-            return;
-        }
-
         if (await Read(request, AssistantJsonContext.Default.TurnRequest) is not { Prompt.Length: > 0 } body)
         {
             await Write(context, Bad("A turn needs a prompt."));
@@ -215,15 +210,15 @@ public static class AssistantEndpoints
         var spoken = string.Equals(body.Style, "voice", StringComparison.OrdinalIgnoreCase);
         AssistantTurn turn;
         string scope;
-        if (caller.Service && body.Room is { SessionId.Length: > 0 } room)
+        if (caller.Relayed && body.Room is { SessionId.Length: > 0 } room)
         {
-            turn = AssistantTurn.InRoom(room, caller.UserId, caller.DisplayName, spoken);
+            turn = AssistantTurn.InRoom(room, caller.UserId, caller.DisplayName, spoken) with { AccessToken = caller.AccessToken };
             scope = turn.ConversationId;
         }
         else
         {
             var chat = body.ConversationId is { Length: > 0 } id ? id : "main";
-            turn = AssistantTurn.ForPerson(caller.UserId, caller.DisplayName, chat) with { Spoken = spoken };
+            turn = AssistantTurn.ForPerson(caller.UserId, caller.DisplayName, chat) with { Spoken = spoken, AccessToken = caller.AccessToken };
             scope = caller.Scope;
 
             if (store.CreateConversation(turn.ConversationId))
@@ -251,7 +246,8 @@ public static class AssistantEndpoints
         await PumpAsync(context, frames, context.RequestAborted);
     }
 
-    private static async Task ConfirmAsync(HttpContext context, Callers callers, StagedActions staged, ILoggerFactory loggers)
+    private static async Task ConfirmAsync(
+        HttpContext context, Callers callers, StagedActions staged, Client.MovieBotApiClient api, ILoggerFactory loggers)
     {
         var request = context.Request;
         if (callers.Resolve(request) is not { } caller)
@@ -283,7 +279,7 @@ public static class AssistantEndpoints
         ConfirmOutcome outcome;
         try
         {
-            outcome = await action.Run(context.RequestAborted);
+            outcome = await action.Run(new Agreement(api.As(caller.AccessToken), caller.DisplayName), context.RequestAborted);
         }
         catch (Exception ex)
         {
@@ -373,7 +369,7 @@ public static class AssistantEndpoints
         await context.Response.Body.FlushAsync(ct);
     }
 
-    /// <summary>A person, or a service speaking for one. A service naming nobody has no conversations.</summary>
+    /// <summary>The person asking, whoever carried the request.</summary>
     private static Caller? Person(HttpRequest request, Callers callers) =>
         callers.Resolve(request) is { UserId.Length: > 0 } caller ? caller : null;
 
@@ -414,7 +410,7 @@ public static class AssistantEndpoints
         Results.Json(value, (System.Text.Json.Serialization.Metadata.JsonTypeInfo<T>)AssistantJsonContext.Default.GetTypeInfo(typeof(T))!);
 
     private static IResult Refuse() =>
-        Results.Json(new AssistantError("Sign in through Discord, or speak for somebody with the service key."),
+        Results.Json(new AssistantError("Sign in to Krystal Cinema."),
             AssistantJsonContext.Default.AssistantError, statusCode: StatusCodes.Status401Unauthorized);
 
     private static IResult Bad(string why) =>

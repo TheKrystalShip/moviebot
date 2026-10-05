@@ -23,9 +23,11 @@ namespace TheKrystalShip.MovieBot.Bot.Download;
 /// start of it would have the command that plays the film find nothing on the other.
 ///
 /// A download that carries a room is one somebody asked to watch, not to file. The film is loaded
-/// into that room exactly as the command would have loaded it had it been in the library, and the
-/// announcement is the same launch the command would have posted, mentioning the person who
-/// asked. Without a room it is an announcement and nothing more.
+/// into that room as the command would have loaded it had it been in the library, and the
+/// announcement is the same launch the command would have posted, mentioning the person who asked
+/// (the mention tag the bot wrote when it started the download). Nobody is there to act as by then,
+/// so the loading is machine work on the service key, and the room records MovieBot. Without a room
+/// it is an announcement and nothing more.
 ///
 /// It holds nothing. What to announce and where is read from the torrent's own tags on every
 /// pass, so a bot restarted in the middle of a three-hour download still announces it — which is
@@ -107,7 +109,7 @@ public sealed class DownloadWatcher(
             }
 
             var requester = download.Tags
-                .Select(TorrentTags.ReadRequester)
+                .Select(TorrentTags.ReadMention)
                 .FirstOrDefault(id => id is not null);
 
             var roomTag = download.Tags.FirstOrDefault(
@@ -178,7 +180,7 @@ public sealed class DownloadWatcher(
             var replaced = alreadyWatching ? null : library.FirstOrDefault(t => t.Id == session.TitleId);
 
             if (!alreadyWatching)
-                session = await api.SetSessionTitleAsync(session.SessionId, title.Id, requestedBy, ct);
+                session = await api.SetSessionTitleAsync(session.SessionId, title.Id, ct);
 
             var reply = await presenter.PresentAsync(new LaunchRequest
             {

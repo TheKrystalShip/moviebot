@@ -10,26 +10,21 @@
 //
 // The rooms stay open, with their people in them, until `close()` is called.
 
-import { createHmac } from "node:crypto";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const signalR = require("@microsoft/signalr");
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-const b64 = (bytes) => Buffer.from(bytes).toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
 
 export const VIEWER = { id: "verify-viewer", name: "Phone Check" };
 /** People a view may act as instead of the viewer, by the name views.mjs gives them. */
 export const PEOPLE = { viewer: VIEWER, player: { id: "verify-player", name: "Player Check" } };
 const OTHERS = [{ id: "verify-ana", name: "Ana" }, { id: "verify-ben", name: "Ben" }];
 
-/** A member's token, signed with the scratch API's own key: what signing in on the site hands back. */
-export function memberToken(signingKey, person, hours = 6) {
-  const body = b64(JSON.stringify({
-    sub: person.id, name: person.name, room: "", exp: Math.floor(Date.now() / 1000) + hours * 3600, member: true,
-  }));
-  return `${body}.${b64(createHmac("sha256", signingKey).update(body).digest())}`;
+/** A person's access token, minted by the scratch site's identity provider: what signing in on the site holds. */
+export function memberToken(issuer, person, hours = 6) {
+  return issuer.mint(person, { hours });
 }
 
 async function call(api, token, method, path, body) {
@@ -50,9 +45,9 @@ async function connect(api, token) {
 }
 
 /** A person in a room watching a film from `at`, playing or paused. */
-async function sitIn(api, signingKey, person, room, titleId, at, playing) {
-  const hub = await connect(api, memberToken(signingKey, person));
-  await hub.invoke("Join", room, person.id, person.name);
+async function sitIn(api, issuer, person, room, titleId, at, playing) {
+  const hub = await connect(api, memberToken(issuer, person));
+  await hub.invoke("Join", room);
   await hub.invoke("LoadTitle", titleId, at);
   await hub.invoke("Play", at);
   await wait(1200);
@@ -73,8 +68,8 @@ async function described(api, token, timeoutMs = 90000) {
   }
 }
 
-export async function stage(api, signingKey, { tmdb = true } = {}) {
-  const token = memberToken(signingKey, VIEWER);
+export async function stage(api, issuer, { tmdb = true } = {}) {
+  const token = memberToken(issuer, VIEWER);
   const titles = tmdb ? await described(api, token) : await call(api, token, "GET", "/api/titles");
   const stays = await call(api, token, "GET", "/api/stays");
   const ready = titles.filter((t) => t.status === "ready");
@@ -86,15 +81,15 @@ export async function stage(api, signingKey, { tmdb = true } = {}) {
 
   // The viewer's progress: partway through, then out of the room, which is what records it.
   for (const [title, fraction] of [[settled[0], 0.35], [fresh[0], 0.6], [fresh[1], 0.2]]) {
-    const hub = await sitIn(api, signingKey, VIEWER, `verify-progress-${title.id}`, title.id, Math.floor(title.durationSeconds * fraction), false);
+    const hub = await sitIn(api, issuer, VIEWER, `verify-progress-${title.id}`, title.id, Math.floor(title.durationSeconds * fraction), false);
     await hub.stop();
   }
 
   await call(api, token, "PUT", `/api/titles/${encodeURIComponent(settled[1].id)}/keep`);
 
   const rooms = [
-    await sitIn(api, signingKey, OTHERS[0], "verify-ana", settled[2].id, 1800, true),
-    await sitIn(api, signingKey, OTHERS[1], "verify-ben", fresh[2].id, 900, false),
+    await sitIn(api, issuer, OTHERS[0], "verify-ana", settled[2].id, 1800, true),
+    await sitIn(api, issuer, OTHERS[1], "verify-ben", fresh[2].id, 900, false),
   ];
 
   // Lists: the viewer's Watch later with a note on one, a list of the viewer's shared with Ben, and
@@ -106,7 +101,7 @@ export async function stage(api, signingKey, { tmdb = true } = {}) {
   const mine = await call(api, token, "POST", "/api/lists", { name: "Rainy Sunday" });
   for (const title of named.slice(2, 4)) await save(token, mine.list.id, title);
   await call(api, token, "PUT", `/api/lists/${mine.list.id}/members/${OTHERS[1].id}`, { role: "viewer" });
-  const ana = memberToken(signingKey, OTHERS[0]);
+  const ana = memberToken(issuer, OTHERS[0]);
   const theirs = await call(api, ana, "POST", "/api/lists", { name: "Friday night with the group" });
   for (const title of named.slice(4, 7)) await save(ana, theirs.list.id, title);
   await call(api, ana, "PUT", `/api/lists/${theirs.list.id}/members/${VIEWER.id}`, { role: "editor" });

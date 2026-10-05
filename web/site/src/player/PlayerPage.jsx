@@ -3,6 +3,18 @@ import "./player.css";
 import { Player } from "./Player.jsx";
 import { createSiteEnvironment, setEnvironment } from "./engine/environment.ts";
 import { createDiscordEnvironment } from "./engine/discordEnvironment.ts";
+import { can, currentToken, freshToken, sessionStore } from "../session.js";
+
+/** The site's signed-in person, as the player asks for them. */
+const viewer = {
+  token: currentToken,
+  freshToken: () => freshToken(),
+  identity: () => {
+    const session = sessionStore.getState();
+    return session ? { userId: session.user.id, displayName: session.user.name } : null;
+  },
+  holds: (action) => can(sessionStore.getState(), action),
+};
 
 /**
  * A room on the site, at `/r/<room>`. The room is the address and whoever is signed in is the
@@ -10,16 +22,17 @@ import { createDiscordEnvironment } from "./engine/discordEnvironment.ts";
  */
 export function SiteRoom({ room, title, onBack, onEmpty }) {
   const [ready] = React.useState(() => {
-    setEnvironment(createSiteEnvironment(room, title));
+    setEnvironment(createSiteEnvironment(room, title, viewer));
     return true;
   });
   return ready && <Page><Player key={room} onBack={onBack} onEmpty={onEmpty} /></Page>;
 }
 
 /**
- * The Discord Activity, at `/embed/`. The room is the voice channel and the viewer is who Discord
- * says they are, so nothing is known until the Embedded App SDK has answered; a failure to sign in
- * there is said in place of the film rather than falling back to anything.
+ * The Discord Activity, at `/embed/`. The room is the voice channel and the viewer is the account
+ * linked to the Discord account in it, so nothing is known until the Embedded App SDK and the sign-in
+ * have answered; a failure to sign in, an account waiting for approval among them, is said in place
+ * of the film rather than falling back to anything.
  */
 export function EmbedRoom() {
   const [state, setState] = React.useState({ ready: false, error: null });
@@ -29,9 +42,9 @@ export function EmbedRoom() {
     (async () => {
       const response = await fetch("/api/config");
       if (!response.ok) throw new Error(`The server would not say which application this is (${response.status}).`);
-      const { discordClientId, publicBaseUrl } = await response.json();
+      const { discordClientId, publicBaseUrl, actionsClaim } = await response.json();
       if (!discordClientId) throw new Error("This server has no Discord application configured.");
-      setEnvironment(await createDiscordEnvironment(discordClientId, publicBaseUrl ?? null));
+      setEnvironment(await createDiscordEnvironment(discordClientId, publicBaseUrl ?? null, actionsClaim));
       if (live) setState({ ready: true, error: null });
     })().catch((error) => {
       if (live) setState({ ready: false, error: error instanceof Error ? error.message : "Discord sign-in failed." });

@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Api.People;
@@ -20,7 +21,8 @@ public static class ListEndpoints
         app.MapGet("/api/me/lists", (string? holding, HttpContext context, ListStore lists, ListPresenter present, TimeProvider clock) =>
             PeopleEndpoints.Person(context) is { } person
                 ? Results.Ok(lists.For(person.UserId, clock.GetUtcNow()).Select(l => present.Summary(l, person.UserId, holding)).ToList())
-                : NoPerson());
+                : NoPerson())
+            .RequireAction(CinemaActions.ProfileRead);
 
         app.MapPost("/api/lists", (ListNameRequest body, HttpContext context, ListStore lists, ListPresenter present, TimeProvider clock) =>
         {
@@ -29,7 +31,7 @@ public static class ListEndpoints
 
             var (list, refusal) = lists.Create(person.UserId, name, clock.GetUtcNow());
             return list is null ? Refused(refusal) : Results.Ok(present.View(list, person.UserId));
-        });
+        }).RequireAction(CinemaActions.ProfileWrite);
 
         app.MapGet("/api/lists/{id}", (string id, HttpContext context, ListStore lists, ListPresenter present, TimeProvider clock) =>
         {
@@ -37,7 +39,7 @@ public static class ListEndpoints
             return lists.Get(person.UserId, id, clock.GetUtcNow()) is { } list
                 ? Results.Ok(present.View(list, person.UserId))
                 : Refused(ListRefusal.NotFound);
-        });
+        }).RequireAction(CinemaActions.ProfileRead);
 
         app.MapPatch("/api/lists/{id}", (string id, ListNameRequest body, HttpContext context, ListStore lists, ListPresenter present, TimeProvider clock) =>
         {
@@ -46,14 +48,14 @@ public static class ListEndpoints
 
             var (list, refusal) = lists.Rename(person.UserId, id, name, clock.GetUtcNow());
             return list is null ? Refused(refusal) : Results.Ok(present.Summary(list, person.UserId));
-        });
+        }).RequireAction(CinemaActions.ProfileWrite);
 
         app.MapDelete("/api/lists/{id}", (string id, HttpContext context, ListStore lists) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             var refusal = lists.Delete(person.UserId, id);
             return refusal == ListRefusal.None ? Results.NoContent() : Refused(refusal);
-        });
+        }).RequireAction(CinemaActions.ProfileWrite);
 
         // Saves a title to a list, or changes its note. The title is asked of the film database as
         // the kind it is said to be, which is what tells a film from a show and an id from a typo,
@@ -83,14 +85,14 @@ public static class ListEndpoints
 
             var (entry, _, refusal) = lists.Save(person.UserId, id, imdbId, body.Kind!, note, clock.GetUtcNow());
             return entry is null ? Refused(refusal) : Results.Ok(present.Entry(entry, person.UserId));
-        });
+        }).RequireAction(CinemaActions.ProfileWrite);
 
         app.MapDelete("/api/lists/{id}/entries/{imdbId}", (string id, string imdbId, HttpContext context, ListStore lists, TimeProvider clock) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             var refusal = lists.Remove(person.UserId, id, imdbId, clock.GetUtcNow());
             return refusal == ListRefusal.None ? Results.NoContent() : Refused(refusal);
-        });
+        }).RequireAction(CinemaActions.ProfileWrite);
 
         // Puts somebody on the owner's list. Somebody put on it for the first time is told, once.
         app.MapPut("/api/lists/{id}/members/{userId}", async (string id, string userId, ListMemberRequest body,
@@ -118,7 +120,7 @@ public static class ListEndpoints
                 }, ct);
             }
             return Results.Ok(present.Summary(list, person.UserId));
-        });
+        }).RequireAction(CinemaActions.ProfileWrite);
 
         // The owner takes somebody off; a member takes themselves off, which is leaving.
         app.MapDelete("/api/lists/{id}/members/{userId}", (string id, string userId, HttpContext context, ListStore lists, TimeProvider clock) =>
@@ -126,7 +128,7 @@ public static class ListEndpoints
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             var refusal = lists.RemoveMember(person.UserId, id, userId, clock.GetUtcNow());
             return refusal == ListRefusal.None ? Results.NoContent() : Refused(refusal);
-        });
+        }).RequireAction(CinemaActions.ProfileWrite);
     }
 
     /// <summary>A list's name, trimmed, or null when it is blank or too long.</summary>

@@ -220,11 +220,9 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
     {
         _fixture.Services.GetRequiredService<PersonDirectory>().Remember(userId, name);
         var client = _fixture.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", RoomToken.Issue(new RoomTokenPayload
-        {
-            UserId = userId, DisplayName = name, RoomId = "", Member = true,
-            ExpiresAtUnix = Clock.GetUtcNow().AddDays(400).ToUnixTimeSeconds(),
-        }, SessionFixture.SigningKey));
+        // Lives as long as the clock the tests move days at a time.
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            _fixture.Issuer.Mint(userId, name, lifetime: TimeSpan.FromDays(400)));
         return client;
     }
 
@@ -340,9 +338,9 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
         using var put = await bot.PutAsJsonAsync("/api/me/follows/tt9100001", new FollowRequest());
         using var delete = await bot.DeleteAsync("/api/me/follows/tt9100001");
 
-        Assert.Equal(HttpStatusCode.Forbidden, list.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, put.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, delete.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, list.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, put.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, delete.StatusCode);
     }
 
     [Fact]
@@ -556,7 +554,7 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
         var fetched = Assert.Single(_fixture.Fetched);
         Assert.Contains($"={FollowFixture.Pack1080}", fetched);
         var tags = _fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags;
-        Assert.Equal([TorrentTags.Requester(7021)], tags.Where(t => TorrentTags.ReadRequester(t) is not null));
+        Assert.Equal([TorrentTags.Requester("7021")], tags.Where(t => TorrentTags.ReadRequester(t) is not null));
         Assert.Equal(0, _fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "S01E01.720p.mkv"));
         Assert.Equal(7, _fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "S01E03.720p.mkv"));
 
@@ -693,11 +691,8 @@ public sealed class FollowRefusalTests(FullDiskFixture fixture) : IClassFixture<
 
         fixture.Services.GetRequiredService<PersonDirectory>().Remember("7081", "Sam");
         var sam = fixture.CreateClient();
-        sam.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", RoomToken.Issue(new RoomTokenPayload
-        {
-            UserId = "7081", DisplayName = "Sam", RoomId = "", Member = true,
-            ExpiresAtUnix = fixture.Clock.GetUtcNow().AddDays(400).ToUnixTimeSeconds(),
-        }, SessionFixture.SigningKey));
+        sam.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+            fixture.Issuer.Mint("7081", "Sam", lifetime: TimeSpan.FromDays(400)));
         using var put = await sam.PutAsJsonAsync($"/api/me/follows/{imdb}", new FollowRequest { AutoDownload = true });
         Assert.Equal(HttpStatusCode.OK, put.StatusCode);
 

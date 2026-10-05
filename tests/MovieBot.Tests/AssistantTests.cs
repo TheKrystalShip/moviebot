@@ -89,7 +89,7 @@ public sealed class AssistantPartsTests
     public void A_proposal_is_redeemed_once_by_an_unguessable_token()
     {
         var staged = new StagedActions(Options.Create(new AssistantOptions()), TimeProvider.System);
-        var action = staged.Stage("keep_film", "keep Heat", "Heat", Turn(1), _ => Task.FromResult(Kept));
+        var action = staged.Stage("keep_film", "keep Heat", "Heat", Turn(1), (_, _) => Task.FromResult(Kept));
 
         Assert.Matches("^[0-9a-f]{32}$", action.Token);
         Assert.Same(action, staged.Take(action.Token));
@@ -101,7 +101,7 @@ public sealed class AssistantPartsTests
     {
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var staged = new StagedActions(Options.Create(new AssistantOptions { OfferMinutes = 10 }), clock);
-        var action = staged.Stage("download_film", "download Heat", "Heat", Turn(1), _ => Task.FromResult(Kept));
+        var action = staged.Stage("download_film", "download Heat", "Heat", Turn(1), (_, _) => Task.FromResult(Kept));
 
         clock.Advance(TimeSpan.FromMinutes(11));
 
@@ -116,8 +116,8 @@ public sealed class AssistantPartsTests
     public void A_proposal_made_on_the_site_is_the_asker_s_alone_and_a_room_s_is_anybody_s()
     {
         var staged = new StagedActions(Options.Create(new AssistantOptions()), TimeProvider.System);
-        var mine = staged.Stage("keep_film", "keep Heat", "Heat", AssistantTurn.ForPerson("4242", "Haru", "main"), _ => Task.FromResult(Kept));
-        var room = staged.Stage("keep_film", "keep Heat", "Heat", Turn(1), _ => Task.FromResult(Kept));
+        var mine = staged.Stage("keep_film", "keep Heat", "Heat", AssistantPartsTests.SitePerson(), (_, _) => Task.FromResult(Kept));
+        var room = staged.Stage("keep_film", "keep Heat", "Heat", Turn(1), (_, _) => Task.FromResult(Kept));
 
         Assert.Null(staged.Take(mine.Token, "77"));
         Assert.Single(staged.Pending(mine.ConversationId));
@@ -166,11 +166,17 @@ public sealed class AssistantPartsTests
     public void A_room_holding_nothing_says_so() =>
         Assert.Equal("Room Cinema: no film is loaded.", TurnFacts.Describe("Cinema", null, [], DateTimeOffset.UtcNow));
 
+    /// <summary>Haru, speaking in a voice channel: the bot relays the turn with the token it exchanged for them.</summary>
     internal static AssistantTurn Turn(ulong channel)
     {
         var id = channel.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        return AssistantTurn.InRoom(new TurnRoom(id, "Cinema", id), "4242", "Haru");
+        return AssistantTurn.InRoom(new TurnRoom(id, "Cinema", id), "4242", "Haru")
+            with { AccessToken = TestIssuer.Token("4242", "Haru", via: "cinema-bot") };
     }
+
+    /// <summary>Haru, typing on the site with the token they signed in with.</summary>
+    internal static AssistantTurn SitePerson() =>
+        AssistantTurn.ForPerson("4242", "Haru", "main") with { AccessToken = TestIssuer.Token("4242", "Haru") };
 }
 
 /// <summary>
@@ -204,7 +210,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     {
         var host = Host();
         var turn = AssistantPartsTests.Turn(NewChannel());
-        await host.Api.SetSessionTitleAsync(turn.Room!.SessionId, SessionFixture.TranscodingTitle, "someone", CancellationToken.None);
+        await host.Api.SetSessionTitleAsync(turn.Room!.SessionId, SessionFixture.TranscodingTitle, CancellationToken.None);
 
         var said = await host.Tools.For(turn).ExecuteAsync(Call(RoomTools.Seek, ("position", "1:00:00")));
 
@@ -257,7 +263,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     public async Task On_the_site_a_film_is_found_to_open_and_no_room_is_touched()
     {
         var host = Host();
-        var turn = AssistantTurn.ForPerson("4242", "Haru", "main");
+        var turn = AssistantPartsTests.SitePerson();
         var tools = host.Tools.For(turn, "show me heat");
         var before = (await host.Api.ListRoomsAsync(CancellationToken.None)).Count;
 
@@ -273,7 +279,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     public async Task On_the_site_a_tool_that_acts_on_a_room_is_refused()
     {
         var host = Host();
-        var tools = host.Tools.For(AssistantTurn.ForPerson("4242", "Haru", "main"));
+        var tools = host.Tools.For(AssistantPartsTests.SitePerson());
 
         var said = await tools.ExecuteAsync(Call(RoomTools.Pause));
 
@@ -284,7 +290,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     public async Task On_the_site_a_film_the_library_lacks_is_proposed_for_the_library_and_for_no_room()
     {
         var host = Host();
-        var tools = host.Tools.For(AssistantTurn.ForPerson("4242", "Haru", "main"), "get inception");
+        var tools = host.Tools.For(AssistantPartsTests.SitePerson(), "get inception");
 
         var told = await tools.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "Inception")));
 
@@ -343,21 +349,23 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     }
 
     [Fact]
-    public async Task A_wish_agreed_to_is_made_as_the_person_who_asked_in_the_room_s_channel()
+    public async Task A_wish_agreed_to_is_made_as_whoever_agreed()
     {
         var host = Host();
         var turn = AssistantPartsTests.Turn(NewChannel());
         var room = host.Tools.For(turn, "tell me when at worlds end is out");
 
         await room.ExecuteAsync(Call(RoomTools.AddWish, ("imdb_id", "tt0449088")));
-        var outcome = await Assert.Single(room.Proposed).Run(CancellationToken.None);
+        var bea = host.Agreement("77", "Bea");
+        var outcome = await Assert.Single(room.Proposed).Run(bea, CancellationToken.None);
 
         Assert.True(outcome.Success, outcome.Text);
         Assert.Equal("subscribed", outcome.Wish?.Outcome);
-        var held = await host.Api.ListWishesAsync("4242", CancellationToken.None);
-        Assert.Equal(turn.Room!.ChannelId, Assert.Single(held, w => w.ImdbId == "tt0449088").Subscribers.Single(s => s.UserId == "4242").ChannelId);
+        Assert.Contains("Bea", outcome.Text);
+        var held = await bea.Api.ListWishesAsync(CancellationToken.None);
+        Assert.Equal("77", Assert.Single(Assert.Single(held, w => w.ImdbId == "tt0449088").Subscribers).UserId);
 
-        await host.Api.CancelWishAsync("4242", "tt0449088", CancellationToken.None);
+        await bea.Api.CancelWishAsync("tt0449088", CancellationToken.None);
     }
 
     [Fact]
@@ -452,7 +460,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()));
         await room.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "Inception")));
 
-        var outcome = await Assert.Single(room.Proposed).Run(CancellationToken.None);
+        var outcome = await Assert.Single(room.Proposed).Run(host.Agreement("4242", "Haru"), CancellationToken.None);
 
         Assert.False(outcome.Success);
         Assert.Equal("failed", outcome.Verdict);
@@ -592,7 +600,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     public async Task A_person_s_chat_on_the_site_is_never_started_over_behind_their_back()
     {
         var host = Host();
-        var turn = AssistantTurn.ForPerson("4242", "Haru", "main");
+        var turn = AssistantPartsTests.SitePerson();
         Said(host, turn, "what is heat about", "Heat is a heist film.", DateTimeOffset.UtcNow.AddHours(-12));
         host.Model.Answers.Enqueue(LlmResponse.Text("It is from 1995."));
 
@@ -673,7 +681,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     public async Task A_film_put_on_with_nothing_written_after_it_is_answered_with_what_was_done()
     {
         var host = Host();
-        var turn = AssistantTurn.ForPerson("4242", "Haru", "main");
+        var turn = AssistantPartsTests.SitePerson();
         host.Model.Answers.Enqueue(new LlmResponse(null, [Call(RoomTools.WatchFilm, ("title", "heat"))]));
         host.Model.Answers.Enqueue(LlmResponse.Text(""));
 
@@ -765,8 +773,8 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
 
     private static async Task StartFilmAsync(MovieBotApiClient api, AssistantTurn turn)
     {
-        await api.SetSessionTitleAsync(turn.Room!.SessionId, SessionFixture.ReadyTitle, "someone", CancellationToken.None);
-        await api.PlayAsync(turn.Room.SessionId, "1", "someone", CancellationToken.None);
+        await api.SetSessionTitleAsync(turn.Room!.SessionId, SessionFixture.ReadyTitle, CancellationToken.None);
+        await api.PlayAsync(turn.Room.SessionId, CancellationToken.None);
     }
 
     private static ulong NewChannel() => (ulong)Interlocked.Increment(ref _channels);

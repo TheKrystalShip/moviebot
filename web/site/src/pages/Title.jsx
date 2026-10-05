@@ -5,7 +5,7 @@ import { leaveRule, stayWords, useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
 import { tvPath } from "../paths.js";
 import { navigate } from "../router.js";
-import { useSession } from "../session.js";
+import { useCan, useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, watchLink } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes } from "../components/FilmDetails.jsx";
@@ -27,6 +27,7 @@ export function Title({ id }) {
   const rooms = useLoad(() => api.rooms(), [id]);
   const [busy, setBusy] = React.useState(false);
   const session = useSession();
+  const keeping = useCan("cinema:keep");
   const me = session && session.user;
 
   useCrumb(manifest.data
@@ -119,7 +120,7 @@ export function Title({ id }) {
                   {!room && progress && <span className="kc-btn__sub">{timeLeft(m.durationSeconds - progress.positionSeconds)}</span>}
                 </a>
               )}
-              {held && (held.keeperId
+              {held && keeping && (held.keeperId
                 ? <button type="button" className="kc-btn kc-btn--lg" disabled={busy} onClick={() => keep(false)}><Icon name="pin-off" size={17} />Un-keep</button>
                 : <button type="button" className="kc-btn kc-btn--lg" disabled={busy} onClick={() => keep(true)}><Icon name="pin" size={17} />Keep</button>)}
               {film.imdbId && <SaveButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}

@@ -14,11 +14,9 @@ public sealed record DownloadRequest
     /// <summary>Where to announce the film when it can be watched.</summary>
     public required ulong ChannelId { get; init; }
 
-    public required string RequestedBy { get; init; }
-
     /// <summary>
-    /// Who asked, so they can be told when the film arrives rather than having to watch a
-    /// channel for it.
+    /// Who asked, on Discord, so the announcement in the channel mentions them. The API knows them by
+    /// the token the command runs with.
     /// </summary>
     public required ulong RequesterId { get; init; }
 
@@ -36,6 +34,7 @@ public enum DownloadOutcome
     NoLongerOffered,
     Refused,
     TrackerUnavailable,
+    NotAllowed,
 }
 
 /// <summary>
@@ -85,6 +84,23 @@ public sealed class DownloadCommand(
         }
     }
 
+    /// <summary>
+    /// Records who the bot mentions when it announces this download in its channel. The API knows the
+    /// person by their account; the mention is Discord's, so it is the bot's to write.
+    /// </summary>
+    public async Task RecordMentionAsync(string hash, ulong discordUserId, CancellationToken ct)
+    {
+        try
+        {
+            await acquisition.TagAsync(hash, TorrentTags.Mention(discordUserId), ct);
+        }
+        catch (QBittorrentException ex)
+        {
+            // The download is running and is announced either way, naming nobody.
+            logger.LogWarning(ex, "Could not record who to mention for {Hash}.", hash);
+        }
+    }
+
     public async Task<DownloadResult> ExecuteAsync(DownloadRequest request, CancellationToken ct)
     {
         StartDownloadReply reply;
@@ -93,10 +109,13 @@ public sealed class DownloadCommand(
             reply = await api.StartDownloadAsync(new StartDownloadRequest
             {
                 TorrentId = request.TorrentId,
-                RequestedBy = new Actor(request.RequesterId.ToString(), request.RequestedBy),
                 NotifyChannelId = request.ChannelId == 0 ? null : request.ChannelId.ToString(),
                 RoomId = request.RoomId?.ToString(),
             }, ct);
+        }
+        catch (MovieBotAccessDeniedException)
+        {
+            return new DownloadResult(DownloadOutcome.NotAllowed, NotAllowed);
         }
         catch (MovieBotApiException ex)
         {
@@ -105,8 +124,14 @@ public sealed class DownloadCommand(
                 "The MovieBot API is not answering, so nothing started. Try again in a minute.");
         }
 
+        if (reply is { Outcome: "started", Hash: { } hash })
+            await RecordMentionAsync(hash, request.RequesterId, ct);
+
         return Describe(reply, intoRoom: request.RoomId is not null);
     }
+
+    /// <summary>What a person whose account may not download is told.</summary>
+    public const string NotAllowed = "Your account does not let you download in Krystal Cinema.";
 
     /// <summary>
     /// What the API's answer to a download is told as in a channel, whoever asked for it: a slash

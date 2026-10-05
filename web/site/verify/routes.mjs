@@ -16,17 +16,19 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { VIEWER, memberToken } from "./mobile/stage.mjs";
+import { issuerIn } from "./issuer.mjs";
 
 const dir = process.env.MOVIEBOT_VERIFY_DIR || join(homedir(), ".cache", "moviebot-verify");
-if (!existsSync(join(dir, "keys.env"))) {
+if (!existsSync(join(dir, "api.env"))) {
   console.error(`No scratch site in ${dir}. Start verify/mobile/scratch.sh first.`);
   process.exit(2);
 }
 const readEnv = (file) => Object.fromEntries(
   readFileSync(join(dir, file), "utf8").split("\n").filter(Boolean).map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]));
-const keys = readEnv("keys.env");
-const base = `http://127.0.0.1:${readEnv("api.env").PORT}`;
-const token = memberToken(keys.SIGNING_KEY, VIEWER);
+const site = readEnv("api.env");
+const base = `http://127.0.0.1:${site.PORT}`;
+const issuer = issuerIn(dir, Number(site.ISSUER_PORT));
+const token = memberToken(issuer, VIEWER);
 
 function chromePath() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -68,13 +70,7 @@ function report(name, problems) {
 
 async function open({ signedIn = true, width = 1280 } = {}) {
   const context = await browser.newContext({ viewport: { width, height: 900 } });
-  if (signedIn) {
-    await context.addInitScript(([t, who]) => {
-      localStorage.setItem("cinema:session", JSON.stringify({
-        token: t, expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: who.id, name: who.name, username: who.id },
-      }));
-    }, [token, VIEWER]);
-  }
+  if (signedIn) await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), issuer.planted(VIEWER));
   const page = await context.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(e.message));
@@ -126,7 +122,6 @@ const TRAILS = {
   "/profile": [HOME, ["Profile", null]],
   "/profile/requests": [HOME, ["Profile", "/profile"], ["Requests", null]],
   "/profile/playback": [HOME, ["Profile", "/profile"], ["Playback", null]],
-  "/profile/sessions": [HOME, ["Profile", "/profile"], ["Sessions", null]],
   "/notify": [HOME, ["Notify me", null]],
   "/leaving": [HOME, ["Leaving soon", null]],
   "/about": [HOME, ["About", null]],
@@ -213,7 +208,6 @@ await cold("/profile/", { lands: "/profile" });
 await cold("/profile/history", { lands: "/profile", subtab: "History" });
 await cold("/profile/requests", { lands: "/profile/requests", subtab: "Requests", tab: "Me" });
 await cold("/profile/playback", { lands: "/profile/playback", subtab: "Playback" });
-await cold("/profile/sessions/extra", { lands: "/profile/sessions", subtab: "Sessions" });
 await cold("/profile/nope", { lands: "/profile", subtab: "History" });
 await cold("/notify", { lands: "/notify", ...here("Notify me", "Me") });
 await cold("/notify/", { lands: "/notify" });
@@ -427,6 +421,30 @@ for (const path of ["/tv/tt0903747/season/3", "/discover?q=matrix", "/movies/the
   }
   await context.close();
   report(`signed out, ${path} goes to the door and remembers it`, problems);
+}
+
+// The door's button goes to the provider, with PKCE, as the site's client, and back to /signin.
+{
+  const { context, page } = await open({ signedIn: false });
+  const problems = [];
+  try {
+    await page.goto(base + "/signin", { waitUntil: "load" });
+    await page.click(".kc-signin button");
+    const authorize = issuer.url + "/authorize";
+    const until = Date.now() + 10000;
+    while (!page.url().startsWith(authorize) && Date.now() < until) await page.waitForTimeout(100);
+    const reached = new URL(page.url());
+    if (reached.origin + reached.pathname !== authorize) problems.push(`landed at ${page.url()}, wanted the provider's ${authorize}`);
+    else {
+      if (reached.searchParams.get("client_id") !== "cinema-site") problems.push(`signed in as ${reached.searchParams.get("client_id")}`);
+      if (reached.searchParams.get("code_challenge_method") !== "S256") problems.push("no PKCE challenge");
+      if (reached.searchParams.get("redirect_uri") !== base + "/signin") problems.push(`returns to ${reached.searchParams.get("redirect_uri")}`);
+    }
+  } catch (error) {
+    problems.push(error.message.split("\n")[0]);
+  }
+  await context.close();
+  report("the door goes to the provider with PKCE and comes back to /signin", problems);
 }
 
 await browser.close();

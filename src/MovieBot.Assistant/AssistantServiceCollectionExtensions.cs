@@ -19,7 +19,6 @@ public static class AssistantServiceCollectionExtensions
     public static IServiceCollection AddCinemaAssistant(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<AssistantOptions>().Bind(configuration.GetSection(AssistantOptions.Section));
-        services.AddOptions<AssistantAuthOptions>().Bind(configuration.GetSection(AssistantAuthOptions.Section));
         services.AddLocalLlm(configuration);
 
         // The loop is built per turn, because its tools act on one room as one person. The package's
@@ -47,13 +46,15 @@ public static class AssistantServiceCollectionExtensions
         services.AddSingleton<StagedActions>();
         services.AddSingleton<RoomToolbox>();
         services.AddSingleton<CinemaAssistant>();
-        services.AddSingleton<Callers>();
         services.AddSingleton<EventStreams>();
         services.AddSingleton<TurnHub>();
         return services;
     }
 
-    /// <summary>The API, reached with the service key as the services that act on somebody's behalf reach it.</summary>
+    /// <summary>
+    /// The API. It carries no credential of its own: every call is made as the person a turn is for,
+    /// with their token (<see cref="MovieBotApiClient.As"/>).
+    /// </summary>
     public static IServiceCollection AddMovieBotApi(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddHttpClient<MovieBotApiClient>(http =>
@@ -62,9 +63,6 @@ public static class AssistantServiceCollectionExtensions
             // last path segment, so the slash is not optional.
             http.BaseAddress = new Uri((configuration["Api:BaseUrl"] ?? "http://127.0.0.1:8099").TrimEnd('/') + "/");
             http.Timeout = TimeSpan.FromSeconds(15);
-
-            if (configuration["Api:ServiceKey"] is { Length: > 0 } key)
-                http.DefaultRequestHeaders.Add("X-MovieBot-Service", key);
         });
         return services;
     }

@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Core;
 
@@ -12,6 +13,13 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// intent down it; the bot and a spoken command have no connection to a room and one request to
 /// make. Both doors call <see cref="RoomControls"/>, so what a play does — who it is recorded as,
 /// what the room is told — cannot come to differ depending on which door it arrived by.
+/// </para>
+/// <para>
+/// <b>The change is recorded as whoever the token names.</b> The bot carrying out a person's command
+/// arrives with that person's token, which names the bot as the client acting for them, so the room
+/// records the person and that the bot carried it. Putting a film into a room is also machine work:
+/// the bot loads a download into the room that asked for it once it can be watched, on the service
+/// key, and that is recorded as MovieBot.
 /// </para>
 /// <para>
 /// <b>A clamp comes back in the answer rather than being broadcast.</b> Over the hub it is sent to
@@ -33,6 +41,7 @@ public static class RoomEndpoints
         app.MapPost("/api/sessions/{sessionId}/title", async (
             string sessionId,
             SetTitleRequest request,
+            HttpContext context,
             SessionStore sessions,
             TitleLibrary library,
             RoomControls controls,
@@ -41,57 +50,57 @@ public static class RoomEndpoints
             if (library.Get(request.TitleId) is null) return Results.NotFound();
 
             var change = await controls.ApplyAsync(
-                sessionId, "load", ActorFor(request.UserId, request.DisplayName),
+                sessionId, "load", ActorOf(context),
                 actor => sessions.LoadTitle(sessionId, request.TitleId, actor, request.StartSeconds), ct: ct);
 
             return Results.Ok(change.Push);
-        });
+        }).RequireActionOrService(CinemaActions.Watch);
 
         app.MapPost("/api/sessions/{sessionId}/play", (
-            string sessionId, RoomPlaybackRequest request,
+            string sessionId, RoomPlaybackRequest request, HttpContext context,
             SessionStore sessions, RoomControls controls, CancellationToken ct) =>
-            Apply(sessionId, "play", request, controls,
-                actor => sessions.Play(sessionId, request.AtSeconds, actor), ct));
+            Apply(sessionId, "play", context, controls,
+                actor => sessions.Play(sessionId, request.AtSeconds, actor), ct))
+            .RequireAction(CinemaActions.Watch);
 
         app.MapPost("/api/sessions/{sessionId}/pause", (
-            string sessionId, RoomPlaybackRequest request,
+            string sessionId, RoomPlaybackRequest request, HttpContext context,
             SessionStore sessions, RoomControls controls, CancellationToken ct) =>
-            Apply(sessionId, "pause", request, controls,
-                actor => sessions.Pause(sessionId, request.AtSeconds, actor), ct));
+            Apply(sessionId, "pause", context, controls,
+                actor => sessions.Pause(sessionId, request.AtSeconds, actor), ct))
+            .RequireAction(CinemaActions.Watch);
 
         app.MapPost("/api/sessions/{sessionId}/seek", (
-            string sessionId, RoomSeekRequest request,
+            string sessionId, RoomSeekRequest request, HttpContext context,
             SessionStore sessions, RoomControls controls, CancellationToken ct) =>
-            Apply(sessionId, "seek", request, controls,
-                actor => sessions.Seek(sessionId, request.ToSeconds, actor), ct));
+            Apply(sessionId, "seek", context, controls,
+                actor => sessions.Seek(sessionId, request.ToSeconds, actor), ct))
+            .RequireAction(CinemaActions.Watch);
 
         app.MapPost("/api/sessions/{sessionId}/seek-relative", (
-            string sessionId, RoomNudgeRequest request,
+            string sessionId, RoomNudgeRequest request, HttpContext context,
             SessionStore sessions, RoomControls controls, CancellationToken ct) =>
-            Apply(sessionId, "nudge", request, controls,
-                actor => sessions.SeekRelative(sessionId, request.DeltaSeconds, actor), ct));
+            Apply(sessionId, "nudge", context, controls,
+                actor => sessions.SeekRelative(sessionId, request.DeltaSeconds, actor), ct))
+            .RequireAction(CinemaActions.Watch);
     }
 
     private static async Task<IResult> Apply(
         string sessionId,
         string intent,
-        IRoomAct request,
+        HttpContext context,
         RoomControls controls,
         Func<Actor, MutationResult> mutation,
         CancellationToken ct)
     {
-        var change = await controls.ApplyAsync(
-            sessionId, intent, ActorFor(request.UserId, request.DisplayName), mutation, ct: ct);
-
-        return change.Clamped is { } clamped
-            ? Results.Ok(new RoomChanged(change.Push, clamped))
-            : Results.Ok(new RoomChanged(change.Push, null));
+        var change = await controls.ApplyAsync(sessionId, intent, ActorOf(context), mutation, ct: ct);
+        return Results.Ok(new RoomChanged(change.Push, change.Clamped));
     }
 
     /// <summary>
-    /// Who a change is recorded as. A caller naming nobody is the bot acting on its own, and saying
-    /// so is better than attributing it to whoever happened to ask something a minute ago.
+    /// Who a change is recorded as: the person the token names, or MovieBot itself for machine work on
+    /// the service key, which is honest about a room that moved with nobody asking.
     /// </summary>
-    private static Actor ActorFor(string? userId, string? displayName) =>
-        new(userId ?? "bot", displayName ?? "MovieBot");
+    private static Actor ActorOf(HttpContext context) =>
+        CinemaPerson.Of(context)?.Actor ?? Acquisition.WatchNow.Server;
 }

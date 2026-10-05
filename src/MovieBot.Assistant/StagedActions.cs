@@ -1,9 +1,13 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.Agent.Confirmations;
+using TheKrystalShip.MovieBot.Client;
 using TheKrystalShip.MovieBot.Client.Assistant;
 
 namespace TheKrystalShip.MovieBot.Assistant;
+
+/// <summary>Whoever agreed to a proposal: the API as them, and what they are called.</summary>
+public sealed record Agreement(MovieBotApiClient Api, string Name);
 
 /// <summary>
 /// Something the assistant proposed that spends disk, a daily allowance or a film's place on the
@@ -30,14 +34,15 @@ public sealed class StagedAction
     /// <summary>The room it was proposed in, when it was.</summary>
     public TurnRoom? Room { get; init; }
 
-    /// <summary>Whoever asked. The act is carried out as them, whoever agrees to it.</summary>
+    /// <summary>Whoever asked, which is whose proposal on the site it is to agree to.</summary>
     public required string AskedBy { get; init; }
 
     public required string AskedByName { get; init; }
 
     public required DateTimeOffset Until { get; init; }
 
-    public required Func<CancellationToken, Task<ConfirmOutcome>> Run { get; init; }
+    /// <summary>The act, carried out as whoever agrees: the API decides with their token whether they may.</summary>
+    public required Func<Agreement, CancellationToken, Task<ConfirmOutcome>> Run { get; init; }
 
     /// <summary>The verb a client shows, from the tool that proposed it.</summary>
     public string Verb => Kind switch
@@ -71,8 +76,8 @@ public sealed class StagedAction
 /// <b>In a room anybody may agree; on the site only the person who asked.</b> Anyone may act on a
 /// room and the record says who did, which is the rule everywhere else in MovieBot, so a room's
 /// proposal is held with no owner. A person's own conversation is theirs, and so is what it proposed.
-/// The act is done as the person who asked either way, so the download pings them and the wish is
-/// theirs.
+/// The act is done as whoever agrees, with their token: they are the one spending it, so the API asks
+/// whether they may, records them, and tells them when the download can be watched.
 /// </para>
 /// <para>
 /// <b>Held in memory.</b> A proposal is minutes old at most, and one that outlived a restart would be
@@ -87,7 +92,7 @@ public sealed class StagedActions(IOptions<AssistantOptions> options, TimeProvid
     private int _ids;
 
     public StagedAction Stage(
-        string kind, string describes, string subject, AssistantTurn turn, Func<CancellationToken, Task<ConfirmOutcome>> run)
+        string kind, string describes, string subject, AssistantTurn turn, Func<Agreement, CancellationToken, Task<ConfirmOutcome>> run)
     {
         var action = new StagedAction
         {

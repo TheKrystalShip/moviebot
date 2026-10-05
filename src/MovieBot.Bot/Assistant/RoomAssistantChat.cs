@@ -5,6 +5,7 @@ using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.Discord.Voice;
+using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Download;
 using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Bot.Launch;
@@ -68,8 +69,8 @@ public sealed class NoRoomAssistant : IRoomAssistant
 /// <para>
 /// <b>A proposal is a message with two buttons, and a spoken yes is the same answer.</b> Both carry the
 /// assistant's token, which redeems once, so whichever comes first carries the act out and the other
-/// finds it spent. Whoever agrees is who the bot speaks for, and the act is still done as the person
-/// who asked. The prompt is edited to say who agreed, or that it was dropped, so a button that does
+/// finds it spent. Whoever agrees is who the bot speaks for, and the act is done as them, with their
+/// token. The prompt is edited to say who agreed, or that it was dropped, so a button that does
 /// nothing any more says why where it stands.
 /// </para>
 /// <para>
@@ -111,6 +112,8 @@ public sealed class RoomAssistantChat(
     {
         _ = Task.Run(async () =>
         {
+            // Everything the answer asks of the API is asked as whoever spoke.
+            using var acting = ActingFor.Person(command.SpeakerId);
             try
             {
                 await AnswerAsync(command, CancellationToken.None);
@@ -313,14 +316,15 @@ public sealed class RoomAssistantChat(
         await ClosePromptAsync(chat, promptId, prompt, $"{agreed.DisplayName} agreed: {describes}.");
         logger.LogInformation("Assistant: {Approver} agreed to {What} ({Verdict})", agreed.DisplayName, describes, reply.Outcome.Verdict);
 
-        await PostOutcomeAsync(chat, reply, ct);
+        await PostOutcomeAsync(chat, reply, agreed, ct);
     }
 
     /// <summary>
     /// What was agreed to, told the way the slash commands tell it: the same sentence, the same
-    /// embed, and for a download the progress message that follows it.
+    /// embed, and for a download the progress message that follows it and the mention of whoever
+    /// agreed, who is the one it was started as.
     /// </summary>
-    private async Task PostOutcomeAsync(IMessageChannel chat, ConfirmReply reply, CancellationToken ct)
+    private async Task PostOutcomeAsync(IMessageChannel chat, ConfirmReply reply, Speaker agreed, CancellationToken ct)
     {
         var result = reply.Result;
 
@@ -334,7 +338,10 @@ public sealed class RoomAssistantChat(
             var posted = await chat.SendMessageAsync(Fit(told.Message), embed: embed, allowedMentions: AllowedMentions.None);
 
             if (told.Hash is { } hash && told.Outcome == DownloadOutcome.Started)
+            {
                 await downloads.RecordProgressMessageAsync(hash, chat.Id, posted.Id, ct);
+                await downloads.RecordMentionAsync(hash, agreed.UserId, ct);
+            }
             return;
         }
 

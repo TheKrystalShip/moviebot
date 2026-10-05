@@ -12,22 +12,15 @@ using Xunit;
 namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
-/// Telling a person something: it is kept for their bell, pushed to every browser they subscribed
-/// where their choices allow, and owed to them on Discord when no push reached them. Everything a
-/// person reads or changes is their own.
+/// Telling a person something: it is kept for their bell and pushed to every browser they subscribed
+/// where their choices allow. Everything a person reads or changes is their own.
 /// </summary>
 public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<SessionFixture>
 {
     private HttpClient As(string userId, string name = "Cy")
     {
         fixture.Services.GetRequiredService<PersonDirectory>().Remember(userId, name);
-        var client = fixture.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", RoomToken.Issue(new RoomTokenPayload
-        {
-            UserId = userId, DisplayName = name, RoomId = "", Member = true,
-            ExpiresAtUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
-        }, SessionFixture.SigningKey));
-        return client;
+        return fixture.CreatePersonClient(userId, name);
     }
 
     /// <summary>A subscription as a browser makes one: a P-256 public key and an auth secret, base64url.</summary>
@@ -111,20 +104,14 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
     }
 
     [Fact]
-    public async Task Without_a_push_the_bot_is_asked_to_send_it_on_Discord()
+    public async Task Without_a_push_an_invite_waits_in_the_bell()
     {
-        As("8121", "Jo");
+        var jo = As("8121", "Jo");
         using var sent = await As("8122", "Alex").PostAsJsonAsync("/api/rooms/movie-night/invite", new InviteRequest { UserId = "8121" });
-        Assert.Equal("discord", (await sent.Content.ReadFromJsonAsync<InviteReply>())!.Delivery);
+        Assert.Equal("bell", (await sent.Content.ReadFromJsonAsync<InviteReply>())!.Delivery);
 
-        var bot = fixture.CreateServiceClient();
-        var waiting = await bot.GetFromJsonAsync<List<DirectMessage>>("/api/notifications/direct");
-        var message = Assert.Single(waiting!, m => m.UserId == "8121");
-        Assert.Equal("Alex invites you to their room.", message.Text);
-
-        using var told = await bot.PostAsJsonAsync($"/api/notifications/direct/{message.Id}", new DirectMessageReport(true));
-        Assert.Equal(HttpStatusCode.NoContent, told.StatusCode);
-        Assert.DoesNotContain(await bot.GetFromJsonAsync<List<DirectMessage>>("/api/notifications/direct") ?? [], m => m.Id == message.Id);
+        var bell = await Bell(jo);
+        Assert.Equal("Alex invites you to their room.", Assert.Single(bell.Items).Text);
     }
 
     [Fact]
@@ -135,7 +122,7 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
 
         using var sent = await As("8132").PostAsJsonAsync("/api/rooms/r/invite", new InviteRequest { UserId = "8131" });
 
-        Assert.Equal("discord", (await sent.Content.ReadFromJsonAsync<InviteReply>())!.Delivery);
+        Assert.Equal("bell", (await sent.Content.ReadFromJsonAsync<InviteReply>())!.Delivery);
         Assert.Equal(0, (await guest.GetFromJsonAsync<PushStatusReply>("/api/me/push"))!.Devices);
     }
 
@@ -150,14 +137,14 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
 
         // Kept is off unless asked for.
         var first = await notifier.TellAsync("8141", draft, CancellationToken.None);
-        Assert.Equal(new Delivery(0, false), first);
+        Assert.Equal(new Delivery(0), first);
         Assert.Null(await notifier.TellAsync("8141", draft, CancellationToken.None));
         Assert.Equal(0, fixture.PushService.SentTo(endpoint));
         Assert.Single((await Bell(person)).Items);
 
         using var put = await person.PutAsJsonAsync("/api/me/notifications/preferences", new NotificationPreferences { Kept = true });
         var pushed = await notifier.TellAsync("8141", draft with { Key = "kept:heat:2" }, CancellationToken.None);
-        Assert.Equal(new Delivery(1, false), pushed);
+        Assert.Equal(new Delivery(1), pushed);
     }
 
     [Fact]
@@ -166,14 +153,6 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
         var preferences = await As("8151").GetFromJsonAsync<NotificationPreferences>("/api/me/notifications/preferences");
 
         Assert.Equal(new NotificationPreferences { Available = true, Ready = true, Leaving = true, Kept = false }, preferences);
-    }
-
-    [Fact]
-    public async Task The_Discord_queue_answers_the_service_key_alone()
-    {
-        using var response = await As("8161").GetAsync("/api/notifications/direct");
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

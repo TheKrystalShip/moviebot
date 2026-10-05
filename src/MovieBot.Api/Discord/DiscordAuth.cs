@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Text.Json.Serialization;
 
 namespace TheKrystalShip.MovieBot.Api.Discord;
@@ -16,24 +15,7 @@ public sealed class DiscordAuthOptions
     /// <summary>The OAuth2 client secret. A credential: it comes from the environment, never a file in the repo.</summary>
     public string ClientSecret { get; set; } = "";
 
-    /// <summary>
-    /// The servers MovieBot serves, the same list the bot registers its commands in. Signing in on the
-    /// site needs membership of one of them.
-    /// </summary>
-    public string[] GuildIds { get; set; } = [];
-
     public bool IsConfigured => ClientId.Length > 0 && ClientSecret.Length > 0;
-}
-
-/// <summary>Who an access token belongs to, as Discord reports them.</summary>
-public sealed record DiscordUser
-{
-    [JsonPropertyName("id")] public string Id { get; init; } = "";
-    [JsonPropertyName("username")] public string Username { get; init; } = "";
-    [JsonPropertyName("global_name")] public string? GlobalName { get; init; }
-
-    /// <summary>What a person is called on screen, preferring the name they chose to show.</summary>
-    public string DisplayName => string.IsNullOrWhiteSpace(GlobalName) ? Username : GlobalName;
 }
 
 internal sealed record TokenResponse
@@ -44,33 +26,27 @@ internal sealed record TokenResponse
 }
 
 /// <summary>
-/// Exchanges the authorization code an Activity is handed for an access token, and reads who it
-/// belongs to.
+/// Redeems the authorization code an Activity is handed for a Discord access token.
 ///
-/// The exchange happens here and not in the player because it needs the client secret, and a
+/// The redemption happens here and not in the player because it needs the client secret, and a
 /// secret shipped to a browser is not a secret. The player never sees one: it sends the code and
 /// receives an access token scoped to itself.
 /// </summary>
 public sealed class DiscordAuthClient(HttpClient http, ILogger<DiscordAuthClient> logger)
 {
     private const string TokenEndpoint = "https://discord.com/api/v10/oauth2/token";
-    private const string UserEndpoint = "https://discord.com/api/v10/users/@me";
 
-    public async Task<string?> ExchangeCodeAsync(
-        string code, DiscordAuthOptions options, string? redirectUri, CancellationToken ct)
+    public async Task<string?> ExchangeCodeAsync(string code, DiscordAuthOptions options, CancellationToken ct)
     {
-        var form = new List<KeyValuePair<string, string>>
+        // An Activity never redirects, so no redirect_uri is sent: Discord matches one only when the
+        // code was issued against it.
+        var form = new Dictionary<string, string>
         {
-            new("client_id", options.ClientId),
-            new("client_secret", options.ClientSecret),
-            new("grant_type", "authorization_code"),
-            new("code", code)
+            ["client_id"] = options.ClientId,
+            ["client_secret"] = options.ClientSecret,
+            ["grant_type"] = "authorization_code",
+            ["code"] = code,
         };
-
-        // Discord requires redirect_uri to match the one the code was issued against. An Activity
-        // never redirects, so it sends none and none is sent on.
-        if (!string.IsNullOrWhiteSpace(redirectUri))
-            form.Add(new KeyValuePair<string, string>("redirect_uri", redirectUri));
 
         using var response = await http.PostAsync(TokenEndpoint, new FormUrlEncodedContent(form), ct);
 
@@ -86,44 +62,5 @@ public sealed class DiscordAuthClient(HttpClient http, ILogger<DiscordAuthClient
 
         var token = await response.Content.ReadFromJsonAsync(ApiJsonContext.Default.TokenResponse, ct);
         return string.IsNullOrEmpty(token?.AccessToken) ? null : token.AccessToken;
-    }
-
-    /// <summary>
-    /// Whether the person the token belongs to is a member of any of these servers, which needs the
-    /// <c>guilds.members.read</c> scope. Null when Discord could not say: a refusal of the question is
-    /// not an answer to it.
-    /// </summary>
-    public async Task<bool?> IsMemberOfAnyAsync(string accessToken, IEnumerable<string> guildIds, CancellationToken ct)
-    {
-        foreach (var guildId in guildIds.Where(g => !string.IsNullOrWhiteSpace(g)))
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Get,
-                $"https://discord.com/api/v10/users/@me/guilds/{Uri.EscapeDataString(guildId)}/member");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-            using var response = await http.SendAsync(request, ct);
-            if (response.IsSuccessStatusCode) return true;
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) continue;
-
-            logger.LogWarning("Discord refused the membership lookup in {Guild}: {Status}", guildId, (int)response.StatusCode);
-            return null;
-        }
-
-        return false;
-    }
-
-    public async Task<DiscordUser?> GetUserAsync(string accessToken, CancellationToken ct)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Get, UserEndpoint);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-
-        using var response = await http.SendAsync(request, ct);
-        if (!response.IsSuccessStatusCode)
-        {
-            logger.LogWarning("Discord refused the identity lookup: {Status}", (int)response.StatusCode);
-            return null;
-        }
-
-        return await response.Content.ReadFromJsonAsync(ApiJsonContext.Default.DiscordUser, ct);
     }
 }

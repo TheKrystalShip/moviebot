@@ -98,7 +98,7 @@ public sealed class RungHeadsTests(SessionFixture fixture) : IClassFixture<Sessi
 
         // The room's own state, as a viewer joining now is handed it, carries none of it.
         await using var carol = await fixture.ConnectAsync(room, "u3", "Carol");
-        var joined = await carol.InvokeAsync<SessionStatePush>("Join", room, "u3", "Carol");
+        var joined = await carol.InvokeAsync<SessionStatePush>("Join", room);
         var wire = System.Text.Json.JsonSerializer.Serialize(joined.State, ManifestJsonContext.Default.SessionState);
         Assert.DoesNotContain("480", wire);
         Assert.DoesNotContain("uality", wire);

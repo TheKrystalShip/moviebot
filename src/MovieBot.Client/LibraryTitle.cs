@@ -56,5 +56,11 @@ public partial class ClientJsonContext : JsonSerializerContext;
 /// distinct type so a caller can say the backend is unreachable rather than failing silently into
 /// a generic error.
 /// </summary>
-public sealed class MovieBotApiException(string message, Exception? inner = null)
+public class MovieBotApiException(string message, Exception? inner = null)
     : Exception(message, inner);
+
+/// <summary>
+/// The API refused the person the client acts as: their account does not hold the action the request
+/// needs. A surface says so rather than reporting the backend as broken.
+/// </summary>
+public sealed class MovieBotAccessDeniedException(string message) : MovieBotApiException(message);

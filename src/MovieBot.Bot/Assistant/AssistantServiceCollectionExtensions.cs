@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Configuration;
 
 namespace TheKrystalShip.MovieBot.Bot.Assistant;
@@ -24,11 +25,9 @@ public static class AssistantServiceCollectionExtensions
             // A turn is the model's time plus every tool it calls; a confirmed download waits on the
             // tracker and the torrent client.
             http.Timeout = TimeSpan.FromSeconds(90);
-
-            // The assistant knows the bot by the same key the API does.
-            if (sp.GetRequiredService<IOptions<ApiOptions>>().Value.ServiceKey is { Length: > 0 } key)
-                http.DefaultRequestHeaders.Add("X-MovieBot-Service", key);
-        });
+        })
+            // Every call is made for a person, with their token; the assistant takes nothing else.
+            .AddHttpMessageHandler(sp => new PersonAuthorization(sp.GetRequiredService<PersonTokens>(), serviceKey: null));
 
         services.AddSingleton<RoomAssistantChat>();
         services.AddSingleton<IRoomAssistant>(sp =>

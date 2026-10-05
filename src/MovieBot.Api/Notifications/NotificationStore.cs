@@ -4,18 +4,6 @@ using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Notifications;
 
-/// <summary>Where a notification's Discord message stands, for one no push reached.</summary>
-public static class DirectState
-{
-    /// <summary>Waiting for the bot to send it.</summary>
-    public const string Waiting = "waiting";
-
-    public const string Sent = "sent";
-
-    /// <summary>Discord would not take it: the person shares no server with the bot, or closed their messages.</summary>
-    public const string Refused = "refused";
-}
-
 /// <summary>One notification as it is kept, with what became of it.</summary>
 public sealed record StoredNotification
 {
@@ -42,9 +30,6 @@ public sealed record StoredNotification
     /// <summary>How many of the person's devices a push service took it for.</summary>
     public int Pushed { get; init; }
 
-    /// <summary>One of <see cref="DirectState"/>, or absent when no Discord message is owed.</summary>
-    public string? Direct { get; init; }
-
     public NotificationView View() => new()
     {
         Id = Id, Kind = Kind, Text = Text, Url = Url, Action = Action, CreatedAt = CreatedAt, Read = ReadAt is not null,
@@ -63,7 +48,7 @@ public sealed record StoredNotification
 internal partial class NotificationsJson : JsonSerializerContext;
 
 /// <summary>
-/// Everybody's notifications, in one file in the state directory, keyed by Discord user id.
+/// Everybody's notifications, in one file in the state directory, keyed by account.
 ///
 /// The bell is a short memory, not an archive: a person keeps their newest <see cref="Kept"/>, none
 /// older than <see cref="KeptFor"/>, and the key of each is what stops the same thing being said
@@ -141,22 +126,6 @@ public sealed class NotificationStore
             mine[index] = change(mine[index]);
             Write();
         }
-    }
-
-    /// <summary>Every notification whose Discord message is waiting, oldest first.</summary>
-    public IReadOnlyList<(string UserId, StoredNotification Notification)> Waiting()
-    {
-        lock (_gate)
-            return [.. _byUser
-                .SelectMany(p => p.Value.Where(n => n.Direct == DirectState.Waiting).Select(n => (p.Key, n)))
-                .OrderBy(p => p.n.CreatedAt)];
-    }
-
-    /// <summary>Whose notification an id is, or null when nobody holds it.</summary>
-    public string? OwnerOf(string id)
-    {
-        lock (_gate)
-            return _byUser.FirstOrDefault(p => p.Value.Any(n => n.Id == id)).Key;
     }
 
     private Dictionary<string, List<StoredNotification>> Read()

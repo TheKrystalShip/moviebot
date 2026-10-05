@@ -5,7 +5,7 @@ import { SOON_DAYS, leaveRule, stayWords, useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
 import { showPath } from "../paths.js";
 import { navigate } from "../router.js";
-import { useSession } from "../session.js";
+import { useCan, useSession } from "../session.js";
 import { ago, airDay, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, watchLink } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes } from "../components/FilmDetails.jsx";
@@ -32,8 +32,11 @@ export function Show({ imdbId, season, inLibrary }) {
   const show = useLoad(() => api.show(imdbId), [imdbId]);
   const library = useLoad(() => api.shows().then((all) => all.find((s) => s.imdbId === imdbId) || null).catch(() => null), [imdbId]);
   const rooms = useLoad(() => api.rooms(), [imdbId]);
-  // What the tracker offers, so every episode it holds can be played; kept a few minutes by the API.
-  const offers = useLoad(() => api.showReleases(imdbId).catch(() => null), [imdbId]);
+  const downloading = useCan("cinema:download");
+  const keeping = useCan("cinema:keep");
+  // What the tracker offers, so every episode it holds can be played; kept a few minutes by the API,
+  // and asked by somebody who may fetch an episode.
+  const offers = useLoad(() => (downloading ? api.showReleases(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId, downloading]);
   const [requesting, setRequesting] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [starting, setStarting] = React.useState(false);
@@ -156,7 +159,7 @@ export function Show({ imdbId, season, inLibrary }) {
                   <Icon name="play" size={18} />Watch
                 </button>
               )}
-              {missing && (
+              {missing && downloading && (
                 <button type="button" className="kc-btn kc-btn--lg" onClick={() => setRequesting(true)}>
                   <Icon name="download" size={17} />{play ? "Get episodes" : "Download"}
                 </button>
@@ -197,7 +200,7 @@ export function Show({ imdbId, season, inLibrary }) {
             })}
           </div>
 
-          <SeasonPanel season={current} me={me} busy={busy} onKeep={keep} rooms={rooms.data || []}
+          <SeasonPanel season={current} me={me} busy={busy} onKeep={keeping ? keep : null} rooms={rooms.data || []}
             offers={offers.data} showImdbId={s.imdbId} showTitle={s.title} onFetched={show.reload} />
         </section>
       )}
@@ -268,7 +271,7 @@ function SeasonPanel({ season, me, busy, onKeep, rooms, offers, showImdbId, show
           </span>
         </div>
         {stay && <span className={"kc-pill" + (leaving ? " kc-pill--warn" : "")}>{stayWords(stay, me)}</span>}
-        {stay && (stay.keeperId
+        {stay && onKeep && (stay.keeperId
           ? <button type="button" className="kc-btn" disabled={busy} onClick={() => onKeep(stay, false)}><Icon name="pin-off" size={15} />Un-keep season</button>
           : <button type="button" className="kc-btn" disabled={busy} onClick={() => onKeep(stay, true)}><Icon name="pin" size={15} />Keep season</button>)}
         {fetchable.length > 0 && (

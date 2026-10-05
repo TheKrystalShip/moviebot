@@ -2,6 +2,7 @@ import React from "react";
 import { Icon, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
+import { useCan } from "../session.js";
 import { useCrumb } from "../crumbs.js";
 import { moviePath } from "../paths.js";
 import { navigate } from "../router.js";
@@ -18,8 +19,11 @@ import { defaultOffer, watchNow } from "../watchNow.js";
  * downloaded at 720p or 1080p; one that is not out digitally yet can be waited on.
  */
 export function CatalogueFilm({ imdbId }) {
+  const downloading = useCan("cinema:download");
+  const wishing = useCan("cinema:wish");
   const film = useLoad(() => api.film(imdbId), [imdbId]);
-  const state = useLoad(() => api.availability(imdbId), [imdbId]);
+  // Whether it can be fetched is asked by somebody who may fetch it or wait on it.
+  const state = useLoad(() => (downloading || wishing ? api.availability(imdbId) : Promise.resolve(null)), [imdbId, downloading, wishing]);
   const [requesting, setRequesting] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
 
@@ -115,25 +119,25 @@ export function CatalogueFilm({ imdbId }) {
                 <span className="kc-note">The tracker has it, but nothing this server takes. {a.emptyExplanation}</span>
               )}
 
-              {a && (arriving || offer) && (
+              {a && downloading && (arriving || offer) && (
                 <button type="button" className={"kc-btn kc-btn--primary kc-btn--lg" + (full && !arriving ? " is-dim" : "")} disabled={busy} onClick={watch}>
                   <Icon name="play" size={18} />Watch
                 </button>
               )}
-              {a && offer && !arriving && (
+              {a && downloading && offer && !arriving && (
                 <button type="button" className="kc-btn kc-btn--lg" onClick={() => setRequesting(true)}>
                   <Icon name="download" size={18} />Download
                 </button>
               )}
               {arriving && <span className="kc-pill kc-pill--info">downloading · {Math.floor(arriving.progress * 100)}%</span>}
 
-              {a && a.notOut && (a.waiting
+              {a && wishing && a.notOut && (a.waiting
                 ? <button type="button" className="kc-btn kc-btn--accent kc-btn--lg" disabled={busy} onClick={stopWaiting}><Icon name="bell-ring" size={18} />Notifying</button>
                 : <button type="button" className="kc-btn kc-btn--primary kc-btn--lg" disabled={busy} onClick={wait}><Icon name="bell-plus" size={18} />Notify</button>)}
               <SaveButton imdbId={imdbId} kind="film" title={d.title} />
               {a && a.notOut && <span className="kc-note">{waitingWords}</span>}
             </div>
-            {a && offer && !arriving && (
+            {a && downloading && offer && !arriving && (
               <span className="kc-quiet">
                 Watch streams while it downloads · {Math.max(0, a.streams.limit - a.streams.used)} of {a.streams.limit} live slots free
               </span>

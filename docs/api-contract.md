@@ -12,14 +12,15 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | Route | Returns |
 |---|---|
 | `GET /health` | `{"status":"ok","rooms":n,"watching":n,"coldStorage"?}` — occupied rooms and people, no names. `coldStorage` carries what is wrong with the disk films are kept on and is absent when nothing is, which is also the answer when there is no such disk |
-| `GET /api/config` | `{discordClientId, publicBaseUrl?}` |
+| `GET /api/config` | `{discordClientId?, publicBaseUrl?, issuer, clientId, actionsClaim}` — where the page signs in: the identity provider's issuer, the public client the site signs in as, and the claim a person's actions arrive in. Open |
+| `GET /.well-known/tks-actions.json` | the action manifest (`kgsm-docs/reference/action-manifest.md`): every action Cinema checks, in the namespace `cinema`, at `cluster`, the self actions marked `self`. Open: the provider reads it |
 | `GET /api/titles` | `TitleSummary[]`. The library as listed at most ten seconds ago, as are the episodes `/api/shows` and `/api/shows/{imdbId}` group; a person's progress and last plays on it are current |
 | `GET /api/titles/{id}` | `Manifest`, or 404 |
 | `GET /api/titles/{id}/ticket` | `{ticket, expiresAt}` — what a request for this film's bytes carries, or 404 |
 | `GET /api/sessions` | `RoomSummary[]` — every room, what it is watching, how many are in it |
 | `GET /api/sessions/{id}` | `SessionStatePush` — creates the session if new |
 | `GET /api/sessions/{id}/participants` | `Participant[]` |
-| `POST /api/sessions/{id}/title` | `SessionStatePush` — puts a film in the room, or 404 if the library has no such title. The body is `{titleId, userId?, displayName?, startSeconds?}`; `startSeconds` puts the room there instead of at the beginning, held to the transcode head like a seek |
+| `POST /api/sessions/{id}/title` | `SessionStatePush` — puts a film in the room, or 404 if the library has no such title. The body is `{titleId, startSeconds?}`; `startSeconds` puts the room there instead of at the beginning, held to the transcode head like a seek. Recorded as the token's person, or as MovieBot on the service key |
 | `POST /api/sessions/{id}/play` | `RoomChanged` |
 | `POST /api/sessions/{id}/pause` | `RoomChanged` |
 | `POST /api/sessions/{id}/seek` | `RoomChanged` |
@@ -33,17 +34,14 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET /api/shows/{imdbId}` | `ShowView` — a show as the film database describes it, in the library or not, every season with its episodes joined with the library and the asking person's progress. `404` when neither the database nor the library knows it, `503` when the database cannot be asked and nothing is kept |
 | `GET /api/titles/{id}/neighbours` | `{previous?, next?, name?, previousName?, nextName?, fetchable?, fetchableName?}` — the episodes either side of one, among those the library holds, as `TitleSummary`, and what each is called where the show's description says; `fetchable` (`{season, number}`) is the episode right after this one when it is not here and the tracker offers it, which a player's next fetches into the room. All absent for a film. 404 for a title the library does not hold |
 | `GET,HEAD /shows/{imdbId}/{poster.jpg,backdrop.jpg,cast-N.jpg,sNNeMM.jpg}` | a show's artwork and its episodes' stills, open like a film's |
-| `GET /api/me/preferences` | `ViewerPreferences` — how the token's person watches; every field absent for somebody who set nothing. `403` for the service key, which names nobody |
+| `GET /api/me/preferences` | `ViewerPreferences` — how the token's person watches; every field absent for somebody who set nothing. |
 | `PUT /api/me/preferences` | `ViewerPreferences` → the stored `ViewerPreferences`. A blank language or a height that is not positive is stored as absent |
-| `GET /api/me/progress` | `ProgressEntry[]` — the films and episodes the token's person started and did not finish, newest first: `{titleId, name, positionSeconds, durationSeconds, remainingSeconds, lastWatchedAt, episode?, showImdbId?}`. For an episode `name` is the show's and `episode` is `{season, number}`. A title the library no longer holds is left out. `403` for the service key |
-| `GET /api/me/history` | `HistoryEntry[]` — every film and episode the token's person watched, newest first: `{titleId, name, positionSeconds, durationSeconds, finished, lastWatchedAt, episode?, showImdbId?}`, named as above. `finished` is a position past 90 % of the title. `403` for the service key |
-| `DELETE /api/me/history/{titleId}` | `204` — forgets the person's entry for the film, and so their progress in it. The film's own last play stays. `403` for the service key |
-| `GET /api/me/sessions` | `DeviceSession[]` — the devices the token's person is signed in on, most recently seen first: `{id, device, issuedAt, lastSeenAt, current}`. `current` marks the one asking. `403` for the service key |
-| `DELETE /api/me/sessions/{id}` | 204 — ends one of the person's own sessions. Another person's id, or one that does not exist, is `404` |
-| `GET /api/me/follows` | `FollowView[]` — the shows the token's person follows, newest follow first: `{imdbId, title, posterUrl?, since, autoDownload, nextEpisode?}`. `nextEpisode` is `{season, episode, name?, airDate}`, the episode the film database expects next. `403` for the service key |
-| `PUT /api/me/follows/{imdbId}` | `FollowView` for `{autoDownload}` — follows the show, or changes `autoDownload` of a follow that exists, which keeps its `since`. `400` for an id that is not an IMDb id, `404` when the film database has no show under it, `409` when the show has ended or been cancelled, `503` when the database cannot be asked and nothing is kept. `403` for the service key |
-| `DELETE /api/me/follows/{imdbId}` | `204` — stops following; also when the person did not. `403` for the service key |
-| `DELETE /api/me/sessions` | 204 — ends every session of the person except the current one |
+| `GET /api/me/progress` | `ProgressEntry[]` — the films and episodes the token's person started and did not finish, newest first: `{titleId, name, positionSeconds, durationSeconds, remainingSeconds, lastWatchedAt, episode?, showImdbId?}`. For an episode `name` is the show's and `episode` is `{season, number}`. A title the library no longer holds is left out |
+| `GET /api/me/history` | `HistoryEntry[]` — every film and episode the token's person watched, newest first: `{titleId, name, positionSeconds, durationSeconds, finished, lastWatchedAt, episode?, showImdbId?}`, named as above. `finished` is a position past 90 % of the title |
+| `DELETE /api/me/history/{titleId}` | `204` — forgets the person's entry for the film, and so their progress in it. The film's own last play stays |
+| `GET /api/me/follows` | `FollowView[]` — the shows the token's person follows, newest follow first: `{imdbId, title, posterUrl?, since, autoDownload, nextEpisode?}`. `nextEpisode` is `{season, episode, name?, airDate}`, the episode the film database expects next |
+| `PUT /api/me/follows/{imdbId}` | `FollowView` for `{autoDownload}` — follows the show, or changes `autoDownload` of a follow that exists, which keeps its `since`. `400` for an id that is not an IMDb id, `404` when the film database has no show under it, `409` when the show has ended or been cancelled, `503` when the database cannot be asked and nothing is kept |
+| `DELETE /api/me/follows/{imdbId}` | `204` — stops following; also when the person did not |
 
 What is recorded comes from the rooms: when a room that is **playing** a film is paused, seeked or
 given another film, or somebody leaves it, each person who was watching is credited with where it got
@@ -84,11 +82,50 @@ index carrying Open Graph and Twitter tags for the room: `og:title` "Watch <film
 poster) at the public address `Api:PublicBaseUrl`. A room holding nothing shows the film its
 `?title=` names, or the site. The tags never name or count the people in the room.
 
+### Signing in, and what each route needs
+
+MovieBot signs nobody in. A person signs in at the OpenID Connect provider `Oidc.Issuer` names, and
+every request carries the access token it minted as `Authorization: Bearer`; the hub's negotiate and
+connection carry it on the query string as `access_token`, which is read for `/hub` alone. A token is
+taken when it is signed ES256 by a key in the issuer's key set, carries that issuer, the audience
+`Oidc.Audience` (`cinema`) and the type `at+jwt`, and has not expired (30 seconds of skew); a token for
+any other audience, KGSM's among them, is refused. `sub` is the account every record here is keyed by,
+`name` what it is called, and the claim `Oidc.ActionsClaim` (`tks_actions`) lists the Cinema actions it
+holds. An `act` claim (`{sub: <client id>}`) names the client calling for the person, which a room and
+the log record beside them.
+
+Each route names the action it needs, and a route that names none admits nobody. Without a usable token
+the answer is `401` with `WWW-Authenticate: Bearer`; with one that lacks the action, `403`. Both carry
+`{error}`. The actions are `cinema:watch` (the library, rooms, the hub, tickets and media, subtitles,
+the people a room can invite), `cinema:download`, `cinema:wish` and `cinema:keep` (below), and the self
+actions `cinema:profile.read` and `cinema:profile.write`, which every approved account holds, for a
+person's own records under `/api/me`, `/api/lists` and push. `/.well-known/tks-actions.json` serves the
+same declarations the checks name.
+
+The **service key** (`X-MovieBot-Service`) proves machine work that names nobody and opens only the
+routes that do such work: `/api/library/due`, `/api/transcode/*`, reading the library and the rooms,
+putting a film into a room (recorded as MovieBot), the downloads list and a film's stay. It never stands
+for a person.
+
+The **Discord Activity** has no browser to redirect. `POST /api/auth/discord/callback` takes `{code}`,
+the code the SDK's `authorize` gave it: the API redeems it with Cinema's own Discord application and
+exchanges the Discord access token at the provider (RFC 8693, `subject_token_type`
+`urn:tks:params:oauth:token-type:discord-access-token`) as the confidential client
+`Oidc.ActivityClientId`. It answers `{accessToken, token, expiresIn}`: Discord's access token, for
+`sdk.commands.authenticate`, and the provider's token for the person. Before `token` runs out the
+Activity posts `{accessToken}` with the Discord token it holds and is answered the same way. The
+provider's refusal is a `403` with `{error, accountStatus}`, `accountStatus` its word for the account
+(`pending`, `disabled` or `unknown`); a code Discord refuses is a `400`, a provider that cannot be
+reached a `502`, and a host without the Discord or provider secrets a `503`. Open.
+
+The API records the issuer in `Oidc.IssuerRecord` the first time it starts and refuses to start against
+another until `Oidc.AdoptIssuer` names it.
+
 ### Opening a film's bytes
 
-Everything closed is opened by the room token, carried as `Authorization: Bearer`. `/media` also
-takes a **media ticket** on the query string as `?mt=…`, and that is what a player should use for
-the film itself.
+A film's bytes are opened by the access token of somebody who may watch, or by a **media ticket** on
+the query string as `?mt=…`, and the ticket is what a player should use for the film itself. A title's
+`poster.jpg` is open: Discord's servers fetch it to draw an embed.
 
 The difference is caching. A shared cache will not answer a request that carried an
 `Authorization` header. A ticket says only which film and until when, and **every viewer of a title
@@ -110,11 +147,11 @@ what a play does cannot come to depend on which door it arrived by.
 
 ```jsonc
 // play, pause
-{ "atSeconds": 403.0, "userId": "…", "displayName": "…" }
+{ "atSeconds": 403.0 }
 // seek
-{ "toSeconds": 1200.0, "userId": "…", "displayName": "…" }
+{ "toSeconds": 1200.0 }
 // seek-relative — negative goes back
-{ "deltaSeconds": -15.0, "userId": "…", "displayName": "…" }
+{ "deltaSeconds": -15.0 }
 
 // every one of them answers
 { "push": SessionStatePush, "clamped": SeekClamped }   // clamped absent unless one was applied
@@ -128,8 +165,9 @@ what a play does cannot come to depend on which door it arrived by.
   it minus fifteen spends a round trip in between, and in a playing room that round trip comes out
   of the fifteen. Asking relatively has the subtraction happen against the position the change
   lands on. Before the start is the start; past the transcode head is clamped like any seek.
-- **`userId` and `displayName` are optional and name whoever asked.** Absent, the change is
-  recorded as MovieBot itself, which is the honest answer for a room that moved with nobody asking.
+- **The change is recorded as whoever the token names.** These take `cinema:watch`; the service key
+  may load a film into a room, and that change is recorded as MovieBot itself, which is the honest
+  answer for a room that moved with nobody asking.
 - **The clamp comes back in the body.** Over the hub it goes to the caller alone; an HTTP caller is
   the one thing a broadcast cannot reach.
 
@@ -139,19 +177,6 @@ what a play does cannot come to depend on which door it arrived by.
 Content types are set explicitly, because the framework knows none of them and hls.js refuses a
 segment delivered as `application/octet-stream`: `application/vnd.apple.mpegurl`,
 `video/iso.segment`, `video/mp4`, `text/vtt`.
-
-### Fetching films
-
-The API is the one writer of downloads, wishes and keeps. These routes spend the disk and the
-tracker's ratio, so they answer the **service key** (`X-MovieBot-Service`) or a **member's token**,
-one whose `member` claim says Discord confirmed at sign-in that its bearer is in the server; any
-other token is a `403`. A service names the person it acts for on every act as
-`requestedBy: {id, name}`, and that is who the download's tags and the log record. A member is the
-person: `requestedBy` and `userId` are taken from the token whatever the request says, and a
-member's download or wish names no Discord channel. `/wishes/available` and `/wishes/{imdbId}/told`
-are the bot's, and answer the service key alone. The shapes are in `src/MovieBot.Core/Acquisition.cs`;
-the API reads the tracker, `QBittorrent`, `Download`, `Selection`, `Library` and `Notify` settings
-to serve them.
 
 ### Transcode plan
 
@@ -181,20 +206,17 @@ since?}`: `state` is `running`, `held`, `parked`, `done` or `failed`; `speed` is
 wall second; `heads` is seconds of film by output name, a rung's directory or `audio`; `since` is
 when the unit entered its state. Each disk is `{name, freeBytes, totalBytes}`.
 
-### Signing in
+### Fetching films
 
-`POST /api/auth/discord/callback` takes `{code, redirectUri?, sessionId?}` and answers
-`{accessToken, roomToken, user}`. The Activity sends the code its SDK was given and no redirect; it
-only opens inside the server, and its token says nothing more than who is watching. The site sends
-the code from the OAuth2 redirect, asked for with `identify guilds.members.read`, and its
-`redirectUri`: then the token is issued only to a member of one of `Discord.GuildIds`, and carries
-`member`. Somebody outside the server is a `403`; a Discord that cannot say is a `502`.
-
-A token's payload is `sub`, `name`, `room`, `member`, `exp` and `jti`, a random id naming that one
-sign-in. Each sign-in is recorded with a short summary of the browser that made it ("Chrome on
-Android"; "Discord Activity" for the Activity's), which is what `/api/me/sessions` lists. A session
-the person ended is refused with the same `401` as a token that was never valid, on every route and
-at the hub's negotiate. A token without a `jti` is valid until `exp` and is not listed.
+The API is the one writer of downloads, wishes and keeps. A download, its searches and Watch now take
+`cinema:download`; a wish takes `cinema:wish`; keeping or letting a film go takes `cinema:keep`;
+finding a film in the title index and asking whether it can be watched take either of the first two;
+reading how long films stay takes `cinema:watch`. No request names who asked: the person is the
+token's, whichever client carried it, and the download's tags, the wish, the keep and the log record
+them. A download may name a Discord channel to be announced in, which the bot does. `GET /api/downloads`
+and a film's stay also answer the service key, for the announcements the bot posts. The shapes are in
+`src/MovieBot.Core/Acquisition.cs`; the API reads the tracker, `QBittorrent`, `Download`, `Selection`,
+`Library` and `Notify` settings to serve them.
 
 | Route | Returns |
 |---|---|
@@ -206,17 +228,15 @@ at the hub's negotiate. A token without a `jti` is valid until `exp` and is not 
 | `GET /api/films/find?q=` | `FilmView[]` — the films the title index offers for a name; never a show |
 | `GET /api/films/{imdbId}/availability` | `FilmAvailability` — `{imdbId, libraryId?, download?: {hash, progress, isWatchable, libraryId?}, hd1080?, hd720?, notOut, notOffered, emptyExplanation?, trackerUnanswered, waiting, waiters, streams: {used, limit}}`. The library first, then the torrent client, then the tracker, which is asked only for a film neither here nor arriving; `hd1080` and `hd720` are the best `ReleaseOffer` at each from a digital source up. With neither, `notOut` says the tracker holds nothing from a digital source up, a film to wait on, and `notOffered` that it does but every such release is turned down here, which `emptyExplanation` names |
 | `POST /api/watch` | `WatchNowReply` for `{imdbId, torrentId?, quality?, episodes?, room?}` — `{outcome, room?, libraryId?, streams?}`. See Watch now below |
-| `GET /api/downloads` | `DownloadView[]`: `{hash, name, release, summary, isFinished, isWatchable, libraryId?, imdbId?, requestedBy?}`, `requestedBy` the Discord id of whoever asked |
-| `POST /api/downloads` | `StartDownloadReply` for `{torrentId, requestedBy, notifyChannelId?, roomId?, episodes?}`; `episodes` (`[{season, episode}]`) fetches only those files out of a show's release, and picking more from a release already downloading switches them on in it |
-| `GET /api/wishes?userId=` | `WishView[]` — every wish, or the ones that person waits on |
-| `POST /api/wishes` | `AddWishReply` for `{chosen, requestedBy, channelId?}` |
-| `DELETE /api/wishes/{imdbId}?userId=` | `CancelWishReply` |
-| `GET /api/wishes/available` | `AvailableWish[]` — wishes the tracker can now answer, found by the hourly sweep |
-| `POST /api/wishes/{imdbId}/told` | 204 for `{channelIds}` — whoever asked in those channels is told and comes off the wish |
+| `GET /api/downloads` | `DownloadView[]`: `{hash, name, release, summary, isFinished, isWatchable, libraryId?, imdbId?, requestedBy?}`, `requestedBy` the account of whoever asked |
+| `POST /api/downloads` | `StartDownloadReply` for `{torrentId, notifyChannelId?, roomId?, episodes?}`; `episodes` (`[{season, episode}]`) fetches only those files out of a show's release, and picking more from a release already downloading switches them on in it |
+| `GET /api/wishes` | `WishView[]` — the wishes the person waits on; one the tracker has answered carries `release`, the `ReleaseOffer` found for it |
+| `POST /api/wishes` | `AddWishReply` for `{chosen}` |
+| `DELETE /api/wishes/{imdbId}` | `CancelWishReply` — the person comes off the wish |
 | `GET /api/titles/{id}/stay` | `TitleStay`, or 404 for a film the library does not hold |
 | `GET /api/stays` | `TitleStay[]` — every settled film and season, soonest to leave first, the kept ones after them; a season is listed once, by its first episode |
-| `PUT /api/titles/{id}/keep` | `TitleStay` for `{requestedBy}`; a film already kept stays its first keeper's. Keeping an episode keeps its season |
-| `DELETE /api/titles/{id}/keep` | `TitleStay` for `{requestedBy}`; 404 for a film the library does not hold |
+| `PUT /api/titles/{id}/keep` | `TitleStay`; a film already kept stays its first keeper's. Keeping an episode keeps its season |
+| `DELETE /api/titles/{id}/keep` | `TitleStay`; 404 for a film the library does not hold |
 | `GET /api/library/due` | `string[]` — the ids of the settled films whose time is up; the **service key** alone |
 
 - **A film stays in the library until it has gone `Library:LeaveAfterDays` without a play, and a
@@ -241,10 +261,11 @@ at the hub's negotiate. A token without a `jti` is valid until `exp` and is not 
   neither — so each client words the outcome from the same facts.
 - **A service that could not be reached is a 502, not an empty list.** No downloads and a torrent
   client that did not answer are different answers, and the second carries `ErrorReply`.
-- **A wish stays until its people are told.** The sweep finds what became available and tells every
-  subscriber through their notifications; whoever asked without a channel is told that way alone and
-  comes off the wish then. The client that announces it in channels says which it reached, and the
-  subscribers who asked in those come off.
+- **A wish stays until its people let it go.** The sweep finds what became available and tells every
+  subscriber with an `available` notification, and somebody who joins the wish after that is told on
+  the next pass. The wish then lists with the release found for it, which is what the site's Notify
+  page shows, until the person takes themselves off. Which wishes are out is held in memory and found
+  again by the first sweep after a restart.
 
 ### Watch now
 
@@ -337,9 +358,8 @@ for anybody else a list's id is a `404`, never a `403`. The shapes are in `src/M
 ### Notifications
 
 A notification is one sentence for one person, kept for their bell and, where they allow its kind,
-pushed to every browser they subscribed; when no push reaches them, the bot sends it to them as a
-Discord message. Everything under `/api/me` answers for whoever the token names and is a `403` for
-the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
+pushed to every browser they subscribed. Everything under `/api/me` answers for whoever the token
+names. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 
 | Route | Returns |
 |---|---|
@@ -352,9 +372,7 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 | `POST /api/me/push` | 204 for a browser's `PushSubscription.toJSON()`, `{endpoint, keys: {p256dh, auth}}`; a browser registered again replaces its own row, and belongs to whoever registered it last. An endpoint that is not `https` is a `400` |
 | `DELETE /api/me/push?endpoint=` | 204, or 404 for a browser that is not this person's |
 | `GET /api/people` | `PersonView[]` — everybody the server has a name for but the person asking, `{userId, name, lastSeenAt?}`, most recently seen first |
-| `POST /api/rooms/{room}/invite` | `InviteReply` for `{userId}` — `{delivery}`, `push` when a push service took it for at least one of their devices and `discord` when the bot will message them instead. 404 for somebody unknown |
-| `GET /api/notifications/direct` | `DirectMessage[]` — the Discord messages owed, `{id, userId, text, url?}`, oldest first, `url` absolute on `Api:PublicBaseUrl`; the **service key** alone |
-| `POST /api/notifications/direct/{id}` | 204 for `{sent}` — takes the message off the queue; `false` is Discord refusing it outright |
+| `POST /api/rooms/{room}/invite` | `InviteReply` for `{userId}` — `{delivery}`, `push` when a push service took it for at least one of their devices and `bell` when it waits in their bell alone. 404 for somebody unknown |
 
 - **Kinds.** `available`: a film somebody waits on can be downloaded. `ready`: a download they started
   can be watched, or could not be made watchable. `leaving`: something they watched leaves the
@@ -366,18 +384,13 @@ the service key. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 - **One thing is said once.** Each notification carries the thing it is about, and a person holding a
   notification about it is not told again: a download once, a wish once, a title leaving once per
   date it is due, since a play moves the date, an episode once, a list once per person put on it.
-- **A switch holds back the push and the message, not the record.** A kind switched off still lands
-  in the bell.
-- **A Discord message stands in for a push only where the bot does not already tell the person.** A
-  download or a wish asked for in a channel is announced there, mentioning them, so no message
-  follows; one asked for on the site, a title leaving, a keep, a shared list and an invite are messaged.
+- **A switch holds back the push, not the record.** A kind switched off still lands in the bell.
 - **The text is written once for every surface.** It mentions nobody and names no command, so the
-  bell, the push and the Discord message show it as it is.
+  bell and the push show it as it is.
 - **Taken is all that is known.** A push service accepting a push is not a phone showing it, and
   `delivery: "push"` says only the first.
-- **Who is owed news of a download is on its torrent.** `tell` is written beside `requester:` when it
-  starts, with `tell:direct` where no channel will announce it, and both come off once the person has
-  been told.
+- **Who is owed news of a download is on its torrent.** `tell` is written beside `requester:<account>`
+  when it starts, and comes off once the person has been told.
 
 ## Manifest
 
@@ -533,7 +546,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 
 | Method | Signature | Notes |
 |---|---|---|
-| `Join` | `(sessionId, userId, displayName) → SessionStatePush` | call first; everything else throws until you do |
+| `Join` | `(sessionId) → SessionStatePush` | call first; everything else throws until you do. The viewer is the connection's token: its `sub` and `name` |
 | `LoadTitle` | `(titleId, startSeconds: double?) → SessionStatePush` | from `startSeconds`, held to the transcode head, or from 0 when null; a playing room keeps playing, a paused one stays paused. Both arguments are always sent, null for no start |
 | `Play` | `(atSeconds) → SessionStatePush` | |
 | `Pause` | `(atSeconds) → SessionStatePush` | |

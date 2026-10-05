@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -19,8 +20,9 @@ using Xunit;
 namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
-/// moviebot-assistant hosted in-process against the in-process API, with the model scripted. The
-/// keys are the API's own, because a person's token is the one the API signed.
+/// moviebot-assistant hosted in-process against the in-process API, with the model scripted. It trusts
+/// the API's test issuer, because a person's token is one the provider minted for Cinema, and it
+/// reaches the API with no credential of its own: every call carries the person's token.
 /// </summary>
 internal sealed class AssistantService(SessionFixture api) : WebApplicationFactory<TheKrystalShip.MovieBot.Assistant.Program>
 {
@@ -35,8 +37,7 @@ internal sealed class AssistantService(SessionFixture api) : WebApplicationFacto
         builder.ConfigureAppConfiguration((_, config) =>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Auth:SigningKey"] = SessionFixture.SigningKey,
-                ["Auth:ServiceKey"] = SessionFixture.ServiceKey,
+                ["Oidc:Issuer"] = TestIssuer.Issuer,
                 ["Assistant:DatabasePath"] = Path.Combine(_state, "assistant.db"),
                 ["Llm:Provider"] = "LlamaCpp",
                 ["Llm:Endpoint"] = "http://127.0.0.1:1",
@@ -46,31 +47,27 @@ internal sealed class AssistantService(SessionFixture api) : WebApplicationFacto
         {
             services.RemoveAll<IHostedService>();
             services.RemoveAll<MovieBotApiClient>();
-            services.AddSingleton(new MovieBotApiClient(api.CreateServiceClient()));
+            services.AddSingleton(new MovieBotApiClient(api.CreateClient()));
+            services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, o => o.BackchannelHttpHandler = api.Issuer.Handler());
             services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new AssistantHost.CatalogueStub());
             services.RemoveAll<ILlmClient>();
             services.AddSingleton<ILlmClient, AssistantHost.ScriptedModel>();
         });
     }
 
-    /// <summary>A person, carrying the token the API gave them: a member's, unless said otherwise.</summary>
-    public HttpClient As(string userId, string name, bool member = true)
+    /// <summary>A person on the site, carrying the token the provider minted for them: every Cinema action unless named.</summary>
+    public HttpClient As(string userId, string name, IEnumerable<string>? actions = null)
     {
         var client = CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", RoomToken.Issue(new RoomTokenPayload
-        {
-            UserId = userId, DisplayName = name, RoomId = "", Member = member,
-            ExpiresAtUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
-        }, SessionFixture.SigningKey));
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", api.TokenFor(userId, name, actions));
         return client;
     }
 
-    /// <summary>The bot, speaking for somebody in a voice channel.</summary>
-    public HttpClient Bot(string userId, string name)
+    /// <summary>The bot, relaying somebody in a voice channel with the token it exchanged for them.</summary>
+    public HttpClient Bot(string userId, string name, IEnumerable<string>? actions = null)
     {
         var client = CreateClient();
-        client.DefaultRequestHeaders.Add(Callers.ServiceHeader, SessionFixture.ServiceKey);
-        client.DefaultRequestHeaders.Add(Callers.ActingHeader, $"{userId}|{name}");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", api.TokenFor(userId, name, actions, via: "cinema-bot"));
         return client;
     }
 
@@ -99,11 +96,40 @@ public sealed class AssistantServiceTests(SessionFixture fixture) : IClassFixtur
     }
 
     [Fact]
-    public async Task A_token_that_does_not_say_its_bearer_is_a_member_is_not_answered()
+    public async Task Somebody_who_may_not_watch_is_not_answered()
     {
-        using var response = await _service.As("4242", "Haru", member: false).PostAsJsonAsync("/turn", new { prompt = "hello" });
+        using var response = await _service.As("4242", "Haru", TestIssuer.SelfOnly).PostAsJsonAsync("/turn", new { prompt = "hello" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_token_for_another_audience_is_not_answered()
+    {
+        var client = _service.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", fixture.Issuer.Mint("4242", "Haru", audience: "a-kgsm-cluster"));
+
+        using var response = await client.PostAsJsonAsync("/turn", new { prompt = "hello" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    /// <summary>
+    /// The tools call the API as the person, so what they may not do through the site they may not do
+    /// through the assistant: a person who may only watch is offered no download.
+    /// </summary>
+    [Fact]
+    public async Task The_tools_act_with_the_person_s_own_token()
+    {
+        _service.Model.Answers.Enqueue(new LlmResponse(null, [RoomToolsTests.Call(RoomTools.DownloadOnly, ("title", "inception"))]));
+        _service.Model.Answers.Enqueue(LlmResponse.Text("Sorry."));
+
+        var reply = await (await _service.As("4343", "Vi", [Api.Auth.CinemaActions.Watch])
+                .PostAsJsonAsync("/turn", new { prompt = "download inception" }))
+            .Content.ReadFromJsonAsync(AssistantJsonContext.Default.TurnReply);
+
+        Assert.Empty(reply!.Proposals);
     }
 
     [Fact]
@@ -202,7 +228,7 @@ public sealed class AssistantServiceTests(SessionFixture fixture) : IClassFixtur
         using var again = await haru.PostAsJsonAsync("/confirm", new { token });
         Assert.Equal(HttpStatusCode.NotFound, again.StatusCode);
 
-        await fixture.CreateServiceClient().DeleteAsync("/api/wishes/tt0449088?userId=5151");
+        await fixture.CreatePersonClient("5151", "Haru").DeleteAsync("/api/wishes/tt0449088");
     }
 
     [Fact]

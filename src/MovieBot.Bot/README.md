@@ -23,6 +23,23 @@ caches a title and never claims a state it did not read.
 Downloads, wishes and keeps are the API's: the bot asks it to start one, wait on a film or keep
 one, and words in Discord what it answers (`docs/api-contract.md`, "Fetching films").
 
+## It acts as the person who asked
+
+Every command, autocomplete and button is carried out with an access token for the Discord user who
+used it. The bot exchanges their Discord user id for one at the identity provider (RFC 8693, as the
+confidential client `Oidc:BotClientId`), and the token it gets back is that person's, with the bot
+named as the client acting for them. So the API decides what each person may do from their own
+account's actions — somebody who may watch but not download is told so, in their own reply — and
+records them, not the bot. A token is held until 30 seconds before it expires and then exchanged
+again.
+
+A Discord account the provider has no approved account for is refused there, and the reply says so:
+one switched off is told so, and one waiting for approval or never linked is told an administrator
+has to approve it. The bot keeps nothing about who is linked; the provider is asked.
+
+Work that names nobody — keeping the progress messages and launch cards current, announcing a
+finished download — uses the service key (`Api:ServiceKey`).
+
 One thing is an exception, because it exists nowhere else to be read back from. The launch cards
 are the messages that hand out a way into a room: which message, in which channel, carrying which
 invite, for which film. The API has never heard of a Discord message, so a bot that did not write
@@ -40,7 +57,11 @@ setting as the environment variable that overrides it; in the file, `Voice__Trig
 | Variable | Required | What it is |
 |---|---|---|
 | `MOVIEBOT_TOKEN` | yes | The bot token. A credential: it comes from the host's environment or from user-secrets, and never from a file under the repository. |
-| `Discord__ApplicationId` | no | The application id, set as `"ApplicationId"` under `"Discord"` in the settings file, or as `MOVIEBOT_CLIENTID` in the environment. It names the application in the invite the bot writes to the log at startup, and the API uses it as the OAuth2 client id. |
+| `Discord__ApplicationId` | no | The application id, set as `"ApplicationId"` under `"Discord"` in the settings file, or as `MOVIEBOT_CLIENTID` in the environment. It names the application in the invite the bot writes to the log at startup, and the API redeems the Activity's sign-in code as it. |
+| `Oidc__Issuer` | yes | The identity provider the bot exchanges a Discord user's id at, for a token acting as them. |
+| `Oidc__BotClientId` | no | The confidential client the bot is registered as at the provider. Defaults to `cinema-bot`. |
+| `Oidc__BotClientSecret` | yes | That client's secret. A credential: environment only. |
+| `Api__ServiceKey` | yes | The key the bot's background passes present to the API for work that names nobody, the one the API knows as `Auth__ServiceKey`. A credential. |
 | `Discord__GuildIds__0` | yes | The server the bot serves. One index per server. Commands are registered per guild and an interaction from anywhere else is refused. |
 | `Player__BaseUrl` | yes | Where the player is served. The launch link is this address plus its parameters. |
 | `Api__BaseUrl` | no | Where the bot reaches the API. Defaults to `http://127.0.0.1:8099`. |
@@ -54,7 +75,7 @@ setting as the environment variable that overrides it; in the file, `Voice__Trig
 | `Voice__ScanWindowMs`, `Voice__ScanStrideMs` | no | How much of each person's latest speech is looked through for the trigger, and how often: 3000 and 500 by default. The window must stay under moviebot-speech's four-second scan window. |
 | `Voice__LogTranscripts` | no | Whether what was heard is written to the log: requests at information level, and everything scanned for the trigger at debug. Off by default: a voice channel is full of things nobody said to the bot. |
 | `Assistant__Enabled` | no | Whether a spoken request that is not a room verb is put to moviebot-assistant. Off by default; off, those requests are answered by nothing. |
-| `Assistant__BaseUrl` | no | Where moviebot-assistant answers. Defaults to `http://127.0.0.1:8191`. The bot proves itself there with `Api__ServiceKey`, the key the assistant knows as `Auth__ServiceKey`. |
+| `Assistant__BaseUrl` | no | Where moviebot-assistant answers. Defaults to `http://127.0.0.1:8191`. Each request carries the token the bot exchanged for the person who spoke. |
 | `Assistant__ConfirmWindowSeconds` | no | How long the bot listens for a spoken yes or no to a proposal without the trigger. Defaults to 20; 0 leaves the buttons as the only way to agree. |
 | `Speech__SocketPath` | no | Where moviebot-speech answers. Defaults to `/run/moviebot-speech/speech.sock`, the same key the speech host reads. |
 
@@ -253,8 +274,8 @@ answered with one sentence saying so, and everything else the bot does goes on a
   first acts and the other finds it spent. The window takes the next thing its speaker says, and
   anything that is neither a yes nor a no spends it without a word: in a room watching a film that
   is a remark about the film, and asking again would open a window that takes the next remark too.
-  Anyone may agree; the act is done as whoever asked, so the download pings them and the wish is
-  theirs. The assistant holds the proposal in memory, and it expires.
+  Anyone may agree, and the act is done as whoever agrees: they are the one spending it, so the
+  download pings them, the wish is theirs, and the API decides whether they may. The assistant holds the proposal in memory, and it expires.
 - **Asking for a film always ends in something to act on.** Watching, playing, finding and
   downloading a film are one tool. When the library has the film it goes on; when it does not, the
   best release the tracker offers is proposed, and when the tracker has none the model is given what
@@ -351,16 +372,7 @@ in which case the reply points at `/watch`; the torrent client, in which case it
 its way; and the tracker, in which case the reply names the release and says to pick it from
 `/watch`'s search results.
 
-The tracker is then asked about every film on the list on a slow clock, by IMDb id. A film counts
-as available once a release is offered whose source is a web encode or better. When one is, a
-new message goes to each channel people asked in, mentioning exactly those people, naming the
-release and pointing at `/watch`. The wish is forgotten once its people have been told; a channel
-the message could not be sent to keeps its people for the next pass.
-
-### Direct messages
-
-What the API tells a person on the site (a download ready, a title leaving, a keep, an invite into a
-room) reaches their phone as a push when they turned pushes on. When no push reaches them, the bot
-sends it to them as a direct message instead: the API's sentence as it is, with an Open button to the
-page. Somebody already told in a channel, where the announcement mentions them, is not messaged as
-well. A person who shares no server with the bot, or takes no messages from it, is skipped.
+The API then asks the tracker about every film on the list on a slow clock, by IMDb id. A film
+counts as available once a release is offered whose source is a web encode or better. When one is,
+everybody waiting on it is told on Krystal Cinema, in their notifications and by a push, and the
+wish shows the release found there; nothing more is said on Discord.

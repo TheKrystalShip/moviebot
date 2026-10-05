@@ -29,7 +29,8 @@ internal sealed class AssistantHost : IDisposable
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton(TimeProvider.System);
-        services.AddSingleton(new MovieBotApiClient(fixture.CreateServiceClient()));
+        // No credential of its own: the tools call the API with each turn's token.
+        services.AddSingleton(new MovieBotApiClient(fixture.CreateClient()));
         services.AddCinemaAssistant(configuration);
         services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new CatalogueStub());
 
@@ -58,7 +59,15 @@ internal sealed class AssistantHost : IDisposable
 
     public ServiceProvider Provider { get; }
 
-    public MovieBotApiClient Api => Provider.GetRequiredService<MovieBotApiClient>();
+    /// <summary>The API as somebody setting a room up for a test.</summary>
+    public MovieBotApiClient Api => Provider.GetRequiredService<MovieBotApiClient>().As(TestIssuer.Token("1", "someone"));
+
+    /// <summary>The API as the person a turn is for, with the turn's token.</summary>
+    public MovieBotApiClient ApiAs(AssistantTurn turn) => Provider.GetRequiredService<MovieBotApiClient>().As(turn.AccessToken);
+
+    /// <summary>Somebody agreeing to a proposal: the API as them.</summary>
+    public Agreement Agreement(string userId, string name) =>
+        new(Provider.GetRequiredService<MovieBotApiClient>().As(TestIssuer.Token(userId, name)), name);
 
     public RoomToolbox Tools => Provider.GetRequiredService<RoomToolbox>();
 

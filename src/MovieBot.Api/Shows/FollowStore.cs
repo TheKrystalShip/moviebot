@@ -28,7 +28,7 @@ public sealed record StoredFollow
 /// <summary>Everything the follows keep: each person's, and which episodes have been announced.</summary>
 public sealed record FollowData
 {
-    /// <summary>A person's follows, by Discord user id.</summary>
+    /// <summary>A person's follows, by account.</summary>
     public Dictionary<string, List<StoredFollow>> People { get; init; } = [];
 
     /// <summary>The episodes of each show that its followers have been told of, as <c>S02E04</c>.</summary>
@@ -44,7 +44,7 @@ internal partial class FollowJson : JsonSerializerContext;
 
 /// <summary>
 /// Which shows each person follows, and which episodes of them have been announced, in one file in
-/// the state directory, keyed by Discord user id. Written whole through a rename on every change,
+/// the state directory, keyed by account. Written whole through a rename on every change,
 /// like every other store here; follows change a few times a day.
 ///
 /// What was announced is kept beside the follows so that a restart never tells anybody twice. It is

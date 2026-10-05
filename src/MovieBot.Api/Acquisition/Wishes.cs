@@ -44,7 +44,7 @@ public sealed class Wishes(
     TimeProvider clock,
     ILogger<Wishes> logger)
 {
-    public async Task<AddWishReply> SubscribeAsync(AddWishRequest request, CancellationToken ct)
+    public async Task<AddWishReply> SubscribeAsync(AddWishRequest request, Actor asker, CancellationToken ct)
     {
         if (ImdbId.FromText(request.Chosen) is not { } imdbId)
             return new AddWishReply { Outcome = "nothingPicked" };
@@ -77,35 +77,34 @@ public sealed class Wishes(
             };
         }
 
-        if (Downloads.Snowflake(request.RequestedBy.UserId) is not { } userId)
-            return new AddWishReply { Outcome = "nothingPicked" };
-
         var (outcome, wish) = wishes.Add(film, new WishSubscriber
         {
-            UserId = userId,
-            ChannelId = Downloads.Snowflake(request.ChannelId),
+            UserId = asker.UserId,
             AskedAt = clock.GetUtcNow(),
         });
 
         if (outcome == WishAdded.AlreadySubscribed)
-            return new AddWishReply { Outcome = "alreadySubscribed", Wish = wish.View() };
+            return new AddWishReply { Outcome = "alreadySubscribed", Wish = wish.View(Out(wish.ImdbId)) };
 
-        logger.LogInformation("{User} is waiting on {Film} ({Imdb}).",
-            request.RequestedBy.DisplayName, wish.Display, wish.ImdbId);
+        logger.LogInformation("{User} is waiting on {Film} ({Imdb}).", asker.DisplayName, wish.Display, wish.ImdbId);
         return new AddWishReply { Outcome = "subscribed", Wish = wish.View() };
     }
 
-    public List<WishView> List(string? userId) =>
-        (Downloads.Snowflake(userId) is { } id ? wishes.For(id) : wishes.All())
-            .Select(w => w.View())
+    /// <summary>The films one person is waiting on, each with the release that answers it once the tracker offers one.</summary>
+    public List<WishView> List(string userId) =>
+        wishes.For(userId)
+            .Select(w => w.View(Out(w.ImdbId)))
             .ToList();
+
+    /// <summary>The release a wished film came out as, as a page shows it; null while it is not out.</summary>
+    private ReleaseOffer? Out(string imdbId) => wishes.OutAs(imdbId) is { } release ? OfferedReleases.View(release) : null;
 
     public CancelWishReply Cancel(string userId, string chosen)
     {
-        if (ImdbId.FromText(chosen) is not { } imdbId || Downloads.Snowflake(userId) is not { } id)
+        if (ImdbId.FromText(chosen) is not { } imdbId)
             return new CancelWishReply { Outcome = "nothingPicked" };
 
-        var wish = wishes.Remove(id, imdbId);
+        var wish = wishes.Remove(userId, imdbId);
         return wish is null
             ? new CancelWishReply { Outcome = "notWaiting" }
             : new CancelWishReply { Outcome = "cancelled", Wish = wish.View() };
@@ -157,15 +156,14 @@ public sealed class Wishes(
 }
 
 /// <summary>
-/// Asks the tracker, on a slow clock, about every film somebody is waiting on, and holds the ones it
-/// can now answer until whoever tells people has told them.
+/// Asks the tracker, on a slow clock, about every film somebody is waiting on, tells the people waiting
+/// on one when it is out, and remembers the release that answers it.
 ///
-/// Telling is not done here: the people waiting asked in a Discord channel, and the bot is what
-/// speaks there. It reads <see cref="Available"/>, announces each wish in the channels its people
-/// asked in, and reports the channels it reached through <see cref="Told"/>, which is what forgets
-/// them. A message that failed leaves its people on the list and the wish available, so the next
-/// read tries again rather than losing them. Nothing here is persisted: a restarted API asks the
-/// tracker again on its first pass, a minute in.
+/// Telling is a notification to each person waiting, in their bell and to their devices
+/// (<c>Notifications/</c>), said once per film by its key. A person stays on a wish that has come out,
+/// and the wish lists the release beside it, until they stop waiting on it; a film already out is not
+/// asked about again. What came out is held in memory: a restarted API asks the tracker again on its
+/// first pass, a minute in, and nobody is told twice.
 /// </summary>
 public sealed class WishSweep(
     IReleaseSearch search,
@@ -177,38 +175,6 @@ public sealed class WishSweep(
 {
     /// <summary>Long enough for the service to settle, short enough that a restart says so promptly.</summary>
     private static readonly TimeSpan FirstPass = TimeSpan.FromMinutes(1);
-
-    private readonly Dictionary<string, Release> _available = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>The wishes the tracker can answer, with whoever is still waiting on each.</summary>
-    public List<AvailableWish> Available()
-    {
-        lock (_available)
-        {
-            var result = new List<AvailableWish>();
-            foreach (var (imdbId, release) in _available.ToList())
-            {
-                // A wish everybody has been taken off, or told about, is no longer anybody's.
-                if (wishes.Find(imdbId) is not { } wish)
-                {
-                    _available.Remove(imdbId);
-                    continue;
-                }
-                result.Add(new AvailableWish(wish.View(), OfferedReleases.View(release)));
-            }
-            return result;
-        }
-    }
-
-    /// <summary>Forgets the people a wish was announced to, in the channels it reached.</summary>
-    public void Told(string imdbId, IReadOnlyList<string> channelIds)
-    {
-        var reached = channelIds
-            .Select(Downloads.Snowflake)
-            .OfType<ulong>()
-            .ToHashSet();
-        wishes.Forget(imdbId, reached);
-    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -236,10 +202,18 @@ public sealed class WishSweep(
         }
     }
 
-    private async Task SweepAsync(CancellationToken ct)
+    internal async Task SweepAsync(CancellationToken ct)
     {
         foreach (var wish in wishes.All())
         {
+            if (wishes.OutAs(wish.ImdbId) is { } known)
+            {
+                // Somebody who joined the wish after it came out is told too, once.
+                offered.Remember([known]);
+                await TellAsync(wish, ct);
+                continue;
+            }
+
             RankedReleases ranked;
             try
             {
@@ -258,39 +232,26 @@ public sealed class WishSweep(
                 continue;
 
             offered.Remember([release]);
-            lock (_available)
-            {
-                if (_available.TryAdd(wish.ImdbId, release))
-                    logger.LogInformation("{Film} is on the tracker as {Release}.", wish.Display, release.ReleaseName);
-                else
-                    _available[wish.ImdbId] = release;
-            }
+            wishes.MarkOut(wish.ImdbId, release);
+            logger.LogInformation("{Film} is on the tracker as {Release}.", wish.Display, release.ReleaseName);
 
             await TellAsync(wish, ct);
         }
     }
 
-    /// <summary>
-    /// Tells everybody waiting on a film that it can be downloaded. Whoever asked in a channel is
-    /// also told there by the bot, mentioning them, so only whoever asked without one is sent a
-    /// Discord message when no push reaches them, and they come off the wish here because no
-    /// announcement will take them off.
-    /// </summary>
+    /// <summary>Tells everybody waiting on a film that it can be downloaded. Each is told once, by the notification's key.</summary>
     private async Task TellAsync(Wish wish, CancellationToken ct)
     {
         foreach (var subscriber in wish.Subscribers)
         {
-            await notifier.TellAsync(subscriber.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                new NotificationDraft
-                {
-                    Kind = NotificationKinds.Available,
-                    Key = $"available:{wish.ImdbId}",
-                    Text = $"{wish.Display} is out digitally and can be downloaded.",
-                    Url = SitePaths.Film(wish.ImdbId),
-                    Action = "Download",
-                    Direct = subscriber.ChannelId is null,
-                }, ct);
+            await notifier.TellAsync(subscriber.UserId, new NotificationDraft
+            {
+                Kind = NotificationKinds.Available,
+                Key = $"available:{wish.ImdbId}",
+                Text = $"{wish.Display} is out digitally and can be downloaded.",
+                Url = SitePaths.Film(wish.ImdbId),
+                Action = "Download",
+            }, ct);
         }
-        wishes.ForgetUnchannelled(wish.ImdbId);
     }
 }

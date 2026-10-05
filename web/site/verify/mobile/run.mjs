@@ -20,6 +20,7 @@ import { DEFAULT_DEVICES, DEVICES } from "./devices.mjs";
 import { VIEWS } from "./views.mjs";
 import { inspect, unroll } from "./inspect.mjs";
 import { PEOPLE, VIEWER, memberToken, stage } from "./stage.mjs";
+import { issuerIn } from "../issuer.mjs";
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes("--" + name);
@@ -35,8 +36,9 @@ if (!existsSync(join(dir, "keys.env"))) {
   console.error(`No scratch site in ${dir}. Start verify/mobile/scratch.sh first.`);
   process.exit(2);
 }
-const keys = readEnv("keys.env");
-const base = `http://127.0.0.1:${readEnv("api.env").PORT}`;
+const site = readEnv("api.env");
+const base = `http://127.0.0.1:${site.PORT}`;
+const issuer = issuerIn(dir, Number(site.ISSUER_PORT));
 const webkitSocket = process.env.MOVIEBOT_VERIFY_WEBKIT || "ws://127.0.0.1:3123/";
 
 const deviceNames = option("devices", "") === "all" ? Object.keys(DEVICES) : option("devices", DEFAULT_DEVICES.join(",")).split(",");
@@ -84,11 +86,7 @@ async function look(browser, device, view, staged) {
   const context = await browser.newContext(descriptor);
   if (!view.signedOut) {
     const person = PEOPLE[view.person || "viewer"];
-    await context.addInitScript(([token, who]) => {
-      localStorage.setItem("cinema:session", JSON.stringify({
-        token, expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: who.id, name: who.name, username: who.id },
-      }));
-    }, [memberToken(keys.SIGNING_KEY, person), person]);
+    await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), issuer.planted(person));
   }
   const page = await context.newPage();
   const errors = [];
@@ -154,8 +152,8 @@ await waitForSite();
 mkdirSync(out, { recursive: true });
 console.log(`Staging the scratch library at ${base}…`);
 const staged = flag("no-stage")
-  ? { token: memberToken(keys.SIGNING_KEY, VIEWER), close: async () => {} }
-  : await stage(base, keys.SIGNING_KEY);
+  ? { token: memberToken(issuer, VIEWER), close: async () => {} }
+  : await stage(base, issuer);
 if (flag("no-stage")) {
   const titles = await (await fetch(base + "/api/titles", { headers: { Authorization: `Bearer ${staged.token}` } })).json();
   staged.film = staged.leaving = staged.kept = titles.find((t) => t.status === "ready") || titles[0];

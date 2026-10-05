@@ -5,11 +5,12 @@ these routes and present what they answer (`docs/api-contract.md`, "Fetching fil
 the title index, the torrent client, the disk budget and the tag vocabulary are moviebot-acquire's,
 and this directory is where the API calls them.
 
-- **Only the service key and a member spend anything.** An Activity's token proves somebody signed
-  in through Discord; it does not let them fill the disk or spend the tracker's ratio. A member's
-  token says Discord confirmed they are in the server, which is what a slash command takes. A service
-  names the person on every act; a member is the person, and what their request says about who asked
-  is replaced by the token. Either way the tags, the keep records and the log record that person.
+- **Spending anything takes an action, and the person is the token's.** Watching does not let anybody
+  fill the disk or spend the tracker's ratio: a download takes `cinema:download`, a wish `cinema:wish`
+  and a keep `cinema:keep`, whichever client carries the token — the site's, the Activity's or one the
+  bot exchanged for the Discord user it acts for. No request names who asked; the tags, the wish, the
+  keep records and the log record the token's person, and the client acting for them where there is
+  one.
 - **A download names a release this API offered.** `OfferedReleases` remembers what a search or a
   picker answered, and a pick is resolved against it. An id nothing offered is refused before the
   torrent client is asked, so a client cannot fetch whatever torrent id it likes.
@@ -93,11 +94,13 @@ about when it can.
   cannot be made is skipped rather than refused, because the sweep asks again within the hour and one
   message too many is the worst that skipping costs.
 - **A wish is keyed by the film and shared.** Two people asking for the same film are one tracker call
-  per sweep and one announcement per channel.
+  per sweep.
 - **The wish list is written down because a wish exists nowhere else.** A film that is not on the
   tracker has no torrent to tag and no manifest to write. It goes in the state directory systemd hands
   the service, whole and through a rename, on every change.
-- **A wish is forgotten by being told.** The sweep marks what became available and tells every
-  subscriber through their notifications (`Notifications/`). Somebody who asked without a channel is
-  told that way alone and comes off then; the client that announces in channels reports the ones it
-  reached, and the people who asked in those come off.
+- **A wish that came out stays until its people let it go.** The sweep marks what became available
+  and tells every subscriber with an `available` notification (`Notifications/`), which is said once
+  per person, so somebody joining a wish already out is told on the next pass. The wish then lists
+  with the release found for it, which is what the Notify page shows. Which wishes are out is held in
+  memory: the release found is the tracker's answer of the moment, and the first sweep after a
+  restart asks again.

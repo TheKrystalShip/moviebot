@@ -4,9 +4,8 @@ using TheKrystalShip.MovieBot.Core;
 namespace TheKrystalShip.MovieBot.Api.Notifications;
 
 /// <summary>
-/// Which notifications each person is pushed, in one file in the state directory, keyed by Discord
-/// user id. Somebody who never chose has the defaults, which <see cref="NotificationPreferences"/>
-/// spells.
+/// Which notifications each person is pushed, in one file in the state directory, keyed by account.
+/// Somebody who never chose has the defaults, which <see cref="NotificationPreferences"/> spells.
 /// </summary>
 public sealed class NotificationPreferenceStore
 {

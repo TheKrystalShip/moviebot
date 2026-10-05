@@ -12,13 +12,6 @@ public sealed record NotifyRequest
     /// the suggestions, which is a pasted link often enough to be read as one.
     /// </summary>
     public required string Chosen { get; init; }
-
-    /// <summary>Where the command was run, which is where the announcement goes.</summary>
-    public required ulong ChannelId { get; init; }
-
-    public required ulong UserId { get; init; }
-
-    public required string RequestedBy { get; init; }
 }
 
 public enum NotifyStatus
@@ -49,6 +42,9 @@ public enum NotifyStatus
 
     /// <summary>The API did not answer.</summary>
     Unavailable,
+
+    /// <summary>The person's account may not wait on films.</summary>
+    NotAllowed,
 }
 
 /// <summary>
@@ -72,23 +68,26 @@ public enum CancelStatus
 public sealed record CancelResult(CancelStatus Status, string Message, Wish? Wish = null);
 
 /// <summary>
-/// Puts a person on the list for a film, and takes them off it, by asking the API — which holds the
-/// list, checks the library, the torrent client and the tracker before making a wish, and sweeps the
-/// tracker for every film on it. What stays here is how a Discord channel is told each answer.
+/// Puts a person on the list for a film, and takes them off it, by asking the API as them — which
+/// holds the list, checks the library, the torrent client and the tracker before making a wish,
+/// sweeps the tracker for every film on it, and tells the person on Krystal Cinema when one is out.
+/// What stays here is how a Discord channel is told each answer.
 /// </summary>
 public sealed class NotifyCommand(MovieBotApiClient api, ILogger<NotifyCommand> logger)
 {
+    /// <summary>What a person whose account may not wait on films is told.</summary>
+    public const string NotAllowed = "Your account does not let you wait on films in Krystal Cinema.";
+
     public async Task<NotifyResult> SubscribeAsync(NotifyRequest request, CancellationToken ct)
     {
         AddWishReply reply;
         try
         {
-            reply = await api.AddWishAsync(new AddWishRequest
-            {
-                Chosen = request.Chosen,
-                RequestedBy = new Actor(request.UserId.ToString(), request.RequestedBy),
-                ChannelId = request.ChannelId == 0 ? null : request.ChannelId.ToString(),
-            }, ct);
+            reply = await api.AddWishAsync(new AddWishRequest { Chosen = request.Chosen }, ct);
+        }
+        catch (MovieBotAccessDeniedException)
+        {
+            return new NotifyResult(NotifyStatus.NotAllowed, NotAllowed);
         }
         catch (MovieBotApiException ex)
         {
@@ -113,9 +112,9 @@ public sealed class NotifyCommand(MovieBotApiClient api, ILogger<NotifyCommand> 
         return reply.Outcome switch
         {
             "subscribed" => new NotifyResult(NotifyStatus.Subscribed,
-                $"You will be told when {name} can be downloaded.", wish),
+                $"You will be told on Krystal Cinema when {name} can be downloaded.", wish),
             "alreadySubscribed" => new NotifyResult(NotifyStatus.AlreadySubscribed,
-                $"You are already waiting on {name}. It will be announced when it can be downloaded.", wish),
+                $"You are already waiting on {name}. You will be told on Krystal Cinema when it can be downloaded.", wish),
             "alreadyAvailable" => new NotifyResult(NotifyStatus.AlreadyAvailable,
                 $"{title} can be downloaded now. Pick it from the search results in /watch.", wish, reply.Release),
             "inLibrary" => new NotifyResult(NotifyStatus.InLibrary,
@@ -134,10 +133,11 @@ public sealed class NotifyCommand(MovieBotApiClient api, ILogger<NotifyCommand> 
         };
     }
 
-    public async Task<IReadOnlyList<Wish>> ListAsync(ulong userId, CancellationToken ct) =>
-        (await api.ListWishesAsync(userId.ToString(), ct)).Select(Wish.From).ToList();
+    /// <summary>What the person the command runs for is waiting on.</summary>
+    public async Task<IReadOnlyList<Wish>> ListAsync(CancellationToken ct) =>
+        (await api.ListWishesAsync(ct)).Select(Wish.From).ToList();
 
-    public async Task<CancelResult> CancelAsync(ulong userId, string chosen, CancellationToken ct)
+    public async Task<CancelResult> CancelAsync(string chosen, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(chosen))
             return new CancelResult(CancelStatus.NothingPicked,
@@ -146,7 +146,11 @@ public sealed class NotifyCommand(MovieBotApiClient api, ILogger<NotifyCommand> 
         CancelWishReply reply;
         try
         {
-            reply = await api.CancelWishAsync(userId.ToString(), chosen, ct);
+            reply = await api.CancelWishAsync(chosen, ct);
+        }
+        catch (MovieBotAccessDeniedException)
+        {
+            return new CancelResult(CancelStatus.Unavailable, NotAllowed);
         }
         catch (MovieBotApiException ex)
         {

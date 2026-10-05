@@ -17,19 +17,16 @@ namespace TheKrystalShip.MovieBot.Api;
 /// </summary>
 public sealed record HealthReport(string Status, int Rooms, int Watching, string? ColdStorage = null);
 
-/// <summary>What the player needs to know about this host before it can sign anybody in.</summary>
-public sealed record ClientConfig(string? DiscordClientId, string? PublicBaseUrl);
+/// <summary>
+/// What the page needs to know about this host before it can sign anybody in: the identity provider's
+/// issuer, the client the site signs in with, the claim a person's actions arrive in, the Discord
+/// application the Activity runs as, and the public address.
+/// </summary>
+public sealed record ClientConfig(
+    string? DiscordClientId, string? PublicBaseUrl, string Issuer, string ClientId, string ActionsClaim);
 
 /// <summary>A refusal and its reason, which is the one shape every error body takes.</summary>
 public sealed record ErrorReply(string Error);
-
-/// <summary>What the Activity gets back for the authorization code it was handed.</summary>
-public sealed record DiscordSignIn(string AccessToken, string RoomToken, SignedInUser User);
-
-public sealed record SignedInUser(string Id, string Username, string DisplayName);
-
-/// <summary>A token for a caller that has no Discord user of its own.</summary>
-public sealed record ServiceTokenReply(string RoomToken);
 
 /// <summary>
 /// What a player carries on a request for one film's bytes, and when it stops working.
@@ -52,12 +49,11 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 [JsonSerializable(typeof(HealthReport))]
 [JsonSerializable(typeof(ClientConfig))]
 [JsonSerializable(typeof(ErrorReply))]
-[JsonSerializable(typeof(DiscordSignIn))]
-[JsonSerializable(typeof(ServiceTokenReply))]
 [JsonSerializable(typeof(MediaTicketReply))]
-[JsonSerializable(typeof(DiscordCodeRequest))]
-[JsonSerializable(typeof(ServiceTokenRequest))]
-[JsonSerializable(typeof(DiscordUser))]
+[JsonSerializable(typeof(ActivitySignInRequest))]
+[JsonSerializable(typeof(ActivitySignInReply))]
+[JsonSerializable(typeof(ActivitySignInRefusal))]
+[JsonSerializable(typeof(Auth.ActionManifest))]
 [JsonSerializable(typeof(TokenResponse))]
 [JsonSerializable(typeof(PinSubtitleRequest))]
 [JsonSerializable(typeof(ViewerPreferences))]
@@ -67,8 +63,6 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 [JsonSerializable(typeof(TitleLastPlayed))]
 [JsonSerializable(typeof(List<ProgressEntry>))]
 [JsonSerializable(typeof(List<HistoryEntry>))]
-[JsonSerializable(typeof(DeviceSession))]
-[JsonSerializable(typeof(List<DeviceSession>))]
 // A list is looked up by the type the endpoint declares and written by the type it holds, so
 // both are named. The Core context carries the same pair for the participants and the rooms.
 [JsonSerializable(typeof(IReadOnlyList<TitleSummary>))]

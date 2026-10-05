@@ -6,7 +6,7 @@ namespace TheKrystalShip.MovieBot.Api.Auth;
 /// <summary>
 /// The proof carried on a request for a film's bytes.
 ///
-/// A room token says who somebody is, which is what the library and the rooms need to know. A
+/// An access token says who somebody is, which is what the library and the rooms need to know. A
 /// segment needs less: it is a few megabytes of one film that everybody in the room asks for at
 /// the same moment, and what matters is that one cached copy can answer all of them. A shared
 /// cache will not serve a response to a request carrying an <c>Authorization</c> header, so a
@@ -40,7 +40,7 @@ public static class MediaTicket
     public static string Issue(string titleId, AuthOptions options, DateTimeOffset now)
     {
         var expires = BucketedExpiry(now);
-        return $"{expires.ToString(System.Globalization.CultureInfo.InvariantCulture)}.{Signature(titleId, expires, options.SigningKey)}";
+        return $"{expires.ToString(System.Globalization.CultureInfo.InvariantCulture)}.{Signature(titleId, expires, options.MediaTicketKey)}";
     }
 
     /// <summary>When the ticket issued now stops being valid, for a caller that has to refresh one.</summary>
@@ -50,7 +50,7 @@ public static class MediaTicket
     /// <summary>True when the ticket is this title's and has not expired.</summary>
     public static bool IsValid(string? ticket, string titleId, AuthOptions options, DateTimeOffset now)
     {
-        if (string.IsNullOrEmpty(ticket) || options.SigningKey.Length == 0) return false;
+        if (string.IsNullOrEmpty(ticket) || options.MediaTicketKey.Length == 0) return false;
 
         var dot = ticket.IndexOf('.');
         if (dot <= 0 || dot == ticket.Length - 1) return false;
@@ -65,7 +65,7 @@ public static class MediaTicket
         // parsing so a malformed one cannot be told from a wrong one by how long it took.
         if (expires <= now.ToUnixTimeSeconds()) return false;
 
-        var expected = Signature(titleId, expires, options.SigningKey);
+        var expected = Signature(titleId, expires, options.MediaTicketKey);
 
         // Fixed-time: a comparison that returns early leaks how much of a forgery was right, one
         // byte at a time.

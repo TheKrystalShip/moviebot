@@ -21,13 +21,7 @@ public sealed class ListTests(SessionFixture fixture) : IClassFixture<SessionFix
     private HttpClient As(string userId, string name = "Cy")
     {
         fixture.Services.GetRequiredService<PersonDirectory>().Remember(userId, name);
-        var client = fixture.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", RoomToken.Issue(new RoomTokenPayload
-        {
-            UserId = userId, DisplayName = name, RoomId = "", Member = true,
-            ExpiresAtUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
-        }, SessionFixture.SigningKey));
-        return client;
+        return fixture.CreatePersonClient(userId, name);
     }
 
     private static Task<HttpResponseMessage> Save(HttpClient client, string list, string imdbId = HeatImdb, string kind = "film", string? note = null) =>

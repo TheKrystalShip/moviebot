@@ -37,8 +37,8 @@ public sealed record NotificationView
     public required string Kind { get; init; }
 
     /// <summary>
-    /// The sentence, written once for every surface that shows it: the bell, the push and the
-    /// Discord message say the same thing, and none of them mentions anybody or names a command.
+    /// The sentence, written once for every surface that shows it: the bell and the push say the same
+    /// thing, and neither mentions anybody or names a command.
     /// </summary>
     public required string Text { get; init; }
 
@@ -64,7 +64,7 @@ public sealed record MarkReadRequest
 
 /// <summary>
 /// Which notifications a person is pushed, one switch per kind. Whatever is switched off still
-/// reaches the bell; it is the push and the Discord message that the switch holds back.
+/// reaches the bell; it is the push that the switch holds back.
 /// </summary>
 public sealed record NotificationPreferences
 {
@@ -115,27 +115,6 @@ public sealed record PushSubscriptionKeys
 /// <summary>Whether this browser is registered to the person asking, and how many devices they have.</summary>
 public sealed record PushStatusReply(bool Subscribed, int Devices);
 
-/// <summary>
-/// A notification no push reached, waiting for the bot to send it to the person on Discord. The
-/// link is absolute, since a Discord message has no page to be relative to.
-/// </summary>
-public sealed record DirectMessage
-{
-    public required string Id { get; init; }
-
-    public required string UserId { get; init; }
-
-    public required string Text { get; init; }
-
-    public string? Url { get; init; }
-}
-
-/// <summary>
-/// How a Discord message went. <c>false</c> is Discord refusing it outright, which no later attempt
-/// gets past; a message that could not be tried is not reported at all and stays waiting.
-/// </summary>
-public sealed record DirectMessageReport(bool Sent);
-
 /// <summary>Somebody the site knows, as an invite list shows them.</summary>
 public sealed record PersonView
 {
@@ -143,7 +122,10 @@ public sealed record PersonView
 
     public required string Name { get; init; }
 
-    /// <summary>When any of their signed-in devices was last used; absent when none is known.</summary>
+    /// <summary>
+    /// When they last called the API themselves, as this run of it saw; absent when it has not seen
+    /// them since it started.
+    /// </summary>
     public DateTimeOffset? LastSeenAt { get; init; }
 }
 
@@ -155,7 +137,7 @@ public sealed record InviteRequest
 
 /// <summary>
 /// How an invite went out: <c>push</c> (a push service took it for at least one of their devices)
-/// or <c>discord</c> (no push reached them, so the bot will message them). Taken by a push service
-/// is not shown on a phone, and nothing here says it was.
+/// or <c>bell</c> (no push reached them, and it waits in their notifications on the site). Taken by a
+/// push service is not shown on a phone, and nothing here says it was.
 /// </summary>
 public sealed record InviteReply(string Delivery);

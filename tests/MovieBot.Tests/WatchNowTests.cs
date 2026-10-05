@@ -255,16 +255,7 @@ public sealed partial class TorrentClientStub : HttpMessageHandler
 /// </summary>
 public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<WatchNowFixture>
 {
-    private HttpClient Member(string userId = "6001", string name = "Sam")
-    {
-        var client = fixture.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", RoomToken.Issue(new RoomTokenPayload
-        {
-            UserId = userId, DisplayName = name, RoomId = "", Member = true,
-            ExpiresAtUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
-        }, SessionFixture.SigningKey));
-        return client;
-    }
+    private HttpClient Member(string userId = "6001", string name = "Sam") => fixture.CreatePersonClient(userId, name);
 
     private SessionState Room(string room) => fixture.Services.GetRequiredService<SessionStore>().GetOrCreate(room);
 
@@ -325,7 +316,7 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
         Assert.Null(waiting.UpdatedBy);
         var tags = fixture.Torrents.Held[WatchNowFixture.Hash].Tags;
         Assert.Contains(TorrentTags.Watch("inception-night"), tags);
-        Assert.Contains(TorrentTags.Requester(6001), tags);
+        Assert.Contains(TorrentTags.Requester("6001"), tags);
 
         // Arriving: the room hears how far it has got.
         fixture.Torrents.Progress(WatchNowFixture.Hash, 0.25);
@@ -459,10 +450,9 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
     }
 
     [Fact]
-    public async Task An_activity_token_is_not_a_member_and_spends_nothing()
+    public async Task Somebody_who_may_not_download_watches_nothing_now()
     {
-        var client = fixture.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", fixture.TokenFor("room-1", "6009"));
+        var client = fixture.CreatePersonClient("6009", actions: [Api.Auth.CinemaActions.Watch]);
 
         using var pressed = await client.PostAsJsonAsync("/api/watch", new WatchNowRequest { ImdbId = WatchNowFixture.Inception });
 

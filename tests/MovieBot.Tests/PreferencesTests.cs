@@ -13,16 +13,9 @@ namespace TheKrystalShip.MovieBot.Tests;
 /// </summary>
 public sealed class PreferencesTests(SessionFixture fixture) : IClassFixture<SessionFixture>
 {
-    private HttpClient As(string userId, bool member)
-    {
-        var client = fixture.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", RoomToken.Issue(new RoomTokenPayload
-        {
-            UserId = userId, DisplayName = "Cy", RoomId = member ? "" : "room-1", Member = member,
-            ExpiresAtUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
-        }, SessionFixture.SigningKey));
-        return client;
-    }
+    /// <summary>The site and the Activity both arrive with a token the provider minted, by different clients.</summary>
+    private HttpClient As(string userId, bool site) =>
+        fixture.CreatePersonClient(userId, "Cy", via: site ? null : "cinema-activity");
 
     private static async Task<ViewerPreferences?> Read(HttpClient client) =>
         await client.GetFromJsonAsync<ViewerPreferences>("/api/me/preferences");
@@ -30,7 +23,7 @@ public sealed class PreferencesTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task Somebody_who_set_nothing_has_the_defaults()
     {
-        var preferences = await Read(As("7001", member: true));
+        var preferences = await Read(As("7001", site: true));
 
         Assert.Equal(new ViewerPreferences(), preferences);
     }
@@ -38,38 +31,38 @@ public sealed class PreferencesTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task What_the_site_sets_the_activity_reads()
     {
-        using var put = await As("7002", member: true).PutAsJsonAsync("/api/me/preferences",
+        using var put = await As("7002", site: true).PutAsJsonAsync("/api/me/preferences",
             new ViewerPreferences { SubtitleLanguage = "es", QualityHeight = 720 });
         put.EnsureSuccessStatusCode();
 
-        var seen = await Read(As("7002", member: false));
+        var seen = await Read(As("7002", site: false));
         Assert.Equal("es", seen?.SubtitleLanguage);
         Assert.Equal(720, seen?.QualityHeight);
         Assert.Null(seen?.AudioLanguage);
 
         // Somebody else reads their own.
-        Assert.Null((await Read(As("7003", member: true)))?.SubtitleLanguage);
+        Assert.Null((await Read(As("7003", site: true)))?.SubtitleLanguage);
     }
 
     [Fact]
     public async Task Skipping_intros_is_off_until_switched_on_and_follows_the_person()
     {
-        Assert.False((await Read(As("7005", member: true)))?.SkipIntros);
+        Assert.False((await Read(As("7005", site: true)))?.SkipIntros);
 
-        using var put = await As("7005", member: true).PutAsJsonAsync("/api/me/preferences",
+        using var put = await As("7005", site: true).PutAsJsonAsync("/api/me/preferences",
             new ViewerPreferences { SkipIntros = true });
         put.EnsureSuccessStatusCode();
 
-        Assert.True((await Read(As("7005", member: false)))?.SkipIntros);
-        Assert.False((await Read(As("7006", member: true)))?.SkipIntros);
+        Assert.True((await Read(As("7005", site: false)))?.SkipIntros);
+        Assert.False((await Read(As("7006", site: true)))?.SkipIntros);
     }
 
     [Fact]
     public async Task A_subtitle_style_is_kept_in_range_and_follows_the_person()
     {
-        Assert.Null((await Read(As("7007", member: true)))?.SubtitleStyle);
+        Assert.Null((await Read(As("7007", site: true)))?.SubtitleStyle);
 
-        using var put = await As("7007", member: true).PutAsJsonAsync("/api/me/preferences", new ViewerPreferences
+        using var put = await As("7007", site: true).PutAsJsonAsync("/api/me/preferences", new ViewerPreferences
         {
             SubtitleStyle = new SubtitleStyle
             {
@@ -79,7 +72,7 @@ public sealed class PreferencesTests(SessionFixture fixture) : IClassFixture<Ses
         });
         put.EnsureSuccessStatusCode();
 
-        var style = (await Read(As("7007", member: false)))?.SubtitleStyle;
+        var style = (await Read(As("7007", site: false)))?.SubtitleStyle;
         Assert.NotNull(style);
         Assert.Equal(200, style.Size);
         Assert.Null(style.Font);
@@ -94,19 +87,19 @@ public sealed class PreferencesTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task A_subtitle_style_with_nothing_in_range_is_no_style()
     {
-        using var put = await As("7008", member: true).PutAsJsonAsync("/api/me/preferences", new ViewerPreferences
+        using var put = await As("7008", site: true).PutAsJsonAsync("/api/me/preferences", new ViewerPreferences
         {
             SubtitleStyle = new SubtitleStyle { Font = "papyrus", TextColor = "red" },
         });
         put.EnsureSuccessStatusCode();
 
-        Assert.Null((await Read(As("7008", member: true)))?.SubtitleStyle);
+        Assert.Null((await Read(As("7008", site: true)))?.SubtitleStyle);
     }
 
     [Fact]
     public async Task A_meaningless_value_is_the_setting_left_alone()
     {
-        using var put = await As("7004", member: true).PutAsJsonAsync("/api/me/preferences",
+        using var put = await As("7004", site: true).PutAsJsonAsync("/api/me/preferences",
             new ViewerPreferences { SubtitleLanguage = "  ", QualityHeight = -1 });
         var stored = await put.Content.ReadFromJsonAsync<ViewerPreferences>();
 
@@ -117,11 +110,8 @@ public sealed class PreferencesTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task The_service_key_names_nobody()
     {
-        var client = fixture.CreateClient();
-        client.DefaultRequestHeaders.Add("X-MovieBot-Service", SessionFixture.ServiceKey);
+        using var response = await fixture.CreateServiceClient().GetAsync("/api/me/preferences");
 
-        using var response = await client.GetAsync("/api/me/preferences");
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }

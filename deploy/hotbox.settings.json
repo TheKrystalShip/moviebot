@@ -7,6 +7,11 @@
     "GuildIds": ["385730677141929985"]
   },
 
+  // People sign in at tks-auth; the client secrets are in /etc/moviebot/moviebot.env.
+  "Oidc": {
+    "Issuer": "https://auth.thekrystalship.com"
+  },
+
   "Player": {
     "BaseUrl": "https://movies.thekrystalship.com"
   },

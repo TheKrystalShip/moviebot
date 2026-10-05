@@ -19,6 +19,11 @@ namespace TheKrystalShip.MovieBot.Assistant;
 /// </summary>
 /// <remarks>
 /// <para>
+/// <b>Every call is made as the person.</b> The tools reach the API with the access token the turn
+/// arrived with, so the API decides what the person may do, and a proposal is carried out with the
+/// token of whoever agrees to it. Nothing here decides who may do what.
+/// </para>
+/// <para>
 /// <b>What runs at once and what waits is decided here, per tool.</b> Reading and moving the room run
 /// immediately: pausing is the point of a film room, it is undone by saying so, and the player already
 /// tells everyone who did it. A download, a fetched subtitle, a wish and a keep each spend something —
@@ -40,7 +45,7 @@ public sealed class RoomToolbox(
 {
     /// <param name="said">What the person said, which is what a tool holds the model's arguments against.</param>
     public RoomTools For(AssistantTurn turn, string said = "") =>
-        new(turn, said, api, catalogue, staged, offered, clock, logger);
+        new(turn, said, api.As(turn.AccessToken), catalogue, staged, offered, clock, logger);
 }
 
 /// <summary>The tools for one turn: one person, the room they are in when there is one, and what the turn proposed and launched.</summary>
@@ -206,6 +211,11 @@ public sealed partial class RoomTools(
         {
             throw;
         }
+        catch (MovieBotAccessDeniedException)
+        {
+            return Tell($"{turn.SpeakerName}'s account does not let them do that in Krystal Cinema, so nothing happened.",
+                "Tell them so, and do not retry.");
+        }
         catch (MovieBotApiException ex)
         {
             logger.LogWarning(ex, "Assistant: {Tool} could not reach the API", call.Name);
@@ -309,13 +319,13 @@ public sealed partial class RoomTools(
 
     private async Task<string> WishListingAsync(CancellationToken ct)
     {
-        var all = await api.ListWishesAsync(null, ct);
-        if (all.Count == 0) return Tell("Nobody is waiting on a film.");
+        var mine = await api.ListWishesAsync(ct);
+        if (mine.Count == 0) return Tell($"{turn.SpeakerName} is not waiting on any film.");
 
-        return Tell(string.Join('\n', all.Take(MostRows).Select(w =>
+        return Tell(string.Join('\n', mine.Take(MostRows).Select(w =>
             $"- {w.Display}, waited on by {w.Subscribers.Count} "
             + (w.Subscribers.Count == 1 ? "person" : "people")
-            + (w.Subscribers.Any(s => s.UserId == turn.SpeakerUserId) ? $", {turn.SpeakerName} among them" : "")
+            + (w.Release is not null ? ", out now and can be downloaded" : "")
             + $" (imdb {w.ImdbId})")));
     }
 
@@ -327,8 +337,8 @@ public sealed partial class RoomTools(
 
         var session = turn.Room!.SessionId;
         var change = pause
-            ? await api.PauseAsync(session, turn.SpeakerUserId, turn.SpeakerName, ct)
-            : await api.PlayAsync(session, turn.SpeakerUserId, turn.SpeakerName, ct);
+            ? await api.PauseAsync(session, ct)
+            : await api.PlayAsync(session, ct);
         _moved = true;
 
         var at = FilmClock.Format(change.Push.State.PositionSeconds);
@@ -342,7 +352,7 @@ public sealed partial class RoomTools(
 
         if (await RefuseWithoutFilmAsync(ct) is { } refusal) return refusal;
 
-        var change = await api.SeekAsync(turn.Room!.SessionId, seconds, turn.SpeakerUserId, turn.SpeakerName, ct);
+        var change = await api.SeekAsync(turn.Room!.SessionId, seconds, ct);
         _moved = true;
         return Tell(Moved(change));
     }
@@ -354,7 +364,7 @@ public sealed partial class RoomTools(
 
         if (await RefuseWithoutFilmAsync(ct) is { } refusal) return refusal;
 
-        var change = await api.NudgeAsync(turn.Room!.SessionId, seconds, turn.SpeakerUserId, turn.SpeakerName, ct);
+        var change = await api.NudgeAsync(turn.Room!.SessionId, seconds, ct);
         _moved = true;
         return Tell(Moved(change));
     }
@@ -578,7 +588,7 @@ public sealed partial class RoomTools(
         var replaced = alreadyWatching ? null : library.FirstOrDefault(t => t.Id == session.TitleId);
 
         if (!alreadyWatching)
-            await api.SetSessionTitleAsync(room.SessionId, title.Id, turn.SpeakerName, ct);
+            await api.SetSessionTitleAsync(room.SessionId, title.Id, ct);
 
         _moved = true;
         logger.LogInformation("{RequestedBy} {Verb} {TitleId} in {Room}",
@@ -709,8 +719,6 @@ public sealed partial class RoomTools(
 
     // ── Proposals ────────────────────────────────────────────────────────────────────────────
 
-    private Actor Asker => new(turn.SpeakerUserId, turn.SpeakerName);
-
     /// <param name="intoRoom">
     /// Whether the film plays here once it can be watched. It decides the one tag that separates
     /// the two, and it is carried through the proposal rather than read again when somebody
@@ -746,7 +754,6 @@ public sealed partial class RoomTools(
         }
 
         var room = turn.Room;
-        var asker = Asker;
 
         // The wording is also what a proposal is deduplicated by, so the two read differently on
         // purpose: what a person is agreeing to is whether their film stops.
@@ -756,12 +763,11 @@ public sealed partial class RoomTools(
                 ? $"fetch {release.Display} · {release.Summary}"
                 : $"fetch {release.Display} · {release.Summary} for later, leaving {room.Name} as it is";
 
-        return Propose(tool, describes, release.Display, async ct2 =>
+        return Propose(tool, describes, release.Display, async (agreed, ct2) =>
         {
-            var reply = await api.StartDownloadAsync(new StartDownloadRequest
+            var reply = await agreed.Api.StartDownloadAsync(new StartDownloadRequest
             {
                 TorrentId = release.TorrentId,
-                RequestedBy = asker,
                 NotifyChannelId = room?.ChannelId,
                 RoomId = intoRoom ? room!.SessionId : null,
             }, ct2);
@@ -823,18 +829,16 @@ public sealed partial class RoomTools(
         var describes = string.Create(CultureInfo.InvariantCulture,
             $"fetch {show.Title} {which} ({count} {(count == 1 ? "episode" : "episodes")}) at {quality}, about {gigabytes:0.#} GB");
         var room = turn.Room;
-        var asker = Asker;
 
-        return Propose(DownloadShow, describes, show.Title, async ct2 =>
+        return Propose(DownloadShow, describes, show.Title, async (agreed, ct2) =>
         {
             StartDownloadReply? first = null;
             var started = 0;
             foreach (var planned in plan.Downloads)
             {
-                var reply = await api.StartDownloadAsync(new StartDownloadRequest
+                var reply = await agreed.Api.StartDownloadAsync(new StartDownloadRequest
                 {
                     TorrentId = planned.Release.TorrentId,
-                    RequestedBy = asker,
                     NotifyChannelId = room?.ChannelId,
                     Episodes = planned.Episodes,
                 }, ct2);
@@ -893,11 +897,10 @@ public sealed partial class RoomTools(
             return Tell(search.Explanation ?? $"The subtitle index has no English subtitles for {title.Name}.");
 
         var left = search.RemainingDownloads is { } remaining ? $" ({remaining} downloads left today)" : "";
-        var asker = Asker;
 
-        return Propose(FetchSubtitle, $"fetch English subtitles for {title.Name}: {best.Release}{left}", title.Name, async ct2 =>
+        return Propose(FetchSubtitle, $"fetch English subtitles for {title.Name}: {best.Release}{left}", title.Name, async (agreed, ct2) =>
         {
-            var (added, refused) = await api.AddSubtitleAsync(title.Id, best.FileId, asker.DisplayName, ct2);
+            var (added, refused) = await agreed.Api.AddSubtitleAsync(title.Id, best.FileId, ct2);
             if (added is null)
                 return new ConfirmOutcome
                 {
@@ -925,11 +928,9 @@ public sealed partial class RoomTools(
 
         if (!film.IsFeature) return Tell($"{film.Title} is not a film, and only films can be fetched here.");
 
-        var asker = Asker;
-        var channel = turn.Room?.ChannelId;
-        return Propose(AddWish, $"tell {asker.DisplayName} when {film.Display} can be downloaded", film.Display, async ct2 =>
+        return Propose(AddWish, $"tell whoever agrees when {film.Display} can be downloaded", film.Display, async (agreed, ct2) =>
         {
-            var reply = await api.AddWishAsync(new AddWishRequest { Chosen = id, RequestedBy = asker, ChannelId = channel }, ct2);
+            var reply = await agreed.Api.AddWishAsync(new AddWishRequest { Chosen = id }, ct2);
             var name = reply.Wish?.Display ?? reply.FilmTitle ?? film.Display;
             var subscribed = reply.Outcome is "subscribed" or "alreadySubscribed";
 
@@ -937,8 +938,8 @@ public sealed partial class RoomTools(
             {
                 Text = reply.Outcome switch
                 {
-                    "subscribed" => $"{asker.DisplayName} will be told when {name} can be downloaded.",
-                    "alreadySubscribed" => $"{asker.DisplayName} is already waiting on {name}.",
+                    "subscribed" => $"{agreed.Name} will be told when {name} can be downloaded.",
+                    "alreadySubscribed" => $"{agreed.Name} is already waiting on {name}.",
                     "alreadyAvailable" => $"{name} can be downloaded already, so there is nothing to wait for. Ask for it by name.",
                     "inLibrary" => $"{reply.LibraryName ?? name} is already in the library.",
                     "downloading" => $"{reply.DownloadName ?? name} is already downloading.",
@@ -964,16 +965,15 @@ public sealed partial class RoomTools(
         if (keeping && stay.KeeperId is not null) return Tell($"{title.Name} is already kept.");
         if (!keeping && stay.KeeperId is null) return Tell($"{title.Name} is not kept, so it is already on the library's clock.");
 
-        var asker = Asker;
         var id = title.Id;
         var kind = keeping ? KeepFilm : LetGo;
 
         return Propose(kind,
             keeping ? $"keep {title.Name} in the library" : $"let {title.Name} go back on the library's clock",
             title.Name,
-            async ct2 =>
+            async (agreed, ct2) =>
             {
-                var now = keeping ? await api.KeepAsync(id, asker, ct2) : await api.ReleaseKeepAsync(id, asker, ct2);
+                var now = keeping ? await agreed.Api.KeepAsync(id, ct2) : await agreed.Api.ReleaseKeepAsync(id, ct2);
                 var done = now is not null && (now.KeeperId is not null) == keeping;
                 return new ConfirmOutcome
                 {
@@ -995,7 +995,7 @@ public sealed partial class RoomTools(
     /// Holds an act for somebody to agree to. The same act proposed twice in one turn is one
     /// proposal: a model that calls a tool again is asking again, not asking for a second download.
     /// </summary>
-    private string Propose(string kind, string describes, string subject, Func<CancellationToken, Task<ConfirmOutcome>> run)
+    private string Propose(string kind, string describes, string subject, Func<Agreement, CancellationToken, Task<ConfirmOutcome>> run)
     {
         if (_proposed.All(p => p.Describes != describes))
         {

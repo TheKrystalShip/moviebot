@@ -16,7 +16,7 @@ public sealed class PopularNowTests(SessionFixture fixture) : IClassFixture<Sess
     private HttpClient Signed()
     {
         var client = fixture.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", fixture.TokenFor("room", "u7", "Gil"));
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", fixture.TokenFor("u7", "Gil"));
         return client;
     }
 

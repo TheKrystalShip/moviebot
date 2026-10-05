@@ -4,6 +4,68 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-10-05
+
+### Changed
+
+- **People sign in at an OpenID Connect provider, and MovieBot signs nobody in.** The provider named
+  by `Oidc:Issuer` (tks-auth on hotbox's deployment) mints ES256 access tokens for the audience
+  `cinema`, listing the Cinema actions a person holds in `tks_actions`, and every service validates
+  them: issuer, audience, algorithm, `at+jwt` and expiry. A token for any other audience is refused.
+  Every record is keyed by the provider's `sub`. Api 2.0.0, Core 2.0.0.
+- **Every route names the action it needs**: `cinema:watch` for the library, rooms, the hub, tickets
+  and media; `cinema:download`, `cinema:wish` and `cinema:keep` for fetching, waiting on and keeping
+  films; `cinema:profile.read` and `cinema:profile.write` for a person's own records. A route naming
+  none admits nobody. `/.well-known/tks-actions.json` serves the declarations to the provider. Without
+  a token the answer is `401` with `WWW-Authenticate: Bearer`, without the action `403`.
+- **The person is always the token's.** No request names who asked: downloads, wishes, keeps, room
+  controls, subtitles and list entries record the token's `sub` and `name`, and an `act` claim — a
+  client acting for the person — is logged beside them. The hub's `Join` takes the room alone and reads
+  the viewer from the connection's token, which the hub reads from `access_token` on the query string.
+- **The API pins its issuer.** It records `Oidc:Issuer` in `Oidc:IssuerRecord` the first time it
+  starts and refuses to start against another until `Oidc:AdoptIssuer` names it.
+- **Krystal Cinema is the provider's public client** (`oidc-client-ts`, code with PKCE, refresh-token
+  rotation, `Oidc:SiteClientId` `cinema-site`). The door is a button. Controls show to somebody holding
+  the action they need, and an approved account without `cinema:watch` sees a page saying it has no
+  access. Profile links to the account's page at the provider; signing out forgets this browser's
+  tokens. Site 0.25.0.
+- **The Activity signs in through the API.** `POST /api/auth/discord/callback` takes `{code}`, redeems
+  it with Cinema's Discord application and exchanges the Discord access token at the provider (RFC
+  8693) as the confidential client `Oidc:ActivityClientId`, answering `{accessToken, token, expiresIn}`;
+  posting `{accessToken}` renews. A provider refusal is a `403` carrying its `accountStatus`.
+- **The bot acts as the person who used it.** Each command, autocomplete and button exchanges the
+  Discord user's id for their token at the provider as the confidential client `Oidc:BotClientId`,
+  held until shortly before it expires, and the API decides what they may do. A refusal is worded per
+  account status. The assistant gets the same token. Bot 2.0.0, Client 2.0.0.
+- **The assistant validates the person's token and acts with it.** Its tools reach the API with the
+  caller's token, a proposal is carried out with the token of whoever agrees, and a turn with an `act`
+  claim is the bot relaying a room. Assistant 2.0.0.
+- **A wish that came out stays on the person's list with the release found**, shown on the Notify
+  page, until they take it off. Everybody waiting is told by a notification and a push.
+- **`/api/config` answers the issuer, the site's client id and the actions claim.**
+- `Auth:MediaTicketKey` signs media tickets; `Auth:ServiceKey` opens only machine work that names
+  nobody: the hand-off's routes, reading the library and rooms, loading a room as MovieBot, the
+  downloads list and a film's stay.
+- An invite answers `delivery` `push` or `bell`.
+
+### Removed
+
+- Signing in with Discord's OAuth2 redirect, the server-membership check and its
+  `guilds.members.read` scope, the API's own tokens and `Auth:SigningKey`, the room token, the
+  `member` claim, `POST /api/auth/service-token`, the device list (`/api/me/sessions`, `devices.json`)
+  and Profile's Sessions tab. `Discord:GuildIds` is the bot's command registration alone.
+- Discord direct messages for notifications (`/api/notifications/direct`) and the bot's wish
+  announcements (`/api/wishes/available`, `/api/wishes/{imdbId}/told`), with `X-MovieBot-Acting` and
+  every `requestedBy` and `userId` a request carried.
+
+### Upgrading
+
+- Register Cinema at the provider before starting this version (`docs/deploying.md`, step 3b), and
+  set `Oidc:Issuer`, `Oidc__ActivityClientSecret`, `Oidc__BotClientSecret` and
+  `Auth__MediaTicketKey`.
+- Records kept under Discord ids (wishes, keeps, lists, progress, follows, notifications, push
+  devices) belong to no provider account; clear them before the first start.
+
 ## [1.93.0] - 2026-10-04
 
 ### Added

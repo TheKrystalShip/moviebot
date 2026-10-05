@@ -1,15 +1,13 @@
-using System.Globalization;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Bot.Notify;
 
-/// <summary>One person waiting on a film, and the Discord channel they asked in, if they asked in one.</summary>
-public sealed record WishSubscriber(ulong UserId, ulong? ChannelId);
+/// <summary>One person waiting on a film, by the account the API knows them by.</summary>
+public sealed record WishSubscriber(string UserId);
 
 /// <summary>
 /// A film somebody wants that cannot be downloaded yet, and everybody waiting on it, as the API
-/// holds it. Keyed by the film: two people asking for the same film share one wish and one
-/// announcement in each channel they asked in.
+/// holds it. Keyed by the film: two people asking for the same film share one wish.
 /// </summary>
 public sealed record Wish
 {
@@ -38,11 +36,6 @@ public sealed record Wish
         Year = view.Year,
         Starring = view.Starring,
         PosterUrl = view.PosterUrl,
-        Subscribers = view.Subscribers
-            .Select(s => new WishSubscriber(Snowflake(s.UserId) ?? 0, Snowflake(s.ChannelId)))
-            .ToList(),
+        Subscribers = view.Subscribers.Select(s => new WishSubscriber(s.UserId)).ToList(),
     };
-
-    private static ulong? Snowflake(string? id) =>
-        ulong.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var value) ? value : null;
 }

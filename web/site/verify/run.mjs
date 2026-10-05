@@ -1,20 +1,24 @@
 // The player, checked in a real browser against a real API: rooms, the controls, the menus, the
 // layouts each frame size gets, and a film still transcoding.
 //
-// Needs a running MovieBot.Api with a library (MOVIEBOT_API, its service key in
-// MOVIEBOT_SERVICE_KEY), the site's dev server in front of it (MOVIEBOT_WEB), and a Chromium that
-// decodes H.264 and AAC. MOVIEBOT_TITLE names the film to use, which should carry more than one
-// audio track and a subtitle track; MOVIEBOT_MEDIA is the API's media root, whose copy of that
-// film's manifest is edited for the transcoding checks and put back.
+// Needs a running MovieBot.Api with a library (MOVIEBOT_API) that trusts the checks' identity provider
+// (verify/issuer.mjs, its key kept in MOVIEBOT_VERIFY_DIR and served on MOVIEBOT_ISSUER_PORT, as
+// verify/mobile/scratch.sh starts it), the site's dev server in front of it (MOVIEBOT_WEB), and a
+// Chromium that decodes H.264 and AAC. MOVIEBOT_TITLE names the film to use, which should carry more
+// than one audio track and a subtitle track; MOVIEBOT_MEDIA is the API's media root, whose copy of
+// that film's manifest is edited for the transcoding checks and put back.
 
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
+import { issuerIn } from './issuer.mjs';
 
 const BASE = process.env.MOVIEBOT_WEB ?? 'http://localhost:5175';
 const API = process.env.MOVIEBOT_API ?? 'http://127.0.0.1:8099';
-const SERVICE_KEY = process.env.MOVIEBOT_SERVICE_KEY ?? '';
+const ISSUER = issuerIn(
+  process.env.MOVIEBOT_VERIFY_DIR ?? join(homedir(), '.cache', 'moviebot-verify'),
+  Number(process.env.MOVIEBOT_ISSUER_PORT ?? 8300));
 const TITLE = process.env.MOVIEBOT_TITLE ?? 'baby-driver-2017';
 const MEDIA = process.env.MOVIEBOT_MEDIA ?? resolve(import.meta.dirname, '../../../media');
 
@@ -47,31 +51,24 @@ function suite(name) {
   };
 }
 
+/** A person's access token, minted by the identity provider the API trusts. */
 async function tokenFor(userId, name) {
-  const response = await fetch(`${API}/api/auth/service-token`, {
-    method: 'POST',
-    headers: { 'X-MovieBot-Service': SERVICE_KEY, 'content-type': 'application/json' },
-    body: JSON.stringify({ roomId: '', userId, displayName: name }),
-  });
-  if (!response.ok) throw new Error(`The API would not mint a token (${response.status}). Is MOVIEBOT_SERVICE_KEY right?`);
-  return (await response.json()).roomToken;
+  return ISSUER.mint({ id: userId, name });
 }
 
 /** A person signed in to the site, in a frame of a given size. Hub frames they send are recorded. */
 async function viewer(browser, userId, name, size = { width: 1440, height: 810 }) {
   const context = await browser.newContext({ viewport: size });
   const token = await tokenFor(userId, name);
-  await context.addInitScript(([token, userId, name]) => {
-    localStorage.setItem('cinema:session', JSON.stringify({
-      token, expiresAt: Math.floor(Date.now() / 1000) + 3600, user: { id: userId, name, username: name.toLowerCase() },
-    }));
+  await context.addInitScript(([{ key, value }]) => {
+    localStorage.setItem(key, value);
     window.__sent = [];
     const send = WebSocket.prototype.send;
     WebSocket.prototype.send = function (data) {
       try { window.__sent.push(String(data)); } catch { /* binary */ }
       return send.call(this, data);
     };
-  }, [token, userId, name]);
+  }, [ISSUER.planted({ id: userId, name })]);
   const page = await context.newPage();
   page.on('pageerror', (e) => console.log(`    [${name}] page error: ${e.message}`));
   return Object.assign(page, { token });

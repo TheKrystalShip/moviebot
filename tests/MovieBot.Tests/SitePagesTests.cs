@@ -57,11 +57,12 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
     public async Task A_room_s_page_unfurls_with_the_film_and_never_the_people()
     {
         var client = Client();
-        client.DefaultRequestHeaders.Add("X-MovieBot-Service", SessionFixture.ServiceKey);
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", TestIssuer.Token("u-alice", "Alice"));
         var room = "preview-" + Guid.NewGuid().ToString("N")[..8];
         (await client.GetAsync("/api/films/tt0113277")).EnsureSuccessStatusCode();
         (await client.PostAsJsonAsync($"/api/sessions/{room}/title",
-            new TheKrystalShip.MovieBot.Core.SetTitleRequest(SessionFixture.Heat, "u-alice", "Alice"))).EnsureSuccessStatusCode();
+            new TheKrystalShip.MovieBot.Core.SetTitleRequest(SessionFixture.Heat))).EnsureSuccessStatusCode();
 
         // As a crawler asks: no token, no service key.
         var page = await Client().GetStringAsync($"/r/{room}");

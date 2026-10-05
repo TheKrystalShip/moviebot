@@ -57,10 +57,17 @@ export interface Environment {
    */
   startAt(): number | null;
   /**
-   * What this viewer presents to the server as proof they came through Discord, or null when
-   * there is nothing to present. Every closed route refuses a request without one.
+   * The viewer's access token, the one the identity provider minted for them, while it is good, or
+   * null when there is nothing to present. Every closed route refuses a request without one.
    */
   authToken(): string | null;
+  /** The viewer's access token, renewed first when it is about to run out. */
+  freshToken(): Promise<string | null>;
+  /**
+   * Whether the viewer's token lists a Cinema action, such as `cinema:download`: what a control is
+   * shown by. The API checks every one again.
+   */
+  holds(action: string): boolean;
   identity(): Promise<Identity>;
   /** The address somebody else opens to join this room, or null where there is none to hand out. */
   roomUrl(): string | null;
@@ -93,30 +100,19 @@ function browserLandscape(frame: HTMLElement): Landscape {
   };
 }
 
-/** Where Krystal Cinema keeps the signed-in session. */
-const SiteSessionKey = 'cinema:session';
-
-interface SiteSession {
-  token: string;
-  expiresAt: number;
-  user: { id: string; name: string };
-}
-
-/** The session somebody signed into the site with, while it is good. */
-function siteSession(): SiteSession | null {
-  try {
-    const stored = JSON.parse(window.localStorage.getItem(SiteSessionKey) ?? 'null') as SiteSession | null;
-    return stored && stored.expiresAt * 1000 > Date.now() ? stored : null;
-  } catch {
-    return null;
-  }
+/** Whoever is signed in to the site, as the site's session holds them. */
+export interface SiteViewer {
+  token(): string | null;
+  freshToken(): Promise<string | null>;
+  identity(): Identity | null;
+  holds(action: string): boolean;
 }
 
 /**
  * The player on Krystal Cinema. The room and the film are the address, and the viewer is whoever
- * signed in to the site: their token is the proof, and their name is what the room calls them.
+ * signed in to the site: their token is the proof, and the name it carries is what the room calls them.
  */
-export function createSiteEnvironment(sessionId: string, titleId: string | null): Environment {
+export function createSiteEnvironment(sessionId: string, titleId: string | null, viewer: SiteViewer): Environment {
   const origin = window.location.origin;
   return {
     name: 'site',
@@ -129,11 +125,13 @@ export function createSiteEnvironment(sessionId: string, titleId: string | null)
       const seconds = Number(new URLSearchParams(window.location.search).get('at'));
       return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
     },
-    authToken: () => siteSession()?.token ?? null,
+    authToken: () => viewer.token(),
+    freshToken: () => viewer.freshToken(),
+    holds: (action) => viewer.holds(action),
     identity: async () => {
-      const session = siteSession();
-      if (session === null) throw new Error('Nobody is signed in.');
-      return { userId: session.user.id, displayName: session.user.name };
+      const identity = viewer.identity();
+      if (identity === null) throw new Error('Nobody is signed in.');
+      return identity;
     },
     roomUrl: () => `${origin}/r/${encodeURIComponent(sessionId)}`,
     setPresence: () => Promise.resolve(),

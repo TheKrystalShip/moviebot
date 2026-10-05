@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
-using TheKrystalShip.MovieBot.Api.People;
+using Microsoft.Extensions.Options;
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Sessions;
@@ -10,9 +11,12 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// Clients send intent — play, pause, seek — and receive whatever the server decided. They never
 /// push state. Every broadcast carries the server clock and a revision, which between them make
 /// reordering, duplication and skewed client clocks all harmless.
+///
+/// Who is in the room is whoever the connection's token names: the connection is admitted on it when
+/// it opens, and nothing a client sends says who it is.
 /// </summary>
 public sealed class SessionHub(
-    SessionStore sessions, RoomControls controls, PersonDirectory people, ViewerQuality quality,
+    SessionStore sessions, RoomControls controls, ViewerQuality quality, IOptions<OidcOptions> oidc,
     ILogger<SessionHub> logger) : Hub
 {
     private const string SessionIdKey = "sessionId";
@@ -25,23 +29,27 @@ public sealed class SessionHub(
     /// Enters a session and receives its current state. A late joiner needs nothing else: the
     /// position is derived from the anchor, so it computes where the room is without being told.
     /// </summary>
-    public async Task<SessionStatePush> Join(string sessionId, string userId, string displayName)
+    public async Task<SessionStatePush> Join(string sessionId)
     {
-        var actor = new Actor(userId, displayName);
+        var person = Context.User?.Identities.FirstOrDefault(i => i.AuthenticationType == CinemaSchemes.Bearer) is { } identity
+            ? CinemaPerson.From(identity, oidc.Value.ActionsClaim)
+            : null;
+        if (person is null) throw new HubException("Sign in to join a room.");
+
+        var actor = person.Actor;
         Context.Items[SessionIdKey] = sessionId;
         Context.Items[ActorKey] = actor;
 
         await Groups.AddToGroupAsync(Context.ConnectionId, sessionId);
-        people.Remember(userId, displayName);
 
         var participants = sessions.Join(sessionId, Context.ConnectionId,
-            new Participant { UserId = userId, DisplayName = displayName });
+            new Participant { UserId = actor.UserId, DisplayName = actor.DisplayName });
         quality.Join(sessionId, Context.ConnectionId);
 
         await Clients.Group(sessionId).SendAsync("ParticipantsChanged", participants);
         logger.LogInformation(
             "{DisplayName} joined session {SessionId} (connection {Connection}, {Count} in the room)",
-            displayName, sessionId, Context.ConnectionId[..6], participants.Count);
+            actor.DisplayName, sessionId, Context.ConnectionId[..6], participants.Count);
 
         return Push(sessions.GetOrCreate(sessionId));
     }

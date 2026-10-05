@@ -54,9 +54,9 @@ install -d -m 0755 "$etc"
 if [[ -f "$env_file" ]]; then
     echo "    kept (already present)"
 else
-    signing_key="$(head -c 48 /dev/urandom | base64 | tr -d '\n/+=')"
+    ticket_key="$(head -c 48 /dev/urandom | base64 | tr -d '\n/+=')"
     service_key="$(head -c 48 /dev/urandom | base64 | tr -d '\n/+=')"
-    sed -e "s|^Auth__SigningKey=.*|Auth__SigningKey=$signing_key|" \
+    sed -e "s|^Auth__MediaTicketKey=.*|Auth__MediaTicketKey=$ticket_key|" \
         -e "s|^Auth__ServiceKey=.*|Auth__ServiceKey=$service_key|" \
         -e "s|^Api__ServiceKey=.*|Api__ServiceKey=$service_key|" \
         "$here/packaging/config/moviebot.env.example" > "$env_file"

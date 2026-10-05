@@ -32,7 +32,7 @@ public sealed record SubtitleSearchView
     public string? Explanation { get; init; }
 }
 
-public sealed record AddSubtitleRequest(long FileId, string? AddedBy);
+public sealed record AddSubtitleRequest(long FileId);
 
 /// <summary>
 /// What adding a subtitle answers. A track somebody has already confirmed comes back as it stands,

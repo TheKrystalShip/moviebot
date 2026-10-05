@@ -118,6 +118,8 @@ public sealed class RoomVoiceCommandHandler(
 
         var session = RoomSession.IdFor(command.ChannelId);
 
+        // The room moves as whoever said it, with their token.
+        using var acting = ActingFor.Person(command.SpeakerId);
         try
         {
             var rooms = await api.ListRoomsAsync(ct);
@@ -129,12 +131,11 @@ public sealed class RoomVoiceCommandHandler(
                 return VoiceOutcome.NoFilm;
             }
 
-            var userId = command.SpeakerId.ToString(System.Globalization.CultureInfo.InvariantCulture);
             RoomChanged change = reading.Kind switch
             {
-                RoomVerbKind.Pause => await api.PauseAsync(session, userId, command.SpeakerName, ct),
-                RoomVerbKind.Play => await api.PlayAsync(session, userId, command.SpeakerName, ct),
-                _ => await api.NudgeAsync(session, reading.Seconds, userId, command.SpeakerName, ct),
+                RoomVerbKind.Pause => await api.PauseAsync(session, ct),
+                RoomVerbKind.Play => await api.PlayAsync(session, ct),
+                _ => await api.NudgeAsync(session, reading.Seconds, ct),
             };
 
             // The number this surface is judged on: how long from the moment somebody stopped talking to

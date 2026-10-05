@@ -5,10 +5,10 @@ import type { Environment, Identity, Presence } from './environment';
  * The player, as a Discord Activity.
  *
  * Only two things differ from the browser page, and they are the two the environment exists to
- * hold: the room is the Activity instance rather than a query parameter, and the viewer is who
- * Discord says they are rather than a name they typed. Everything else — the API, the media, the
- * hub — is reached by the same relative paths, because the Activity is served from one origin
- * whose root mapping forwards to it.
+ * hold: the room is the Activity instance rather than a query parameter, and the viewer is the
+ * account the identity provider finds linked to the Discord account in the Activity. Everything
+ * else — the API, the media, the hub — is reached by the same relative paths, because the Activity
+ * is served from one origin whose root mapping forwards to it.
  */
 
 /** Discord launches an Activity with a frame id on the query string. Nothing else sets one. */
@@ -16,11 +16,52 @@ export function isDiscordActivity(): boolean {
   return new URLSearchParams(window.location.search).has('frame_id');
 }
 
-interface AuthResult {
+interface SignInReply {
+  /** Discord's access token, which the SDK's `authenticate` takes and the next renewal sends back. */
   accessToken: string;
-  /** What this server accepts afterwards. Discord's own token proves nothing to it. */
-  roomToken: string;
-  user: { id: string; username: string; displayName: string };
+  /** The identity provider's token for this viewer, which is what the API and the hub take. */
+  token: string;
+  /** How long `token` lives, in seconds. */
+  expiresIn: number;
+}
+
+/** A refusal: the reason, and the provider's word for the account when the refusal is about it. */
+interface SignInRefusal {
+  error?: string;
+  accountStatus?: string | null;
+}
+
+/** How long before the token runs out it is renewed, in seconds. */
+const RenewAheadSeconds = 60;
+
+/**
+ * Asks the API to sign this viewer in: with the SDK's code the first time, and with Discord's access
+ * token before each token runs out. The API redeems the code with Cinema's Discord application and
+ * exchanges the Discord token at the identity provider; nothing here reaches the provider, which
+ * Discord's URL mapping would not allow.
+ */
+async function signIn(body: { code: string } | { accessToken: string }): Promise<SignInReply> {
+  const response = await fetch('/api/auth/discord/callback', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => null)) as SignInRefusal | null;
+    throw new Error(refusal?.error ?? `Signing in failed: the server answered ${response.status}.`);
+  }
+  return (await response.json()) as SignInReply;
+}
+
+/** The claims an access token carries, read without verifying anything: the API verifies it. */
+function claimsOf(token: string): Record<string, unknown> {
+  try {
+    const segment = token.split('.')[1];
+    const json = atob(segment.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(decodeURIComponent(Array.from(json, (c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')).join(''))) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
 }
 
 /** Discord's activity type that renders as "Watching {name}". */
@@ -28,7 +69,8 @@ const Watching = 3;
 
 export async function createDiscordEnvironment(
   clientId: string,
-  publicBaseUrl: string | null
+  publicBaseUrl: string | null,
+  actionsClaim: string
 ): Promise<Environment> {
   const sdk = new DiscordSDK(clientId);
   await sdk.ready();
@@ -45,25 +87,41 @@ export async function createDiscordEnvironment(
   });
 
   // The secret that redeems this code lives on the server. The player only ever handles the code
-  // and the token that comes back, which is its own.
+  // and the tokens that come back, which are its own.
   const sessionId = sdk.channelId ?? sdk.instanceId;
 
-  const response = await fetch('/api/auth/discord/callback', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ code, sessionId })
-  });
-
-  if (!response.ok) {
-    throw new Error(`Discord sign-in failed: the server answered ${response.status}.`);
-  }
-
-  const auth = (await response.json()) as AuthResult;
+  let auth = await signIn({ code });
+  let expiresAt = Date.now() + auth.expiresIn * 1000;
   await sdk.commands.authenticate({ access_token: auth.accessToken });
 
+  // The token lives minutes; Discord's lives far longer, so the API is asked again with it before
+  // each one runs out. A renewal that fails is tried again shortly, and the token held meanwhile is
+  // good until it runs out.
+  let renewing: Promise<string | null> | null = null;
+  const renew = (): Promise<string | null> => {
+    renewing ??= signIn({ accessToken: auth.accessToken })
+      .then((fresh) => {
+        auth = fresh;
+        expiresAt = Date.now() + fresh.expiresIn * 1000;
+        schedule();
+        return fresh.token;
+      })
+      .catch(() => {
+        window.setTimeout(() => void renew(), 15_000);
+        return expiresAt > Date.now() ? auth.token : null;
+      })
+      .finally(() => { renewing = null; });
+    return renewing;
+  };
+  const schedule = () => {
+    window.setTimeout(() => void renew(), Math.max(5, (expiresAt - Date.now()) / 1000 - RenewAheadSeconds) * 1000);
+  };
+  schedule();
+
+  const claims = claimsOf(auth.token);
   const identity: Identity = {
-    userId: auth.user.id,
-    displayName: auth.user.displayName
+    userId: String(claims.sub ?? ''),
+    displayName: String(claims.name ?? claims.preferred_username ?? 'Somebody')
   };
 
   // Software-decoding a film in the Discord webview will cook a laptop. This is the supported way
@@ -125,7 +183,12 @@ export async function createDiscordEnvironment(
     // shared by everyone in this Activity, but the bot cannot know one — so keying on it puts the
     // two halves in different rooms and the film the bot was asked for never arrives.
     sessionId: () => sessionId,
-    authToken: () => auth.roomToken,
+    authToken: () => (expiresAt > Date.now() ? auth.token : null),
+    freshToken: () => (expiresAt - Date.now() > 5_000 ? Promise.resolve(auth.token) : renew()),
+    holds: (action) => {
+      const listed = claimsOf(auth.token)[actionsClaim];
+      return Array.isArray(listed) ? listed.includes(action) : listed === action;
+    },
     titleId: () => new URLSearchParams(window.location.search).get('title'),
     // An Activity is launched by Discord from a URL the site never writes, so there is nowhere for a
     // position to ride.

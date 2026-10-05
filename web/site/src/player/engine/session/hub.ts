@@ -1,5 +1,5 @@
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
-import { environment, type Identity } from '../environment';
+import { environment } from '../environment';
 import type { Manifest, Participant, SeekClamped, SessionState, SessionStatePush } from '../types';
 import { ServerClock } from './clock';
 
@@ -35,15 +35,15 @@ export class SessionHub {
   private lastQuality: [number | null, number | null] | null = null;
 
   constructor(
-    private readonly identity: Identity,
     private readonly sessionId: string,
     private readonly handlers: HubHandlers
   ) {
     this.connection = new HubConnectionBuilder()
       // The WebSocket transport cannot set headers, so SignalR puts the token on the query
-      // string itself. The server reads it from there for hub routes only.
+      // string itself. The server reads it from there for hub routes only, and admits the
+      // connection on it when it opens; a reconnect asks for a fresh one.
       .withUrl(environment().hubUrl(), {
-        accessTokenFactory: () => environment().authToken() ?? ''
+        accessTokenFactory: async () => (await environment().freshToken()) ?? ''
       })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Warning)
@@ -137,13 +137,9 @@ export class SessionHub {
     await this.connection.stop();
   }
 
+  /** Who joins is whoever the connection's token names; the room is the only thing said. */
   private join(): Promise<SessionStatePush> {
-    return this.connection.invoke<SessionStatePush>(
-      'Join',
-      this.sessionId,
-      this.identity.userId,
-      this.identity.displayName
-    );
+    return this.connection.invoke<SessionStatePush>('Join', this.sessionId);
   }
 
   private async probe(): Promise<void> {

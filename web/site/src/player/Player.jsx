@@ -108,12 +108,12 @@ function episodeWords(title, name) {
 
 /**
  * Where next goes: the episode right after this one, fetched into the room while it arrives, when it
- * is not here but the tracker has it (the Activity spends nothing, so there it is the next one here);
- * else the next episode the library holds. Null at the end.
+ * is not here but the tracker has it and the viewer may download; else the next episode the library
+ * holds. Null at the end.
  */
-function nextOf(around, manifest, embed) {
+function nextOf(around, manifest) {
   if (!around) return null;
-  if (around.fetchable && !embed) {
+  if (around.fetchable && environment().holds("cinema:download")) {
     return {
       words: [episodeCode(around.fetchable), around.fetchableName].filter(Boolean).join(" · "),
       go: (room) => api.watchNow({
@@ -281,7 +281,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   const [fullscreen, setFullscreen] = React.useState(false);
   const idleTimer = React.useRef(null);
   const around = useNeighbours(manifest);
-  const next = nextOf(around, manifest, embed);
+  const next = nextOf(around, manifest);
   // A failed fetch over a film still playing is this viewer's to put away; the room keeps it.
   const [dismissed, setDismissed] = React.useState(null);
   const goNext = () => Promise.resolve(next.go(room)).catch(() =>
@@ -740,7 +740,7 @@ function InvitePanel({ everyone }) {
     if (here.has(person.userId)) return "In this room";
     const state = sent[person.userId];
     if (state === "push") return "Push sent · waiting for them";
-    if (state === "discord") return "Sent on Discord · waiting for them";
+    if (state === "bell") return "In their notifications · waiting for them";
     if (state === "failed") return "Could not be invited";
     return person.lastSeenAt ? `Active ${ago(person.lastSeenAt)}` : "Not seen on the site";
   };
@@ -774,7 +774,7 @@ function InvitePanel({ everyone }) {
                 </div>
                 {here.has(person.userId)
                   ? <span className="mp-invite__here">watching</span>
-                  : state === "push" || state === "discord"
+                  : state === "push" || state === "bell"
                     ? <span className="mp-invite__sent">invited</span>
                     : <button type="button" className="mp-invite__send" disabled={state === "sending"} onClick={() => invite(person)}>Invite</button>}
               </div>

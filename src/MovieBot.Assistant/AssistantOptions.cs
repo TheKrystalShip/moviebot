@@ -57,15 +57,3 @@ public sealed class AssistantOptions
     public string ResolveWarmupPath() =>
         Path.Combine(Path.GetDirectoryName(ResolveDatabasePath())!, "llm-warmup.json");
 }
-
-/// <summary>The keys this service checks callers with and reaches the API with.</summary>
-public sealed class AssistantAuthOptions
-{
-    public const string Section = "Auth";
-
-    /// <summary>The key the API signs room tokens with; a bearer is checked against it.</summary>
-    public string SigningKey { get; set; } = "";
-
-    /// <summary>The key a service that acts on somebody's behalf proves itself with.</summary>
-    public string ServiceKey { get; set; } = "";
-}

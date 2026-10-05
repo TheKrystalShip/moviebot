@@ -135,7 +135,7 @@ public sealed class DiscordBotService(
     // or logs why it could not.
     private Task OnSlashCommand(SocketSlashCommand command)
     {
-        _ = command.CommandName switch
+        _ = AsPersonAsync(command.User.Id, () => command.CommandName switch
         {
             WatchSlashCommand.Name => HandleWatchAsync(command),
             DownloadSlashCommand.Name => HandleDownloadAsync(command),
@@ -144,9 +144,19 @@ public sealed class DiscordBotService(
             KeepSlashCommand.Name => HandleKeepAsync(command),
             VoiceSlashCommand.Name => HandleVoiceAsync(command),
             _ => Task.CompletedTask,
-        };
+        });
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Runs one person's interaction as them: every call it makes to the API and to the assistant
+    /// carries their token, so what they may do is decided where it is for everybody else.
+    /// </summary>
+    private static async Task AsPersonAsync(ulong discordUserId, Func<Task> work)
+    {
+        using var acting = ActingFor.Person(discordUserId);
+        await work();
     }
 
     /// <summary>
@@ -199,7 +209,7 @@ public sealed class DiscordBotService(
         catch (Exception ex)
         {
             logger.LogError(ex, "The /{Command} command failed", VoiceSlashCommand.Name);
-            await TryReportFailure(command);
+            await TryReportFailure(command, ex);
         }
     }
 
@@ -283,7 +293,7 @@ public sealed class DiscordBotService(
         {
             try
             {
-                await assistant.HandleButtonAsync(component);
+                await AsPersonAsync(component.User.Id, () => assistant.HandleButtonAsync(component));
             }
             catch (Exception ex)
             {
@@ -296,7 +306,7 @@ public sealed class DiscordBotService(
 
     private Task OnAutocomplete(SocketAutocompleteInteraction interaction)
     {
-        _ = HandleAutocompleteAsync(interaction);
+        _ = AsPersonAsync(interaction.User.Id, () => HandleAutocompleteAsync(interaction));
         return Task.CompletedTask;
     }
 
@@ -330,7 +340,7 @@ public sealed class DiscordBotService(
 
             if (TrackerPick.Parse(query) is { } torrentId)
             {
-                await FetchThenWatchAsync(command, torrentId, voice, requestedBy);
+                await FetchThenWatchAsync(command, torrentId, voice);
                 return;
             }
 
@@ -363,7 +373,7 @@ public sealed class DiscordBotService(
         catch (Exception ex)
         {
             logger.LogError(ex, "The /{Command} command failed", WatchSlashCommand.Name);
-            await TryReportFailure(command);
+            await TryReportFailure(command, ex);
         }
     }
 
@@ -372,14 +382,13 @@ public sealed class DiscordBotService(
     /// its progress.
     /// </summary>
     private async Task FetchThenWatchAsync(
-        SocketSlashCommand command, long torrentId, SocketVoiceChannel? voice, string requestedBy)
+        SocketSlashCommand command, long torrentId, SocketVoiceChannel? voice)
     {
         var result = await download.ExecuteAsync(new DownloadRequest
         {
             TorrentId = torrentId,
             ChannelId = command.ChannelId ?? 0,
             RequesterId = command.User.Id,
-            RequestedBy = requestedBy,
             RoomId = voice?.Id,
         }, CancellationToken.None);
 
@@ -409,7 +418,6 @@ public sealed class DiscordBotService(
 
             var query = command.Data.Options
                 .FirstOrDefault(o => o.Name == DownloadSlashCommand.FilmOption)?.Value as string ?? "";
-            var requestedBy = (command.User as IGuildUser)?.DisplayName ?? command.User.Username;
 
             await command.DeferAsync();
 
@@ -444,7 +452,6 @@ public sealed class DiscordBotService(
                 TorrentId = release.TorrentId,
                 ChannelId = command.ChannelId ?? 0,
                 RequesterId = command.User.Id,
-                RequestedBy = requestedBy,
                 RoomId = null,
             }, CancellationToken.None);
 
@@ -453,7 +460,7 @@ public sealed class DiscordBotService(
         catch (Exception ex)
         {
             logger.LogError(ex, "The /{Command} command failed", DownloadSlashCommand.Name);
-            await TryReportFailure(command);
+            await TryReportFailure(command, ex);
         }
     }
 
@@ -542,7 +549,6 @@ public sealed class DiscordBotService(
             var imdbId = Option(ShowSlashCommand.ShowOption) ?? "";
             var season = int.TryParse(Option(ShowSlashCommand.SeasonOption), out var s) ? s : 0;
             var quality = Option(ShowSlashCommand.QualityOption) ?? ShowPlan.DefaultQuality;
-            var requestedBy = (command.User as IGuildUser)?.DisplayName ?? command.User.Username;
 
             await command.DeferAsync();
 
@@ -578,10 +584,11 @@ public sealed class DiscordBotService(
                 var reply = await api.StartDownloadAsync(new Core.StartDownloadRequest
                 {
                     TorrentId = planned.Release.TorrentId,
-                    RequestedBy = new Core.Actor(command.User.Id.ToString(), requestedBy),
                     NotifyChannelId = command.ChannelId?.ToString(),
                     Episodes = planned.Episodes,
                 }, CancellationToken.None);
+                if (reply is { Outcome: "started", Hash: { } hash })
+                    await download.RecordMentionAsync(hash, command.User.Id, CancellationToken.None);
 
                 var result = DownloadCommand.Describe(reply, intoRoom: false);
                 if (result.Outcome == DownloadOutcome.Started) started++;
@@ -612,7 +619,7 @@ public sealed class DiscordBotService(
         catch (Exception ex)
         {
             logger.LogError(ex, "The /{Command} command failed", ShowSlashCommand.Name);
-            await TryReportFailure(command);
+            await TryReportFailure(command, ex);
         }
     }
 
@@ -669,13 +676,13 @@ public sealed class DiscordBotService(
                 case NotifySlashCommand.List:
                     await command.DeferAsync(ephemeral: true);
                     await command.FollowupAsync(
-                        embed: WishEmbed.List(await notify.ListAsync(command.User.Id, CancellationToken.None)),
+                        embed: WishEmbed.List(await notify.ListAsync(CancellationToken.None)),
                         ephemeral: true);
                     return;
 
                 case NotifySlashCommand.Cancel:
                     await command.DeferAsync(ephemeral: true);
-                    var cancelled = await notify.CancelAsync(command.User.Id, film, CancellationToken.None);
+                    var cancelled = await notify.CancelAsync(film, CancellationToken.None);
                     await command.FollowupAsync(
                         cancelled.Message, ephemeral: true, allowedMentions: AllowedMentions.None);
                     return;
@@ -690,20 +697,14 @@ public sealed class DiscordBotService(
 
             await command.DeferAsync();
 
-            var result = await notify.SubscribeAsync(new NotifyRequest
-            {
-                Chosen = film,
-                ChannelId = command.ChannelId ?? 0,
-                UserId = command.User.Id,
-                RequestedBy = (command.User as IGuildUser)?.DisplayName ?? command.User.Username,
-            }, CancellationToken.None);
+            var result = await notify.SubscribeAsync(new NotifyRequest { Chosen = film }, CancellationToken.None);
 
             await command.FollowupAsync(result.Message, embed: WishEmbed.For(result), allowedMentions: AllowedMentions.None);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "The /{Command} command failed", NotifySlashCommand.Name);
-            await TryReportFailure(command);
+            await TryReportFailure(command, ex);
         }
     }
 
@@ -748,19 +749,16 @@ public sealed class DiscordBotService(
 
             await command.DeferAsync();
 
-            var keeper = (command.User as IGuildUser)?.DisplayName ?? command.User.Username;
             var result = subcommand.Name == KeepSlashCommand.Add
-                ? await keep.KeepAsync(film, command.User.Id, keeper, CancellationToken.None)
-                : await keep.ReleaseAsync(film, command.User.Id, keeper, CancellationToken.None);
+                ? await keep.KeepAsync(film, CancellationToken.None)
+                : await keep.ReleaseAsync(film, CancellationToken.None);
 
-            // The message names the keeper by mention so the name is always current, and the
-            // mentions are forbidden so that naming them never pings them.
             await command.FollowupAsync(result.Message, allowedMentions: AllowedMentions.None);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "The /{Command} command failed", KeepSlashCommand.Name);
-            await TryReportFailure(command);
+            await TryReportFailure(command, ex);
         }
     }
 
@@ -891,7 +889,7 @@ public sealed class DiscordBotService(
             .FirstOrDefault(o => o.Type == ApplicationCommandOptionType.SubCommand)?.Name;
 
         if (subcommand == NotifySlashCommand.Cancel)
-            return (await notify.ListAsync(interaction.User.Id, CancellationToken.None))
+            return (await notify.ListAsync(CancellationToken.None))
                 .Where(w => w.Display.Contains(typed, StringComparison.OrdinalIgnoreCase))
                 .Take(MaximumChoices)
                 .Select(w => new AutocompleteResult(Choice(w.Display), w.ImdbId));
@@ -942,16 +940,26 @@ public sealed class DiscordBotService(
     private static string Choice(string label) =>
         label.Length <= 100 ? label : label[..99] + "…";
 
-    private async Task TryReportFailure(SocketSlashCommand command)
+    /// <summary>
+    /// Tells whoever ran a command that it did not work, in words they can act on where there are any:
+    /// their account not being approved, or not allowing what they asked, is theirs to know.
+    /// </summary>
+    private async Task TryReportFailure(SocketSlashCommand command, Exception failure)
     {
+        var sentence = failure switch
+        {
+            AccountRefusedException refused => refused.Sentence,
+            MovieBotAccessDeniedException => "Your account does not let you do that in Krystal Cinema.",
+            Core.TokenExchangeUnavailableException => "The sign-in service is not answering, so nothing happened. Try again in a minute.",
+            _ => "That command did not work. The log has the reason.",
+        };
+
         try
         {
             if (command.HasResponded)
-                await command.FollowupAsync("That command did not work. The log has the reason.",
-                    ephemeral: true);
+                await command.FollowupAsync(sentence, ephemeral: true);
             else
-                await command.RespondAsync("That command did not work. The log has the reason.",
-                    ephemeral: true);
+                await command.RespondAsync(sentence, ephemeral: true);
         }
         catch (Exception ex)
         {

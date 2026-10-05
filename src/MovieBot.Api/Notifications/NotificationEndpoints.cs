@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Sessions;
@@ -6,15 +7,16 @@ using TheKrystalShip.MovieBot.Core;
 namespace TheKrystalShip.MovieBot.Api.Notifications;
 
 /// <summary>
-/// A person's notifications, their pushes and their choices, the queue of Discord messages the bot
-/// sends for them, and inviting somebody into a room. Everything under <c>/api/me</c> answers for
-/// whoever the token names; the queue answers the service key alone.
+/// A person's notifications, their pushes and their choices, and inviting somebody into a room.
+/// Everything under <c>/api/me</c> answers for whoever the token names, and no route here takes the
+/// service key.
 /// </summary>
 public static class NotificationEndpoints
 {
     public static void MapNotifications(this WebApplication app)
     {
-        app.MapGet("/api/push/key", (PushDevices devices) => Results.Ok(new PushKeyReply(devices.Keys().PublicKey)));
+        app.MapGet("/api/push/key", (PushDevices devices) => Results.Ok(new PushKeyReply(devices.Keys().PublicKey)))
+            .RequireAction(CinemaActions.ProfileRead);
 
         // Whether the browser asking is registered to this person. It is the browser's own endpoint
         // that is asked about, so a device that belongs to somebody else answers no.
@@ -23,7 +25,8 @@ public static class NotificationEndpoints
                 ? Results.Ok(new PushStatusReply(
                     endpoint is { Length: > 0 } && devices.Holds(person.UserId, endpoint),
                     devices.For(person.UserId).Count))
-                : NoPerson());
+                : NoPerson())
+            .RequireAction(CinemaActions.ProfileRead);
 
         app.MapPost("/api/me/push", (PushSubscribeRequest body, HttpContext context, PushDevices devices, TimeProvider clock) =>
         {
@@ -41,70 +44,52 @@ public static class NotificationEndpoints
                 UserId = person.UserId, SubscribedAt = clock.GetUtcNow(),
             });
             return Results.NoContent();
-        });
+        }).RequireAction(CinemaActions.ProfileWrite);
 
         app.MapDelete("/api/me/push", (string? endpoint, HttpContext context, PushDevices devices) =>
             PeopleEndpoints.Person(context) is not { } person ? NoPerson()
             : endpoint is { Length: > 0 } && devices.Remove(person.UserId, endpoint) ? Results.NoContent()
-            : Results.NotFound());
+            : Results.NotFound())
+            .RequireAction(CinemaActions.ProfileWrite);
 
         app.MapGet("/api/me/notifications", (HttpContext context, NotificationStore inbox) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             var mine = inbox.For(person.UserId);
             return Results.Ok(new NotificationsReply(mine.Count(n => n.ReadAt is null), mine.Select(n => n.View()).ToList()));
-        });
+        }).RequireAction(CinemaActions.ProfileRead);
 
         app.MapPost("/api/me/notifications/read", (MarkReadRequest body, HttpContext context, NotificationStore inbox, TimeProvider clock) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             inbox.MarkRead(person.UserId, body.Ids, clock.GetUtcNow());
             return Results.NoContent();
-        });
+        }).RequireAction(CinemaActions.ProfileWrite);
 
         app.MapGet("/api/me/notifications/preferences", (HttpContext context, NotificationPreferenceStore store) =>
-            PeopleEndpoints.Person(context) is { } person ? Results.Ok(store.For(person.UserId)) : NoPerson());
+            PeopleEndpoints.Person(context) is { } person ? Results.Ok(store.For(person.UserId)) : NoPerson())
+            .RequireAction(CinemaActions.ProfileRead);
 
         app.MapPut("/api/me/notifications/preferences", (NotificationPreferences body, HttpContext context, NotificationPreferenceStore store) =>
-            PeopleEndpoints.Person(context) is { } person ? Results.Ok(store.Set(person.UserId, body)) : NoPerson());
-
-        // The Discord messages owed, for the bot to send. The link is made absolute here, where the
-        // public address is known.
-        app.MapGet("/api/notifications/direct", (NotificationStore inbox, IConfiguration configuration) =>
-        {
-            var origin = configuration["Api:PublicBaseUrl"] is { Length: > 0 } url ? url.TrimEnd('/') : null;
-            return Results.Ok(inbox.Waiting().Select(w => new DirectMessage
-            {
-                Id = w.Notification.Id,
-                UserId = w.UserId,
-                Text = w.Notification.Text,
-                Url = w.Notification.Url is { } path && origin is not null ? origin + path : null,
-            }).ToList());
-        }).AddEndpointFilter(Acquisition.AcquisitionEndpoints.ServiceOnly);
-
-        app.MapPost("/api/notifications/direct/{id}", (string id, DirectMessageReport report, NotificationStore inbox) =>
-        {
-            if (inbox.OwnerOf(id) is not { } owner) return Results.NotFound();
-            inbox.Update(owner, id, n => n with { Direct = report.Sent ? DirectState.Sent : DirectState.Refused });
-            return Results.NoContent();
-        }).AddEndpointFilter(Acquisition.AcquisitionEndpoints.ServiceOnly);
+            PeopleEndpoints.Person(context) is { } person ? Results.Ok(store.Set(person.UserId, body)) : NoPerson())
+            .RequireAction(CinemaActions.ProfileWrite);
 
         // Who can be invited: everybody the service has a name for, but the person asking, most
-        // recently seen first.
-        app.MapGet("/api/people", (HttpContext context, PersonDirectory people, DeviceSessions devices) =>
+        // recently seen first. Asking somebody into a room is a room's act, so it takes watching.
+        app.MapGet("/api/people", (HttpContext context, PersonDirectory people) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
-            var seen = devices.LastSeen();
+            var seen = people.LastSeen();
             return Results.Ok(people.All()
                 .Where(p => p.Key != person.UserId)
                 .Select(p => new PersonView { UserId = p.Key, Name = p.Value, LastSeenAt = seen.TryGetValue(p.Key, out var at) ? at : null })
                 .OrderByDescending(p => p.LastSeenAt ?? DateTimeOffset.MinValue)
                 .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList());
-        });
+        }).RequireAction(CinemaActions.Watch);
 
         // Asks one person into a room. An invite is addressed on purpose, so it is pushed whatever
-        // they chose for everything else, and sent on Discord when no push reaches them.
+        // they chose for everything else, and waits in their bell when no push reaches them.
         app.MapPost("/api/rooms/{room}/invite", async (string room, InviteRequest body, HttpContext context,
             PersonDirectory people, SessionStore sessions, TitleLibrary library, Notifier notifier, CancellationToken ct) =>
         {
@@ -126,8 +111,8 @@ public static class NotificationEndpoints
                 Action = "Join",
             }, ct);
 
-            return Results.Ok(new InviteReply(delivery is { Pushed: > 0 } ? "push" : "discord"));
-        });
+            return Results.Ok(new InviteReply(delivery is { Pushed: > 0 } ? "push" : "bell"));
+        }).RequireAction(CinemaActions.Watch);
     }
 
     private static IResult NoPerson() =>

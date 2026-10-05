@@ -1,10 +1,11 @@
-// MovieBot.Api, as the site reaches it: same origin, the session's token as the bearer.
+// MovieBot.Api, as the site reaches it: same origin, the session's access token as the bearer.
 //
 // This is the one module that attaches the token. A 401 means the token has lapsed or was never
-// good, so the browser is signed out and the page asks for a sign-in rather than showing a
-// library that failed to load.
+// good: the session is renewed once and the call made again, and a second 401 is a session that has
+// ended, which the page answers by asking for a sign-in rather than showing a library that failed to
+// load. A 403 is the person's account not letting them do what they asked.
 
-import { currentToken, signOut } from "./session.js";
+import { freshToken, signOut } from "./session.js";
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -13,21 +14,23 @@ export class ApiError extends Error {
   }
 }
 
-async function call(method, path, body) {
-  const token = currentToken();
+async function send(method, path, body, token) {
   const headers = { Accept: "application/json" };
   if (token) headers.Authorization = "Bearer " + token;
   if (body !== undefined) headers["Content-Type"] = "application/json";
-
-  let response;
   try {
-    response = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    return await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch {
     throw new ApiError(0, "MovieBot is not answering. Try again in a moment.");
   }
+}
+
+async function call(method, path, body) {
+  let response = await send(method, path, body, await freshToken());
+  if (response.status === 401) response = await send(method, path, body, await freshToken({ refused: true }));
 
   if (response.status === 401) {
-    signOut();
+    await signOut();
     throw new ApiError(401, "Sign in to carry on.");
   }
   if (response.status === 204) return null;
@@ -110,18 +113,13 @@ export const api = {
   people: () => call("GET", "/api/people"),
   invite: (room, userId) => call("POST", `/api/rooms/${enc(room)}/invite`, { userId }),
 
-  // The devices that hold one of this person's tokens.
-  sessions: () => call("GET", "/api/me/sessions"),
-  signOutDevice: (id) => call("DELETE", `/api/me/sessions/${enc(id)}`),
-  signOutOtherDevices: () => call("DELETE", "/api/me/sessions"),
-
   releases: (q) => call("GET", `/api/releases?q=${enc(q)}`),
   releasesFor: (imdb) => call("GET", `/api/releases?imdb=${enc(imdb)}`),
   // `episodes` ([{season, episode}]) fetches only those out of a show's release.
   download: (torrentId, episodes) =>
-    call("POST", "/api/downloads", { torrentId, requestedBy: { userId: "", displayName: "" }, ...(episodes ? { episodes } : {}) }),
+    call("POST", "/api/downloads", { torrentId, ...(episodes ? { episodes } : {}) }),
   wishes: () => call("GET", "/api/wishes"),
-  wish: (chosen) => call("POST", "/api/wishes", { chosen, requestedBy: { userId: "", displayName: "" } }),
+  wish: (chosen) => call("POST", "/api/wishes", { chosen }),
   cancelWish: (imdbId) => call("DELETE", `/api/wishes/${enc(imdbId)}`),
 };
 

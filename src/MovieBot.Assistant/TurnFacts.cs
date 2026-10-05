@@ -39,22 +39,25 @@ public sealed class TurnFacts(
         text.AppendLine("What is true right now. Read it before answering; it is newer than anything said earlier.");
         text.AppendLine($"Speaking: {turn.SpeakerName}.");
 
+        // Read as the person, like everything else the turn asks of the API.
+        var asPerson = api.As(turn.AccessToken);
+
         IReadOnlyList<LibraryTitle>? library = null;
         try
         {
-            library = await api.ListTitlesAsync(ct);
+            library = await asPerson.ListTitlesAsync(ct);
         }
         catch (MovieBotApiException ex)
         {
             logger.LogWarning(ex, "Assistant: the library could not be read for the turn");
         }
 
-        if (turn.Room is { } room) text.AppendLine(await RoomLineAsync(room, library, ct));
+        if (turn.Room is { } room) text.AppendLine(await RoomLineAsync(asPerson, room, library, ct));
         text.Append(LibraryLines(library));
         return text.ToString().TrimEnd();
     }
 
-    private async Task<string> RoomLineAsync(TurnRoom room, IReadOnlyList<LibraryTitle>? library, CancellationToken ct)
+    private async Task<string> RoomLineAsync(MovieBotApiClient api, TurnRoom room, IReadOnlyList<LibraryTitle>? library, CancellationToken ct)
     {
         try
         {

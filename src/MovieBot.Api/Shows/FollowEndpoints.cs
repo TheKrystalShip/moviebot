@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.People;
 
@@ -14,16 +15,20 @@ public static class FollowEndpoints
         app.MapGet("/api/me/follows", (HttpContext context, FollowStore follows, ShowStore shows) =>
             PeopleEndpoints.Person(context) is { } person
                 ? Results.Ok(follows.For(person.UserId).Select(f => shows.View(f)).ToList())
-                : NoPerson());
+                : NoPerson())
+            .RequireAction(CinemaActions.ProfileRead);
 
         // Follows the show, or changes whether its new episodes are downloaded for the person. The
         // show is asked of the film database for its status and for the baseline: what is already
-        // out is not news to somebody who follows it now.
+        // out is not news to somebody who follows it now. A follow that downloads starts downloads as
+        // the person later, with nobody there to check, so it is set only by somebody who may download.
         app.MapPut("/api/me/follows/{imdbId}", async (string imdbId, FollowRequest body, HttpContext context,
             FollowStore follows, ShowStore shows, TimeProvider clock, CancellationToken ct) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             if (!FilmStore.IsImdbId(imdbId)) return Error("That is not an IMDb id.", StatusCodes.Status400BadRequest);
+            if (body.AutoDownload && !person.Holds(CinemaActions.Download))
+                return Error("Your account does not let you download in Krystal Cinema.", StatusCodes.Status403Forbidden);
 
             var stored = await shows.GetAsync(imdbId, ct);
             if (stored is null)
@@ -36,14 +41,14 @@ public static class FollowEndpoints
             var follow = follows.Follow(person.UserId, imdbId, body.AutoDownload,
                 FollowViews.Baseline(stored, FollowViews.Today(clock)), clock.GetUtcNow());
             return Results.Ok(shows.View(follow));
-        });
+        }).RequireAction(CinemaActions.ProfileWrite);
 
         app.MapDelete("/api/me/follows/{imdbId}", (string imdbId, HttpContext context, FollowStore follows) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             follows.Unfollow(person.UserId, imdbId);
             return Results.NoContent();
-        });
+        }).RequireAction(CinemaActions.ProfileWrite);
     }
 
     private static IResult Error(string message, int status) =>

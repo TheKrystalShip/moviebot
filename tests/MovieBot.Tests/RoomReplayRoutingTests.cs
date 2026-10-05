@@ -41,7 +41,7 @@ public sealed class RoomReplayRoutingTests(SessionFixture fixture, ITestOutputHe
     public async Task The_first_film_of_a_series_is_put_on_in_a_room_that_has_retyped_its_id(string said)
     {
         var turn = AssistantPartsTests.Turn((ulong)Interlocked.Increment(ref _channels));
-        await _host.Api.SetSessionTitleAsync(turn.Room!.SessionId, DeadMansChest, "someone", CancellationToken.None);
+        await _host.Api.SetSessionTitleAsync(turn.Room!.SessionId, DeadMansChest, CancellationToken.None);
         Replay(turn, "pirates-room.jsonl");
 
         var answer = await _host.Assistant.AskAsync(turn, said, CancellationToken.None);

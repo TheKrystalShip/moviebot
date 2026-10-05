@@ -1,12 +1,14 @@
 import React from "react";
 import { Icon, Toggle, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
+import { useCan } from "../session.js";
 
 /**
  * Follow a show, or, once following, a menu on the same button: whether new episodes are fetched
  * when they air, and unfollowing. The follow is the signed-in person's own.
  */
 export function FollowButton({ imdbId, title, follow, onChange }) {
+  const downloading = useCan("cinema:download");
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const ref = React.useRef(null);
@@ -62,10 +64,12 @@ export function FollowButton({ imdbId, title, follow, onChange }) {
       </button>
       {open && (
         <div className="kc-follow__menu" role="menu">
-          <label className="kc-follow__option">
-            <span>Download new episodes automatically</span>
-            <Toggle on={follow.autoDownload} disabled={busy} label="Download new episodes automatically" onChange={setAuto} />
-          </label>
+          {downloading && (
+            <label className="kc-follow__option">
+              <span>Download new episodes automatically</span>
+              <Toggle on={follow.autoDownload} disabled={busy} label="Download new episodes automatically" onChange={setAuto} />
+            </label>
+          )}
           <button type="button" className="kc-follow__unfollow" role="menuitem" disabled={busy} onClick={stop}>
             <Icon name="bell-off" size={15} />Unfollow
           </button>

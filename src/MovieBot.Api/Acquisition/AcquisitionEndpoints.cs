@@ -2,6 +2,7 @@ using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Core;
@@ -9,20 +10,19 @@ using TheKrystalShip.MovieBot.Core;
 namespace TheKrystalShip.MovieBot.Api.Acquisition;
 
 /// <summary>
-/// Fetching films, for the services that act on somebody's behalf and for members of the server.
+/// Fetching films, waiting on them and keeping them.
 ///
-/// These spend things — the disk, the tracker's ratio, an hourly call to the tracker for every wish —
-/// so they answer the service key, or a token that says its bearer is a member of the server MovieBot
-/// serves. That is what a slash command takes too, and a member may do here what they may do there.
-/// A service names the person it vouches for on each request as an Actor; a member is the person, and
-/// whatever a member's request says about who asked is replaced by who the token says they are. The
-/// announcing of wishes is the bot's, and answers the service key alone.
+/// These spend things — the disk, the tracker's ratio, an hourly call to the tracker for every wish,
+/// a film's place on the disk — so each takes its own action, checked on the token: downloading,
+/// wishing, keeping. Whoever the token names is who asked, whichever client carried the request; a
+/// request says nothing about who asked, so no client can say it is somebody else. Reading how long a
+/// film stays is reading the library, and takes watching.
 /// </summary>
 public static class AcquisitionEndpoints
 {
     public static void MapAcquisition(this WebApplication app)
     {
-        var group = app.MapGroup("/api").AddEndpointFilter(ServiceOrMember);
+        var group = app.MapGroup("/api");
 
         // What to offer for something typed into a picker. `session` keys the debounce, so one
         // person mid-word does not hold back another's finished query.
@@ -33,21 +33,24 @@ public static class AcquisitionEndpoints
             return Results.Ok(new ReleaseSuggestions(
                 answer.Choices.Select(c => new ReleaseChoiceView(c.Label, c.TorrentId)).ToList(),
                 answer.Explanation));
-        });
+        }).RequireAction(CinemaActions.Download);
 
         // The films the title index offers for a name, for a search box: each leads to its own page,
-        // which is where whether it can be watched is asked.
+        // which is where whether it can be watched is asked. Finding a film is how a download and a
+        // wish both begin.
         group.MapGet("/films/find", async (string? q, ImdbClient index, CancellationToken ct) =>
             Results.Ok((await index.SuggestAsync(q ?? "", ct))
                 .Select(f => new FilmView { ImdbId = f.ImdbId, Title = f.Title, Year = f.Year, Display = f.Display })
-                .ToList()));
+                .ToList()))
+            .RequireAction(CinemaActions.Download, CinemaActions.Wish);
 
         // Whether a film can be watched and how: here, arriving, offered at 1080p and 720p, or not out.
         group.MapGet("/films/{imdbId}/availability", async (string imdbId, HttpContext context, WatchNow watch, CancellationToken ct) =>
             ImdbId.IsValid(imdbId)
-                ? Results.Ok(await watch.AvailabilityAsync(imdbId, MemberOf(context)?.UserId, ct))
+                ? Results.Ok(await watch.AvailabilityAsync(imdbId, CinemaPerson.Of(context)?.UserId, ct))
                 : Results.Json(new ErrorReply("That is not an IMDb id."), ApiJsonContext.Default.ErrorReply,
-                    statusCode: StatusCodes.Status400BadRequest));
+                    statusCode: StatusCodes.Status400BadRequest))
+            .RequireAction(CinemaActions.Download, CinemaActions.Wish);
 
         // Watch now: the film is fetched and played in a room the moment it can be opened. The answer
         // comes before the release is picked, so the person is in the room watching that happen.
@@ -56,16 +59,13 @@ public static class AcquisitionEndpoints
             if (!ImdbId.IsValid(request.ImdbId))
                 return Results.Json(new ErrorReply("That is not an IMDb id."), ApiJsonContext.Default.ErrorReply,
                     statusCode: StatusCodes.Status400BadRequest);
-            var asker = MemberOf(context) is { } member
-                ? new Actor(member.UserId, member.DisplayName)
-                : request.RequestedBy is { UserId.Length: > 0 } named ? named : null;
-            if (asker is null) return NoKeeper();
+            if (CinemaPerson.Of(context) is not { } person) return NoPerson();
 
-            var reply = await watch.StartAsync(request, asker, ct);
+            var reply = await watch.StartAsync(request, person.Actor, ct);
             return reply.Outcome == "full"
                 ? Results.Json(reply, ManifestJsonContext.Default.WatchNowReply, statusCode: StatusCodes.Status409Conflict)
                 : Results.Ok(reply);
-        });
+        }).RequireAction(CinemaActions.Download);
 
         // The releases the tracker holds for a film, named in words or by IMDb id, best first.
         group.MapGet("/releases", async (
@@ -88,158 +88,104 @@ public static class AcquisitionEndpoints
             {
                 return Unanswered("The tracker is not answering.");
             }
-        });
+        }).RequireAction(CinemaActions.Download);
 
         group.MapGet("/releases/{torrentId:long}", (long torrentId, OfferedReleases offered) =>
             offered.Resolve(torrentId) is { } release
                 ? Results.Ok(OfferedReleases.View(release))
-                : Results.NotFound());
+                : Results.NotFound())
+            .RequireAction(CinemaActions.Download);
 
+        // Every download, for a person who may start one and for the bot, which shows each one's
+        // progress in the channel it was asked in.
         group.MapGet("/downloads", async (Downloads downloads, Library.TitleLibrary library, CancellationToken ct) =>
             await downloads.ListAsync(library, ct) is { } list
                 ? Results.Ok(list)
-                : Unanswered("The torrent client is not answering."));
+                : Unanswered("The torrent client is not answering."))
+            .RequireActionOrService(CinemaActions.Download);
 
-        // A member's download is announced nowhere in Discord: the channel is the bot's to name.
         group.MapPost("/downloads", async (StartDownloadRequest request, HttpContext context, Downloads downloads, CancellationToken ct) =>
-            Results.Ok(await downloads.StartAsync(
-                MemberOf(context) is { } member
-                    ? request with { RequestedBy = new Actor(member.UserId, member.DisplayName), NotifyChannelId = null }
-                    : request,
-                ct)));
+            CinemaPerson.Of(context) is { } person
+                ? Results.Ok(await downloads.StartAsync(request, person.Actor, ct))
+                : NoPerson())
+            .RequireAction(CinemaActions.Download);
 
-        // A member reads the list as themselves: whose wishes they are is the token's to say.
-        group.MapGet("/wishes", (string? userId, HttpContext context, Wishes wishes) =>
-            Results.Ok(wishes.List(MemberOf(context)?.UserId ?? userId)));
+        // A person's own wishes: whose they are is the token's to say.
+        group.MapGet("/wishes", (HttpContext context, Wishes wishes) =>
+            CinemaPerson.Of(context) is { } person ? Results.Ok(wishes.List(person.UserId)) : NoPerson())
+            .RequireAction(CinemaActions.Wish);
 
         group.MapPost("/wishes", async (AddWishRequest request, HttpContext context, Wishes wishes, CancellationToken ct) =>
-            Results.Ok(await wishes.SubscribeAsync(
-                MemberOf(context) is { } member
-                    ? request with { RequestedBy = new Actor(member.UserId, member.DisplayName), ChannelId = null }
-                    : request,
-                ct)));
+            CinemaPerson.Of(context) is { } person
+                ? Results.Ok(await wishes.SubscribeAsync(request, person.Actor, ct))
+                : NoPerson())
+            .RequireAction(CinemaActions.Wish);
 
-        group.MapDelete("/wishes/{imdbId}", (string imdbId, string? userId, HttpContext context, Wishes wishes) =>
-            (MemberOf(context)?.UserId ?? userId) is { Length: > 0 } who
-                ? Results.Ok(wishes.Cancel(who, imdbId))
-                : Results.Json(new ErrorReply("Name whose wish to cancel."), ApiJsonContext.Default.ErrorReply,
-                    statusCode: StatusCodes.Status400BadRequest));
-
-        group.MapGet("/wishes/available", (WishSweep sweep) => Results.Ok(sweep.Available()))
-            .AddEndpointFilter(ServiceOnly);
-
-        group.MapPost("/wishes/{imdbId}/told", (string imdbId, WishesTold told, WishSweep sweep) =>
-        {
-            sweep.Told(imdbId, told.ChannelIds);
-            return Results.NoContent();
-        }).AddEndpointFilter(ServiceOnly);
+        group.MapDelete("/wishes/{imdbId}", (string imdbId, HttpContext context, Wishes wishes) =>
+            CinemaPerson.Of(context) is { } person ? Results.Ok(wishes.Cancel(person.UserId, imdbId)) : NoPerson())
+            .RequireAction(CinemaActions.Wish);
 
         // How long each film stays in the library, and who keeps it. A film the library does not hold
-        // is a 404, since nothing about one that is not there would be a fact.
+        // is a 404, since nothing about one that is not there would be a fact. The bot reads a film's
+        // stay for the announcement it posts when a download can be watched.
         group.MapGet("/titles/{id}/stay", (string id, LibraryClock library) =>
-            library.StayOf(id) is { } stay ? Results.Ok(stay) : NoSuchTitle());
+            library.StayOf(id) is { } stay ? Results.Ok(stay) : NoSuchTitle())
+            .RequireActionOrService(CinemaActions.Watch);
 
-        group.MapGet("/stays", (LibraryClock library) => Results.Ok(library.Stays().ToList()));
+        group.MapGet("/stays", (LibraryClock library) => Results.Ok(library.Stays().ToList()))
+            .RequireAction(CinemaActions.Watch);
 
-        // A member keeps as themselves. A service names who it keeps for, and without a name there is
-        // nobody to record. A keep is on what stays or leaves as one, so keeping an episode keeps its
-        // season.
+        // A keep is on what stays or leaves as one, so keeping an episode keeps its season.
         group.MapPut("/titles/{id}/keep", async (string id, HttpContext context,
             LibraryClock library, KeepStore keeps, KeepNotices notices, TimeProvider clock, ILogger<KeepStore> logger) =>
         {
             if (library.StayOf(id) is not { } stay) return NoSuchTitle();
-            if (Asker(context, await NamedAsync(context)) is not { } asker) return NoKeeper();
+            if (CinemaPerson.Of(context) is not { } person) return NoPerson();
 
             var already = keeps.Get(stay.Unit) is not null;
-            var keep = keeps.Add(stay.Unit, asker.UserId, clock.GetUtcNow());
+            keeps.Add(stay.Unit, person.UserId, clock.GetUtcNow());
             if (!already)
             {
-                logger.LogInformation("{User} kept {Unit}.", asker.DisplayName, stay.Unit);
-                await notices.TellAsync(stay.Unit, asker, kept: true, context.RequestAborted);
+                logger.LogInformation("{User} kept {Unit}{Via}.", person.DisplayName, stay.Unit, Through(person));
+                await notices.TellAsync(stay.Unit, person.Actor, kept: true, context.RequestAborted);
             }
 
             return Results.Ok(library.StayOf(id));
-        });
+        }).RequireAction(CinemaActions.Keep);
 
         group.MapDelete("/titles/{id}/keep", async (string id, HttpContext context,
             LibraryClock library, KeepStore keeps, KeepNotices notices, ILogger<KeepStore> logger) =>
         {
             if (library.StayOf(id) is not { } stay) return NoSuchTitle();
-            if (Asker(context, await NamedAsync(context)) is not { } asker) return NoKeeper();
+            if (CinemaPerson.Of(context) is not { } person) return NoPerson();
 
             if (keeps.Remove(stay.Unit))
             {
-                logger.LogInformation("{User} let {Unit} go.", asker.DisplayName, stay.Unit);
-                await notices.TellAsync(stay.Unit, asker, kept: false, context.RequestAborted);
+                logger.LogInformation("{User} let {Unit} go{Via}.", person.DisplayName, stay.Unit, Through(person));
+                await notices.TellAsync(stay.Unit, person.Actor, kept: false, context.RequestAborted);
             }
 
             return Results.Ok(library.StayOf(id));
-        });
+        }).RequireAction(CinemaActions.Keep);
 
         // What the hand-off deletes: the settled films whose time is up. It is asked by the one process
-        // that writes the media roots, and a member has no business with it.
+        // that writes the media roots, and a person has no business with it.
         group.MapGet("/library/due", (LibraryClock library) => Results.Ok(library.Due().ToArray()))
-            .AddEndpointFilter(ServiceOnly);
+            .RequireService();
     }
+
+    /// <summary>The client that carried an act, for the log line that records it.</summary>
+    internal static string Through(CinemaPerson person) => person.Via is { } via ? $" through {via}" : "";
 
     private static IResult NoSuchTitle() =>
         Results.Json(new ErrorReply("The library holds no film under that id."), ApiJsonContext.Default.ErrorReply,
             statusCode: StatusCodes.Status404NotFound);
 
-    private static IResult NoKeeper() =>
-        Results.Json(new ErrorReply("Name who is asking."), ApiJsonContext.Default.ErrorReply,
-            statusCode: StatusCodes.Status400BadRequest);
+    /// <summary>An act a person performs, asked for by something that is nobody.</summary>
+    private static IResult NoPerson() =>
+        Results.Json(new ErrorReply("This is done as a person; sign in as one."), ApiJsonContext.Default.ErrorReply,
+            statusCode: StatusCodes.Status403Forbidden);
 
     private static IResult Unanswered(string what) =>
         Results.Json(new ErrorReply(what), ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status502BadGateway);
-
-    /// <summary>The member a request came from, or null when it came on the service key.</summary>
-    private static RoomTokenPayload? MemberOf(HttpContext context) =>
-        context.Items.TryGetValue("room-token", out var token) ? token as RoomTokenPayload : null;
-
-    /// <summary>
-    /// The person a service named in the body, or null when the body names nobody. Read here and not
-    /// bound: a member's request carries no body at all, and a route that declares one is not matched
-    /// by a request without it.
-    /// </summary>
-    private static async Task<KeepRequest?> NamedAsync(HttpContext context)
-    {
-        if (!context.Request.HasJsonContentType()) return null;
-
-        try
-        {
-            return await context.Request.ReadFromJsonAsync(ManifestJsonContext.Default.KeepRequest, context.RequestAborted);
-        }
-        catch (System.Text.Json.JsonException)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Who asked: the member a token names, or the person a service vouches for. Null when a service
-    /// vouched for nobody.
-    /// </summary>
-    private static Actor? Asker(HttpContext context, KeepRequest? request) =>
-        MemberOf(context) is { } member
-            ? new Actor(member.UserId, member.DisplayName)
-            : request?.RequestedBy is { UserId.Length: > 0 } named ? named : null;
-
-    /// <summary>
-    /// Lets through the service key and a member's token. The middleware has already let the request
-    /// through on one or the other, and a token is what it leaves in Items.
-    /// </summary>
-    internal static ValueTask<object?> ServiceOrMember(EndpointFilterInvocationContext context, EndpointFilterDelegate next) =>
-        context.HttpContext.Items.TryGetValue("room-token", out var token) && token is RoomTokenPayload { Member: false }
-            ? Refuse("This is for members of the server, signed in on the site, and for the services that act for them.")
-            : next(context);
-
-    internal static ValueTask<object?> ServiceOnly(EndpointFilterInvocationContext context, EndpointFilterDelegate next) =>
-        context.HttpContext.Items.ContainsKey("room-token")
-            ? Refuse("This is for the services that act on somebody's behalf.")
-            : next(context);
-
-    private static ValueTask<object?> Refuse(string why) =>
-        ValueTask.FromResult<object?>(Results.Json(
-            new ErrorReply(why), ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status403Forbidden));
 }

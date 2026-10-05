@@ -34,6 +34,14 @@ You need all of these. The steps below assume they are in place.
   80 and 443 reachable from the internet. Discord only opens the player from a public https
   address.
 - **A Discord server** where you have the Manage Server permission, so you can add the bot.
+- **An OpenID Connect provider people sign in with.** MovieBot signs nobody in itself: the site
+  signs people in at your provider, and every request carries the access token it issued. The
+  provider must issue access tokens as JWTs signed with ES256 and typed `at+jwt` (RFC 9068), for the
+  audience `cinema`, naming the person in `sub` and listing the Cinema actions they hold in a claim
+  (`tks_actions` unless you change `Oidc.ActionsClaim`). The player inside Discord and the bot also
+  need the provider to exchange a Discord identity for a person's token (RFC 8693), which
+  [tks-auth](https://github.com/TheKrystalShip/tks-auth) does; it is the provider this project is built
+  and checked against, packaged for Arch Linux.
 - **An account on a supported tracker**, with its address, your username, your passkey, and the
   names of the tracker's film categories. The tracker must offer a member API that accepts a
   username and passkey.
@@ -93,7 +101,7 @@ The installer:
   `/srv/moviebot/incoming` (for films you add yourself),
 - creates the settings file `/srv/moviebot/.config/moviebot/moviebot.settings.json`,
 - creates the secrets file `/etc/moviebot/moviebot.env`, with its internal keys already filled in,
-- sets up qBittorrent's settings and the three systemd services.
+- sets up qBittorrent's settings and the four systemd services.
 
 It does not start anything yet.
 
@@ -108,17 +116,35 @@ Keep a text editor open: you will copy four values from here.
 3. Open **Bot** in the left menu. Click **Reset Token**, confirm, and copy the token. This is
    value 2. Discord shows it only once.
 4. Open **OAuth2**. Under **Client Secret**, click **Reset Secret** and copy it. This is value 3.
-5. Still on **OAuth2**, under **Redirects**, click **Add Redirect**, enter your domain followed by
-   `/signin`, for example `https://movies.example.com/signin`, and click **Save Changes**. That is
-   where Discord sends people back after signing in to the site; it also allows the sign-in the
-   player inside Discord uses.
-6. Open **Activities** → **Settings** and turn on **Enable Activities**.
-7. Open **Activities** → **URL Mappings**. For the root mapping (prefix `/`), enter your domain
+   MovieBot redeems the player's Discord sign-in with it; the player never redirects, so no redirect
+   needs adding.
+5. Open **Activities** → **Settings** and turn on **Enable Activities**.
+6. Open **Activities** → **URL Mappings**. For the root mapping (prefix `/`), enter your domain
    without `https://`, for example `movies.example.com`, and save.
 
 Finally, the ID of your Discord server (value 4): in the Discord app, open **User Settings** →
 **Advanced**, turn on **Developer Mode**, then right-click your server's icon and click
 **Copy Server ID**.
+
+## Step 3b: Register MovieBot with your identity provider
+
+Register one application at your provider, with these clients. On tks-auth this is the
+**Applications** admin page, or `tks-auth app add` on its host; other providers name the same things
+their own way.
+
+| What | Value |
+|---|---|
+| Application id and audience | `cinema` |
+| Action manifest | `https://movies.example.com/.well-known/tks-actions.json` |
+| The site's client | `cinema-site`, public (no secret), redirect `https://movies.example.com/signin`, sign-out redirect `https://movies.example.com/` |
+| The player's exchange | `cinema-activity`, confidential, allowed to present your Discord application (value 1). Its secret is value 5 |
+| The bot | `cinema-bot`, confidential, allowed to act for people by their linked Discord accounts. Its secret is value 6 |
+
+Note the provider's issuer address (value 7), exactly as its tokens carry it, for example
+`https://auth.example.com`. MovieBot's actions arrive at the provider unassigned; give them to people
+through its roles: `cinema:watch` to watch, `cinema:download` to fetch films, `cinema:wish` to wait on
+one that is not out, `cinema:keep` to keep a film in the library. Somebody signed in who may not watch
+is told their account has no access yet.
 
 ## Step 4: Fill in the settings
 
@@ -134,13 +160,18 @@ Open it:
 sudo -u moviebot nano /srv/moviebot/.config/moviebot/moviebot.settings.json
 ```
 
-Change these three things, and leave everything else as it is:
+Change these four things, and leave everything else as it is:
 
 | Setting | What to put there |
 |---|---|
 | `"ApplicationId": null` under `"Discord"` | Value 1, in quotes: `"ApplicationId": "123456789012345678"` |
 | `"GuildIds": []` under `"Discord"` | Value 4, in quotes and brackets: `"GuildIds": ["123456789012345678"]` |
+| `"Issuer": ""` under `"Oidc"` | Value 7, in quotes: `"Issuer": "https://auth.example.com"` |
 | `"BaseUrl": ""` under `"Player"`, and `"PublicBaseUrl": ""` under `"Api"` | `https://` and your domain, on both lines: `"https://movies.example.com"` |
+
+The API writes down the issuer the first time it starts, and refuses to start against a different
+one later: every person's history belongs to an account at that provider. To move to another
+provider anyway, set `"AdoptIssuer"` under `"Oidc"` to the new issuer as well.
 
 Lines starting with `//` are explanations and can stay. Save with `Ctrl+O`, `Enter`, then exit with
 `Ctrl+X`.
@@ -160,6 +191,8 @@ quotes.
 |---|---|
 | `MOVIEBOT_TOKEN` | Value 2, the bot token |
 | `Discord__ClientSecret` | Value 3, the client secret |
+| `Oidc__ActivityClientSecret` | Value 5, the secret of `cinema-activity` |
+| `Oidc__BotClientSecret` | Value 6, the secret of `cinema-bot` |
 | `Tracker__BaseUrl` | Your tracker's address, for example `https://tracker.example/` |
 | `Tracker__Username`, `Tracker__Passkey` | Your tracker username and passkey |
 | `Selection__AllowedCategories__0` | A tracker category films may come from, spelled exactly as on the tracker. Add `__1`, `__2` and so on for more |
@@ -262,7 +295,10 @@ track are each person's own.
 
 The site at `https://YOUR.DOMAIN` is the same library in a browser: browse it, search for films,
 fetch or keep them, wait on one that is not out yet, and join a room a voice channel is watching.
-Signing in goes through Discord, and only members of the server in `GuildIds` are let in.
+Signing in goes through your identity provider, and what each person may do is the actions their
+roles there give them. The bot and the player inside Discord act for the account a person's Discord
+identity is linked to at the provider; somebody whose Discord account no approved account holds is
+told an administrator has to approve them.
 
 ## Adding films you already have
 
@@ -301,7 +337,10 @@ journalctl -u moviebot-handoff -n 50 --no-pager
 | A service keeps restarting | Its journal names the missing or wrong setting. Fix it in the settings file or the secrets file, then `sudo systemctl restart` that service |
 | A change to the settings file has no effect | Each service logs which files it read when it starts: `journalctl -u moviebot-api \| grep Settings:`. A setting in the secrets file wins over the same setting in the settings file |
 | The bot is online but `/watch` does not appear | Commands appear only in the servers listed in `GuildIds`. Check the number, then restart `moviebot-bot` |
-| The player shows "Discord sign-in failed" | `ApplicationId` or `Discord__ClientSecret` is wrong, or the redirect from step 3.5 is missing |
+| The player inside Discord says signing in failed | `ApplicationId` or `Discord__ClientSecret` is wrong, `Oidc__ActivityClientSecret` is not the secret of `cinema-activity`, or the provider is not told it may accept your Discord application from that client |
+| The site's Sign in returns an error from the provider | `cinema-site` is not registered, or its redirect is not exactly `https://YOUR.DOMAIN/signin` |
+| Everybody is told their account has no access | Nobody holds `cinema:watch` yet: give it to a role at the provider. Each token lists a person's actions for five minutes, so a change reaches MovieBot within that |
+| The bot answers that an administrator has to approve the account | That Discord account is not linked to an approved account at the provider |
 | Pressing **Watch together** shows a blank or failed Activity | The URL mapping in step 3.7 must be your domain without `https://`, and `https://YOUR.DOMAIN/health` must work from outside your network |
 | The GPU check in step 1 fails | Run `nvidia-smi` to confirm the driver works. Some distributions ship an ffmpeg built for a newer NVIDIA driver than the card supports; updating the driver, or installing an ffmpeg built for your driver, fixes it |
 | A download finishes but the film never appears | Check the `moviebot-handoff` journal, and that the GPU check in step 1 still passes |

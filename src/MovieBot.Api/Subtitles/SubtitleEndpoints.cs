@@ -1,5 +1,6 @@
 using System.Text;
 using TheKrystalShip.MovieBot.Acquire.Subtitles;
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Core;
 using TheKrystalShip.MovieBot.Core.Subtitles;
@@ -10,7 +11,7 @@ namespace TheKrystalShip.MovieBot.Api.Subtitles;
 /// Confirming a track fits. The position is how far in the film had been watched, because drift
 /// only shows up late: a track pinned two minutes in has not been cleared of it.
 /// </summary>
-public sealed record PinSubtitleRequest(string? PinnedBy, double? PositionSeconds);
+public sealed record PinSubtitleRequest(double? PositionSeconds);
 
 public static class SubtitleEndpoints
 {
@@ -75,11 +76,12 @@ public static class SubtitleEndpoints
                     ? null
                     : $"The index holds no {wanted} subtitles for this film."
             });
-        });
+        }).RequireAction(CinemaActions.Watch);
 
         app.MapPost("/api/titles/{id}/subtitles", async (
             string id,
             AddSubtitleRequest request,
+            HttpContext context,
             TitleLibrary library,
             SubtitleStore store,
             PinStore pins,
@@ -120,7 +122,7 @@ public static class SubtitleEndpoints
                     Language = "en",
                     Label = Label(allowed.FileName, measured),
                     Release = Path.GetFileNameWithoutExtension(allowed.FileName),
-                    AddedBy = request.AddedBy,
+                    AddedBy = CinemaPerson.Of(context)?.DisplayName,
                     AddedAt = DateTimeOffset.UtcNow,
                     AppliedShiftSeconds = measured?.ShiftSeconds,
                     AlignedFraction = measured?.AlignedFraction
@@ -161,12 +163,13 @@ public static class SubtitleEndpoints
                 log.LogWarning(ex, "Could not add subtitle {FileId} to {Title}.", request.FileId, id);
                 return Results.Json(new ErrorReply(ex.Message), ApiJsonContext.Default.ErrorReply, statusCode: 502);
             }
-        });
+        }).RequireAction(CinemaActions.Watch);
 
         app.MapPost("/api/titles/{id}/subtitles/{trackId}/pin", (
             string id,
             string trackId,
             PinSubtitleRequest request,
+            HttpContext context,
             TitleLibrary library,
             PinStore pins,
             Library.TitleChanges changes) =>
@@ -180,7 +183,7 @@ public static class SubtitleEndpoints
 
             var pin = new SubtitlePin
             {
-                PinnedBy = string.IsNullOrWhiteSpace(request.PinnedBy) ? "someone" : request.PinnedBy,
+                PinnedBy = CinemaPerson.Of(context)?.DisplayName ?? "someone",
                 PinnedAt = DateTimeOffset.UtcNow,
                 WatchedFraction = Watched(request.PositionSeconds, manifest.DurationSeconds)
             };
@@ -188,7 +191,7 @@ public static class SubtitleEndpoints
             pins.Pin(id, trackId, pin);
             changes.Announce(id);
             return Results.Ok(pin);
-        });
+        }).RequireAction(CinemaActions.Watch);
 
         app.MapDelete("/api/titles/{id}/subtitles/{trackId}/pin", (
             string id, string trackId, TitleLibrary library, PinStore pins, Library.TitleChanges changes) =>
@@ -198,7 +201,7 @@ public static class SubtitleEndpoints
             pins.Unpin(id, trackId);
             changes.Announce(id);
             return Results.NoContent();
-        });
+        }).RequireAction(CinemaActions.Watch);
     }
 
     /// <summary>How much of the film had been watched, or null when the position is not usable.</summary>

@@ -5,8 +5,9 @@ import { beginSignIn, completeSignIn } from "../session.js";
 import { navigate } from "../router.js";
 
 /**
- * The door. Signing in goes through Discord, and only members of the server MovieBot plays films in
- * are let in. Discord sends the browser back here with a code, which is redeemed on arrival.
+ * The door. Signing in is the identity provider's: the button goes there, and the provider sends the
+ * browser back here with a code, which is redeemed on arrival. Somebody already signed in there comes
+ * straight back without typing anything.
  */
 export function SignIn({ query }) {
   const returning = query.has("code") || query.has("error");
@@ -23,8 +24,10 @@ export function SignIn({ query }) {
 
   const start = () => {
     setBusy(true);
-    const returnTo = query.get("next") || "/";
-    beginSignIn(returnTo).catch(() => { setError("MovieBot is not answering. Try again in a moment."); setBusy(false); });
+    beginSignIn(query.get("next") || "/").catch(() => {
+      setError("The sign-in service is not answering. Try again in a moment.");
+      setBusy(false);
+    });
   };
 
   return (
@@ -32,10 +35,25 @@ export function SignIn({ query }) {
       <div className="kc-signin__card">
         <img src={markUrl} width="48" height="48" alt="" />
         <h1>Krystal Cinema</h1>
-        <p>Movies and shows for the server, watched together. Sign in with the Discord account you use there.</p>
         {error && <span className="kc-note kc-note--danger">{error}</span>}
         <button type="button" className="kc-btn kc-btn--primary kc-btn--wide" disabled={busy} onClick={start}>
-          <Icon name="log-in" size={18} />{busy ? "Signing in…" : "Sign in with Discord"}
+          <Icon name="log-in" size={18} />{busy ? "Signing in…" : "Sign in"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** An approved account that holds no Cinema action that lets it watch: there is nothing here for it yet. */
+export function NoAccess({ onSignOut }) {
+  return (
+    <div className="kc-signin">
+      <div className="kc-signin__card">
+        <img src={markUrl} width="48" height="48" alt="" />
+        <h1>Krystal Cinema</h1>
+        <p>Your account has no access to Krystal Cinema yet.</p>
+        <button type="button" className="kc-btn kc-btn--ghost kc-btn--wide" onClick={onSignOut}>
+          <Icon name="log-out" size={18} />Sign out
         </button>
       </div>
     </div>

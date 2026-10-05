@@ -12,7 +12,7 @@ public sealed class MediaTicketTests
 {
     private static readonly AuthOptions Options = new()
     {
-        SigningKey = "a-signing-key-of-at-least-thirty-two-characters"
+        MediaTicketKey = "a-signing-key-of-at-least-thirty-two-characters"
     };
 
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-09-17T20:05:00Z");
@@ -85,7 +85,7 @@ public sealed class MediaTicketTests
     [Fact]
     public void A_ticket_signed_with_another_key_is_refused()
     {
-        var other = new AuthOptions { SigningKey = "a-different-key-of-at-least-thirty-two-chars" };
+        var other = new AuthOptions { MediaTicketKey = "a-different-key-of-at-least-thirty-two-chars" };
         var ticket = MediaTicket.Issue("evil-dead-burn-2026", other, Now);
 
         Assert.False(MediaTicket.IsValid(ticket, "evil-dead-burn-2026", Options, Now));
@@ -108,7 +108,7 @@ public sealed class MediaTicketTests
     [Fact]
     public void Nothing_is_valid_when_the_host_has_no_signing_key()
     {
-        var unkeyed = new AuthOptions { SigningKey = "" };
+        var unkeyed = new AuthOptions { MediaTicketKey = "" };
         var ticket = MediaTicket.Issue("evil-dead-burn-2026", Options, Now);
 
         Assert.False(MediaTicket.IsValid(ticket, "evil-dead-burn-2026", unkeyed, Now));

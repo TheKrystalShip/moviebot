@@ -34,18 +34,16 @@ public partial class Program
         builder.Services.AddMovieBotApi(builder.Configuration);
         builder.Services.AddHostedService<AssistantWarmup>();
 
-        // Without the signing key no person can be recognised, and without the service key the bot
-        // cannot speak for anybody. Either missing is a misconfigured host, said at start-up rather
-        // than as a refusal in front of a room.
-        builder.Services.AddOptions<AssistantAuthOptions>()
-            .Validate(o => o.SigningKey.Length > 0, "Auth:SigningKey is empty; set it to the key the API signs room tokens with.")
-            .Validate(o => o.ServiceKey.Length > 0, "Auth:ServiceKey is empty; set it to the key the bot proves itself with.")
-            .ValidateOnStart();
+        // Every caller is a person, by the access token the identity provider minted for Cinema; the
+        // site sends it and the bot relays it. Without an issuer nobody can be recognised, which is a
+        // misconfigured host, said at start-up rather than as a refusal in front of a room.
+        builder.Services.AddCallerAuthentication();
 
         configure?.Invoke(builder);
 
         var app = builder.Build();
         app.Logger.LogInformation("Settings: {Settings}", MovieBotSettings.Describe());
+        app.UseAuthentication();
         app.MapAssistant();
         return app;
     }

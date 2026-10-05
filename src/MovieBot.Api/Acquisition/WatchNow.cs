@@ -63,7 +63,7 @@ public sealed class WatchNow(
             ImdbId = imdbId,
             Streams = streams,
             Waiters = wish?.Subscribers.Count ?? 0,
-            Waiting = wish is not null && userId is not null && wish.Subscribers.Any(s => s.UserId.ToString(CultureInfo.InvariantCulture) == userId),
+            Waiting = wish is not null && userId is not null && wish.Subscribers.Any(s => s.UserId == userId),
         };
 
         if (InLibrary(imdbId) is { } title) return answer with { LibraryId = title.Id };
@@ -204,9 +204,8 @@ public sealed class WatchNow(
             var reply = await downloads.StartAsync(new StartDownloadRequest
             {
                 TorrentId = release.TorrentId,
-                RequestedBy = asker,
                 Episodes = request.Episodes,
-            }, ct, watchRoom: room, watchEpisode: episode);
+            }, asker, ct, watchRoom: room, watchEpisode: episode);
 
             switch (reply.Outcome)
             {
@@ -404,8 +403,7 @@ public sealed class WatchNowLoader(
                 : null;
         if (libraryId is not null && library.Get(libraryId) is not null)
         {
-            var requester = download.Tags.Select(TorrentTags.ReadRequester).FirstOrDefault(r => r is not null)
-                ?.ToString(CultureInfo.InvariantCulture);
+            var requester = download.Tags.Select(TorrentTags.ReadRequester).FirstOrDefault(r => r is not null);
             var actor = requester is null ? WatchNow.Server : new Actor(requester, people.NameOf(requester) ?? "Somebody");
 
             await controls.ApplyAsync(room, "load", actor, a => sessions.LoadTitle(room, libraryId, a), ct: ct);

@@ -35,10 +35,9 @@ public sealed class TranscodeEndpointTests(SessionFixture fixture) : IClassFixtu
     }
 
     [Fact]
-    public async Task A_room_token_reads_neither_the_plan_nor_reports()
+    public async Task A_person_reads_neither_the_plan_nor_reports()
     {
-        var member = fixture.CreateClient();
-        member.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", fixture.TokenFor("room"));
+        var member = fixture.CreatePersonClient();
 
         using var plan = await member.GetAsync("/api/transcode/plan");
         using var status = await member.PutAsJsonAsync("/api/transcode/status", Report(), ManifestJsonContext.Default.TranscodeStatus);

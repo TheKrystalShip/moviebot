@@ -8,6 +8,7 @@ using TheKrystalShip.KGSM.WebPush;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Core;
 
@@ -73,9 +74,12 @@ public class SessionFixture : WebApplicationFactory<Program>
         if (Directory.Exists(StateRoot)) Directory.Delete(StateRoot, recursive: true);
     }
 
-    /// <summary>Discord is the only door, and these are the keys that door is locked with.</summary>
-    public const string SigningKey = "a-test-signing-key-of-at-least-thirty-two-characters";
+    /// <summary>The keys this service holds of its own: one for media tickets, one for machine work.</summary>
+    public const string MediaTicketKey = "a-test-media-ticket-key-of-at-least-thirty-two-characters";
     public const string ServiceKey = "a-test-service-key";
+
+    /// <summary>The identity provider the API trusts in the tests.</summary>
+    public TestIssuer Issuer { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -85,8 +89,13 @@ public class SessionFixture : WebApplicationFactory<Program>
                 ["Media:Root"] = MediaRoot,
                 ["Media:ColdRoot"] = ColdRoot,
                 ["Rooms:Journal"] = Path.Combine(StateRoot, "rooms.json"),
-                ["Auth:SigningKey"] = SigningKey,
+                ["Auth:MediaTicketKey"] = MediaTicketKey,
                 ["Auth:ServiceKey"] = ServiceKey,
+                ["Oidc:Issuer"] = TestIssuer.Issuer,
+                ["Oidc:IssuerRecord"] = Path.Combine(StateRoot, "issuer"),
+                ["Oidc:ActivityClientSecret"] = "a-test-activity-secret",
+                ["Discord:ClientId"] = "123456789",
+                ["Discord:ClientSecret"] = "a-test-discord-secret",
 
                 // Fetching films: a tracker and a title index answered by the test, a torrent
                 // client nobody is listening for, and a wish list of this run's own.
@@ -98,7 +107,6 @@ public class SessionFixture : WebApplicationFactory<Program>
                 ["People:Preferences"] = Path.Combine(StateRoot, "preferences.json"),
                 ["People:Directory"] = Path.Combine(StateRoot, "people.json"),
                 ["People:Watch"] = Path.Combine(StateRoot, "watch.json"),
-                ["People:Devices"] = Path.Combine(StateRoot, "devices.json"),
                 ["Library:Keeps"] = Path.Combine(StateRoot, "keeps.json"),
                 ["Notifications:Inbox"] = Path.Combine(StateRoot, "notifications.json"),
                 ["Notifications:Devices"] = Path.Combine(StateRoot, "push-devices.json"),
@@ -121,6 +129,11 @@ public class SessionFixture : WebApplicationFactory<Program>
             services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new AssistantHost.CatalogueStub());
             services.AddHttpClient<TmdbClient>().ConfigurePrimaryHttpMessageHandler(() => FilmDatabase);
             services.AddHttpClient<WebPushSender>().ConfigurePrimaryHttpMessageHandler(() => PushService);
+
+            // The provider's discovery, keys and token endpoint, answered by the test issuer.
+            services.Configure<JwtBearerOptions>(CinemaSchemes.Bearer, o => o.BackchannelHttpHandler = Issuer.Handler());
+            services.AddHttpClient<TokenExchangeClient>().ConfigurePrimaryHttpMessageHandler(() => Issuer.Handler());
+            services.AddHttpClient<Api.Discord.DiscordAuthClient>().ConfigurePrimaryHttpMessageHandler(() => Discord);
             MoreServices(services);
         });
     }
@@ -147,17 +160,52 @@ public class SessionFixture : WebApplicationFactory<Program>
     /// <summary>The film database, as the tests answer it; it counts what it was asked.</summary>
     public FilmDatabaseStub FilmDatabase { get; } = new();
 
-    /// <summary>What the Activity would have been given after signing in with Discord.</summary>
-    public string TokenFor(string roomId, string userId = "u", string displayName = "Someone") =>
-        RoomToken.Issue(new RoomTokenPayload
-        {
-            UserId = userId,
-            DisplayName = displayName,
-            RoomId = roomId,
-            ExpiresAtUnix = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds()
-        }, SigningKey);
+    /// <summary>Discord's token endpoint, as the tests answer it: a code redeems for <see cref="DiscordStub.AccessToken"/>.</summary>
+    public DiscordStub Discord { get; } = new();
 
-    /// <summary>A client that proves itself the way the bot does.</summary>
+    /// <summary>
+    /// An access token the provider would have minted for this person, holding <paramref name="actions"/>
+    /// (every Cinema action unless named), and carrying the bot as the acting client when
+    /// <paramref name="via"/> names it.
+    /// </summary>
+    public string TokenFor(string userId = "u", string displayName = "Someone", IEnumerable<string>? actions = null, string? via = null) =>
+        Issuer.Mint(userId, displayName, actions, actor: via);
+
+    /// <summary>A client signed in as one person.</summary>
+    public HttpClient CreatePersonClient(string userId = "u", string displayName = "Someone", IEnumerable<string>? actions = null, string? via = null)
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", TokenFor(userId, displayName, actions, via));
+        return client;
+    }
+
+    /// <summary>What each Discord account linked at the provider is called; the account is the Discord id itself.</summary>
+    public Dictionary<ulong, string> DiscordAccounts { get; } = new() { [4242] = "Haru", [77] = "Bea" };
+
+    /// <summary>
+    /// The API as the bot reaches it: a command's calls with the person's token, exchanged at the
+    /// provider for the Discord user it runs for, and machine work on the service key.
+    /// </summary>
+    public MovieBotApiClient CreateBotApi()
+    {
+        Issuer.Exchange = form =>
+            form["subject_token_type"] == TokenExchangeTypes.DiscordUserId
+            && ulong.TryParse(form["subject_token"], out var id) && DiscordAccounts.TryGetValue(id, out var name)
+                ? (System.Net.HttpStatusCode.OK, Issuer.Minted(Issuer.Mint(form["subject_token"], name, actor: "cinema-bot")))
+                : (System.Net.HttpStatusCode.BadRequest, """{"error":"invalid_grant","account_status":"pending"}""");
+
+        var tokens = new Bot.Api.PersonTokens(
+            new TokenExchangeClient(new HttpClient(Issuer.Handler()), TimeProvider.System),
+            Microsoft.Extensions.Options.Options.Create(new Bot.Api.BotOidcOptions { Issuer = TestIssuer.Issuer, BotClientSecret = "a-test-bot-secret" }),
+            TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<Bot.Api.PersonTokens>.Instance);
+        return new MovieBotApiClient(new HttpClient(new Bot.Api.PersonAuthorization(tokens, ServiceKey) { InnerHandler = Server.CreateHandler() })
+        {
+            BaseAddress = Server.BaseAddress,
+        });
+    }
+
+    /// <summary>A client that proves itself the way machine work does: the hand-off, and the bot's background passes.</summary>
     public HttpClient CreateServiceClient()
     {
         var client = CreateClient();
@@ -208,7 +256,7 @@ public class SessionFixture : WebApplicationFactory<Program>
             {
                 o.HttpMessageHandlerFactory = _ => Server.CreateHandler();
                 o.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
-                o.AccessTokenProvider = () => Task.FromResult<string?>(TokenFor(sessionId, userId, displayName));
+                o.AccessTokenProvider = () => Task.FromResult<string?>(TokenFor(userId, displayName));
             })
             // The player reads enums as the strings the server writes, so this client does too.
             .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(
@@ -216,7 +264,26 @@ public class SessionFixture : WebApplicationFactory<Program>
             .Build();
 
         await connection.StartAsync();
-        await connection.InvokeAsync<SessionStatePush>("Join", sessionId, userId, displayName);
+        await connection.InvokeAsync<SessionStatePush>("Join", sessionId);
         return connection;
+    }
+}
+
+/// <summary>Discord's OAuth2 token endpoint, redeeming any code but a refused one.</summary>
+public sealed class DiscordStub : HttpMessageHandler
+{
+    public const string AccessToken = "a-discord-access-token";
+    public const string RefusedCode = "refused";
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        var form = await request.Content!.ReadAsStringAsync(ct);
+        return form.Contains($"code={RefusedCode}", StringComparison.Ordinal)
+            ? new HttpResponseMessage(System.Net.HttpStatusCode.BadRequest) { Content = new StringContent("""{"error":"invalid_grant"}""") }
+            : new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent($$"""{"access_token":"{{AccessToken}}","token_type":"Bearer","expires_in":604800}""",
+                    System.Text.Encoding.UTF8, "application/json"),
+            };
     }
 }

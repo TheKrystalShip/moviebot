@@ -29,6 +29,15 @@ rules each part rests on live in a `CLAUDE.md` beside its code**: `deploy/`, `sr
 `src/MovieBot.Bot/` (and each of its feature directories), and `web/site/src/player/`.
 `src/MovieBot.Client` is the API client the bot and the assistant share.
 
+**MovieBot signs nobody in.** Every person is an account at an OpenID Connect provider that mints
+access tokens for the audience `cinema` listing the Cinema actions they hold; tks-auth is the one
+shipped against, and nothing here is specific to it. The site is the provider's public client, the
+Discord Activity and the bot are confidential clients that exchange a Discord identity at the provider
+for the person's token, and every service — the API, the assistant — validates that token and checks
+the action a route needs. Who somebody is, whether they may in and what they may do are the
+provider's; a record here is keyed by the provider's `sub` and nothing else. The service key is
+machine work that names nobody, never a person.
+
 **The Krystal Cinema design is the UI, and the API is the authority for its data.** What the design
 shows, the API serves: a feature the design draws that the API lacks is added to the API, never drawn
 from a fixture and never left out for want of it.

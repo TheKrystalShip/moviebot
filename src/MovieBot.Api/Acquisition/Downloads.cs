@@ -21,11 +21,12 @@ public sealed class Downloads(
     AcquisitionService acquisition,
     ILogger<Downloads> logger)
 {
+    /// <param name="asker">Who asked, who is told when it can be watched; null for a download nobody asked for.</param>
     /// <param name="watchRoom">
     /// The site room waiting to watch it, for Watch now, which loads it there once it can be opened.
     /// </param>
     /// <param name="watchEpisode">For a show's release, the episode of it the room waits on.</param>
-    public async Task<StartDownloadReply> StartAsync(StartDownloadRequest request, CancellationToken ct,
+    public async Task<StartDownloadReply> StartAsync(StartDownloadRequest request, Actor? asker, CancellationToken ct,
         string? watchRoom = null, EpisodeNumber? watchEpisode = null)
     {
         if (offered.Resolve(request.TorrentId) is not { } release)
@@ -36,20 +37,14 @@ public sealed class Downloads(
         {
             var tags = new List<string> { TorrentTags.NeedsIngest };
 
-            var channel = Snowflake(request.NotifyChannelId);
-            if (channel is { } announceIn) tags.Add(TorrentTags.Notify(announceIn));
-            if (Snowflake(request.RequestedBy.UserId) is { } requester)
+            if (Snowflake(request.NotifyChannelId) is { } announceIn) tags.Add(TorrentTags.Notify(announceIn));
+            if (asker is { UserId.Length: > 0 })
             {
-                // Whoever asked is told when it can be watched; on Discord directly only where no
-                // channel will announce it to them.
-                tags.Add(TorrentTags.Requester(requester));
+                // Whoever asked is told when it can be watched.
+                tags.Add(TorrentTags.Requester(asker.UserId));
                 // An episode watched now is not news: its season's torrent may be watchable already
                 // for another episode, and the room the person is in shows the one they pressed.
-                if (watchEpisode is null)
-                {
-                    tags.Add(TorrentTags.Tell);
-                    if (channel is null) tags.Add(TorrentTags.TellDirect);
-                }
+                if (watchEpisode is null) tags.Add(TorrentTags.Tell);
             }
             if (watchRoom is not null) tags.Add(TorrentTags.Watch(watchRoom, watchEpisode));
 
@@ -69,7 +64,7 @@ public sealed class Downloads(
                 return new StartDownloadReply { Outcome = "refused", Refusal = result.Refusal, Release = view };
 
             logger.LogInformation("{User} started {Release} as {Hash}{Room}.",
-                request.RequestedBy.DisplayName, release.ReleaseName, result.Hash,
+                asker?.DisplayName ?? "MovieBot", release.ReleaseName, result.Hash,
                 request.RoomId is { Length: > 0 } r ? $" for room {r}" : "");
 
             return new StartDownloadReply { Outcome = "started", Release = view, Hash = result.Hash };
@@ -113,13 +108,12 @@ public sealed class Downloads(
                 IsWatchable = d.Tags.Contains(TorrentTags.Watchable),
                 LibraryId = libraryId,
                 ImdbId = d.Tags.Select(TorrentTags.ReadImdb).FirstOrDefault(i => i is not null),
-                RequestedBy = d.Tags.Select(TorrentTags.ReadRequester).FirstOrDefault(i => i is not null)
-                    ?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                RequestedBy = d.Tags.Select(TorrentTags.ReadRequester).FirstOrDefault(i => i is not null),
             };
         }).ToList();
     }
 
-    /// <summary>A Discord id as the tags carry it, or null when there is none to carry.</summary>
+    /// <summary>A Discord channel or voice channel id as the tags carry it, or null when there is none to carry.</summary>
     internal static ulong? Snowflake(string? id) =>
         ulong.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var value) ? value : null;
 }

@@ -5,7 +5,7 @@
 const seg = encodeURIComponent;
 
 /** The tabs of the profile, in the order they are shown; the first is the page's own address. */
-export const PROFILE_TABS = ["history", "requests", "following", "notifications", "playback", "sessions"];
+export const PROFILE_TABS = ["history", "requests", "following", "notifications", "playback"];
 
 export const homePath = "/";
 export const savedPath = "/saved";

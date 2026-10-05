@@ -1,30 +1,54 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Core;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
-/// Fetching films over HTTP, as the bot and the assistant reach it: the tracker and the title index
-/// answer from the test (<see cref="AssistantHost.OneRelease"/>), and the torrent client is not there.
+/// Fetching films over HTTP, as the site, the bot and the assistant reach it: the tracker and the title
+/// index answer from the test (<see cref="AssistantHost.OneRelease"/>), and the torrent client is not there.
 /// </summary>
 public sealed class AcquisitionEndpointTests(SessionFixture fixture) : IClassFixture<SessionFixture>
 {
-    /// <summary>A room token is somebody who signed in through Discord, not somebody a service vouches for.</summary>
     [Fact]
-    public async Task A_room_token_cannot_spend_anything()
+    public async Task Somebody_who_may_only_watch_spends_nothing()
     {
-        var client = fixture.CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", fixture.TokenFor("room"));
+        var viewer = fixture.CreatePersonClient("31", "Vi", [CinemaActions.Watch]);
 
-        using var search = await client.GetAsync("/api/releases?q=inception");
-        using var wishes = await client.GetAsync("/api/wishes");
+        using var search = await viewer.GetAsync("/api/releases?q=inception");
+        using var start = await viewer.PostAsJsonAsync("/api/downloads", new StartDownloadRequest { TorrentId = 41 },
+            ManifestJsonContext.Default.StartDownloadRequest);
+        using var wishes = await viewer.GetAsync("/api/wishes");
 
         Assert.Equal(HttpStatusCode.Forbidden, search.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, start.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, wishes.StatusCode);
+    }
+
+    [Fact]
+    public async Task Somebody_who_may_download_searches_and_starts_one()
+    {
+        var downloader = fixture.CreatePersonClient("32", "Di", [CinemaActions.Watch, CinemaActions.Download]);
+
+        var ranked = await downloader.GetFromJsonAsync("/api/releases?q=inception", ManifestJsonContext.Default.RankedOffers);
+        Assert.Equal(41, Assert.Single(ranked!.Candidates).TorrentId);
+
+        // Offered, and then the torrent client, which is not there, is what answers.
+        using var start = await downloader.PostAsJsonAsync("/api/downloads", new StartDownloadRequest { TorrentId = 41 },
+            ManifestJsonContext.Default.StartDownloadRequest);
+        Assert.Equal(HttpStatusCode.OK, start.StatusCode);
+        Assert.NotEqual("noLongerOffered", (await start.Content.ReadFromJsonAsync(ManifestJsonContext.Default.StartDownloadReply))?.Outcome);
+    }
+
+    [Fact]
+    public async Task The_service_key_starts_no_download()
+    {
+        using var response = await fixture.CreateServiceClient().PostAsJsonAsync("/api/downloads",
+            new StartDownloadRequest { TorrentId = 41 }, ManifestJsonContext.Default.StartDownloadRequest);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
@@ -38,7 +62,7 @@ public sealed class AcquisitionEndpointTests(SessionFixture fixture) : IClassFix
     [Fact]
     public async Task A_release_a_search_offered_can_then_be_picked_by_its_id()
     {
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient("33", "Ed");
 
         var ranked = await client.GetFromJsonAsync("/api/releases?q=inception", ManifestJsonContext.Default.RankedOffers);
         var offer = Assert.Single(ranked!.Candidates);
@@ -52,7 +76,7 @@ public sealed class AcquisitionEndpointTests(SessionFixture fixture) : IClassFix
     [Fact]
     public async Task An_id_no_search_offered_is_not_a_release()
     {
-        using var response = await fixture.CreateServiceClient().GetAsync("/api/releases/987654");
+        using var response = await fixture.CreatePersonClient("34", "Flo").GetAsync("/api/releases/987654");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -60,9 +84,8 @@ public sealed class AcquisitionEndpointTests(SessionFixture fixture) : IClassFix
     [Fact]
     public async Task A_download_of_something_never_offered_is_refused_before_the_client_is_asked()
     {
-        using var response = await fixture.CreateServiceClient().PostAsJsonAsync("/api/downloads",
-            new StartDownloadRequest { TorrentId = 987654, RequestedBy = new Actor("10", "Alice") },
-            ManifestJsonContext.Default.StartDownloadRequest);
+        using var response = await fixture.CreatePersonClient("35", "Gus").PostAsJsonAsync("/api/downloads",
+            new StartDownloadRequest { TorrentId = 987654 }, ManifestJsonContext.Default.StartDownloadRequest);
 
         var reply = await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.StartDownloadReply);
         Assert.Equal("noLongerOffered", reply?.Outcome);
@@ -76,30 +99,28 @@ public sealed class AcquisitionEndpointTests(SessionFixture fixture) : IClassFix
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
     }
 
-    /// <summary>
-    /// The round trip a Discord announcement makes: somebody waits on a film the tracker cannot answer,
-    /// the list holds them, and being told in their channel is what takes them off it.
-    /// </summary>
+    /// <summary>A wish is the person's the token names, whoever carried it, and is theirs to read and cancel.</summary>
     [Fact]
-    public async Task A_wish_is_held_until_its_channel_is_told()
+    public async Task A_wish_is_held_for_the_person_who_made_it()
     {
-        var client = fixture.CreateServiceClient();
         const string film = "tt0449088";   // At World's End: in the title index, with no release on the tracker.
+        var bea = fixture.CreatePersonClient("77", "Bea", [CinemaActions.Wish]);
 
-        using var asked = await client.PostAsJsonAsync("/api/wishes",
-            new AddWishRequest { Chosen = film, RequestedBy = new Actor("77", "Bea"), ChannelId = "5" },
+        using var asked = await bea.PostAsJsonAsync("/api/wishes", new AddWishRequest { Chosen = film },
             ManifestJsonContext.Default.AddWishRequest);
         var reply = await asked.Content.ReadFromJsonAsync(ManifestJsonContext.Default.AddWishReply);
         Assert.Equal("subscribed", reply?.Outcome);
+        Assert.Equal("77", Assert.Single(reply!.Wish!.Subscribers).UserId);
 
-        var held = await client.GetFromJsonAsync("/api/wishes?userId=77", ManifestJsonContext.Default.IReadOnlyListWishView);
+        var held = await bea.GetFromJsonAsync("/api/wishes", ManifestJsonContext.Default.IReadOnlyListWishView);
         Assert.Equal(film, Assert.Single(held!).ImdbId);
+        Assert.Null(held![0].Release);
 
-        using var told = await client.PostAsJsonAsync($"/api/wishes/{film}/told",
-            new WishesTold(["5"]), ManifestJsonContext.Default.WishesTold);
-        Assert.Equal(HttpStatusCode.NoContent, told.StatusCode);
+        var others = await fixture.CreatePersonClient("78", "Cy").GetFromJsonAsync("/api/wishes", ManifestJsonContext.Default.IReadOnlyListWishView);
+        Assert.Empty(others!);
 
-        var after = await client.GetFromJsonAsync("/api/wishes?userId=77", ManifestJsonContext.Default.IReadOnlyListWishView);
-        Assert.Empty(after!);
+        using var cancelled = await bea.DeleteAsync($"/api/wishes/{film}");
+        Assert.Equal("cancelled", (await cancelled.Content.ReadFromJsonAsync(ManifestJsonContext.Default.CancelWishReply))?.Outcome);
+        Assert.Empty((await bea.GetFromJsonAsync("/api/wishes", ManifestJsonContext.Default.IReadOnlyListWishView))!);
     }
 }

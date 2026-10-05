@@ -112,13 +112,15 @@ public sealed class DownloadCommandTests : IDisposable
 
     private static StartDownloadRequest Pick(long torrentId, string? room) => new()
     {
-        TorrentId = torrentId, RequestedBy = new Actor("10", "Alice"), NotifyChannelId = "1", RoomId = room,
+        TorrentId = torrentId, NotifyChannelId = "1", RoomId = room,
     };
+
+    private static readonly Actor Alice = new("local:usr_alice", "Alice");
 
     [Fact]
     public async Task A_pick_from_a_voice_channel_carries_the_room_to_start_in()
     {
-        var reply = await (await CommandAsync()).StartAsync(Pick(41, room: "918273645"), CancellationToken.None);
+        var reply = await (await CommandAsync()).StartAsync(Pick(41, room: "918273645"), Alice, CancellationToken.None);
 
         Assert.Equal("started", reply.Outcome);
         Assert.NotNull(reply.Hash);
@@ -127,7 +129,7 @@ public sealed class DownloadCommandTests : IDisposable
         var form = Assert.Single(_added);
         Assert.Contains(TorrentTags.Room(918273645), form);
         Assert.Contains(TorrentTags.Notify(1), form);
-        Assert.Contains(TorrentTags.Requester(10), form);
+        Assert.Contains(TorrentTags.Requester("local:usr_alice"), form);
         Assert.Contains(TorrentTags.NeedsIngest, form);
         Assert.Contains(TorrentTags.Imdb("tt0113277"), form);
     }
@@ -135,7 +137,7 @@ public sealed class DownloadCommandTests : IDisposable
     [Fact]
     public async Task A_pick_from_outside_a_voice_channel_is_a_download_and_nothing_more()
     {
-        var reply = await (await CommandAsync()).StartAsync(Pick(41, room: null), CancellationToken.None);
+        var reply = await (await CommandAsync()).StartAsync(Pick(41, room: null), Alice, CancellationToken.None);
 
         Assert.Equal("started", reply.Outcome);
 
@@ -143,9 +145,8 @@ public sealed class DownloadCommandTests : IDisposable
         Assert.DoesNotContain(TorrentTags.RoomPrefix, form);
         Assert.Contains(TorrentTags.Notify(1), form);
 
-        // Whoever asked is owed the news, and the channel announcement is how it reaches them on Discord.
+        // Whoever asked is owed the news, on Krystal Cinema.
         Assert.Contains(TorrentTags.Tell, form);
-        Assert.DoesNotContain(TorrentTags.TellDirect, form);
     }
 
     /// <summary>A download asked for from a page has no channel to be announced in, and carries none.</summary>
@@ -153,20 +154,30 @@ public sealed class DownloadCommandTests : IDisposable
     public async Task A_pick_with_no_channel_leaves_no_note_to_announce_it()
     {
         var reply = await (await CommandAsync()).StartAsync(
-            Pick(41, room: null) with { NotifyChannelId = null }, CancellationToken.None);
+            Pick(41, room: null) with { NotifyChannelId = null }, Alice, CancellationToken.None);
 
         Assert.Equal("started", reply.Outcome);
         var form = Assert.Single(_added);
         Assert.DoesNotContain(TorrentTags.NotifyPrefix, form);
+        Assert.Contains(TorrentTags.Tell, form);
+    }
 
-        // With no channel to announce it, the person is told directly where no push reaches them.
-        Assert.Contains(TorrentTags.TellDirect, form);
+    /// <summary>A download nobody asked for, such as the next episode fetched ahead, owes nobody news.</summary>
+    [Fact]
+    public async Task A_download_nobody_asked_for_carries_no_requester()
+    {
+        var reply = await (await CommandAsync()).StartAsync(Pick(41, room: null), asker: null, CancellationToken.None);
+
+        Assert.Equal("started", reply.Outcome);
+        var form = Assert.Single(_added);
+        Assert.DoesNotContain(TorrentTags.RequesterPrefix, form);
+        Assert.DoesNotContain(TorrentTags.Tell, form);
     }
 
     [Fact]
     public async Task A_row_this_process_never_offered_is_refused_rather_than_guessed()
     {
-        var reply = await (await CommandAsync()).StartAsync(Pick(99, room: "918273645"), CancellationToken.None);
+        var reply = await (await CommandAsync()).StartAsync(Pick(99, room: "918273645"), Alice, CancellationToken.None);
 
         Assert.Equal("noLongerOffered", reply.Outcome);
         Assert.Empty(_added);

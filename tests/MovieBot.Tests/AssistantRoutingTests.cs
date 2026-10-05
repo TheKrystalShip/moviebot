@@ -214,7 +214,7 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
     public async Task Why_it_stopped_is_answered_from_what_the_room_verbs_did()
     {
         var turn = await RoomAsync(SessionFixture.Heat, at: 900, paused: false);
-        await _host.Api.PauseAsync(turn.Room!.SessionId, turn.SpeakerUserId, turn.SpeakerName, CancellationToken.None);
+        await _host.ApiAs(turn).PauseAsync(turn.Room!.SessionId, CancellationToken.None);
         _host.Assistant.RecordAct(turn, "pause", RoomTools.Pause, new Dictionary<string, string?>(), "Paused at 15:00.");
 
         var answer = await _host.Assistant.AskAsync(turn with { SpeakerUserId = "99", SpeakerName = "Mika" }, "why did it stop?", CancellationToken.None);
@@ -241,9 +241,9 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
     private async Task<AssistantTurn> RoomAsync(string title, double at, bool paused)
     {
         var turn = AssistantPartsTests.Turn((ulong)Interlocked.Increment(ref _channels));
-        await _host.Api.SetSessionTitleAsync(turn.Room!.SessionId, title, "someone", CancellationToken.None);
-        await _host.Api.SeekAsync(turn.Room!.SessionId, at, "1", "someone", CancellationToken.None);
-        if (!paused) await _host.Api.PlayAsync(turn.Room!.SessionId, "1", "someone", CancellationToken.None);
+        await _host.Api.SetSessionTitleAsync(turn.Room!.SessionId, title, CancellationToken.None);
+        await _host.Api.SeekAsync(turn.Room!.SessionId, at, CancellationToken.None);
+        if (!paused) await _host.Api.PlayAsync(turn.Room!.SessionId, CancellationToken.None);
         return turn;
     }
 

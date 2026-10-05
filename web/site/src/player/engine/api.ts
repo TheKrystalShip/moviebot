@@ -5,7 +5,7 @@ import type {
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(environment().apiUrl(path), {
-    headers: { accept: 'application/json', ...authHeaders() }
+    headers: { accept: 'application/json', ...(await authHeaders()) }
   });
   if (!response.ok) throw new Error(`${path} answered ${response.status}`);
   return (await response.json()) as T;
@@ -17,7 +17,7 @@ async function sendJson<T>(path: string, method: string, body?: unknown): Promis
     headers: {
       accept: 'application/json',
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-      ...authHeaders()
+      ...(await authHeaders())
     },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
@@ -32,9 +32,9 @@ async function sendJson<T>(path: string, method: string, body?: unknown): Promis
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 }
 
-/** Every closed route wants the proof the Activity was given. */
-function authHeaders(): Record<string, string> {
-  const token = environment().authToken();
+/** Every closed route wants the viewer's access token, renewed first when it is about to run out. */
+async function authHeaders(): Promise<Record<string, string>> {
+  const token = await environment().freshToken();
   return token === null ? {} : { authorization: `Bearer ${token}` };
 }
 
@@ -65,7 +65,7 @@ export const api = {
 
   /**
    * Fetches an episode into a room and plays it the moment it can be opened; the room shows it
-   * arriving. A member's act: the Activity's token spends nothing.
+   * arriving. It takes downloading, which the viewer's account may not hold.
    */
   watchNow: (request: { imdbId: string; episodes: { season: number; episode: number }[]; room: string; quality: string }) =>
     sendJson<{ outcome: string; room?: string }>('/api/watch', 'POST', request),
@@ -73,24 +73,27 @@ export const api = {
   /** Everybody who can be asked into a room, most recently seen first, without the person asking. */
   people: () => getJson<Person[]>('/api/people'),
 
-  /** Asks one person into a room: a push to their devices, or a Discord message where none reaches them. */
+  /** Asks one person into a room: a push to their devices, and their notifications on the site either way. */
   invite: (sessionId: string, userId: string) =>
-    sendJson<{ delivery: 'push' | 'discord' }>(`/api/rooms/${encodeURIComponent(sessionId)}/invite`, 'POST', { userId }),
+    sendJson<{ delivery: 'push' | 'bell' }>(`/api/rooms/${encodeURIComponent(sessionId)}/invite`, 'POST', { userId }),
 
   /** How the signed-in person watches, wherever they signed in. */
   preferences: () => getJson<ViewerPreferences>('/api/me/preferences'),
   setPreferences: (preferences: ViewerPreferences) =>
     sendJson<ViewerPreferences>('/api/me/preferences', 'PUT', preferences),
 
-  /** This is the call that spends one of the day's downloads, and it adds it for the whole room. */
-  addSubtitle: (id: string, fileId: number, addedBy: string | null) =>
+  /**
+   * This is the call that spends one of the day's downloads, and it adds it for the whole room. Who
+   * added it is whoever the token names.
+   */
+  addSubtitle: (id: string, fileId: number) =>
     sendJson<{ track: SubtitleTrack; remainingDownloads?: number; alreadyPinned?: boolean }>(
-      `/api/titles/${encodeURIComponent(id)}/subtitles`, 'POST', { fileId, addedBy }),
+      `/api/titles/${encodeURIComponent(id)}/subtitles`, 'POST', { fileId }),
 
-  pinSubtitle: (id: string, trackId: string, pinnedBy: string | null, positionSeconds: number) =>
+  pinSubtitle: (id: string, trackId: string, positionSeconds: number) =>
     sendJson<SubtitlePin>(
       `/api/titles/${encodeURIComponent(id)}/subtitles/${encodeURIComponent(trackId)}/pin`,
-      'POST', { pinnedBy, positionSeconds }),
+      'POST', { positionSeconds }),
 
   unpinSubtitle: (id: string, trackId: string) =>
     sendJson<void>(

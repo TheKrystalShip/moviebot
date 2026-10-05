@@ -1,7 +1,12 @@
 namespace TheKrystalShip.MovieBot.Core;
 
 /// <summary>Who performed an action, so the room can see who paused it.</summary>
-public sealed record Actor(string UserId, string DisplayName);
+/// <param name="UserId">The account, as the identity provider names it.</param>
+/// <param name="Via">
+/// The client that acted for the person, when one did: the bot carrying out a slash command or a spoken
+/// one. Absent when the person acted themselves.
+/// </param>
+public sealed record Actor(string UserId, string DisplayName, string? Via = null);
 
 /// <summary>
 /// Everything the room shares. Deliberately small.
@@ -109,8 +114,7 @@ public sealed record SeekClamped
 /// from a URL it never writes, so a query string cannot carry the choice.
 /// </summary>
 /// <param name="StartSeconds">Where in the film the room starts; omitted is the beginning.</param>
-public sealed record SetTitleRequest(
-    string TitleId, string? UserId, string? DisplayName, double? StartSeconds = null);
+public sealed record SetTitleRequest(string TitleId, double? StartSeconds = null);
 
 /// <summary>
 /// What a room control answers: the state the room was sent, and the clamp when the position asked
@@ -124,20 +128,6 @@ public sealed record SetTitleRequest(
 public sealed record RoomChanged(SessionStatePush Push, SeekClamped? Clamped);
 
 /// <summary>
-/// Who is acting on a room from outside it.
-/// </summary>
-/// <remarks>
-/// Anyone in a room may move it and the state records who did, so a caller that is not a person —
-/// the bot acting on somebody's behalf — still names one. Absent, the act is attributed to the bot
-/// itself, which is honest about a room that moved with nobody asking.
-/// </remarks>
-public interface IRoomAct
-{
-    string? UserId { get; }
-    string? DisplayName { get; }
-}
-
-/// <summary>
 /// Starts or stops a room.
 /// </summary>
 /// <param name="AtSeconds">
@@ -146,12 +136,10 @@ public interface IRoomAct
 /// room should stop and has no idea where the playhead sits, and sending a position it guessed
 /// would move the film as well as stopping it.
 /// </param>
-public sealed record RoomPlaybackRequest(
-    double? AtSeconds = null, string? UserId = null, string? DisplayName = null) : IRoomAct;
+public sealed record RoomPlaybackRequest(double? AtSeconds = null);
 
 /// <summary>Moves a room to a position in the film.</summary>
-public sealed record RoomSeekRequest(
-    double ToSeconds, string? UserId = null, string? DisplayName = null) : IRoomAct;
+public sealed record RoomSeekRequest(double ToSeconds);
 
 /// <summary>
 /// Moves a room by an amount from where it is — negative to go back.
@@ -161,8 +149,7 @@ public sealed record RoomSeekRequest(
 /// then seeks to it minus fifteen has spent a round trip in between, and in a playing room that
 /// round trip is part of the fifteen.
 /// </remarks>
-public sealed record RoomNudgeRequest(
-    double DeltaSeconds, string? UserId = null, string? DisplayName = null) : IRoomAct;
+public sealed record RoomNudgeRequest(double DeltaSeconds);
 
 public sealed record Participant
 {

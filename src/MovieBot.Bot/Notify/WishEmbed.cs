@@ -35,7 +35,7 @@ public static class WishEmbed
 
         return Film(wish)
             .WithDescription(
-                "Not on the tracker yet. You will be told in this channel when it can be downloaded."
+                "Not on the tracker yet. You will be told on Krystal Cinema when it can be downloaded."
                 + (others switch
                 {
                     0 => "",
@@ -46,7 +46,7 @@ public static class WishEmbed
             .Build();
     }
 
-    /// <summary>The announcement: the film can be downloaded, and this is the release that says so.</summary>
+    /// <summary>The film can be downloaded already, and this is the release that says so.</summary>
     public static Embed Available(Wish wish, ReleaseOffer release) =>
         Film(wish)
             .WithDescription($"{wish.Display} can be downloaded now.")
@@ -62,7 +62,7 @@ public static class WishEmbed
         new EmbedBuilder()
             .WithTitle("Films you are waiting on")
             .WithDescription(wishes.Count == 0
-                ? "None. Ask with /notify add and you will be told when one can be downloaded."
+                ? "None. Ask with /notify add and you will be told on Krystal Cinema when one can be downloaded."
                 : string.Join("\n", wishes.Select(w => $"[{w.Display}]({w.Url})")))
             .WithColor(Color.Blue)
             .Build();

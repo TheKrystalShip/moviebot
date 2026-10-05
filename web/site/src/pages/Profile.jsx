@@ -3,9 +3,10 @@ import { Icon, Select, SettingsRow, SettingsSection, SubTabs, ThemePicker, Toggl
 import { KIND } from "../notifications.js";
 import { api, episodeCode, filmName } from "../api.js";
 import { useLoad } from "../data.js";
-import { signOut, useSession } from "../session.js";
+import { can, useCan, useSession } from "../session.js";
+import { leave, openAccount } from "../leave.js";
 import { PROFILE_TAB_FACES } from "../nav.js";
-import { moviePath, profilePath, savedPath, showPath, signInPath } from "../paths.js";
+import { moviePath, profilePath, savedPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { ago, airDay } from "../time.js";
 import { Empty, Failed, PageHead, PosterArt } from "../components/Film.jsx";
@@ -16,9 +17,9 @@ import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
 const TABS = PROFILE_TAB_FACES;
 
 /**
- * Who is signed in and everything that is theirs: what they watched, what they asked for, how they
- * like to watch, and the devices holding their sign-in. The tab is in the address, so a tab can be
- * linked to and reloaded.
+ * Who is signed in and everything that is theirs: what they watched, what they asked for and how they
+ * like to watch. Their sign-ins are the provider's, on its account page. The tab is in the address, so
+ * a tab can be linked to and reloaded.
  */
 export function Profile({ tab: named }) {
   const tab = named || TABS[0].id;
@@ -27,8 +28,11 @@ export function Profile({ tab: named }) {
 
   return (
     <div className="kc-page kc-profile">
-      <PageHead title={user ? user.name : "Profile"} sub={user ? "@" + user.username : null}>
-        <button type="button" className="kc-btn kc-head__action" onClick={() => { signOut(); navigate(signInPath, { replace: true }); }}>
+      <PageHead title={user ? user.name : "Profile"} sub={user && user.username ? "@" + user.username : null}>
+        <button type="button" className="kc-btn kc-btn--ghost kc-head__action" onClick={openAccount}>
+          <Icon name="shield-user" size={16} />Account
+        </button>
+        <button type="button" className="kc-btn kc-head__action" onClick={leave}>
           <Icon name="log-out" size={16} />Sign out
         </button>
       </PageHead>
@@ -39,11 +43,10 @@ export function Profile({ tab: named }) {
       </a>
       <SubTabs tabs={TABS} active={tab} onChange={(id) => navigate(profilePath(id), { replace: true })} />
       {tab === "history" && <History />}
-      {tab === "requests" && <Requests user={user} />}
+      {tab === "requests" && <Requests session={session} />}
       {tab === "following" && <Following />}
       {tab === "notifications" && <Notifications />}
       {tab === "playback" && <Playback />}
-      {tab === "sessions" && <Sessions />}
     </div>
   );
 }
@@ -96,9 +99,12 @@ function History() {
 }
 
 /** The films this person is waiting on, and the downloads they asked for, under way or done. */
-function Requests({ user }) {
-  const wishes = useLoad(() => api.wishes(), []);
-  const downloads = useLoad(() => api.downloads(), [], { every: 5000 });
+function Requests({ session }) {
+  const user = session && session.user;
+  const wishing = can(session, "cinema:wish");
+  const downloading = can(session, "cinema:download");
+  const wishes = useLoad(() => (wishing ? api.wishes() : Promise.resolve([])), [wishing]);
+  const downloads = useLoad(() => (downloading ? api.downloads() : Promise.resolve([])), [downloading], { every: 5000 });
   const mine = (wishes.data || []).filter((w) => w.subscribers.some((s) => user && s.userId === user.id));
   const rows = (downloads.data || [])
     .filter((d) => user && d.requestedBy === user.id)
@@ -116,7 +122,7 @@ function Requests({ user }) {
 
   return (
     <>
-      <section className="kc-shelf">
+      {wishing && <section className="kc-shelf">
         <div className="kc-shelf__head"><h2>Waiting on</h2></div>
         <Failed error={wishes.error} onRetry={wishes.reload} />
         {wishes.data && mine.length === 0 && <Empty icon="bell" title="Nothing yet">A film that is not out yet can be waited on from Notify me.</Empty>}
@@ -137,9 +143,9 @@ function Requests({ user }) {
             );
           })}
         </div>
-      </section>
+      </section>}
 
-      <section className="kc-shelf">
+      {downloading && <section className="kc-shelf">
         <div className="kc-shelf__head"><h2>Downloads</h2></div>
         <Failed error={downloads.error} onRetry={downloads.reload} />
         {downloads.data && rows.length === 0 && <Empty icon="download" title="Nothing downloading" />}
@@ -158,13 +164,14 @@ function Requests({ user }) {
             </div>
           ))}
         </div>
-      </section>
+      </section>}
     </>
   );
 }
 
 /** The shows this person follows, whether each is fetched when an episode airs, and unfollowing. */
 function Following() {
+  const downloading = useCan("cinema:download");
   const follows = useLoad(() => api.follows(), []);
   const rows = follows.data || [];
 
@@ -205,10 +212,12 @@ function Following() {
                 <a className="kc-row__title" {...linkProps(href)}>{row.title}</a>
                 {next && <span className="kc-row__sub">Next episode: {episodeCode({ season: next.season, number: next.episode })} · {airDay(next.airDate)}</span>}
               </div>
-              <label className="kc-follow__option kc-follow__option--row">
-                <span>Download new episodes</span>
-                <Toggle on={row.autoDownload} label={`Download new episodes of ${row.title} automatically`} onChange={(on) => setAuto(row, on)} />
-              </label>
+              {downloading && (
+                <label className="kc-follow__option kc-follow__option--row">
+                  <span>Download new episodes</span>
+                  <Toggle on={row.autoDownload} label={`Download new episodes of ${row.title} automatically`} onChange={(on) => setAuto(row, on)} />
+                </label>
+              )}
               <button type="button" className="kc-btn kc-btn--ghost" onClick={() => unfollow(row)}>
                 <Icon name="bell-off" size={16} />Unfollow
               </button>
@@ -390,60 +399,5 @@ function Playback() {
         <ThemePicker />
       </SettingsSection>
     </>
-  );
-}
-
-/** The devices holding one of this person's sign-ins. */
-function Sessions() {
-  const sessions = useLoad(() => api.sessions(), []);
-  const rows = sessions.data || [];
-  const others = rows.filter((s) => !s.current);
-
-  const signOutOne = async (row) => {
-    try {
-      await api.signOutDevice(row.id);
-      sessions.reload();
-    } catch (error) {
-      toast.fromError(error, "Could not sign that device out");
-    }
-  };
-  const signOutOthers = async () => {
-    try {
-      await api.signOutOtherDevices();
-      toast.success("Signed out everywhere else.");
-      sessions.reload();
-    } catch (error) {
-      toast.fromError(error, "Could not sign the other devices out");
-    }
-  };
-
-  return (
-    <section className="kc-shelf">
-      <div className="kc-shelf__head">
-        <h2>Signed in on</h2>
-        {others.length > 0 && (
-          <button type="button" className="kc-btn kc-btn--ghost kc-head__action" onClick={signOutOthers}>
-            <Icon name="log-out" size={15} />Sign out everywhere else
-          </button>
-        )}
-      </div>
-      <Failed error={sessions.error} onRetry={sessions.reload} />
-      <div className="kc-rows">
-        {rows.map((row) => (
-          <div key={row.id} className="kc-row">
-            <span className="kc-row__icon"><Icon name="monitor-smartphone" size={16} /></span>
-            <div className="kc-row__text">
-              <span className="kc-row__title">{row.device}{row.current && <span className="kc-tag">This device</span>}</span>
-              <span className="kc-row__sub">Active {ago(row.lastSeenAt)} · signed in {ago(row.issuedAt)}</span>
-            </div>
-            {!row.current && (
-              <button type="button" className="kc-btn kc-btn--ghost" onClick={() => signOutOne(row)}>
-                <Icon name="log-out" size={15} />Sign out
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }

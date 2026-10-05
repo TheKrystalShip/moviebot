@@ -1,3 +1,5 @@
+using TheKrystalShip.MovieBot.Api.Auth;
+
 namespace TheKrystalShip.MovieBot.Api.Films;
 
 public static class FilmEndpoints
@@ -21,10 +23,11 @@ public static class FilmEndpoints
                 ? Results.Ok(view)
                 : Results.Json(new ErrorReply("The film database has no film under that id."),
                     ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
-        });
+        }).RequireAction(CinemaActions.Watch);
 
         // The films and shows trending this week, from what is kept: a page never waits on the database.
-        app.MapGet("/api/popular", (PopularNow popular) => Results.Ok(popular.View()));
+        app.MapGet("/api/popular", (PopularNow popular) => Results.Ok(popular.View()))
+            .RequireAction(CinemaActions.Watch);
 
         // A trending entry's poster, open like any other artwork.
         app.MapMethods("/popular/{file}", ["GET", "HEAD"], (string file, PopularNow popular, HttpContext context) =>
@@ -32,7 +35,7 @@ public static class FilmEndpoints
             if (popular.PosterFile(file) is not { } path) return Results.NotFound();
             context.Response.Headers.CacheControl = "public, max-age=86400";
             return Results.File(path, "image/jpeg", enableRangeProcessing: false);
-        });
+        }).AllowAnonymous();
 
         // The artwork kept beside each description. Open like a poster under /media: it is the
         // database's public artwork, and an <img> carries no token. It never changes under one name
@@ -42,6 +45,6 @@ public static class FilmEndpoints
             if (store.ImageFile(imdbId, file) is not { } path) return Results.NotFound();
             context.Response.Headers.CacheControl = "public, max-age=86400";
             return Results.File(path, "image/jpeg", enableRangeProcessing: false);
-        });
+        }).AllowAnonymous();
     }
 }

@@ -186,17 +186,14 @@ public sealed class FollowWatcher(
         var quality = wanting.Select(u => QualityOf(u, show)).Max();
         if (ShowOfferCache.Pick(offered, number, quality) is not { } release) return null;
 
-        // The download's own notice reaches whoever it is started as, so it has to be somebody the
-        // torrent can carry: an id the torrent client's tags can name.
-        var requester = wanting.FirstOrDefault(u => Downloads.Snowflake(u) is not null);
-        if (requester is null) return null;
+        // The download's own notice reaches whoever it is started as.
+        var requester = wanting[0];
 
         var reply = await downloads.StartAsync(new StartDownloadRequest
         {
             TorrentId = release.TorrentId,
-            RequestedBy = new Actor(requester, people.NameOf(requester) ?? requester),
             Episodes = [new EpisodePick(number.Season, number.Episode)],
-        }, ct);
+        }, new Actor(requester, people.NameOf(requester) ?? requester), ct);
         logger.LogInformation("Fetching {Show} {Episode} for {Count} follower(s) at {Quality}: {Outcome}{Refusal}.",
             title, number, wanting.Count, quality, reply.Outcome, reply.Refusal is { } why ? $" ({why})" : "");
 

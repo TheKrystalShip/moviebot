@@ -41,7 +41,7 @@ public sealed class RoomVoiceCommandTests(SessionFixture fixture) : IClassFixtur
         var channel = NewChannel();
         await StartFilmAsync(api, channel);
         await handler.HandleAsync(Said(channel, "pause"));
-        await fixture.CreateServiceClient().PostAsync(
+        await fixture.CreatePersonClient("77", "Bea").PostAsync(
             $"/api/sessions/{RoomSession.IdFor(channel)}/seek",
             System.Net.Http.Json.JsonContent.Create(new { toSeconds = 600.0 }));
 
@@ -176,7 +176,7 @@ public sealed class RoomVoiceCommandTests(SessionFixture fixture) : IClassFixtur
 
     private (MovieBotApiClient Api, RoomVoiceCommandHandler Handler) Create(IRoomAssistant? assistant = null)
     {
-        var api = new MovieBotApiClient(fixture.CreateServiceClient());
+        var api = fixture.CreateBotApi();
         var handler = new RoomVoiceCommandHandler(
             api, assistant ?? new NoRoomAssistant(), TimeProvider.System, Options.Create(new DiscordVoiceOptions()),
             NullLogger<RoomVoiceCommandHandler>.Instance);
@@ -204,11 +204,13 @@ public sealed class RoomVoiceCommandTests(SessionFixture fixture) : IClassFixtur
         public Task HandleButtonAsync(global::Discord.WebSocket.SocketMessageComponent component) => Task.CompletedTask;
     }
 
+    /// <summary>Bea puts a film on in the room and starts it, through the bot.</summary>
     private static async Task StartFilmAsync(MovieBotApiClient api, ulong channel)
     {
+        using var acting = ActingFor.Person(77);
         var session = RoomSession.IdFor(channel);
-        await api.SetSessionTitleAsync(session, SessionFixture.ReadyTitle, "someone", CancellationToken.None);
-        await api.PlayAsync(session, "1", "someone", CancellationToken.None);
+        await api.SetSessionTitleAsync(session, SessionFixture.ReadyTitle, CancellationToken.None);
+        await api.PlayAsync(session, CancellationToken.None);
     }
 
     private static ulong NewChannel() => (ulong)Interlocked.Increment(ref _channels);

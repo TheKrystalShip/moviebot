@@ -1,8 +1,8 @@
 namespace TheKrystalShip.MovieBot.Core;
 
-// The shapes of fetching films, as the API serves them to the services that act on somebody's
-// behalf: the bot and the assistant. Each request names who asked as an Actor, because the API does
-// not know them — it trusts the service key and records the person the service vouches for.
+// The shapes of fetching films, as the API serves them to the site, the bot and the assistant. No
+// request names who asked: the API takes the person from the token the request carries, so a caller
+// can neither forget to say who it is nor say it is somebody else.
 //
 // Every outcome is a word and the facts behind it, never a sentence. What to tell a person depends on
 // where they asked — a Discord channel mentions people and names slash commands, a web page does
@@ -83,8 +83,6 @@ public sealed record StartDownloadRequest
 {
     public required long TorrentId { get; init; }
 
-    public required Actor RequestedBy { get; init; }
-
     /// <summary>The Discord channel to announce the film in once it can be watched, if any.</summary>
     public string? NotifyChannelId { get; init; }
 
@@ -155,17 +153,14 @@ public sealed record DownloadView
 
     public string? ImdbId { get; init; }
 
-    /// <summary>The Discord id of whoever asked for it, so a person can be shown their own requests.</summary>
+    /// <summary>The account of whoever asked for it, so a person can be shown their own requests.</summary>
     public string? RequestedBy { get; init; }
 }
 
-/// <summary>One person waiting on a film, and where they asked to be told.</summary>
+/// <summary>One person waiting on a film.</summary>
 public sealed record WishSubscriberView
 {
     public required string UserId { get; init; }
-
-    /// <summary>The Discord channel the announcement goes to; absent for somebody who asked elsewhere.</summary>
-    public string? ChannelId { get; init; }
 
     public required DateTimeOffset AskedAt { get; init; }
 }
@@ -186,16 +181,18 @@ public sealed record WishView
     public string? PosterUrl { get; init; }
 
     public IReadOnlyList<WishSubscriberView> Subscribers { get; init; } = [];
+
+    /// <summary>
+    /// The release that would answer the wish, once the tracker offers one; absent while the film is
+    /// not out. A person stays on a wish that has come out until they stop waiting on it.
+    /// </summary>
+    public ReleaseOffer? Release { get; init; }
 }
 
 /// <summary>Wait on a film: an IMDb id, or what was typed over the suggestions, often a pasted link.</summary>
 public sealed record AddWishRequest
 {
     public required string Chosen { get; init; }
-
-    public required Actor RequestedBy { get; init; }
-
-    public string? ChannelId { get; init; }
 }
 
 /// <summary>
@@ -232,12 +229,6 @@ public sealed record CancelWishReply
     public WishView? Wish { get; init; }
 }
 
-/// <summary>A wish the tracker can now answer, with the release that would answer it.</summary>
-public sealed record AvailableWish(WishView Wish, ReleaseOffer Release);
-
-/// <summary>The channels a wish has been announced in, whose people are told and can be forgotten.</summary>
-public sealed record WishesTold(IReadOnlyList<string> ChannelIds);
-
 /// <summary>
 /// Where a film in the library stands on the library's clock: how long it stays once it has
 /// settled on cold storage, and who keeps it past that.
@@ -262,7 +253,7 @@ public sealed record TitleStay
     /// </summary>
     public required bool Settled { get; init; }
 
-    /// <summary>The Discord id of whoever keeps it, or absent when nobody does.</summary>
+    /// <summary>The account of whoever keeps it, or absent when nobody does.</summary>
     public string? KeeperId { get; init; }
 
     /// <summary>What the keeper is called, the id until a name is known.</summary>
@@ -284,10 +275,4 @@ public sealed record TitleStay
     /// without keeping its own copy of a setting.
     /// </summary>
     public double LeaveAfterDays { get; init; }
-}
-
-/// <summary>Keep a film, or let one go, as somebody. A member's request names nobody: the token does.</summary>
-public sealed record KeepRequest
-{
-    public required Actor RequestedBy { get; init; }
 }

@@ -29,7 +29,8 @@ public enum WatchStatus
     TitleNotFound,
     TitleAmbiguous,
     TitleFailed,
-    BackendUnavailable
+    BackendUnavailable,
+    NotAllowed
 }
 
 /// <summary>
@@ -52,6 +53,9 @@ public sealed class WatchCommand(
     IFilmRetention retention,
     ILogger<WatchCommand> logger)
 {
+    /// <summary>What a person whose account may not watch is told.</summary>
+    public const string NotAllowed = "Your account does not have access to Krystal Cinema yet.";
+
     public async Task<WatchResult> ExecuteAsync(WatchRequest request, CancellationToken ct)
     {
         // The room is the voice channel, so there is no room to launch into without one.
@@ -64,6 +68,10 @@ public sealed class WatchCommand(
         try
         {
             library = await api.ListTitlesAsync(ct);
+        }
+        catch (MovieBotAccessDeniedException)
+        {
+            return new WatchResult(WatchStatus.NotAllowed, NotAllowed);
         }
         catch (MovieBotApiException ex)
         {
@@ -125,7 +133,7 @@ public sealed class WatchCommand(
         {
             try
             {
-                session = await api.SetSessionTitleAsync(session.SessionId, title.Id, request.RequestedBy, ct);
+                session = await api.SetSessionTitleAsync(session.SessionId, title.Id, ct);
             }
             catch (MovieBotApiException ex)
             {

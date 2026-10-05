@@ -18,28 +18,21 @@ public sealed record NotificationDraft
     public string? Url { get; init; }
 
     public string? Action { get; init; }
-
-    /// <summary>
-    /// Whether a Discord message carries it when no push reaches the person. False where the bot
-    /// already tells them in a channel, mentioning them: a message on top of that is the same news
-    /// twice on the same app.
-    /// </summary>
-    public bool Direct { get; init; } = true;
 }
 
-/// <summary>How a notification went out: how many devices a push service took it for, and whether a Discord message is owed.</summary>
-public sealed record Delivery(int Pushed, bool Direct);
+/// <summary>How a notification went out: how many devices a push service took it for.</summary>
+public sealed record Delivery(int Pushed);
 
 /// <summary>What a push carries. The worker shows the text and opens the path.</summary>
 public sealed record PushPayload(string Title, string Body, string? Url, string Tag);
 
 /// <summary>
 /// Tells a person something: it goes in their bell, and, where their choices allow it, to every
-/// browser they subscribed, and to Discord when no push reached them.
+/// browser they subscribed.
 ///
-/// Every notification is kept whatever the person chose; the switches hold back the push and the
-/// message, not the record. A push service taking a push is all that is ever known about it, so
-/// that is all <see cref="Delivery"/> says.
+/// Every notification is kept whatever the person chose; the switches hold back the push, not the
+/// record. A push service taking a push is all that is ever known about it, so that is all
+/// <see cref="Delivery"/> says.
 /// </summary>
 public sealed class Notifier(
     NotificationStore inbox,
@@ -71,16 +64,14 @@ public sealed class Notifier(
         if (!inbox.Add(userId, notification)) return null;
 
         if (draft.Kind != NotificationKinds.Invite && !preferences.For(userId).Allows(draft.Kind))
-            return new Delivery(0, false);
+            return new Delivery(0);
 
         var pushed = await PushAsync(userId, notification, ct);
-        var direct = pushed == 0 && draft.Direct;
-        if (pushed > 0 || direct)
-            inbox.Update(userId, notification.Id, n => n with { Pushed = pushed, Direct = direct ? DirectState.Waiting : null });
+        if (pushed > 0)
+            inbox.Update(userId, notification.Id, n => n with { Pushed = pushed });
 
-        logger.LogInformation("Told {User} {Kind} ({Key}): {Pushed} push{Direct}.",
-            userId, draft.Kind, draft.Key, pushed, direct ? ", a Discord message owed" : "");
-        return new Delivery(pushed, direct);
+        logger.LogInformation("Told {User} {Kind} ({Key}): {Pushed} push.", userId, draft.Kind, draft.Key, pushed);
+        return new Delivery(pushed);
     }
 
     /// <summary>Pushes a notification to every browser a person subscribed, counting the ones a push service took.</summary>

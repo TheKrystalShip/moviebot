@@ -25,11 +25,11 @@ public sealed class RoomListingTests : IClassFixture<SessionFixture>
             .WithUrl(_fixture.Server.BaseAddress + "hub/session", o =>
             {
                 o.HttpMessageHandlerFactory = _ => _fixture.Server.CreateHandler();
-                o.AccessTokenProvider = () => Task.FromResult<string?>(_fixture.TokenFor(room));
+                o.AccessTokenProvider = () => Task.FromResult<string?>(_fixture.TokenFor("u1", "Someone"));
             })
             .Build();
         await connection.StartAsync();
-        await connection.InvokeAsync<SessionStatePush>("Join", room, "u1", "Someone");
+        await connection.InvokeAsync<SessionStatePush>("Join", room);
         await connection.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
         await connection.InvokeAsync<SessionStatePush>("Play", 120.0);
 

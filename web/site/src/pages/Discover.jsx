@@ -2,6 +2,7 @@ import React from "react";
 import { Icon, Rail, ShowcaseCard, toast } from "@thekrystalship/krystal-ui";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
+import { useCan } from "../session.js";
 import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { Failed, FilmCard, PageHead, ShowCard, watchHref } from "../components/Film.jsx";
@@ -21,11 +22,16 @@ export function Discover({ query }) {
   React.useEffect(() => setDraft(q), [q]);
   const field = useFocusOnceShown();
 
+  const downloading = useCan("cinema:download");
+  const wishing = useCan("cinema:wish");
+  const finding = downloading || wishing;
+
   const titles = useLoad(() => api.titles(), []);
   // Each answer carries the query it is for: until this query's comes back, the one held is the last
-  // query's, and says nothing about whether the catalogue knows this name.
-  const foundFor = useLoad(() => (q ? api.findShows(q).catch(() => []) : Promise.resolve([])).then((list) => ({ q, list })), [q]);
-  const filmsFor = useLoad(() => (q ? api.findFilms(q).catch(() => []) : Promise.resolve([])).then((list) => ({ q, list })), [q]);
+  // query's, and says nothing about whether the catalogue knows this name. The catalogue is searched
+  // by somebody who may fetch a film or wait on one; shows are found for fetching.
+  const foundFor = useLoad(() => (q && downloading ? api.findShows(q).catch(() => []) : Promise.resolve([])).then((list) => ({ q, list })), [q, downloading]);
+  const filmsFor = useLoad(() => (q && finding ? api.findFilms(q).catch(() => []) : Promise.resolve([])).then((list) => ({ q, list })), [q, finding]);
   const answered = foundFor.data && foundFor.data.q === q && filmsFor.data && filmsFor.data.q === q;
   const found = { data: answered ? foundFor.data.list : null };
   const films = { data: answered ? filmsFor.data.list : null };
@@ -130,7 +136,7 @@ export function Discover({ query }) {
             </section>
           )}
 
-          {answered && (
+          {answered && downloading && (
             <TrackerShelf key={q} q={q} inLibrary={inLibrary}
               open={(films.data || []).length === 0 && (found.data || []).length === 0} />
           )}
@@ -272,8 +278,9 @@ function Offer({ offer, best }) {
   );
 }
 
-/** A film the catalogue knows and the tracker has nothing of yet. */
+/** A film the catalogue knows and the tracker has nothing of yet; waiting on it is offered to whoever may wish. */
 export function NotOutYet({ film, explanation }) {
+  const wishing = useCan("cinema:wish");
   const [asked, setAsked] = React.useState(false);
 
   const wait = async () => {
@@ -292,9 +299,11 @@ export function NotOutYet({ film, explanation }) {
         <span className="kc-row__title">{film.display}</span>
         <span className="kc-row__sub"><Icon name="calendar-clock" size={13} />{explanation || "Not out yet."}</span>
       </div>
-      <button type="button" className={"kc-btn" + (asked ? " kc-btn--ghost" : " kc-btn--primary")} disabled={asked} onClick={wait}>
-        <Icon name={asked ? "bell-ring" : "bell-plus"} size={16} />{asked ? "Waiting for it" : "Notify me"}
-      </button>
+      {wishing && (
+        <button type="button" className={"kc-btn" + (asked ? " kc-btn--ghost" : " kc-btn--primary")} disabled={asked} onClick={wait}>
+          <Icon name={asked ? "bell-ring" : "bell-plus"} size={16} />{asked ? "Waiting for it" : "Notify me"}
+        </button>
+      )}
     </div>
   );
 }

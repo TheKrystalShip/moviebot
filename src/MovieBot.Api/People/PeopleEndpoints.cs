@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
@@ -16,12 +17,14 @@ public static class PeopleEndpoints
         app.MapGet("/api/me/preferences", (HttpContext context, PreferenceStore store) =>
             Person(context) is { } person
                 ? Results.Ok(store.For(person.UserId))
-                : NoPerson());
+                : NoPerson())
+            .RequireAction(CinemaActions.ProfileRead);
 
         app.MapPut("/api/me/preferences", (ViewerPreferences body, HttpContext context, PreferenceStore store) =>
             Person(context) is { } person
                 ? Results.Ok(store.Set(person.UserId, body))
-                : NoPerson());
+                : NoPerson())
+            .RequireAction(CinemaActions.ProfileWrite);
 
         // Films this person started and did not finish, newest first. A film the library no longer
         // holds is left out: there is nothing to continue and no name to show for it.
@@ -39,7 +42,7 @@ public static class PeopleEndpoints
             }
 
             return Results.Ok(entries);
-        });
+        }).RequireAction(CinemaActions.ProfileRead);
 
         app.MapGet("/api/me/history", (HttpContext context, WatchRecord record, TitleLibrary library, SessionStore sessions, TimeProvider clock) =>
         {
@@ -55,7 +58,7 @@ public static class PeopleEndpoints
             }
 
             return Results.Ok(entries);
-        });
+        }).RequireAction(CinemaActions.ProfileRead);
 
         // Forgetting a film that was never watched is the same end state, so it is not an error.
         app.MapDelete("/api/me/history/{titleId}", (string titleId, HttpContext context, WatchRecord record) =>
@@ -64,7 +67,7 @@ public static class PeopleEndpoints
 
             record.Forget(person.UserId, titleId);
             return Results.NoContent();
-        });
+        }).RequireAction(CinemaActions.ProfileWrite);
     }
 
     /// <summary>
@@ -72,7 +75,7 @@ public static class PeopleEndpoints
     /// film a room is playing right now was last played now, and by whoever is watching it.
     /// </summary>
     public static TitleSummary WithPlays(
-        this TitleSummary title, RoomTokenPayload? person, WatchRecord record, PersonDirectory people,
+        this TitleSummary title, CinemaPerson? person, WatchRecord record, PersonDirectory people,
         IReadOnlyList<ViewingRoom> viewing, DateTimeOffset now)
     {
         var live = person is null ? null : Live(person.UserId, viewing, title.Id, title.DurationSeconds, now);
@@ -125,8 +128,8 @@ public static class PeopleEndpoints
         };
     }
 
-    public static RoomTokenPayload? Person(HttpContext context) =>
-        context.Items.TryGetValue("room-token", out var token) ? token as RoomTokenPayload : null;
+    /// <summary>The person the request's token names, or null for a caller that is nobody.</summary>
+    public static CinemaPerson? Person(HttpContext context) => CinemaPerson.Of(context);
 
     /// <summary>A film by its name and year; an episode by its show's name, the episode said apart.</summary>
     private static string NameOf(Manifest manifest) =>

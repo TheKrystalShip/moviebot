@@ -24,7 +24,7 @@ public sealed class ColdLibraryTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task A_settled_film_is_in_the_library()
     {
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
 
         var titles = await client.GetFromJsonAsync<List<TitleSummary>>("/api/titles", AsThePlayerReadsIt);
 
@@ -36,7 +36,7 @@ public sealed class ColdLibraryTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task A_settled_film_answers_by_name()
     {
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
 
         var manifest = await client.GetFromJsonAsync<Manifest>(
             $"/api/titles/{SessionFixture.SettledTitle}", AsThePlayerReadsIt);
@@ -52,7 +52,7 @@ public sealed class ColdLibraryTests(SessionFixture fixture) : IClassFixture<Ses
         Directory.CreateDirectory(Path.GetDirectoryName(segment)!);
         await File.WriteAllTextAsync(segment, "the picture");
 
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
         var response = await client.GetAsync($"/media/{SessionFixture.SettledTitle}/v0/0.m4s");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -67,7 +67,7 @@ public sealed class ColdLibraryTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task A_traversal_out_of_a_settled_film_is_refused()
     {
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
 
         var response = await client.GetAsync(
             $"/media/{SessionFixture.SettledTitle}/../{MediaRoots.ColdMarker}");
@@ -80,7 +80,7 @@ public sealed class ColdLibraryTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task Health_says_nothing_while_the_disk_is_there()
     {
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
 
         var health = await client.GetFromJsonAsync<HealthView>("/health");
 

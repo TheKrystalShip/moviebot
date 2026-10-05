@@ -1,4 +1,4 @@
-using TheKrystalShip.MovieBot.Api.Acquisition;
+using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Transcode;
@@ -12,7 +12,7 @@ public static class TranscodeEndpoints
 {
     public static void MapTranscode(this WebApplication app)
     {
-        var group = app.MapGroup("/api/transcode").AddEndpointFilter(AcquisitionEndpoints.ServiceOnly);
+        var group = app.MapGroup("/api/transcode").RequireService();
 
         group.MapGet("/plan", (TranscodePlanService plans) => Results.Ok(plans.Plan()));
 

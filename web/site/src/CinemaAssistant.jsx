@@ -1,12 +1,12 @@
 import { Chat, Icon, createAssistantClient } from "@thekrystalship/krystal-ui";
-import { currentToken } from "./session.js";
+import { freshToken } from "./session.js";
 import { moviePath } from "./paths.js";
 import { linkProps } from "./router.js";
 import { watchLink } from "./components/Film.jsx";
 
 // moviebot-assistant, behind /assistant on the same origin, spoken to as the signed-in person. One
 // client for the life of the page: the chat asks for it by the assistant's id on every render.
-const client = createAssistantClient({ baseUrl: "/assistant", getToken: () => currentToken() });
+const client = createAssistantClient({ baseUrl: "/assistant", getToken: () => freshToken() });
 const clientFor = () => client;
 
 const HOST = { id: "cinema", name: "MovieBot", title: "MovieBot, the cinema's assistant" };

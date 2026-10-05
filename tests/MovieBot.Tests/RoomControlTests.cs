@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 
 using TheKrystalShip.MovieBot.Core;
 
@@ -45,7 +46,7 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
         // missing one read as zero pauses the film AND sends the room back to the opening titles.
         // Nobody who said "pause" asked for that, and the film stopping makes it look like it
         // worked.
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
         var session = NewSession();
 
         await LoadAsync(client, session);
@@ -60,7 +61,7 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task A_play_that_names_no_position_carries_on_from_where_the_room_is()
     {
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
         var session = NewSession();
 
         await LoadAsync(client, session);
@@ -76,7 +77,7 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task Going_back_is_measured_from_where_the_film_is_now()
     {
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
         var session = NewSession();
 
         await LoadAsync(client, session);
@@ -92,7 +93,7 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task Going_forward_moves_the_room_on()
     {
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
         var session = NewSession();
 
         await LoadAsync(client, session);
@@ -108,7 +109,7 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
     {
         // Asking to go back an hour four minutes in is a request to start again, not a mistake to
         // refuse: whoever said it wants the beginning.
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
         var session = NewSession();
 
         await LoadAsync(client, session);
@@ -124,7 +125,7 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
     {
         // The reason there is one implementation behind both doors. A pause the caller is told
         // about and the room is not is a film that stops for nobody.
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
         var session = NewSession();
         await using var viewer = await fixture.ConnectAsync(session, "u1", "Alice");
 
@@ -147,7 +148,7 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
     {
         // Over the hub the clamp goes to the caller alone. An HTTP caller is the one thing a
         // broadcast cannot reach, so it comes back in the answer.
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
         var session = NewSession();
 
         await LoadAsync(client, session, SessionFixture.TranscodingTitle);
@@ -163,7 +164,7 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task A_seek_inside_the_film_is_not_clamped()
     {
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
         var session = NewSession();
 
         await LoadAsync(client, session);
@@ -177,29 +178,28 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public async Task The_room_records_who_asked()
     {
-        var client = fixture.CreateServiceClient();
-        var session = NewSession();
-
-        await LoadAsync(client, session);
-        var paused = await PostAsync(client, session, "pause",
-            new RoomPlaybackRequest(AtSeconds: 10, UserId: "u9", DisplayName: "Haru"));
-
-        Assert.Equal("Haru", paused.Push.State.UpdatedBy?.DisplayName);
-        Assert.Equal("u9", paused.Push.State.UpdatedBy?.UserId);
-    }
-
-    [Fact]
-    public async Task A_control_naming_nobody_is_recorded_as_the_bot()
-    {
-        // Better than attributing it to whoever last touched the room: a change nobody asked for
-        // should not be signed with a person's name.
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient("u9", "Haru");
         var session = NewSession();
 
         await LoadAsync(client, session);
         var paused = await PostAsync(client, session, "pause", new RoomPlaybackRequest(AtSeconds: 10));
 
-        Assert.Equal("MovieBot", paused.Push.State.UpdatedBy?.DisplayName);
+        Assert.Equal("Haru", paused.Push.State.UpdatedBy?.DisplayName);
+        Assert.Equal("u9", paused.Push.State.UpdatedBy?.UserId);
+        Assert.Null(paused.Push.State.UpdatedBy?.Via);
+    }
+
+    [Fact]
+    public async Task A_film_loaded_by_machine_work_is_recorded_as_the_bot()
+    {
+        // Better than attributing it to whoever last touched the room: a change nobody asked for
+        // should not be signed with a person's name.
+        var session = NewSession();
+
+        await LoadAsync(fixture.CreateServiceClient(), session);
+        var state = fixture.Services.GetRequiredService<Api.Sessions.SessionStore>().GetOrCreate(session);
+
+        Assert.Equal("MovieBot", state.UpdatedBy?.DisplayName);
     }
 
     [Fact]
@@ -207,7 +207,7 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
     {
         // A client discards any state whose revision it has already seen, so a control that did not
         // advance it would be applied by nobody and look like the room ignoring the request.
-        var client = fixture.CreateServiceClient();
+        var client = fixture.CreatePersonClient();
         var session = NewSession();
 
         await LoadAsync(client, session);
@@ -242,7 +242,7 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
     private async Task LoadAsync(HttpClient client, string session, string title = SessionFixture.ReadyTitle)
     {
         var response = await client.PostAsJsonAsync(
-            $"/api/sessions/{session}/title", new SetTitleRequest(title, null, null), AsTheBotWritesIt);
+            $"/api/sessions/{session}/title", new SetTitleRequest(title), AsTheBotWritesIt);
         response.EnsureSuccessStatusCode();
     }
 

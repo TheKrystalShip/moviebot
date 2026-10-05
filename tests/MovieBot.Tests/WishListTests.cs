@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
+using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Api.Acquisition;
 using Xunit;
 
@@ -7,7 +8,8 @@ namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
 /// A wish exists nowhere but the API's wish list, so what matters is that it comes back the
-/// same from disk and that people are only ever dropped by being told.
+/// same from disk, that people are only ever dropped by stopping waiting, and that a film that came
+/// out says so for as long as anybody waits on it.
 /// </summary>
 public sealed class WishListTests : IDisposable
 {
@@ -25,10 +27,7 @@ public sealed class WishListTests : IDisposable
         PosterUrl = new Uri("https://m.media-amazon.com/images/M/MV5BZmM3._V1_.jpg"),
     };
 
-    private static WishSubscriber Person(ulong user, ulong channel = 1) => new()
-    {
-        UserId = user, ChannelId = channel, AskedAt = DateTimeOffset.UnixEpoch,
-    };
+    private static WishSubscriber Person(string user) => new() { UserId = user, AskedAt = DateTimeOffset.UnixEpoch };
 
     private WishList List() => new(File, NullLogger<WishList>.Instance);
 
@@ -37,21 +36,21 @@ public sealed class WishListTests : IDisposable
     {
         var list = List();
 
-        var (first, _) = list.Add(Prada, Person(10));
-        var (second, wish) = list.Add(Prada, Person(20));
-        var (again, _) = list.Add(Prada, Person(10));
+        var (first, _) = list.Add(Prada, Person("local:usr_10"));
+        var (second, wish) = list.Add(Prada, Person("local:usr_20"));
+        var (again, _) = list.Add(Prada, Person("local:usr_10"));
 
         Assert.Equal(WishAdded.Subscribed, first);
         Assert.Equal(WishAdded.Subscribed, second);
         Assert.Equal(WishAdded.AlreadySubscribed, again);
         Assert.Single(list.All());
-        Assert.Equal([10UL, 20UL], wish.Subscribers.Select(s => s.UserId));
+        Assert.Equal(["local:usr_10", "local:usr_20"], wish.Subscribers.Select(s => s.UserId));
     }
 
     [Fact]
     public void What_was_written_is_what_is_read_back()
     {
-        List().Add(Prada, Person(10, channel: 77));
+        List().Add(Prada, Person("local:usr_10"));
 
         var restored = List().All();
 
@@ -60,47 +59,40 @@ public sealed class WishListTests : IDisposable
         Assert.Equal("The Devil Wears Prada 2 (2026)", wish.Display);
         Assert.Equal("Meryl Streep, Anne Hathaway", wish.Starring);
         Assert.Equal(Prada.PosterUrl!.ToString(), wish.PosterUrl);
-        var person = Assert.Single(wish.Subscribers);
-        Assert.Equal(77UL, person.ChannelId);
+        Assert.Equal("local:usr_10", Assert.Single(wish.Subscribers).UserId);
     }
 
     [Fact]
     public void A_wish_goes_with_its_last_subscriber_and_not_before()
     {
         var list = List();
-        list.Add(Prada, Person(10));
-        list.Add(Prada, Person(20));
+        list.Add(Prada, Person("10"));
+        list.Add(Prada, Person("20"));
 
-        Assert.NotNull(list.Remove(10, "tt33612209"));
+        Assert.NotNull(list.Remove("10", "tt33612209"));
         Assert.Single(list.All());
-        Assert.Empty(list.For(10));
-        Assert.Single(list.For(20));
+        Assert.Empty(list.For("10"));
+        Assert.Single(list.For("20"));
 
-        Assert.Null(list.Remove(10, "tt33612209"));
+        Assert.Null(list.Remove("10", "tt33612209"));
 
-        Assert.NotNull(list.Remove(20, "TT33612209"));
+        Assert.NotNull(list.Remove("20", "TT33612209"));
         Assert.Empty(List().All());
     }
 
-    /// <summary>
-    /// Whoever asked in a channel the announcement could not reach stays on the list, so the next
-    /// pass tries them again rather than losing them.
-    /// </summary>
     [Fact]
-    public void Forgetting_by_channel_keeps_whoever_was_not_told()
+    public void A_film_that_came_out_says_so_until_nobody_waits_on_it()
     {
         var list = List();
-        list.Add(Prada, Person(10, channel: 1));
-        list.Add(Prada, Person(20, channel: 2));
-        list.Add(Prada, Person(30, channel: 1));
+        list.Add(Prada, Person("10"));
+        var release = new Release { TorrentId = 7, ReleaseName = "The.Devil.Wears.Prada.2.2026.1080p.WEB-GRP", Title = "The Devil Wears Prada 2" };
 
-        list.Forget("tt33612209", new HashSet<ulong> { 1 });
+        Assert.Null(list.OutAs("tt33612209"));
+        list.MarkOut("tt33612209", release);
+        Assert.Same(release, list.OutAs("tt33612209"));
 
-        var wish = Assert.Single(List().All());
-        Assert.Equal([20UL], wish.Subscribers.Select(s => s.UserId));
-
-        list.Forget("tt33612209", new HashSet<ulong> { 2 });
-        Assert.Empty(List().All());
+        list.Remove("10", "tt33612209");
+        Assert.Null(list.OutAs("tt33612209"));
     }
 
     [Fact]

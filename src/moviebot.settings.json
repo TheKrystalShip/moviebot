@@ -21,6 +21,25 @@
     "GuildIds": []
   },
 
+  // The OpenID Connect provider people sign in with; MovieBot signs nobody in. Issuer is the
+  // provider's issuer, exactly as its tokens carry it, and has no default: the API records it the first
+  // time it starts and refuses another until AdoptIssuer names it (an empty IssuerRecord is the file
+  // `issuer` in the state directory). Access tokens are taken for Audience alone and list a person's
+  // Cinema actions in ActionsClaim. The site signs in as the public client SiteClientId; the API
+  // exchanges the Activity's Discord token as ActivityClientId and the bot a Discord user as
+  // BotClientId, each a confidential client whose secret is set only in the environment, as
+  // Oidc__ActivityClientSecret and Oidc__BotClientSecret.
+  "Oidc": {
+    "Issuer": "",
+    "Audience": "cinema",
+    "ActionsClaim": "tks_actions",
+    "SiteClientId": "cinema-site",
+    "ActivityClientId": "cinema-activity",
+    "BotClientId": "cinema-bot",
+    "AdoptIssuer": "",
+    "IssuerRecord": ""
+  },
+
   // Where people reach this host: the https address the Activity is mapped to.
   "Player": {
     "BaseUrl": ""
@@ -138,15 +157,14 @@
     "MinimumSource": "Web"
   },
 
-  // What the API keeps about each person: how they watch (Preferences), what each Discord id is
-  // called (Directory), what they have watched and when each film was last played (Watch), and the
-  // devices they are signed in on (Devices). An empty value writes preferences.json, people.json,
-  // watch.json and devices.json in the state directory.
+  // What the API keeps about each person, by the account the provider names them by: how they watch
+  // (Preferences), what each account is called (Directory), and what they have watched and when each
+  // film was last played (Watch). An empty value writes preferences.json, people.json and watch.json in
+  // the state directory.
   "People": {
     "Preferences": "",
     "Directory": "",
-    "Watch": "",
-    "Devices": ""
+    "Watch": ""
   },
 
   // Watch now: how many films may be watched while they are still arriving (MaxStreams). Each is a
