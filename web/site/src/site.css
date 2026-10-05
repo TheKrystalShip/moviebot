@@ -150,12 +150,6 @@ button { font-family: inherit; }
 }
 .kc-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255, 255, 255, 0.25); }
 .kc-bar > span { display: block; height: 100%; background: var(--krystal-teal); }
-.kc-history__bar {
-  position: static; width: 140px; flex-shrink: 0; border-radius: 999px; overflow: hidden;
-  background: var(--surface-3);
-}
-.kc-history__bar.is-done > span { background: var(--fg-4); }
-@media (max-width: 720px) { .kc-history__bar { display: none; } }
 .kc-segmented {
   display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--r-sm);
   background: var(--surface-2); border: 1px solid var(--border-subtle);
@@ -296,8 +290,8 @@ button { font-family: inherit; }
 }
 .kc-hit__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 /* A card's cast line is text alone, which ends in an ellipsis only as a block. */
-.kc-found .showcase-card__status:not([class*="--"]) { display: block; }
-.kc-found__skel-foot { display: grid; gap: 14px; padding: 12px 14px 16px; }
+.kc-card .showcase-card__status:not([class*="--"]) { display: block; }
+.kc-card-skel__foot { display: grid; gap: 14px; padding: 12px 14px 16px; }
 .kc-pill--here { gap: 5px; border-color: transparent; background: var(--success-bg); color: var(--success-fg); }
 @media (max-width: 720px) {
   .kc-hit__grid {
@@ -376,18 +370,10 @@ button { font-family: inherit; }
   display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: var(--r-sm);
   border: 1px solid var(--border-subtle); background: var(--surface-1);
 }
-.kc-row__thumb { width: 44px; flex-shrink: 0; aspect-ratio: 2 / 3; border-radius: 6px; object-fit: cover; background: var(--surface-2); }
-.kc-row__thumb.kc-poster-art .kc-poster-art__name { display: none; }
-.kc-row__icon {
-  width: 34px; height: 34px; flex-shrink: 0; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center;
-  background: var(--surface-2); color: var(--success);
-}
-.kc-row__icon--live { color: var(--krystal-teal); animation: kc-pulse 1.6s ease-in-out infinite; }
 .kc-row__text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
 .kc-row__title { font-size: 14px; font-weight: 600; display: flex; align-items: center; }
 a.kc-row__title:hover { color: var(--krystal-teal-hover); }
 .kc-row__sub { font-size: 12.5px; color: var(--fg-3); display: inline-flex; gap: 6px; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@keyframes kc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 @media (max-width: 720px) {
   .kc-row { flex-wrap: wrap; }
   .kc-row__text { flex-basis: 55%; }
@@ -643,7 +629,6 @@ button.kc-episode:disabled { cursor: progress; }
   border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface-1); box-shadow: var(--shadow-pop);
 }
 .kc-follow__option { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 10px; font-size: 14px; cursor: pointer; }
-.kc-follow__option--row { padding: 0; color: var(--fg-2); font-size: 13px; }
 .kc-follow__unfollow {
   display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px; border: none; border-top: 1px solid var(--border-subtle);
   background: transparent; color: var(--fg-2); font: inherit; font-size: 14px; cursor: pointer; text-align: left;
@@ -659,11 +644,11 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-save__name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .kc-save__name svg { color: var(--fg-3); flex-shrink: 0; }
 .kc-save__new { display: flex; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--border-subtle); }
-.kc-save__new input, .kc-list-rename input, .kc-list-note input {
+.kc-save__new input, .kc-list-rename input, .kc-list-note__text {
   flex: 1; min-width: 0; height: 40px; padding: 0 12px; border-radius: var(--r-sm);
   border: 1px solid var(--border-strong); background: var(--surface-0); color: var(--fg-1); font: inherit; font-size: 14px;
 }
-.kc-save__new input:focus, .kc-list-rename input:focus, .kc-list-note input:focus { outline: none; border-color: var(--border-accent); }
+.kc-save__new input:focus, .kc-list-rename input:focus, .kc-list-note__text:focus { outline: none; border-color: var(--border-accent); }
 .kc-drawer .kc-follow__option { padding: 14px 16px; }
 
 .kc-lists { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
@@ -692,12 +677,8 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-list-rename { display: flex; gap: 8px; align-items: center; }
 .kc-list-rename input { height: 44px; font-size: 20px; font-weight: 700; min-width: min(360px, 60vw); }
 .kc-list-group { display: flex; flex-direction: column; gap: 10px; }
+.kc-list-note__text { height: auto; padding: 10px 12px; resize: vertical; line-height: 1.5; }
 .kc-list-group__head { margin: 6px 0 0; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); }
-.kc-list-entry .kc-row__sub .kc-pill { height: 20px; padding: 0 7px; font-size: 11px; }
-.kc-list-entry__note { font-size: 13px; color: var(--fg-2); white-space: pre-wrap; overflow-wrap: anywhere; }
-.kc-list-entry__actions { display: flex; gap: 6px; margin-left: auto; }
-.kc-list-entry__actions .kc-btn { width: 36px; height: 36px; padding: 0; justify-content: center; }
-.kc-list-note { display: flex; gap: 8px; margin-top: 4px; }
 
 .kc-people { display: flex; flex-direction: column; padding: 8px 22px 16px; overflow-y: auto; }
 .kc-people__row { display: flex; align-items: center; gap: 10px; min-height: 48px; border-bottom: 1px solid var(--border-subtle); }
@@ -706,10 +687,6 @@ button.kc-episode:disabled { cursor: progress; }
 @media (max-width: 720px) {
   .kc-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .kc-list-actions { margin-left: 0; }
-  .kc-row.kc-list-entry { flex-wrap: nowrap; align-items: flex-start; }
-  .kc-list-entry .kc-row__text { flex-basis: auto; }
-  .kc-list-entry__actions { flex-direction: column; }
-  .kc-list-note { flex-wrap: wrap; }
   .kc-people__add { grid-template-columns: minmax(0, 1fr) auto; }
   .kc-people__add .k-select:first-child { grid-column: 1 / -1; }
 }

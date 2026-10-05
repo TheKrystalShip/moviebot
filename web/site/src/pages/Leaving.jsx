@@ -1,16 +1,17 @@
-import { Icon, toast } from "@thekrystalship/krystal-ui";
-import { api, filmName } from "../api.js";
+import { ShowcaseCard, toast } from "@thekrystalship/krystal-ui";
+import { api, filmName, posterUrl } from "../api.js";
 import { SOON_DAYS, leaveRule, stayWords, useLoad } from "../data.js";
 import { useCan, useSession } from "../session.js";
 import { ago } from "../time.js";
-import { Empty, Failed, PageHead, PosterArt } from "../components/Film.jsx";
+import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
+import { CardsSkeleton } from "../components/TitleCards.jsx";
 import { moviePath, showPath } from "../paths.js";
-import { linkProps } from "../router.js";
+import { navigate } from "../router.js";
 
 /** A film by its name; a season of a show, which stays and leaves as one, by the show's and its number. */
 function unitName(title) {
-  return title.episode && title.film && title.film.name
-    ? `${title.film.name} · Season ${title.episode.season}` : filmName(title);
+  if (title.episode && title.film && title.film.name) return `${title.film.name} · Season ${title.episode.season}`;
+  return (title.film && title.film.name) || filmName(title);
 }
 
 function unitHref(title) {
@@ -54,6 +55,7 @@ export function Leaving() {
     <div className="kc-page">
       <PageHead title="Leaving soon" sub={leaveRule(all[0])} />
       <Failed error={stays.error} onRetry={stays.reload} />
+      {!stays.data && !stays.error && <CardsSkeleton count={6} />}
       {stays.data && all.length === 0 && <Empty icon="hourglass" title="Nothing on the clock" />}
 
       {groups.filter((g) => g.rows.length > 0).map((group) => (
@@ -61,21 +63,40 @@ export function Leaving() {
           <div className="kc-shelf__head">
             <h2 className={group.tone ? "kc-tone--" + group.tone : ""}>{group.label}<span className="kc-count">{group.rows.length}</span></h2>
           </div>
-          <div className="kc-rows">
+          <div className="kc-grid">
             {group.rows.map((row) => {
               const title = byId.get(row.titleId);
+              const poster = posterUrl(title);
+              const d = title.details;
+              const kept = !!row.keeperId;
               return (
-                <div key={row.unit || row.titleId} className="kc-row">
-                  <a {...linkProps(unitHref(title))}><PosterArt title={title} className="kc-row__thumb" /></a>
-                  <div className="kc-row__text">
-                    <span className="kc-row__title">{unitName(title)}</span>
-                    <span className="kc-row__sub">{row.lastPlayedAt ? `Last played ${ago(row.lastPlayedAt)}` : "Not played yet"}</span>
-                  </div>
-                  <span className={"kc-pill" + (group.id === "soon" ? " kc-pill--warn" : "")}>{stayWords(row, me)}</span>
-                  {keeping && (row.keeperId
-                    ? <button type="button" className="kc-btn kc-btn--ghost" onClick={() => act(row, false)}><Icon name="pin-off" size={15} />Let go</button>
-                    : <button type="button" className="kc-btn" onClick={() => act(row, true)}><Icon name="pin" size={15} />Keep</button>)}
-                </div>
+                <ShowcaseCard
+                  key={row.unit || row.titleId}
+                  className="kc-card"
+                  name={unitName(title)}
+                  art={poster ? `url("${poster}")` : null}
+                  onPick={() => navigate(unitHref(title))}
+                  specs={[
+                    { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
+                    { icon: "calendar", value: (title.film && title.film.year) || null, label: "Year" },
+                    { icon: kept ? "pin" : "hourglass", value: kept ? "Kept" : row.daysLeft != null ? `${row.daysLeft}d` : null, label: kept ? "Stays" : "Left" },
+                  ]}
+                  status={kept
+                    ? { tone: "success", icon: "bookmark-check", label: stayWords(row, me) }
+                    : {
+                      tone: group.id === "soon" ? "warning" : null,
+                      icon: "play",
+                      label: row.lastPlayedAt ? `Played ${ago(row.lastPlayedAt)}` : "Never played",
+                      title: stayWords(row, me),
+                    }}
+                  action={title.status === "ready" && !title.episode
+                    ? { label: "Watch", onClick: () => navigate(watchHref(title.id)) }
+                    : { label: "View" }}
+                  tools={keeping ? [{
+                    icon: kept ? "pin-off" : "pin", on: kept,
+                    label: kept ? `Let ${unitName(title)} go` : `Keep ${unitName(title)}`,
+                    onClick: () => act(row, !kept),
+                  }] : null} />
               );
             })}
           </div>

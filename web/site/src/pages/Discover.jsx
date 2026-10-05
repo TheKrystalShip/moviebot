@@ -10,6 +10,7 @@ import { FilmActions } from "../components/FilmActions.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
 import { RequestSheet } from "../components/RequestSheet.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
+import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
 import { openingEpisode, watchOpening } from "../watchNow.js";
 
 /** The class the page's field carries, so the shortcut that opens the page can find it. */
@@ -187,12 +188,6 @@ function PopularCard({ entry, show = false, here, held }) {
   );
 }
 
-/** Where a found film or show leads: the library's own page when it is here, its catalogue page when not. */
-function foundPage(found, here, held) {
-  if (found.kind === "show") return showPath(found.imdbId, { held });
-  return here ? moviePath(here.id) : discoverFilmPath(found.imdbId);
-}
-
 /**
  * The catalogue's first answer to a name, which is usually the one meant: large enough to recognise,
  * with its cast to tell it from another of the same name, and the actions its own page offers, asked
@@ -301,31 +296,6 @@ function ShowMatchActions({ found, shelf }) {
   );
 }
 
-/** Any other answer, as a poster card: its rating, year, whether it is a film or a show, and its cast. */
-function FoundCard({ found, here, held }) {
-  const show = found.kind === "show";
-  const inLibrary = show ? held : !!here;
-  const playable = here && here.status === "ready";
-  return (
-    <ShowcaseCard
-      className="kc-found"
-      name={found.title}
-      art={found.posterUrl ? `url("${found.posterUrl}")` : null}
-      onPick={() => navigate(foundPage(found, here, held))}
-      specs={[
-        { icon: "star", value: found.rating != null ? found.rating.toFixed(1) : null, label: "Rating" },
-        { icon: "calendar", value: found.year || null, label: "Year" },
-        { icon: show ? "tv" : "clapperboard", value: show ? "Series" : "Movie", label: "Type" },
-      ]}
-      status={inLibrary
-        ? { tone: "success", icon: "check", label: "In the library" }
-        : found.starring ? { label: found.starring, title: found.starring } : null}
-      action={playable
-        ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) }
-        : { label: inLibrary ? "Open" : "View" }} />
-  );
-}
-
 /** The frame of the results while the catalogue is asked, so they settle in place. */
 function ResultsSkeleton() {
   return (
@@ -342,17 +312,7 @@ function ResultsSkeleton() {
           </div>
         </div>
       </div>
-      <div className="kc-grid" aria-hidden="true">
-        {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className="skel-card">
-            <Skeleton className="skel-card__art" h="auto" r={0} style={{ aspectRatio: "2 / 3" }} />
-            <div className="kc-found__skel-foot">
-              <Skeleton h={30} />
-              <Skeleton w="70%" h={12} />
-            </div>
-          </div>
-        ))}
-      </div>
+      <CardsSkeleton count={6} />
     </>
   );
 }
@@ -437,7 +397,7 @@ function Offer({ offer, best }) {
 }
 
 /** A film the catalogue knows and the tracker has nothing of yet; waiting on it is offered to whoever may wish. */
-export function NotOutYet({ film, explanation }) {
+function NotOutYet({ film, explanation }) {
   const wishing = useCan("cinema:wish");
   const [asked, setAsked] = React.useState(false);
 

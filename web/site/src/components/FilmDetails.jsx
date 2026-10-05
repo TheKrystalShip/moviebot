@@ -19,16 +19,6 @@ export function initials(name) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 }
 
-/**
- * The poster the API keeps for a film by its IMDb id, for a film that is not in the library. Nothing
- * kept is an empty frame rather than a broken image.
- */
-export function KeptPoster({ imdbId, className = "kc-row__thumb" }) {
-  const [failed, setFailed] = React.useState(false);
-  if (!imdbId || failed) return <span className={className} />;
-  return <img className={className} src={`/films/${encodeURIComponent(imdbId)}/poster.jpg`} alt="" loading="lazy" onError={() => setFailed(true)} />;
-}
-
 /** The film database's rating, and that it is the database's. */
 export function FilmScore({ rating, votes: count, compact = false }) {
   if (!rating) return null;

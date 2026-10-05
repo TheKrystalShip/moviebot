@@ -104,6 +104,7 @@ public sealed class Downloads(
                 Name = title?.Film?.Display ?? title?.Title ?? ReleaseParser.ParseName(d.Name).Display,
                 Release = d.Name,
                 Summary = d.Summary,
+                Progress = d.Progress,
                 IsFinished = d.IsFinished,
                 IsWatchable = d.Tags.Contains(TorrentTags.Watchable),
                 LibraryId = libraryId,

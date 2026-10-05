@@ -1,7 +1,7 @@
 import React from "react";
-import { Icon, Select, SettingsRow, SettingsSection, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal-ui";
+import { Icon, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal-ui";
 import { KIND } from "../notifications.js";
-import { api, episodeCode, filmName } from "../api.js";
+import { api, episodeCode, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
 import { can, useCan, useSession } from "../session.js";
 import { leave, openAccount } from "../leave.js";
@@ -9,8 +9,8 @@ import { PROFILE_TAB_FACES } from "../nav.js";
 import { moviePath, profilePath, savedPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { ago, airDay } from "../time.js";
-import { Empty, Failed, PageHead, PosterArt } from "../components/Film.jsx";
-import { KeptPoster } from "../components/FilmDetails.jsx";
+import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
+import { CardsSkeleton, WishCard, keptArt } from "../components/TitleCards.jsx";
 import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
 
@@ -70,31 +70,41 @@ function History() {
   return (
     <section className="kc-shelf">
       <Failed error={history.error} onRetry={history.reload} />
+      {!history.data && !history.error && <CardsSkeleton count={6} />}
       {history.data && rows.length === 0 && <Empty icon="history" title="Nothing watched yet" />}
-      <div className="kc-rows">
-        {rows.map((row) => {
-          const title = byId.get(row.titleId);
-          const href = moviePath(row.titleId);
-          const fraction = row.finished ? 1 : Math.min(1, row.positionSeconds / Math.max(1, row.durationSeconds));
-          const how = row.finished ? "Watched" : `${Math.round(100 * fraction)}% watched`;
-          return (
-            <div key={row.titleId} className="kc-row">
-              <a {...linkProps(href)}><PosterArt title={title || { id: row.titleId, title: row.name }} className="kc-row__thumb" /></a>
-              <div className="kc-row__text">
-                <a className="kc-row__title" {...linkProps(href)}>{title ? filmName(title) : row.name}</a>
-                <span className="kc-row__sub">{how} · {ago(row.lastWatchedAt)}</span>
-              </div>
-              <span className={"kc-bar kc-history__bar" + (row.finished ? " is-done" : "")} aria-hidden="true">
-                <span style={{ width: `${Math.round(100 * fraction)}%` }} />
-              </span>
-              <button type="button" className="kc-btn kc-btn--ghost kc-btn--icon" aria-label={`Remove ${row.name} from your history`} title="Remove from history" onClick={() => forget(row)}>
-                <Icon name="x" size={15} />
-              </button>
-            </div>
-          );
-        })}
-      </div>
+      {rows.length > 0 && (
+        <div className="kc-grid">
+          {rows.map((row) => <HistoryCard key={row.titleId} row={row} title={byId.get(row.titleId)} onForget={forget} />)}
+        </div>
+      )}
     </section>
+  );
+}
+
+/** One thing watched: how far, when, and Watch or Resume where it is still here. */
+function HistoryCard({ row, title, onForget }) {
+  const fraction = row.finished ? 1 : Math.min(1, row.positionSeconds / Math.max(1, row.durationSeconds));
+  const poster = title && posterUrl(title);
+  const d = title && title.details;
+  const ready = title && title.status === "ready";
+  const name = !title ? row.name : title.episode || !title.film || !title.film.name ? filmName(title) : title.film.name;
+  return (
+    <ShowcaseCard
+      className="kc-card"
+      name={name}
+      art={poster ? `url("${poster}")` : null}
+      onPick={() => navigate(moviePath(row.titleId))}
+      progress={fraction}
+      specs={[
+        { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
+        { icon: "calendar", value: (title && title.film && title.film.year) || null, label: "Year" },
+        { icon: row.finished ? "check" : "history", value: row.finished ? "All" : `${Math.round(100 * fraction)}%`, label: "Watched" },
+      ]}
+      status={{ icon: "history", label: ago(row.lastWatchedAt), title: new Date(row.lastWatchedAt).toLocaleString() }}
+      action={ready
+        ? { label: row.finished ? "Watch again" : "Resume", onClick: () => navigate(watchHref(row.titleId, null, row.finished ? 0 : row.positionSeconds)) }
+        : { label: "View" }}
+      tools={[{ icon: "x", label: `Remove ${row.name} from your history`, tone: "danger", onClick: () => onForget(row) }]} />
   );
 }
 
@@ -125,47 +135,53 @@ function Requests({ session }) {
       {wishing && <section className="kc-shelf">
         <div className="kc-shelf__head"><h2>Waiting on</h2></div>
         <Failed error={wishes.error} onRetry={wishes.reload} />
+        {!wishes.data && !wishes.error && <CardsSkeleton count={4} />}
         {wishes.data && mine.length === 0 && <Empty icon="bell" title="Nothing yet">A film that is not out yet can be waited on from Notify me.</Empty>}
-        <div className="kc-rows">
-          {mine.map((wish) => {
-            const asked = wish.subscribers.find((s) => s.userId === user.id);
-            return (
-              <div key={wish.imdbId} className="kc-row">
-                <KeptPoster imdbId={wish.imdbId} />
-                <div className="kc-row__text">
-                  <span className="kc-row__title">{wish.display}</span>
-                  <span className="kc-row__sub">Asked {ago(asked.askedAt)}</span>
-                </div>
-                <button type="button" className="kc-btn kc-btn--ghost" onClick={() => cancel(wish)}>
-                  <Icon name="bell-off" size={16} />Stop waiting
-                </button>
-              </div>
-            );
-          })}
-        </div>
+        {mine.length > 0 && (
+          <div className="kc-grid">
+            {mine.map((wish) => {
+              const asked = wish.subscribers.find((s) => s.userId === user.id);
+              return (
+                <WishCard key={wish.imdbId} wish={wish} downloading={downloading} onStop={cancel}
+                  status={wish.release ? null : { icon: "bell", label: `Asked ${ago(asked.askedAt)}` }} />
+              );
+            })}
+          </div>
+        )}
       </section>}
 
       {downloading && <section className="kc-shelf">
         <div className="kc-shelf__head"><h2>Downloads</h2></div>
         <Failed error={downloads.error} onRetry={downloads.reload} />
+        {!downloads.data && !downloads.error && <CardsSkeleton count={4} />}
         {downloads.data && rows.length === 0 && <Empty icon="download" title="Nothing downloading" />}
-        <div className="kc-rows">
-          {rows.map((d) => (
-            <div key={d.hash} className="kc-row">
-              <span className={"kc-row__icon" + (d.isFinished ? "" : " kc-row__icon--live")}>
-                <Icon name={d.isFinished ? "check" : "download"} size={16} />
-              </span>
-              <div className="kc-row__text">
-                {d.libraryId
-                  ? <a className="kc-row__title" {...linkProps(moviePath(d.libraryId))}>{d.name}</a>
-                  : <span className="kc-row__title">{d.name}</span>}
-                <span className="kc-row__sub">{d.summary}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+        {rows.length > 0 && (
+          <div className="kc-grid">
+            {rows.map((d) => <DownloadCard key={d.hash} download={d} />)}
+          </div>
+        )}
       </section>}
     </>
+  );
+}
+
+/** A download this person asked for: how far it has got, and Watch once enough of it is here. */
+function DownloadCard({ download: d }) {
+  const watchable = d.libraryId && (d.isFinished || d.isWatchable);
+  return (
+    <ShowcaseCard
+      className="kc-card"
+      name={d.name}
+      art={keptArt(d.imdbId)}
+      onPick={() => { if (d.libraryId) navigate(moviePath(d.libraryId)); }}
+      progress={d.isFinished ? 1 : d.progress}
+      specs={[]}
+      status={d.isFinished
+        ? { tone: "success", icon: "check", label: "Downloaded" }
+        : { tone: "active", live: true, icon: "download", label: d.summary, title: d.release }}
+      action={watchable
+        ? { label: "Watch", onClick: () => navigate(watchHref(d.libraryId)) }
+        : d.libraryId ? { label: "View" } : null} />
   );
 }
 
@@ -196,35 +212,39 @@ function Following() {
   return (
     <section className="kc-shelf">
       <Failed error={follows.error} onRetry={follows.reload} />
+      {!follows.data && !follows.error && <CardsSkeleton count={4} />}
       {follows.data && rows.length === 0 && <Empty icon="tv" title="Not following anything">Follow a show from its page to hear when a new episode is out.</Empty>}
-      <div className="kc-rows">
-        {rows.map((row) => {
-          const href = showPath(row.imdbId);
-          const next = row.nextEpisode;
-          return (
-            <div key={row.imdbId} className="kc-row">
-              <a {...linkProps(href)}>
-                {row.posterUrl
-                  ? <img className="kc-row__thumb" src={row.posterUrl} alt="" loading="lazy" />
-                  : <PosterArt title={{ id: row.imdbId, title: row.title }} className="kc-row__thumb" />}
-              </a>
-              <div className="kc-row__text">
-                <a className="kc-row__title" {...linkProps(href)}>{row.title}</a>
-                {next && <span className="kc-row__sub">Next episode: {episodeCode({ season: next.season, number: next.episode })} · {airDay(next.airDate)}</span>}
-              </div>
-              {downloading && (
-                <label className="kc-follow__option kc-follow__option--row">
-                  <span>Download new episodes</span>
-                  <Toggle on={row.autoDownload} label={`Download new episodes of ${row.title} automatically`} onChange={(on) => setAuto(row, on)} />
-                </label>
-              )}
-              <button type="button" className="kc-btn kc-btn--ghost" onClick={() => unfollow(row)}>
-                <Icon name="bell-off" size={16} />Unfollow
-              </button>
-            </div>
-          );
-        })}
-      </div>
+      {rows.length > 0 && (
+        <div className="kc-grid">
+          {rows.map((row) => {
+            const next = row.nextEpisode;
+            const tools = [
+              ...(downloading ? [{
+                icon: "download", on: row.autoDownload,
+                label: row.autoDownload ? `New episodes of ${row.title} are downloaded` : `Download new episodes of ${row.title}`,
+                onClick: () => setAuto(row, !row.autoDownload),
+              }] : []),
+              { icon: "bell-off", label: `Unfollow ${row.title}`, onClick: () => unfollow(row) },
+            ];
+            return (
+              <ShowcaseCard
+                key={row.imdbId}
+                className="kc-card"
+                name={row.title}
+                art={row.posterUrl ? `url("${row.posterUrl}")` : keptArt(row.imdbId)}
+                onPick={() => navigate(showPath(row.imdbId))}
+                specs={[
+                  { icon: "calendar-clock", value: next ? episodeCode({ season: next.season, number: next.episode }) : null, label: "Next" },
+                  { icon: "calendar", value: next ? airDay(next.airDate) : null, label: "Airs" },
+                  { icon: "download", value: row.autoDownload ? "On" : "Off", label: "Auto" },
+                ]}
+                status={{ icon: "bell", label: `Since ${ago(row.since)}`, title: next && next.name ? next.name : undefined }}
+                action={{ label: "View" }}
+                tools={tools} />
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

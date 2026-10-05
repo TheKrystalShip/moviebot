@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-10-05
+
+### Changed
+
+- **Every list of titles is poster cards.** Notify me, History, Requests (waiting on and downloads),
+  Following, Leaving soon and each saved list draw a krystal-ui `ShowcaseCard` per title in the
+  site's poster grid, with a skeleton of the grid while it loads. What a row did besides opening the
+  title is on the card's tools: remove from history, stop waiting, unfollow, switch automatic
+  downloads, keep or let go, write a note and take a title off a list; a note is written in a sheet
+  over the page. History and downloads carry their progress along the poster's foot. Notify me finds
+  a film with Discover's result cards, waited on from its page. Site 0.30.0, on krystal-ui 0.10.0.
+- **`DownloadView` carries `progress`**, from 0 to 1, which a download's card draws. Core 2.1.0, Api 2.4.0.
+
 ## [2.4.0] - 2026-10-05
 
 ### Added

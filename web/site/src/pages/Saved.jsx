@@ -10,7 +10,6 @@ import { linkProps, navigate } from "../router.js";
 import { useSession } from "../session.js";
 import { ago, clock, dayGroup } from "../time.js";
 import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
-import { FilmScore } from "../components/FilmDetails.jsx";
 
 const count = (n) => `${n} ${n === 1 ? "title" : "titles"}`;
 
@@ -269,9 +268,9 @@ export function ListPage({ id }) {
       {groups.map((g) => (
         <section key={g.label || "all"} className="kc-list-group">
           {g.label && <h2 className="kc-list-group__head">{g.label}</h2>}
-          <div className="kc-rows">
+          <div className="kc-grid">
             {g.rows.map((e) => (
-              <EntryRow key={e.imdbId} entry={e} listId={list.id} editable={editable} shared={shared} onChange={view.reload} />
+              <EntryCard key={e.imdbId} entry={e} listId={list.id} editable={editable} shared={shared} onChange={view.reload} />
             ))}
           </div>
         </section>
@@ -282,64 +281,87 @@ export function ListPage({ id }) {
   );
 }
 
-function EntryRow({ entry: e, listId, editable, shared, onChange }) {
-  const [note, setNote] = React.useState(null);
-  const [busy, setBusy] = React.useState(false);
+function EntryCard({ entry: e, listId, editable, shared, onChange }) {
+  const [noting, setNoting] = React.useState(false);
 
-  const run = async (work, failure) => {
-    setBusy(true);
+  const remove = async () => {
     try {
-      await work();
+      await api.removeFromList(listId, e.imdbId);
+      toast.info(`Took ${e.title} off the list.`);
       onChange();
     } catch (error) {
-      toast.fromError(error, failure);
-    } finally {
+      toast.fromError(error, "Could not take it off");
+    }
+  };
+
+  const saved = `Saved ${ago(e.addedAt)}${shared ? ` by ${e.addedBy.name || "someone"}` : ""}`;
+  return (
+    <>
+      <ShowcaseCard
+        className="kc-card"
+        name={e.title}
+        art={e.posterUrl ? `url("${e.posterUrl}")` : null}
+        onPick={() => navigate(entryHref(e))}
+        badge={e.watched ? { tone: "info", label: "Watched" } : null}
+        specs={[
+          { icon: "star", value: e.rating ? e.rating.toFixed(1) : null, label: "Rating" },
+          { icon: "calendar", value: e.year || null, label: "Year" },
+          e.kind === "show"
+            ? { icon: "tv", value: "Series", label: "Type" }
+            : { icon: "clock", value: e.runtimeMinutes ? clock(e.runtimeMinutes * 60) : null, label: "Length" },
+        ]}
+        status={e.note
+          ? { icon: "message-square-text", label: e.note, title: `${e.note}\n${saved}` }
+          : { icon: "bookmark", label: saved, title: new Date(e.addedAt).toLocaleString() }}
+        action={e.libraryId && e.kind !== "show"
+          ? { label: "Watch", onClick: () => navigate(watchHref(e.libraryId)) }
+          : { label: "View" }}
+        tools={editable ? [
+          { icon: "message-square-text", label: e.note ? `Change the note on ${e.title}` : `Add a note to ${e.title}`, onClick: () => setNoting(true) },
+          { icon: "x", label: `Take ${e.title} off the list`, tone: "danger", onClick: remove },
+        ] : null} />
+      {noting && <NoteSheet entry={e} listId={listId} onClose={() => setNoting(false)} onSaved={() => { setNoting(false); onChange(); }} />}
+    </>
+  );
+}
+
+/** A saved title's note, written over the page: a card has no room to type in. */
+function NoteSheet({ entry: e, listId, onClose, onSaved }) {
+  const [note, setNote] = React.useState(e.note || "");
+  const [busy, setBusy] = React.useState(false);
+
+  const save = async (ev) => {
+    ev.preventDefault();
+    setBusy(true);
+    try {
+      await api.saveToList(listId, e.imdbId, e.kind, note.trim());
+      onSaved();
+    } catch (error) {
+      toast.fromError(error, "Could not save the note");
       setBusy(false);
     }
   };
 
-  const saveNote = (ev) => {
-    ev.preventDefault();
-    run(async () => { await api.saveToList(listId, e.imdbId, e.kind, note.trim()); setNote(null); }, "Could not save the note");
-  };
-  const remove = () => run(async () => {
-    await api.removeFromList(listId, e.imdbId);
-    toast.info(`Took ${e.title} off the list.`);
-  }, "Could not take it off");
-
-  const facts = [e.year, e.kind === "show" ? "Show" : null, e.runtimeMinutes ? clock(e.runtimeMinutes * 60) : null].filter(Boolean);
   return (
-    <div className="kc-row kc-list-entry">
-      {e.posterUrl ? <img className="kc-row__thumb" src={e.posterUrl} alt="" loading="lazy" /> : <span className="kc-row__thumb" />}
-      <div className="kc-row__text">
-        <a className="kc-row__title" {...linkProps(entryHref(e))}>{e.title}</a>
-        <span className="kc-row__sub">
-          {facts.join(" · ")}
-          {e.rating ? <FilmScore rating={e.rating} votes={0} compact /> : null}
-          {e.watched && <span className="kc-pill">watched</span>}
-        </span>
-        <span className="kc-row__sub" title={new Date(e.addedAt).toLocaleString()}>
-          Saved {ago(e.addedAt)}{shared && ` by ${e.addedBy.name || "someone"}`}
-        </span>
-        {note !== null ? (
-          <form className="kc-list-note" onSubmit={saveNote}>
-            <input autoFocus value={note} maxLength={500} onChange={(ev) => setNote(ev.target.value)} aria-label="Note" />
-            <button type="submit" className="kc-btn kc-btn--primary" disabled={busy}>Save</button>
-            <button type="button" className="kc-btn kc-btn--ghost" onClick={() => setNote(null)}>Cancel</button>
-          </form>
-        ) : e.note && <span className="kc-list-entry__note">{e.note}</span>}
-      </div>
-      {editable && note === null && (
-        <div className="kc-list-entry__actions">
-          <button type="button" className="kc-btn kc-btn--ghost" aria-label="Note" disabled={busy} onClick={() => setNote(e.note || "")}>
-            <Icon name="message-square-text" size={16} />
-          </button>
-          <button type="button" className="kc-btn kc-btn--ghost" aria-label="Remove" disabled={busy} onClick={remove}>
-            <Icon name="x" size={16} />
-          </button>
+    <Modal onClose={onClose} canClose={!busy} scrimClassName="kc-sheet-scrim">
+      <form className="kc-sheet" role="dialog" aria-label={`Note on ${e.title}`} onSubmit={save}>
+        <div className="kc-sheet__head">
+          <span className="kc-sheet__poster">{e.posterUrl && <img src={e.posterUrl} alt="" />}</span>
+          <div className="kc-sheet__title">
+            <span className="kc-eyebrow kc-eyebrow--muted">Note</span>
+            <span className="kc-sheet__name">{e.title}</span>
+          </div>
         </div>
-      )}
-    </div>
+        <div className="kc-sheet__body">
+          <textarea className="kc-list-note__text" autoFocus value={note} maxLength={500} rows={4}
+            onChange={(ev) => setNote(ev.target.value)} aria-label="Note" />
+          <div className="kc-actions">
+            <button type="submit" className="kc-btn kc-btn--primary" disabled={busy}>Save</button>
+            <button type="button" className="kc-btn kc-btn--ghost" disabled={busy} onClick={onClose}>Cancel</button>
+          </div>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

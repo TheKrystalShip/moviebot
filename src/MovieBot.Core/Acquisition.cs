@@ -143,6 +143,9 @@ public sealed record DownloadView
     /// <summary>How far it has got, in one line.</summary>
     public required string Summary { get; init; }
 
+    /// <summary>How much of it has arrived, from 0 to 1.</summary>
+    public double Progress { get; init; }
+
     public required bool IsFinished { get; init; }
 
     /// <summary>Enough has been transcoded to start watching while the rest arrives.</summary>
