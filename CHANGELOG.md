@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-10-05
+
+### Changed
+
+- **Profile tabs move like pages.** The tab strip answers at once and the tab chosen is prepared
+  under it, fading in once its first reads are answered, as a page navigated to does. A list still
+  reading after half a second holds one row of placeholder cards, Requests one row for both of its
+  shelves, and the scrolling column keeps its scrollbar's room, so nothing moves sideways.
+- **Every profile tab is one column at the page's width**, Notifications and the settings tabs
+  included.
+- **Playback is three tabs:** Playback (audio, quality, skipping intros), Subtitles (the language a
+  film starts in and how subtitles look) and Appearance (the theme). **Account** is a tab of its own,
+  with who is signed in and a link to the account's page at the provider, in place of the button in
+  the page's heading.
+- **The scrollbar is krystal-ui's**, the one the Control Panel draws. Site 0.31.0, on krystal-ui
+  0.11.0.
+
 ## [2.5.0] - 2026-10-05
 
 ### Changed

@@ -24,6 +24,9 @@ const FACES = {
   following: { icon: "tv", label: "Following" },
   notifications: { icon: "bell-ring", label: "Notifications" },
   playback: { icon: "play", label: "Playback" },
+  subtitles: { icon: "captions", label: "Subtitles" },
+  appearance: { icon: "palette", label: "Appearance" },
+  account: { icon: "user-cog", label: "Account" },
 };
 
 /** The profile's tabs in the order they are shown, each with its icon and name. */

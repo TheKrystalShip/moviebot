@@ -2,6 +2,9 @@
    this is the shelf, the film pages and the lists, set in those tokens. */
 
 html, body, #root { height: 100%; }
+/* The scrolling column keeps its scrollbar's room whether or not the page is taller than the screen,
+   so a page growing past it, or shrinking back, never moves the page sideways. */
+.app__main { scrollbar-gutter: stable; }
 body { margin: 0; background: var(--canvas); color: var(--fg-1); font-family: var(--font-ui); }
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; }
@@ -133,6 +136,8 @@ button { font-family: inherit; }
 /* Film cards carry three facts under the poster, and read clean down to about 165px wide. */
 .kc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
 @media (max-width: 430px) { .kc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
+/* Only the first row: every later row is laid out at no height and clipped. */
+.kc-grid--row { grid-auto-rows: 0; grid-template-rows: auto; row-gap: 0; overflow: hidden; }
 
 .kc-room { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .kc-room:hover .kc-poster-art { border-color: var(--border-strong); }
@@ -435,7 +440,9 @@ a.kc-row__title:hover { color: var(--krystal-teal-hover); }
 .kc-chat-card__name { flex: 1; min-width: 0; font-weight: 600; color: var(--fg-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kc-chat-card .kc-btn { height: 32px; padding: 0 12px; font-size: 13px; }
 
-.kc-profile .chat-brief { max-width: 760px; }
+/* Every tab of the profile is one column at the page's width, its sections spaced as the page's are. */
+.kc-profile__panel { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+@media (max-width: 720px) { .kc-profile__panel { gap: 22px; } }
 
 /* ── A show: its seasons and episodes ────────────────────────────────────────────────── */
 .kc-seasons { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

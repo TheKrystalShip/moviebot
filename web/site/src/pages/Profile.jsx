@@ -3,13 +3,14 @@ import { Icon, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, Them
 import { KIND } from "../notifications.js";
 import { api, episodeCode, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
-import { can, useCan, useSession } from "../session.js";
-import { leave, openAccount } from "../leave.js";
+import { accountUrl, can, useCan, useSession } from "../session.js";
+import { leave } from "../leave.js";
 import { PROFILE_TAB_FACES } from "../nav.js";
 import { moviePath, profilePath, savedPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { ago, airDay } from "../time.js";
 import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
+import { TabStage } from "../components/PageStage.jsx";
 import { CardsSkeleton, WishCard, keptArt } from "../components/TitleCards.jsx";
 import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
@@ -29,9 +30,6 @@ export function Profile({ tab: named }) {
   return (
     <div className="kc-page kc-profile">
       <PageHead title={user ? user.name : "Profile"} sub={user && user.username ? "@" + user.username : null}>
-        <button type="button" className="kc-btn kc-btn--ghost kc-head__action" onClick={openAccount}>
-          <Icon name="shield-user" size={16} />Account
-        </button>
         <button type="button" className="kc-btn kc-head__action" onClick={leave}>
           <Icon name="log-out" size={16} />Sign out
         </button>
@@ -42,13 +40,22 @@ export function Profile({ tab: named }) {
         <Icon name="chevron-right" size={18} />
       </a>
       <SubTabs tabs={TABS} active={tab} onChange={(id) => navigate(profilePath(id), { replace: true })} />
-      {tab === "history" && <History />}
-      {tab === "requests" && <Requests session={session} />}
-      {tab === "following" && <Following />}
-      {tab === "notifications" && <Notifications />}
-      {tab === "playback" && <Playback />}
+      <TabStage tab={tab} render={(shown) => <div className="kc-profile__panel">{panel(shown, session)}</div>} />
     </div>
   );
+}
+
+function panel(tab, session) {
+  switch (tab) {
+    case "requests": return <Requests session={session} />;
+    case "following": return <Following />;
+    case "notifications": return <Notifications />;
+    case "playback": return <Playback />;
+    case "subtitles": return <SubtitleLook />;
+    case "appearance": return <Appearance />;
+    case "account": return <Account session={session} />;
+    default: return <History />;
+  }
 }
 
 /** What this person watched, newest first, and how far they got. */
@@ -70,7 +77,7 @@ function History() {
   return (
     <section className="kc-shelf">
       <Failed error={history.error} onRetry={history.reload} />
-      {!history.data && !history.error && <CardsSkeleton count={6} />}
+      {!history.data && !history.error && <CardsSkeleton count={8} row />}
       {history.data && rows.length === 0 && <Empty icon="history" title="Nothing watched yet" />}
       {rows.length > 0 && (
         <div className="kc-grid">
@@ -130,12 +137,15 @@ function Requests({ session }) {
     }
   };
 
+  // Both shelves wait for both reads, behind one row of placeholders, so the tab draws once at its height.
+  const answered = (load) => Boolean(load.data || load.error);
+  if (!answered(wishes) || !answered(downloads)) return <CardsSkeleton count={8} row />;
+
   return (
     <>
       {wishing && <section className="kc-shelf">
         <div className="kc-shelf__head"><h2>Waiting on</h2></div>
         <Failed error={wishes.error} onRetry={wishes.reload} />
-        {!wishes.data && !wishes.error && <CardsSkeleton count={4} />}
         {wishes.data && mine.length === 0 && <Empty icon="bell" title="Nothing yet">A film that is not out yet can be waited on from Notify me.</Empty>}
         {mine.length > 0 && (
           <div className="kc-grid">
@@ -153,7 +163,6 @@ function Requests({ session }) {
       {downloading && <section className="kc-shelf">
         <div className="kc-shelf__head"><h2>Downloads</h2></div>
         <Failed error={downloads.error} onRetry={downloads.reload} />
-        {!downloads.data && !downloads.error && <CardsSkeleton count={4} />}
         {downloads.data && rows.length === 0 && <Empty icon="download" title="Nothing downloading" />}
         {rows.length > 0 && (
           <div className="kc-grid">
@@ -212,7 +221,7 @@ function Following() {
   return (
     <section className="kc-shelf">
       <Failed error={follows.error} onRetry={follows.reload} />
-      {!follows.data && !follows.error && <CardsSkeleton count={4} />}
+      {!follows.data && !follows.error && <CardsSkeleton count={8} row />}
       {follows.data && rows.length === 0 && <Empty icon="tv" title="Not following anything">Follow a show from its page to hear when a new episode is out.</Empty>}
       {rows.length > 0 && (
         <div className="kc-grid">
@@ -344,14 +353,23 @@ const languageName = (code) => {
   try { return new Intl.DisplayNames(undefined, { type: "language" }).of(code) || code; } catch { return code; }
 };
 
-/** How this person watches: the subtitle and audio language a film starts with, and its quality. */
-function Playback() {
+/** A language picker's options: `none` first, then the common languages and whatever is stored. */
+const languages = (current, none) => [
+  { value: "", label: none },
+  ...[...new Set([...LANGUAGES, ...(current ? [current] : [])])].map((code) => ({ value: code, label: languageName(code) })),
+];
+const orNull = (value) => value || null;
+
+/**
+ * This person's playback preferences as stored, and changing them: `change` saves a patch at once,
+ * `changeSoon` shows it at once and saves once the changing pauses, since a slider dragged across its
+ * range is one decision.
+ */
+function usePreferences() {
   const stored = useLoad(() => api.preferences(), []);
   const [saved, setSaved] = React.useState(null);
-  const styleSave = React.useRef(null);
+  const pending = React.useRef(null);
   const preferences = saved || stored.data;
-
-  if (!preferences) return <Failed error={stored.error} onRetry={stored.reload} />;
 
   const change = async (patch) => {
     try {
@@ -360,64 +378,103 @@ function Playback() {
       toast.fromError(error, "Could not save that");
     }
   };
-
-  // The preview follows every change at once; the save waits for the choosing to pause, since a
-  // slider dragged across its range is one decision.
-  const styleChange = (subtitleStyle) => {
-    const next = { ...preferences, subtitleStyle };
+  const changeSoon = (patch) => {
+    const next = { ...preferences, ...patch };
     setSaved(next);
-    clearTimeout(styleSave.current);
-    styleSave.current = setTimeout(() => {
+    clearTimeout(pending.current);
+    pending.current = setTimeout(() => {
       api.setPreferences(next).then(setSaved, (error) => toast.fromError(error, "Could not save that"));
     }, 600);
   };
+  return { preferences, stored, change, changeSoon };
+}
 
-  const languages = (current, none) => [
-    { value: "", label: none },
-    ...[...new Set([...LANGUAGES, ...(current ? [current] : [])])].map((code) => ({ value: code, label: languageName(code) })),
-  ];
+/** How a film starts for this person: its audio language, its quality, and whether intros are skipped. */
+function Playback() {
+  const { preferences, stored, change } = usePreferences();
+  if (!preferences) return <Failed error={stored.error} onRetry={stored.reload} />;
+
   const qualities = preferences.qualityHeight && !QUALITIES.some((q) => q.value === String(preferences.qualityHeight))
     ? [...QUALITIES, { value: String(preferences.qualityHeight), label: `${preferences.qualityHeight}p` }]
     : QUALITIES;
-  const orNull = (value) => value || null;
+
+  return (
+    <SettingsSection icon="play" title="Playback">
+      <SettingsRow icon="audio-lines" title="Audio" sub="Original is the language it was made in.">
+        <Select value={preferences.audioLanguage || ""} options={languages(preferences.audioLanguage, "Original")}
+          aria-label="Audio language" onChange={(e) => change({ audioLanguage: orNull(e.target.value) })} />
+      </SettingsRow>
+      <SettingsRow icon="gauge" title="Quality" sub="Auto lets the connection decide.">
+        <div className="kc-segmented" role="radiogroup" aria-label="Quality">
+          {qualities.map((q) => {
+            const on = (preferences.qualityHeight ? String(preferences.qualityHeight) : "") === q.value;
+            return (
+              <button key={q.value} type="button" role="radio" aria-checked={on} className={"kc-segmented__option" + (on ? " is-on" : "")}
+                onClick={() => change({ qualityHeight: q.value ? Number(q.value) : null })}>{q.label}</button>
+            );
+          })}
+        </div>
+      </SettingsRow>
+      <SettingsRow icon="skip-forward" title="Skip intros and recaps automatically">
+        <Toggle on={Boolean(preferences.skipIntros)} label="Skip intros and recaps automatically" onChange={(on) => change({ skipIntros: on })} />
+      </SettingsRow>
+    </SettingsSection>
+  );
+}
+
+/** Subtitles for this person: the language a film starts in, and how they are drawn, with a preview. */
+function SubtitleLook() {
+  const { preferences, stored, change, changeSoon } = usePreferences();
+  if (!preferences) return <Failed error={stored.error} onRetry={stored.reload} />;
 
   return (
     <>
-      <SettingsSection icon="play" title="Playback">
+      <SettingsSection icon="languages" title="Language">
         <SettingsRow icon="captions" title="Subtitles" sub="The language to start in, when there is one.">
           <Select value={preferences.subtitleLanguage || ""} options={languages(preferences.subtitleLanguage, "Off")}
             aria-label="Subtitle language" onChange={(e) => change({ subtitleLanguage: orNull(e.target.value) })} />
         </SettingsRow>
-        <SettingsRow icon="audio-lines" title="Audio" sub="Original is the language it was made in.">
-          <Select value={preferences.audioLanguage || ""} options={languages(preferences.audioLanguage, "Original")}
-            aria-label="Audio language" onChange={(e) => change({ audioLanguage: orNull(e.target.value) })} />
-        </SettingsRow>
-        <SettingsRow icon="gauge" title="Quality" sub="Auto lets the connection decide.">
-          <div className="kc-segmented" role="radiogroup" aria-label="Quality">
-            {qualities.map((q) => {
-              const on = (preferences.qualityHeight ? String(preferences.qualityHeight) : "") === q.value;
-              return (
-                <button key={q.value} type="button" role="radio" aria-checked={on} className={"kc-segmented__option" + (on ? " is-on" : "")}
-                  onClick={() => change({ qualityHeight: q.value ? Number(q.value) : null })}>{q.label}</button>
-              );
-            })}
-          </div>
-        </SettingsRow>
-        <SettingsRow icon="skip-forward" title="Skip intros and recaps automatically">
-          <Toggle on={Boolean(preferences.skipIntros)} label="Skip intros and recaps automatically" onChange={(on) => change({ skipIntros: on })} />
-        </SettingsRow>
       </SettingsSection>
-      <SettingsSection icon="captions" title="Subtitle style">
+      <SettingsSection icon="type" title="Style">
         <div className="kc-cue-style">
           <div className="kc-cue-preview" aria-hidden="true">
             <Cues style={preferences.subtitleStyle} sample />
           </div>
-          <SubtitleStyleEditor style={preferences.subtitleStyle} onChange={(subtitleStyle) => styleChange(subtitleStyle)} />
+          <SubtitleStyleEditor style={preferences.subtitleStyle} onChange={(subtitleStyle) => changeSoon({ subtitleStyle })} />
         </div>
-      </SettingsSection>
-      <SettingsSection icon="palette" title="Appearance">
-        <ThemePicker />
       </SettingsSection>
     </>
   );
 }
+
+/** The site's theme in this browser. */
+function Appearance() {
+  return (
+    <SettingsSection icon="palette" title="Theme">
+      <ThemePicker />
+    </SettingsSection>
+  );
+}
+
+/**
+ * Where this person's account lives. Krystal Cinema keeps no sign-in of its own: the name, the
+ * password and every session are the provider's, on its account page.
+ */
+function Account({ session }) {
+  const user = session && session.user;
+  const where = useLoad(() => accountUrl(), []);
+  const url = where.data;
+
+  return (
+    <SettingsSection icon="user-cog" title="Account">
+      <SettingsRow icon="user" title={user ? user.name : "Signed in"} sub={user && user.username ? "@" + user.username : null} />
+      <SettingsRow icon="external-link" title="Managed outside Krystal Cinema"
+        sub={url ? `Your name, password and sessions are kept at ${new URL(url).host}.` : "Your name, password and sessions are kept by your account provider."}>
+        <a className="kc-btn" href={url || undefined} aria-disabled={!url}>
+          <Icon name="external-link" size={16} />Manage account
+        </a>
+      </SettingsRow>
+    </SettingsSection>
+  );
+}
+

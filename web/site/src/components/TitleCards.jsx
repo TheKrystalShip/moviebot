@@ -19,10 +19,14 @@ export function keptArt(imdbId, fallback) {
     .filter(Boolean).join(", ");
 }
 
-/** A grid of cards while what fills it is read, at the cards' own height so they settle in place. */
-export function CardsSkeleton({ count = 6 }) {
+/**
+ * A grid of cards while what fills it is read, at the cards' own height so they settle in place.
+ * `row` draws only as many as fit across one row, for a list of unknown length whose page should not
+ * grow taller than the screen while it waits.
+ */
+export function CardsSkeleton({ count = 6, row = false }) {
   return (
-    <div className="kc-grid" aria-hidden="true">
+    <div className={"kc-grid" + (row ? " kc-grid--row" : "")} aria-hidden="true">
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className="skel-card">
           <Skeleton className="skel-card__art" h="auto" r={0} style={{ aspectRatio: "2 / 3" }} />

@@ -25,22 +25,46 @@ const READY_CAP_MS = 500;
  * runs ahead of the page it describes while the next is being prepared.
  */
 export function PageStage({ route, render, above, onShown }) {
-  const key = route.key;
-  const [shown, setShown] = React.useState({ key, route });
+  const stage = useStage(route.key, route, route.path + "?" + route.query.toString(), onShown);
+  const page = (entry, tracker) => (
+    <PageKey.Provider value={entry.key}><LoadTracker.Provider value={tracker}>{render(entry.value)}</LoadTracker.Provider></PageKey.Provider>
+  );
+  return <>{above && above(stage.shown.value)}<Staged stage={stage} draw={page} settled={null} /></>;
+}
+
+/**
+ * Moving between the tabs of one page the way `PageStage` moves between pages: the tab strip answers
+ * at once, the tab chosen is prepared out of sight under the one shown, and fades in once its first
+ * reads are answered. The tab first shown reads under the page's own preparation, so the page and its
+ * opening tab arrive together.
+ */
+export function TabStage({ tab, render }) {
+  const inherited = React.useContext(LoadTracker);
+  const stage = useStage(tab, tab, tab);
+  const panel = (entry, tracker) => <LoadTracker.Provider value={tracker}>{render(entry.value)}</LoadTracker.Provider>;
+  return <Staged stage={stage} draw={panel} settled={inherited} />;
+}
+
+/**
+ * One thing shown at a time under a key. The same key with a new `revision` is drawn in place; a new
+ * key is mounted out of sight with a tracker of its own and promoted once its reads are answered and
+ * its artwork has decoded, or after `READY_CAP_MS`, whichever is first.
+ */
+function useStage(key, value, revision, onShown) {
+  const [shown, setShown] = React.useState({ key, value });
   const [incoming, setIncoming] = React.useState(null);
   const [entering, setEntering] = React.useState(null);
   const box = React.useRef(null);
 
-  // A new query or sub-path on the page already shown is drawn in place; a new page is prepared out of sight.
   React.useEffect(() => {
     if (key === shown.key) {
-      setShown({ key, route });
+      setShown({ key, value });
       setIncoming(null);
     } else {
-      setIncoming({ key, route, tracker: makeTracker() });
+      setIncoming({ key, value, tracker: makeTracker() });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, route.path, route.query.toString()]);
+  }, [key, revision]);
 
   React.useEffect(() => {
     if (!incoming) return undefined;
@@ -48,7 +72,7 @@ export function PageStage({ route, render, above, onShown }) {
     const promote = () => {
       if (!live) return;
       live = false;
-      setShown({ key: incoming.key, route: incoming.route });
+      setShown({ key: incoming.key, value: incoming.value });
       setIncoming(null);
       setEntering(incoming.key);
     };
@@ -61,24 +85,33 @@ export function PageStage({ route, render, above, onShown }) {
   }, [incoming]);
 
   React.useLayoutEffect(() => {
-    if (entering) onShown();
+    if (entering && onShown) onShown();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entering]);
 
-  const pages = [
+  return { shown, incoming, entering, box, settle: () => setEntering(null) };
+}
+
+/**
+ * The entry shown and the one being prepared, children of one keyed list so the one prepared is the
+ * one shown, never mounted a second time. `settled` is the tracker the shown entry reads under.
+ */
+function Staged({ stage, draw, settled }) {
+  const { shown, incoming, entering, box, settle } = stage;
+  const entries = [
     <div key={shown.key} className={"kc-stage__page" + (entering === shown.key ? " is-entering" : "")}
-      onAnimationEnd={(e) => { if (e.target === e.currentTarget) setEntering(null); }}>
-      <PageKey.Provider value={shown.key}><LoadTracker.Provider value={null}>{render(shown.route)}</LoadTracker.Provider></PageKey.Provider>
+      onAnimationEnd={(e) => { if (e.target === e.currentTarget) settle(); }}>
+      {draw(shown, settled)}
     </div>,
   ];
   if (incoming) {
-    pages.push(
+    entries.push(
       <div key={incoming.key} ref={box} className="kc-stage__page is-incoming" aria-hidden="true">
-        <PageKey.Provider value={incoming.key}><LoadTracker.Provider value={incoming.tracker}>{render(incoming.route)}</LoadTracker.Provider></PageKey.Provider>
+        {draw(incoming, incoming.tracker)}
       </div>,
     );
   }
-  return <>{above && above(shown.route)}<div className="kc-stage">{pages}</div></>;
+  return <div className="kc-stage">{entries}</div>;
 }
 
 /**
