@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, toast } from "@thekrystalship/krystal-ui";
+import { Button, toast } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../api.js";
 import { leaveRule, stayWords, useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
@@ -115,15 +115,15 @@ export function Title({ id }) {
 
             <div className="kc-actions">
               {m.status !== "failed" && (
-                <a className="kc-btn kc-btn--primary kc-btn--lg" {...watchLink(m.id, room && room.sessionId, progress && progress.positionSeconds)}>
-                  <Icon name={room ? "users" : "play"} size={18} />
+                <Button variant="primary" size="xl" icon={room ? "users" : "play"}
+                  {...watchLink(m.id, room && room.sessionId, progress && progress.positionSeconds)}>
                   {room ? `Join the room (${room.participants})` : progress ? "Resume" : "Watch"}
                   {!room && progress && <span className="kc-btn__sub">{timeLeft(m.durationSeconds - progress.positionSeconds)}</span>}
-                </a>
+                </Button>
               )}
               {held && keeping && (held.keeperId
-                ? <button type="button" className="kc-btn kc-btn--lg" disabled={busy} onClick={() => keep(false)}><Icon name="pin-off" size={17} />Un-keep</button>
-                : <button type="button" className="kc-btn kc-btn--lg" disabled={busy} onClick={() => keep(true)}><Icon name="pin" size={17} />Keep</button>)}
+                ? <Button size="xl" icon="pin-off" disabled={busy} onClick={() => keep(false)}>Un-keep</Button>
+                : <Button size="xl" icon="pin" disabled={busy} onClick={() => keep(true)}>Keep</Button>)}
               {film.imdbId && <SaveButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
               {held && (
                 <span className="kc-tt__stay">

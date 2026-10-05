@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon, toast } from "@thekrystalship/krystal-ui";
 import { api, episodeCode } from "../api.js";
 import { SOON_DAYS, leaveRule, stayWords, useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
@@ -139,20 +139,18 @@ export function Show({ imdbId, season, inLibrary }) {
 
             <div className="kc-actions">
               {play && (
-                <a className="kc-btn kc-btn--primary kc-btn--lg" {...watchLink(play.titleId, room && room.sessionId, play.positionSeconds)}>
-                  <Icon name={room ? "users" : "play"} size={18} />
+                <Button variant="primary" size="xl" icon={room ? "users" : "play"}
+                  {...watchLink(play.titleId, room && room.sessionId, play.positionSeconds)}>
                   {room ? `Join the room (${room.participants})` : resume ? "Resume" : "Watch"}
-                </a>
+                </Button>
               )}
               {!play && opening && (
-                <button type="button" className="kc-btn kc-btn--primary kc-btn--lg" disabled={starting} onClick={watchFirst}>
-                  <Icon name="play" size={18} />Watch
-                </button>
+                <Button variant="primary" size="xl" icon="play" disabled={starting} onClick={watchFirst}>Watch</Button>
               )}
               {missing && downloading && (
-                <button type="button" className="kc-btn kc-btn--lg" onClick={() => setRequesting(true)}>
-                  <Icon name="download" size={17} />{play ? "Get episodes" : "Download"}
-                </button>
+                <Button size="xl" icon="download" onClick={() => setRequesting(true)}>
+                  {play ? "Get episodes" : "Download"}
+                </Button>
               )}
               {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
               {s.imdbId && <SaveButton imdbId={s.imdbId} kind="show" title={s.title} />}
@@ -262,12 +260,12 @@ function SeasonPanel({ season, me, busy, onKeep, rooms, offers, showImdbId, show
         </div>
         {stay && <span className={"kc-pill" + (leaving ? " kc-pill--warn" : "")}>{stayWords(stay, me)}</span>}
         {stay && onKeep && (stay.keeperId
-          ? <button type="button" className="kc-btn" disabled={busy} onClick={() => onKeep(stay, false)}><Icon name="pin-off" size={15} />Un-keep season</button>
-          : <button type="button" className="kc-btn" disabled={busy} onClick={() => onKeep(stay, true)}><Icon name="pin" size={15} />Keep season</button>)}
+          ? <Button size="lg" icon="pin-off" disabled={busy} onClick={() => onKeep(stay, false)}>Un-keep season</Button>
+          : <Button size="lg" icon="pin" disabled={busy} onClick={() => onKeep(stay, true)}>Keep season</Button>)}
         {fetchable.length > 0 && (
-          <button type="button" className="kc-btn" disabled={fetching} onClick={fetchSeason}>
-            <Icon name="download" size={15} />{fetchable.length === season.episodes.length ? "Download season" : `Download the other ${fetchable.length}`}
-          </button>
+          <Button size="lg" icon="download" disabled={fetching} onClick={fetchSeason}>
+            {fetchable.length === season.episodes.length ? "Download season" : `Download the other ${fetchable.length}`}
+          </Button>
         )}
       </div>
 

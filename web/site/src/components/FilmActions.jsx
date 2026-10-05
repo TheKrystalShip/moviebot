@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, toast } from "@thekrystalship/krystal-ui";
+import { Button, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useCan } from "../session.js";
 import { wishWords } from "../pages/Discover.jsx";
@@ -76,20 +76,19 @@ export function FilmActions({ imdbId, film, state }) {
         )}
 
         {a && downloading && (arriving || offer) && (
-          <button type="button" className={"kc-btn kc-btn--primary kc-btn--lg" + (full && !arriving ? " is-dim" : "")} disabled={busy} onClick={watch}>
-            <Icon name="play" size={18} />Watch
-          </button>
+          <Button variant="primary" size="xl" icon="play" className={full && !arriving ? "is-dim" : undefined}
+            disabled={busy} onClick={watch}>
+            Watch
+          </Button>
         )}
         {a && downloading && offer && !arriving && (
-          <button type="button" className="kc-btn kc-btn--lg" onClick={() => setRequesting(true)}>
-            <Icon name="download" size={18} />Download
-          </button>
+          <Button size="xl" icon="download" onClick={() => setRequesting(true)}>Download</Button>
         )}
         {arriving && <span className="kc-pill kc-pill--info">downloading · {Math.floor(arriving.progress * 100)}%</span>}
 
         {a && wishing && a.notOut && (a.waiting
-          ? <button type="button" className="kc-btn kc-btn--accent kc-btn--lg" disabled={busy} onClick={stopWaiting}><Icon name="bell-ring" size={18} />Notifying</button>
-          : <button type="button" className="kc-btn kc-btn--primary kc-btn--lg" disabled={busy} onClick={wait}><Icon name="bell-plus" size={18} />Notify</button>)}
+          ? <Button variant="accent" size="xl" icon="bell-ring" disabled={busy} onClick={stopWaiting}>Notifying</Button>
+          : <Button variant="primary" size="xl" icon="bell-plus" disabled={busy} onClick={wait}>Notify</Button>)}
         <SaveButton imdbId={imdbId} kind="film" title={film.title} />
         {a && a.notOut && <span className="kc-note">{waitingWords}</span>}
       </div>

@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, ShowcaseCard } from "@thekrystalship/krystal-ui";
+import { Button, Icon, ShowcaseCard } from "@thekrystalship/krystal-ui";
 import { episodeCode, filmName, posterUrl } from "../api.js";
 import { SOON_DAYS, stayWords } from "../data.js";
 import { moviePath, roomPath, showPath } from "../paths.js";
@@ -165,7 +165,7 @@ export function Failed({ error, onRetry }) {
     <div className="kc-failed">
       <Icon name="triangle-alert" size={16} />
       <span>{error.message}</span>
-      {onRetry && <button type="button" className="kc-btn kc-btn--ghost" onClick={onRetry}>Try again</button>}
+      {onRetry && <Button variant="outline" size="lg" onClick={onRetry}>Try again</Button>}
     </div>
   );
 }

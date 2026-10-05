@@ -1,6 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { Icon, Toggle, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon, Input, Toggle, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { Drawer } from "./Drawer.jsx";
@@ -101,18 +101,17 @@ export function SaveButton({ imdbId, kind, title }) {
 
   if (!saved) {
     return (
-      <button type="button" className="kc-btn kc-btn--lg" disabled={busy} onClick={saveLater}>
-        <Icon name="bookmark" size={17} />Save
-      </button>
+      <Button size="xl" icon="bookmark" disabled={busy} onClick={saveLater}>Save</Button>
     );
   }
 
   const menu = <SaveMenu lists={editable} busy={busy} onToggle={toggle} onCreate={create} />;
   return (
     <div className="kc-follow" ref={ref}>
-      <button type="button" className="kc-btn kc-btn--lg kc-btn--accent" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <Icon name="bookmark-check" size={17} />Saved<Icon name="chevron-down" size={15} />
-      </button>
+      <Button variant="accent" size="xl" icon="bookmark-check" iconRight="chevron-down"
+        aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        Saved
+      </Button>
       {open && !narrow && createPortal(
         <div ref={menuRef} className="kc-follow__menu kc-save__menu" role="menu" style={pos || { visibility: "hidden" }}>{menu}</div>,
         document.body)}
@@ -147,8 +146,8 @@ function SaveMenu({ lists, busy, onToggle, onCreate }) {
       ))}
       {naming ? (
         <form className="kc-save__new" onSubmit={submit}>
-          <input autoFocus value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="List name" aria-label="List name" />
-          <button type="submit" className="kc-btn kc-btn--primary" disabled={busy || !name.trim()}>Create</button>
+          <Input size="lg" wide autoFocus value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="List name" aria-label="List name" />
+          <Button type="submit" variant="primary" size="lg" disabled={busy || !name.trim()}>Create</Button>
         </form>
       ) : (
         <button type="button" className="kc-follow__unfollow" role="menuitem" onClick={() => setNaming(true)}>

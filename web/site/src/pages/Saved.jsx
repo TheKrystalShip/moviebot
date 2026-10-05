@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  Icon, Modal, Select, ShowcaseCard, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, toast, useFilters,
+  Button, Icon, IconButton, Input, Modal, Select, ShowcaseCard, Textarea, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, toast, useFilters,
 } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
@@ -66,17 +66,17 @@ export function Saved() {
     <div className="kc-page">
       <PageHead title="Saved">
         {!naming && (
-          <button type="button" className="kc-btn kc-head__action" onClick={() => setNaming(true)}>
-            <Icon name="list-plus" size={16} />New list
-          </button>
+          <Button size="lg" icon="list-plus" className="kc-head__action" onClick={() => setNaming(true)}>
+            New list
+          </Button>
         )}
       </PageHead>
       {naming && (
         <form className="kc-search" onSubmit={create}>
           <Icon name="list" size={17} />
           <input autoFocus value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="List name" aria-label="List name" />
-          <button type="button" className="kc-btn kc-btn--ghost" onClick={() => { setNaming(false); setName(""); }}>Cancel</button>
-          <button type="submit" className="kc-btn kc-btn--primary" disabled={busy || !name.trim()}>Create</button>
+          <Button variant="outline" size="lg" onClick={() => { setNaming(false); setName(""); }}>Cancel</Button>
+          <Button type="submit" variant="primary" size="lg" disabled={busy || !name.trim()}>Create</Button>
         </form>
       )}
       <Failed error={lists.error} onRetry={lists.reload} />
@@ -220,9 +220,9 @@ export function ListPage({ id }) {
 
   const title = renaming !== null ? (
     <form className="kc-list-rename" onSubmit={rename}>
-      <input autoFocus value={renaming} maxLength={80} onChange={(e) => setRenaming(e.target.value)} aria-label="List name" />
-      <button type="submit" className="kc-btn kc-btn--primary" disabled={!renaming.trim()}>Save</button>
-      <button type="button" className="kc-btn kc-btn--ghost" onClick={() => setRenaming(null)}>Cancel</button>
+      <Input size="lg" autoFocus value={renaming} maxLength={80} onChange={(e) => setRenaming(e.target.value)} aria-label="List name" />
+      <Button type="submit" variant="primary" size="lg" disabled={!renaming.trim()}>Save</Button>
+      <Button variant="outline" size="lg" onClick={() => setRenaming(null)}>Cancel</Button>
     </form>
   ) : list.name;
   const sub = [count(list.count), list.owner.userId !== me.id && (list.owner.name || "someone")].filter(Boolean).join(" · ");
@@ -233,20 +233,16 @@ export function ListPage({ id }) {
         {renaming === null && (
           <div className="kc-head__action kc-list-actions">
             {!list.watchLater && (
-              <button type="button" className="kc-btn" onClick={() => setPeople(true)}>
-                <Icon name="users" size={16} />{list.members.length + 1}
-              </button>
+              <Button icon="users" onClick={() => setPeople(true)}>{list.members.length + 1}</Button>
             )}
             {owner && !list.watchLater && (
-              <button type="button" className="kc-btn" aria-label="Rename" onClick={() => setRenaming(list.name)}>
-                <Icon name="pencil" size={16} />
-              </button>
+              <IconButton variant="secondary" icon="pencil" label="Rename" onClick={() => setRenaming(list.name)} />
             )}
             {owner && !list.watchLater && (deleting
-              ? <button type="button" className="kc-btn kc-btn--danger" onClick={remove}><Icon name="trash-2" size={16} />Delete for everyone</button>
-              : <button type="button" className="kc-btn" aria-label="Delete" onClick={() => setDeleting(true)}><Icon name="trash-2" size={16} /></button>)}
+              ? <Button variant="danger" icon="trash-2" onClick={remove}>Delete for everyone</Button>
+              : <IconButton variant="secondary" icon="trash-2" label="Delete" onClick={() => setDeleting(true)} />)}
             {!owner && (
-              <button type="button" className="kc-btn" onClick={leave}><Icon name="log-out" size={16} />Leave</button>
+              <Button icon="log-out" onClick={leave}>Leave</Button>
             )}
           </div>
         )}
@@ -353,11 +349,11 @@ function NoteSheet({ entry: e, listId, onClose, onSaved }) {
           </div>
         </div>
         <div className="kc-sheet__body">
-          <textarea className="kc-list-note__text" autoFocus value={note} maxLength={500} rows={4}
+          <Textarea autoFocus value={note} maxLength={500} rows={4}
             onChange={(ev) => setNote(ev.target.value)} aria-label="Note" />
           <div className="kc-actions">
-            <button type="submit" className="kc-btn kc-btn--primary" disabled={busy}>Save</button>
-            <button type="button" className="kc-btn kc-btn--ghost" disabled={busy} onClick={onClose}>Cancel</button>
+            <Button type="submit" variant="primary" size="lg" disabled={busy}>Save</Button>
+            <Button variant="outline" size="lg" disabled={busy} onClick={onClose}>Cancel</Button>
           </div>
         </div>
       </form>
@@ -415,9 +411,7 @@ function PeopleSheet({ list, me, onClose, onChange }) {
                 <>
                   <Select variant="chip" value={m.role} options={ROLES} aria-label={`What ${m.name} may do`}
                     disabled={busy} onChange={(e) => change(m, e.target.value)} />
-                  <button type="button" className="kc-btn kc-btn--ghost" aria-label={`Take ${m.name} off`} disabled={busy} onClick={() => remove(m)}>
-                    <Icon name="x" size={15} />
-                  </button>
+                  <IconButton icon="x" label={`Take ${m.name} off`} disabled={busy} onClick={() => remove(m)} />
                 </>
               ) : <span className="kc-quiet">{ROLES.find((r) => r.value === m.role)?.label}</span>}
             </div>
@@ -427,14 +421,12 @@ function PeopleSheet({ list, me, onClose, onChange }) {
               <Select value={pick} aria-label="Person" onChange={(e) => setPick(e.target.value)}
                 options={[{ value: "", label: "Add someone" }, ...candidates.map((p) => ({ value: p.userId, label: p.name }))]} />
               <Select value={role} options={ROLES} aria-label="What they may do" onChange={(e) => setRole(e.target.value)} />
-              <button type="button" className="kc-btn kc-btn--primary" disabled={busy || !pick} onClick={add}>
-                <Icon name="user-plus" size={15} />Add
-              </button>
+              <Button variant="primary" size="lg" icon="user-plus" disabled={busy || !pick} onClick={add}>Add</Button>
             </div>
           )}
         </div>
         <div className="kc-sheet__foot">
-          <button type="button" className="kc-btn" onClick={onClose}>Done</button>
+          <Button size="lg" onClick={onClose}>Done</Button>
         </div>
       </div>
     </Modal>

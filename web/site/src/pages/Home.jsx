@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, Rail } from "@thekrystalship/krystal-ui";
+import { Button, Icon, Rail } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
 import { useSession } from "../session.js";
@@ -183,12 +183,12 @@ function Featured({ title, room }) {
           ? <span className="kc-featured__starring">Directed by <b>{d.directors.join(", ")}</b></span>
           : film.starring && <span className="kc-featured__starring">Starring <b>{film.starring}</b></span>}
         <div className="kc-actions">
-          <a className="kc-btn kc-btn--primary" {...watchLink(title.id, room && room.sessionId)}>
-            <Icon name={room ? "users" : "play"} size={18} />{room ? "Join the room" : "Watch"}
-          </a>
-          <a className="kc-btn" {...linkProps(moviePath(title.id))}>
-            <Icon name="info" size={18} />More info
-          </a>
+          <Button variant="primary" size="lg" icon={room ? "users" : "play"} {...watchLink(title.id, room && room.sessionId)}>
+            {room ? "Join the room" : "Watch"}
+          </Button>
+          <Button size="lg" icon="info" {...linkProps(moviePath(title.id))}>
+            More info
+          </Button>
         </div>
       </div>
     </section>

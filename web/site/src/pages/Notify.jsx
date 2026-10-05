@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { useCan } from "../session.js";
@@ -35,7 +35,7 @@ export function Notify() {
       <form className="kc-search" onSubmit={(e) => { e.preventDefault(); setQuery(draft.trim()); }}>
         <Icon name="search" size={17} />
         <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="A film that is not out yet" />
-        <button type="submit" className="kc-btn kc-btn--primary">Find it</button>
+        <Button type="submit" variant="primary" size="lg">Find it</Button>
       </form>
 
       {query && <FoundInCatalogue key={query} query={query} />}

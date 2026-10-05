@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, Modal, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon, IconButton, Modal, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { bytes } from "./FilmDetails.jsx";
@@ -78,7 +78,7 @@ export function RequestSheet({ show, onClose, onStarted }) {
             <span className="kc-sheet__name">{show.title} {show.firstYear && <span className="kc-quiet">{show.firstYear}</span>}</span>
             {show.creators.length > 0 && <span className="kc-quiet">Created by {show.creators.join(", ")}</span>}
           </div>
-          <button type="button" className="kc-sheet__close" aria-label="Close" onClick={onClose}><Icon name="x" size={18} /></button>
+          <IconButton variant="ghost" size="sm" icon="x" label="Close" className="kc-sheet__close" onClick={onClose} />
         </div>
 
         <div className="kc-sheet__body">
@@ -160,10 +160,10 @@ export function RequestSheet({ show, onClose, onStarted }) {
               ? `${pickedSeasons} ${pickedSeasons === 1 ? "season" : "seasons"} · ${pickedEpisodes} ${pickedEpisodes === 1 ? "episode" : "episodes"}${current.bytes ? ` · ~${bytes(current.bytes)}` : ""}`
               : "Nothing picked"}
           </span>
-          <button type="button" className="kc-btn" onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="button" className="kc-btn kc-btn--primary" disabled={busy || current.torrents.length === 0} onClick={submit}>
-            <Icon name="download" size={16} />Download
-          </button>
+          <Button size="lg" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="primary" size="lg" icon="download" busy={busy} disabled={current.torrents.length === 0} onClick={submit}>
+            Download
+          </Button>
         </div>
       </div>
     </Modal>
@@ -214,7 +214,7 @@ export function FilmRequestSheet({ film, availability, onClose, onStarted }) {
             <span className="kc-sheet__name">{film.title} {film.year && <span className="kc-quiet">{film.year}</span>}</span>
             {film.directors.length > 0 && <span className="kc-quiet">Directed by {film.directors.join(", ")}</span>}
           </div>
-          <button type="button" className="kc-sheet__close" aria-label="Close" onClick={onClose}><Icon name="x" size={18} /></button>
+          <IconButton variant="ghost" size="sm" icon="x" label="Close" className="kc-sheet__close" onClick={onClose} />
         </div>
 
         <div className="kc-sheet__body">
@@ -242,10 +242,10 @@ export function FilmRequestSheet({ film, availability, onClose, onStarted }) {
 
         <div className="kc-sheet__foot">
           <span className="kc-mono kc-sheet__summary">{chosen ? `${quality} · ~${bytes(chosen.sizeBytes)}` : "Nothing offered"}</span>
-          <button type="button" className="kc-btn" onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="button" className="kc-btn kc-btn--primary" disabled={busy || !chosen} onClick={submit}>
-            <Icon name="download" size={16} />Download
-          </button>
+          <Button size="lg" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="primary" size="lg" icon="download" busy={busy} disabled={!chosen} onClick={submit}>
+            Download
+          </Button>
         </div>
       </div>
     </Modal>

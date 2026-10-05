@@ -1,4 +1,4 @@
-import { Chat, Icon, createAssistantClient } from "@thekrystalship/krystal-ui";
+import { Button, Chat, Icon, createAssistantClient } from "@thekrystalship/krystal-ui";
 import { freshToken } from "./session.js";
 import { moviePath } from "./paths.js";
 import { linkProps } from "./router.js";
@@ -51,9 +51,9 @@ function FilmCards({ cards }) {
         <div key={card.titleId + (card.sessionId || "")} className="kc-chat-card">
           <Icon name="clapperboard" size={16} />
           <a className="kc-chat-card__name" {...linkProps(moviePath(card.titleId))}>{card.name}</a>
-          <a className="kc-btn kc-btn--primary" {...watchLink(card.titleId, card.sessionId)}>
-            <Icon name="play" size={15} />Watch
-          </a>
+          <Button variant="primary" size="sm" icon="play" {...watchLink(card.titleId, card.sessionId)}>
+            Watch
+          </Button>
         </div>
       ))}
     </div>

@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal-ui";
 import { KIND } from "../notifications.js";
 import { api, episodeCode, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
@@ -30,9 +30,7 @@ export function Profile({ tab: named }) {
   return (
     <div className="kc-page kc-profile">
       <PageHead title={user ? user.name : "Profile"} sub={user && user.username ? "@" + user.username : null}>
-        <button type="button" className="kc-btn kc-head__action" onClick={leave}>
-          <Icon name="log-out" size={16} />Sign out
-        </button>
+        <Button size="lg" icon="log-out" className="kc-head__action" onClick={leave}>Sign out</Button>
       </PageHead>
       <a className="kc-row kc-row--link kc-profile__saved" {...linkProps(savedPath)}>
         <Icon name="bookmark" size={18} />
@@ -470,9 +468,7 @@ function Account({ session }) {
       <SettingsRow icon="user" title={user ? user.name : "Signed in"} sub={user && user.username ? "@" + user.username : null} />
       <SettingsRow icon="external-link" title="Managed outside Krystal Cinema"
         sub={url ? `Your name, password and sessions are kept at ${new URL(url).host}.` : "Your name, password and sessions are kept by your account provider."}>
-        <a className="kc-btn" href={url || undefined} aria-disabled={!url}>
-          <Icon name="external-link" size={16} />Manage account
-        </a>
+        <Button icon="external-link" href={url || ""} disabled={!url}>Manage account</Button>
       </SettingsRow>
     </SettingsSection>
   );

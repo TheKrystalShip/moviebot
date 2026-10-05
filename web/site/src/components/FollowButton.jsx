@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, Toggle, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon, Toggle, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useCan } from "../session.js";
 
@@ -51,17 +51,16 @@ export function FollowButton({ imdbId, title, follow, onChange }) {
 
   if (!follow) {
     return (
-      <button type="button" className="kc-btn kc-btn--lg" disabled={busy} onClick={start}>
-        <Icon name="bell-plus" size={17} />Follow
-      </button>
+      <Button size="xl" icon="bell-plus" disabled={busy} onClick={start}>Follow</Button>
     );
   }
 
   return (
     <div className="kc-follow" ref={ref}>
-      <button type="button" className="kc-btn kc-btn--lg kc-btn--accent" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <Icon name="bell-ring" size={17} />Following<Icon name="chevron-down" size={15} />
-      </button>
+      <Button variant="accent" size="xl" icon="bell-ring" iconRight="chevron-down"
+        aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        Following
+      </Button>
       {open && (
         <div className="kc-follow__menu" role="menu">
           {downloading && (

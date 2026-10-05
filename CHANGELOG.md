@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-10-05
+
+### Changed
+
+- **Every button, field and switch on the site is krystal-ui's**, the ones the Control Panel and the
+  standalone assistant draw: `Button` and `IconButton` in place of the site's own `kc-btn` family,
+  `Input` and `Textarea` for naming, renaming and noting a list, and the class-drawn `Toggle`. The
+  sizes are the design system's ladder, so the title page's actions are 46px, a page heading's and a
+  sheet's 38px and a list's own actions 34px, and a filled button's type takes the theme's `--on-*`
+  ink.
+- **The assistant's spinners show.** Verifying an action, loading the chat's history and compacting
+  a conversation each draw a spinner that krystal-ui styles itself. Site 0.32.0, on krystal-ui
+  0.12.0.
+
 ## [2.6.0] - 2026-10-05
 
 ### Changed

@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, Rail, ShowcaseCard, Skeleton, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon, Rail, ShowcaseCard, Skeleton, toast } from "@thekrystalship/krystal-ui";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useCan } from "../session.js";
@@ -78,7 +78,7 @@ export function Discover({ query }) {
         <Icon name="search" size={20} />
         <input ref={field} value={draft} onChange={(e) => setDraft(e.target.value)}
           placeholder="Any movie or show" aria-label="Any movie or show" enterKeyHint="search" />
-        <button type="submit" className="kc-btn kc-btn--primary">Search</button>
+        <Button type="submit" variant="primary" size="lg">Search</Button>
       </form>
 
       {!q && popular.data && (
@@ -226,9 +226,7 @@ function BestMatch({ found, here, held, shelf }) {
               ? (
                 <div className="kc-actions">
                   {playable && (
-                    <button type="button" className="kc-btn kc-btn--primary kc-btn--lg" onClick={() => navigate(watchHref(here.id))}>
-                      <Icon name="play" size={18} />Watch
-                    </button>
+                    <Button variant="primary" size="xl" icon="play" onClick={() => navigate(watchHref(here.id))}>Watch</Button>
                   )}
                   <SaveButton imdbId={found.imdbId} kind="film" title={found.title} />
                 </div>
@@ -272,21 +270,17 @@ function ShowMatchActions({ found, shelf }) {
   return (
     <div className="kc-actions">
       {shelf && (
-        <button type="button" className="kc-btn kc-btn--primary kc-btn--lg"
+        <Button variant="primary" size="xl" icon="play"
           onClick={() => navigate(watchHref(resume ? resume.titleId : shelf.firstTitleId, null, resume && resume.positionSeconds))}>
-          <Icon name="play" size={18} />{resume ? "Resume" : "Watch"}
-        </button>
+          {resume ? "Resume" : "Watch"}
+        </Button>
       )}
-      {!shelf && downloading && !s && described.loading && <Skeleton w={120} h={48} r={8} />}
+      {!shelf && downloading && !s && described.loading && <Skeleton w={120} h={46} r={8} />}
       {!shelf && opening && (
-        <button type="button" className="kc-btn kc-btn--primary kc-btn--lg" disabled={starting} onClick={watchFirst}>
-          <Icon name="play" size={18} />Watch
-        </button>
+        <Button variant="primary" size="xl" icon="play" disabled={starting} onClick={watchFirst}>Watch</Button>
       )}
       {!shelf && s && (
-        <button type="button" className="kc-btn kc-btn--lg" onClick={() => setRequesting(true)}>
-          <Icon name="download" size={17} />Download
-        </button>
+        <Button size="xl" icon="download" onClick={() => setRequesting(true)}>Download</Button>
       )}
       <SaveButton imdbId={found.imdbId} kind="show" title={found.title} />
       {requesting && s && (
@@ -390,8 +384,8 @@ function Offer({ offer, best }) {
         <span className="kc-row__sub kc-mono">{offer.releaseName}</span>
       </div>
       {state === "started"
-        ? <button type="button" className="kc-btn kc-btn--ghost" disabled><Icon name="check" size={16} />On its way</button>
-        : <button type="button" className="kc-btn kc-btn--primary" disabled={state === "busy"} onClick={fetchIt}><Icon name="download" size={16} />Download</button>}
+        ? <Button variant="outline" size="lg" icon="check" disabled>On its way</Button>
+        : <Button variant="primary" size="lg" icon="download" busy={state === "busy"} onClick={fetchIt}>Download</Button>}
     </div>
   );
 }
@@ -418,9 +412,10 @@ function NotOutYet({ film, explanation }) {
         <span className="kc-row__sub"><Icon name="calendar-clock" size={13} />{explanation || "Not out yet."}</span>
       </div>
       {wishing && (
-        <button type="button" className={"kc-btn" + (asked ? " kc-btn--ghost" : " kc-btn--primary")} disabled={asked} onClick={wait}>
-          <Icon name={asked ? "bell-ring" : "bell-plus"} size={16} />{asked ? "Waiting for it" : "Notify me"}
-        </button>
+        <Button variant={asked ? "outline" : "primary"} size="lg" icon={asked ? "bell-ring" : "bell-plus"}
+          disabled={asked} onClick={wait}>
+          {asked ? "Waiting for it" : "Notify me"}
+        </Button>
       )}
     </div>
   );
