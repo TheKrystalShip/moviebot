@@ -264,6 +264,39 @@ button { font-family: inherit; }
   .kc-tt__body h1 { font-size: 28px; }
 }
 
+/* ── Discover's first answer: its poster large, washed out behind it ─────────────────── */
+.kc-hit {
+  position: relative; border-radius: var(--r-sm); overflow: hidden;
+  border: 1px solid var(--border-subtle); background: var(--surface-1);
+}
+.kc-hit__art {
+  position: absolute; inset: -40px; background-size: cover; background-position: center;
+  filter: blur(36px) saturate(1.3); opacity: 0.45;
+}
+.kc-hit__shade { position: absolute; inset: 0; background: linear-gradient(to right, var(--canvas) 10%, transparent 90%); opacity: 0.7; }
+.kc-hit__grid { position: relative; display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 28px; padding: 24px; align-items: center; }
+.kc-hit__poster {
+  display: grid; place-items: center; width: 170px; aspect-ratio: 2 / 3; overflow: hidden;
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface-2); color: var(--fg-4);
+}
+.kc-hit__poster img { width: 100%; height: 100%; object-fit: cover; }
+.kc-hit__body { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.kc-hit__body h2 { margin: 0; font-size: 30px; font-weight: 700; line-height: 1.15; letter-spacing: -0.015em; text-wrap: balance; }
+.kc-hit__body h2 a:hover { color: var(--krystal-teal-hover); }
+.kc-hit__cast { font-size: 14px; color: var(--fg-2); }
+.kc-hit__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+/* A card's cast line is text alone, which ends in an ellipsis only as a block. */
+.kc-found .showcase-card__status:not([class*="--"]) { display: block; }
+.kc-found__skel-foot { display: grid; gap: 14px; padding: 12px 14px 16px; }
+.kc-pill--here { gap: 5px; border-color: transparent; background: var(--success-bg); color: var(--success-fg); }
+@media (max-width: 720px) {
+  .kc-hit__grid { grid-template-columns: 112px minmax(0, 1fr); gap: 16px; padding: 16px; align-items: start; }
+  .kc-hit__poster { width: 112px; }
+  .kc-hit__body { gap: 8px; }
+  .kc-hit__body h2 { font-size: 22px; }
+  .kc-hit__cast { font-size: 13px; }
+}
+
 .kc-eyebrow--muted { color: var(--fg-3); }
 .kc-btn--lg { height: 48px; padding: 0 20px; font-size: 15px; }
 .kc-cert {

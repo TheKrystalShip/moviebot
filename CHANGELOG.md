@@ -4,6 +4,28 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-10-05
+
+### Added
+
+- **`GET /api/titles/find?q=`** answers films and shows together, in the title index's own order, for
+  somebody who may download. Api 2.2.0.
+
+### Changed
+
+- **Discover's search results are posters.** The catalogue's first answer is drawn large, with its
+  poster, year, cast, Watch when the library holds it ready, and Save; the rest follow as poster cards
+  carrying their year, whether each is a film or a show, and their cast, and one the library holds is
+  marked on its card and leads to its library page. Films and shows are one list in the catalogue's
+  order, and "In the library" lists only what the library holds by that name that the catalogue did
+  not answer with. A skeleton of both is drawn while the catalogue is asked. Site 0.28.0.
+- **`/api/films/find` and `/api/shows/find` answer `FoundTitle`**: the same fields with `kind`,
+  `starring` and `posterUrl` added.
+
+### Removed
+
+- **Discover's "See how to watch" button.** A result opens its page, where Watch, Download and Save are.
+
 ## [2.2.0] - 2026-10-05
 
 ### Added

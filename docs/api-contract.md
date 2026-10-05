@@ -223,9 +223,10 @@ and a film's stay also answer the service key, for the announcements the bot pos
 | `GET /api/releases/suggest?q=&session=` | `ReleaseSuggestions` — picker rows for what was typed; `session` keys the debounce |
 | `GET /api/releases?q=` or `?imdb=` | `RankedOffers` — the tracker's releases for a film, best first |
 | `GET /api/releases/{torrentId}` | `ReleaseOffer` — a release a search or a picker offered, or 404 |
-| `GET /api/shows/find?q=` | `FilmView[]` — the shows the title index offers for a name, `{imdbId, title, year?, display}`; never a film or an episode |
+| `GET /api/shows/find?q=` | `FoundTitle[]` — the shows the title index offers for a name; never a film or an episode |
 | `GET /api/shows/{imdbId}/releases` | `ShowOffers` — `{seasons: [{season, packs, episodes: [{episode, releases}]}], emptyExplanation?}`, each list a show's `ReleaseOffer`s best first, 720p ahead of 1080p. A pack is listed under every season it covers |
-| `GET /api/films/find?q=` | `FilmView[]` — the films the title index offers for a name; never a show |
+| `GET /api/films/find?q=` | `FoundTitle[]` — the films the title index offers for a name; never a show |
+| `GET /api/titles/find?q=` | `FoundTitle[]` — films and shows together, in the index's own order; never an episode. Takes `cinema:download`. A `FoundTitle` is `{imdbId, title, year?, display, kind, starring?, posterUrl?}`, `kind` `film` or `show`, `posterUrl` on the index's own image host |
 | `GET /api/films/{imdbId}/availability` | `FilmAvailability` — `{imdbId, libraryId?, download?: {hash, progress, isWatchable, libraryId?}, hd1080?, hd720?, notOut, notOffered, emptyExplanation?, trackerUnanswered, waiting, waiters, streams: {used, limit}}`. The library first, then the torrent client, then the tracker, which is asked only for a film neither here nor arriving; `hd1080` and `hd720` are the best `ReleaseOffer` at each from a digital source up. With neither, `notOut` says the tracker holds nothing from a digital source up, a film to wait on, and `notOffered` that it does but every such release is turned down here, which `emptyExplanation` names |
 | `POST /api/watch` | `WatchNowReply` for `{imdbId, torrentId?, quality?, episodes?, room?}` — `{outcome, room?, libraryId?, streams?}`. See Watch now below |
 | `GET /api/downloads` | `DownloadView[]`: `{hash, name, release, summary, isFinished, isWatchable, libraryId?, imdbId?, requestedBy?}`, `requestedBy` the account of whoever asked |

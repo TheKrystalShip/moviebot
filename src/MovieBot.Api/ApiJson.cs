@@ -59,6 +59,7 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 [JsonSerializable(typeof(ViewerPreferences))]
 [JsonSerializable(typeof(Films.FilmView))]
 [JsonSerializable(typeof(Films.PopularNowView))]
+[JsonSerializable(typeof(List<Acquisition.FoundTitle>))]
 [JsonSerializable(typeof(TitleProgress))]
 [JsonSerializable(typeof(TitleLastPlayed))]
 [JsonSerializable(typeof(List<ProgressEntry>))]

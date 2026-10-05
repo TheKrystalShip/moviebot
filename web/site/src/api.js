@@ -53,12 +53,13 @@ export const api = {
   // of one, which the player moves the room to.
   shows: () => call("GET", "/api/shows"),
   show: (imdbId) => call("GET", `/api/shows/${enc(imdbId)}`),
-  findShows: (q) => call("GET", `/api/shows/find?q=${enc(q)}`),
   showReleases: (imdbId) => call("GET", `/api/shows/${enc(imdbId)}/releases`),
   neighbours: (id) => call("GET", `/api/titles/${enc(id)}/neighbours`),
   rooms: () => call("GET", "/api/sessions"),
 
-  // A film by its IMDb id: the catalogue's matches for a name, and whether one can be watched and how.
+  // The catalogue's matches for a name, films and shows together or films alone, each with its
+  // poster and cast; and whether a film can be watched and how.
+  findTitles: (q) => call("GET", `/api/titles/find?q=${enc(q)}`),
   findFilms: (q) => call("GET", `/api/films/find?q=${enc(q)}`),
   availability: (imdbId) => call("GET", `/api/films/${enc(imdbId)}/availability`),
   // Watch now: fetch it and play it in a room the moment it can be opened. Answers with the room at

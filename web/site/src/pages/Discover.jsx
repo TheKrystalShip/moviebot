@@ -1,20 +1,23 @@
 import React from "react";
-import { Icon, Rail, ShowcaseCard, toast } from "@thekrystalship/krystal-ui";
+import { Icon, Rail, ShowcaseCard, Skeleton, toast } from "@thekrystalship/krystal-ui";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useCan } from "../session.js";
 import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { Failed, FilmCard, PageHead, ShowCard, watchHref } from "../components/Film.jsx";
+import { SaveButton } from "../components/SaveButton.jsx";
 
 /** The class the page's field carries, so the shortcut that opens the page can find it. */
 export const DISCOVER_FIELD = "kc-search--discover";
 
 /**
  * Finding anything to watch, here or not. With nothing typed, the field and what is popular this
- * week; with a query, what the library holds first, then the catalogue's films and shows, each
- * leading to its own page, and the tracker's releases on request. The query is in the address, so a
- * search can be shared and reloaded.
+ * week. With a query, the catalogue's films and shows in its own order, each by its poster: the first
+ * answer large, the rest as cards, one the library holds marked and played from here. Then whatever
+ * the library holds by that name that the catalogue did not answer with, and the tracker's releases
+ * on request. Every answer leads to its own page. The query is in the address, so a search can be
+ * shared and reloaded.
  */
 export function Discover({ query }) {
   const q = (query.get("q") || "").trim();
@@ -27,14 +30,14 @@ export function Discover({ query }) {
   const finding = downloading || wishing;
 
   const titles = useLoad(() => api.titles(), []);
-  // Each answer carries the query it is for: until this query's comes back, the one held is the last
+  // The answer carries the query it is for: until this query's comes back, the one held is the last
   // query's, and says nothing about whether the catalogue knows this name. The catalogue is searched
   // by somebody who may fetch a film or wait on one; shows are found for fetching.
-  const foundFor = useLoad(() => (q && downloading ? api.findShows(q).catch(() => []) : Promise.resolve([])).then((list) => ({ q, list })), [q, downloading]);
-  const filmsFor = useLoad(() => (q && finding ? api.findFilms(q).catch(() => []) : Promise.resolve([])).then((list) => ({ q, list })), [q, finding]);
-  const answered = foundFor.data && foundFor.data.q === q && filmsFor.data && filmsFor.data.q === q;
-  const found = { data: answered ? foundFor.data.list : null };
-  const films = { data: answered ? filmsFor.data.list : null };
+  const foundFor = useLoad(() => (q && finding
+    ? (downloading ? api.findTitles(q) : api.findFilms(q)).catch(() => [])
+    : Promise.resolve([])).then((list) => ({ q, list })), [q, downloading, finding]);
+  const answered = !finding || (foundFor.data && foundFor.data.q === q);
+  const found = answered && foundFor.data && foundFor.data.q === q ? foundFor.data.list : [];
   const libraryShows = useLoad(() => api.shows().catch(() => []), []);
   const popular = useLoad(() => (q ? Promise.resolve(null) : api.popular().catch(() => null)), [q]);
 
@@ -47,6 +50,14 @@ export function Discover({ query }) {
   const heldShows = new Set((libraryShows.data || []).map((s) => s.imdbId));
 
   const filmsHere = new Map((titles.data || []).filter((t) => t.kind !== "show" && t.film).map((t) => [t.film.imdbId, t]));
+
+  // What the library holds by that name and the catalogue did not answer with, which has no other
+  // place on the page.
+  const answeredIds = new Set(found.map((t) => t.imdbId));
+  const libraryFilms = inLibrary.filter((t) => !(t.film && answeredIds.has(t.film.imdbId)));
+  const libraryShowsNamed = showsHere.filter((s) => !answeredIds.has(s.imdbId));
+  const where = (t) => ({ here: t.kind === "film" ? filmsHere.get(t.imdbId) : null, held: t.kind === "show" && heldShows.has(t.imdbId) });
+  const [best, ...rest] = found;
 
   const submit = (e) => {
     e.preventDefault();
@@ -84,61 +95,33 @@ export function Discover({ query }) {
 
       {q && (
         <>
-          <section className="kc-shelf">
-            <div className="kc-shelf__head"><h2>In the library</h2></div>
-            {inLibrary.length + showsHere.length > 0
-              ? (
-                <div className="kc-grid">
-                  {inLibrary.map((t) => <FilmCard key={t.id} title={t} />)}
-                  {showsHere.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} />)}
-                </div>
-              )
-              : <span className="kc-quiet">Nothing in the library is called that.</span>}
-          </section>
-
-          {(films.data || []).length > 0 && (
+          {!answered && <ResultsSkeleton />}
+          {best && <BestMatch found={best} {...where(best)} />}
+          {rest.length > 0 && (
             <section className="kc-shelf">
-              <div className="kc-shelf__head"><h2>Movies</h2></div>
-              <div className="kc-rows">
-                {films.data.map((f) => {
-                  const held = (titles.data || []).find((t) => t.film && t.film.imdbId === f.imdbId && t.kind !== "show");
-                  return (
-                    <a key={f.imdbId} className="kc-row kc-row--link"
-                      {...linkProps(held ? moviePath(held.id) : discoverFilmPath(f.imdbId))}>
-                      <span className="kc-row__icon"><Icon name="clapperboard" size={16} /></span>
-                      <div className="kc-row__text">
-                        <span className="kc-row__title">{f.display}</span>
-                        <span className="kc-row__sub">Movie{held ? " · in the library" : ""}</span>
-                      </div>
-                      <span className="kc-btn kc-btn--ghost"><Icon name={held ? "play" : "chevron-right"} size={16} />{held ? "Open" : "See how to watch"}</span>
-                    </a>
-                  );
-                })}
+              <div className="kc-shelf__head"><h2>More results</h2></div>
+              <div className="kc-grid">
+                {rest.map((t) => <FoundCard key={t.imdbId} found={t} {...where(t)} />)}
               </div>
             </section>
           )}
 
-          {(found.data || []).length > 0 && (
+          {answered && (libraryFilms.length + libraryShowsNamed.length > 0 || found.length === 0) && (
             <section className="kc-shelf">
-              <div className="kc-shelf__head"><h2>Shows</h2></div>
-              <div className="kc-rows">
-                {found.data.map((s) => (
-                  <a key={s.imdbId} className="kc-row kc-row--link" {...linkProps(showPath(s.imdbId, { held: heldShows.has(s.imdbId) }))}>
-                    <span className="kc-row__icon"><Icon name="tv" size={16} /></span>
-                    <div className="kc-row__text">
-                      <span className="kc-row__title">{s.display}</span>
-                      <span className="kc-row__sub">TV series{heldShows.has(s.imdbId) ? " · in the library" : ""}</span>
-                    </div>
-                    <span className="kc-btn kc-btn--ghost"><Icon name={heldShows.has(s.imdbId) ? "play" : "download"} size={16} />{heldShows.has(s.imdbId) ? "Open" : "Pick episodes"}</span>
-                  </a>
-                ))}
-              </div>
+              <div className="kc-shelf__head"><h2>In the library</h2></div>
+              {libraryFilms.length + libraryShowsNamed.length > 0
+                ? (
+                  <div className="kc-grid">
+                    {libraryFilms.map((t) => <FilmCard key={t.id} title={t} />)}
+                    {libraryShowsNamed.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} />)}
+                  </div>
+                )
+                : <span className="kc-quiet">Nothing in the library is called that.</span>}
             </section>
           )}
 
           {answered && downloading && (
-            <TrackerShelf key={q} q={q} inLibrary={inLibrary}
-              open={(films.data || []).length === 0 && (found.data || []).length === 0} />
+            <TrackerShelf key={q} q={q} inLibrary={inLibrary} open={found.length === 0} />
           )}
         </>
       )}
@@ -196,6 +179,108 @@ function PopularCard({ entry, show = false, here, held }) {
       action={playable
         ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) }
         : { label: inLibrary ? "Open" : "View" }} />
+  );
+}
+
+/** Where a found film or show leads: the library's own page when it is here, its catalogue page when not. */
+function foundPage(found, here, held) {
+  if (found.kind === "show") return showPath(found.imdbId, { held });
+  return here ? moviePath(here.id) : discoverFilmPath(found.imdbId);
+}
+
+/**
+ * The catalogue's first answer to a name, which is usually the one meant: large enough to recognise,
+ * with its cast to tell it from another of the same name, and what can be done with it from here.
+ */
+function BestMatch({ found, here, held }) {
+  const show = found.kind === "show";
+  const page = foundPage(found, here, held);
+  const inLibrary = show ? held : !!here;
+  const playable = here && here.status === "ready";
+  return (
+    <article className="kc-hit">
+      {found.posterUrl && <div className="kc-hit__art" style={{ backgroundImage: `url("${found.posterUrl}")` }} />}
+      <div className="kc-hit__shade" />
+      <div className="kc-hit__grid">
+        <a className="kc-hit__poster" {...linkProps(page)} tabIndex={-1} aria-hidden="true">
+          {found.posterUrl
+            ? <img src={found.posterUrl} alt="" />
+            : <Icon name={show ? "tv" : "clapperboard"} size={32} />}
+        </a>
+        <div className="kc-hit__body">
+          <span className="kc-eyebrow">{show ? "TV series" : "Movie"}</span>
+          <h2><a {...linkProps(page)}>{found.title}</a></h2>
+          <div className="kc-tt__meta">
+            {found.year && <span className="kc-tt__year">{found.year}</span>}
+            {inLibrary && <span className="kc-pill kc-pill--here"><Icon name="check" size={13} />In the library</span>}
+          </div>
+          {found.starring && <span className="kc-hit__cast">{found.starring}</span>}
+          <div className="kc-hit__actions">
+            {playable && (
+              <button type="button" className="kc-btn kc-btn--primary" onClick={() => navigate(watchHref(here.id))}>
+                <Icon name="play" size={16} />Watch
+              </button>
+            )}
+            <SaveButton imdbId={found.imdbId} kind={show ? "show" : "film"} title={found.title} />
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/** Any other answer, as a poster card: its year, whether it is a film or a show, and its cast. */
+function FoundCard({ found, here, held }) {
+  const show = found.kind === "show";
+  const inLibrary = show ? held : !!here;
+  const playable = here && here.status === "ready";
+  return (
+    <ShowcaseCard
+      className="kc-found"
+      name={found.title}
+      art={found.posterUrl ? `url("${found.posterUrl}")` : null}
+      onPick={() => navigate(foundPage(found, here, held))}
+      specs={[
+        { icon: "calendar", value: found.year || null, label: "Year" },
+        { icon: show ? "tv" : "clapperboard", value: show ? "Series" : "Movie", label: "Type" },
+      ]}
+      status={inLibrary
+        ? { tone: "success", icon: "check", label: "In the library" }
+        : found.starring ? { label: found.starring, title: found.starring } : null}
+      action={playable
+        ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) }
+        : { label: inLibrary ? "Open" : "View" }} />
+  );
+}
+
+/** The frame of the results while the catalogue is asked, so they settle in place. */
+function ResultsSkeleton() {
+  return (
+    <>
+      <div className="kc-hit">
+        <div className="kc-hit__grid">
+          <span className="skel kc-hit__poster" />
+          <div className="kc-hit__body">
+            <Skeleton w={70} h={12} />
+            <Skeleton w="55%" h={28} />
+            <Skeleton w={44} h={14} />
+            <Skeleton w="40%" h={14} />
+            <Skeleton w={120} h={40} r={8} />
+          </div>
+        </div>
+      </div>
+      <div className="kc-grid" aria-hidden="true">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="skel-card">
+            <Skeleton className="skel-card__art" h="auto" r={0} style={{ aspectRatio: "2 / 3" }} />
+            <div className="kc-found__skel-foot">
+              <Skeleton h={30} />
+              <Skeleton w="70%" h={12} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 

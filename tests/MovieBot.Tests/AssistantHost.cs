@@ -147,7 +147,8 @@ internal sealed class AssistantHost : IDisposable
     {
         private const string Pirates = """
             {"d":[
-              {"id":"tt0325980","l":"Pirates of the Caribbean: The Curse of the Black Pearl","y":2003,"qid":"movie","s":"Johnny Depp, Geoffrey Rush"},
+              {"id":"tt0325980","l":"Pirates of the Caribbean: The Curse of the Black Pearl","y":2003,"qid":"movie","s":"Johnny Depp, Geoffrey Rush","i":{"imageUrl":"https://m.media-amazon.com/images/M/pearl._V1_.jpg","width":1000,"height":1500}},
+              {"id":"tt9900001","l":"Pirates of the Caribbean: The Series","y":2027,"qid":"tvSeries","s":"Keira Knightley"},
               {"id":"tt1790809","l":"Pirates of the Caribbean: Dead Men Tell No Tales","y":2017,"qid":"movie","s":"Johnny Depp, Geoffrey Rush"},
               {"id":"tt1298650","l":"Pirates of the Caribbean: On Stranger Tides","y":2011,"qid":"movie","s":"Johnny Depp, Penélope Cruz"},
               {"id":"tt0383574","l":"Pirates of the Caribbean: Dead Man's Chest","y":2006,"qid":"movie","s":"Johnny Depp, Orlando Bloom"},
