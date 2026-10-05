@@ -25,7 +25,9 @@ The reference device is the user's Xiaomi TV running Fire TV, reached over the L
 |---|---|
 | Model | Amazon `AFTBR92D74` (`ginzaeu`), Fire OS 8.1.8.2, Android 11 (API 30), leanback only |
 | WebView | `com.amazon.webview.chromium` 148 |
-| Screen | 3840×2160 panel, 1920×1080 drawn at density 320, so a page sees about 960×540 at a pixel ratio of 2 |
+| Screen | 3840×2160 panel; a page sees 960×540 at a pixel ratio of 4 |
+| What a page is told | `(pointer: coarse)` and `(hover: hover)` both match, `(any-pointer: fine)` matches, no `navigator.mediaSession`, `document.fullscreenEnabled` false, the user agent says `Mobile Safari` and `wv` |
+| Frame rate | The WebView paces `requestAnimationFrame` at about 50 a second on any page, a blank one included, on a 60 Hz display |
 | Hardware | MediaTek `merak`, four Cortex-A55 cores, 32-bit userland; 1.8 GB of memory with about 500 MB available |
 | Decoding | `c2.mtk.avc.decoder` in hardware for H.264 |
 | Screensaver | On, after five minutes |
@@ -39,7 +41,8 @@ The reference device is the user's Xiaomi TV running Fire TV, reached over the L
 | Spatial navigation | Our own, in the site, reading geometry from the DOM. Norigin is rejected because it has to wrap every focusable element in its hooks, which ties krystal-ui to it |
 | Sign-in | RFC 8628, served by tks-auth 4.5.0 (`tks-auth/src/Auth.Anchor/CLAUDE.md`, "The device grant"): a code and a QR on the TV, approved on a phone |
 | One person per TV | A TV is signed in as one person. Changing person is signing out and in again; there is no profile picker |
-| Typing on the TV | The system keyboard, which a focused field in the WebView already raises. The Google TV and Fire TV phone apps can type into it from a phone at no cost to us |
+| Typing on the TV | The system keyboard, which OK on a focused field in the WebView raises. Fire OS's keyboard carries its own QR code for typing from a phone and takes voice from the remote's microphone, at no cost to us |
+| The TV's layout | A design of its own, made in the Krystal Cinema design project beside the desktop and phone ones, the way the phone has its tab bar instead of the sidebar. The desktop layout at 960×540 is not the base |
 | The phone channel | Out of scope; see section 6 |
 | Where the wrapper lives | `moviebot/tv/`, its own version clock, tagged `tv-v<version>`. That prefix keeps it out of `release.yml`, which fires on `v*` |
 | Building the wrapper | On hotrod: a JDK and Android's command-line tools under the user's home, no Android Studio. Installed on the TV with `adb` over the LAN once developer options are on |
@@ -64,79 +67,126 @@ rules against 6 `:focus` ones), a client registered for the TV, and the wrapper.
 
 ## 4. Steps
 
-In order. Steps 1 and 2 are built and checked in a desktop browser with `?tv=1` and the `verify:tv`
-harness before any TV is involved; step 4 is when the Xiaomi becomes the check.
+In order. Step 1 does not depend on the TV design: the navigator works from whatever is on screen, so
+it is built against the current pages and keeps working when step 2 replaces their layout. Steps 1
+and 2 are built and checked in a desktop browser with `?tv=1` and the `verify:tv` harness, and on the
+Xiaomi through the probe app (section 5).
 
 ### Step 1: knowing it is a TV, moving focus, showing focus, the remote's keys
 
 The core of the work, starting with Home → a film → Play and the player, then every other page.
 
+What the deep dive measured on the Xiaomi, with the site's production build from the scratch site in
+the probe app:
+
+- **The keys reaching a page.** OK arrives as `Enter` (keyCode 13); the arrows as `ArrowUp`,
+  `ArrowDown`, `ArrowLeft`, `ArrowRight`; Play/Pause as `MediaPlayPause`, and the separate play and
+  pause keys as `MediaPlay` and `MediaPause` (both keyCode 179); Rewind and Fast-forward as
+  `MediaRewind` and `MediaFastForward`. **Back and Menu never reach the page**: Back goes to the
+  activity's `onBackPressed`, Menu to the activity with the WebView declining it. A held key repeats
+  with `repeat` false on every event, so holding is known by the cadence of keydowns, not the flag.
+  These were sent with `adb shell input keyevent`; the physical remote's own keys are still to be
+  logged.
+- **The WebView moves focus by itself on an arrow the page does not take**, and on the site that
+  movement is unusable: from the first focus, Down skips the whole sidebar to Notifications, Right
+  lands on the assistant's button and stays there, and the featured film's Watch and every row are
+  never reached. The navigator takes every arrow in TV mode (`preventDefault`).
+- **Nothing is focused when a page opens**, so OK does nothing until something is: a room opens with
+  the film loaded and paused and neither OK nor Play/Pause starts it.
+- **The focus ring is krystal-ui's universal `:focus-visible` box-shadow**, 3px at 35% opacity: barely
+  visible on the Watch button even in a screenshot.
+- **The TV says it is a phone.** `(pointer: coarse)` matches, which is what `Player.jsx` and
+  `environment.ts` take to mean a phone; `(hover: hover)` matches too, so krystal-ui's
+  `ShowcaseCard` hides its tools until hover or focus inside the card. Detection cannot rest on media
+  queries.
+- **A native `<select>` works as it is**: OK opens the system's own list, driven by the remote.
+- **A text field works as it is**: OK raises Fire OS's keyboard and what is typed reaches the field as
+  it is typed. Its action key reads Next and submits the form, after which the keyboard stays up over
+  the results, because focus stays in the field.
+- **The player plays**: 1080p H.264 through hls.js on MSE, no frames dropped over 20 seconds, the
+  controls hiding on their own; the existing shortcuts already answer the remote's arrows (two presses
+  of Right moved the room 10 seconds) and Space.
+- **Out-of-sight pages are `aria-hidden`.** `PageStage` mounts the incoming page with
+  `aria-hidden="true"` and `is-incoming` until it is promoted, and calls `onShown` when it is.
+- **Overlays already close on Escape** (krystal-ui's `Modal`, `Dialog`, the toolbar's popovers, the
+  account menu), and mark themselves with `role="dialog"` or `role="menu"`; none puts focus back on
+  what opened it.
+
+What step 1 builds, from those:
+
 - **Detection.** TV mode is on when the wrapper's marker is in the user agent, or when the address
   carries `?tv=1` (kept for the session, for development). It sets an attribute on the root element
   that every TV style hangs from, and the player gets a `tv` environment beside `site` and the
-  Discord one. Desktop and phone layouts are untouched.
-- **The navigator.** On an arrow key it gathers what is focusable and visible, scores each candidate
-  in the arrow's direction by distance and alignment from the focused element's rectangle, and moves
-  focus there. Rules on top of the geometry:
-  - an open popover, sheet, drawer or dialog holds focus inside it until it closes, and closing it
-    puts focus back on what opened it;
-  - a row of posters (krystal-ui's `Rail`) remembers the card last focused, so leaving the row and
-    coming back lands on it;
-  - the focused element is scrolled into a steady place: a row scrolls sideways so the focused card
-    keeps its position, the page scrolls so the focused row sits at the same height;
-  - a page that loads puts focus on its first useful element, never on nothing.
-- **The highlight.** In TV mode the focused element carries a thick accent ring, a slight scale and a
-  shadow. The treatment belongs to krystal-ui, so its components draw it themselves from the root
-  attribute rather than the site overriding the package's class names (bump, publish, re-pin).
-  Everything revealed only on hover is reachable from focus, or from the Menu key.
+  Discord one, which is never a phone: no landscape, no full screen, no gestures. Desktop and phone
+  are untouched.
+- **The navigator**, in the site. It takes every arrow key in TV mode. On one it gathers what is
+  focusable and visible, leaving out anything under `aria-hidden` or `inert`, a scroll container
+  focusable only to be scrolled (`Rail`'s track), and a control nested inside a focusable card; scores
+  each candidate in the arrow's direction by distance and alignment from the focused element's
+  rectangle; and moves focus there. Rules on top of the geometry:
+  - the topmost open `role="dialog"`, `role="menu"` or `aria-modal` element holds focus inside it;
+    when it closes, focus goes back to what was focused when it opened;
+  - a row of posters remembers the card last focused, so leaving the row and coming back lands on it;
+  - Left from the content's left edge enters the sidebar at the item lit for the page, not at the
+    geometrically nearest one;
+  - the focused element is scrolled into a steady place: a row sideways so the focused card keeps its
+    position, the page's column (`.app__main`) so the focused row sits at the same height;
+  - when `PageStage` shows a page, focus goes to its first useful element, and Back to a page puts
+    focus back where it was when that page was left;
+  - a submitted search moves focus off its field to the first result, which closes the keyboard.
+- **The highlight.** In TV mode the focused element carries a ring that reads from across a room
+  (opaque, thick, with a gap that separates it from a filled button of the same colour) and a card is
+  raised a little. It belongs to krystal-ui, so its components draw it from the root attribute rather
+  than the site overriding the package's class names (bump, publish, re-pin). How it finally looks is
+  the TV design's; step 1 makes it visible.
+- **Back and Menu as page events.** The page exposes one entry the wrapper calls for each, which
+  answers whether the page used the key; the wrapper closes the app only on a Back the page did not
+  use. In a desktop browser in TV mode, Escape stands for Back and the context-menu key for Menu.
 - **The keys.**
 
   | Key | Browsing | In the player |
   |---|---|---|
-  | Arrows | Move focus | Left and right skip, presses gathered into one seek as `Gestures.jsx` does; up and down reveal the controls |
-  | OK | Activate | The first press reveals the controls; with them shown it plays or pauses |
-  | Back | Close the open overlay, otherwise go back a page; on Home it leaves the app | Hide the controls, otherwise leave the room |
-  | Play/Pause, Rewind, Fast-forward | Nothing | Act directly |
-  | Menu | The focused card's actions | Audio and subtitles |
-
-Deep dive:
-
-- Which DOM key values the Fire TV WebView delivers for OK, Back, Menu and the media keys, and which
-  never reach the page (Back is the wrapper's to forward; Home and the microphone are the system's).
-- Whether the navigator's scoring handles the site's real layouts: the featured film above the rows,
-  the Library grid with its toolbar, a show's season chips above its episode list, the profile's tabs.
-- What happens to focus across a page change, a profile tab, a season chip and Back, given that the
-  site prepares a page out of sight before swapping it in.
-- Which krystal-ui components need focus behaviour of their own (`Rail`, `Toolbar`, the Filters
-  popover, `Select`, the drawer, `Breadcrumbs`), and which hover-only affordances exist in the site
-  and in the package.
-- Holding an arrow in the player: a growing step, or the same step repeated.
+  | Arrows | Move focus | A press of Left or Right skips 10 seconds, presses gathered into one seek as `Gestures.jsx` gathers taps; holding scrubs with the thumbnail strip and sends one seek on release, as the scrub bar does; Up and Down reveal the controls |
+  | OK | Activate | The first press reveals the controls; with them shown it activates the focused control, the play button first |
+  | Back | Close the open overlay; otherwise go back a page; on Home move focus to the sidebar, and from there leave the app | Close a menu, hide the controls, otherwise leave the room |
+  | Play/Pause, Play, Pause | Nothing | Act directly |
+  | Rewind, Fast-forward | Nothing | Skip as Left and Right do |
+  | Menu | Into the focused card's tools | Audio and subtitles |
 
 Done when: with `?tv=1` and the keyboard alone, every page's every control is reachable and usable,
 focus is never lost to the body, and a film plays, pauses, skips, changes audio and subtitles, and
 leaves.
 
-### Step 2: the ten-foot layout and the cost of drawing it
+### Step 2: the TV design, and building it
 
-- A margin around the whole page for TVs that crop their edges.
-- Type and targets sized for distance: nothing under about 20px at the viewport the TV reports.
-- The sidebar becomes a strip of icons that opens when focus enters it.
-- No scrollbars.
-- Not drawn in TV mode, for cost on cheap hardware: `backdrop-filter` (seven places across
-  `site.css` and `player.css`), the blurred artwork behind a search hit, the page fade animations.
-- Poster and still images loaded lazily and at the size they are drawn.
-- Left out of TV mode: the assistant dock, push notifications, installing the app, copying the
-  invite link, editing lists. Each is a phone's job.
-- In the player: no volume control (the TV's buttons own the volume), larger default subtitles.
+The TV gets its own design in the Krystal Cinema design project, beside the desktop and phone ones,
+and the site draws it in TV mode the way it draws the phone's tab bar on a phone. The design is made
+first and the build follows it.
 
-Deep dive:
+What the design has to answer for, from what the Xiaomi showed:
 
-- The viewport and `devicePixelRatio` the Fire TV WebView reports (960×540 at 2 is common, and is
-  measured on the Xiaomi rather than assumed), and whether the desktop layout is the right base at
-  that size.
-- Whether the TV crops at all, and by how much.
-- Frame rate on the Xiaomi while a row scrolls and while the player's controls are over a playing film.
-- The default subtitle size at that distance, and whether the person's own setting overrides it.
+- A 960×540 page seen from a sofa: the desktop layout there spends a quarter of the width on the
+  sidebar, puts the first row of films below the fold under the featured film, and draws controls
+  sized for a mouse.
+- A way around without the sidebar as it is: what replaces it, and how focus enters and leaves it.
+- The focused element as the one thing the eye follows: the highlight, and how a row moves under it.
+- Every page that stays in TV mode, the player's controls among them, with no volume control (the
+  TV's buttons own the volume) and subtitles sized for the distance.
+- Left out of TV mode: the assistant dock and its button, push notifications, installing the app,
+  copying the invite link, editing lists. Each is a phone's job.
+- A margin for TVs that crop their edges, if the Xiaomi crops.
+
+What the build has to keep, measured:
+
+- The WebView paces frames at about 50 a second on any page. Scrolling a row of the current site
+  holds that with its worst frame at 20 ms; scrolling the page and the idle Home page have frames of
+  50 to 100 ms, which the build profiles and removes.
+- Not drawn in TV mode, for cost: `backdrop-filter` (seven places across `site.css` and `player.css`),
+  the blurred artwork behind a search hit, the page fade animations, `assistant-icon-blink`.
+- Artwork is already sized for the screen (posters 500 to 600 wide, backdrops 1280, drawn at up to
+  390 CSS pixels); poster backgrounds drawn through CSS load eagerly.
+- At 960 wide the current Profile overflows sideways: its tab strip runs off the right edge and the
+  column grows a horizontal scrollbar.
 
 Done when: every page reads from a sofa and scrolls without stutter on the Xiaomi.
 
@@ -202,6 +252,25 @@ steps 1 to 3 hold there.
   cannot leave. Screenshots per page with the focus drawn, like the mobile harness.
 - **The Xiaomi** for what only a device shows: the keys the remote really sends, the viewport, the
   frame rate, decoding, the screensaver, and the QR scanned by a real phone.
+
+Until the wrapper exists, the Xiaomi is reached through a probe app kept outside any repository, in
+`~/Android/tvprobe` beside the toolchain (`~/Android/jdk`, a JDK 21, and `~/Android/Sdk` with
+`platform-tools`, `build-tools;35.0.0` and `platforms;android-35`). It is one Java activity holding a
+full-screen WebView with remote debugging on and the screen kept awake, logging every key it sees and
+every console line under the logcat tag `tvprobe`; it opens the address in its `url` extra.
+
+```bash
+web/site/verify/mobile/scratch.sh                        # the scratch site, with MOVIEBOT_VERIFY_TMDB_TOKEN_FILE
+~/Android/tvprobe/build.sh [url]                         # build, install, open; reverses 8299, 8300, 8765; devtools on :9333
+node ~/Android/tvprobe/drive.mjs stage                   # stage the scratch site (keeps the staged rooms open while it runs)
+node ~/Android/tvprobe/drive.mjs plant http://127.0.0.1:9333   # sign the TV in as the staged viewer
+node ~/Android/tvprobe/drive.mjs walk http://127.0.0.1:9333 DPAD_DOWN DPAD_RIGHT   # press keys, log focus
+~/Android/Sdk/platform-tools/adb exec-out screencap -p > shot.png                   # what the TV shows
+```
+
+The scratch library is `moviebot/media/`, which holds every film's manifest, playlists, artwork and
+subtitles copied from hotbox without their segments, so pages draw and nothing plays; a film needed
+playing has its first segments copied into `~/.cache/moviebot-verify/library/` itself.
 
 ## 6. Follow-up, not in this plan
 
