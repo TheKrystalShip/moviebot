@@ -1,9 +1,9 @@
 // Who is signed in, and the token that proves it.
 //
 // Krystal Cinema signs nobody in. It is a public OpenID Connect client of the provider the API names
-// on /api/config: authorization code with PKCE, through `oidc-client-ts`. Signing in sends the browser
-// to the provider, which sends it back to /signin with a code the library redeems for an access token
-// and a refresh token. The session lives in this browser's localStorage, so a tab opened days later
+// on /api/config: authorization code with PKCE, through `oidc-client-ts`. A page opened with no session
+// sends the browser to the provider, which signs the person in on its own pages and sends it back to
+// /signin with a code the library redeems for an access token and a refresh token. The session lives in this browser's localStorage, so a tab opened days later
 // renews without a bounce; a round trip's verifier and state stay in sessionStorage, because they
 // belong to the one tab that left.
 //
@@ -12,8 +12,13 @@
 // actions the person holds, in the claim the API names, and that is what the page shows or hides
 // controls by; the API checks every one of them again.
 //
-// Signing out forgets the tokens here and nothing more: the provider stays signed in, so the next
-// visit signs back in without a prompt. Ending every session is the provider's account page.
+// A page opened with nothing held leaves for the provider at once, because nothing is on screen to lose.
+// A session that ends while a page is open does not: that is shown, with the way back offered, because
+// leaving unasked would discard whatever somebody was in the middle of.
+//
+// Signing out is the provider's: its end-session endpoint ends the provider's own session and every
+// session minted under it, and sends the browser back to the site, which finds nothing held and leaves
+// for the provider's sign-in.
 
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
 import { ErrorResponse, UserManager, WebStorageStateStore } from "oidc-client-ts";
@@ -45,6 +50,8 @@ export function useCan(action) {
 }
 
 let configured = null;
+/** Whether this page held a session that has since ended: what tells an ended session from a cold load. */
+let lost = false;
 let client = null;
 let renewing = null;
 let timer = null;
@@ -113,6 +120,7 @@ async function sessionFor(user) {
 }
 
 function hold(session) {
+  if (!session && sessionStore.getState()) lost = true;
   sessionStore.setState(() => session);
   if (timer) window.clearTimeout(timer);
   timer = null;
@@ -196,8 +204,36 @@ export async function freshToken({ refused = false } = {}) {
   return renewed ? renewed.token : null;
 }
 
-/** Forgets this browser's session. The provider stays signed in. */
+/**
+ * Signs out at the provider, which ends every session minted under its own and sends the browser back
+ * to the site. With nothing to end there, or no provider to ask, this browser's tokens are forgotten
+ * and the site's first page opened.
+ */
 export async function signOut() {
+  let manager = null;
+  let user = null;
+  try {
+    manager = await clientOf();
+    user = await manager.getUser();
+    await manager.removeUser();
+  } catch {
+    // Nothing was held, or the provider's address was never learned; either way nothing is held now.
+  }
+  hold(null);
+  lost = false;
+  if (manager && user && user.id_token) {
+    try {
+      await manager.signoutRedirect({ id_token_hint: user.id_token });
+      return;
+    } catch {
+      // The provider could not be asked; this browser has forgotten the session regardless.
+    }
+  }
+  window.location.assign("/");
+}
+
+/** Forgets a session the API refused even once renewed: it has ended, and the page says so. */
+export async function forget() {
   try {
     const manager = await clientOf();
     await manager.removeUser();
@@ -205,6 +241,11 @@ export async function signOut() {
     // Nothing was held, or the provider's address was never learned; either way nothing is held now.
   }
   hold(null);
+}
+
+/** Whether a session this page held has ended, which is shown rather than followed to the provider. */
+export function sessionEnded() {
+  return lost;
 }
 
 /** Sends the browser to the provider to sign in, remembering where to come back to. */

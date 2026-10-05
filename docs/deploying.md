@@ -338,7 +338,7 @@ journalctl -u moviebot-handoff -n 50 --no-pager
 | A change to the settings file has no effect | Each service logs which files it read when it starts: `journalctl -u moviebot-api \| grep Settings:`. A setting in the secrets file wins over the same setting in the settings file |
 | The bot is online but `/watch` does not appear | Commands appear only in the servers listed in `GuildIds`. Check the number, then restart `moviebot-bot` |
 | The player inside Discord says signing in failed | `ApplicationId` or `Discord__ClientSecret` is wrong, `Oidc__ActivityClientSecret` is not the secret of `cinema-activity`, or the provider is not told it may accept your Discord application from that client |
-| The site's Sign in returns an error from the provider | `cinema-site` is not registered, or its redirect is not exactly `https://YOUR.DOMAIN/signin` |
+| Opening the site returns an error from the provider | `cinema-site` is not registered, or its redirect is not exactly `https://YOUR.DOMAIN/signin` |
 | Everybody is told their account has no access | Nobody holds `cinema:watch` yet: give it to a role at the provider. Each token lists a person's actions for five minutes, so a change reaches MovieBot within that |
 | The bot answers that an administrator has to approve the account | That Discord account is not linked to an approved account at the provider |
 | Pressing **Watch together** shows a blank or failed Activity | The URL mapping in step 3.7 must be your domain without `https://`, and `https://YOUR.DOMAIN/health` must work from outside your network |

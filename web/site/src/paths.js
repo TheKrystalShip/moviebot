@@ -12,6 +12,7 @@ export const savedPath = "/saved";
 export const notifyPath = "/notify";
 export const leavingPath = "/leaving";
 export const aboutPath = "/about";
+/** Where the provider sends the browser back with a code. */
 export const signInPath = "/signin";
 
 /** The shelf of one kind, as the API words it: `film` or `show`. */
@@ -48,6 +49,3 @@ export const profilePath = (tab) => (tab && tab !== PROFILE_TABS[0] ? "/profile/
 
 /** A room. */
 export const roomPath = (room) => "/r/" + seg(room);
-
-/** The door, and the address it returns to once somebody is signed in. */
-export const signInReturnPath = (next) => signInPath + "?next=" + encodeURIComponent(next);

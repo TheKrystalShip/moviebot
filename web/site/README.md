@@ -40,7 +40,7 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular` and `/hu
 | `/leaving` | Every settled film and how long it stays, kept or not |
 | `/profile`, `/profile/<tab>` | The signed-in person; History, the first tab, has no segment: History (with a way to remove a film), Requests, Following (each followed show with its next episode, whether new episodes are downloaded, and Unfollow), Notifications and Playback (subtitle and audio language, quality, skipping intros and recaps automatically, how subtitles look with a preview of them, theme); the account's page at the provider, and signing out |
 | `/about` | What the site is, and where its film details come from |
-| `/signin` | The door, and where the identity provider sends the browser back to |
+| `/signin` | Where the identity provider sends the browser back with its code; opened on its own, it goes to the provider |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from. A room waiting on a Watch now shows the film being found, arriving and starting, and plays it on its own |
 | `/embed/` | The Discord Activity: the same player with no site around it |
 
@@ -82,16 +82,21 @@ pages no tab names are linked from the footer every page ends with.
 ## Signing in
 
 Krystal Cinema signs nobody in. It is a public OpenID Connect client (`src/session.js`, on
-`oidc-client-ts`) of the provider `/api/config` names, with the client id it names: the door sends the
-browser there, authorization code with PKCE, and the provider sends it back to `<origin>/signin` with a
-code redeemed for an access token and a refresh token. The access token is the bearer on every call to
-the API, the hub and the assistant. It lives five minutes and is renewed by the refresh grant a minute
-before it runs out and whenever a call is refused; the session is kept in this browser's
-`localStorage` under `cinema.oidc.`, so a tab opened days later carries on without a bounce.
+`oidc-client-ts`) of the provider `/api/config` names, with the client id it names. A page opened with
+nothing held sends the browser there at once, authorization code with PKCE, and the person signs in on
+the provider's own pages; the provider sends the browser back to `<origin>/signin` with a code redeemed
+for an access token and a refresh token, and the page that was asked for opens. The access token is the
+bearer on every call to the API, the hub and the assistant. It lives five minutes and is renewed by the
+refresh grant a minute before it runs out and whenever a call is refused; the session is kept in this
+browser's `localStorage` under `cinema.oidc.`, so a tab opened days later carries on without a bounce.
 
-The door is a button rather than a redirect, so a person who signed out stays out and the page can be
-installed from it. Signing out forgets this browser's tokens and nothing else; the account's page at
-the provider is where its sessions are listed and ended everywhere, and Profile links to it.
+A session that ends while a page is open is not followed to the provider: the page says so and offers
+the way back, because leaving unasked would discard whatever somebody was in the middle of. A sign-in
+the provider refuses, and a provider that does not answer, are shown the same way.
+
+Signing out is the provider's: its end-session endpoint ends the person's sign-in there and every
+session minted under it, and sends the browser back to `<origin>/`, which holds nothing and goes to the
+provider's sign-in. The account's page at the provider lists its sessions, and Profile links to it.
 
 The token lists the Cinema actions the person holds, in the claim `/api/config` names, and the page
 shows a control only to somebody holding the action it needs (`can` and `useCan` in `src/session.js`):

@@ -1,15 +1,10 @@
 // Leaving Krystal Cinema in this browser.
 
 import { accountUrl, signOut } from "./session.js";
-import { signInPath } from "./paths.js";
-import { navigate } from "./router.js";
 
-/**
- * Forgets this browser's session and shows the door. The provider stays signed in, so going back
- * through it signs the person in again without a prompt.
- */
+/** Signs out at the provider, which ends the person's sign-in there and comes back to the site. */
 export function leave() {
-  void signOut().then(() => navigate(signInPath, { replace: true }));
+  void signOut();
 }
 
 /** Opens the provider's page for the account, where its sessions are listed and ended everywhere. */

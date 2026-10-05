@@ -1,6 +1,6 @@
 // The site's addresses, looked at in a real browser: every address cold-loaded in a fresh signed-in
 // context, where it lands and what it draws, then the flows that move between them (a season, a profile
-// tab, a search and Back, a signed-out deep link, a forward followed by Back).
+// tab, a search and Back, a signed-out deep link, signing out, a forward followed by Back).
 //
 //   node verify/routes.mjs
 //
@@ -409,42 +409,94 @@ for (const [from, forwards] of [[`/discover/film/${MATRIX.imdbId}`, M], [`/tv/${
   report(`${from} forwards to ${forwards} and Back does not bounce`, problems);
 }
 
-for (const path of ["/tv/tt0903747/season/3", "/discover?q=matrix", "/movies/the-matrix-1999", "/profile/playback", "/nonsense"]) {
+/**
+ * Waits for the browser to reach the provider's authorize endpoint, and answers what is wrong with the
+ * request it made: the site's client, PKCE, and /signin to come back to.
+ */
+async function leftForProvider(page) {
+  const authorize = issuer.url + "/authorize";
+  const until = Date.now() + 10000;
+  while (!page.url().startsWith(authorize) && Date.now() < until) await page.waitForTimeout(100);
+  const reached = new URL(page.url());
+  if (reached.origin + reached.pathname !== authorize) return [`landed at ${page.url()}, wanted the provider's ${authorize}`];
+  const problems = [];
+  if (reached.searchParams.get("client_id") !== "cinema-site") problems.push(`signed in as ${reached.searchParams.get("client_id")}`);
+  if (reached.searchParams.get("code_challenge_method") !== "S256") problems.push("no PKCE challenge");
+  if (reached.searchParams.get("redirect_uri") !== base + "/signin") problems.push(`returns to ${reached.searchParams.get("redirect_uri")}`);
+  return problems;
+}
+
+// Signed out, a page leaves for the provider at once, remembering itself to come back to.
+for (const path of ["/tv/tt0903747/season/3", "/discover?q=matrix", "/movies/the-matrix-1999", "/profile/playback", "/nonsense", "/signin"]) {
   const { context, page } = await open({ signedIn: false });
   const problems = [];
   try {
     await page.goto(base + path, { waitUntil: "load" });
-    const want = "/signin?next=" + encodeURIComponent(path);
-    if ((await settled(page, want)) !== want) problems.push(`landed at ${where(page)}, wanted ${want}`);
-  } catch (error) {
-    problems.push(error.message.split("\n")[0]);
-  }
-  await context.close();
-  report(`signed out, ${path} goes to the door and remembers it`, problems);
-}
-
-// The door's button goes to the provider, with PKCE, as the site's client, and back to /signin.
-{
-  const { context, page } = await open({ signedIn: false });
-  const problems = [];
-  try {
-    await page.goto(base + "/signin", { waitUntil: "load" });
-    await page.click(".kc-signin button");
-    const authorize = issuer.url + "/authorize";
-    const until = Date.now() + 10000;
-    while (!page.url().startsWith(authorize) && Date.now() < until) await page.waitForTimeout(100);
-    const reached = new URL(page.url());
-    if (reached.origin + reached.pathname !== authorize) problems.push(`landed at ${page.url()}, wanted the provider's ${authorize}`);
-    else {
-      if (reached.searchParams.get("client_id") !== "cinema-site") problems.push(`signed in as ${reached.searchParams.get("client_id")}`);
-      if (reached.searchParams.get("code_challenge_method") !== "S256") problems.push("no PKCE challenge");
-      if (reached.searchParams.get("redirect_uri") !== base + "/signin") problems.push(`returns to ${reached.searchParams.get("redirect_uri")}`);
+    problems.push(...await leftForProvider(page));
+    if (path !== "/signin") {
+      await page.goto(base + "/manifest.webmanifest").catch(() => {});
+      const remembered = await page.evaluate(() => sessionStorage.getItem("cinema:signin-return"));
+      if (remembered !== path) problems.push(`remembers ${remembered}, wanted ${path}`);
     }
   } catch (error) {
     problems.push(error.message.split("\n")[0]);
   }
   await context.close();
-  report("the door goes to the provider with PKCE and comes back to /signin", problems);
+  report(`signed out, ${path} goes to the provider${path === "/signin" ? "" : " and remembers it"}`, problems);
+}
+
+// Signing out is the provider's: the browser goes to its end-session endpoint, naming the session and
+// asking to come back to the site. The session is planted once, so what is held afterwards is the site's.
+{
+  const { context, page } = await open({ signedIn: false });
+  const problems = [];
+  try {
+    await page.goto(base + "/manifest.webmanifest");
+    await page.evaluate(({ key, value }) => localStorage.setItem(key, value), issuer.planted(VIEWER));
+    await page.goto(base + "/profile", { waitUntil: "load" });
+    await page.getByRole("button", { name: "Sign out" }).click();
+    const signOut = issuer.url + "/sign-out";
+    const until = Date.now() + 10000;
+    while (!page.url().startsWith(signOut) && Date.now() < until) await page.waitForTimeout(100);
+    const reached = new URL(page.url());
+    if (reached.origin + reached.pathname !== signOut) problems.push(`landed at ${page.url()}, wanted the provider's ${signOut}`);
+    else {
+      if (!reached.searchParams.get("id_token_hint")) problems.push("names no session");
+      if (reached.searchParams.get("post_logout_redirect_uri") !== base + "/") problems.push(`returns to ${reached.searchParams.get("post_logout_redirect_uri")}`);
+    }
+    const left = await context.newPage();
+    await left.goto(base + "/manifest.webmanifest");
+    if (await left.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("cinema.oidc.user")))) problems.push("the session is still held");
+  } catch (error) {
+    problems.push(error.message.split("\n")[0]);
+  }
+  await context.close();
+  report("signing out goes to the provider's end-session endpoint and forgets the session", problems);
+}
+
+// A session that ends while a page is open is shown, with the way back, and never followed.
+{
+  const { context, page } = await open();
+  const problems = [];
+  try {
+    await page.goto(base + "/profile", { waitUntil: "load" });
+    await page.getByRole("button", { name: "Sign out" }).waitFor({ timeout: 10000 });
+    // The API refuses the session from here on, and the planted one has no refresh token to renew it.
+    await page.route("**/api/**", (route) => route.fulfill({ status: 401, contentType: "application/json", body: "{}" }));
+    await page.locator(".nav-item", { hasText: "Discover" }).first().click();
+    const card = page.locator(".kc-signin__card");
+    await card.waitFor({ timeout: 10000 });
+    await page.waitForTimeout(1500);
+    if (!(await card.textContent()).includes("Your session ended.")) problems.push(`says ${await card.textContent()}`);
+    if (page.url().startsWith(issuer.url)) problems.push("left for the provider by itself");
+    await page.unroute("**/api/**");
+    await card.locator("button").click();
+    problems.push(...await leftForProvider(page));
+  } catch (error) {
+    problems.push(error.message.split("\n")[0]);
+  }
+  await context.close();
+  report("a session ending while a page is open is shown, and its button goes to the provider", problems);
 }
 
 await browser.close();

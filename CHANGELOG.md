@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-10-05
+
+### Changed
+
+- **Krystal Cinema has no sign-in page of its own.** A page opened with nothing held goes straight to
+  the provider, and `/signin` is only where the provider sends the browser back with its code. A
+  session that ends while a page is open is shown with a Sign in button and never followed; a sign-in
+  the provider refuses and a provider that does not answer are shown the same way. Site 0.26.0.
+- **Signing out is the provider's.** The site sends the browser to the provider's end-session endpoint,
+  which ends the sign-in there and every session under it and comes back to the site.
+
 ## [2.0.0] - 2026-10-05
 
 ### Changed

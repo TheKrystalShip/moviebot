@@ -4,12 +4,12 @@ import {
   useDock, useEdgeSwipe, useStoredFlag,
 } from "@thekrystalship/krystal-ui";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
-import { can, restore, useSession } from "./session.js";
+import { beginSignIn, can, restore, sessionEnded, useSession } from "./session.js";
 import { leave } from "./leave.js";
 import { goBack, navigate, useRoute } from "./router.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { PLACES } from "./nav.js";
-import { discoverPath, homePath, libraryPath, moviePath, profilePath, signInReturnPath } from "./paths.js";
+import { discoverPath, homePath, libraryPath, moviePath, profilePath } from "./paths.js";
 import { Home } from "./pages/Home.jsx";
 import { Library } from "./pages/Library.jsx";
 import { Title } from "./pages/Title.jsx";
@@ -20,7 +20,7 @@ import { Notify } from "./pages/Notify.jsx";
 import { ListPage, Saved } from "./pages/Saved.jsx";
 import { Leaving } from "./pages/Leaving.jsx";
 import { Profile } from "./pages/Profile.jsx";
-import { NoAccess, SignIn } from "./pages/SignIn.jsx";
+import { Dark, NoAccess, SignInReturn, Waiting } from "./pages/SignIn.jsx";
 import { About } from "./pages/About.jsx";
 import { NotFound } from "./pages/NotFound.jsx";
 import { SiteFooter } from "./components/SiteFooter.jsx";
@@ -31,7 +31,9 @@ import { Trail } from "./components/Trail.jsx";
 // The player carries hls.js, the hub client and Discord's SDK; only a room pays for them.
 const EmbedRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.EmbedRoom })));
 const SiteRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.SiteRoom })));
-const Dark = () => <div style={{ position: "fixed", inset: 0, background: "#000" }} />;
+
+const UNANSWERED = "The sign-in service is not answering. Try again in a moment.";
+const ENDED = "Your session ended.";
 
 const place = (id) => ({ id, ...PLACES[id] });
 const HOME = ["home", "discover", "saved"].map(place);
@@ -66,10 +68,11 @@ const LIT = {
 };
 
 /**
- * Krystal Cinema: the shelf, the films on their way and on their way out, and the assistant. Everything
- * but the door needs somebody signed in, and a page asked for while signed out is where the browser
- * returns once they are. Somebody signed in whose account may not watch is told there is nothing here
- * for them yet.
+ * Krystal Cinema: the shelf, the films on their way and on their way out, and the assistant. Every page
+ * needs somebody signed in: one opened with nothing held leaves for the provider at once, and is where
+ * the browser returns once they are. A session that ends while a page is open is shown, with the way
+ * back offered, never followed. Somebody signed in whose account may not watch is told there is nothing
+ * here for them yet.
  */
 export function App() {
   const session = useSession();
@@ -77,16 +80,21 @@ export function App() {
   const embedded = route.view === "embed";
   const restored = useRestored(!embedded && route.view !== "signin");
 
+  const [waiting, setWaiting] = React.useState(null);
+
   React.useEffect(() => {
-    if (restored && !session && route.view !== "signin" && !embedded) {
-      navigate(signInReturnPath(route.href), { replace: true });
+    if (!restored || session || route.view === "signin" || embedded) {
+      setWaiting(null);
+      return;
     }
+    if (sessionEnded()) setWaiting({ note: ENDED });
+    else beginSignIn(route.href).catch(() => setWaiting({ note: UNANSWERED }));
   }, [restored, session, route.view, route.href, embedded]);
 
   // The Activity proves who is watching through Discord, so it answers to no site session.
   if (embedded) return <React.Suspense fallback={<Dark />}><EmbedRoom /></React.Suspense>;
-  if (route.view === "signin") return <><SignIn query={route.query} /><Toasts /></>;
-  if (!restored || !session) return <Dark />;
+  if (route.view === "signin") return <SignInReturn query={route.query} />;
+  if (!restored || !session) return waiting ? <Waiting note={waiting.note} returnTo={route.href} /> : <Dark />;
   if (!can(session, "cinema:watch")) return <NoAccess onSignOut={leave} />;
   // A room fills the screen: the film is the page, and the way out is its back button.
   if (route.view === "room") {

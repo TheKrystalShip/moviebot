@@ -32,7 +32,6 @@ const scrollTo = (fraction) => async (page) => {
 };
 
 export const VIEWS = [
-  { name: "signin", path: () => "/signin", signedOut: true, ready: ".kc-signin, main, body" },
   { name: "home", path: () => "/", ready: ".showcase-card", full: true },
   { name: "home-middle", path: () => "/", ready: ".showcase-card", act: scrollTo(0.5) },
   { name: "home-foot", path: () => "/", ready: ".kfoot", act: scrollTo(1) },

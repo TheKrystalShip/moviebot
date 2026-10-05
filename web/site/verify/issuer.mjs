@@ -55,7 +55,7 @@ export function issuerIn(dir, port) {
     return {
       key: `cinema.oidc.user:${url}:${SITE_CLIENT}`,
       value: JSON.stringify({
-        access_token: token, token_type: "Bearer", scope: "openid",
+        access_token: token, id_token: token, token_type: "Bearer", scope: "openid",
         profile: { sub: person.id, name: person.name, preferred_username: person.id },
         expires_at: Math.floor(Date.now() / 1000) + (options?.hours ?? 6) * 3600,
       }),
@@ -65,7 +65,7 @@ export function issuerIn(dir, port) {
   const documents = {
     "/.well-known/openid-configuration": {
       issuer: url, jwks_uri: `${url}/jwks`, authorization_endpoint: `${url}/authorize`, token_endpoint: `${url}/token`,
-      response_types_supported: ["code"], id_token_signing_alg_values_supported: ["ES256"],
+      end_session_endpoint: `${url}/sign-out`, response_types_supported: ["code"], id_token_signing_alg_values_supported: ["ES256"],
     },
     "/jwks": { keys: [{ ...jwk, kid, use: "sig", alg: "ES256" }] },
   };

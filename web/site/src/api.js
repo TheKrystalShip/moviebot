@@ -2,10 +2,10 @@
 //
 // This is the one module that attaches the token. A 401 means the token has lapsed or was never
 // good: the session is renewed once and the call made again, and a second 401 is a session that has
-// ended, which the page answers by asking for a sign-in rather than showing a library that failed to
-// load. A 403 is the person's account not letting them do what they asked.
+// ended, which the page answers by saying so and offering the way back rather than showing a library
+// that failed to load. A 403 is the person's account not letting them do what they asked.
 
-import { freshToken, signOut } from "./session.js";
+import { forget, freshToken } from "./session.js";
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -30,7 +30,7 @@ async function call(method, path, body) {
   if (response.status === 401) response = await send(method, path, body, await freshToken({ refused: true }));
 
   if (response.status === 401) {
-    await signOut();
+    await forget();
     throw new ApiError(401, "Sign in to carry on.");
   }
   if (response.status === 204) return null;
