@@ -8,7 +8,7 @@ import { navigate } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, watchLink } from "../components/Film.jsx";
-import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton, bytes } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 
 /**
@@ -45,6 +45,7 @@ export function Title({ id }) {
   if (manifest.error && manifest.error.status === 404) {
     return <div className="kc-page"><Empty title="Not in the library">This film has left the library, or never arrived.</Empty></div>;
   }
+  if (!manifest.data && !manifest.error) return <TitleSkeleton kind="Movie" />;
   if (!manifest.data) return <div className="kc-page"><Failed error={manifest.error} onRetry={manifest.reload} /></div>;
 
   const m = manifest.data;

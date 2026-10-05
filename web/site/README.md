@@ -27,7 +27,7 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular` and `/hu
 
 | Path | What it is |
 |---|---|
-| `/` | A film to watch, then a row each for where the person left off, their Watch later (with Watch on a film the library holds, and See all opening it), the rooms watching something now, what was recently added, what leaves next, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail`. The Movies and TV Shows rows end in a tile that opens Discover |
+| `/` | A film to watch, then a row each for where the person left off, their Watch later (with Watch on a film the library holds, and See all opening it), the rooms watching something now, what was recently added, what leaves next, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail`. The Movies and TV Shows rows are dealt in a new order on every visit, kept while the page is open, and end in a tile that opens Discover |
 | `/movies`, `/tv` | Every film, or every show (one card each, however many of its episodes are here), with krystal-ui's `Toolbar`: a search by name, one Filters popover (state, stay, genre) with the active ones as chips, and a sort with its direction. On a phone a Movies \| TV shows switch under the heading moves between the two |
 | `/movies/<titleId>` | One film in the library: what it is, who played it last, how long it stays, keep or let go, save, and watch or resume. An episode's id forwards to its show's page at its season |
 | `/tv/<imdbId>`, `/tv/<imdbId>/season/<n>` | One show the library holds an episode of, at a season (the default season has no segment): what it is, its seasons as chips with how long each stays, each season's episodes with their stills and how far this person got, resume, keep a season, and the request sheet that picks seasons and episodes to download at 720p (the default) or 1080p. Every episode the tracker has plays from its row while it arrives, each season can be downloaded whole, first episode first, and with nothing of it here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them. A show the library holds nothing of forwards to its `/discover/show/` address |
@@ -56,6 +56,11 @@ page stays where it is. Where the library stands decides a show's and a film's a
 is at `/movies/`, one it does not at `/discover/film/`, a show with an episode here at `/tv/` and
 one with none at `/discover/show/`, and the page forwards by replacing the entry when the address names
 the other.
+
+A page navigated to is prepared out of sight, while the one being left stays, until its first reads
+are answered or half a second has passed. A film's or show's page whose description takes longer — a
+title the film database is being asked about for the first time — is drawn as its frame, with
+krystal-ui's `Skeleton` blocks where the words, the artwork and the cast will be, until they arrive.
 
 Every page but Home carries a breadcrumb trail above it (krystal-ui's `Breadcrumbs`), read from the
 address a level at a time: Home, the section, then the film, show, list, season or profile tab, each

@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Icon, Skeleton } from "@thekrystalship/krystal-ui";
 
 /** A count of votes the way the design prints one: 8,740 is 8.7K. */
 export function votes(n) {
@@ -111,6 +111,59 @@ export function FactGrid({ facts }) {
           <span className={"kc-factgrid__value" + (mono ? " kc-mono" : "")}>{value}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * A film's or show's page while its description is read: the same frame, poster, heading, lines of
+ * text and cast, as blocks where the words and artwork will be, so the page fills in where it stands.
+ * `kind` is the eyebrow, which is known before anything is read.
+ */
+export function TitleSkeleton({ kind }) {
+  return (
+    <div className="kc-page kc-title">
+      <section className="kc-tt">
+        <div className="kc-tt__grid">
+          <span className="skel kc-tt__poster" />
+          <div className="kc-tt__body">
+            <span className="kc-eyebrow kc-eyebrow--muted">{kind}</span>
+            <Skeleton w="62%" h={34} r={8} />
+            <div className="kc-tt__meta">
+              <Skeleton w={40} h={14} /><Skeleton w={34} h={14} /><Skeleton w={64} h={14} />
+            </div>
+            <div className="kc-tt__score-row">
+              <Skeleton w={180} h={18} /><Skeleton w={64} h={24} r={999} /><Skeleton w={72} h={24} r={999} />
+            </div>
+            <div className="kc-tt__overview">
+              <Skeleton h={14} /><Skeleton h={14} style={{ marginTop: 9 }} /><Skeleton w="70%" h={14} style={{ marginTop: 9 }} />
+            </div>
+            <div className="kc-credits">
+              {[48, 64, 40].map((w) => (
+                <React.Fragment key={w}>
+                  <Skeleton w={w} h={13} /><Skeleton w={`${w + 20}%`} h={13} />
+                </React.Fragment>
+              ))}
+            </div>
+            <div className="kc-actions">
+              <Skeleton w={132} h={48} r={8} /><Skeleton w={112} h={48} r={8} />
+            </div>
+          </div>
+        </div>
+      </section>
+      <section className="kc-section">
+        <Skeleton w={64} h={18} />
+        <div className="kc-cast">
+          {Array.from({ length: 8 }, (_, i) => (
+            <div key={i} className="kc-cast__card">
+              <Skeleton w={44} h={44} r={999} />
+              <div className="kc-cast__text" style={{ flex: 1, gap: 6 }}>
+                <Skeleton w="70%" h={13} /><Skeleton w="45%" h={11} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

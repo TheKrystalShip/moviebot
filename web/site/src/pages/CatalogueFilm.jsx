@@ -7,7 +7,7 @@ import { useCrumb } from "../crumbs.js";
 import { moviePath } from "../paths.js";
 import { navigate } from "../router.js";
 import { Empty, Failed } from "../components/Film.jsx";
-import { CastGrid, Credits, FilmScore, Genres } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { FilmRequestSheet } from "../components/RequestSheet.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { wishWords } from "./Discover.jsx";
@@ -38,6 +38,7 @@ export function CatalogueFilm({ imdbId }) {
   if (film.error && film.error.status === 404) {
     return <div className="kc-page"><Empty title="No such film">The film database has nothing under {imdbId}.</Empty></div>;
   }
+  if (!film.data && !film.error) return <TitleSkeleton kind="Movie" />;
   if (!film.data) return <div className="kc-page"><Failed error={film.error} onRetry={film.reload} /></div>;
 
   const d = film.data;

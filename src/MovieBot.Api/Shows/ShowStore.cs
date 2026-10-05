@@ -113,9 +113,15 @@ public sealed class ShowStore(
             var seasons = new List<SeasonDetails>();
             if (details is not null)
             {
-                foreach (var season in details.Seasons.Where(s => s.Number > 0))
-                    if (await tmdb.SeasonAsync(details.TmdbId, season.Number, timeout.Token) is { } described)
-                        seasons.Add(described);
+                // Every season at once, kept in the show's order.
+                using var gate = new SemaphoreSlim(FilmStore.ImagesAtOnce);
+                var described = await Task.WhenAll(details.Seasons.Where(s => s.Number > 0).Select(async season =>
+                {
+                    await gate.WaitAsync(timeout.Token);
+                    try { return await tmdb.SeasonAsync(details.TmdbId, season.Number, timeout.Token); }
+                    finally { gate.Release(); }
+                }));
+                seasons.AddRange(described.OfType<SeasonDetails>());
 
                 await FetchImagesAsync(tmdb, imdbId, details, seasons, timeout.Token);
             }
@@ -146,24 +152,27 @@ public sealed class ShowStore(
 
         var directory = Path.Combine(root, imdbId);
         Directory.CreateDirectory(directory);
-        foreach (var (path, size, file) in wanted)
-        {
-            var target = Path.Combine(directory, file);
-            if (path is null)
+        // Asked side by side, as a film's are: a page opened on a show nothing is kept for waits on them.
+        await Parallel.ForEachAsync(wanted, new ParallelOptions { MaxDegreeOfParallelism = FilmStore.ImagesAtOnce, CancellationToken = ct },
+            async (image, token) =>
             {
-                File.Delete(target);
-                continue;
-            }
+                var (path, size, file) = image;
+                var target = Path.Combine(directory, file);
+                if (path is null)
+                {
+                    File.Delete(target);
+                    return;
+                }
 
-            // An image a path names never changes; a refresh that keeps the path keeps the file.
-            var marker = target + ".src";
-            if (File.Exists(target) && File.Exists(marker) && await File.ReadAllTextAsync(marker, ct) == path) continue;
+                // An image a path names never changes; a refresh that keeps the path keeps the file.
+                var marker = target + ".src";
+                if (File.Exists(target) && File.Exists(marker) && await File.ReadAllTextAsync(marker, token) == path) return;
 
-            if (await tmdb.ImageAsync(path, size, ct) is not { } bytes) continue;
-            await File.WriteAllBytesAsync(target + ".tmp", bytes, ct);
-            File.Move(target + ".tmp", target, overwrite: true);
-            await File.WriteAllTextAsync(marker, path, ct);
-        }
+                if (await tmdb.ImageAsync(path, size, token) is not { } bytes) return;
+                await File.WriteAllBytesAsync(target + ".tmp", bytes, token);
+                File.Move(target + ".tmp", target, overwrite: true);
+                await File.WriteAllTextAsync(marker, path, token);
+            });
     }
 
     private StoredShow? Read(string imdbId)

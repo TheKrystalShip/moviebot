@@ -8,7 +8,7 @@ import { navigate } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago, airDay, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, watchLink } from "../components/Film.jsx";
-import { CastGrid, Credits, FactGrid, FilmScore, Genres, bytes } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton, bytes } from "../components/FilmDetails.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { RequestSheet, plan } from "../components/RequestSheet.jsx";
@@ -57,6 +57,7 @@ export function Show({ imdbId, season, inLibrary }) {
   if (show.error && show.error.status === 404) {
     return <div className="kc-page"><Empty icon="tv" title="No such show">The film database has no show under this id.</Empty></div>;
   }
+  if (!show.data && !show.error) return <TitleSkeleton kind="TV series" />;
   if (!show.data) return <div className="kc-page"><Failed error={show.error} onRetry={show.reload} /></div>;
 
   const s = show.data;

@@ -1,3 +1,4 @@
+import React from "react";
 import { Icon, Rail } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
@@ -29,6 +30,9 @@ export function Home() {
   const progress = useLoad(() => api.progress().catch(() => []), []);
   const showList = useLoad(() => api.shows().catch(() => []), []);
   const later = useLoad(() => api.list("later").catch(() => null), []);
+  // The Movies and TV Shows rows are dealt in a new order on every visit, and keep it while the page
+  // is open, so a read answered again never moves a poster out from under somebody.
+  const [deal] = React.useState(() => Math.random().toString(36).slice(2));
   const saved = (later.data && later.data.entries) || [];
 
   const library = (titles.data || []).filter((t) => t.status !== "failed");
@@ -140,7 +144,7 @@ export function Home() {
         <Rail
           variant="posters" icon="clapperboard" title="Movies" count={films.length}
           onViewAll={() => navigate(libraryPath("film"))} viewAllLabel="All movies"
-          items={[...films, MORE]} itemKey={(t) => (t === MORE ? "more" : t.id)}
+          items={[...dealt(films, (t) => t.id, deal), MORE]} itemKey={(t) => (t === MORE ? "more" : t.id)}
           renderItem={(t) => (t === MORE ? <MoreTile label="Any movie" /> : card(t))} />
       )}
 
@@ -148,7 +152,7 @@ export function Home() {
         <Rail
           variant="posters" icon="tv" title="TV Shows" count={shows.length}
           onViewAll={() => navigate(libraryPath("show"))} viewAllLabel="All shows"
-          items={[...shows, MORE]} itemKey={(s) => (s === MORE ? "more" : s.imdbId || s.firstTitleId)}
+          items={[...dealt(shows, showKey, deal), MORE]} itemKey={(s) => (s === MORE ? "more" : showKey(s))}
           renderItem={(s) => (s === MORE ? <MoreTile label="Any show" /> : <ShowCard show={s} me={me} />)} />
       )}
     </div>
@@ -202,6 +206,21 @@ function MoreTile({ label }) {
       <span>{label}</span>
     </a>
   );
+}
+
+const showKey = (s) => s.imdbId || s.firstTitleId;
+
+/**
+ * `items` in an order fixed by `deal`: each is ranked by a hash of the deal and its key, so one deal
+ * always lays out the same items the same way, and an item that arrives or leaves moves nothing else.
+ */
+function dealt(items, keyOf, deal) {
+  const rank = (item) => {
+    let h = 0x811c9dc5;
+    for (const c of deal + keyOf(item)) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
+    return h >>> 0;
+  };
+  return items.map((item) => [rank(item), item]).sort((a, b) => a[0] - b[0]).map(([, item]) => item);
 }
 
 /** The newest ready film: what arrived last is what is worth putting at the top. */

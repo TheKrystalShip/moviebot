@@ -152,25 +152,32 @@ public sealed class FilmStore(
 
         var directory = Path.Combine(root, imdbId);
         Directory.CreateDirectory(directory);
-        foreach (var (path, size, file) in wanted)
-        {
-            var target = Path.Combine(directory, file);
-            if (path is null)
+        // A page opened on a film nothing is kept for waits on these, so they are asked side by side:
+        // the wait is the slowest image rather than the sum of them.
+        await Parallel.ForEachAsync(wanted, new ParallelOptions { MaxDegreeOfParallelism = ImagesAtOnce, CancellationToken = ct },
+            async (image, token) =>
             {
-                File.Delete(target);
-                continue;
-            }
-            // An image a path names never changes; a new image comes under a new path, and a
-            // refresh that keeps the path keeps the file.
-            var marker = target + ".src";
-            if (File.Exists(target) && File.Exists(marker) && await File.ReadAllTextAsync(marker, ct) == path) continue;
+                var (path, size, file) = image;
+                var target = Path.Combine(directory, file);
+                if (path is null)
+                {
+                    File.Delete(target);
+                    return;
+                }
+                // An image a path names never changes; a new image comes under a new path, and a
+                // refresh that keeps the path keeps the file.
+                var marker = target + ".src";
+                if (File.Exists(target) && File.Exists(marker) && await File.ReadAllTextAsync(marker, token) == path) return;
 
-            if (await tmdb.ImageAsync(path, size, ct) is not { } bytes) continue;
-            await File.WriteAllBytesAsync(target + ".tmp", bytes, ct);
-            File.Move(target + ".tmp", target, overwrite: true);
-            await File.WriteAllTextAsync(marker, path, ct);
-        }
+                if (await tmdb.ImageAsync(path, size, token) is not { } bytes) return;
+                await File.WriteAllBytesAsync(target + ".tmp", bytes, token);
+                File.Move(target + ".tmp", target, overwrite: true);
+                await File.WriteAllTextAsync(marker, path, token);
+            });
     }
+
+    /// <summary>How many images are asked of the database's store at once.</summary>
+    internal const int ImagesAtOnce = 8;
 
     private StoredFilm? Read(string imdbId)
     {

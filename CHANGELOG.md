@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-10-05
+
+### Added
+
+- **A film's or show's page is drawn as its frame while its description is read**: the poster, the
+  heading, the lines of text, the credits, the actions and the cast as krystal-ui `Skeleton` blocks
+  where they will be, so a title the film database is being asked about for the first time no longer
+  shows an empty page. Site 0.27.0, on krystal-ui 0.9.0.
+
+### Changed
+
+- **Home's Movies and TV Shows rows are dealt in a new order on every visit**, and keep it while the
+  page is open.
+- **A description the film database is asked for fetches its images side by side**, eight at a time,
+  and a show's seasons the same way, so a page opened on a film nothing is kept for waits on the
+  slowest image rather than the sum of them. Api 2.1.0.
+
 ## [2.1.0] - 2026-10-05
 
 ### Changed
