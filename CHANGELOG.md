@@ -4,6 +4,30 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2026-10-05
+
+### Added
+
+- **The assistant stands on the organization's shared tooling**, `TheKrystalShip.Agent.Service`
+  1.1.0, so its commands, memory and notifications are the same code as the KGSM assistant's.
+  Assistant 2.1.0.
+- **Commands**: `/help`, `/tools`, `/compact`, `/new` and `/memory`, each needing `cinema:watch`.
+  `/new` in a room, sent by the bot with the room in `X-Assistant-Room`, starts the room's
+  conversation over.
+- **Memory, on a person's own chats**: the assistant writes down what somebody asks it to remember,
+  reads it back on every later turn, and the person reads, corrects and drops it through
+  `/memories`. A room remembers nothing, being shared and starting over after a silence.
+- **Notifications of a proposal waiting on the person who asked**, with the assistant's own key pair
+  and device list, for a site served from the assistant's own origin. A notification can cancel a
+  proposal and says that agreeing to one is done in the chat, where it still waits: a proposal is
+  carried out with the approving person's token, which a notification's button does not carry.
+  Krystal Cinema's dock does not subscribe to these, its origin being subscribed to the API's.
+
+### Removed
+
+- The assistant's own `new` and `help` and their records in `MovieBot.Client`, whose commands are
+  the shared package's. Client 3.0.0.
+
 ## [2.8.1] - 2026-10-05
 
 ### Changed

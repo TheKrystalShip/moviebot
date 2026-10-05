@@ -1,5 +1,9 @@
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using TheKrystalShip.Agent.Commands;
+using TheKrystalShip.Agent.Service;
+using TheKrystalShip.Agent.Service.Commands;
+using TheKrystalShip.Agent.Service.Push;
 using TheKrystalShip.Llm.Conversation;
 using TheKrystalShip.Llm.Extensions;
 using TheKrystalShip.Llm.Interfaces;
@@ -48,8 +52,31 @@ public static class AssistantServiceCollectionExtensions
         services.AddSingleton<CinemaAssistant>();
         services.AddSingleton<EventStreams>();
         services.AddSingleton<TurnHub>();
+
+        // What every TheKrystalShip assistant offers around the conversation, over this service's callers.
+        services.AddSingleton<IAssistantCallers, CinemaCallers>();
+        services.AddSingleton<IAssistantToolOffer, CinemaToolOffer>();
+        services.AddSingleton<IAssistantConversationEvents, CinemaConversationEvents>();
+        services.AddAssistantCommands(Commands, commands => commands.AddBaseline(clearSharedAction: Callers.Watch));
+        services.AddAssistantPush<StagedAction>();
+        services.AddSingleton<IConfirmationPushHost<StagedAction>, CinemaConfirmationPushHost>();
+        services.Configure<AssistantPushOptions>(push =>
+        {
+            push.NotificationTag = "moviebot-confirmation";
+            push.InterruptedMessage = "MovieBot restarted while this was going through. Check on it before asking again.";
+            push.ConfirmUnavailable = CinemaConfirmationPushHost.ConfirmUnavailable;
+        });
         return services;
     }
+
+    /// <summary>
+    /// The commands a person may type: the organization's baseline, each needing what talking to the
+    /// assistant needs, and starting a room over needing the same, since anybody in a room may move it.
+    /// <c>think</c> is left out: every request is sent with thinking off, because this model reasoning
+    /// before a tool call triples the wait for it.
+    /// </summary>
+    public static readonly ChatCommandCatalog Commands =
+        new(BaselineCommands.All(Callers.Watch).Where(c => c.Name != BaselineCommands.Think));
 
     /// <summary>
     /// The API. It carries no credential of its own: every call is made as the person a turn is for,

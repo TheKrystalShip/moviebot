@@ -61,16 +61,20 @@ public sealed class ToolCatalog
     private ToolCatalog(IReadOnlyList<LlmToolDefinition> all)
     {
         All = all;
+        Room = [.. all.Where(t => !RoomTools.Memories.Contains(t.Name))];
         Site = [.. all.Where(t => !RoomTools.RoomOnly.Contains(t.Name))];
     }
 
     /// <summary>Every tool, in the order the file lists them, which is the order the model reads them in.</summary>
     public IReadOnlyList<LlmToolDefinition> All { get; }
 
+    /// <summary>The tools a room's turn is offered: everything but memory, which a room has none of.</summary>
+    public IReadOnlyList<LlmToolDefinition> Room { get; }
+
     /// <summary>The tools a turn that names no room is offered: everything that does not act on a room.</summary>
     public IReadOnlyList<LlmToolDefinition> Site { get; }
 
-    public IReadOnlyList<LlmToolDefinition> For(AssistantTurn turn) => turn.Room is null ? Site : All;
+    public IReadOnlyList<LlmToolDefinition> For(AssistantTurn turn) => turn.Room is null ? Site : Room;
 
     public static ToolCatalog Load(string directory, IReadOnlyCollection<string> implemented) =>
         Bind(ToolCatalogFile.Read(directory), implemented, Path.Combine(directory, FileName));

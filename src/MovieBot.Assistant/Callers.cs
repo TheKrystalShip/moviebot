@@ -11,7 +11,8 @@ namespace TheKrystalShip.MovieBot.Assistant;
 /// The client calling on the person's behalf (the token's <c>act</c>), when one is: the bot, relaying
 /// what the person said in a voice channel. Only such a client names a room.
 /// </param>
-public sealed record Caller(string UserId, string DisplayName, string AccessToken, string? Via)
+/// <param name="Actions">The Cinema actions the token lists, which is what a command is offered and refused by.</param>
+public sealed record Caller(string UserId, string DisplayName, string AccessToken, string? Via, IReadOnlySet<string> Actions)
 {
     /// <summary>The conversations and streams this caller may see: their own.</summary>
     public string Scope => AssistantTurn.PersonScope(UserId);
@@ -60,7 +61,8 @@ public sealed class Callers(IOptions<AssistantOidcOptions> options)
         var identity = request.HttpContext.User.Identities
             .FirstOrDefault(i => i.IsAuthenticated && i.AuthenticationType == JwtBearerDefaults.AuthenticationScheme);
         if (identity?.FindFirst("sub")?.Value is not { Length: > 0 } sub) return null;
-        if (!identity.HasClaim(options.Value.ActionsClaim, Watch)) return null;
+        var actions = identity.FindAll(options.Value.ActionsClaim).Select(c => c.Value).ToHashSet(StringComparer.Ordinal);
+        if (!actions.Contains(Watch)) return null;
 
         var header = request.Headers.Authorization.ToString();
         var token = header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? header["Bearer ".Length..].Trim() : "";
@@ -68,7 +70,7 @@ public sealed class Callers(IOptions<AssistantOidcOptions> options)
         var name = identity.FindFirst("name")?.Value is { Length: > 0 } shown ? shown
             : identity.FindFirst("preferred_username")?.Value is { Length: > 0 } username ? username
             : sub;
-        return new Caller(sub, name, token, ActorOf(identity.FindFirst("act")?.Value));
+        return new Caller(sub, name, token, ActorOf(identity.FindFirst("act")?.Value), actions);
     }
 
     /// <summary>The acting client's id out of an <c>act</c> claim, an object carried as JSON.</summary>

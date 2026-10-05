@@ -1,7 +1,10 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Options;
+using TheKrystalShip.Agent.Memory;
 using TheKrystalShip.Agent.Replies;
+using TheKrystalShip.Llm.Conversation;
 using TheKrystalShip.Llm.Interfaces;
 using TheKrystalShip.Llm.Models;
 using TheKrystalShip.MovieBot.Acquire;
@@ -40,12 +43,16 @@ public sealed class RoomToolbox(
     ImdbClient catalogue,
     StagedActions staged,
     OfferedReleases offered,
+    IMemoryStore memories,
+    IOptions<MemoryOptions> memoryOptions,
     TimeProvider clock,
     ILogger<RoomTools> logger)
 {
+    private readonly MemoryTools _memoryTools = new(memories, memoryOptions.Value);
+
     /// <param name="said">What the person said, which is what a tool holds the model's arguments against.</param>
     public RoomTools For(AssistantTurn turn, string said = "") =>
-        new(turn, said, api.As(turn.AccessToken), catalogue, staged, offered, clock, logger);
+        new(turn, said, api.As(turn.AccessToken), catalogue, staged, offered, _memoryTools, memories, clock, logger);
 }
 
 /// <summary>The tools for one turn: one person, the room they are in when there is one, and what the turn proposed and launched.</summary>
@@ -56,6 +63,8 @@ public sealed partial class RoomTools(
     ImdbClient catalogue,
     StagedActions staged,
     OfferedReleases offered,
+    MemoryTools memoryTools,
+    IMemoryStore memories,
     TimeProvider clock,
     ILogger<RoomTools> logger) : IToolDispatcher
 {
@@ -87,13 +96,24 @@ public sealed partial class RoomTools(
     public const string KeepFilm = "keep_film";
     public const string LetGo = "let_go";
     public const string DownloadShow = "download_show";
+    public const string Remember = "remember";
+    public const string Forget = "forget";
+    public const string Recall = "recall";
 
     /// <summary>Every tool this dispatcher implements, which <see cref="ToolCatalog"/> holds the file to.</summary>
     public static readonly IReadOnlyList<string> Names =
     [
         RoomState, ListRooms, GetTitle, DownloadStatus, WishListTool, Resume, Pause, Seek, SeekRelative,
         WatchFilm, DownloadFilm, DownloadOnly, FetchSubtitle, AddWish, KeepFilm, LetGo, DownloadShow,
+        Remember, Forget, Recall,
     ];
+
+    /// <summary>
+    /// The memory tools, offered only to a person's own chat: a room is shared and starts over after a
+    /// silence, so nothing said there is anybody's to keep (<see cref="AssistantTurn.MemoryOwner"/>).
+    /// </summary>
+    public static readonly IReadOnlySet<string> Memories =
+        new HashSet<string>(StringComparer.Ordinal) { Remember, Forget, Recall };
 
     /// <summary>
     /// The tools that act on the room a turn names, offered only to a turn that names one. A person on
@@ -123,12 +143,15 @@ public sealed partial class RoomTools(
     public IReadOnlyList<StagedAction> Proposed => _proposed;
 
     /// <summary>
-    /// Whether this turn did anything to a room or proposed anything — the fact a reply claiming to
-    /// have acted is held against.
+    /// Whether this turn did anything to a room or to what a person asked to be remembered, or proposed
+    /// anything — the fact a reply claiming to have acted is held against.
     /// </summary>
-    public bool Acted => _moved || _proposed.Count > 0 || _launched.Count > 0;
+    public bool Acted => _moved || _remembered || _proposed.Count > 0 || _launched.Count > 0;
 
     private bool _moved;
+
+    /// <summary>Whether this turn wrote or dropped a memory, which a reply saying so is held against.</summary>
+    private bool _remembered;
 
     /// <summary>The films this turn put on or found to open, for the client to present.</summary>
     public IReadOnlyList<LaunchFrame> Launched => _launched;
@@ -204,6 +227,7 @@ public sealed partial class RoomTools(
                 KeepFilm => await ProposeKeepAsync(call.Arg("title"), keeping: true, ct),
                 LetGo => await ProposeKeepAsync(call.Arg("title"), keeping: false, ct),
                 DownloadShow => await ProposeShowAsync(call.Arg("show"), call.Arg("season"), call.Arg("episodes"), call.Arg("quality"), ct),
+                Remember or Forget or Recall => Memory(call),
                 _ => $"There is no tool called {call.Name}. Use one of the tools you were given.",
             };
         }
@@ -227,6 +251,46 @@ public sealed partial class RoomTools(
             logger.LogError(ex, "Assistant: {Tool} failed", call.Name);
             return Tell($"That did not work: {ex.Message}", "Do not retry.");
         }
+    }
+
+    // ── Memory ───────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The organization's memory tools, on the turn's owner. A room's turn has none, and the tools then
+    /// refuse in their own words.
+    /// </summary>
+    /// <remarks>
+    /// What they return is written for the model and names the other tools, so a person is told only
+    /// that the memory changed, and only when the store says it did.
+    /// </remarks>
+    private ToolOutput Memory(LlmToolCall call)
+    {
+        var names = new MemoryToolNames(Remember, Forget, Recall);
+        var owner = turn.MemoryOwner;
+        var key = MemoryKey.Sanitize(call.Arg("key"));
+        var before = owner is null || key is null ? null : memories.Get(owner, key);
+
+        using var scope = MemoryOwner.BeginTurn(owner);
+        var output = call.Name.Name switch
+        {
+            Remember => memoryTools.Remember(call, names),
+            Forget => memoryTools.Forget(call, names),
+            _ => memoryTools.Recall(call, names),
+        };
+
+        var after = owner is null || key is null ? null : memories.Get(owner, key);
+        if (call.Name.Name == Remember && after is not null && after != before)
+        {
+            _remembered = true;
+            _told.Add("I'll remember that.");
+        }
+        else if (call.Name.Name == Forget && before is not null && after is null)
+        {
+            _remembered = true;
+            _told.Add("I've forgotten that.");
+        }
+
+        return output;
     }
 
     // ── Reads ────────────────────────────────────────────────────────────────────────────────

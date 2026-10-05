@@ -1,4 +1,7 @@
 using System.Text.Json;
+using TheKrystalShip.Agent.Service.Commands;
+using TheKrystalShip.Agent.Service.Memory;
+using TheKrystalShip.Agent.Service.Push;
 using TheKrystalShip.Llm.Interfaces;
 using TheKrystalShip.Llm.Models;
 using TheKrystalShip.MovieBot.Client.Assistant;
@@ -6,9 +9,10 @@ using TheKrystalShip.MovieBot.Client.Assistant;
 namespace TheKrystalShip.MovieBot.Assistant.Wire;
 
 /// <summary>
-/// The assistant wire contract (<c>kgsm-llm/docs/wire-contract.md</c>, version 2.1) as this service
+/// The assistant wire contract (<c>tks-agent/docs/wire-contract.md</c>, version 2.1) as this service
 /// serves it: the turn stream, the confirm channel, a person's conversations and the event stream that
-/// keeps their other surfaces current, plus the room verbs the bot writes into a room's conversation.
+/// keeps their other surfaces current, the commands, memory and notification routes of
+/// <c>TheKrystalShip.Agent.Service</c>, plus the room verbs the bot writes into a room's conversation.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -126,39 +130,12 @@ public static class AssistantEndpoints
                 : Results.NotFound();
         });
 
-        app.MapGet("/commands", (HttpRequest request, Callers callers) =>
-            callers.Resolve(request) is null ? Refuse() : Json(Commands));
-
-        app.MapPost("/commands/{name}", async (string name, HttpRequest request, Callers callers, IConversationStore store, EventStreams streams) =>
-        {
-            if (Person(request, callers) is not { } caller) return Refuse();
-            var body = await Read(request, AssistantJsonContext.Default.CommandRequest);
-
-            switch (name)
-            {
-                case "help":
-                    return Json(new CommandReply("These are the commands.", Commands: Commands));
-
-                case "new":
-                    // The offered id is taken up only while it holds nothing: "start a fresh
-                    // conversation" cannot mean the one it was typed in.
-                    var offered = body?.ConversationId;
-                    var fresh = offered is { Length: > 0 }
-                                && store.GetHistory(AssistantTurn.PersonConversation(caller.UserId, offered)).Count == 0
-                        ? offered
-                        : Guid.NewGuid().ToString("N");
-                    var full = AssistantTurn.PersonConversation(caller.UserId, fresh);
-                    store.CreateConversation(full);
-                    streams.ToScope(caller.Scope, new ConversationFrame("started", fresh, Origin(request)));
-
-                    var row = store.ListConversations(full).FirstOrDefault(c => c.ConversationId == full);
-                    return Json(new CommandReply("Started a new conversation.", fresh,
-                        row is null ? null : Row(caller, row)));
-
-                default:
-                    return Results.NotFound();
-            }
-        });
+        // What every TheKrystalShip assistant serves around the conversation, from TheKrystalShip.Agent.Service
+        // over CinemaCallers: the commands, a person's memory, and their notification devices. A
+        // notification's button arrives with no token, so its route is on the app with nothing in front.
+        app.MapAssistantCommands();
+        app.MapAssistantMemory();
+        app.MapAssistantPush<StagedAction>(open: app);
 
         app.MapGet("/events", EventsAsync);
 
@@ -184,12 +161,6 @@ public static class AssistantEndpoints
             return Results.NoContent();
         });
     }
-
-    private static readonly List<CommandEntry> Commands =
-    [
-        new("new", "Starts a new conversation.", "assistant:chat", false, []),
-        new("help", "Lists the commands.", "assistant:chat", false, []),
-    ];
 
     private static async Task TurnAsync(
         HttpContext context, Callers callers, TurnHub hub, EventStreams streams, IConversationStore store)
@@ -217,7 +188,7 @@ public static class AssistantEndpoints
         }
         else
         {
-            var chat = body.ConversationId is { Length: > 0 } id ? id : "main";
+            var chat = body.ConversationId is { Length: > 0 } id ? id : AssistantTurn.MainChat;
             turn = AssistantTurn.ForPerson(caller.UserId, caller.DisplayName, chat) with { Spoken = spoken, AccessToken = caller.AccessToken };
             scope = caller.Scope;
 
@@ -384,8 +355,11 @@ public static class AssistantEndpoints
         _ => null,
     };
 
-    private static ConversationRow Row(Caller caller, ConversationSummary summary) =>
-        new(summary.ConversationId[(caller.Scope.Length + 1)..], summary.Title, summary.CreatedAt,
+    private static ConversationRow Row(Caller caller, ConversationSummary summary) => Row(caller.Scope, summary);
+
+    /// <summary>One of a person's conversations as the listing states it, named by the id the client holds.</summary>
+    public static ConversationRow Row(string scope, ConversationSummary summary) =>
+        new(summary.ConversationId[(scope.Length + 1)..], summary.Title, summary.CreatedAt,
             summary.LastActivityAt, summary.TurnCount, false, false);
 
     private static bool Streams(HttpRequest request) =>

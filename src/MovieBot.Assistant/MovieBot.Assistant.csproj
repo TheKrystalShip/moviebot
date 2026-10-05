@@ -7,7 +7,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Assistant</RootNamespace>
     <AssemblyName>moviebot-assistant</AssemblyName>
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
 
     <!-- The agent loop's conversation store is SQLite through a native library, and the loop itself
          is not built for the ahead-of-time compiler, so this runs on the JIT. A worker that runs for
@@ -33,9 +33,13 @@
     <PackageReference Include="TheKrystalShip.Llm" Version="2.4.0" />
 
     <!-- What an assistant needs around the loop and belongs to no product: the prompt directory, the
-         catalog file and its agreement check, the checks a reply is held to, compaction, and the
-         single-use handle a proposal is redeemed by. -->
-    <PackageReference Include="TheKrystalShip.Agent" Version="1.0.0" />
+         catalog file and its agreement check, the checks a reply is held to, compaction, the
+         single-use handle a proposal is redeemed by, the memory tools and the command catalog. -->
+    <PackageReference Include="TheKrystalShip.Agent" Version="1.1.0" />
+
+    <!-- What every assistant offers a person around the conversation, over HTTP: the commands, memory
+         and confirmation notifications, behind this service's own caller seam. -->
+    <PackageReference Include="TheKrystalShip.Agent.Service" Version="1.1.0" />
 
     <!-- Checks the identity provider's access tokens, as the API does. -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />

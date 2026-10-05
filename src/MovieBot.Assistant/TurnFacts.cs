@@ -1,5 +1,7 @@
 using System.Text;
 using Microsoft.Extensions.Options;
+using TheKrystalShip.Llm.Interfaces;
+using TheKrystalShip.Llm.Models;
 using TheKrystalShip.MovieBot.Client;
 using TheKrystalShip.MovieBot.Client.Assistant;
 using TheKrystalShip.MovieBot.Core;
@@ -7,8 +9,9 @@ using TheKrystalShip.MovieBot.Core;
 namespace TheKrystalShip.MovieBot.Assistant;
 
 /// <summary>
-/// What is true at the moment somebody asks — the room they are in, when they are in one, and what the
-/// library holds — written for the model to read before the request.
+/// What is true at the moment somebody asks — the room they are in, when they are in one, what the
+/// library holds, and on a person's own chat what they asked to be remembered — written for the model
+/// to read before the request.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -29,6 +32,7 @@ namespace TheKrystalShip.MovieBot.Assistant;
 /// </remarks>
 public sealed class TurnFacts(
     MovieBotApiClient api,
+    IMemoryStore memories,
     TimeProvider clock,
     IOptions<AssistantOptions> options,
     ILogger<TurnFacts> logger)
@@ -54,7 +58,36 @@ public sealed class TurnFacts(
 
         if (turn.Room is { } room) text.AppendLine(await RoomLineAsync(asPerson, room, library, ct));
         text.Append(LibraryLines(library));
+        text.Append(MemoryLines(turn));
         return text.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// What the person asked to be remembered, one summary a line; <c>recall</c> reads the rest. A turn
+    /// with no memory owner, a room's, has none, and a store that cannot be read leaves them out: they
+    /// are what the person said, not what is true now.
+    /// </summary>
+    private string MemoryLines(AssistantTurn turn)
+    {
+        if (turn.MemoryOwner is not { } owner) return "";
+
+        IReadOnlyList<MemoryRecord> remembered;
+        try
+        {
+            remembered = memories.List(owner);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Assistant: what {Speaker} asked to be remembered could not be read", turn.SpeakerName);
+            return "";
+        }
+
+        if (remembered.Count == 0) return "";
+
+        var text = new StringBuilder($"What {turn.SpeakerName} asked you to remember:\n");
+        foreach (var memory in remembered)
+            text.AppendLine($"- {memory.Key}: {memory.Summary}");
+        return text.ToString();
     }
 
     private async Task<string> RoomLineAsync(MovieBotApiClient api, TurnRoom room, IReadOnlyList<LibraryTitle>? library, CancellationToken ct)

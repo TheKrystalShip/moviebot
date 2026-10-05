@@ -44,6 +44,9 @@ public sealed class StagedAction
     /// <summary>The act, carried out as whoever agrees: the API decides with their token whether they may.</summary>
     public required Func<Agreement, CancellationToken, Task<ConfirmOutcome>> Run { get; init; }
 
+    /// <summary>Whether a notification has told the person who asked that it waits, which it does once.</summary>
+    public bool Announced { get; set; }
+
     /// <summary>The verb a client shows, from the tool that proposed it.</summary>
     public string Verb => Kind switch
     {
@@ -138,5 +141,18 @@ public sealed class StagedActions(IOptions<AssistantOptions> options, TimeProvid
         }
 
         return [.. pending.OrderBy(a => a.Until)];
+    }
+
+    /// <summary>
+    /// What waits in a person's own chats and no notification has announced, oldest first. A room's
+    /// proposals are answered in the room, by whoever is there, so none of them is announced.
+    /// </summary>
+    public IReadOnlyList<StagedAction> Unannounced() =>
+        [.. _byConversation.Keys.SelectMany(Pending).Where(a => a.Room is null && !a.Announced).OrderBy(a => a.Until)];
+
+    /// <summary>Records that a notification announced <paramref name="token"/>'s proposal.</summary>
+    public void MarkAnnounced(string token)
+    {
+        if (_waiting.TryPeek(token, out var action)) action.Announced = true;
     }
 }

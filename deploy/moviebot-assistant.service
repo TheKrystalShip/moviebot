@@ -11,8 +11,8 @@ WorkingDirectory=/opt/moviebot/assistant
 ExecStart=/opt/moviebot/assistant/moviebot-assistant
 
 # Settings come from /home/heisen/.config/moviebot/moviebot.settings.json (deploy/hotbox.settings.json),
-# among them the identity provider whose tokens it takes (Oidc:Issuer); it holds no key of its own and
-# reaches the API with each person's token. The environment file is read for whatever a host sets
+# among them the identity provider whose tokens it takes (Oidc:Issuer); it mints no token and reaches
+# the API with each person's token. The environment file is read for whatever a host sets
 # there. systemd does not read /etc/environment, so relying on the ambient environment gives a service
 # that starts empty.
 EnvironmentFile=/etc/moviebot/moviebot.env
@@ -21,8 +21,10 @@ Environment=DOTNET_EnableDiagnostics=0
 Restart=on-failure
 RestartSec=5s
 
-# It talks to the API, the model and the title index, and writes nothing outside its own state:
-# the conversations, and the request that warms the model, which moviebot-llm replays on start.
+# It talks to the API, the model, the title index and browsers' push services, and writes nothing
+# outside its own state: the conversations, what people asked it to remember, its notification key
+# pair and the browsers registered against it, and the request that warms the model, which
+# moviebot-llm replays on start.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

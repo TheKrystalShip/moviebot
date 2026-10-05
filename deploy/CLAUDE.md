@@ -108,7 +108,9 @@ which strips the prefix (`nginx-moviebot.conf`).
   subscription is bound to, which cannot be made again without every device subscribing again —
   the bot `/var/lib/moviebot-bot`, holding the launch
   cards still standing, and the assistant `/var/lib/moviebot-assistant`,
-  holding the conversations and the warm-up request `moviebot-llm` replays when it starts.
+  holding in `assistant.db` the conversations, what people asked it to remember, and its own
+  notification key pair with the browsers registered against it, and beside that the warm-up request
+  `moviebot-llm` replays when it starts.
 - **The cold disk is named in the settings file and proved by a marker file.** `Media.ColdRoot` and
   `Handoff.ColdRoot` point at the volume finished films are kept on, and it is used only while a
   `.moviebot-cold` file sits at its root. That file is made once per host, as the owning user, on the

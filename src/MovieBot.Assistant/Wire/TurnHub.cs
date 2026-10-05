@@ -250,9 +250,12 @@ public sealed class TurnHub(CinemaAssistant assistant, EventStreams streams, ILo
 /// reconnects re-reads the listing. That keeps the stream an optimisation rather than a second way of
 /// getting a transcript that could drift from the first.
 /// </remarks>
-public sealed class EventStreams
+public sealed class EventStreams(TimeProvider clock)
 {
     private readonly ConcurrentDictionary<string, EventStream> _open = new();
+
+    /// <summary>When each scope's last stream closed, which is how recently its person was at a surface.</summary>
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _left = new();
 
     public sealed class EventStream(string id, string scope)
     {
@@ -289,8 +292,19 @@ public sealed class EventStreams
 
     public void Close(string id)
     {
-        if (_open.TryRemove(id, out var stream)) stream.Frames.Writer.TryComplete();
+        if (!_open.TryRemove(id, out var stream)) return;
+        stream.Frames.Writer.TryComplete();
+        _left[stream.Scope] = clock.GetUtcNow();
     }
+
+    /// <summary>
+    /// Whether the person a scope belongs to has a surface open, or closed their last one within
+    /// <paramref name="grace"/>. Every surface shows what waits in the chat, so somebody present is not
+    /// sent a notification about it.
+    /// </summary>
+    public bool PresentWithin(string scope, TimeSpan grace) =>
+        _open.Values.Any(s => s.Scope == scope)
+        || (_left.TryGetValue(scope, out var left) && clock.GetUtcNow() - left < grace);
 
     /// <summary>The stream with this id, when it belongs to this scope.</summary>
     public EventStream? Find(string? id, string scope) =>

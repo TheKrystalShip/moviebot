@@ -252,16 +252,6 @@ public sealed record MeReply(string UserId, string DisplayName, bool Service);
 
 public sealed record SpeechReply(bool Hear, bool Speak);
 
-public sealed record CommandOption(string Name, string Description);
-
-public sealed record CommandEntry(string Name, string Description, string Action, bool Mutates, IReadOnlyList<CommandOption> Options);
-
-public sealed record CommandRequest(string? ConversationId, string? Argument);
-
-public sealed record CommandReply(
-    string Message, string? ConversationId = null, ConversationRow? Conversation = null,
-    IReadOnlyList<CommandEntry>? Commands = null);
-
 public sealed record AssistantError(string Error);
 
 [JsonSourceGenerationOptions(
@@ -281,8 +271,5 @@ public sealed record AssistantError(string Error);
 [JsonSerializable(typeof(AttachRequest))]
 [JsonSerializable(typeof(MeReply))]
 [JsonSerializable(typeof(SpeechReply))]
-[JsonSerializable(typeof(List<CommandEntry>))]
-[JsonSerializable(typeof(CommandRequest))]
-[JsonSerializable(typeof(CommandReply))]
 [JsonSerializable(typeof(AssistantError))]
 public partial class AssistantJsonContext : JsonSerializerContext;

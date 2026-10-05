@@ -43,18 +43,18 @@ public sealed class AssistantWarmup(
             var catalog = services.GetRequiredService<ToolCatalog>();
             var messages = Request(prompt);
 
-            await WriteReplayAsync(messages, catalog.All, stoppingToken);
+            await WriteReplayAsync(messages, catalog.Room, stoppingToken);
 
             var model = services.GetRequiredService<ILlmClient>();
             var started = Stopwatch.GetTimestamp();
-            var result = await model.ChatAsync(messages, catalog.All, think: false, stoppingToken);
+            var result = await model.ChatAsync(messages, catalog.Room, think: false, stoppingToken);
 
             if (result.IsFailure)
                 logger.LogWarning("Assistant: the model did not answer the warm-up: {Error}", result.Error);
             else
                 logger.LogInformation(
                     "Assistant: warmed the model with {Tools} tools in {Elapsed:0}ms",
-                    catalog.All.Count, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    catalog.Room.Count, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {

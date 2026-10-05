@@ -8,9 +8,10 @@ turn is for.
 
 ## The wire
 
-The assistant wire contract, version 2.1 (`kgsm-llm/docs/wire-contract.md` in the KGSM workspace),
-so one chat client serves this and the KGSM assistant alike. The frames and bodies are in
-`Wire/Frames.cs`.
+The organization's assistant wire contract, version 2.1 (`tks-agent/docs/wire-contract.md`), so one
+chat client serves this and the KGSM assistant alike. The frames and bodies this service writes itself
+are in `MovieBot.Client/AssistantWire.cs`; the command, memory and notification routes are
+`TheKrystalShip.Agent.Service`'s, the same code on every assistant, standing on `CinemaCallers`.
 
 | Route | What it does |
 |---|---|
@@ -19,7 +20,9 @@ so one chat client serves this and the KGSM assistant alike. The frames and bodi
 | `DELETE /turns/{id}` | stops a turn, running or waiting |
 | `GET /conversations`, `GET`/`DELETE /conversations/{id}` | the caller's own chats, with what still waits in each |
 | `POST /conversations/{id}/turns/{turnId}/feedback` | `{rating: up|down|null, note}` |
-| `GET /commands`, `POST /commands/{name}` | `new` and `help` |
+| `GET /commands`, `POST /commands/{name}`, `GET /tools` | `help`, `tools`, `compact`, `new` and `memory` |
+| `GET /memories`, `GET /memories/limits`, `PUT`/`DELETE /memories/{key}` | what the caller asked to be remembered, read and corrected by hand |
+| `GET /push/key`, `POST`/`DELETE /push/subscribe`, `GET /push/devices`, `POST /push/actions/{handle}` | notifications of a proposal waiting on its asker; the last is a notification's button and anonymous |
 | `GET /events`, `POST /events/attach` | the caller's stream of chat-list changes, and the turns of the chat it is attached to |
 | `GET /me`, `GET /speech` | who the caller is; whether this host hears and speaks (it does neither) |
 | `POST /rooms/record` | relayed only: a room verb the bot carried out, written into the room's conversation |
@@ -47,6 +50,32 @@ sentence, so a client words its message from facts rather than parsing text.
 - **In a room anybody may agree to a proposal; on the site only the person who asked.** A refused
   token is not spent, so a guess cannot cancel what its owner is about to approve. The proposal is
   carried out with the token of whoever agrees, since they are the one spending it.
+- **A command a relaying client sends names its room in `X-Assistant-Room`**, the room's session id,
+  and acts on the room's conversation; from anybody else the header is ignored and the command acts on
+  the caller's own chat. `CinemaCallers` is the one place a request is resolved to a conversation, so
+  a command and a turn address the same one.
+
+## Commands, memory and notifications
+
+- **Every command needs `cinema:watch`**, what talking to the assistant needs, read off the token's
+  actions. `/new` in a room starts the room's conversation over and needs the same: anybody in a room
+  may move it, so anybody may clear what it was saying. `think` is not offered, because every request
+  is sent with thinking off.
+- **Memory belongs to a person's own chats.** A room is shared by whoever is in the channel and starts
+  over after a silence, so nothing said there is anybody's to keep: a room's turn is offered no memory
+  tools and has no memory owner, and `/memory` there says nothing is remembered. A person's chats share
+  their memory, `person:<userId>`: the model writes it with `remember`, `forget` and `recall`
+  (`RoomTools.Memories`, from `TheKrystalShip.Agent`), what is remembered is in the turn's context, and
+  the person corrects it through `/memories`. The tools are in the site's catalog because
+  `AssistantRoutingTests` against the real model route a person's requests correctly with them listed;
+  a catalog change is judged the same way.
+- **A proposal waiting on a person who has left every surface is announced by Web Push**, with this
+  service's own key pair in `assistant.db`; a room's proposals are answered in the room and are never
+  announced. **A notification can cancel a proposal and cannot agree to one**: a proposal is carried
+  out by the API as whoever agrees, with their token, and a button tapped on a locked phone carries
+  none. Confirm answers that the chat is where to agree, and the proposal keeps waiting there
+  (`CinemaConfirmationPushHost`). Krystal Cinema's dock does not subscribe: its origin's service worker
+  is subscribed with MovieBot.Api's key, and a registration carries one.
 
 ## Rules the brain rests on
 

@@ -32,6 +32,15 @@ public sealed record AssistantTurn(
         return true;
     }
 
+    /// <summary>The chat a person's turn continues when the client names none.</summary>
+    public const string MainChat = "main";
+
+    /// <summary>
+    /// Whose memory the turn reads and writes: the person's, on their own chat. A room's turn has none,
+    /// because a room is shared by whoever is in it and nothing said there is anybody's to keep.
+    /// </summary>
+    public string? MemoryOwner => Room is null ? PersonScope(SpeakerUserId) : null;
+
     /// <summary>The room's conversation, shared by everyone in it for the life of the room.</summary>
     public static string RoomConversation(string sessionId) => $"room:{sessionId}";
 

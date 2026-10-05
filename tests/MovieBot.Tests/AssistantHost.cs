@@ -79,6 +79,8 @@ internal sealed class AssistantHost : IDisposable
 
     public IConversationStore Conversations => Provider.GetRequiredService<IConversationStore>();
 
+    public IMemoryStore Memories => Provider.GetRequiredService<IMemoryStore>();
+
     public void Dispose()
     {
         Provider.Dispose();
@@ -197,11 +199,15 @@ internal sealed class AssistantHost : IDisposable
         public Queue<LlmResponse> Answers { get; } = new();
         public List<IReadOnlyList<LlmMessage>> Requests { get; } = [];
 
+        /// <summary>The tools each request offered, in step with <see cref="Requests"/>.</summary>
+        public List<IReadOnlyList<LlmToolDefinition>> Offered { get; } = [];
+
         public Task<Result<LlmResponse>> ChatAsync(
             IReadOnlyList<LlmMessage> messages, IReadOnlyList<LlmToolDefinition>? tools = null,
             bool think = false, CancellationToken cancellationToken = default)
         {
             Requests.Add([.. messages]);
+            Offered.Add([.. tools ?? []]);
             return Task.FromResult(Answers.TryDequeue(out var answer)
                 ? Result.Success(answer)
                 : Result.Failure<LlmResponse>("nothing queued"));
@@ -214,6 +220,7 @@ internal sealed class AssistantHost : IDisposable
         {
             await Task.CompletedTask;
             Requests.Add([.. messages]);
+            Offered.Add([.. tools ?? []]);
             if (!Answers.TryDequeue(out var answer)) throw new HttpRequestException("nothing queued");
 
             yield return new LlmStreamChunk(answer.Content, answer.ToolCalls, Done: true, answer.Usage);

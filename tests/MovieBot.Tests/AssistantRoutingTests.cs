@@ -236,7 +236,77 @@ public sealed class AssistantRoutingTests(SessionFixture fixture, ITestOutputHel
         output.WriteLine($"reply: {answer.Text}");
     }
 
+    // ── A person's own chat, whose catalog carries the memory tools a room's does not ─────────────
+
+    [LiveModelTheory]
+    [InlineData("download inception")]
+    [InlineData("can you get inception")]
+    public async Task On_a_person_s_chat_a_film_that_is_not_here_is_proposed(string said)
+    {
+        var turn = Person();
+
+        var answer = await _host.Assistant.AskAsync(turn, said, CancellationToken.None);
+        Log(turn, said, answer);
+
+        Assert.False(answer.Failed, answer.Text);
+        Assert.Single(answer.Proposed);
+        Assert.DoesNotContain(Calls(turn), c => RoomTools.Memories.Contains(c.Name.Name));
+    }
+
+    [LiveModelTheory]
+    [InlineData("show me heat")]
+    [InlineData("I want to watch collateral")]
+    public async Task On_a_person_s_chat_a_film_in_the_library_is_found_to_open(string said)
+    {
+        var turn = Person();
+
+        var answer = await _host.Assistant.AskAsync(turn, said, CancellationToken.None);
+        Log(turn, said, answer);
+
+        Assert.False(answer.Failed, answer.Text);
+        Assert.Single(answer.Launched);
+        Assert.DoesNotContain(Calls(turn), c => RoomTools.Memories.Contains(c.Name.Name));
+    }
+
+    [LiveModelTheory]
+    [InlineData("remember that I love heist films")]
+    [InlineData("please remember I always want subtitles in Spanish")]
+    public async Task On_a_person_s_chat_asking_to_be_remembered_writes_it_down(string said)
+    {
+        var turn = Person();
+
+        var answer = await _host.Assistant.AskAsync(turn, said, CancellationToken.None);
+        Log(turn, said, answer);
+
+        Assert.False(answer.Failed, answer.Text);
+        Assert.Contains(Calls(turn), c => c.Name.Name == RoomTools.Remember);
+        Assert.NotEmpty(_host.Memories.List(turn.MemoryOwner!));
+    }
+
+    [LiveModelFact]
+    public async Task On_a_person_s_chat_a_question_about_the_library_writes_nothing_down()
+    {
+        var turn = Person();
+
+        var answer = await _host.Assistant.AskAsync(turn, "what films do you have?", CancellationToken.None);
+        Log(turn, "what films do you have?", answer);
+
+        Assert.False(answer.Failed, answer.Text);
+        Assert.DoesNotContain(Calls(turn), c => RoomTools.Memories.Contains(c.Name.Name));
+        Assert.Contains("Heat", answer.Text);
+    }
+
     public void Dispose() => _host.Dispose();
+
+    private static AssistantTurn Person()
+    {
+        var id = Interlocked.Increment(ref _channels).ToString(CultureInfo.InvariantCulture);
+        return AssistantTurn.ForPerson(id, "Haru", AssistantTurn.MainChat) with { AccessToken = TestIssuer.Token(id, "Haru") };
+    }
+
+    private void Log(AssistantTurn turn, string said, TurnAnswer answer) =>
+        output.WriteLine($"\"{said}\" -> {string.Join(", ", Calls(turn).Select(c => $"{c.Name}({string.Join(", ", c.Arguments.Select(a => $"{a.Key}={a.Value}"))})"))}"
+                         + $"; reply: {answer.Text}");
 
     private async Task<AssistantTurn> RoomAsync(string title, double at, bool paused)
     {

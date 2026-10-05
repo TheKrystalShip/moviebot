@@ -24,7 +24,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-# The conversations are kept in /var/lib/moviebot-assistant.
+# The conversations, what people asked to be remembered, and the notification key pair with the
+# browsers registered against it are kept in /var/lib/moviebot-assistant.
 StateDirectory=moviebot-assistant
 ProtectKernelTunables=true
 ProtectControlGroups=true
