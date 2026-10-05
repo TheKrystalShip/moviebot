@@ -79,14 +79,17 @@ The core of the work, starting with Home → a film → Play and the player, the
 What the deep dive measured on the Xiaomi, with the site's production build from the scratch site in
 the probe app:
 
-- **The keys reaching a page.** OK arrives as `Enter` (keyCode 13); the arrows as `ArrowUp`,
-  `ArrowDown`, `ArrowLeft`, `ArrowRight`; Play/Pause as `MediaPlayPause`, and the separate play and
-  pause keys as `MediaPlay` and `MediaPause` (both keyCode 179); Rewind and Fast-forward as
-  `MediaRewind` and `MediaFastForward`. **Back and Menu never reach the page**: Back goes to the
-  activity's `onBackPressed`, Menu to the activity with the WebView declining it. A held key repeats
-  with `repeat` false on every event, so holding is known by the cadence of keydowns, not the flag.
-  These were sent with `adb shell input keyevent`; the physical remote's own keys are still to be
-  logged.
+- **The keys reaching a page**, from the physical remote. OK arrives as `Enter` with code
+  `NumpadEnter` (keyCode 13); the arrows as `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`;
+  Play/Pause as `MediaPlayPause` (keyCode 179); Rewind and Fast-forward as `MediaRewind` and
+  `MediaFastForward`. Separate play and pause keys, which this remote lacks, arrive as `MediaPlay` and
+  `MediaPause`. **Back and Menu never reach the page**: Back reaches the activity's `onBackPressed`
+  as the key is released, Menu reaches the activity with the WebView declining it. While Fire OS's
+  keyboard is up it takes Back to close itself, and OK on a text field raises the keyboard without
+  the page seeing a key.
+- **A held key** repeats from about 400 ms after the press, every 50 ms, and every repeat reaches the
+  page with `repeat` false. A hold is known by the cadence: a keydown within about 100 ms of the
+  last one for the same key is a repeat, which no person pressing again can produce.
 - **The WebView moves focus by itself on an arrow the page does not take**, and on the site that
   movement is unusable: from the first focus, Down skips the whole sidebar to Notifications, Right
   lands on the assistant's button and stays there, and the featured film's Watch and every row are
