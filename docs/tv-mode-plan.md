@@ -18,7 +18,17 @@ The site runs inside a thin Android app, the wrapper, which shows it in a WebVie
 is not a target: Silk, the Fire TV browser, turns the D-pad into an on-screen cursor and never hands
 the page the keys.
 
-The reference device is the user's Xiaomi TV running Fire TV, reached over the LAN with `adb`.
+The reference device is the user's Xiaomi TV running Fire TV, reached over the LAN with `adb`
+(`~/Android/Sdk/platform-tools/adb connect 192.168.1.23:5555`, already authorised for hotrod):
+
+| | Measured |
+|---|---|
+| Model | Amazon `AFTBR92D74` (`ginzaeu`), Fire OS 8.1.8.2, Android 11 (API 30), leanback only |
+| WebView | `com.amazon.webview.chromium` 148 |
+| Screen | 3840×2160 panel, 1920×1080 drawn at density 320, so a page sees about 960×540 at a pixel ratio of 2 |
+| Hardware | MediaTek `merak`, four Cortex-A55 cores, 32-bit userland; 1.8 GB of memory with about 500 MB available |
+| Decoding | `c2.mtk.avc.decoder` in hardware for H.264 |
+| Screensaver | On, after five minutes |
 
 ## 2. Decisions
 
