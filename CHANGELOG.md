@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.1] - 2026-10-05
+
+### Fixed
+
+- **The foot of every page clears the tab bar on a phone.** The page's room for the bar was added
+  below a full screen's height, so the last of each page sat under it. The assistant's sheets now
+  rise in as they open. Site 0.32.1, on krystal-ui 0.13.0.
+
 ## [2.7.0] - 2026-10-05
 
 ### Changed
