@@ -1,5 +1,5 @@
 using System.Text.Json;
-using TheKrystalShip.KGSM.WebPush;
+using TheKrystalShip.WebPush;
 
 namespace TheKrystalShip.MovieBot.Api.Notifications;
 

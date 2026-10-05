@@ -17,7 +17,7 @@ using TheKrystalShip.MovieBot.Acquire.Configuration;
 using TheKrystalShip.MovieBot.Acquire.Subtitles;
 using TheKrystalShip.MovieBot.Api.Media;
 using TheKrystalShip.MovieBot.Api.Notifications;
-using TheKrystalShip.KGSM.WebPush;
+using TheKrystalShip.WebPush;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Api.Transcode;
