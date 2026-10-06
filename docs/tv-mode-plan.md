@@ -152,11 +152,21 @@ dependencies and no bridge between the page and the app.
   never asks; the Screen Wake Lock API is granted there too should it ever need to. With nothing
   exposed to the page, no other origin can reach anything of the app's. The app keeps no screen on
   itself. Media playback needs no gesture inside the app.
-- **The site's origin is the app's whole world.** It is fixed at build time, `https://movies.thekrystalship.com`
-  by default and `--origin` for another host's build, and it is the origin tks-auth answers `/token`
-  and `/revoke` for across origins (the site's client registers it; the device client has none).
+- **The site's origin is the app's whole world.** It is the origin tks-auth answers `/token` and
+  `/revoke` for across origins (the site's client registers it; the device client has none).
   Navigation to any other origin is refused: the TV has no browser to hand it to (the Xiaomi has none
   installed), and a page off the site has no remote handling, so Back there would close the app.
+- **The origin is a value the app holds, not a constant it is written around**, so one source can be
+  both the app this step ships and an app store's later (section 6). One class answers it, and the
+  user agent, the navigation rule, what is loaded and the debug build's `url` extra all ask it. This
+  step's build carries it fixed, `https://movies.thekrystalship.com` by default and `--origin` for
+  another host's: a build that fixes its origin never asks for one and offers no way to change it. A
+  build without `--origin` is the store's shape and is not made in this step; nothing in the app
+  assumes the origin is known before it is asked for.
+- **Nothing the app does is particular to one server.** The client it signs in as, the provider and
+  every page come from the site the origin names (`/api/config` and the site itself); the app adds
+  only the TV mark, Back and Menu, the navigation rule and storage. It asks for no permission beyond
+  `INTERNET` and never installs anything, since a store refuses an app that updates itself.
 - **The site draws no link out in TV mode**: Profile's Manage account shows the provider's address
   as text, to open on a phone, and About's TMDB logo is not a link. The app's refusal is the safety
   net for any that is missed.
@@ -171,7 +181,9 @@ dependencies and no bridge between the page and the app.
   none of the three.
 - **Signed with a release key made once with `keytool`** and kept in `~/.config/krystal-cinema-tv/`
   (0600), never in the repository. Android takes an update only under the same key, so losing it
-  means every TV uninstalls and installs again; backing it up is the user's.
+  means every TV uninstalls and installs again; backing it up is the user's. A store signs what it
+  distributes with a key of its own, so a sideloaded install and a store's do not update each other
+  even under the same app id: moving a TV between them is uninstalling, and signing in again.
 - **Its own version clock**, tagged `tv-v<version>`; `versionCode` is major×10000 + minor×100 + patch.
 - **The site serves its own app at `/tv.apk`**, as `application/vnd.android.package-archive`, which the
   API's static files have to be told. A friend's TV gets it with the Downloader app from the Amazon
@@ -214,6 +226,27 @@ subtitles copied from hotbox without their segments, so pages draw; `coherence-2
 first five minutes, which the player checks play.
 
 ## 6. Follow-up, not in this plan
+
+**The app in a TV's own store.** Decided against for now: the friends a cinema is shared with get the
+same app from `/tv.apk` with Downloader, at the cost of a one-time setting per TV and updates fetched
+by hand, which the thin wrapper rarely needs. The door is kept open by step 4's app holding its origin
+as a value and nothing in it being particular to one server. A store's version is then the same
+source built without `--origin`, and needs:
+
+- A first screen asking for the server's address, taken with the system keyboard, accepted only once
+  `<origin>/api/config` answers as Krystal Cinema, and kept; and a way to change it.
+- A demo server for the store's reviewers holding only films that may be shown, with an account the
+  provider has approved, since a reviewer signs in.
+- For the Amazon Appstore (Fire TV): a free account; it takes an APK, so the build chain stands. New
+  Fire TV devices on Vega OS run no Android app, so a listing reaches the Fire OS ones.
+- For Google Play (Android TV, Google TV): the one-off developer fee, a closed test with testers
+  before production for a new personal account, an Android App Bundle (`bundletool` with `aapt2`'s
+  proto output, no Gradle needed), a target SDK raised yearly, the TV quality review, a privacy policy
+  and the data safety form.
+- Both: the EU trader declaration, which publishes a trader's name and contact details.
+
+These requirements are as understood when this was written and are checked against each store's
+current rules before anything is submitted.
 
 **The phone channel.** Every open copy of the site joins the API's hub under its person, and a TV
 announces itself as a screen. A phone signed in as the same person then gets Play on TV for a title,
