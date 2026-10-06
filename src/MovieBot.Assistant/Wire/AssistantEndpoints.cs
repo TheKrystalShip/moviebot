@@ -9,7 +9,7 @@ using TheKrystalShip.MovieBot.Client.Assistant;
 namespace TheKrystalShip.MovieBot.Assistant.Wire;
 
 /// <summary>
-/// The assistant wire contract (<c>tks-agent/docs/wire-contract.md</c>, version 2.1) as this service
+/// The assistant wire contract (<c>tks-assistant/docs/wire-contract.md</c>, version 2.1) as this service
 /// serves it: the turn stream, the confirm channel, a person's conversations and the event stream that
 /// keeps their other surfaces current, the commands, memory and notification routes of
 /// <c>TheKrystalShip.Agent.Service</c>, plus the room verbs the bot writes into a room's conversation.

@@ -5,7 +5,7 @@ subdirectory hold the rules its parts rest on (`Watch/`, `Download/`, `Notify/`,
 `Presence/`, `Voice/`, `Assistant/`).
 
 - **Discord.Net types are written `global::Discord.X`.** The voice pipeline is
-  `TheKrystalShip.Discord.Voice` (shared with kgsm-bot, published from tks-agent), and inside any
+  `TheKrystalShip.Discord.Voice` (shared with kgsm-bot, published from tks-assistant), and inside any
   `TheKrystalShip.*` namespace a bare `Discord.X` resolves to `TheKrystalShip.Discord` first and fails.
 - The bot holds the media root read-only; only the hand-off writes it.
 

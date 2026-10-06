@@ -8,7 +8,7 @@ turn is for.
 
 ## The wire
 
-The organization's assistant wire contract, version 2.1 (`tks-agent/docs/wire-contract.md`), so one
+The organization's assistant wire contract, version 2.1 (`tks-assistant/docs/wire-contract.md`), so one
 chat client serves this and the KGSM assistant alike. The frames and bodies this service writes itself
 are in `MovieBot.Client/AssistantWire.cs`; the command, memory and notification routes are
 `TheKrystalShip.Agent.Service`'s, the same code on every assistant, standing on `CinemaCallers`.
@@ -137,7 +137,7 @@ sentence, so a client words its message from facts rather than parsing text.
   `tests/MovieBot.Tests/Replays` holds those turns and `RoomReplayRoutingTests` replays them.
 - **The harness around the loop is shared, and the films are not.** Reading the prompts and
   `tools.json`, the catalog's agreement with `RoomTools.Names`, proposal tokens, the reply checks and
-  compaction come from `TheKrystalShip.Agent` in tks-agent. What the tools do, which of them wait for a
+  compaction come from `TheKrystalShip.Agent` in tks-assistant. What the tools do, which of them wait for a
   person, and the words a room is acted on in are this repository's.
 - **A turn is not the request that started it.** It runs one at a time per conversation, up to three
   wait, and every surface of the conversation can attach to it; the request going away ends nothing,

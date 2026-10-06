@@ -46,7 +46,7 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
   authority for why a prebuilt runtime cannot be used there. `moviebot-speech` is the .NET host over
   that whisper build and publishes like the other services.
 - **Listening needs three system libraries on hotbox**: `opus`, `libsodium`, and `libdave`, which is
-  Discord's end-to-end voice encryption and is packaged in tks-agent. Without libdave the bot runs
+  Discord's end-to-end voice encryption and is packaged in tks-assistant. Without libdave the bot runs
   and every voice connection is refused.
 - **Finding an episode's intro and recap needs `chromaprint`** (`fpcalc` in `/usr/bin`, on the
   hand-off unit's `PATH` after the card's ffmpeg). Without it an episode gets only the markers its
