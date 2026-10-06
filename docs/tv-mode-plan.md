@@ -43,7 +43,13 @@ The reference device is the user's Xiaomi TV running Fire TV, reached over the L
 | Sign-in | RFC 8628, served by tks-auth 4.5.0 (`tks-auth/src/Auth.Anchor/CLAUDE.md`, "The device grant"): a code and a QR on the TV, approved on a phone |
 | One person per TV | A TV is signed in as one person. Changing person is signing out and in again; there is no profile picker |
 | Typing on the TV | The system keyboard, which OK on a focused field in the WebView raises. Fire OS's keyboard carries its own QR code for typing from a phone and takes voice from the remote's microphone, at no cost to us |
-| The TV's layout | A design of its own, made in the Krystal Cinema design project beside the desktop and phone ones, the way the phone has its tab bar instead of the sidebar. The desktop layout at 960×540 is not the base; the sidebar and the footer are redesigned for the TV, and how focus moves through them is settled with that design rather than tuned before it |
+| The TV's layout | A design of its own, the way the phone has its tab bar instead of the sidebar, drawn at the TV's page size on the canvas https://claude.ai/artifact/BeZQYibgdZx37EYSvFxz16. The desktop layout at 960×540 is not the base; the sidebar and the footer are redesigned for the TV, and how focus moves through them is settled with that design rather than tuned before it |
+| Getting around on the TV | A top bar: the mark, then Home, Discover, Movies, TV Shows and Saved, then the bell and the avatar. It scrolls away with the page; Back, or Up from the top of the page, brings focus to it. A side rail is rejected: it costs width on a 960-pixel page and is a second area for focus to sit in |
+| Home on the TV | The top of the page is a spotlight on whatever has focus: its artwork, name, facts and two lines of overview. It arrives on the newest film with Watch focused. Rows run off the right edge, the focused row keeps one line on screen, and cards carry only their artwork |
+| A row's way to everything | A See all tile ends the row; a row's heading never takes focus |
+| Places off the bar | About is in Profile; Notify me folds into Profile's Requests |
+| Leaving soon | Not a page on any surface. The library clock runs internally and nobody sees it, since Discover reaches any film and it plays within minutes |
+| The primary button | Dark text on the accent, which holds contrast from a sofa |
 | The phone channel | Out of scope; see section 6 |
 | Where the wrapper lives | `moviebot/tv/`, its own version clock, tagged `tv-v<version>`. That prefix keeps it out of `release.yml`, which fires on `v*` |
 | Building the wrapper | On hotrod: a JDK and Android's command-line tools under the user's home, no Android Studio. Installed on the TV with `adb` over the LAN once developer options are on |
@@ -83,12 +89,12 @@ What the design has to answer for, from what the Xiaomi showed:
 - A 960×540 page seen from a sofa: the desktop layout there spends a quarter of the width on the
   sidebar, puts the first row of films below the fold under the featured film, and draws controls
   sized for a mouse.
-- A way around without the sidebar as it is: what replaces it, the footer's place, and how focus
-  enters and leaves them.
-- Rows that sit side by side at this width, as some of Home's do: Right at the end of one moves
-  focus into the next, because that is what is to the right.
-- The focused element as the one thing the eye follows: the highlight, and how a row moves under it.
-  A focused card is scrolled to the start of its row.
+- The footer's place, and how focus enters and leaves the top bar on every page that is not Home.
+- One row to a line on every page, so Right at the end of a row has nothing to land on but the row's
+  own See all tile.
+- The focused element as the one thing the eye follows: a highlight lighter than the thick white
+  outline TV mode draws today, chosen from the candidates on the canvas, and how a row moves under
+  it. A focused card is scrolled to the start of its row.
 - Every page that stays in TV mode, the player's controls among them, and subtitles sized for the
   distance.
 - Left out of TV mode beyond what already is: push notifications, installing the app, editing lists.
