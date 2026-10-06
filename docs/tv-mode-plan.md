@@ -140,19 +140,44 @@ Not drawn in TV mode, for cost: `backdrop-filter` anywhere, the page fade animat
   user code large, `verification_uri` as text, a QR code of `verification_uri_complete`, and the
   remaining time. It polls `/token` at the interval it was given, adding five seconds on `slow_down`,
   and starts over with a new code on `expired_token`.
-- Approval hands the tokens to `session.js` as its session, so `freshToken`, the refresh grant and
-  every caller work unchanged. `oidc-client-ts` has no device grant, so the request and the polling
-  are the site's own.
-- Signing out on the TV forgets the session here and revokes its refresh token.
+- **The session is an `oidc-client-ts` `User`.** On a TV the `UserManager` is built with the
+  `cinema-tv` client id, since tks-auth continues a session only for the client it was minted for, and
+  the TV never runs the redirect flow. Approval builds a `User` from the device grant's answer (access
+  and refresh token, `expires_at`, a profile read from the access token's claims, as `sessionFor`
+  already reads them) and saves it with `manager.storeUser`. From there `restore`, `renew`,
+  `freshToken`, the renewal timer and the check against another tab's rotation run unchanged:
+  `oidc-client-ts` 3.5.0 keeps the stored profile when a refresh answer carries no `id_token`, and the
+  device grant's never does. Only the code request and the polling are the site's own; a second
+  session store behind the same functions is rejected, as a second copy of the renewal logic.
+- **The QR is drawn by `lean-qr`, as SVG**, imported from inside the sign-in screen so only a TV ever
+  fetches it. Measured bundled with its SVG renderer: 7.8 KB minified, 4.2 KB gzipped, MIT, no
+  dependencies. `uqr` is the same size at 0.1; `qrcode-generator` is 7.6 KB gzipped; `qrcode` pulls in
+  `pngjs` and `yargs`.
+- **A TV session lasts as long as the anchor's session lifetime, measured from its last renewal.**
+  tks-auth sets a session's end to now plus `refreshLifetimeDays` (30 by default) at every rotation,
+  so a TV in use renews every five minutes and stays signed in, and one left unused for that long has
+  to sign in again. No lifetime is set per client.
+- **A session that ends shows the sign-in screen.** On a cold start the refused refresh leaves no
+  session, and the code screen is the first thing shown. One that ends while a page is open puts the
+  code screen over the page rather than in place of it, and approval returns to that page: the site's
+  rule that an ended session never discards what somebody was doing holds, with the way back drawn on
+  the spot.
+- **Each answer from the provider has one handling**, shown as a short state and one focused button:
 
-Deep dive:
+  | Answer | The screen |
+  |---|---|
+  | `/device_authorization` unreachable | "Can't reach sign-in"; retries on its own with a lengthening wait capped near a minute, and Retry |
+  | A poll fails on the network | The code stays and polling goes on; the failure is shown only if it still holds when the code expires |
+  | `slow_down` | Five seconds more between polls, nothing shown |
+  | `expired_token` | A new code, unasked |
+  | `access_denied` | "Sign-in refused" and New code; no new code unasked, since the refusal was somebody's decision |
+  | `invalid_client`, `unauthorized_client` | "This TV can't sign in", no retry: the client is misconfigured and retrying cannot mend it |
 
-- How `session.js` takes a session it did not create: building an `oidc-client-ts` `User` and storing
-  it, or a TV session store behind the same functions.
-- Which QR library, its size in the bundle, and whether it is loaded only in TV mode.
-- How long a device session lasts unused, under tks-auth's refresh window, and what the TV shows when
-  it has run out.
-- What the screen shows when the provider cannot be reached, and when the person refuses.
+- **Signing out revokes the refresh token at the provider** through `manager.revokeTokens(["refresh_token"])`,
+  then forgets the session with `removeUser`. The provider's end-session page is not used: it needs an
+  `id_token` and ends a browser's provider session, and a TV has neither. This rests on tks-auth serving
+  RFC 7009 `/revoke`, advertised as `revocation_endpoint`, which ends the session a public client's
+  refresh token belongs to (upstream work, tks-auth daemon 4.6.0).
 
 Done when: a fresh TV signs in by scanning the QR with a phone, survives the phone signing out and the
 app being restarted, and renews on its own.
@@ -179,6 +204,8 @@ Deep dive:
 - The bridge between the page and the app: what it exposes (keeping the screen on while a film
   plays), and that only the site's own origin can reach it.
 - What the app does with a link out of the site (the provider's pages, TMDB's credit).
+- DOM storage on and kept across launches: the TV's session lives in `localStorage`, and without it
+  every restart is a new sign-in.
 - Whether the app is written in Kotlin with a Gradle build or kept to the plain `javac`, `d8`,
   `aapt2` and `apksigner` chain the probe uses, which needs nothing more on hotrod.
 - How the friend's TV gets it: the Downloader app and an address to fetch it from.
