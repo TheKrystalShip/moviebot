@@ -41,6 +41,11 @@ export interface Landscape {
 
 export interface Environment {
   readonly name: string;
+  /**
+   * Whether the player is on a television, driven by a remote: no phone's landscape or gestures, no
+   * full screen to ask for, no volume of its own, and the remote's keys in place of the keyboard's.
+   */
+  readonly tv: boolean;
   /** Absolute URL for an API path such as `/api/titles`. */
   apiUrl(path: string): string;
   /** Absolute URL for a manifest-relative media path such as `v0/index.m3u8`. */
@@ -108,14 +113,19 @@ export interface SiteViewer {
   holds(action: string): boolean;
 }
 
+/** A television holds nothing sideways: the screen already is. */
+const noLandscape: Landscape = { enter: () => {}, release: () => {} };
+
 /**
  * The player on Krystal Cinema. The room and the film are the address, and the viewer is whoever
  * signed in to the site: their token is the proof, and the name it carries is what the room calls them.
+ * `tv` is the site's own judgement of whether it is on a television.
  */
-export function createSiteEnvironment(sessionId: string, titleId: string | null, viewer: SiteViewer): Environment {
+export function createSiteEnvironment(sessionId: string, titleId: string | null, viewer: SiteViewer, tv = false): Environment {
   const origin = window.location.origin;
   return {
     name: 'site',
+    tv,
     apiUrl: (path) => `${origin}${path.startsWith('/') ? path : `/${path}`}`,
     mediaUrl: (title, relative) => `${origin}/media/${title}/${relative}`,
     hubUrl: () => `${origin}/hub/session`,
@@ -135,7 +145,7 @@ export function createSiteEnvironment(sessionId: string, titleId: string | null,
     },
     roomUrl: () => `${origin}/r/${encodeURIComponent(sessionId)}`,
     setPresence: () => Promise.resolve(),
-    landscape: browserLandscape
+    landscape: tv ? () => noLandscape : browserLandscape
   };
 }
 

@@ -10,7 +10,7 @@ sync controller, the stream, the room) and the components draw what `engine/room
 
 Everything that differs between the site and the Activity is behind `Environment`
 (`engine/environment.ts`): where the API is, how a manifest-relative media path becomes a URL, which
-room this is, which film the launch named and where in it to start, who the viewer is, a good access token
+room this is, which film the launch named and where in it to start, whether it is a television, who the viewer is, a good access token
 (`freshToken`) and which Cinema actions it holds (`holds`), the link that hands the room to someone
 else, where their presence is shown, and how the film is held sideways on a phone. Nothing else reads
 `location` or builds a URL. The site's room is the address and its viewer whoever signed in; the
@@ -97,6 +97,18 @@ connection's token rather than from anything the page sends.
   letting go lands, and nothing moves until it does. A sweep up or down at the right is this
   viewer's volume, and at the left how bright the picture is drawn. Before the film is in the
   element a touch only shows or hides what is over the frame.
+- **A remote on a television** (`engine/media/remote.ts`, `Environment.tv`). The first press of OK,
+  Up or Down while the controls are away only brings them back, since waking the screen should not
+  move the room; the play button holds focus once the film is ready, so OK plays from the first
+  press after. Left and Right skip by the buttons' step while the controls are away or the scrub bar
+  holds focus, and a skip gives the bar focus, so presses however slow go on skipping; with the
+  controls up anywhere else the arrows move focus among them. Presses are gathered into one skip as
+  taps are, for the same reason. Holding Left or Right scrubs: the bar previews where letting go
+  lands, faster the longer the key is held, and one seek is sent when it comes up, as a drag sends one.
+  A held key is a keydown for a key that has not come up, since a Fire TV marks no repeat as one.
+  Rewind and Fast-forward skip wherever focus is, and the media keys act directly. Back closes a
+  menu, then puts the controls away, then leaves the room; Menu opens the subtitles. A television
+  has no volume, full screen or invite in the player, and none of a phone's landscape or gestures.
 - **Brightness is how dark the picture is drawn, not the screen's.** A page has no hold on the
   screen's backlight, so the left sweep fades a black layer over the film, from none to most of the
   way. The subtitles sit above it at the brightness they were styled at. Like volume it is the

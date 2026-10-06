@@ -176,6 +176,7 @@ export async function createDiscordEnvironment(
 
   return {
     name: 'discord-activity',
+    tv: false,
     apiUrl: (path) => `${origin}${path.startsWith('/') ? path : `/${path}`}`,
     mediaUrl: (titleId, relative) => `${origin}/media/${titleId}/${relative}`,
     hubUrl: () => `${origin}/hub/session`,

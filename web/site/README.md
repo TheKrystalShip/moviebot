@@ -17,6 +17,7 @@ npm run verify     # the player in a real browser, against a running API and dev
 npm run verify:routes  # every address, cold and by its flows, against a scratch site (verify/routes.mjs)
 npm run verify:mobile  # every page on iPhones and Galaxies, against a scratch site (verify/mobile/)
 npm run verify:pwa     # installable, and the service worker keeps only what it may (verify/pwa.mjs)
+npm run verify:tv      # every page driven by a remote's keys alone, against a scratch site (verify/tv.mjs)
 ```
 
 The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular` and `/hub` to the API (`MOVIEBOT_API`, default
@@ -176,6 +177,16 @@ and Galaxies (Chromium), against a scratch site with a library and a person of i
 screenshot per view per phone, a contact sheet per view and a report of what reads as broken on a
 phone. How to run it, what it measures and how to add a page or a phone: `verify/mobile/README.md`.
 
+`npm run verify:tv` opens every page in TV mode at a Fire TV's 960×540 against the same scratch site,
+and walks it with the arrow keys from where focus starts: every control on it has to be reached, each
+on screen when it is, and focus never left on nothing. Then an overlay taking focus when OK opens it
+and handing it back on Back, Back going back a page to the control it was left on, Back on Home, and
+the player: play focused, OK playing, presses gathered into one skip, slower presses skipping from the
+scrub bar, a held key scrubbing and seeking once, Menu, Play/Pause and Back. The player's checks need
+video in the scratch library, which `moviebot/media/` holds only for the films given their segments
+(`coherence-2013` by default, `MOVIEBOT_VERIFY_TV_FILM` for another). `--checks` and `--pages` narrow a
+run.
+
 `npm run verify:routes` cold-loads every address in a fresh signed-in browser and checks where it lands and
 what it draws (the heading, the sidebar item and tab lit, Not found), including every earlier shape of an
 address and every non-canonical spelling; then the flows between addresses: a season chip and a profile
@@ -206,6 +217,41 @@ The site installs as an app, Krystal Cinema, from Android Chrome's "Install app"
   registered by `src/registerSW.js` in a production build only, and never in the Activity, which runs
   inside Discord at Discord's origin. It also shows the API's pushes: the sentence as the API wrote
   it, opening the page it names in a window of the site already open, or a new one.
+
+## On a television
+
+The site runs on an Android TV or a Fire TV inside a wrapper app that shows it in a WebView, driven by
+the remote. `src/tv/` is all of it that is the site's own.
+
+- **Knowing it is a television** (`src/tv/tv.js`): the wrapper's mark, `KrystalCinemaTV`, in the
+  user agent, or `?tv=1` on any address, which holds for the rest of the tab (`?tv=0` lets go of it)
+  so the mode can be worked on in a desktop browser. Media queries cannot say it: the reference Fire
+  TV's WebView matches `(pointer: coarse)` and `(hover: hover)` alike. The root element carries
+  `data-tv`, which krystal-ui's focus ring and every TV rule hang from.
+- **Moving focus** (`src/tv/navigator.js`): every arrow key is taken and focus moves to the nearest
+  control that way on screen, from the focused element's rectangle, with the rules the module
+  states: an open dialog or menu holds focus and hands it back when it closes, a row remembers its
+  last card and scrolls to put the focused one first, the sidebar is entered at the current page, a
+  shown page focuses its first control (or the one it was left on, when it is come back to), and
+  focus is never left on nothing. A card's own controls are reached with Menu and left with Back. The
+  WebView's own arrow navigation is never let through: on these pages it skips whole regions.
+- **The remote's keys, as the page receives them** from the reference Fire TV: OK is `Enter`, the
+  arrows `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, and the media keys `MediaPlayPause`,
+  `MediaPlay`, `MediaPause`, `MediaRewind` and `MediaFastForward`. A held key repeats from about
+  400 ms after the press, every 50 ms, with every repeat's `repeat` false. **Back and Menu never reach
+  a page**: the wrapper calls `window.krystalTv.back()` and `window.krystalTv.menu()`, and each answers
+  whether the page used the key; the wrapper closes the app only on a Back the page did not use. In a
+  desktop browser in TV mode, Escape stands for Back and the context-menu key for Menu.
+- **Back** closes an open overlay first, then whatever a screen holds of its own (the player's), then
+  goes back a page. On Home it moves focus to the sidebar, and from the sidebar it is the app's.
+- **Typing** is Fire OS's keyboard, which OK on a field raises, with its own QR code for typing on a
+  phone. A submitted search moves focus to the form's button, which closes the keyboard over the
+  results.
+- **Left out on a television**: the assistant, and in the player the volume (the set's own buttons
+  hold it), full screen (the screen already is) and the invite (nobody across the room is handed a
+  link to copy).
+
+How the player answers the remote: `src/player/CLAUDE.md`.
 
 ## Notifications
 

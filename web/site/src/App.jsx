@@ -27,6 +27,8 @@ import { SiteFooter } from "./components/SiteFooter.jsx";
 import { BellNavItem } from "./components/Bell.jsx";
 import { PageStage } from "./components/PageStage.jsx";
 import { Trail } from "./components/Trail.jsx";
+import { onBack as onTvBack, onTv } from "./tv/tv.js";
+import { focusNavigation, pageShown } from "./tv/navigator.js";
 
 // The player carries hls.js, the hub client and Discord's SDK; only a room pays for them.
 const EmbedRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.EmbedRoom })));
@@ -117,10 +119,21 @@ function Frame({ session, route }) {
   const mainRef = React.useRef(null);
   useDiscoverKey(route.view === "discover");
 
-  // A new page starts at its top, from the moment it is shown.
+  // A new page starts at its top, from the moment it is shown, and on a television with focus on it.
   const toTop = React.useCallback(() => {
     if (mainRef.current) mainRef.current.scrollTop = 0;
+    if (onTv) pageShown(mainRef.current);
   }, []);
+  React.useEffect(() => { if (onTv) pageShown(mainRef.current); }, []);
+
+  // A remote's Back goes back a page. Home is where the app is left from, once focus is in the
+  // sidebar: the first Back there puts it there.
+  const home = route.view === "home";
+  React.useEffect(() => onTv ? onTvBack(() => {
+    if (home) return focusNavigation();
+    goBack(homePath);
+    return true;
+  }) : undefined, [home]);
 
   const lit = LIT[route.view] || {};
   const go = (path) => navigate(path);
@@ -173,7 +186,7 @@ function Frame({ session, route }) {
             <SidebarGroup>{LIFECYCLE.filter((n) => n.id !== "notify" || can(session, "cinema:wish")).map(item)}</SidebarGroup>
           </Sidebar>
         }
-        aside={<>
+        aside={onTv ? null : <>
           <Dock dock={dock}>
             {dock.open && <CinemaAssistant session={session} docked dock={dock} onClose={() => dock.setOpen(false)} />}
           </Dock>

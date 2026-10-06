@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.0] - 2026-10-06
+
+### Added
+
+- **Krystal Cinema driven by a television remote.** A page carrying the wrapper app's mark in its
+  user agent, or opened with `?tv=1`, is in TV mode: the remote's arrows move focus to the nearest
+  control that way, an open overlay holds focus and hands it back, a row scrolls to the focused card,
+  a page opens with focus on its first control and returns to the one it was left on, and focus is
+  never left on nothing. Back and Menu, which never reach a page, are handed over by the wrapper as
+  `window.krystalTv.back()` and `.menu()`. The assistant is not drawn. Site 0.34.0, on krystal-ui
+  0.16.0, whose focus ring reads from across a room on a television.
+- **The player answers the remote**: the first press only brings the controls back, play has focus
+  once the film is ready, presses of Left and Right are gathered into one skip and a skip gives the
+  scrub bar focus, holding scrubs with the preview and moves the room once on release, the media keys
+  act directly, Back closes a menu, hides the controls and then leaves, and Menu opens the subtitles.
+  A television has no volume, full screen or invite in the player.
+- `npm run verify:tv`: every page walked with the remote's keys alone at a Fire TV's size, and the
+  overlays, Back and the player as a remote drives them.
+
 ## [2.9.0] - 2026-10-05
 
 ### Added

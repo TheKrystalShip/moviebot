@@ -4,6 +4,7 @@ import { Player } from "./Player.jsx";
 import { createSiteEnvironment, setEnvironment } from "./engine/environment.ts";
 import { createDiscordEnvironment } from "./engine/discordEnvironment.ts";
 import { can, currentToken, freshToken, sessionStore } from "../session.js";
+import { onTv } from "../tv/tv.js";
 
 /** The site's signed-in person, as the player asks for them. */
 const viewer = {
@@ -22,7 +23,7 @@ const viewer = {
  */
 export function SiteRoom({ room, title, onBack, onEmpty }) {
   const [ready] = React.useState(() => {
-    setEnvironment(createSiteEnvironment(room, title, viewer));
+    setEnvironment(createSiteEnvironment(room, title, viewer, onTv));
     return true;
   });
   return ready && <Page><Player key={room} onBack={onBack} onEmpty={onEmpty} /></Page>;

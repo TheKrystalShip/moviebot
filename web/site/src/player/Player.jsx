@@ -7,6 +7,8 @@ import { formatTime } from "./engine/format.ts";
 import { prefs } from "./engine/prefs.ts";
 import { amplitudeFor, volumeIsSettable } from "./engine/media/volume.ts";
 import { bindShortcuts } from "./engine/media/shortcuts.ts";
+import { Remote } from "./engine/media/remote.ts";
+import { Rank, onBack as onTvBack, onMenu as onTvMenu } from "../tv/tv.js";
 import { Cues } from "./Cues.jsx";
 import { GestureHud, useStageGestures } from "./Gestures.jsx";
 import { ScrubBar } from "./ScrubBar.jsx";
@@ -357,9 +359,21 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   const hold = React.useCallback((on) => setHeld((n) => Math.max(0, n + (on ? 1 : -1))), []);
   const shown = active || held > 0 || menu !== null || overflow || invite || clock.paused || !view.ready;
 
+  // A television is driven by its remote (`engine/media/remote.ts`): the volume is the set's own, the
+  // screen is already whole, and nobody across the room is handed a link to copy.
+  const tv = environment().tv;
+  const playRef = React.useRef(null);
+  const [remoteHud, setRemoteHud] = React.useState(null);
+  const [remoteScrub, setRemoteScrub] = React.useState(null);
+  const live = React.useRef(null);
+  live.current = {
+    shown, active, paused: clock.paused, position: clock.position,
+    duration: manifest ? manifest.durationSeconds : 0, open: menu !== null || overflow || invite,
+  };
+
   // A phone holds the film sideways and full screen from the first press, so it has no button for
   // either; leaving full screen gives both up until the next press on the film takes them back.
-  const phone = React.useMemo(() => window.matchMedia("(pointer: coarse)").matches, []);
+  const phone = React.useMemo(() => !tv && window.matchMedia("(pointer: coarse)").matches, [tv]);
   const landscape = React.useRef(null);
   React.useEffect(() => {
     const held = environment().landscape(frameRef.current);
@@ -368,7 +382,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   }, [frameRef]);
   const takeScreen = () => { if (landscape.current) landscape.current.enter(); };
 
-  const canFullscreen = typeof document !== "undefined" && document.fullscreenEnabled && !phone;
+  const canFullscreen = typeof document !== "undefined" && document.fullscreenEnabled && !phone && !tv;
   React.useEffect(() => {
     const changed = () => setFullscreen(document.fullscreenElement === frameRef.current);
     document.addEventListener("fullscreenchange", changed);
@@ -383,14 +397,99 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   const closeAll = React.useCallback(() => { setMenu(null); setOverflow(false); setInvite(false); }, []);
   const openMenu = (kind) => { setOverflow(false); setInvite(false); setMenu((m) => (m === kind ? null : kind)); };
 
-  React.useEffect(() => bindShortcuts({
+  React.useEffect(() => tv ? undefined : bindShortcuts({
     togglePlay: () => { room.togglePlay(); wake(); },
     seekBy: (seconds) => { room.seekBy(seconds); wake(); },
     volumeBy: (step) => { nudgeVolume(step); wake(); },
     toggleFullscreen,
     toggleMute: () => { setVolume((v) => { prefs.setVolume(v.position, !v.muted); return { ...v, muted: !v.muted }; }); wake(); },
     toggleSubtitles: () => { room.toggleSubtitles(); wake(); },
-  }), [room, wake, nudgeVolume, toggleFullscreen]);
+  }), [tv, room, wake, nudgeVolume, toggleFullscreen]);
+
+  // The remote, ahead of the page's navigator: it listens while the key is still on its way down.
+  // Back closes what is open, then puts the controls away, then leaves; Menu is the subtitles.
+  React.useEffect(() => {
+    if (!tv) return undefined;
+    const frame = frameRef.current;
+    // A skip or a scrub brings the bar up with focus on it, so the next press of Left or Right goes on
+    // moving the film however slowly it comes, and Down reaches the buttons.
+    const toBar = () => {
+      const bar = frame.querySelector(".mp-scrub");
+      if (bar && document.activeElement !== bar) bar.focus({ focusVisible: true });
+    };
+    const remote = new Remote({
+      shown: () => live.current.shown,
+      reveal: () => {
+        wake();
+        const focused = document.activeElement;
+        if (playRef.current && (!focused || focused === document.body || !frame.contains(focused))) {
+          playRef.current.focus({ focusVisible: true });
+        }
+      },
+      scrubFocused: () => Boolean(document.activeElement && document.activeElement.classList.contains("mp-scrub")),
+      position: () => live.current.position,
+      duration: () => live.current.duration,
+      togglePlay: () => { room.togglePlay(); wake(); },
+      play: () => { if (live.current.paused) room.togglePlay(); wake(); },
+      pause: () => { if (!live.current.paused) room.togglePlay(); wake(); },
+      skipBy: (seconds) => { room.seekBy(seconds); wake(); toBar(); },
+      gathering: (seconds) => setRemoteHud(seconds === null ? null
+        : { kind: "skip", side: seconds < 0 ? "left" : "right", seconds, key: Date.now() }),
+      scrubbing: (at) => { setRemoteScrub(at); if (at !== null) { wake(); toBar(); } },
+      seek: (seconds) => room.seek(seconds),
+    });
+    const typing = (target) => target instanceof HTMLElement
+      && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+    const down = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
+      if (remote.keydown(e.key, e.repeat)) { e.preventDefault(); e.stopPropagation(); }
+    };
+    const up = (e) => {
+      if (remote.keyup(e.key)) { e.preventDefault(); e.stopPropagation(); }
+    };
+    window.addEventListener("keydown", down, true);
+    window.addEventListener("keyup", up, true);
+    const offBack = onTvBack(() => {
+      const now = live.current;
+      if (now.open) { closeAll(); return true; }
+      if (now.active && !now.paused) {
+        window.clearTimeout(idleTimer.current);
+        setActive(false);
+        return true;
+      }
+      if (onBack) { onBack(); return true; }
+      return false;
+    }, Rank.screen);
+    const offMenu = onTvMenu(() => {
+      setOverflow(false);
+      setInvite(false);
+      setMenu((m) => (m === "subs" ? null : "subs"));
+      wake();
+      return true;
+    }, Rank.screen);
+    return () => {
+      remote.dispose();
+      window.removeEventListener("keydown", down, true);
+      window.removeEventListener("keyup", up, true);
+      offBack();
+      offMenu();
+    };
+  }, [tv, room, wake, closeAll, onBack, frameRef]);
+
+  // On a television the play button takes focus once the film is ready, so OK answers from the first
+  // press, unless somebody has already pressed a key in the player: until then, whatever focus found
+  // while the film was arriving, such as the way back, was nobody's choice.
+  const pressed = React.useRef(false);
+  React.useEffect(() => {
+    if (!tv) return undefined;
+    const mark = () => { pressed.current = true; };
+    window.addEventListener("keydown", mark, true);
+    return () => window.removeEventListener("keydown", mark, true);
+  }, [tv]);
+  React.useEffect(() => {
+    if (!tv || !view.ready || pressed.current || !playRef.current) return;
+    playRef.current.focus({ focusVisible: true });
+  }, [tv, view.ready]);
 
   React.useEffect(() => {
     const escape = (e) => { if (e.key === "Escape") closeAll(); };
@@ -447,7 +546,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   const waiting = !view.fatal && !view.unplayable && !view.gate && !preparing
     && ((titleHeld && !manifest) || view.catchingUp || view.stalled);
   const sheet = compact;
-  const swipe = gestures.hud && gestures.hud.kind === "seek" ? gestures.hud.at : null;
+  const swipe = remoteScrub ?? (gestures.hud && gestures.hud.kind === "seek" ? gestures.hud.at : null);
 
   const backdrop = posterOf(manifest);
   const frameStyle = { "--mp-poster": backdrop ? `url("${backdrop}")` : "none" };
@@ -476,7 +575,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
           <div className="mp-top__room">
             <div className="mp-avatars">{everyone.map((p) => <Avatar key={p.userId} person={p} />)}</div>
             {size === "wide" && <span className="mp-top__count">{everyone.length > 1 ? `${everyone.length} watching` : "Just you"}</span>}
-            {size !== "tiny" && <InviteButton embed={embed} compact={compact} open={invite} manifest={manifest}
+            {size !== "tiny" && !tv && <InviteButton embed={embed} compact={compact} open={invite} manifest={manifest}
               onToggle={() => { setMenu(null); setOverflow(false); setInvite((o) => !o); }} />}
           </div>
         </div>
@@ -488,7 +587,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
           {announcement.text}
         </div>
       )}
-      <GestureHud hud={gestures.hud} />
+      <GestureHud hud={gestures.hud || remoteHud} />
       {view.notices.length > 0 && (
         <div className="mp-notices">
           {view.notices.map((n) => <div key={n.id} className={"mp-notice mp-notice--" + n.kind}>{n.text}</div>)}
@@ -498,7 +597,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
       {/* ── What stands in the middle of the frame ── */}
       {waiting && <div className="mp-spinner" role="status" aria-label="Waiting for the film"><Icon name="loader-circle" size={36} className="mp-spin" /></div>}
       {preparing && <Preparing manifest={manifest} head={view.transcodeHead} />}
-      {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} onJoin={() => { takeScreen(); room.joinPlayback(); }} />}
+      {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} focused={tv} onJoin={() => { takeScreen(); room.joinPlayback(); }} />}
       {view.unplayable && <Message icon="circle-alert" title="This cannot play here" text={view.unplayable} />}
       {view.fatal && <Message icon="circle-alert" title={view.fatal} action={!embed && onBack ? { label: "Back", go: onBack } : null} />}
       {/* What the room waits on, over whatever it holds: a film pressed into an empty room, or the
@@ -528,7 +627,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
             <ScrubBar duration={duration} position={clock.position} ready={view.transcodeHead} buffered={clock.buffered}
               thumbnails={view.thumbnails} chapters={manifest.chapters} onSeek={(s) => room.seek(s)} onHold={hold} swipe={swipe} />
             <div className="mp-controls">
-              <button type="button" className="mp-play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => room.togglePlay()}>
+              <button ref={playRef} type="button" className="mp-play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => room.togglePlay()}>
                 <Icon name={clock.paused ? "play" : "pause"} size={compact ? 18 : 20} />
               </button>
               <button type="button" className="mp-icon" aria-label={`Back ${SkipSeconds} seconds`} title={`Back ${SkipSeconds} seconds (j)`} onClick={() => room.seekBy(-SkipSeconds)}>
@@ -553,7 +652,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
                   </button>
                 </>
               )}
-              <Volume position={volume.position} muted={volume.muted} onChange={changeVolume} onNudge={nudgeVolume} />
+              {!tv && <Volume position={volume.position} muted={volume.muted} onChange={changeVolume} onNudge={nudgeVolume} />}
               <span className="mp-controls__gap" />
               {(manifest.chapters || []).length > 1 && (
                 <MenuButton kind="chapters" icon="list" value={(chapterAt(manifest.chapters, clock.position) || {}).title || "Chapters"}
@@ -790,7 +889,7 @@ function InvitePanel({ everyone }) {
  * The browser would not start the film without a press. Who is watching and where they are is
  * what makes pressing it worth it, and the line underneath says what this viewer brings with them.
  */
-function JoinGate({ view, others, position, onJoin }) {
+function JoinGate({ view, others, position, focused, onJoin }) {
   const manifest = view.manifest;
   const subtitle = subtitleValue(view);
   const brings = [
@@ -806,7 +905,7 @@ function JoinGate({ view, others, position, onJoin }) {
         <span className="mp-gate__where">{formatTime(position)} of {formatTime(manifest.durationSeconds)}</span>
       </div>
       <div className="mp-gate__bar"><div style={{ width: `${manifest.durationSeconds > 0 ? Math.min(100, (position / manifest.durationSeconds) * 100) : 0}%` }} /></div>
-      <button type="button" className="mp-gate__join" onClick={onJoin}><Icon name="users" size={18} />Join</button>
+      <button type="button" className="mp-gate__join" autoFocus={focused} onClick={onJoin}><Icon name="users" size={18} />Join</button>
       {view.identity && (
         <span className="mp-gate__me">Signed in as {view.identity.displayName}{brings.length > 0 ? ` · ${brings.join(", ")} from your settings` : ""}</span>
       )}
