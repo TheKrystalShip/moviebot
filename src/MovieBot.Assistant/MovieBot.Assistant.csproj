@@ -7,7 +7,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Assistant</RootNamespace>
     <AssemblyName>moviebot-assistant</AssemblyName>
-    <Version>2.2.0</Version>
+    <Version>2.2.1</Version>
 
     <!-- The agent loop's conversation store is SQLite through a native library, and the loop itself
          is not built for the ahead-of-time compiler, so this runs on the JIT. A worker that runs for
@@ -30,7 +30,7 @@
   <ItemGroup>
     <!-- The agent loop and its conversation store. The model is moviebot-llm, reached over loopback;
          nothing of it runs in this process. -->
-    <PackageReference Include="TheKrystalShip.Llm" Version="2.4.0" />
+    <PackageReference Include="TheKrystalShip.Llm" Version="2.5.0" />
 
     <!-- What an assistant needs around the loop and belongs to no product: the prompt directory, the
          catalog file and its agreement check, the checks a reply is held to, compaction, the

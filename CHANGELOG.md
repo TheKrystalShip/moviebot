@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.1] - 2026-10-06
+
+### Changed
+
+- **The assistant's context window is its model server's.** On `TheKrystalShip.Llm` 2.5.0 a turn's
+  usage is measured against the per-slot window llama-server reports in `GET /props`; `Llm.ContextWindow`
+  stands only until the server first answers. Assistant 2.2.1.
+
 ## [2.15.0] - 2026-10-06
 
 ### Changed
