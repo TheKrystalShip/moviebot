@@ -17,6 +17,15 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **MovieBot.Client 4.0.0**: the event-stream frames, conversation shapes and attach and feedback
   bodies are the organization's package's, so the client carries what is MovieBot's alone.
 
+## [2.14.2] - 2026-10-06
+
+### Fixed
+
+- **Profile on a television keeps its title and its list on the screen.** A section longer than the
+  screen (History, Subtitles, Appearance) scrolls inside its panel under the title; the whole page
+  scrolled before, carrying the title off the top, and coming back up could leave it cut off.
+  Site 0.38.2.
+
 ## [2.14.1] - 2026-10-06
 
 ### Fixed

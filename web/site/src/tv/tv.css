@@ -187,9 +187,14 @@
 
 /* ── Profile ── */
 
-.kc-tvp { display: flex; gap: 36px; padding: var(--tv-margin-y) var(--tv-margin-x) 120px; box-sizing: border-box; }
+/* The page is the screen's height and never scrolls; the open section scrolls in its body, under the
+   title, which is what the navigator moves when focus nears an edge. */
+.kc-tvp {
+  display: flex; gap: 36px; height: 100vh; min-height: 0; overflow: hidden;
+  padding: var(--tv-margin-y) var(--tv-margin-x) 0; box-sizing: border-box;
+}
 .kc-tvp__side {
-  position: sticky; top: 0; flex: none; width: 220px; align-self: flex-start;
+  flex: none; width: 220px; align-self: flex-start;
   display: flex; flex-direction: column; gap: 18px;
 }
 .kc-tvp__who { display: flex; align-items: center; gap: 12px; }
@@ -211,8 +216,15 @@
 .kc-tvp__item[aria-current="page"] svg { color: var(--krystal-teal); }
 .kc-tvp__item:focus-visible svg { color: inherit; }
 .kc-tvp__out { margin-top: 10px; }
-.kc-tvp__panel { flex: 1; min-width: 0; padding-top: 8px; }
-.kc-tvp__title { margin: 0 0 16px; font-size: var(--text-3xl); font-weight: var(--w-bold); }
+.kc-tvp__panel { flex: 1; min-width: 0; min-height: 0; padding-top: 8px; display: flex; flex-direction: column; }
+.kc-tvp__title { flex: none; margin: 0 0 4px; font-size: var(--text-3xl); font-weight: var(--w-bold); }
+/* Room inside the scrolling body for a lifted control's growth and glow, which its edges would clip;
+   the negative margin keeps the content where it would sit without it. */
+.kc-tvp__body {
+  flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none;
+  margin: 0 -20px; padding: 12px 20px var(--tv-margin-y);
+}
+.kc-tvp__body::-webkit-scrollbar { display: none; }
 /* The panels are the site's own; on a television their grids are rows of posters that wrap. */
 .kc-tvp__panel .kc-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 

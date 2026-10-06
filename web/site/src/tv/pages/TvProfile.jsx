@@ -16,6 +16,8 @@ const SECTIONS = PROFILE_TAB_FACES.filter((t) => t.id !== "notifications");
  * Who is signed in and everything that is theirs, on a television: the person and their sections down
  * the left — History, Requests (which holds what they wait on), Following, Playback, Subtitles,
  * Appearance, Account and About — with Sign out under them, and the open section on the right. The
+ * page is the screen's height and never scrolls: the open section scrolls inside its panel, under its
+ * title, so neither the title nor the list can be carried off the screen by a long section. The
  * section is in the address, as on every surface; About keeps its own, `/about`, and is drawn here
  * with focus on its place in the list, since it holds nothing to press.
  */
@@ -51,7 +53,9 @@ export function TvProfile({ tab: named, about = false }) {
       </aside>
       <section className="kc-tvp__panel">
         <h1 className="kc-tvp__title">{about ? "About" : face.label}</h1>
-        {about ? <About head={false} /> : <TabStage tab={tab} render={(shown) => panel(shown, session)} />}
+        <div className="kc-tvp__body">
+          {about ? <About head={false} /> : <TabStage tab={tab} render={(shown) => panel(shown, session)} />}
+        </div>
       </section>
     </div>
   );
