@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.14.1] - 2026-10-06
+
+### Fixed
+
+- **Krystal Cinema on a television**: entering Home's rows and going back up into the bar no longer
+  stall on a frame of over 100 ms followed by a restyle of the page on every frame of its fade; the
+  press takes one frame of under 75 ms. About opens as Profile's section, with focus on its place in
+  the list, where it opened as a page with nothing to focus. Site 0.38.1, on krystal-ui 0.17.2.
+
 ## [2.14.0] - 2026-10-06
 
 ### Added

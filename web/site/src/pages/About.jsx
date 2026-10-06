@@ -2,11 +2,14 @@ import tmdbLogo from "../assets/tmdb.svg";
 import { PageHead } from "../components/Film.jsx";
 import { onTv } from "../tv/tv.js";
 
-/** What this site is, and where what it shows about movies and shows comes from. */
-export function About() {
+/**
+ * What this site is, and where what it shows about movies and shows comes from. `head` false draws it
+ * without its page heading, as a section of a page that heads it.
+ */
+export function About({ head = true }) {
   return (
     <div className="kc-page kc-about">
-      <PageHead title="About" sub="Krystal Cinema, MovieBot's library in a browser." />
+      {head && <PageHead title="About" sub="Krystal Cinema, MovieBot's library in a browser." />}
 
       <section className="kc-about__block">
         <h2>The library and its rooms</h2>

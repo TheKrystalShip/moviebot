@@ -82,12 +82,15 @@ leaves open is under it, and this plan stands until that is settled.
 ### Step 2: what the TV's design leaves open
 
 The design is the canvas section 2 links, and the site draws it (section 3). Measured on the Xiaomi
-through the probe app, from the page's own frame timings and long-animation-frame records:
+through the app's debug build, from the page's long-animation-frame records:
 
-- Moving along a row runs at 60 frames a second, its worst frame 34 ms; moving between rows, 83 ms.
+- Moving along a row has no frame over 50 ms; moving between rows, 81 ms at worst.
 - The two moves that change the whole screen, from Home's opening film into its rows and Back up into
-  the bar, each spend one frame of about 130 ms drawing: every card on the page changes its opacity
-  and the artwork its size. Those two are what is left to profile.
+  the bar, take a frame of 64 to 72 ms for the press, about 40 ms of it script with 23 ms of forced
+  style and layout; the frame after it takes 70 to 100 ms with the main thread idle, the compositor
+  rastering a page drawn at 3840 by 2160, so the next press is taken at once. Settled: cards change
+  opacity without a transition and are skipped off the screen (krystal-ui 0.17.2). Skipping whole
+  rows made the frame after slower, and the stylesheet's size costs nothing measurable.
 - Profile draws the site's own panels inside the TV's frame. Requests is the desktop's cards rather
   than the rows the design draws.
 - Leaving soon is decided away on every surface (section 2) and is still drawn on desktop and phone.

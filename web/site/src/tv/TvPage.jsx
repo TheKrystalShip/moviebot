@@ -1,4 +1,3 @@
-import { About } from "../pages/About.jsx";
 import { NotFound } from "../pages/NotFound.jsx";
 import { Notify } from "../pages/Notify.jsx";
 import { TvDiscover } from "./pages/TvDiscover.jsx";
@@ -25,7 +24,7 @@ export function TvPage({ route }) {
     case "list": return <TvList key={route.arg} id={route.arg} />;
     case "notify": return <Notify />;
     case "profile": return <TvProfile tab={route.tab} />;
-    case "about": return <About />;
+    case "about": return <TvProfile about />;
     default: return <NotFound />;
   }
 }

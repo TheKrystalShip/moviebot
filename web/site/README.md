@@ -266,7 +266,8 @@ in a WebView, driven by the remote. `src/tv/` is all of it that is the site's ow
   on the screen and the rows above it are put away. A row ends in the tile that leads to all of it.
   Focus lifts what it is on: a card grows, rises and takes a hairline and the accent's light while
   the cards around it dim, and a button or a place in the bar turns into a light pill. Nothing says
-  whether the server holds a title: a film is watched the same way either way. The player is the
+  whether the server holds a title: a film is watched the same way either way. Profile keeps its
+  sections down the left and the open one on the right, About among them at its own address. The player is the
   site's own, with its menus as a panel down the right and its subtitles sized for the distance.
 - **Moving focus** (`src/tv/navigator.js`): every arrow key is taken and focus moves to the nearest
   control that way on screen, from the focused element's rectangle, with the rules the module
