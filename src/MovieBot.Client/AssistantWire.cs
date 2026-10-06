@@ -3,11 +3,12 @@ using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Client.Assistant;
 
-// moviebot-assistant's wire: the frames of the assistant wire contract (kgsm-llm/docs/wire-contract.md,
-// version 2.1) in the shapes the service sends, plus the one frame this product adds, `launch`, and
-// the bodies its routes take and answer. Here rather than in the service so the bot compiles against
-// it without the service: every frame carries its own `type`, an absent optional field is omitted
-// rather than null, and a client ignores what it does not know.
+// What moviebot-assistant says and answers that is MovieBot's own, beside the assistant wire contract
+// (tks-assistant/docs/wire-contract.md, version 2.1) the organization's service writes: the frames the
+// assistant produces — written onto the stream in the contract's shapes, with `launch`, this product's
+// own, as it is — and the bodies of a relayed turn, a confirmation and a room's record. Here rather than
+// in the service so the bot compiles against it without the service: every frame carries its own
+// `type`, and a client ignores what it does not know.
 
 /// <summary>
 /// The room-verb tools the bot records into a room's conversation when it carries one out itself.
@@ -63,11 +64,6 @@ public sealed record ConfirmOutcome
 [JsonDerivedType(typeof(LaunchFrame))]
 [JsonDerivedType(typeof(DoneFrame))]
 [JsonDerivedType(typeof(ErrorFrame))]
-[JsonDerivedType(typeof(HelloFrame))]
-[JsonDerivedType(typeof(ConversationFrame))]
-[JsonDerivedType(typeof(TurnAttach))]
-[JsonDerivedType(typeof(TurnQueue))]
-[JsonDerivedType(typeof(ConfirmResult))]
 public abstract record Frame
 {
     [JsonPropertyOrder(-1)]
@@ -142,42 +138,6 @@ public sealed record ErrorFrame(string Code, string Message) : Frame
     public override string Type => "error";
 }
 
-public sealed record HelloFrame(string StreamId) : Frame
-{
-    public override string Type => "hello";
-}
-
-/// <summary><c>conversation.started</c>, <c>.deleted</c> or <c>.activity</c>.</summary>
-public sealed record ConversationFrame(string Kind, string ConversationId, string? Origin) : Frame
-{
-    public override string Type => $"conversation.{Kind}";
-}
-
-public sealed record ToolState(string Id, string Name, string State, string? Summary);
-
-/// <summary>The whole of a turn so far, for a stream arriving after it started.</summary>
-public sealed record TurnAttach(
-    string TurnId,
-    string ConversationId,
-    string Prompt,
-    string State,
-    string Text,
-    IReadOnlyList<ToolState> Tools,
-    IReadOnlyList<CommandProposed> Proposals,
-    IReadOnlyList<LaunchFrame> Launches,
-    DoneFrame? Done,
-    ErrorFrame? Error) : Frame
-{
-    public override string Type => "turn.attach";
-}
-
-public sealed record QueuedTurn(string TurnId, string Prompt);
-
-public sealed record TurnQueue(string ConversationId, string? RunningTurnId, IReadOnlyList<QueuedTurn> Queued) : Frame
-{
-    public override string Type => "turn.queue";
-}
-
 // ── Requests and answers ─────────────────────────────────────────────────────────────────────
 
 /// <summary>
@@ -206,51 +166,19 @@ public sealed record TurnReply(
 
 public sealed record ConfirmRequest(string Token);
 
-/// <summary>What <c>POST /confirm</c> answers: the contract's buffered form, with the facts as <see cref="Result"/>.</summary>
+/// <summary>
+/// What <c>POST /confirm</c> answers whole, and what its streamed <c>result</c> frame carries: the
+/// contract's form, with the facts as <see cref="Result"/>.
+/// </summary>
 public sealed record ConfirmReply(string Text, bool Success, ConfirmVerdict Outcome, ConfirmOutcome? Result = null);
 
 public sealed record ConfirmVerdict(string Verdict, string? Verb = null, string? Reason = null);
-
-/// <summary>The confirm channel's terminal frame when it streams: the whole buffered answer.</summary>
-public sealed record ConfirmResult(string Text, bool Success, ConfirmVerdict Outcome, ConfirmOutcome? Result = null) : Frame
-{
-    public override string Type => "result";
-}
 
 /// <summary>A room verb carried out without the model, written into the room's conversation.</summary>
 public sealed record RecordRequest(
     TurnRoom Room, string Said, string Tool, IReadOnlyDictionary<string, string?> Arguments, string Outcome);
 
-/// <summary>One of a person's conversations, as the listing names it. <see cref="Id"/> is the id the client holds.</summary>
-public sealed record ConversationRow(
-    string Id, string Title, DateTimeOffset CreatedAt, DateTimeOffset LastActivityAt, int TurnCount,
-    bool Think, bool Autorun);
-
-/// <summary>A tool a turn called, and the card it drew, read back as it was stored.</summary>
-public sealed record HistoryTool(string Tool, string Summary, System.Text.Json.JsonElement? Result = null);
-
-public sealed record HistoryTurn(
-    string Prompt, string? Final, string Outcome, IReadOnlyList<HistoryTool> Tools, TurnUsage? Usage = null);
-
-public sealed record HistoryFeedback(string Rating, string? Note);
-
-/// <summary>One entry of a conversation's history: a turn, or the summary it was compacted to.</summary>
-public sealed record HistoryEntry(
-    string Kind, long TurnId, DateTimeOffset CreatedAt, DateTimeOffset? StartedAt = null,
-    HistoryTurn? Turn = null, HistoryFeedback? Feedback = null);
-
-/// <summary>A conversation: its history, and the proposals still waiting in it.</summary>
-public sealed record ConversationDetail(
-    string Id, string Title, IReadOnlyList<HistoryEntry> Entries, IReadOnlyList<CommandProposed> Pending,
-    bool Think, bool Autorun);
-
-public sealed record FeedbackRequest(string? Rating, string? Note);
-
-public sealed record AttachRequest(string? ConversationId);
-
 public sealed record MeReply(string UserId, string DisplayName, bool Service);
-
-public sealed record SpeechReply(bool Hear, bool Speak);
 
 public sealed record AssistantError(string Error);
 
@@ -264,12 +192,8 @@ public sealed record AssistantError(string Error);
 [JsonSerializable(typeof(ConfirmRequest))]
 [JsonSerializable(typeof(ConfirmReply))]
 [JsonSerializable(typeof(RecordRequest))]
-[JsonSerializable(typeof(List<ConversationRow>))]
-[JsonSerializable(typeof(ConversationDetail))]
 [JsonSerializable(typeof(ToolCard))]
-[JsonSerializable(typeof(FeedbackRequest))]
-[JsonSerializable(typeof(AttachRequest))]
+[JsonSerializable(typeof(TurnRoom))]
 [JsonSerializable(typeof(MeReply))]
-[JsonSerializable(typeof(SpeechReply))]
 [JsonSerializable(typeof(AssistantError))]
 public partial class AssistantJsonContext : JsonSerializerContext;

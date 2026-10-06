@@ -144,18 +144,18 @@ public sealed class AssistantServiceTests(SessionFixture fixture) : IClassFixtur
         Assert.Equal("Hello, Haru.", reply?.Text);
         Assert.True(reply!.TurnId > 0);
 
-        var listed = await client.GetFromJsonAsync("/conversations", AssistantJsonContext.Default.ListConversationRow);
-        Assert.Equal("chat-1", Assert.Single(listed!).Id);
+        var listed = await client.GetFromJsonAsync<JsonElement>("/conversations");
+        Assert.Equal("chat-1", Assert.Single(listed.EnumerateArray()).GetProperty("id").GetString());
 
-        var detail = await client.GetFromJsonAsync("/conversations/chat-1", AssistantJsonContext.Default.ConversationDetail);
-        var entry = Assert.Single(detail!.Entries);
-        Assert.Equal("turn", entry.Kind);
-        Assert.Equal("hello", entry.Turn!.Prompt);
-        Assert.Equal("Hello, Haru.", entry.Turn.Final);
+        var detail = await client.GetFromJsonAsync<JsonElement>("/conversations/chat-1");
+        var entry = Assert.Single(detail.GetProperty("entries").EnumerateArray());
+        Assert.Equal("turn", entry.GetProperty("kind").GetString());
+        Assert.Equal("hello", entry.GetProperty("turn").GetProperty("prompt").GetString());
+        Assert.Equal("Hello, Haru.", entry.GetProperty("turn").GetProperty("final").GetString());
 
         // Somebody else signed in sees none of it.
-        var other = await _service.As("77", "Bea").GetFromJsonAsync("/conversations", AssistantJsonContext.Default.ListConversationRow);
-        Assert.Empty(other!);
+        var other = await _service.As("77", "Bea").GetFromJsonAsync<JsonElement>("/conversations");
+        Assert.Equal(0, other.GetArrayLength());
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public sealed class AssistantServiceTests(SessionFixture fixture) : IClassFixtur
 
         var frames = await StreamAsync(client, "/turn", new { prompt = "show me heat" });
 
-        Assert.Equal(["tool.start", "tool.result", "launch", "text.delta", "done"], frames.Select(f => f.Type));
+        Assert.Equal(["turn.attach", "tool.start", "tool.result", "launch", "text.delta", "done"], frames.Select(f => f.Type));
         var launch = frames.Single(f => f.Type == "launch").Data;
         Assert.Equal(SessionFixture.Heat, launch.GetProperty("titleId").GetString());
         Assert.False(launch.TryGetProperty("sessionId", out _));
@@ -178,8 +178,9 @@ public sealed class AssistantServiceTests(SessionFixture fixture) : IClassFixtur
         Assert.Equal(RoomTools.WatchFilm, card.GetProperty("tool").GetString());
         Assert.Equal(SessionFixture.Heat, card.GetProperty("data").GetProperty("titleId").GetString());
 
-        var history = await client.GetFromJsonAsync("/conversations/main", AssistantJsonContext.Default.ConversationDetail);
-        var stored = Assert.Single(Assert.Single(history!.Entries).Turn!.Tools).Result!.Value;
+        var history = await client.GetFromJsonAsync<JsonElement>("/conversations/main");
+        var stored = Assert.Single(Assert.Single(history.GetProperty("entries").EnumerateArray())
+            .GetProperty("turn").GetProperty("tools").EnumerateArray()).GetProperty("result");
         Assert.Equal(SessionFixture.Heat, stored.GetProperty("data").GetProperty("titleId").GetString());
     }
 

@@ -4,8 +4,8 @@ using TheKrystalShip.Agent.Service;
 namespace TheKrystalShip.MovieBot.Assistant;
 
 /// <summary>
-/// Who a caller of the organization's memory, command and notification routes is, and what they may
-/// do, answered from the access token <see cref="Callers"/> reads.
+/// Who a caller of the organization's routes is, and what they may do, answered from the access token
+/// <see cref="Callers"/> reads.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -16,7 +16,9 @@ namespace TheKrystalShip.MovieBot.Assistant;
 /// <para>
 /// <b>The conversation</b> is the one a turn would address. A client relaying the person names a room
 /// in <see cref="RoomHeader"/>, and the room's conversation is the shared one every turn there
-/// continues; anybody else addresses their own chat, <c>person:&lt;userId&gt;:&lt;chatId&gt;</c>.
+/// continues; anybody else addresses their own chat, <c>person:&lt;userId&gt;:&lt;chatId&gt;</c>, the
+/// chat a client names none for being <c>main</c>. A person's own chats, which the conversation routes
+/// list and read, are always theirs, never a room.
 /// </para>
 /// <para>
 /// <b>Memory belongs to a person's own chats.</b> A room is shared by whoever is in the channel and
@@ -46,10 +48,18 @@ public sealed class CinemaCallers(Callers callers) : IAssistantCallers
         if (caller.Principal is Caller { Relayed: true } && http.Request.Headers[RoomHeader].ToString() is { Length: > 0 } room)
             return new AssistantConversation(AssistantTurn.RoomConversation(room), "", chat, Shared: true);
 
+        return OwnChat(caller, chat);
+    }
+
+    public AssistantConversation OwnChat(AssistantCaller caller, string? chatId)
+    {
+        var chat = string.IsNullOrWhiteSpace(chatId) ? null : chatId.Trim();
         return new AssistantConversation(
             AssistantTurn.PersonConversation(caller.OwnerKey, chat ?? AssistantTurn.MainChat),
             AssistantTurn.PersonScope(caller.OwnerKey), chat, Shared: false);
     }
+
+    public string ChatsOf(AssistantCaller caller) => AssistantTurn.PersonScope(caller.OwnerKey);
 
     public ValueTask<Func<string, bool>> HeldAsync(AssistantCaller caller, CancellationToken ct)
     {

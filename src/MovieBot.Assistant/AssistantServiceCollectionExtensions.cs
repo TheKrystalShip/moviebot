@@ -4,6 +4,7 @@ using TheKrystalShip.Agent.Commands;
 using TheKrystalShip.Agent.Service;
 using TheKrystalShip.Agent.Service.Commands;
 using TheKrystalShip.Agent.Service.Push;
+using TheKrystalShip.Agent.Service.Turns;
 using TheKrystalShip.Llm.Conversation;
 using TheKrystalShip.Llm.Extensions;
 using TheKrystalShip.Llm.Interfaces;
@@ -50,13 +51,17 @@ public static class AssistantServiceCollectionExtensions
         services.AddSingleton<StagedActions>();
         services.AddSingleton<RoomToolbox>();
         services.AddSingleton<CinemaAssistant>();
-        services.AddSingleton<EventStreams>();
-        services.AddSingleton<TurnHub>();
 
-        // What every TheKrystalShip assistant offers around the conversation, over this service's callers.
+        // The organization's assistant service over this one's seams: who a caller is, what a turn says
+        // and how a request names one, what agreeing to a proposal does, what still waits in a chat, and
+        // the tools a chat is offered.
         services.AddSingleton<IAssistantCallers, CinemaCallers>();
+        services.AddSingleton<IAssistantTurnRunner, CinemaTurnRunner>();
+        services.AddSingleton<IAssistantTurnRequests, CinemaTurnRequests>();
+        services.AddSingleton<IAssistantConfirmations, CinemaConfirmations>();
+        services.AddSingleton<IAssistantPendingProposals, CinemaPendingProposals>();
         services.AddSingleton<IAssistantToolOffer, CinemaToolOffer>();
-        services.AddSingleton<IAssistantConversationEvents, CinemaConversationEvents>();
+        services.AddAssistantTurns();
         services.AddAssistantCommands(Commands, commands => commands.AddBaseline(clearSharedAction: Callers.Watch));
         services.AddAssistantPush<StagedAction>();
         services.AddSingleton<IConfirmationPushHost<StagedAction>, CinemaConfirmationPushHost>();

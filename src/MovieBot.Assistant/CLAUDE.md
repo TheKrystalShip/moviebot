@@ -9,9 +9,13 @@ turn is for.
 ## The wire
 
 The organization's assistant wire contract, version 2.1 (`tks-assistant/docs/wire-contract.md`), so one
-chat client serves this and the KGSM assistant alike. The frames and bodies this service writes itself
-are in `MovieBot.Client/AssistantWire.cs`; the command, memory and notification routes are
-`TheKrystalShip.Agent.Service`'s, the same code on every assistant, standing on `CinemaCallers`.
+chat client serves this and the KGSM assistant alike. Every route below except `/me` and `/rooms/record`
+is `TheKrystalShip.Agent.Service`'s, the same code on every assistant, standing on this service's
+seams: `CinemaCallers` (who is asking), `CinemaTurnRunner` and `CinemaTurnRequests` (what a turn says,
+and how a request names one), `CinemaConfirmations` (agreeing to a proposal) and
+`CinemaPendingProposals` (`Wire/CinemaTurns.cs`). What is this product's own — the frames the assistant
+produces, a proposal, a film's card, `launch`, and the bodies of a relayed turn and a room's record — is
+in `MovieBot.Client/AssistantWire.cs`, written as this service writes it, an absent field left out.
 
 | Route | What it does |
 |---|---|
@@ -139,8 +143,9 @@ sentence, so a client words its message from facts rather than parsing text.
   `tools.json`, the catalog's agreement with `RoomTools.Names`, proposal tokens, the reply checks and
   compaction come from `TheKrystalShip.Agent` in tks-assistant. What the tools do, which of them wait for a
   person, and the words a room is acted on in are this repository's.
-- **A turn is not the request that started it.** It runs one at a time per conversation, up to three
-  wait, and every surface of the conversation can attach to it; the request going away ends nothing,
-  a stop does.
+- **A turn is not the request that started it.** The organization's engine runs it: one at a time per
+  conversation with up to three waiting, every surface of the conversation can attach to it, the
+  request going away ends nothing, and a stop does. A relayed turn answered whole runs through the
+  engine like any other, so a room's turns wait their turn.
 - **The warm-up sends what a room's turn sends**, and leaves the same request in
   `llm-warmup.json` beside the conversations for moviebot-llm to replay when it starts.

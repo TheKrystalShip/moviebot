@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.0] - 2026-10-06
+
+### Changed
+
+- **The assistant runs on the organization's engine**: turns, the event stream, a person's
+  conversations and the confirm channel are `TheKrystalShip.Agent.Service` 2.1.0, the code the KGSM
+  assistant runs, over this service's seams (`Wire/CinemaTurns.cs`). The wire follows the contract's
+  shapes: a streamed turn opens with `turn.attach`, which states the turn so far; a conversation
+  reads back as the contract's history with its switches; a stream that falls behind is redrawn. What
+  is MovieBot's own — a proposal, a film's card, `launch` — is written as before. Assistant 2.2.0.
+- **MovieBot.Client 4.0.0**: the event-stream frames, conversation shapes and attach and feedback
+  bodies are the organization's package's, so the client carries what is MovieBot's alone.
+
 ## [2.14.1] - 2026-10-06
 
 ### Fixed

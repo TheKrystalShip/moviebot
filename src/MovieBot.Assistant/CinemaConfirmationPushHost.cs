@@ -1,7 +1,7 @@
 using TheKrystalShip.Agent.Confirmations;
 using TheKrystalShip.Agent.Service;
 using TheKrystalShip.Agent.Service.Push;
-using TheKrystalShip.MovieBot.Assistant.Wire;
+using TheKrystalShip.Agent.Service.Turns;
 
 namespace TheKrystalShip.MovieBot.Assistant;
 
@@ -24,7 +24,7 @@ namespace TheKrystalShip.MovieBot.Assistant;
 /// proposal still waits (<see cref="ConfirmUnavailable"/>), and nothing here runs one.
 /// </para>
 /// </remarks>
-public sealed class CinemaConfirmationPushHost(StagedActions staged, EventStreams streams) : IConfirmationPushHost<StagedAction>
+public sealed class CinemaConfirmationPushHost(StagedActions staged, IConversationEventBus streams) : IConfirmationPushHost<StagedAction>
 {
     /// <summary>What a notification's Confirm answers.</summary>
     public const string ConfirmUnavailable =
@@ -35,8 +35,7 @@ public sealed class CinemaConfirmationPushHost(StagedActions staged, EventStream
 
     public void MarkAnnounced(string handle) => staged.MarkAnnounced(handle);
 
-    public bool PresentWithin(string userId, TimeSpan grace) =>
-        streams.PresentWithin(AssistantTurn.PersonScope(userId), grace);
+    public bool PresentWithin(string userId, TimeSpan grace) => streams.PresentWithin(userId, grace);
 
     public PushedActionWords Describe(StagedAction action) => new(Words(action.Verb), action.Subject, action.Subject);
 
