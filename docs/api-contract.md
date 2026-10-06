@@ -177,7 +177,9 @@ what a play does cannot come to depend on which door it arrived by.
   the one thing a broadcast cannot reach.
 
 `.m3u8` for a title whose status is `transcoding` is served `no-store`; once `ready` it is
-`max-age=300`. Segments, init files, subtitles and posters are `immutable` for a year.
+`max-age=300`. Segments, init files and subtitles are `immutable` for a year. A poster or a preview
+sheet is rewritten under its own name, so at its bare address it is `max-age=0, must-revalidate`, and
+asked for with `?v=` it is `immutable` for a year: a rewrite is listed under another version.
 
 Content types are set explicitly, because the framework knows none of them and hls.js refuses a
 segment delivered as `application/octet-stream`: `application/vnd.apple.mpegurl`,
@@ -473,8 +475,9 @@ A track with `available: false` is listed on purpose — a language that is simp
 menu reads as a bug. Render it disabled with its `reason`, do not hide it.
 
 `TitleSummary` is `{id, title, durationSeconds, status, kind, episode?, unit, headSeconds?, poster?,
-film?, sizeBytes?, addedAt?, details?, progress?, lastPlayed?}`. `kind` is `"film"` or `"show"`, as the
-manifest says. Every episode of a show is a title of its own: `episode` is `{season, number}`, `film`
+posterVersion?, film?, sizeBytes?, addedAt?, details?, progress?, lastPlayed?}`. `kind` is `"film"` or
+`"show"`, as the manifest says. `posterVersion` is when the poster was last written, in milliseconds
+since the epoch, and a page asks for the poster as `/media/{id}/{poster}?v={posterVersion}`. Every episode of a show is a title of its own: `episode` is `{season, number}`, `film`
 is the show, `title` is the show's name with the episode's place (`Severance S02E04`), and `unit` is
 its season's (a film's is its own id). `details` is what the film database said, as far as a
 listing shows it — `{rating?, votes, certification?, genres, runtimeMinutes?, overview?, directors,

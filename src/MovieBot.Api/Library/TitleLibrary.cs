@@ -27,6 +27,13 @@ public sealed record TitleSummary
     public string? Poster { get; init; }
 
     /// <summary>
+    /// When <see cref="Poster"/> was last written, as milliseconds since the epoch. A page asks for
+    /// the poster with this beside it, which lets the answer be kept for good: a poster rewritten in
+    /// place gets a new version, so the address that held the old one is never asked again.
+    /// </summary>
+    public string? PosterVersion { get; init; }
+
+    /// <summary>
     /// Which film this is, as far as anything that catalogues films is concerned. Carried on the
     /// summary rather than left to the manifest, so a surface listing the library can show a film
     /// properly without fetching each one.
@@ -101,6 +108,7 @@ public sealed class TitleLibrary(
                 Unit = UnitOf(manifest),
                 HeadSeconds = manifest.HeadSeconds,
                 Poster = manifest.Poster,
+                PosterVersion = VersionOf(id, manifest.Poster),
                 Film = manifest.Film,
                 SizeBytes = footprint?.SizeBytes,
                 AddedAt = footprint?.AddedAt
@@ -108,6 +116,23 @@ public sealed class TitleLibrary(
         }
 
         return summaries.OrderBy(s => s.Title, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>When a file in a title's directory was last written, or null when it is not there.</summary>
+    private string? VersionOf(string id, string? file)
+    {
+        if (file is null || DirectoryOf(id) is not { } directory) return null;
+        try
+        {
+            var info = new FileInfo(Path.Combine(directory, file));
+            return info.Exists
+                ? new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero).ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     public Manifest? Get(string id)

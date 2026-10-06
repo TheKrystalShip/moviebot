@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.0] - 2026-10-06
+
+### Changed
+
+- **A listed poster is kept by the browser instead of checked on every page.** `TitleSummary` carries
+  `posterVersion`, when the poster file was last written, and the site asks for
+  `/media/{id}/poster.jpg?v=…`, which is served `immutable` for a year; the bare address is still
+  checked every time, so a rewritten poster reaches everybody under its new version. A library page
+  of posters costs no requests once seen. Api 2.6.0, Site 0.40.1.
+- **hotrod's ingress compresses text and holds its connections to hotbox open**
+  (`deploy/nginx-moviebot-ingress.conf`). JSON, scripts, stylesheets, playlists and subtitles go out
+  gzipped, and the hop to hotbox reuses up to 32 idle connections instead of a TLS handshake per
+  request.
+
 ## [2.17.0] - 2026-10-06
 
 ### Changed

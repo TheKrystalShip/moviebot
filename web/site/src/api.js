@@ -119,10 +119,14 @@ export const api = {
 /**
  * Where a film's poster is, always on this server. The poster beside the film comes first; the copy
  * the API keeps from the film database is the fallback for a film the ingest found no artwork for.
- * The page never reaches the database or the title index itself.
+ * The page never reaches the database or the title index itself. A listed title carries its poster's
+ * version, and asking with it lets the browser keep the poster rather than check it on every page.
  */
 export function posterUrl(title) {
-  if (title && title.poster) return `/media/${enc(title.id)}/${enc(title.poster)}`;
+  if (title && title.poster) {
+    const version = title.posterVersion ? `?v=${enc(title.posterVersion)}` : "";
+    return `/media/${enc(title.id)}/${enc(title.poster)}${version}`;
+  }
   return (title && title.details && title.details.posterUrl) || null;
 }
 

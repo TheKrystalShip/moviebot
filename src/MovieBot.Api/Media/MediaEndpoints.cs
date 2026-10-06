@@ -33,11 +33,16 @@ public static class MediaEndpoints
         // Discord's servers fetch the poster to render an embed and carry nothing of ours. A poster
         // is not the film.
         app.MapMethods("/media/{id}/poster.jpg", ["GET", "HEAD"],
-                (string id, TitleLibrary library, Subtitles.SubtitleStore subtitles) => Serve(id, "poster.jpg", library, subtitles))
+                (string id, string? v, TitleLibrary library, Subtitles.SubtitleStore subtitles) => Serve(id, "poster.jpg", v, library, subtitles))
             .AllowAnonymous();
     }
 
-    private static IResult Serve(string id, string path, TitleLibrary library, Subtitles.SubtitleStore subtitles)
+    /// <param name="v">
+    /// The version a listing gave the file (<see cref="TitleSummary.PosterVersion"/>). Its value is
+    /// never compared: a rewritten file is listed under another version, so an address carrying one
+    /// names a single copy for as long as it is asked for.
+    /// </param>
+    private static IResult Serve(string id, string path, string? v, TitleLibrary library, Subtitles.SubtitleStore subtitles)
     {
         if (!TitleLibrary.IsSafeId(id)) return Results.NotFound();
 
@@ -82,14 +87,17 @@ public static class MediaEndpoints
         //
         // Artwork is neither. A poster and a sheet of scrub previews keep their names and are
         // rewritten in place — by a catalogue lookup, or by rebuilding a sheet that came out
-        // wrong — so serving them as immutable leaves whoever already looked at the broken one
-        // holding it for a year. They are checked instead, which costs a request answered 304
-        // and is what makes a correction reach anybody.
+        // wrong — so serving them as immutable at their bare address leaves whoever already looked
+        // at the broken one holding it for a year. At that address they are checked instead, which
+        // costs a request answered 304 and is what makes a correction reach anybody. Asked for
+        // with the version a listing gave them, they are immutable: a rewrite changes the version
+        // and so the address. A page of posters is then drawn from the browser's cache rather than
+        // a request per poster, each costing a round trip.
         var cacheControl = (isPlaylist, transcoding) switch
         {
             (true, true) => "no-store, no-cache, must-revalidate",
             (true, false) => "public, max-age=300",
-            _ when IsArtwork(requested) => "public, max-age=0, must-revalidate",
+            _ when IsArtwork(requested) && string.IsNullOrEmpty(v) => "public, max-age=0, must-revalidate",
             _ => "public, max-age=31536000, immutable"
         };
 
