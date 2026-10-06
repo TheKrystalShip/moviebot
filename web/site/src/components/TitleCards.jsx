@@ -1,6 +1,6 @@
-import { ShowcaseCard, Skeleton } from "@thekrystalship/krystal-ui";
-import { discoverFilmPath, moviePath, showPath } from "../paths.js";
-import { navigate } from "../router.js";
+import { Icon, ShowcaseCard, Skeleton } from "@thekrystalship/krystal-ui";
+import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
+import { linkProps, navigate } from "../router.js";
 import { watchHref } from "./Film.jsx";
 
 // Poster cards for titles that are not on a shelf: a search's answers, what somebody waits on, what
@@ -40,6 +40,16 @@ export function CardsSkeleton({ count = 6, row = false }) {
   );
 }
 
+/** The tile closing a shelf, leading past its last poster to more of the same in Discover. */
+export function MoreTile({ label, to = discoverPath() }) {
+  return (
+    <a className="kc-more-tile" {...linkProps(to)}>
+      <Icon name="compass" size={26} />
+      <span>{label}</span>
+    </a>
+  );
+}
+
 /** Where a found film or show leads: the library's own page when it is here, its catalogue page when not. */
 export function foundPage(found, here, held) {
   if (found.kind === "show") return showPath(found.imdbId, { held });
@@ -47,11 +57,11 @@ export function foundPage(found, here, held) {
 }
 
 /**
- * A film or show the catalogue answered a search with: its rating, year, whether it is a film or a
- * show, and its cast. `here` is the library's title for a film it holds, `held` whether it holds an
- * episode of a show.
+ * A film or show the catalogue answered with: its rating, year, whether it is a film or a show, and
+ * its cast, or `line` in its place (a person's part in it). `here` is the library's title for a film
+ * it holds, `held` whether it holds an episode of a show.
  */
-export function FoundCard({ found, here, held }) {
+export function FoundCard({ found, here, held, line = found.starring }) {
   const show = found.kind === "show";
   const inLibrary = show ? held : !!here;
   const playable = here && here.status === "ready";
@@ -68,7 +78,7 @@ export function FoundCard({ found, here, held }) {
       ]}
       status={inLibrary
         ? { tone: "success", icon: "check", label: "In the library" }
-        : found.starring ? { label: found.starring, title: found.starring } : null}
+        : line ? { label: line, title: line } : null}
       action={playable
         ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) }
         : { label: inLibrary ? "Open" : "View" }} />

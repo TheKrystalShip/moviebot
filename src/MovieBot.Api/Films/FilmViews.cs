@@ -21,6 +21,10 @@ public sealed record FilmView
     public int Votes { get; init; }
     public required List<string> Directors { get; init; }
     public required List<string> Writers { get; init; }
+
+    /// <summary>Each director's and writer's id in the film database, by the name they are listed under; what their credits are asked for by.</summary>
+    public required Dictionary<string, int> PersonIds { get; init; }
+
     public required List<CastView> Cast { get; init; }
     public string? OriginalLanguage { get; init; }
     public required List<string> Languages { get; init; }
@@ -31,6 +35,9 @@ public sealed record FilmView
 
 public sealed record CastView
 {
+    /// <summary>The person's id in the film database, what their credits are asked for by; absent while the description is kept without one.</summary>
+    public int? PersonId { get; init; }
+
     public required string Name { get; init; }
     public string? Character { get; init; }
     public string? PortraitUrl { get; init; }
@@ -80,8 +87,10 @@ public static class FilmViews
             Votes = d.Votes,
             Directors = [.. d.Directors],
             Writers = [.. d.Writers],
+            PersonIds = new Dictionary<string, int>(d.PersonIds),
             Cast = d.Cast.Select((c, i) => new CastView
             {
+                PersonId = c.TmdbId,
                 Name = c.Name,
                 Character = c.Character,
                 PortraitUrl = Image(FilmStore.Portrait(i)),

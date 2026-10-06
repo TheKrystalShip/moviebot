@@ -29,6 +29,12 @@ export const tvPath = (imdbId, season) => "/tv/" + seg(imdbId) + seasonSegment(s
 /** Finding anything to watch, here or not; `q` is what was searched for. */
 export const discoverPath = (q) => "/discover" + (q ? "?q=" + seg(q) : "");
 
+/** Discover's catalogue of the films and shows one person is credited on, by the film database's id for them. */
+export const discoverPersonPath = (personId) => "/discover?person=" + seg(personId);
+
+/** Discover's catalogue of the films (`film`) or shows (`show`) in one genre, by the genre's name. */
+export const discoverGenrePath = (kind, genre) => "/discover?genre=" + seg(genre) + "&kind=" + (kind === "show" ? "show" : "film");
+
 /** A film the library does not hold. */
 export const discoverFilmPath = (imdbId) => "/discover/film/" + seg(imdbId);
 

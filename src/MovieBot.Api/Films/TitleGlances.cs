@@ -152,6 +152,28 @@ public sealed class TitleGlances(
         return answered;
     }
 
+    /// <summary>
+    /// Keeps what a browse of the database (<see cref="Catalogue"/>) said of a title as its glance,
+    /// unless the title is described or a glance of it is kept and not due, so the title's poster is
+    /// served from here like a search result's.
+    /// </summary>
+    public void Offer(string imdbId, TitleGlance glance)
+    {
+        if (!FilmStore.IsImdbId(imdbId) || Described(imdbId) is not null) return;
+        if (Held(imdbId) is { } held && !IsDue(held)) return;
+
+        var stored = new StoredGlance { Glance = glance, FetchedAt = clock.GetUtcNow() };
+        try
+        {
+            Write(imdbId, stored);
+        }
+        catch (IOException ex)
+        {
+            logger.LogWarning("The glance of {Imdb} could not be kept: {Reason}", imdbId, ex.Message);
+        }
+        _held[imdbId] = stored;
+    }
+
     /// <summary>A title described in full answers from that description.</summary>
     private TitleGlance? Described(string imdbId)
     {

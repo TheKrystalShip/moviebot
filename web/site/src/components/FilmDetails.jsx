@@ -1,5 +1,7 @@
 import React from "react";
 import { Icon, Skeleton } from "@thekrystalship/krystal-ui";
+import { discoverPersonPath } from "../paths.js";
+import { linkProps } from "../router.js";
 
 /** A count of votes the way the design prints one: 8,740 is 8.7K. */
 export function votes(n) {
@@ -38,24 +40,34 @@ export function Genres({ names }) {
 
 /**
  * Director, writers and the top of the billing, as the design lays them out; a show names its
- * creators in the director's place.
+ * creators in the director's place. Each person the film database has an id for leads to their work
+ * in Discover.
  */
 export function Credits({ film }) {
-  const creators = film.creators || [];
-  const directors = film.directors || [];
+  const ids = film.personIds || {};
+  const named = (names) => (names || []).map((name) => ({ name, personId: ids[name] }));
+  const creators = named(film.creators);
+  const directors = named(film.directors);
   const rows = [
-    [creators.length > 1 ? "Creators" : "Creator", creators.join(", ")],
-    [directors.length > 1 ? "Directors" : "Director", directors.join(", ")],
-    ["Writers", (film.writers || []).join(", ")],
-    ["Stars", film.cast.slice(0, 4).map((c) => c.name).join(" · ")],
-  ].filter(([, v]) => v);
+    [creators.length > 1 ? "Creators" : "Creator", creators, ", "],
+    [directors.length > 1 ? "Directors" : "Director", directors, ", "],
+    ["Writers", named(film.writers), ", "],
+    ["Stars", film.cast.slice(0, 4), " · "],
+  ].filter(([, people]) => people.length > 0);
   if (rows.length === 0) return null;
   return (
     <div className="kc-credits">
-      {rows.map(([label, value]) => (
+      {rows.map(([label, people, between]) => (
         <React.Fragment key={label}>
           <span className="kc-credits__label">{label}</span>
-          <span className="kc-credits__value">{value}</span>
+          <span className="kc-credits__value">
+            {people.map((p, i) => (
+              <React.Fragment key={p.name}>
+                {i > 0 && between}
+                {p.personId ? <a className="kc-credits__person" {...linkProps(discoverPersonPath(p.personId))}>{p.name}</a> : p.name}
+              </React.Fragment>
+            ))}
+          </span>
         </React.Fragment>
       ))}
     </div>
@@ -73,18 +85,25 @@ function Portrait({ person }) {
   );
 }
 
+/** The billing, each person the film database has an id for leading to their work in Discover. */
 export function CastGrid({ cast }) {
   return (
     <div className="kc-cast">
-      {cast.map((c) => (
-        <div key={c.name + (c.character || "")} className="kc-cast__card">
-          <Portrait person={c} />
-          <div className="kc-cast__text">
-            <span className="kc-cast__name">{c.name}</span>
-            {c.character && <span className="kc-cast__role">{c.character}</span>}
-          </div>
-        </div>
-      ))}
+      {cast.map((c) => {
+        const body = (
+          <>
+            <Portrait person={c} />
+            <div className="kc-cast__text">
+              <span className="kc-cast__name">{c.name}</span>
+              {c.character && <span className="kc-cast__role">{c.character}</span>}
+            </div>
+          </>
+        );
+        const key = c.name + (c.character || "");
+        return c.personId
+          ? <a key={key} className="kc-cast__card kc-cast__card--link" {...linkProps(discoverPersonPath(c.personId))}>{body}</a>
+          : <div key={key} className="kc-cast__card">{body}</div>;
+      })}
     </div>
   );
 }

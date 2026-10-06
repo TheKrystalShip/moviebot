@@ -30,7 +30,10 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET,HEAD /films/{imdbId}/{poster.jpg,backdrop.jpg,cast-N.jpg}` | the artwork kept beside a description. Open: it is public artwork and an `<img>` carries no token |
 | `GET /api/popular` | `{films, shows, fetchedAt?}` — the films and shows the film database counts as trending this week, most first, each `{imdbId, title, year?, rating?, votes, posterUrl?}`, read from what is kept. Both lists are empty and `fetchedAt` absent until the database has first been asked |
 | `GET,HEAD /popular/{imdbId}.jpg` | a trending entry's poster, open like a film's artwork |
-| `GET,HEAD /glances/{imdbId}/poster.jpg` | a search result's poster from the film database, the one its page shows, fetched and kept the first time it is wanted; open like a film's artwork |
+| `GET,HEAD /glances/{imdbId}/poster.jpg` | a search result's or a catalogue title's poster from the film database, the one its page shows, fetched and kept the first time it is wanted; open like a film's artwork |
+| `GET /api/catalogue/people/{personId}` | `CataloguePersonView` — `{personId, name, knownFor?, portraitUrl?, titles}`: a person by the film database's id for them (a cast member's `personId`, a director's, writer's or creator's in `personIds`), and up to 40 films and shows they are credited on, the most voted on first. `titles` are `CatalogueTitleView`s, each with `role`, the part played or the job done (`Director`, `Writer`…), several joined by ` · `. A credit as themselves and any on a talk, news or reality show is left out, and so is a title with no IMDb id. `knownFor` is the database's department for them (`Acting`, `Directing`…). Kept a week. `404` when the database has nobody under the id, `503` when it cannot be asked and nothing is kept |
+| `GET /api/catalogue/genre?kind=&name=` | `CatalogueGenreView` — `{kind, genre, titles}`: up to 40 of the most popular films (`kind=film`) or shows (`kind=show`) in the genre `name` names, in any case, each with at least 100 votes; `genre` is the database's own spelling. A genre's name is the one a description's `genres` carries, so a shelf of a genre leads on to it in one call. Films and shows have separate genres (`Science Fiction` is a film's, `Sci-Fi & Fantasy` a show's). Kept a day. `400` without a kind or a name, `404` for a name the database has no genre by, `503` when it cannot be asked and nothing is kept |
+| `GET,HEAD /catalogue/people/{personId}.jpg` | a person's portrait, kept with their credits; open like a film's artwork |
 | `GET /api/shows` | `ShowSummary[]` — the shows the library holds, one entry each: `{imdbId?, title, firstYear?, lastYear?, status?, details?, seasons, episodes, addedAt?, sizeBytes, lastPlayed?, resume?, firstTitleId}` |
 | `GET /api/shows/{imdbId}` | `ShowView` — a show as the film database describes it, in the library or not, every season with its episodes joined with the library and the asking person's progress. `404` when neither the database nor the library knows it, `503` when the database cannot be asked and nothing is kept |
 | `GET /api/titles/{id}/neighbours` | `{previous?, next?, name?, previousName?, nextName?, fetchable?, fetchableName?}` — the episodes either side of one, among those the library holds, as `TitleSummary`, and what each is called where the show's description says; `fetchable` (`{season, number}`) is the episode right after this one when it is not here and the tracker offers it, which a player's next fetches into the room. All absent for a film. 404 for a title the library does not hold |
@@ -98,7 +101,7 @@ the log record beside them.
 Each route names the action it needs, and a route that names none admits nobody. Without a usable token
 the answer is `401` with `WWW-Authenticate: Bearer`; with one that lacks the action, `403`. Both carry
 `{error}`. The actions are `cinema:watch` (the library, rooms, the hub, tickets and media, subtitles,
-the people a room can invite), `cinema:download`, `cinema:wish` and `cinema:keep` (below), and the self
+the people a room can invite, what the film database says of a title, a person or a genre), `cinema:download`, `cinema:wish` and `cinema:keep` (below), and the self
 actions `cinema:profile.read` and `cinema:profile.write`, which every approved account holds, for a
 person's own records under `/api/me`, `/api/lists` and push. `/.well-known/tks-actions.json` serves the
 same declarations the checks name.
@@ -497,7 +500,8 @@ id), absent when nobody has; `byName` is absent when that person's name was neve
   "runtimeMinutes": 170, "certification": "R", "genres": ["Crime", "Drama", "Action"],
   "overview": "…", "tagline": "…", "rating": 7.9, "votes": 8740,   // TMDB's own rating, absent with no votes
   "directors": ["Michael Mann"], "writers": ["Michael Mann"],
-  "cast": [{ "name": "Al Pacino", "character": "Lt. Vincent Hanna", "portraitUrl": "/films/tt0113277/cast-0.jpg" }],
+  "personIds": { "Michael Mann": 638 },   // each director and writer by name: the id /api/catalogue/people takes
+  "cast": [{ "personId": 1158, "name": "Al Pacino", "character": "Lt. Vincent Hanna", "portraitUrl": "/films/tt0113277/cast-0.jpg" }],
   "originalLanguage": "en", "languages": ["English", "Spanish"], "countries": ["United States of America"],
   "posterUrl": "/films/tt0113277/poster.jpg", "backdropUrl": "/films/tt0113277/backdrop.jpg"
 }
@@ -509,7 +513,8 @@ id), absent when nobody has; `byName` is absent when that person's name was neve
   "imdbId": "tt11280740", "tmdbId": 95396, "title": "Severance", "firstYear": 2022, "lastYear": 2025,
   "status": "Returning Series", "inProduction": true, "certification": "TV-MA",
   "genres": ["Drama", "Mystery"], "overview": "…", "rating": 8.4, "votes": 2900,
-  "creators": ["Dan Erickson"], "cast": [{ "name": "Adam Scott", "character": "Mark Scout", "portraitUrl": "/shows/tt11280740/cast-0.jpg" }],
+  "creators": ["Dan Erickson"], "personIds": { "Dan Erickson": 1220098 },
+  "cast": [{ "personId": 34544, "name": "Adam Scott", "character": "Mark Scout", "portraitUrl": "/shows/tt11280740/cast-0.jpg" }],
   "languages": ["English"], "countries": ["United States of America"], "networks": ["Apple TV+"],
   "posterUrl": "/shows/tt11280740/poster.jpg", "backdropUrl": "/shows/tt11280740/backdrop.jpg",
   "seasons": [{
@@ -532,6 +537,15 @@ id), absent when nobody has; `byName` is absent when that person's name was neve
 `resume` is the latest episode the person watched if they did not finish it, else the one after it
 when the library holds it; absent otherwise. Seasons are the database's numbered ones and any the
 library holds that it does not list; specials are left out.
+
+A cast member's `personId` and the ids in `personIds` are the film database's own for those people,
+what `/api/catalogue/people/{personId}` takes. A kept description whose cast carries no id is asked of
+the database again the next time it is read, and until then `personId` is absent and `personIds` empty.
+
+`CatalogueTitleView` is `{imdbId, kind, title, year?, rating?, votes, overview?, posterUrl?, role?}`:
+`kind` is `film` or `show`, `posterUrl` the poster the title's page shows, served from here, and
+`role` is set among a person's credits only. Whether the library holds the title is the library's to
+say (`/api/titles`, `/api/shows`), joined by `imdbId`.
 
 Everything here is TMDB's, and a surface showing it credits TMDB, as its terms ask.
 

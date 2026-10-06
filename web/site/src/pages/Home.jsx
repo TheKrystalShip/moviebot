@@ -3,11 +3,12 @@ import { Button, Icon, Rail } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
 import { useSession } from "../session.js";
-import { discoverPath, leavingPath, libraryPath, listPath, moviePath } from "../paths.js";
+import { leavingPath, libraryPath, listPath, moviePath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, since } from "../time.js";
 import { ContinueCard, Empty, Failed, FilmCard, PosterArt, ShowCard, watchLink } from "../components/Film.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
+import { MoreTile } from "../components/TitleCards.jsx";
 import { BellButton } from "../components/Bell.jsx";
 import { SavedCard } from "./Saved.jsx";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
@@ -197,16 +198,6 @@ function Featured({ title, room }) {
 
 /** The last place on a shelf of the library, held by the tile that leads past it. */
 const MORE = { more: true };
-
-/** The tile closing a shelf: past the last poster here is everything Discover can find. */
-function MoreTile({ label }) {
-  return (
-    <a className="kc-more-tile" {...linkProps(discoverPath())}>
-      <Icon name="compass" size={26} />
-      <span>{label}</span>
-    </a>
-  );
-}
 
 const showKey = (s) => s.imdbId || s.firstTitleId;
 

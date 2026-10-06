@@ -5,9 +5,9 @@ import { useLoad } from "../data.js";
 import { useCan } from "../session.js";
 import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
-import { Failed, FilmCard, PageHead, ShowCard, watchHref } from "../components/Film.jsx";
+import { Empty, Failed, FilmCard, PageHead, ShowCard, watchHref } from "../components/Film.jsx";
 import { FilmActions } from "../components/FilmActions.jsx";
-import { FilmScore } from "../components/FilmDetails.jsx";
+import { FilmScore, initials } from "../components/FilmDetails.jsx";
 import { RequestSheet } from "../components/RequestSheet.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
@@ -21,11 +21,17 @@ export const DISCOVER_FIELD = "kc-search--discover";
  * week. With a query, the catalogue's films and shows in its own order, each by its poster: the first
  * answer large, the rest as cards, one the library holds marked and played from here. Then whatever
  * the library holds by that name that the catalogue did not answer with, and the tracker's releases
- * on request. Every answer leads to its own page. The query is in the address, so a search can be
- * shared and reloaded.
+ * on request. With a person (`person`, the film database's id for them) instead, the films and shows
+ * they are credited on, best known first; with a genre (`genre` and `kind`), the catalogue's most
+ * popular films or shows in it. Every answer leads to its own page. What is shown is in the address,
+ * so it can be shared and reloaded.
  */
 export function Discover({ query }) {
   const q = (query.get("q") || "").trim();
+  const person = /^\d+$/.test(query.get("person") || "") ? query.get("person") : null;
+  const genre = (query.get("genre") || "").trim();
+  const genreKind = query.get("kind") === "show" ? "show" : "film";
+  const browsing = !q && !!(person || genre);
   const [draft, setDraft] = React.useState(q);
   React.useEffect(() => setDraft(q), [q]);
   const field = useFocusOnceShown();
@@ -44,7 +50,7 @@ export function Discover({ query }) {
   const answered = !finding || (foundFor.data && foundFor.data.q === q);
   const found = answered && foundFor.data && foundFor.data.q === q ? foundFor.data.list : [];
   const libraryShows = useLoad(() => api.shows().catch(() => []), []);
-  const popular = useLoad(() => (q ? Promise.resolve(null) : api.popular().catch(() => null)), [q]);
+  const popular = useLoad(() => (q || browsing ? Promise.resolve(null) : api.popular().catch(() => null)), [q, browsing]);
 
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const named = (name) => words.every((w) => name.toLowerCase().includes(w));
@@ -81,7 +87,10 @@ export function Discover({ query }) {
         <Button type="submit" variant="primary" size="lg">Search</Button>
       </form>
 
-      {!q && popular.data && (
+      {!q && person && <PersonWork key={person} personId={person} where={where} />}
+      {!q && !person && genre && <GenreTitles key={genreKind + genre} kind={genreKind} genre={genre} where={where} />}
+
+      {!q && !browsing && popular.data && (
         <>
           {popular.data.films.length > 0 && (
             <Rail
@@ -185,6 +194,93 @@ function PopularCard({ entry, show = false, here, held }) {
       action={playable
         ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) }
         : { label: inLibrary ? "Open" : "View" }} />
+  );
+}
+
+/** The department the film database knows somebody for, as a word for them. */
+const KNOWN_AS = { Acting: "Actor", Directing: "Director", Writing: "Writer", Production: "Producer" };
+
+/**
+ * The films and shows one person is credited on, best known first, each card with the part they
+ * played or the job they did, marked and played like any other answer when the library holds it.
+ */
+function PersonWork({ personId, where }) {
+  const work = useLoad(() => api.cataloguePerson(personId), [personId]);
+  const p = work.data;
+  return (
+    <>
+      <Failed error={work.error} onRetry={work.reload} />
+      {!p && !work.error && <BrowseSkeleton portrait />}
+      {p && (
+        <section className="kc-shelf">
+          <div className="kc-browse-head">
+            <span className="kc-cast__face kc-browse-head__face">
+              {p.portraitUrl ? <img src={p.portraitUrl} alt="" /> : initials(p.name)}
+            </span>
+            <div className="kc-browse-head__text">
+              {p.knownFor && <span className="kc-eyebrow">{KNOWN_AS[p.knownFor] || p.knownFor}</span>}
+              <h2>{p.name}</h2>
+            </div>
+            <span className="kc-count">{p.titles.length}</span>
+          </div>
+          {p.titles.length > 0
+            ? (
+              <div className="kc-grid">
+                {p.titles.map((t) => <FoundCard key={t.kind + t.imdbId} found={t} {...where(t)} line={t.role} />)}
+              </div>
+            )
+            : <Empty icon="user" title="No credits" />}
+          <p className="kc-attribution-note">Credits and artwork from TMDB.</p>
+        </section>
+      )}
+    </>
+  );
+}
+
+/** The catalogue's most popular films or shows in one genre, as the film database names it. */
+function GenreTitles({ kind, genre, where }) {
+  const listed = useLoad(() => api.catalogueGenre(kind, genre), [kind, genre]);
+  const g = listed.data;
+  return (
+    <>
+      <Failed error={listed.error} onRetry={listed.reload} />
+      {!g && !listed.error && <BrowseSkeleton />}
+      {g && (
+        <section className="kc-shelf">
+          <div className="kc-browse-head">
+            <div className="kc-browse-head__text">
+              <span className="kc-eyebrow">{kind === "show" ? "TV Shows" : "Movies"}</span>
+              <h2>{g.genre}</h2>
+            </div>
+            <span className="kc-count">{g.titles.length}</span>
+          </div>
+          {g.titles.length > 0
+            ? (
+              <div className="kc-grid">
+                {g.titles.map((t) => <FoundCard key={t.imdbId} found={t} {...where(t)} />)}
+              </div>
+            )
+            : <Empty icon={kind === "show" ? "tv" : "clapperboard"} title="Nothing in this genre" />}
+          <p className="kc-attribution-note">Popular titles and artwork from TMDB.</p>
+        </section>
+      )}
+    </>
+  );
+}
+
+/** The heading and cards of a person's work or a genre while the catalogue is asked. */
+function BrowseSkeleton({ portrait = false }) {
+  return (
+    <section className="kc-shelf">
+      <div className="kc-browse-head">
+        {portrait && <Skeleton w={72} h={72} r={999} />}
+        <div className="kc-browse-head__text">
+          <Skeleton w={60} h={12} />
+          <Skeleton w={220} h={26} />
+        </div>
+      </div>
+      <CardsSkeleton count={12} />
+    </section>
   );
 }
 

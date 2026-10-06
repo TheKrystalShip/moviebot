@@ -20,6 +20,9 @@ public sealed class FilmStoreOptions
     /// <summary>Where search results' ratings and overviews are kept. Empty is <c>glances/</c> in the state directory.</summary>
     public string GlancesDirectory { get; set; } = "";
 
+    /// <summary>Where people's credits and genres' titles are kept. Empty is <c>catalogue/</c> in the state directory.</summary>
+    public string CatalogueDirectory { get; set; } = "";
+
     /// <summary>How old a description may get before the database is asked again.</summary>
     public int RefreshDays { get; set; } = 14;
 }
@@ -103,8 +106,13 @@ public sealed class FilmStore(
         }
     }
 
+    /// <summary>
+    /// Whether a kept description is asked for again: once it is old, and at once when its cast names
+    /// nobody by the database's id, which is what leads from a cast member to their other work.
+    /// </summary>
     public bool IsDue(StoredFilm film) =>
-        clock.GetUtcNow() - film.FetchedAt > TimeSpan.FromDays(Math.Max(1, options.Value.RefreshDays));
+        clock.GetUtcNow() - film.FetchedAt > TimeSpan.FromDays(Math.Max(1, options.Value.RefreshDays))
+        || film.Details is { Cast: [{ TmdbId: null }, ..] };
 
     /// <summary>The kept image a request names, or null for anything that is not one.</summary>
     public string? ImageFile(string imdbId, string file)

@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.11.0] - 2026-10-06
+
+### Added
+
+- **Discover by person.** `GET /api/catalogue/people/{personId}` answers a person by the film
+  database's id for them, with up to 40 films and shows they are credited on, most voted on first, each
+  with the part they played or the job they did; appearances as themselves and on talk, news and
+  reality shows are left out. Their portrait is served at `/catalogue/people/{personId}.jpg`.
+- **Discover by genre.** `GET /api/catalogue/genre?kind=film|show&name=` answers up to 40 of the most
+  popular films or shows in a genre named as a description names it, in one call, so a shelf of a
+  genre can lead on to the catalogue's.
+- A film's and a show's cast carry each person's `personId`, and its directors, writers and creators
+  their ids in `personIds`. A kept description without them is asked for again when it is next read,
+  and the warmer brings every library title's within a pass.
+- Both browses take `cinema:watch`, are kept under `catalogue/` in the state directory
+  (`Tmdb:CatalogueDirectory`), a person's for a week and a genre's for a day, and serve each title's
+  poster at `/glances/{imdbId}/poster.jpg`.
+- **Krystal Cinema**: every cast member on a film's or show's page, and every director, writer and
+  creator in its credits, leads to Discover's catalogue of their work at `/discover?person=<id>`.
+  Discover shows a genre's most popular films or shows at `/discover?genre=<name>&kind=<film|show>`,
+  and Movies and TV Shows end their grid in a Discover more tile there while a genre is picked.
+  Site 0.35.0.
+
 ## [2.10.0] - 2026-10-06
 
 ### Added

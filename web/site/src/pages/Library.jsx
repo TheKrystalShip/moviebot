@@ -5,9 +5,10 @@ import {
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useSession } from "../session.js";
-import { libraryPath } from "../paths.js";
+import { discoverGenrePath, libraryPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard } from "../components/Film.jsx";
+import { MoreTile } from "../components/TitleCards.jsx";
 
 const rating = (t) => (t.details && t.details.rating) || 0;
 const year = (t) => (t.film && t.film.year) || 0;
@@ -28,7 +29,8 @@ const KINDS = {
 
 /**
  * Every title of one kind on the shelf, searched by name, narrowed by state, stay and genre, and
- * ordered the way somebody asks. The kind is the API's word for what a title is.
+ * ordered the way somebody asks; with a genre picked, the last tile leads on to Discover's catalogue
+ * of that genre. The kind is the API's word for what a title is.
  */
 export function Library({ kind = "film" }) {
   return kind === "show" ? <ShowLibrary /> : <FilmLibrary />;
@@ -127,9 +129,10 @@ function ShowLibrary() {
       <Failed error={shows.error} onRetry={shows.reload} />
       {shows.data && all.length === 0 && <Empty icon="tv" title="No shows yet">Search for a show to fetch its episodes.</Empty>}
       {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
-      {shown.length > 0 && (
+      {(shown.length > 0 || f.values.genre !== "all") && (
         <div className="kc-grid">
           {shown.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} stay={stayOf.get(s.imdbId)} me={me} />)}
+          {f.values.genre !== "all" && <MoreTile label="Discover more" to={discoverGenrePath("show", f.values.genre)} />}
         </div>
       )}
     </div>
@@ -204,9 +207,10 @@ function FilmLibrary() {
 
       {titles.data && all.length === 0 && <Empty icon={kind === "show" ? "tv" : "clapperboard"} title={words.empty} />}
       {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
-      {shown.length > 0 && (
+      {(shown.length > 0 || f.values.genre !== "all") && (
         <div className="kc-grid">
           {shown.map((t) => <FilmCard key={t.id} title={t} stay={stayOf.get(t.id)} me={me} />)}
+          {f.values.genre !== "all" && <MoreTile label="Discover more" to={discoverGenrePath(kind, f.values.genre)} />}
         </div>
       )}
     </div>

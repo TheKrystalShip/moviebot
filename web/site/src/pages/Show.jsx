@@ -135,7 +135,7 @@ export function Show({ imdbId, season, inLibrary }) {
               </div>
             )}
             {s.overview && <p className="kc-tt__overview">{s.overview}</p>}
-            <Credits film={{ creators: s.creators, cast: s.cast }} />
+            <Credits film={{ creators: s.creators, personIds: s.personIds, cast: s.cast }} />
 
             <div className="kc-actions">
               {play && (

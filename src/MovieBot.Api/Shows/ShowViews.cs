@@ -27,6 +27,10 @@ public sealed record ShowView
     public double? Rating { get; init; }
     public int Votes { get; init; }
     public required List<string> Creators { get; init; }
+
+    /// <summary>Each creator's id in the film database, by the name they are listed under.</summary>
+    public required Dictionary<string, int> PersonIds { get; init; }
+
     public required List<CastView> Cast { get; init; }
     public required List<string> Languages { get; init; }
     public required List<string> Countries { get; init; }
@@ -238,8 +242,10 @@ public static class ShowViews
             Rating = d?.Rating,
             Votes = d?.Votes ?? 0,
             Creators = [.. d?.Creators ?? []],
+            PersonIds = new Dictionary<string, int>(d?.PersonIds ?? new Dictionary<string, int>()),
             Cast = (d?.Cast ?? []).Select((c, i) => new CastView
             {
+                PersonId = c.TmdbId,
                 Name = c.Name,
                 Character = c.Character,
                 PortraitUrl = Image(ShowStore.Portrait(i)),

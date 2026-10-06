@@ -29,6 +29,51 @@ public static class FilmEndpoints
         app.MapGet("/api/popular", (PopularNow popular) => Results.Ok(popular.View()))
             .RequireAction(CinemaActions.Watch);
 
+        // A person and the films and shows they are credited on, best known first, by the film
+        // database's id for them, which a cast member on a film's or show's page carries.
+        app.MapGet("/api/catalogue/people/{personId:int}", async (int personId, Catalogue catalogue, CancellationToken ct) =>
+        {
+            var kept = await catalogue.PersonAsync(personId, ct);
+            if (kept is null)
+                return Results.Json(new ErrorReply("The film database could not be asked about this person."),
+                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status503ServiceUnavailable);
+            return kept.Value is { } person
+                ? Results.Ok(catalogue.View(person))
+                : Results.Json(new ErrorReply("The film database has nobody under that id."),
+                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
+        }).RequireAction(CinemaActions.Watch);
+
+        // The most popular films or shows in a genre, by the genre's name: the one call a shelf of a
+        // genre makes to lead on into the catalogue.
+        app.MapGet("/api/catalogue/genre", async (string? kind, string? name, Catalogue catalogue, CancellationToken ct) =>
+        {
+            if (!Catalogue.IsKind(kind) || string.IsNullOrWhiteSpace(name))
+                return Results.Json(new ErrorReply("Name a kind, film or show, and a genre."), ApiJsonContext.Default.ErrorReply,
+                    statusCode: StatusCodes.Status400BadRequest);
+
+            if (await catalogue.GenreAsync(kind!, name, ct) is not { } answer)
+                return Results.Json(new ErrorReply("The film database could not be asked about this genre."),
+                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status503ServiceUnavailable);
+            if (answer.Genre is not { } genre)
+                return Results.Json(new ErrorReply("The film database has no genre by that name."),
+                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
+
+            return Results.Ok(new CatalogueGenreView
+            {
+                Kind = kind!,
+                Genre = genre.Name,
+                Titles = (answer.Titles?.Value ?? []).Select(catalogue.View).ToList(),
+            });
+        }).RequireAction(CinemaActions.Watch);
+
+        // A person's portrait, open like any other artwork.
+        app.MapMethods("/catalogue/people/{file}", ["GET", "HEAD"], (string file, Catalogue catalogue, HttpContext context) =>
+        {
+            if (catalogue.PortraitFile(file) is not { } path) return Results.NotFound();
+            context.Response.Headers.CacheControl = "public, max-age=86400";
+            return Results.File(path, "image/jpeg", enableRangeProcessing: false);
+        }).AllowAnonymous();
+
         // A trending entry's poster, open like any other artwork.
         app.MapMethods("/popular/{file}", ["GET", "HEAD"], (string file, PopularNow popular, HttpContext context) =>
         {

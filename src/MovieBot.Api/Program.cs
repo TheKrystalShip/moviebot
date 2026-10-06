@@ -118,6 +118,12 @@ builder.Services.AddSingleton(sp => new TitleGlances(
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<TitleGlances>>()));
+builder.Services.AddSingleton(sp => new Catalogue(
+    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.CatalogueDirectory, "catalogue"),
+    sp.GetRequiredService<TitleGlances>(),
+    sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<TimeProvider>(),
+    sp.GetRequiredService<ILogger<Catalogue>>()));
 builder.Services.AddSingleton<TitleSearch>();
 builder.Services.AddHostedService<FilmWarmer>();
 builder.Services.AddSingleton(sp => new PopularNow(

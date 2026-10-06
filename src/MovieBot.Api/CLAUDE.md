@@ -67,8 +67,12 @@ and keeps are `Acquisition/CLAUDE.md`; the plan the hand-off transcodes by is
   for new lookups at most a second and a half, and a kept one is refreshed in the background, after
   a year for a title out over a year and after a week for anything newer. A result's poster is the
   one its page shows: the described title's kept poster, or the glance's, fetched once beside it and
-  served at `/glances/{imdbId}/poster.jpg`. `Acquisition/TitleSearch` holds the title index's answer
-  for a name in memory for an hour.
+  served at `/glances/{imdbId}/poster.jpg`. `Films/Catalogue` browses the database by a person and by
+  a genre, keeping each answer under `catalogue/`, a person's credits for a week and a genre's most
+  popular titles for a day, and offers every title it lists to the glances, so its poster is served
+  the same way; a person's portrait is kept with their credits. A description whose cast carries no
+  person id is due at once, since that id is what leads from a cast member to their work.
+  `Acquisition/TitleSearch` holds the title index's answer for a name in memory for an hour.
 - **The shelf is listed from memory.** `Library/LibraryListing` rebuilds the library's list every
   ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/shows/{imdbId}` and a title's
   neighbours read that list. Building it asks the filesystem about every title, and on hotbox, short

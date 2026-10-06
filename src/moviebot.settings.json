@@ -210,7 +210,9 @@
   // films and shows trending this week, with their posters, are kept under PopularDirectory (an empty
   // one is popular/ in the state directory) and asked for again every few hours. A search result's
   // rating and overview are kept under GlancesDirectory (an empty one is glances/ in the state
-  // directory): a year for a title out over a year, a week for anything newer.
+  // directory): a year for a title out over a year, a week for anything newer. A person's credits
+  // and a genre's most popular titles are kept under CatalogueDirectory (an empty one is catalogue/
+  // in the state directory): a person's for a week, a genre's for a day.
   "Tmdb": {
     "BaseUrl": "https://api.themoviedb.org/3",
     "ImageBaseUrl": "https://image.tmdb.org/t/p",
@@ -221,6 +223,7 @@
     "ShowsDirectory": "",
     "PopularDirectory": "",
     "GlancesDirectory": "",
+    "CatalogueDirectory": "",
     "RefreshDays": 14
   },
 
