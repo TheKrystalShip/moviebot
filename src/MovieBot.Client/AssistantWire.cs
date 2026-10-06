@@ -46,6 +46,9 @@ public sealed record ConfirmOutcome
 
     public StartDownloadReply? Download { get; init; }
 
+    /// <summary>A film watched from a person's own chat: the room it is prepared in, which the site opens.</summary>
+    public WatchNowReply? Watch { get; init; }
+
     public AddWishReply? Wish { get; init; }
 
     public SubtitleAdded? Subtitle { get; init; }

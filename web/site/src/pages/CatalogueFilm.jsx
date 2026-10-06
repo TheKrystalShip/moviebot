@@ -11,9 +11,9 @@ import { FilmActions } from "../components/FilmActions.jsx";
 import { CastGrid, Credits, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 
 /**
- * A film by its IMDb id, here or not: what it is, and the way to it. A film in the library goes to its
- * own page. One on its way can be watched as it arrives; one the tracker offers can be watched now or
- * downloaded at 720p or 1080p; one that is not out digitally yet can be waited on.
+ * A film by its IMDb id, here or not: what it is, and the way to it. A film that plays now goes to its
+ * own page. One being prepared or one the tracker offers is watched while it is prepared; one that is
+ * not out digitally yet can be waited on.
  */
 export function CatalogueFilm({ imdbId }) {
   const downloading = useCan("cinema:download");

@@ -34,7 +34,7 @@ in `MovieBot.Client/AssistantWire.cs`, written as this service writes it, an abs
 **One frame is this product's own: `launch`**, `{titleId, name, requestedBy, sessionId?, replaced?,
 alreadyWatching}` — a film put on in a room, or, with no `sessionId`, found for a person to open. Each
 client presents it its own way: the bot posts a launch card, the site opens the player. A confirmed
-proposal's `result` carries the API's own answer (`download`, `wish`, `subtitle`) beside the
+proposal's `result` carries the API's own answer (`download`, `watch`, `wish`, `subtitle`) beside the
 sentence, so a client words its message from facts rather than parsing text.
 
 ## Who is asking
@@ -116,8 +116,12 @@ sentence, so a client words its message from facts rather than parsing text.
   it. Otherwise it asks the tracker, puts on a library film the title index names under another
   spelling, and proposes the ranker's best release, because after a tool answers the model ends its
   turn far more often than it calls the next one. When the tracker has no release it gives the imdb id
-  `add_wish` takes. Other films the words could mean are listed, earliest first. With no room, the
-  film is found to open and a download is fetched for the library.
+  `add_wish` takes. Other films the words could mean are listed, earliest first. With no room, a film
+  that plays now is found to open, and one that has to be fetched is proposed as Watch now
+  (`POST /api/watch`): agreeing opens a room of the person's own, the site goes to it, and the film
+  plays there while it is prepared. A person's own chat names no release and offers no other one,
+  since which file a film is prepared from is the server's choice; a room picks among releases with
+  `download_film`.
 - **`watch_film` reads what the model wrote the way the film is listed, not the way it was typed.** The
   model retypes ids with the punctuation changed, words doubled and the year invented, so the matcher
   compares words and ignores punctuation. A film named whole under a year nobody said is put on,

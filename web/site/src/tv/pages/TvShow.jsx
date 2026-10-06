@@ -9,8 +9,7 @@ import { airDay, clock, timeLeft } from "../../time.js";
 import { Failed, watchLink } from "../../components/Film.jsx";
 import { FollowButton } from "../../components/FollowButton.jsx";
 import { SaveButton } from "../../components/SaveButton.jsx";
-import { plan } from "../../components/RequestSheet.jsx";
-import { watchNow, watchOpening, openingEpisode } from "../../watchNow.js";
+import { episodeRelease, watchNow, watchOpening, openingEpisode } from "../../watchNow.js";
 import { SpotFacts, SpotProgress, SpotStage, useSpotlight } from "../spot.jsx";
 import { TmdbCredit, TvCast, TvFacts } from "../TvCredits.jsx";
 
@@ -147,11 +146,6 @@ export function TvShow({ imdbId, season, inLibrary }) {
   );
 }
 
-/** The release an episode is fetched from at 720p, the show's default, or null when nothing offered holds it. */
-function offerFor(offers, season, number) {
-  return (offers && plan(offers, { [season]: new Set([number]) }, "720p").torrents[0]) || null;
-}
-
 /**
  * One episode: its still, with how far somebody got, and its number, name and length under it. OK
  * plays it, in the room already watching it if there is one, or while it arrives when the server does
@@ -163,7 +157,7 @@ function Episode({ episode: e, rooms, offers, showImdbId, focus }) {
   const fraction = done ? 1 : e.progress && e.durationSeconds ? Math.min(1, e.progress.positionSeconds / e.durationSeconds) : 0;
   const room = e.titleId && rooms.find((r) => r.titleId === e.titleId && r.participants > 0);
   const here = !!e.titleId && e.status !== "failed";
-  const offer = !e.titleId ? offerFor(offers, e.season, e.number) : null;
+  const offer = !e.titleId ? episodeRelease(offers, e.season, e.number) : null;
   const length = e.runtimeMinutes ? `${e.runtimeMinutes}m` : e.durationSeconds ? clock(e.durationSeconds) : null;
   const name = e.name || `Episode ${e.number}`;
 
@@ -171,7 +165,7 @@ function Episode({ episode: e, rooms, offers, showImdbId, focus }) {
     event.preventDefault();
     if (starting) return;
     setStarting(true);
-    const started = await watchNow({ imdbId: showImdbId, torrentId: offer.offer.torrentId, episodes: [{ season: e.season, episode: e.number }] });
+    const started = await watchNow({ imdbId: showImdbId, torrentId: offer.torrentId, episodes: [{ season: e.season, episode: e.number }] });
     if (!started) setStarting(false);
   };
   const link = here

@@ -47,7 +47,7 @@ public sealed record DownloadResult(
 /// Asks the API to turn a picked release into a running download, and says how that went in the
 /// words a Discord channel is told.
 ///
-/// The API starts every download, so a release picked from /watch, from /download or by the
+/// The API starts every download, so a release picked from /watch, from /show or by the
 /// assistant is the same act with the same notes on the torrent. What stays here is the sentence,
 /// and the one note that is the bot's own: which message shows the download's progress.
 /// </summary>

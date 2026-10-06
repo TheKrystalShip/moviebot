@@ -185,6 +185,30 @@ public sealed class MovieBotApiClient
         SendAsync(HttpMethod.Post, "api/downloads", request, ManifestJsonContext.Default.StartDownloadRequest,
             ManifestJsonContext.Default.StartDownloadReply, "The download could not be started.", ct);
 
+    /// <summary>
+    /// Watches a film as the person this client acts as: the API opens a room for it (or loads it into
+    /// <see cref="WatchNowRequest.Room"/>) and prepares it there. As many films being watched while
+    /// they are prepared as the server allows is an answer, <c>full</c>, rather than a failure.
+    /// </summary>
+    public async Task<WatchNowReply> WatchNowAsync(WatchNowRequest request, CancellationToken ct)
+    {
+        const string failure = "The film could not be started.";
+        try
+        {
+            using var message = Request(HttpMethod.Post, "api/watch");
+            message.Content = JsonContent.Create(request, ManifestJsonContext.Default.WatchNowRequest);
+            using var response = await _http.SendAsync(message, ct);
+            if (response.StatusCode != HttpStatusCode.Conflict) Ensure(response, failure);
+            return await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.WatchNowReply, ct)
+                ?? throw new MovieBotApiException(failure);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
+                                   && !ct.IsCancellationRequested)
+        {
+            throw new MovieBotApiException(failure, ex);
+        }
+    }
+
     /// <summary>The wishes of the person this client acts as.</summary>
     public async Task<IReadOnlyList<WishView>> ListWishesAsync(CancellationToken ct) =>
         await GetAsync("api/wishes",

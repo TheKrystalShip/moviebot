@@ -1,7 +1,7 @@
 import { Button, Chat, Icon, createAssistantClient } from "@thekrystalship/krystal-ui";
 import { freshToken } from "./session.js";
-import { moviePath } from "./paths.js";
-import { linkProps } from "./router.js";
+import { moviePath, roomPath } from "./paths.js";
+import { linkProps, navigate } from "./router.js";
 import { watchLink } from "./components/Film.jsx";
 
 // moviebot-assistant, behind /assistant on the same origin, spoken to as the signed-in person. One
@@ -13,12 +13,17 @@ const HOST = { id: "cinema", name: "MovieBot", title: "MovieBot, the cinema's as
 
 // `label` is the button; `names` is how a proposal reads ahead of its film, where the two differ.
 const VERBS = {
+  watch: { label: "Watch", icon: "play" },
   download: { label: "Download", icon: "download" },
   wish: { label: "Notify me", names: "Get notified about", icon: "bell-plus" },
-  keep: { label: "Keep", icon: "pin" },
-  release: { label: "Let go", names: "Let go of", icon: "pin-off" },
   fetch_subtitle: { label: "Fetch subtitles", names: "Fetch subtitles for", icon: "captions" },
 };
+
+/** The room a confirmed Watch opened, which the person who agreed is taken to, as Watch on a film's page does. */
+function openedRoom(resp) {
+  const watch = resp && resp.result && resp.result.watch;
+  return resp && resp.success && watch && watch.room ? watch : null;
+}
 
 /**
  * How Krystal Cinema reads what the assistant sends. A film the assistant put on or found comes as the
@@ -41,9 +46,13 @@ const cinemaProfile = {
       runnable: true,
     };
   },
-  verdict: (msg, targetName, resp) => (resp && resp.success
-    ? { ok: true, headline: resp.text || "Done.", lines: [] }
-    : { ok: false, headline: (resp && resp.text) || "That did not work.", lines: [] }),
+  verdict: (msg, targetName, resp) => {
+    const opened = openedRoom(resp);
+    if (opened) navigate(roomPath(opened.room) + (opened.libraryId ? `?title=${encodeURIComponent(opened.libraryId)}` : ""));
+    return resp && resp.success
+      ? { ok: true, headline: resp.text || "Done.", lines: [] }
+      : { ok: false, headline: (resp && resp.text) || "That did not work.", lines: [] };
+  },
 };
 
 function FilmCards({ cards }) {
@@ -82,7 +91,7 @@ export function CinemaAssistant({ session, docked, dock, onClose, onExpand }) {
       assistantName="MovieBot"
       profile={cinemaProfile}
       suggestions={["What should we watch tonight?", "What's on in the rooms?", "Get Dune: Part Two"]}
-      primer="I can find films in the library, fetch ones that aren't here yet, and tell you when one comes out."
+      primer="I can find any film and put it on, and tell you when one that isn't out yet comes out."
       noAssistant="MovieBot's assistant isn't answering right now."
       renderCards={(msg) => <FilmCards cards={msg.cards} />} />
   );

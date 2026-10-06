@@ -13,7 +13,7 @@ public sealed record PlannedDownload(ReleaseOffer Release, IReadOnlyList<Episode
 /// A season's pack at the quality is preferred, fetching only the picked files out of it; an episode
 /// with no pack comes on its own; an episode offered only at another quality comes at that one and is
 /// counted, so whoever words the answer can say so. One torrent covering several seasons is one
-/// download. The site's request sheet makes the same plan.
+/// download. /show and the assistant's download_show both plan this way.
 /// </summary>
 public sealed record ShowPlan(
     IReadOnlyList<PlannedDownload> Downloads, long Bytes, int OtherQuality, IReadOnlyList<EpisodePick> NotOffered)

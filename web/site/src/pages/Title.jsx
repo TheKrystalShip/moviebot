@@ -8,7 +8,7 @@ import { navigate } from "../router.js";
 import { useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, watchLink } from "../components/Film.jsx";
-import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton, bytes } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 
 /**
@@ -28,7 +28,7 @@ export function Title({ id }) {
 
   useCrumb(manifest.data
     ? (details.data && details.data.title) || (manifest.data.film && manifest.data.film.name) || manifest.data.title
-    : manifest.error && manifest.error.status === 404 ? "Not in the library" : null);
+    : manifest.error && manifest.error.status === 404 ? "Not found" : null);
 
   // An episode is shown on its show's page, at its season.
   const episodeOf = manifest.data && manifest.data.episode && manifest.data.film && manifest.data.film.imdbId
@@ -39,7 +39,7 @@ export function Title({ id }) {
   if (episodeOf) return <div className="kc-page" />;
 
   if (manifest.error && manifest.error.status === 404) {
-    return <div className="kc-page"><Empty title="Not in the library">This film has left the library, or never arrived.</Empty></div>;
+    return <div className="kc-page"><Empty title="Not found">Search for it in Discover to watch it.</Empty></div>;
   }
   if (!manifest.data && !manifest.error) return <TitleSkeleton kind="Movie" />;
   if (!manifest.data) return <div className="kc-page"><Failed error={manifest.error} onRetry={manifest.reload} /></div>;
@@ -61,7 +61,7 @@ export function Title({ id }) {
     ["Released", d && d.releaseDate ? new Date(d.releaseDate).getFullYear() : film.year],
     ["Language", d && d.languages.length ? d.languages.join(", ") : null],
     ["Country", d && d.countries.length ? d.countries.join(", ") : null],
-    ["On this server", [pictureClass(m.video), summary && summary.sizeBytes ? bytes(summary.sizeBytes) : null].filter(Boolean).join(" · ") || null, true],
+    ["Picture", pictureClass(m.video), true],
     ["Added", summary && summary.addedAt ? since(summary.addedAt) : null],
     ["IMDb", film.imdbId, true],
   ];

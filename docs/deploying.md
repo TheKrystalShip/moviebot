@@ -12,7 +12,7 @@ With everything under [Before you start](#before-you-start) ready, it takes abou
 | Piece | What it does |
 |---|---|
 | `moviebot-api` | Serves the player, your films, and the live connection that keeps everyone in a room at the same moment of the film |
-| `moviebot-bot` | The Discord bot: the `/watch`, `/download`, `/notify` and `/voice` commands |
+| `moviebot-bot` | The Discord bot: the `/watch`, `/show`, `/notify` and `/voice` commands |
 | `moviebot-handoff` | Watches for finished downloads and prepares them for playback on your GPU |
 | `moviebot-assistant` | Optional. Answers what people say or type to MovieBot, using a language model you run yourself |
 | `moviebot-ingest` | A command for adding films you already have |

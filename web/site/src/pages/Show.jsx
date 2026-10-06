@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon } from "@thekrystalship/krystal-ui";
 import { api, episodeCode } from "../api.js";
 import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
@@ -8,20 +8,18 @@ import { navigate } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago, airDay, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, watchLink } from "../components/Film.jsx";
-import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton, bytes } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
-import { RequestSheet, plan } from "../components/RequestSheet.jsx";
-import { openingEpisode, watchNow, watchOpening } from "../watchNow.js";
-import { downloadWords } from "./Discover.jsx";
+import { episodeRelease, openingEpisode, watchNow, watchOpening } from "../watchNow.js";
 
 /**
- * One show: what it is, its seasons with their episodes, where this person picks up, and getting more
- * of it. Works for a show the library does not hold yet, which is
- * where its episodes are picked to download.
+ * One show: what it is, its seasons with their episodes, where this person picks up, and watching any
+ * episode, whether it plays now or once it is prepared. Works the same for a show the library holds
+ * nothing of.
  *
- * What the show is comes from the film database through the API; which episodes are on this server,
- * how far this person got in each and how long each season stays comes from the library.
+ * What the show is comes from the film database through the API; which episodes play now and how far
+ * this person got in each comes from the library.
  *
  * The address says which season is open (`season`) and where the library stands (`inLibrary`: the
  * shelf's address or Discover's). Both are the page's to correct once it knows the show: a show with
@@ -36,7 +34,6 @@ export function Show({ imdbId, season, inLibrary }) {
   // What the tracker offers, so every episode it holds can be played; kept a few minutes by the API,
   // and asked by somebody who may fetch an episode.
   const offers = useLoad(() => (downloading ? api.showReleases(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId, downloading]);
-  const [requesting, setRequesting] = React.useState(false);
   const [starting, setStarting] = React.useState(false);
   const session = useSession();
   const me = session && session.user;
@@ -67,8 +64,6 @@ export function Show({ imdbId, season, inLibrary }) {
     || seasons.find((x) => resume && x.number === resume.season)
     || seasons.find((x) => held(x.number))
     || seasons[0];
-  const episodeCountHere = seasons.reduce((n, x) => n + x.episodes.filter((e) => e.titleId).length, 0);
-  const missing = seasons.some((x) => x.episodes.some((e) => !e.titleId));
   const first = seasons.flatMap((x) => x.episodes).find((e) => e.titleId);
   const play = resume || (first && { titleId: first.titleId, season: first.season, episode: first.number, positionSeconds: 0 });
   const room = play && (rooms.data || []).find((r) => r.titleId === play.titleId && r.participants > 0);
@@ -89,7 +84,6 @@ export function Show({ imdbId, season, inLibrary }) {
     ["Network", s.networks.join(", ") || null],
     ["Language", s.languages.length ? s.languages.join(", ") : null],
     ["Country", s.countries.length ? s.countries.join(", ") : null],
-    ["On this server", episodeCountHere ? [`${episodeCountHere} of ${episodeCount} episodes`, library.data && library.data.sizeBytes ? bytes(library.data.sizeBytes) : null].filter(Boolean).join(" · ") : null, true],
     ["Added", library.data && library.data.addedAt ? since(library.data.addedAt) : null],
     ["IMDb", s.imdbId, true],
   ];
@@ -131,11 +125,6 @@ export function Show({ imdbId, season, inLibrary }) {
               {!play && opening && (
                 <Button variant="primary" size="xl" icon="play" disabled={starting} onClick={watchFirst}>Watch</Button>
               )}
-              {missing && downloading && (
-                <Button size="xl" icon="download" onClick={() => setRequesting(true)}>
-                  {play ? "Get episodes" : "Download"}
-                </Button>
-              )}
               {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
               {s.imdbId && <SaveButton imdbId={s.imdbId} kind="show" title={s.title} />}
               {resume && (
@@ -167,7 +156,7 @@ export function Show({ imdbId, season, inLibrary }) {
           </div>
 
           <SeasonPanel season={current} me={me} rooms={rooms.data || []}
-            offers={offers.data} showImdbId={s.imdbId} showTitle={s.title} onFetched={show.reload} />
+            offers={offers.data} showImdbId={s.imdbId} />
         </section>
       )}
 
@@ -184,41 +173,12 @@ export function Show({ imdbId, season, inLibrary }) {
       </section>
 
       <p className="kc-attribution-note">Show details and artwork from TMDB.</p>
-
-      {requesting && (
-        <RequestSheet show={s} onClose={() => setRequesting(false)} onStarted={() => { setRequesting(false); show.reload(); }} />
-      )}
     </div>
   );
 }
 
 /** One season: when it was last played, and its episodes with how far this person got in each. */
-function SeasonPanel({ season, me, rooms, offers, showImdbId, showTitle, onFetched }) {
-  const [fetching, setFetching] = React.useState(false);
-  const fetchable = fetchableIn(season, offers);
-
-  // The whole of the season not here, at 720p, first episode first: the season's pack where there
-  // is one, the first picked at the torrent client's highest priority and the second at its next.
-  const fetchSeason = async () => {
-    setFetching(true);
-    try {
-      const torrents = plan(offers, { [season.number]: new Set(fetchable) }, "720p").torrents;
-      let started = 0;
-      for (const t of torrents) {
-        const reply = await api.download(t.offer.torrentId, t.episodes);
-        if (reply.outcome === "started") started++;
-        else toast.error(downloadWords(reply));
-      }
-      if (started > 0) {
-        toast.success(`Downloading ${showTitle} Season ${season.number}, episode ${fetchable[0]} first. Each can be watched as soon as enough of it has arrived.`);
-        onFetched();
-      }
-    } catch (error) {
-      toast.fromError(error, "The download did not start");
-    } finally {
-      setFetching(false);
-    }
-  };
+function SeasonPanel({ season, me, rooms, offers, showImdbId }) {
   const played = season.episodes.map((e) => e.lastPlayed).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at))[0];
   const playedBy = played && (me && played.byId === me.id ? "you" : played.byName);
   const aired = season.airDate ? new Date(season.airDate).getFullYear() : null;
@@ -232,26 +192,11 @@ function SeasonPanel({ season, me, rooms, offers, showImdbId, showTitle, onFetch
             {played ? `Last played ${ago(played.at)} by ${playedBy}` : "Not played yet"}
           </span>
         </div>
-        {fetchable.length > 0 && (
-          <Button size="lg" icon="download" disabled={fetching} onClick={fetchSeason}>
-            {fetchable.length === season.episodes.length ? "Download season" : `Download the other ${fetchable.length}`}
-          </Button>
-        )}
       </div>
 
       {season.episodes.map((e) => <EpisodeRow key={e.number} episode={e} rooms={rooms} offers={offers} showImdbId={showImdbId} />)}
     </div>
   );
-}
-
-/** The release an episode is fetched from at 720p, the show's default, or null when nothing offered holds it. */
-function offerFor(offers, season, number) {
-  return (offers && plan(offers, { [season]: new Set([number]) }, "720p").torrents[0]) || null;
-}
-
-/** Every episode of a season not here that the tracker offers, by number. */
-function fetchableIn(season, offers) {
-  return season.episodes.filter((e) => !e.titleId && offerFor(offers, season.number, e.number)).map((e) => e.number);
 }
 
 function EpisodeRow({ episode: e, rooms, offers, showImdbId }) {
@@ -261,12 +206,12 @@ function EpisodeRow({ episode: e, rooms, offers, showImdbId }) {
     : e.progress && e.durationSeconds ? Math.min(1, e.progress.positionSeconds / e.durationSeconds) : 0;
   const room = e.titleId && rooms.find((r) => r.titleId === e.titleId && r.participants > 0);
   const here = !!e.titleId && e.status !== "failed";
-  // An episode not here that the tracker offers plays while it arrives, as any other does.
-  const offer = !e.titleId ? offerFor(offers, e.season, e.number) : null;
+  // An episode that has to be fetched plays while it is prepared, from the same row as any other.
+  const offer = !e.titleId ? episodeRelease(offers, e.season, e.number) : null;
   const watch = async () => {
     if (starting) return;
     setStarting(true);
-    const started = await watchNow({ imdbId: showImdbId, torrentId: offer.offer.torrentId, episodes: [{ season: e.season, episode: e.number }] });
+    const started = await watchNow({ imdbId: showImdbId, torrentId: offer.torrentId, episodes: [{ season: e.season, episode: e.number }] });
     if (!started) setStarting(false);
   };
   const runtime = e.runtimeMinutes ? `${e.runtimeMinutes}m` : e.durationSeconds ? clock(e.durationSeconds) : null;
@@ -280,10 +225,11 @@ function EpisodeRow({ episode: e, rooms, offers, showImdbId }) {
       <span className="kc-episode__text">
         <span className={"kc-episode__title" + (done ? " is-done" : "")}>{e.name || `Episode ${e.number}`}</span>
         <span className="kc-episode__sub">
-          {here ? (e.status === "transcoding" ? "Still being prepared" : e.airDate ? `Aired ${e.airDate}` : "On this server")
-            : e.titleId ? "Could not be prepared"
-            : offer ? (starting ? "Starting…" : "Plays while it downloads")
-            : offers ? "Not on the tracker" : "Not on this server"}
+          {e.titleId && e.status === "failed" ? "Could not be prepared"
+            : here && e.status === "transcoding" ? "Still being prepared"
+            : starting ? "Starting…"
+            : here || offer ? (e.airDate ? `Aired ${e.airDate}` : null)
+            : "Not available yet"}
         </span>
       </span>
       <span className="kc-episode__progress"><span style={{ width: `${Math.round(fraction * 100)}%` }} className={done ? "is-done" : ""} /></span>

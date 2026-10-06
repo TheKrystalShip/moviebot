@@ -25,7 +25,7 @@ Playback starts seconds after a film is requested, while it is still being trans
 ## How it works
 
 ```
-               /watch, /download, voice                        what is said and typed
+               /watch, /show, voice                            what is said and typed
   Discord ─────────────────────────────►  MovieBot.Bot ──────────────► moviebot-assistant
      │                                         │                              │   ▲
      │ Activity (/embed/)                      │                              │   │ chat
@@ -75,7 +75,7 @@ A single transcode serves the whole room because there is only one playhead. On 
 | Command | What it does |
 |---|---|
 | `/watch title:<name>` | Loads a film into the room for the voice channel you are in, downloading it first if needed |
-| `/download film:<name>` | Fetches a film without playing it, so it is ready later |
+| `/show show:<name> season:<n>` | Fetches episodes of a show, a season at a time |
 | `/notify add\|list\|cancel` | Waits on a film that cannot be downloaded yet, and announces when it can |
 | `/voice join\|status\|leave` | Listens in the voice channel for spoken commands |
 

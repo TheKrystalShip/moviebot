@@ -108,7 +108,7 @@ const TRAILS = {
   "/": [],
   "/movies": [HOME, ["Movies", null]],
   [`/movies/${MATRIX.id}`]: [HOME, ["Movies", "/movies"], ["The Matrix", null]],
-  "/movies/nothing-here": [HOME, ["Movies", "/movies"], ["Not in the library", null]],
+  "/movies/nothing-here": [HOME, ["Movies", "/movies"], ["Not found", null]],
   "/tv": [HOME, ["TV Shows", null]],
   "/tv/tt9999999999": [HOME, ["TV Shows", "/tv"], ["No such show", null]],
   [`/discover/show/${SHOW}`]: [HOME, ["Discover", "/discover"], ["Breaking Bad", null]],
@@ -174,7 +174,7 @@ console.log(`Cold loads at ${base}`);
 await cold("/", { lands: "/", ...here("Home", "Home") });
 await cold("/movies", { lands: "/movies", h1: /Movies/, ...here("Movies", "Library") });
 await cold(M, { lands: M, h1: /Matrix/, ...here("Movies", "Library") });
-await cold("/movies/nothing-here", { lands: "/movies/nothing-here", empty: "Not in the library", ...here("Movies", "Library") });
+await cold("/movies/nothing-here", { lands: "/movies/nothing-here", empty: "Not found", ...here("Movies", "Library") });
 await cold("/tv", { lands: "/tv", h1: /TV/, ...here("TV Shows", "Library") });
 await cold(`/tv/${SHOW}`, { lands: `/discover/show/${SHOW}`, h1: /Breaking Bad/, ...here("Discover", "Discover") });
 await cold(`/tv/${SHOW}/season/3`, { lands: `/discover/show/${SHOW}/season/3`, h1: /Breaking Bad/, chip: "Season 3", ...here("Discover", "Discover") });
@@ -300,7 +300,7 @@ console.log("\nFlows");
     await page.fill(".kc-discover input", "matrix");
     await page.keyboard.press("Enter");
     if ((await settled(page, "/discover?q=matrix")) !== "/discover?q=matrix") problems.push(`a search left the address at ${where(page)}`);
-    const result = page.locator(".kc-rows a.kc-row--link").first();
+    const result = page.locator(".kc-hit h2 a").first();
     await result.waitFor({ timeout: 15000 });
     const to = await result.getAttribute("href");
     await result.click();

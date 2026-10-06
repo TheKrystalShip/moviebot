@@ -2,9 +2,8 @@
 
 The Discord half. `/watch` resolves a film, opens the room's session on the API and hands the
 room a launch — and when the film is not here, searches the tracker, starts the download and hands
-the room the launch the moment the film can be watched. `/download` fetches a film and stops there,
-so the next one can be got ready while a room watches this one. `/show` fetches episodes of a
-show, a season at a time. `/notify` watches for a film that
+the room the launch the moment the film can be watched. `/show` fetches episodes of a show, a
+season at a time. `/notify` watches for a film that
 cannot be downloaded yet and says so when it can. `/voice join` brings the bot into a voice channel
 to listen, so the film can be paused, resumed and skipped by saying so, and anything else said to it
 is put to the assistant, which answers in the channel's chat.
@@ -154,31 +153,6 @@ Which launch the reply carries is the only thing `ILaunchPresenter` decides. A p
 opens the player as an Activity inside the voice channel replaces the one that links to it, and
 the command above it does not change.
 
-## Fetching a film for later
-
-```
-/download film:<name>
-```
-
-`/watch`'s fetch is the means to watching now, so the film is loaded into the room the moment it
-can be opened. This is the other half of it: a film fetched and nothing else. A room halfway
-through a film goes on watching it while the next one arrives, and the announcement when it is
-ready is how anybody starts it.
-
-- **The menu searches the tracker and never the library.** `/watch` leads with the library because
-  a film that is here is the answer; here a film that is here is the one thing not worth fetching.
-  Picking a row for a film the library already holds is refused, naming the film it is held under,
-  because an autocomplete row has no space to explain itself.
-- **A film already on its way is not fetched twice**, and both checks read the film the tracker
-  says the release is rather than its release name: one film arrives under a dozen encodes and each
-  parses to a different string. Either check being unanswerable — the API down, the torrent client
-  down — skips it rather than refusing, since neither is needed to fetch a film and the worst a
-  skipped check costs is a second copy of something.
-- **It needs no voice channel**, because there is no room in it.
-
-The reply is the progress message, which the same updater keeps current and the same watcher
-announces, because a download fetched for later is a download.
-
 ## Fetching a show
 
 ```
@@ -188,8 +162,8 @@ announces, because a download fetched for later is a download.
 A show is fetched a season at a time. The menu searches the catalogue for shows and never films,
 and the tracker is asked once a show is picked, for every season it offers under the show's id.
 
-- **The plan is the site's.** `ShowPlan` in `MovieBot.Client` decides which releases fetch the picked
-  episodes, the same decision the site's request sheet and the assistant's `download_show` make: a
+- **The plan is shared.** `ShowPlan` in `MovieBot.Client` decides which releases fetch the picked
+  episodes, the same decision the assistant's `download_show` makes: a
   season's pack at the asked quality first, fetching only the picked files out of it; single
   episodes where there is no pack; another quality only where the asked one is not offered, said so
   in a follow-up.
@@ -277,14 +251,8 @@ answered with one sentence saying so, and everything else the bot does goes on a
   best release the tracker offers is proposed, and when the tracker has none the model is given what
   a wish takes. A film named by its place in a series, "the second one" or "part two", is counted by
   the bot in the order the films came out.
-- **Asking for a film to be ready is a different tool, and the name is the whole difference.**
-  "Get Inception ready for after this one" fetches it and leaves the room playing what it is
-  playing; "put Inception on" takes the room. Which was meant is the entire question, and this
-  model picks between two tool names far more reliably than it sets a flag on one — so everything
-  `download_only` proposes carries no room however it was reached, and every tool it names in what
-  it hands back is one that keeps the room's fate as it already is. A fetch for later turning into
-  a switch one tool call further on is exactly the failure the split exists to prevent, and
-  `AssistantRoutingTests` measures both directions.
+- **A film is asked for to be watched.** A film that has to be fetched is proposed into the room,
+  and goes on there once enough of it can be watched; nothing is fetched to wait in the library.
 - **A show is `download_show`**: a season, all of it or the episodes named, planned like `/show` and
   proposed for somebody to agree to. It never takes the room either; an episode is watched by asking
   for it like a film.

@@ -122,7 +122,7 @@ public sealed class AssistantServiceTests(SessionFixture fixture) : IClassFixtur
     [Fact]
     public async Task The_tools_act_with_the_person_s_own_token()
     {
-        _service.Model.Answers.Enqueue(new LlmResponse(null, [RoomToolsTests.Call(RoomTools.DownloadOnly, ("title", "inception"))]));
+        _service.Model.Answers.Enqueue(new LlmResponse(null, [RoomToolsTests.Call(RoomTools.WatchFilm, ("title", "inception"))]));
         _service.Model.Answers.Enqueue(LlmResponse.Text("Sorry."));
 
         var reply = await (await _service.As("4343", "Vi", [Api.Auth.CinemaActions.Watch])

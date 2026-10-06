@@ -124,12 +124,6 @@ const KIND_FILTERS = [
   { value: "show", label: "Shows", test: (e) => e.kind === "show" },
 ];
 
-const HERE_FILTERS = [
-  { value: "any", label: "Any", test: () => true },
-  { value: "here", label: "In the library", test: (e) => e.inLibrary },
-  { value: "away", label: "Not in the library", test: (e) => !e.inLibrary },
-];
-
 const WATCHED_FILTERS = [
   { value: "any", label: "Any", test: () => true },
   { value: "unwatched", label: "Not watched", test: (e) => !e.watched },
@@ -144,7 +138,7 @@ const WATCHED_FILTERS = [
 export function ListPage({ id }) {
   const view = useLoad(() => api.list(id), [id]);
   const me = (useSession() || {}).user || {};
-  const f = useFilters({ search: "", kind: "all", here: "any", watched: "any" });
+  const f = useFilters({ search: "", kind: "all", watched: "any" });
   const [sort, setSort] = React.useState({ key: "added", dir: "desc" });
   const [renaming, setRenaming] = React.useState(null);
   const [people, setPeople] = React.useState(false);
@@ -163,19 +157,17 @@ export function ListPage({ id }) {
   const shared = list.members.length > 0 || list.owner.userId !== me.id;
 
   const kind = KIND_FILTERS.find((k) => k.value === f.values.kind) || KIND_FILTERS[0];
-  const here = HERE_FILTERS.find((k) => k.value === f.values.here) || HERE_FILTERS[0];
   const watched = WATCHED_FILTERS.find((k) => k.value === f.values.watched) || WATCHED_FILTERS[0];
   const query = f.debouncedQuery.trim().toLowerCase();
   const order = SORTS.find((s) => s.value === sort.key) || SORTS[0];
   const shown = entries
     .filter((e) => (!query || e.title.toLowerCase().includes(query) || (e.note || "").toLowerCase().includes(query))
-      && kind.test(e) && here.test(e) && watched.test(e))
+      && kind.test(e) && watched.test(e))
     .sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
 
   const option = (o) => ({ value: o.value, label: o.label, count: entries.filter(o.test).length });
   const fields = [
     { id: "kind", label: "Kind", value: f.values.kind, onChange: (v) => f.set("kind", v), default: "all", options: KIND_FILTERS.map(option) },
-    { id: "here", label: "Library", value: f.values.here, onChange: (v) => f.set("here", v), default: "any", options: HERE_FILTERS.map(option) },
     { id: "watched", label: "Watched", value: f.values.watched, onChange: (v) => f.set("watched", v), default: "any", options: WATCHED_FILTERS.map(option) },
   ];
 

@@ -33,7 +33,6 @@ public sealed class AssistantPartsTests
 
         Assert.DoesNotContain(catalog.Site, t => RoomTools.RoomOnly.Contains(t.Name));
         Assert.Contains(catalog.Site, t => t.Name == RoomTools.WatchFilm);
-        Assert.Contains(catalog.Site, t => t.Name == RoomTools.DownloadOnly);
     }
 
     [Fact]
@@ -287,7 +286,7 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     }
 
     [Fact]
-    public async Task On_the_site_a_film_the_library_lacks_is_proposed_for_the_library_and_for_no_room()
+    public async Task On_the_site_a_film_the_library_lacks_is_proposed_to_watch_and_names_no_release()
     {
         var host = Host();
         var tools = host.Tools.For(AssistantPartsTests.SitePerson(), "get inception");
@@ -295,9 +294,11 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         var told = await tools.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "Inception")));
 
         var proposal = Assert.Single(tools.Proposed);
-        Assert.Equal(RoomTools.DownloadOnly, proposal.Kind);
+        Assert.Equal(RoomTools.WatchFilm, proposal.Kind);
+        Assert.Equal("watch", proposal.Verb);
         Assert.Null(proposal.Room);
         Assert.Contains("confirm it on their screen", told.Summary);
+        Assert.DoesNotContain("torrent", told.Summary);
     }
 
     [Fact]
@@ -454,6 +455,22 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
     }
 
     [Fact]
+    public async Task A_film_agreed_to_on_the_site_opens_a_room_to_watch_it_in()
+    {
+        var host = Host();
+        var tools = host.Tools.For(AssistantPartsTests.SitePerson(), "get inception");
+        await tools.ExecuteAsync(Call(RoomTools.WatchFilm, ("title", "Inception")));
+
+        var outcome = await Assert.Single(tools.Proposed).Run(host.Agreement("4242", "Haru"), CancellationToken.None);
+
+        Assert.Equal(RoomTools.WatchFilm, outcome.Kind);
+        Assert.NotNull(outcome.Watch);
+        Assert.Null(outcome.Download);
+        Assert.Equal(outcome.Watch!.Room is not null, outcome.Success);
+        Assert.DoesNotContain("ownload", outcome.Text);
+    }
+
+    [Fact]
     public async Task A_download_agreed_to_that_cannot_start_claims_nothing()
     {
         var host = Host();
@@ -466,88 +483,6 @@ public sealed class RoomToolsTests(SessionFixture fixture) : IClassFixture<Sessi
         Assert.Equal("failed", outcome.Verdict);
         Assert.NotEqual("started", outcome.Download?.Outcome);
         Assert.DoesNotContain("Downloading", outcome.Text);
-    }
-
-    [Fact]
-    public async Task Fetching_a_film_for_later_proposes_it_with_no_room_and_leaves_the_film_playing()
-    {
-        // The whole point of the tool: a room halfway through a film gets the next one made ready
-        // without its own being taken away.
-        var host = Host();
-        var turn = AssistantPartsTests.Turn(NewChannel());
-        await StartFilmAsync(host.Api, turn);
-        var room = host.Tools.For(turn, "download inception for later");
-
-        var told = await room.ExecuteAsync(Call(RoomTools.DownloadOnly, ("title", "Inception")));
-
-        Assert.Contains("Proposed: fetch Inception (2010)", told.Summary);
-        Assert.Contains("leaving Cinema as it is", told.Summary);
-        Assert.Equal(RoomTools.DownloadOnly, Assert.Single(room.Proposed).Kind);
-        Assert.Empty(room.Launched);
-
-        var state = await host.Api.OpenSessionAsync(turn.Room!.SessionId, CancellationToken.None);
-        Assert.Equal(SessionFixture.ReadyTitle, state.TitleId);
-        Assert.False(state.Paused);
-    }
-
-    [Fact]
-    public async Task Fetching_a_film_for_later_names_itself_in_everything_it_tells_the_model_to_call_next()
-    {
-        // A guidance line naming watch_film or download_film is a fetch for later turning into a
-        // switch one tool call further on, which is exactly what this is for.
-        var host = Host();
-        var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()), "grab pirates of the caribbean for tomorrow");
-
-        var told = await room.ExecuteAsync(Call(RoomTools.DownloadOnly, ("title", "Pirates of the Caribbean")));
-
-        Assert.DoesNotContain(RoomTools.WatchFilm, told.Summary);
-        Assert.DoesNotContain(RoomTools.DownloadFilm, told.Summary);
-        Assert.Contains(RoomTools.DownloadOnly, told.Summary);
-    }
-
-    [Fact]
-    public async Task A_film_the_library_already_holds_is_not_fetched_again_for_later()
-    {
-        var host = Host();
-        var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()), "download heat for later");
-
-        var told = await room.ExecuteAsync(Call(RoomTools.DownloadOnly, ("title", "heat")));
-
-        Assert.Contains("already in the library", told.Summary);
-        Assert.Empty(room.Proposed);
-        Assert.Empty(room.Launched);
-    }
-
-    [Fact]
-    public async Task A_different_release_fetched_for_later_still_carries_no_room()
-    {
-        var host = Host();
-        var turn = AssistantPartsTests.Turn(NewChannel());
-        await StartFilmAsync(host.Api, turn);
-        var room = host.Tools.For(turn, "get the other inception for later");
-
-        await room.ExecuteAsync(Call(RoomTools.DownloadOnly, ("title", "Inception")));
-        var told = await room.ExecuteAsync(
-            Call(RoomTools.DownloadOnly, ("title", "Inception"), ("torrent_id", "41")));
-
-        // Proposed once: the same release asked for twice is asking again, not a second fetch.
-        var proposal = Assert.Single(room.Proposed);
-        Assert.Equal(RoomTools.DownloadOnly, proposal.Kind);
-        Assert.Contains("leaving Cinema as it is", told.Summary);
-        Assert.Equal(SessionFixture.ReadyTitle,
-            (await host.Api.OpenSessionAsync(turn.Room!.SessionId, CancellationToken.None)).TitleId);
-    }
-
-    [Fact]
-    public async Task A_release_nobody_was_shown_is_refused_for_later_too_and_names_the_tool_that_finds_one()
-    {
-        var host = Host();
-        var room = host.Tools.For(AssistantPartsTests.Turn(NewChannel()));
-
-        var said = await room.ExecuteAsync(Call(RoomTools.DownloadOnly, ("torrent_id", "41")));
-
-        Assert.Contains($"was not offered by {RoomTools.DownloadOnly}", said.Summary);
-        Assert.Empty(room.Proposed);
     }
 
     [Fact]

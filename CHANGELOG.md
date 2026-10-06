@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.17.0] - 2026-10-06
+
+### Changed
+
+- **Watching is the one way to get a film, everywhere a person asks.** The site's chat proposes Watch
+  for a film that has to be fetched: agreeing opens a room of the person's own, the site goes to it,
+  and the film plays there while it is prepared (`ConfirmOutcome.Watch`, `MovieBotApiClient.WatchNowAsync`).
+  The proposal names the film and no release. In a Discord room `watch_film` proposes into the room
+  as it did. Assistant 2.4.0, MovieBot.Client 5.1.0.
+- **Nothing on the site says where a film comes from.** "In the library" is gone from Discover's
+  results, popular rows and best match, and from Saved's filters; Discover's results are one list,
+  whatever the server already holds by that name among them. A film being prepared shows
+  `preparing · N%` where it said downloading. Show episode rows say when an episode aired, not
+  whether it is on the server, and the film and show pages drop their "On this server" fact (a film
+  keeps its picture class, as Picture). A film page that cannot be opened is "Not found", pointing at
+  Discover. Notifications about a wish and about something asked for say watched, not downloaded.
+
+### Removed
+
+- **Download on the site**: the film's Download button and its sheet, the show's episode picker
+  ("Get episodes" / "Download"), "Download season" and "Download the other N", and Discover's "On the
+  tracker" shelf of raw releases. A show's episodes are watched one by one from their rows, the next
+  one fetched ahead as before. Site 0.40.0.
+- **The bot's `/download` command.** `/watch` fetches what it plays; `/show` fetches a season. Bot
+  2.2.0.
+- **The assistant's `download_only` tool**, which fetched a film to wait in the library.
+
 ## [2.16.0] - 2026-10-06
 
 ### Removed

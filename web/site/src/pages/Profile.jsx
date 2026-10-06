@@ -221,8 +221,8 @@ function Following() {
 }
 
 const KINDS = [
-  { id: "available", title: "A title I'm waiting for can be downloaded", sub: "Anything on your Notify me list." },
-  { id: "ready", title: "A download I started is ready to watch", sub: "Includes partial season downloads." },
+  { id: "available", title: "A title I'm waiting for can be watched", sub: "Anything on your Notify me list." },
+  { id: "ready", title: "Something I asked for is ready to watch", sub: "Includes each episode of a season." },
   { id: "episode", title: "New episodes of shows you follow" },
   { id: "shared", title: "Someone shares a list with me" },
 ];

@@ -111,11 +111,6 @@ export const api = {
   people: () => call("GET", "/api/people"),
   invite: (room, userId) => call("POST", `/api/rooms/${enc(room)}/invite`, { userId }),
 
-  releases: (q) => call("GET", `/api/releases?q=${enc(q)}`),
-  releasesFor: (imdb) => call("GET", `/api/releases?imdb=${enc(imdb)}`),
-  // `episodes` ([{season, episode}]) fetches only those out of a show's release.
-  download: (torrentId, episodes) =>
-    call("POST", "/api/downloads", { torrentId, ...(episodes ? { episodes } : {}) }),
   wishes: () => call("GET", "/api/wishes"),
   wish: (chosen) => call("POST", "/api/wishes", { chosen }),
   cancelWish: (imdbId) => call("DELETE", `/api/wishes/${enc(imdbId)}`),

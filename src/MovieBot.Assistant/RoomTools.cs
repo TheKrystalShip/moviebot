@@ -83,13 +83,6 @@ public sealed partial class RoomTools(
     public const string SeekRelative = RoomVerbTools.SeekRelative;
     public const string WatchFilm = "watch_film";
     public const string DownloadFilm = "download_film";
-    /// <summary>
-    /// Fetching a film without putting it on, which is the whole of what separates it from
-    /// <see cref="WatchFilm"/>. Its own tool rather than an argument, because which was meant is
-    /// the entire question and this model picks between two names far more reliably than it sets
-    /// a flag on one.
-    /// </summary>
-    public const string DownloadOnly = "download_only";
     public const string FetchSubtitle = "fetch_subtitle";
     public const string AddWish = "add_wish";
     public const string DownloadShow = "download_show";
@@ -101,7 +94,7 @@ public sealed partial class RoomTools(
     public static readonly IReadOnlyList<string> Names =
     [
         RoomState, ListRooms, GetTitle, DownloadStatus, WishListTool, Resume, Pause, Seek, SeekRelative,
-        WatchFilm, DownloadFilm, DownloadOnly, FetchSubtitle, AddWish, DownloadShow,
+        WatchFilm, DownloadFilm, FetchSubtitle, AddWish, DownloadShow,
         Remember, Forget, Recall,
     ];
 
@@ -123,7 +116,7 @@ public sealed partial class RoomTools(
     public static readonly IReadOnlySet<string> Proposals =
         new HashSet<string>(StringComparer.Ordinal)
         {
-            DownloadFilm, DownloadOnly, FetchSubtitle, AddWish, DownloadShow,
+            DownloadFilm, FetchSubtitle, AddWish, DownloadShow,
         };
 
     /// <summary>The tools that move the room, which is what a question about why the film stopped is answered from.</summary>
@@ -217,8 +210,7 @@ public sealed partial class RoomTools(
                 Seek => await SeekAsync(call.Arg("position"), ct),
                 SeekRelative => await SeekRelativeAsync(call.Arg("seconds"), ct),
                 WatchFilm => await WatchFilmAsync(call.Arg("title"), ct),
-                DownloadFilm => await ProposeDownloadAsync(call.Arg("torrent_id"), intoRoom: true, ct),
-                DownloadOnly => await DownloadOnlyAsync(call.Arg("title"), call.Arg("torrent_id"), ct),
+                DownloadFilm => await ProposeDownloadAsync(call.Arg("torrent_id"), ct),
                 FetchSubtitle => await ProposeSubtitleAsync(call.Arg("title"), ct),
                 AddWish => await ProposeWishAsync(call.Arg("imdb_id"), ct),
                 DownloadShow => await ProposeShowAsync(call.Arg("show"), call.Arg("season"), call.Arg("episodes"), call.Arg("quality"), ct),
@@ -441,8 +433,7 @@ public sealed partial class RoomTools(
     {
         if (string.IsNullOrWhiteSpace(query)) return "watch_film needs the film's name as title.";
 
-        var intoRoom = turn.Room is not null;
-        if (await FilmByPlaceAsync(query, ct) is { } placed) return await PlacedAsync(placed, intoRoom, ct);
+        if (await FilmByPlaceAsync(query, ct) is { } placed) return await PlacedAsync(placed, ct);
 
         var result = await WatchAsync(query, ct);
 
@@ -465,48 +456,10 @@ public sealed partial class RoomTools(
                     + "one they mean, written as it is here.");
 
             case WatchStatus.TitleNotFound or WatchStatus.LibraryEmpty:
-                return await FromTrackerAsync(query, result.Match?.Nearest, intoRoom, ct);
+                return await FromTrackerAsync(query, result.Match?.Nearest, ct);
         }
 
         return Launch(result);
-    }
-
-    /// <summary>
-    /// Fetches a film and leaves the room exactly as it is, so the next one can be got ready
-    /// while this one plays.
-    /// </summary>
-    /// <remarks>
-    /// Everything it proposes carries no room, however it was reached, so the tool's name alone
-    /// answers "does agreeing to this stop what we are watching". That is the property worth
-    /// having: a flag on <see cref="WatchFilm"/> would put the same question inside an argument,
-    /// where a misread costs a room its film halfway through.
-    /// </remarks>
-    private async Task<string> DownloadOnlyAsync(string? query, string? torrentId, CancellationToken ct)
-    {
-        // A release already listed is taken as it stands: the film has been found and what is
-        // being asked for is a different encode of it.
-        if (!string.IsNullOrWhiteSpace(torrentId))
-            return await ProposeDownloadAsync(torrentId, intoRoom: false, ct);
-
-        if (string.IsNullOrWhiteSpace(query)) return $"{DownloadOnly} needs the film's name as title.";
-
-        var library = await api.ListTitlesAsync(ct);
-        var match = TitleMatcher.Resolve(library, query);
-
-        switch (match.Kind)
-        {
-            case TitleMatchKind.Resolved:
-                return Tell($"{match.Title!.Name} is already in the library, so there is nothing to fetch.",
-                    $"Nothing was downloaded. {WatchFilm} puts it on whenever they want to watch it.");
-
-            case TitleMatchKind.Ambiguous:
-                return Tell(
-                    $"Several films in the library already match: {string.Join("; ", match.Candidates.Select(t => t.Name))}.",
-                    "Nothing was downloaded. Ask which one they mean, or call this again with a name none of "
-                    + "them answers to.");
-        }
-
-        return await FromTrackerAsync(query, match.Nearest, intoRoom: false, ct);
     }
 
     /// <summary>
@@ -535,7 +488,7 @@ public sealed partial class RoomTools(
     }
 
     /// <summary>A film picked by its place: put on when the library has it, and otherwise proposed or wished for.</summary>
-    private async Task<string> PlacedAsync(ImdbTitle film, bool intoRoom, CancellationToken ct)
+    private async Task<string> PlacedAsync(ImdbTitle film, CancellationToken ct)
     {
         var library = await api.ListTitlesAsync(ct);
         if (library.FirstOrDefault(t => string.Equals(t.Film?.ImdbId, film.ImdbId, StringComparison.OrdinalIgnoreCase))
@@ -547,7 +500,7 @@ public sealed partial class RoomTools(
             Film = new FilmView { ImdbId = film.ImdbId, Title = film.Title, Year = film.Year, Display = film.Display },
         };
         return await OfferAsync(
-            ranked, $"{film.Display} is not in the library.", others: "", query: film.Title, intoRoom, ct);
+            ranked, $"{film.Display} is not in the library.", others: "", query: film.Title, ct);
     }
 
     private static int? PlaceIn(string text)
@@ -661,14 +614,11 @@ public sealed partial class RoomTools(
             : result.Message + " The card with the way in is posted in the chat; do not repeat what it says.";
     }
 
-    /// <summary>What a film the library does not hold under that name can become: a proposed download, a wish, or other films.</summary>
-    /// <param name="intoRoom">
-    /// Whether what is proposed plays here once it can be watched. False is a film fetched for
-    /// later, which also makes a film found in the library under another name something to say
-    /// rather than something to put on: nobody asked for the room to change.
-    /// </param>
-    private async Task<string> FromTrackerAsync(
-        string query, LibraryTitle? nearest, bool intoRoom, CancellationToken ct)
+    /// <summary>
+    /// What a film the library does not hold under that name can become: a proposal to watch it while it
+    /// is prepared, a wish, or other films.
+    /// </summary>
+    private async Task<string> FromTrackerAsync(string query, LibraryTitle? nearest, CancellationToken ct)
     {
         // The tracker's search names the film in the title index first, which also knows every other
         // name a film goes by. A film the library holds under a name the words did not match is found
@@ -679,10 +629,7 @@ public sealed partial class RoomTools(
         if (ranked.Film is { } identified && !SaysANumber().IsMatch(said)
             && library.FirstOrDefault(t => string.Equals(t.Film?.ImdbId, identified.ImdbId, StringComparison.OrdinalIgnoreCase))
                 is { } here)
-            return intoRoom || turn.Room is null
-                ? Launch(await PutOnAsync(here, library, ct))
-                : Tell($"{here.Name} is already in the library, so there is nothing to fetch.",
-                    $"Nothing was downloaded. {WatchFilm} puts it on whenever they want to watch it.");
+            return Launch(await PutOnAsync(here, library, ct));
 
         var named = ranked.Film?.Display ?? $"\"{query}\"";
         var lead = nearest is null
@@ -690,19 +637,13 @@ public sealed partial class RoomTools(
             : $"{named} is not in the library, which has {nearest.Name}.";
         var others = await OtherFilmsAsync(query, ranked.Film, ct);
 
-        return await OfferAsync(ranked, lead, others, query, intoRoom, ct);
+        return await OfferAsync(ranked, lead, others, query, ct);
     }
 
     /// <summary>Proposes the best release the tracker found, or says what can be done when there is none.</summary>
-    /// <param name="intoRoom"><inheritdoc cref="FromTrackerAsync" path="/param[@name='intoRoom']"/></param>
     private async Task<string> OfferAsync(
-        RankedOffers ranked, string lead, string others, string query, bool intoRoom, CancellationToken ct)
+        RankedOffers ranked, string lead, string others, string query, CancellationToken ct)
     {
-        // Every tool named in the guidance is one that keeps the room's fate as it already is, so a
-        // model following the words it was handed cannot turn a fetch for later into a switch.
-        var finder = intoRoom || turn.Room is null ? WatchFilm : DownloadOnly;
-        var picker = intoRoom ? DownloadFilm : DownloadOnly;
-
         // The best release is proposed here rather than listed for the model to pick from: after a tool
         // answers, this model ends its turn far more often than it calls the next one, and a list nobody
         // proposed from is a person told the film exists and offered no way to get it. Nothing starts
@@ -714,14 +655,17 @@ public sealed partial class RoomTools(
             offered.Remember(shown);
 
             var proposed = await ProposeDownloadAsync(
-                shown[0].TorrentId.ToString(CultureInfo.InvariantCulture), intoRoom, ct);
-            var alternatives = shown.Count == 1
+                shown[0].TorrentId.ToString(CultureInfo.InvariantCulture), ct);
+
+            // A room picks among releases with download_film; a person's own chat is offered the film,
+            // and which file it is prepared from is the server's choice.
+            var alternatives = turn.Room is null || shown.Count == 1
                 ? ""
-                : $" Other releases, for {picker} if they want a different one:\n"
+                : $" Other releases, for {DownloadFilm} if they want a different one:\n"
                   + string.Join('\n', shown.Skip(1).Select(r => $"- {r.Display} · {r.Summary} (torrent {r.TorrentId})"));
 
             return Tell($"{lead}{others}",
-                $"{proposed}{alternatives}\nIf they meant a different film, call {finder} with its full name.");
+                $"{proposed}{alternatives}\nIf they meant a different film, call {WatchFilm} with its full name.");
         }
 
         if (ranked.Film is { } waiting)
@@ -730,7 +674,7 @@ public sealed partial class RoomTools(
 
         if (others.Length > 0)
             return Tell($"The library has nothing called \"{query}\".{others}",
-                $"Nothing was put on. Call {finder} with the full name of the one they mean.");
+                $"Nothing was put on. Call {WatchFilm} with the full name of the one they mean.");
 
         return Tell($"Neither the library nor the tracker has a film called \"{query}\".",
             "Nothing was put on. Ask them to say the film's name again.");
@@ -762,57 +706,51 @@ public sealed partial class RoomTools(
 
     // ── Proposals ────────────────────────────────────────────────────────────────────────────
 
-    /// <param name="intoRoom">
-    /// Whether the film plays here once it can be watched. It decides the one tag that separates
-    /// the two, and it is carried through the proposal rather than read again when somebody
-    /// agrees: what they were offered is what happens, minutes later and whoever agrees.
-    /// </param>
-    private async Task<string> ProposeDownloadAsync(string? torrentId, bool intoRoom, CancellationToken ct)
+    /// <summary>
+    /// Proposes watching a release the tracker offered. In a room it is a download into that room,
+    /// which goes on there once enough of it can be watched; in a person's own chat it is Watch now,
+    /// which opens a room of the person's own where the film plays while it is prepared. What they were
+    /// offered is what happens, minutes later and whoever agrees.
+    /// </summary>
+    private async Task<string> ProposeDownloadAsync(string? torrentId, CancellationToken ct)
     {
-        intoRoom &= turn.Room is not null;
-        var tool = intoRoom ? DownloadFilm : DownloadOnly;
-        var finder = intoRoom || turn.Room is null ? WatchFilm : DownloadOnly;
+        var room = turn.Room;
+        var tool = room is null ? WatchFilm : DownloadFilm;
 
         if (!long.TryParse(torrentId, NumberStyles.None, CultureInfo.InvariantCulture, out var id))
-            return $"{tool} needs a torrent id from {finder}.";
+            return $"{DownloadFilm} needs a torrent id from {WatchFilm}.";
 
         if (offered.Find(id) is not { } release)
-            return $"Torrent {id} was not offered by {finder}. Call {finder} with the film's name, then "
-                   + $"{tool} with a torrent id from its results.";
+            return $"Torrent {id} was not offered by {WatchFilm}. Call {WatchFilm} with the film's name, then "
+                   + $"{DownloadFilm} with a torrent id from its results.";
 
+        DownloadView? arriving = null;
         if (release.ImdbId is { Length: > 0 } imdbId)
         {
             var library = await api.ListTitlesAsync(ct);
             if (library.FirstOrDefault(t => string.Equals(t.Film?.ImdbId, imdbId, StringComparison.OrdinalIgnoreCase))
                 is { } here)
-                return Tell($"{here.Name} is already in the library, so nothing needs downloading.",
-                    "Nothing was downloaded or put on. Tell them it is already here.");
+                return Tell($"{here.Name} can be watched now, with nothing to fetch.",
+                    $"Nothing was put on. {WatchFilm} with its name puts it on if that is the one they mean.");
 
-            // Already on its way. A second copy of one film is a second progress message about it
-            // and the same disk spent twice, and the answer to "is it coming" is the download that
-            // is already running.
-            if (await AlreadyDownloadingAsync(imdbId, ct) is { } already)
-                return Tell($"{release.Display} is already downloading: {already.Summary}.",
-                    "Nothing was downloaded. Tell them it is on its way.");
+            // Already being prepared. A room is told so rather than fetching a second copy; a person's
+            // own chat watches the copy already coming.
+            arriving = await AlreadyDownloadingAsync(imdbId, ct);
+            if (room is not null && arriving is not null)
+                return Tell($"{release.Display} is already on its way: {arriving.Summary}.",
+                    "Nothing was put on. Tell them it is on its way.");
         }
 
-        var room = turn.Room;
+        if (room is null)
+            return ProposeWatchNow(release, arriving is not null);
 
-        // The wording is also what a proposal is deduplicated by, so the two read differently on
-        // purpose: what a person is agreeing to is whether their film stops.
-        var describes = intoRoom
-            ? $"download {release.Display} · {release.Summary}"
-            : room is null
-                ? $"fetch {release.Display} · {release.Summary}"
-                : $"fetch {release.Display} · {release.Summary} for later, leaving {room.Name} as it is";
-
-        return Propose(tool, describes, release.Display, async (agreed, ct2) =>
+        return Propose(tool, $"download {release.Display} · {release.Summary}", release.Display, async (agreed, ct2) =>
         {
             var reply = await agreed.Api.StartDownloadAsync(new StartDownloadRequest
             {
                 TorrentId = release.TorrentId,
-                NotifyChannelId = room?.ChannelId,
-                RoomId = intoRoom ? room!.SessionId : null,
+                NotifyChannelId = room.ChannelId,
+                RoomId = room.SessionId,
             }, ct2);
 
             var started = reply.Outcome == "started";
@@ -820,9 +758,7 @@ public sealed partial class RoomTools(
             {
                 Text = reply.Outcome switch
                 {
-                    "started" when intoRoom =>
-                        $"Downloading {release.Display}. It goes on in {room!.Name} as soon as enough of it has transcoded.",
-                    "started" => $"Downloading {release.Display}. It will be in the library as soon as enough of it has transcoded.",
+                    "started" => $"Downloading {release.Display}. It goes on in {room.Name} as soon as enough of it has transcoded.",
                     "noLongerOffered" => $"{release.Display} is no longer on offer, so nothing started. Ask for the film again.",
                     "refused" => $"The download was refused: {reply.Refusal}",
                     _ => "The tracker or the torrent client is not answering, so nothing started.",
@@ -836,8 +772,44 @@ public sealed partial class RoomTools(
     }
 
     /// <summary>
+    /// Proposes watching a film from a person's own chat: agreeing opens a room for them, as Watch on the
+    /// film's page does, and the site goes to it. The film is named and nothing about where it comes from:
+    /// a person watches it, and its being prepared is what the room shows.
+    /// </summary>
+    private string ProposeWatchNow(ReleaseOffer release, bool arriving)
+    {
+        if (release.ImdbId is not { Length: > 0 } imdbId)
+            return Tell($"{release.Display} cannot be started from here.",
+                "Nothing was put on. Tell them to find it in Discover and press Watch.");
+
+        return Propose(WatchFilm, $"watch {release.Display}", release.Display, async (agreed, ct2) =>
+        {
+            var reply = await agreed.Api.WatchNowAsync(new WatchNowRequest
+            {
+                ImdbId = imdbId,
+                TorrentId = arriving ? null : release.TorrentId,
+            }, ct2);
+
+            var opened = reply.Room is not null && reply.Outcome is "preparing" or "inLibrary";
+            return new ConfirmOutcome
+            {
+                Text = reply.Outcome switch
+                {
+                    _ when opened => $"Opening a room for {release.Display}. It starts as soon as it is ready.",
+                    "full" => "The server is preparing as many films as it can for people watching right now. Try again in a few minutes.",
+                    _ => $"{release.Display} could not be started.",
+                },
+                Success = opened,
+                Verdict = opened ? "accepted" : "failed",
+                Kind = WatchFilm,
+                Watch = reply,
+            };
+        });
+    }
+
+    /// <summary>
     /// Proposes fetching episodes of a show: the show named in the catalogue, the tracker's releases
-    /// for the season planned the way the site's request sheet and /show plan them, at 720p unless
+    /// for the season planned the way /show plans them, at 720p unless
     /// 1080p was asked for. Only the planned files are fetched, and nothing starts until somebody
     /// agrees.
     /// </summary>
@@ -851,7 +823,7 @@ public sealed partial class RoomTools(
         var shows = await api.FindShowsAsync(name, ct);
         if (shows.Count == 0)
             return Tell($"Nothing in the catalogue is a show called {name}.",
-                "If they meant a film, call watch_film or download_only instead.");
+                "If they meant a film, call watch_film instead.");
         var show = shows[0];
 
         var offers = await api.ShowReleasesAsync(show.ImdbId, ct);

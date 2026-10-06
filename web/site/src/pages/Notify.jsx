@@ -7,7 +7,7 @@ import { Empty, Failed, PageHead } from "../components/Film.jsx";
 import { CardsSkeleton, FoundCard, WishCard } from "../components/TitleCards.jsx";
 
 /**
- * Films somebody is waiting on: ones that cannot be downloaded yet. The server asks the tracker about
+ * Films somebody is waiting on: ones that cannot be watched yet. The server asks the tracker about
  * each of them every hour, and a film counts as out once a release from a web encode up is offered;
  * one that has come out stays here, with its release, until they stop waiting on it. A film is found
  * by name in the catalogue, and waited on from its own page.
@@ -30,7 +30,7 @@ export function Notify() {
 
   return (
     <div className="kc-page">
-      <PageHead title="Notify me" sub="Films that are not out yet. The server checks the tracker every hour, and says so when one can be downloaded." />
+      <PageHead title="Notify me" sub="Films that are not out yet. The server checks every hour, and says so when one can be watched." />
 
       <form className="kc-search" onSubmit={(e) => { e.preventDefault(); setQuery(draft.trim()); }}>
         <Icon name="search" size={17} />

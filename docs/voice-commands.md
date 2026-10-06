@@ -80,7 +80,7 @@ pause it" — is not read as the verb at all.
 
 Anything the room verbs do not read is a turn of the assistant, which answers in the channel's
 chat rather than out loud (the film's sound already plays in every viewer's browser). It can
-call on the bot's own commands, so the same things `/watch`, `/download` and `/notify` do
+call on the bot's own commands, so the same things `/watch`, `/show` and `/notify` do
 from a text channel can be asked for by voice, alongside questions about what is happening.
 
 **Watching a film**
@@ -95,20 +95,6 @@ If the library already has it, it plays. If not, the assistant searches the trac
 the best release; confirming starts the download and the film plays here as soon as it is
 watchable. A film with no release yet gets offered as something to wait on instead (see "waiting
 on a film" below).
-
-**Getting the next film ready without stopping this one**
-
-```
-"okay computer, download Inception for later"
-"okay computer, get The Matrix ready for after this one"
-"okay computer, grab Heat for tomorrow, don't stop this"
-```
-
-The film is fetched and the room carries on with what it is watching. Confirming starts the
-download; nothing is loaded, and the film waits in the library until somebody asks to watch it —
-at which point `/watch`, or "put it on", starts it. Asking to *watch* a film that is not here is
-the other tool and still switches the room to it once it arrives, so what separates the two is
-whether a film was asked for now or for later.
 
 **Downloading a specific release**
 
@@ -150,8 +136,8 @@ just offer is refused).
 
 ## Confirming
 
-Watching a film that has to be downloaded, fetching one for later, downloading a specific
-release, fetching subtitles and waiting on a film are all proposed
+Watching a film that has to be downloaded, downloading a specific release, fetching subtitles and
+waiting on a film are all proposed
 rather than acted on straight away. Each proposal is a message with two buttons under it in the text channel, and answering out
 loud works the same:
 
@@ -166,7 +152,7 @@ its own after `Assistant__OfferMinutes`.
 
 ## What is not a voice command
 
-`/watch`, `/download`, `/show` and `/notify` are typed slash commands, not spoken ones — see
+`/watch`, `/show` and `/notify` are typed slash commands, not spoken ones — see
 `src/MovieBot.Bot/README.md` for their syntax. A `/watch` from inside a voice channel is what
 opens the way back into a room whose launch card has expired; nothing spoken re-issues an
 invite.

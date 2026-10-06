@@ -59,11 +59,11 @@ export function foundPage(found, here, held) {
 /**
  * A film or show the catalogue answered with: its rating, year, whether it is a film or a show, and
  * its cast, or `line` in its place (a person's part in it). `here` is the library's title for a film
- * it holds, `held` whether it holds an episode of a show.
+ * it holds, `held` whether it holds an episode of a show; they decide where the card leads and whether
+ * it plays from here, and nothing on the card says which.
  */
 export function FoundCard({ found, here, held, line = found.starring }) {
   const show = found.kind === "show";
-  const inLibrary = show ? held : !!here;
   const playable = here && here.status === "ready";
   return (
     <ShowcaseCard
@@ -76,12 +76,10 @@ export function FoundCard({ found, here, held, line = found.starring }) {
         { icon: "calendar", value: found.year || null, label: "Year" },
         { icon: show ? "tv" : "clapperboard", value: show ? "Series" : "Movie", label: "Type" },
       ]}
-      status={inLibrary
-        ? { tone: "success", icon: "check", label: "In the library" }
-        : line ? { label: line, title: line } : null}
+      status={line ? { label: line, title: line } : null}
       action={playable
         ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) }
-        : { label: inLibrary ? "Open" : "View" }} />
+        : { label: "View" }} />
   );
 }
 
