@@ -17,14 +17,16 @@ import { Rank, back, menu, onBack, onMenu } from "./tv.js";
  *   controls and Back comes out again.
  *
  * On top of the geometry:
- * - a candidate in the area focus is in, the sidebar or the page's column, comes before any in the
- *   other, so Down at the foot of a short page does not leave it for the sidebar while Left from its
- *   edge still reaches it;
+ * - Left and Right stay on the line focus is on: a candidate that shares none of its height is not
+ *   that way, so the end of a row is the end of it rather than a jump into the next;
+ * - a candidate in the area focus is in, a side column (`aside`) or the page's column, comes before
+ *   any in the other, so Down at the foot of a short page does not leave it for the side column
+ *   while Left from its edge still reaches it;
  * - the topmost open dialog or menu holds focus inside it, and when it closes focus goes back to what
  *   was focused when it opened;
  * - a row that scrolls sideways remembers the element last focused in it, and coming back into the row
  *   lands there;
- * - entering the sidebar or a navigation landmark from outside lands on the item marked as the
+ * - entering a side column or a navigation landmark from outside lands on the item marked as the
  *   current page;
  * - focus is never left on nothing: when the focused element goes away, the nearest candidate to where
  *   it was takes it;
@@ -128,6 +130,8 @@ function cost(from, to, direction) {
     ? [from.top, from.bottom, to.top, to.bottom]
     : [from.left, from.right, to.left, to.right];
   const shared = Math.min(a1, b1) - Math.max(a0, b0);
+  // Sideways stays on the line: Right at the end of a row is the end of the row.
+  if (horizontal && shared < -Overlap) return null;
   const aside = shared > 0 ? 0 : -shared;
   const centre = Math.abs((a0 + a1) / 2 - (b0 + b1) / 2);
   return Math.max(0, gap) + aside * AsideWeight + centre * 0.05;
@@ -176,9 +180,14 @@ function columnOf(el) {
 
 /**
  * Focuses `el` and brings it into view: its row scrolled so it is the row's first, which is also where
- * a row's snapping would put it, and its column so it sits in the middle. Each is placed outright
+ * a row's snapping would put it, and its column so it sits in the middle when it is near an edge or
+ * out of sight. Each is placed outright
  * rather than by `scrollIntoView`, whose "nearest" a row's snapping then undoes, leaving the card cut
  * off at the row's edge.
+ *
+ * A column may set its own places: one marked `data-tv-line` puts the top of the `data-tv-row` focus
+ * is in that many pixels below its own top, so the focused row holds one line on the screen, and
+ * anything inside a `data-tv-top` takes the column back to its top.
  */
 export function focusElement(el) {
   el.focus({ preventScroll: true, focusVisible: true });
@@ -190,9 +199,20 @@ export function focusElement(el) {
   }
   const column = columnOf(el);
   if (column) {
-    const r = rectOf(el);
     const c = rectOf(column);
-    column.scrollTo({ top: Math.max(0, column.scrollTop + (r.top + r.height / 2) - (c.top + c.height / 2)), behavior });
+    const line = column.getAttribute("data-tv-line");
+    const lined = line !== null ? el.closest("[data-tv-row]") : null;
+    let top;
+    if (el.closest("[data-tv-top]")) top = 0;
+    else if (lined && column.contains(lined)) top = column.scrollTop + rectOf(lined).top - c.top - Number(line);
+    else {
+      // Anything else already well inside the column stays where it is; otherwise it is centred.
+      const r = rectOf(el);
+      top = r.top >= c.top + ComfortMargin && r.bottom <= c.bottom - ComfortMargin
+        ? column.scrollTop
+        : column.scrollTop + (r.top + r.height / 2) - (c.top + c.height / 2);
+    }
+    if (Math.round(top) !== Math.round(column.scrollTop)) column.scrollTo({ top: Math.max(0, top), behavior });
   }
   // Anything else that scrolls sideways around it, such as a strip of tabs too wide for its column,
   // moves as little as brings it in.
@@ -208,6 +228,8 @@ export function focusElement(el) {
 
 /** The room left beside an element brought in sideways. */
 const SideMargin = 16;
+/** How far inside the column's edges an element has to sit to be left where it is. */
+const ComfortMargin = 60;
 
 /** The first control of a region outside its navigation, preferring one marked `data-tv-initial`. */
 function initialIn(region) {
@@ -249,13 +271,19 @@ function move(direction) {
   let best = null;
   let bestCost = Infinity;
   let bestHome = false;
-  for (const el of candidates(region)) {
+  // Geometry first: a page holds hundreds of focusable cards, and only one that is that way and
+  // would win is worth asking whether it is a candidate at all, which reads its computed style.
+  for (const el of region.querySelectorAll(Focusable)) {
     if (el === from || el.contains(from) || from.contains(el)) continue;
-    const c = cost(origin, rectOf(el), direction);
+    const r = rectOf(el);
+    if (r.width < 1 || r.height < 1) continue;
+    const c = cost(origin, r, direction);
     if (c === null) continue;
     // Anything that way in the area focus is in comes before anything in another.
     const same = areaOf(el) === home;
-    if ((same && !bestHome) || (same === bestHome && c < bestCost)) { bestCost = c; best = el; bestHome = same; }
+    if (!((same && !bestHome) || (same === bestHome && c < bestCost))) continue;
+    if (!usable(el) || isContainer(el) || nested(el, region) || !drawn(el)) continue;
+    bestCost = c; best = el; bestHome = same;
   }
   if (best) focusElement(landing(best, from));
 }
@@ -323,11 +351,12 @@ function remember(event) {
   }
 }
 
+/** Where an element is on its page, cheaply enough to say on every move: its link, its name, its place. */
 function describe(el, main) {
   return {
     href: el.getAttribute("href"),
     label: label(el),
-    index: candidates(main).indexOf(el),
+    index: [...main.querySelectorAll(Focusable)].indexOf(el),
   };
 }
 
@@ -337,10 +366,10 @@ function recall(main) {
   const memory = pageMemory.get(window.location.href);
   if (!memory) return null;
   const all = candidates(main);
+  const placed = [...main.querySelectorAll(Focusable)][memory.index];
   return all.find((el) => memory.href && el.getAttribute("href") === memory.href && label(el) === memory.label)
     || all.find((el) => label(el) === memory.label)
-    || all[memory.index]
-    || null;
+    || (placed && all.includes(placed) ? placed : null);
 }
 
 /**

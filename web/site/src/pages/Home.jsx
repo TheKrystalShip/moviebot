@@ -205,7 +205,7 @@ const showKey = (s) => s.imdbId || s.firstTitleId;
  * `items` in an order fixed by `deal`: each is ranked by a hash of the deal and its key, so one deal
  * always lays out the same items the same way, and an item that arrives or leaves moves nothing else.
  */
-function dealt(items, keyOf, deal) {
+export function dealt(items, keyOf, deal) {
   const rank = (item) => {
     let h = 0x811c9dc5;
     for (const c of deal + keyOf(item)) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
@@ -215,7 +215,7 @@ function dealt(items, keyOf, deal) {
 }
 
 /** The newest ready film: what arrived last is what is worth putting at the top. */
-function newest(library) {
+export function newest(library) {
   const ready = library.filter((t) => t.status === "ready");
   const pool = ready.length > 0 ? ready : library;
   return pool.reduce((best, t) => (!best || (t.addedAt || "") > (best.addedAt || "") ? t : best), null);

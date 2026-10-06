@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.12.0] - 2026-10-06
+
+### Added
+
+- **Krystal Cinema's own design on a television.** In TV mode the site draws pages of its own
+  (`web/site/src/tv/`) instead of the desktop's: a bar across the top with Home, Discover, Movies,
+  TV Shows and Saved, the bell and the person, and no sidebar or footer. Home opens on the newest film
+  with Watch focused; below it, Continue watching, Watching now, Watch later, Recently added, Movies
+  and TV Shows run past the right edge, and with focus in them the top of the screen is a spotlight on
+  the focused card while the focused row holds one line. Movies and TV Shows are the library a row per
+  genre, each ending in Discover more. A film's page offers Resume, Restart and Save with how far in
+  and what remains, then the cast, each leading to their work, and the details; a show's adds seasons
+  and its episodes, whose spotlight is the episode. Discover opens on its field, and answers a query
+  with the best match large. Saved shows Watch later and the lists; Profile keeps its sections down
+  the left, with About among them. The player's menus are a panel down the right and its subtitles
+  start larger. Focus lifts what it is on. Site 0.36.0, on krystal-ui 0.17.1.
+
+### Changed
+
+- The TV navigator keeps Left and Right on the line focus is on, puts a focused row on a page's line,
+  leaves an element already well in view where it is, and decides a move from geometry before reading
+  any element's style, which held a key press to about 20 ms of script on the Fire TV.
+
 ## [2.11.0] - 2026-10-06
 
 ### Added

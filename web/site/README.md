@@ -88,7 +88,8 @@ Library (lit under `/movies` and `/tv`), Discover (lit under `/discover`), Assis
 which opens the dock above the bar rather than a page, and Me (`/profile`, lit on `/notify` and
 `/saved` too), whose page leads to Saved. What each page lights is one table in `App.jsx`, by the route's
 view. The tab of the page already open scrolls it back to its top. The
-pages no tab names are linked from the footer every page ends with.
+pages no tab names are linked from the footer every page ends with. A television has neither and
+gets around by its own bar (below).
 
 ## Signing in
 
@@ -182,7 +183,8 @@ phone. How to run it, what it measures and how to add a page or a phone: `verify
 `npm run verify:tv` opens every page in TV mode at a Fire TV's 960×540 against the same scratch site,
 and walks it with the arrow keys from where focus starts: every control on it has to be reached, each
 on screen when it is, and focus never left on nothing. Then an overlay taking focus when OK opens it
-and handing it back on Back, Back going back a page to the control it was left on, Back on Home, and
+and handing it back on Back (Save's lists and the bell's), Back going back a page to the control it
+was left on, Back on Home going to the bar and then being the app's, and
 the player: play focused, OK playing, presses gathered into one skip, slower presses skipping from the
 scrub bar, a held key scrubbing and seeking once, Menu, Play/Pause and Back. The player's checks need
 video in the scratch library, which `moviebot/media/` holds only for the films given their segments
@@ -229,13 +231,29 @@ the remote. `src/tv/` is all of it that is the site's own.
   user agent, or `?tv=1` on any address, which holds for the rest of the tab (`?tv=0` lets go of it)
   so the mode can be worked on in a desktop browser. Media queries cannot say it: the reference Fire
   TV's WebView matches `(pointer: coarse)` and `(hover: hover)` alike. The root element carries
-  `data-tv`, which krystal-ui's focus ring and every TV rule hang from.
+  `data-tv`, which krystal-ui's television parts (`styles/tv.css`) and every TV rule hang from.
+- **The television's own pages** (`src/tv/TvFrame.jsx`, `src/tv/pages/`), drawn to the TV design at
+  the WebView's 960 by 540 page, on krystal-ui's `TvBar`, `TvBackdrop`, `TvSpotlight`, `TvRow`,
+  `TvCard` and `TvTile`. No sidebar, footer or breadcrumb: a bar across the top holds Home, Discover,
+  Movies, TV Shows and Saved, with the bell and the person at its right, on those five pages; a
+  film's, a show's and the profile's pages have none, and Back leaves them. The bar moves away once
+  a page scrolls or its rows hold focus, and comes back with focus. Home, Movies, TV Shows and a
+  show's episodes put a spotlight at the top of the screen on the card focused below
+  (`src/tv/spot.jsx`): its artwork behind the page, its name, facts and story, turning to a new card
+  once focus has rested on it for 300 ms so a held arrow loads nothing; the focused row holds a line
+  on the screen and the rows above it are put away. A row ends in the tile that leads to all of it.
+  Focus lifts what it is on: a card grows, rises and takes a hairline and the accent's light while
+  the cards around it dim, and a button or a place in the bar turns into a light pill. Nothing says
+  whether the server holds a title: a film is watched the same way either way. The player is the
+  site's own, with its menus as a panel down the right and its subtitles sized for the distance.
 - **Moving focus** (`src/tv/navigator.js`): every arrow key is taken and focus moves to the nearest
   control that way on screen, from the focused element's rectangle, with the rules the module
   states: an open dialog or menu holds focus and hands it back when it closes, a row remembers its
-  last card and scrolls to put the focused one first, the sidebar is entered at the current page, a
-  shown page focuses its first control (or the one it was left on, when it is come back to), and
-  focus is never left on nothing. A card's own controls are reached with Menu and left with Back. The
+  last card and scrolls to put the focused one first, a navigation landmark is entered at the current
+  page, a shown page focuses its first control (or the one it was left on, when it is come back to),
+  and focus is never left on nothing. A page column marked `data-tv-line` puts the focused row on
+  that line; anything in a `data-tv-top` takes the column to its top; anything else is centred only
+  when it nears an edge. A card's own controls are reached with Menu and left with Back. The
   WebView's own arrow navigation is never let through: on these pages it skips whole regions.
 - **The remote's keys, as the page receives them** from the reference Fire TV: OK is `Enter`, the
   arrows `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, and the media keys `MediaPlayPause`,
@@ -245,13 +263,14 @@ the remote. `src/tv/` is all of it that is the site's own.
   whether the page used the key; the wrapper closes the app only on a Back the page did not use. In a
   desktop browser in TV mode, Escape stands for Back and the context-menu key for Menu.
 - **Back** closes an open overlay first, then whatever a screen holds of its own (the player's), then
-  goes back a page. On Home it moves focus to the sidebar, and from the sidebar it is the app's.
+  goes back a page. On a page with the bar it first moves focus up into the bar; on Home, from the
+  bar, it is the app's.
 - **Typing** is Fire OS's keyboard, which OK on a field raises, with its own QR code for typing on a
-  phone. A submitted search moves focus to the form's button, which closes the keyboard over the
-  results.
-- **Left out on a television**: the assistant, and in the player the volume (the set's own buttons
+  phone. A submitted search moves focus off the field, which closes the keyboard over the results.
+- **Left out on a television**: the assistant, pushes (and Profile's Notifications with them),
+  installing the app, making and changing lists, and in the player the volume (the set's own buttons
   hold it), full screen (the screen already is) and the invite (nobody across the room is handed a
-  link to copy).
+  link to copy). Nothing is blurred behind anything, for the WebView's frame budget.
 
 How the player answers the remote: `src/player/CLAUDE.md`.
 
@@ -259,7 +278,7 @@ How the player answers the remote: `src/player/CLAUDE.md`.
 
 The bell lists what the API told this person (`src/notifications.js`, read every minute and whenever
 the page comes back into view): in the sidebar above the person on a wide screen, at the top right of
-the front page on a phone. Profile's Notifications tab turns pushes on for this browser, through
+the front page on a phone, and in the bar on a television. Profile's Notifications tab turns pushes on for this browser, through
 krystal-ui's `pushBrowser` against `/api/push/key` and `/api/me/push`, and holds a switch
 for each kind that is pushed, new episodes of followed shows among them. A browser can be pushed to only once it has a service worker, which is a
 production build; on an iPhone, only once the site is on the Home Screen, and the tab says so. The

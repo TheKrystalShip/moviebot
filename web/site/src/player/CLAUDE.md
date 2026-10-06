@@ -108,7 +108,9 @@ connection's token rather than from anything the page sends.
   A held key is a keydown for a key that has not come up, since a Fire TV marks no repeat as one.
   Rewind and Fast-forward skip wherever focus is, and the media keys act directly. Back closes a
   menu, then puts the controls away, then leaves the room; Menu opens the subtitles. A television
-  has no volume, full screen or invite in the player, and none of a phone's landscape or gestures.
+  has no volume, full screen, invite or back button in the player, and none of a phone's landscape
+  or gestures. There a menu is a panel down the right edge, a focused control is a light pill, and
+  subtitles nobody has sized are drawn large enough to read from across a room.
 - **Brightness is how dark the picture is drawn, not the screen's.** A page has no hold on the
   screen's backlight, so the left sweep fades a black layer over the film, from none to most of the
   way. The subtitles sit above it at the brightness they were styled at. Like volume it is the

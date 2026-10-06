@@ -49,7 +49,7 @@ export function BellButton() {
  * A trigger and the list it opens: beside the sidebar on a wide screen, in the site's drawer on a
  * phone. A press outside it, or Escape, closes it.
  */
-function Bell({ placement, children }) {
+export function Bell({ placement, children }) {
   const [open, setOpen] = React.useState(false);
   const [pos, setPos] = React.useState(null);
   const triggerRef = React.useRef(null);

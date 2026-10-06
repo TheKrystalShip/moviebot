@@ -10,7 +10,7 @@
 //   Back out of them counted too), and each one on screen when it is reached;
 // - focus never falling to nothing after a key.
 // Then what the keys do: an overlay taking focus when it opens and handing it back when it closes,
-// Back going back a page to the control it was left on, Back on Home going to the sidebar and then
+// Back going back a page to the control it was left on, Back on Home going to the bar and then
 // being left to the app, and the player: the play button focused, OK playing, presses gathered into
 // one skip, a held key scrubbing and sending one seek, Menu opening the subtitles, and Back leaving.
 //
@@ -278,7 +278,7 @@ async function overlay(name, path, trigger) {
   }
 }
 
-/** Back goes back a page to the control it was left on; on Home it goes to the sidebar, then is the app's. */
+/** Back goes back a page to the control it was left on; on Home it goes to the bar, then is the app's. */
 async function backs() {
   console.log("back");
   const { page, close } = await open("/");
@@ -312,9 +312,9 @@ async function backs() {
     const first = await page.evaluate(() => window.krystalTv.back());
     const inNav = await page.evaluate(() => Boolean(document.activeElement && document.activeElement.closest("nav")));
     const second = await page.evaluate(() => window.krystalTv.back());
-    if (!first || !inNav) fail("back", "Back on Home did not go to the sidebar");
-    else if (second) fail("back", "Back from the sidebar on Home was used, so the app would never close");
-    else pass("Back on Home goes to the sidebar, then is left to the app");
+    if (!first || !inNav) fail("back", "Back on Home did not go to the bar");
+    else if (second) fail("back", "Back from the bar on Home was used, so the app would never close");
+    else pass("Back on Home goes to the bar, then is left to the app");
   } finally {
     await close();
   }
@@ -422,9 +422,8 @@ const checks = option("checks", "pages,overlays,back,player").split(",");
 try {
   if (checks.includes("pages")) for (const p of PAGES) if (!pageNames || pageNames.includes(p.name)) await walk(p);
   if (checks.includes("overlays")) {
-    await overlay("filters", "/movies", ".toolbar-filter:not(.toolbar-sort) .toolbar-filter__trigger");
     await overlay("save", "/movies/" + encodeURIComponent(films[0].id), ".kc-follow .k-btn");
-    await overlay("account", "/", ".sidebar__account");
+    await overlay("notifications", "/", '.tv-bar__button[aria-haspopup="dialog"]');
   }
   if (checks.includes("back")) await backs();
   if (checks.includes("player")) await player();

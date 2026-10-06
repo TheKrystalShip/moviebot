@@ -63,35 +63,39 @@ These exist and are not restated here:
 |---|---|
 | TV mode: detection, the navigator, Back and Menu as `window.krystalTv`, the keys a page receives, what is left out | `web/site/README.md` "On a television", `web/site/src/tv/` |
 | The player on a remote: reveal first, gathered skips, the scrub bar taking focus, holding to scrub, Back and Menu | `web/site/src/player/CLAUDE.md`, `web/site/src/player/engine/media/remote.ts` |
-| The focus ring on a television and `Rail` without arrows | krystal-ui `styles/tv.css`, its README "On a television" |
+| The TV's own pages: the bar, spotlit rows, a film's and a show's page, Discover, Movies and TV Shows by genre, Saved, Profile, the player's panel; the focus look | `web/site/README.md` "On a television", `web/site/src/tv/`; krystal-ui `TvBar`, `TvSpotlight`, `TvRow`, `TvCard` and `styles/tv.css`, its README "On a television" |
+| Discover by person and by genre, on every surface | `docs/api-contract.md`, `web/site/README.md` |
 | `npm run verify:tv` | `web/site/README.md` "Verifying" |
 | The device grant: `/device_authorization`, polling `/token`, the `/device` approval page, device sessions surviving the phone's sign-out | `tks-auth/src/Auth.Anchor/CLAUDE.md` |
 | The site's session: `oidc-client-ts`, tokens in `localStorage` under `cinema.oidc.`, `restore`, `freshToken`, `signOut` | `web/site/src/session.js`, `web/site/README.md` "Signing in" |
 | The API accepting any token whose audience is the Cinema application, whatever client asked for it | `src/MovieBot.Api/Auth/CinemaAuthentication.cs` |
 | Media: HLS fMP4, H.264 High at level 4.2 with stereo AAC-LC, WebVTT drawn by the page, `MediaSource.isTypeSupported` asked before anything is fetched | `web/site/README.md` "A viewer who cannot play the film" |
 
-What does not exist: the TV's design, a client registered for the TV and its sign-in screen, and the
-wrapper.
+What does not exist: a client registered for the TV and its sign-in screen, and the wrapper.
 
 ## 4. Steps
 
-Step 1, knowing it is a TV, moving focus, showing focus and the remote's keys, is built (section 3).
-The navigator works from whatever is on screen, so it carries over to the TV's design; what the design
-changes is where things are, and `verify:tv` says whether every control is still reached.
+Step 1, knowing it is a TV, moving focus, showing focus and the remote's keys, and step 2, the TV's
+own design, are built (section 3); what step 2 leaves open is under it.
 
-### Step 2: the TV design, and building it
+### Step 2: what the TV's design leaves open
 
-The TV's design is the canvas section 2 links, drawn at 960×540 with the library's own artwork; the
-site draws it in TV mode the way it draws the phone's tab bar on a phone. Every page keeps a 48-pixel
-side and 27-pixel top and bottom margin, rows run past the right margin, one row to a line, and a
-focused card is scrolled to the start of its row. The focus look is the lift with a hairline
-(section 2), in place of the outline and halo `krystal-ui`'s `styles/tv.css` draws.
+The design is the canvas section 2 links, and the site draws it (section 3). Measured on the Xiaomi
+through the probe app, from the page's own frame timings and long-animation-frame records:
 
-The pages, as drawn:
+- Moving along a row runs at 60 frames a second, its worst frame 34 ms; moving between rows, 83 ms.
+- The two moves that change the whole screen, from Home's opening film into its rows and Back up into
+  the bar, each spend one frame of about 130 ms drawing: every card on the page changes its opacity
+  and the artwork its size. Those two are what is left to profile.
+- Profile draws the site's own panels inside the TV's frame. Requests is the desktop's cards rather
+  than the rows the design draws.
+- Leaving soon is decided away on every surface (section 2) and is still drawn on desktop and phone.
 
-- **Home** (locked): the top bar; a spotlight on whatever has focus, arriving on the newest film with
-  Watch focused; Continue watching, Watching now, Watch later, Recently added, Movies and TV Shows,
-  each ending in See all.
+The pages, as designed and built:
+
+- **Home**: the top bar; a spotlight on whatever has focus, arriving on the newest film with Watch
+  focused; Continue watching, Watching now, Watch later, Recently added, Movies and TV Shows, the
+  last three ending in See all.
 - **A film**: no top bar, Back returns. The artwork fills the page; Resume (Watch when unstarted),
   Restart and Save; under them the progress bar and `1:36:10 of 2:35:00 - (59m remaining)`. Below,
   the cast as focusable round photos with their characters, then the details and the TMDB credit.
@@ -114,12 +118,8 @@ The pages, as drawn:
 - Left out of TV mode beyond what already is: push notifications (and with them Profile's
   Notifications), installing the app, editing lists.
 
-Upstream of the build, in the API and on every surface rather than the TV alone:
-
-- **Search by person.** OK on a cast member opens Discover's results for that person, which needs a
-  person search in the API. Desktop and phone gain the same from their cast lists.
-- **Search by genre.** A genre row's Discover more opens the catalogue's titles in that genre, which
-  needs a genre search in the API. Desktop and phone gain the same.
+OK on a cast member opens Discover on everything they are credited on, and a genre row's Discover more
+the catalogue's titles in that genre, on every surface, from the API's catalogue browse.
 
 TV mode draws no footer. The TMDB credit, the one thing in it that has to stay, is on About and at the
 foot of every film and show page.
@@ -128,20 +128,7 @@ The Xiaomi shows the whole picture: a pattern of 1% bands drawn to the page's ed
 on every side. The 5% margin stays regardless, for TVs that do crop and because a sofa reads a page
 better with room around it.
 
-What the build has to keep, measured:
-
-- The WebView paces frames at about 50 a second on any page. Scrolling a row of the current site
-  holds that with its worst frame at 20 ms; scrolling the page and the idle Home page have frames of
-  50 to 100 ms, which the build profiles and removes.
-- Not drawn in TV mode, for cost: `backdrop-filter` (seven places across `site.css` and `player.css`),
-  the blurred artwork behind a search hit, the page fade animations.
-- Artwork is already sized for the screen (posters 500 to 600 wide, backdrops 1280, drawn at up to
-  390 CSS pixels); poster backgrounds drawn through CSS load eagerly.
-- At 960 wide the current Profile overflows sideways: its tab strip runs off the right edge and the
-  column grows a horizontal scrollbar.
-
-Done when: every page reads from a sofa and scrolls without stutter on the Xiaomi, and `verify:tv`
-passes.
+Not drawn in TV mode, for cost: `backdrop-filter` anywhere, the page fade animations.
 
 ### Step 3: signing the TV in
 

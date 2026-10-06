@@ -43,7 +43,7 @@ export function Profile({ tab: named }) {
   );
 }
 
-function panel(tab, session) {
+export function panel(tab, session) {
   switch (tab) {
     case "requests": return <Requests session={session} />;
     case "following": return <Following />;

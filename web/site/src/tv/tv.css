@@ -1,0 +1,280 @@
+/* ── Krystal Cinema on a television ───────────────────────────────────────────────────────────────
+   The site's own pages in TV mode, laid out on krystal-ui's television parts (styles/tv.css). The
+   page is 960 by 540 and is read from a sofa; nothing here is drawn anywhere but under `data-tv`. */
+
+:root[data-tv] body { overflow: hidden; background: var(--canvas); }
+
+/* The page column fills the screen and is what scrolls. */
+.kc-tv-main {
+  position: fixed;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.kc-tv-main::-webkit-scrollbar { display: none; }
+/* The column's top, which the bar watches leave the screen: it takes no room of the page's. */
+.kc-tv-top-mark { position: absolute; top: 0; left: 0; width: 1px; pointer-events: none; }
+
+/* Nothing is blurred behind anything: the WebView pays for it on every frame. */
+:root[data-tv] * { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+/* With focus in the bar the page steps back, its artwork with it. */
+.kc-tv-main > * { transition: opacity var(--d-slow) var(--ease-out); }
+.kc-tv-main.is-under-bar > * { opacity: var(--tv-dim); }
+
+/* A page is shown at once: an entering page's slide would carry the fixed backdrop with it. */
+:root[data-tv] .kc-stage__page.is-entering { animation: none; }
+
+.kc-tv-page { position: relative; min-height: 100%; }
+
+.kc-tv-avatar span {
+  width: 34px; height: 34px; border-radius: var(--r-pill);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--krystal-teal-press); color: var(--fg-1);
+  font-size: var(--text-base); font-weight: var(--w-semibold);
+}
+.kc-tv-avatar:focus-visible span { background: transparent; color: inherit; }
+
+.kc-tv-rating { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-1); }
+.kc-tv-rating svg { color: var(--warning-fg); fill: var(--warning-fg); }
+.kc-tv-credit { font-size: var(--text-sm); color: var(--fg-3); }
+.kc-tv-credit b { color: var(--fg-2); font-weight: var(--w-semibold); }
+
+.kc-tv-progress {
+  display: flex; align-items: center; gap: 10px;
+  font-size: var(--text-sm); color: var(--fg-2);
+}
+.kc-tv-progress__bar {
+  width: 120px; height: 4px; border-radius: 2px;
+  background: color-mix(in srgb, var(--fg-1) 18%, transparent);
+}
+.kc-tv-progress__bar > span { display: block; height: 100%; border-radius: 2px; background: var(--krystal-teal); }
+
+.kc-tv-live { width: 7px; height: 7px; border-radius: var(--r-pill); background: var(--success-fg); }
+
+.kc-tv-pad { padding: var(--tv-margin-y) var(--tv-margin-x); }
+.kc-tv-strong { color: var(--fg-1); }
+
+/* ── Cast, details and the film database's credit, under a film's or a show's head ── */
+
+.kc-tv-cast { position: relative; z-index: 1; display: flex; flex-direction: column; }
+.kc-tv-cast__track { gap: 14px; align-items: flex-start; }
+.kc-tv-person {
+  flex: none; width: 104px; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  text-align: center; outline: none; border-radius: var(--r-sm); text-decoration: none;
+}
+:root[data-tv] .kc-tv-person:focus-visible { box-shadow: none; }
+.kc-tv-person__face {
+  width: 88px; height: 88px; border-radius: var(--r-pill); overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-3); color: var(--fg-2); font-weight: var(--w-semibold);
+  opacity: var(--tv-dim);
+  transition: transform var(--d-base) var(--ease-out), opacity var(--d-base) var(--ease-out), box-shadow var(--d-base) var(--ease-out);
+}
+.kc-tv-person__face img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+.kc-tv-person:focus-visible .kc-tv-person__face {
+  opacity: 1; transform: scale(var(--tv-lift));
+  box-shadow: inset 0 0 0 1px var(--fg-1), var(--glow-accent), var(--shadow-lift);
+}
+.kc-tv-person__name { font-size: var(--text-sm); font-weight: var(--w-semibold); color: var(--fg-3); line-height: 1.25; }
+.kc-tv-person__part { font-size: var(--text-xs); color: var(--fg-4); }
+.kc-tv-person:focus-visible .kc-tv-person__name { color: var(--fg-1); }
+.kc-tv-person:focus-visible .kc-tv-person__part { color: var(--fg-2); }
+
+.kc-tv-facts { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 16px; padding-top: 8px; }
+.kc-tv-facts__grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 24px;
+  padding: 0 var(--tv-margin-x);
+}
+.kc-tv-facts__cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.kc-tv-facts__label {
+  font-size: 11.5px; font-weight: var(--w-bold); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3);
+}
+.kc-tv-facts__value { font-size: var(--text-base); color: var(--fg-1); }
+.kc-tv-tmdb {
+  position: relative; z-index: 1; margin: 0; padding: 28px var(--tv-margin-x) var(--tv-margin-y);
+  font-size: var(--text-xs); color: var(--fg-4);
+}
+
+/* ── A film ── */
+
+.kc-tvf__head {
+  position: relative; z-index: 1; min-height: 420px; box-sizing: border-box;
+  padding: 54px var(--tv-margin-x) 12px;
+}
+.kc-tvf__head .tv-spot { max-width: 520px; }
+.kc-tvf__head .tv-spot__title { font-size: var(--text-5xl); }
+.kc-tvf { padding-bottom: 200px; }
+
+/* ── Discover ── */
+
+.kc-tvd { padding: 96px 0 200px; }
+.kc-tvd__search {
+  position: relative; z-index: 1;
+  margin: 0 var(--tv-margin-x); height: 56px; box-sizing: border-box; padding: 0 20px;
+  display: flex; align-items: center; gap: 14px;
+  border-radius: var(--r-md); background: var(--surface-3); color: var(--fg-1);
+  transition: transform var(--d-base) var(--ease-out), box-shadow var(--d-base) var(--ease-out);
+}
+.kc-tvd__search input {
+  flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; outline: none;
+  font: inherit; font-size: var(--text-lg); color: var(--fg-1);
+}
+.kc-tvd__search input::placeholder { color: var(--fg-3); }
+:root[data-tv] .kc-tvd__search input:focus-visible { box-shadow: none; }
+.kc-tvd__search:focus-within {
+  transform: scale(1.015);
+  box-shadow: inset 0 0 0 1px var(--fg-1), var(--glow-accent), var(--shadow-lift);
+}
+.kc-tvd.has-query { padding-top: 84px; }
+.kc-tvd.has-query .kc-tvd__search { height: 46px; background: var(--surface-2); }
+.kc-tvd__rows { display: flex; flex-direction: column; gap: 8px; padding-top: 18px; }
+.kc-tvd__q { text-transform: none; letter-spacing: 0; color: var(--fg-1); }
+.kc-tvd__none { margin: 0; padding: 0 var(--tv-margin-x); font-size: var(--text-md); color: var(--fg-3); }
+
+.kc-tvd__browse { display: flex; flex-direction: column; gap: 4px; padding-top: 18px; }
+.kc-tvd__browse-head { display: flex; align-items: center; gap: 18px; padding: 0 var(--tv-margin-x); }
+.kc-tvd__face { opacity: 1; width: 72px; height: 72px; }
+.kc-tvd__browse-text { display: flex; flex-direction: column; gap: 4px; }
+
+.kc-tvd__best {
+  margin: 0 var(--tv-margin-x); padding: 22px 26px; display: flex; gap: 26px; align-items: center;
+  border-radius: var(--r-md); background: var(--surface-1); border: var(--edge);
+}
+.kc-tvd__poster { width: 128px; height: 192px; object-fit: cover; border-radius: var(--r-sm); flex: none; }
+.kc-tvd__body { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.kc-tvd__title { margin: 0; font-size: var(--text-4xl); line-height: 1.05; font-weight: var(--w-bold); }
+.kc-tvd__body .tv-spot__overview { -webkit-line-clamp: 2; }
+
+/* ── Movies and TV Shows ── */
+
+.kc-tvl__title { position: relative; z-index: 1; padding: 104px var(--tv-margin-x) 0; height: 230px; box-sizing: border-box; }
+.kc-tvl[data-spot] .kc-tvl__title { visibility: hidden; }
+
+/* ── Saved ── */
+
+.kc-tvsv { padding: 84px 0 160px; display: flex; flex-direction: column; gap: 6px; }
+.kc-tvsv__line { min-height: 44px; padding: 0 var(--tv-margin-x); display: flex; align-items: baseline; gap: 12px; }
+.kc-tvsv__name { font-size: var(--text-md); font-weight: var(--w-semibold); color: var(--fg-1); }
+.kc-tvsv__facts { font-size: var(--text-sm); color: var(--fg-2); }
+.kc-tvsv__list { flex: none; width: var(--tv-wide-w); display: flex; flex-direction: column; gap: 6px; text-decoration: none; outline: none; }
+:root[data-tv] .kc-tvsv__list:focus-visible { box-shadow: none; }
+.kc-tvsv__list .kc-tvsv__name { font-size: var(--text-sm); color: var(--fg-3); }
+.kc-tvsv__list .kc-tvsv__facts { font-size: var(--text-xs); color: var(--fg-4); }
+.kc-tvsv__list:focus-visible .kc-tvsv__name { color: var(--fg-1); }
+.kc-tvsv__list:focus-visible .kc-tvsv__facts { color: var(--fg-2); }
+.kc-tvsv__art { display: flex; gap: 3px; align-items: center; justify-content: center; color: var(--fg-3); opacity: var(--tv-dim); }
+.kc-tvsv__art img { flex: 1; min-width: 0; height: 100%; object-fit: cover; }
+.kc-tvsv__list:focus-visible .kc-tvsv__art {
+  opacity: 1; transform: scale(var(--tv-lift)); box-shadow: var(--glow-accent), var(--shadow-lift);
+}
+.kc-tvsv__list:focus-visible .kc-tvsv__art::after { opacity: 1; }
+.kc-tvsv__list:focus-visible :is(.kc-tvsv__name, .kc-tvsv__facts) { transform: translateY(12px); }
+.kc-tvsv__list :is(.kc-tvsv__name, .kc-tvsv__facts) { transition: transform var(--d-base) var(--ease-out); }
+.kc-tvsv__head { padding: 0 var(--tv-margin-x) 8px; display: flex; flex-direction: column; gap: 6px; }
+.kc-tvsv__grid {
+  display: flex; flex-wrap: wrap; gap: 22px var(--tv-gap);
+  padding: 16px var(--tv-margin-x) 0;
+}
+
+/* ── Profile ── */
+
+.kc-tvp { display: flex; gap: 36px; padding: var(--tv-margin-y) var(--tv-margin-x) 120px; box-sizing: border-box; }
+.kc-tvp__side {
+  position: sticky; top: 0; flex: none; width: 220px; align-self: flex-start;
+  display: flex; flex-direction: column; gap: 18px;
+}
+.kc-tvp__who { display: flex; align-items: center; gap: 12px; }
+.kc-tvp__avatar {
+  width: 44px; height: 44px; border-radius: var(--r-pill); flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--krystal-teal-press); color: var(--fg-1); font-size: var(--text-lg); font-weight: var(--w-semibold);
+}
+.kc-tvp__names { display: flex; flex-direction: column; min-width: 0; }
+.kc-tvp__name { font-size: var(--text-md); font-weight: var(--w-bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kc-tvp__handle { font-size: var(--text-xs); color: var(--fg-3); }
+.kc-tvp__nav { display: flex; flex-direction: column; gap: 4px; }
+.kc-tvp__item {
+  display: flex; align-items: center; gap: 12px; height: 36px; padding: 0 12px;
+  border: 0; border-radius: var(--r-sm); background: transparent; text-decoration: none;
+  font: inherit; font-size: var(--text-base); font-weight: var(--w-medium); color: var(--fg-3); text-align: left;
+}
+.kc-tvp__item[aria-current="page"] { color: var(--fg-1); font-weight: var(--w-semibold); background: var(--krystal-teal-dim); }
+.kc-tvp__item[aria-current="page"] svg { color: var(--krystal-teal); }
+.kc-tvp__item:focus-visible svg { color: inherit; }
+.kc-tvp__out { margin-top: 10px; }
+.kc-tvp__panel { flex: 1; min-width: 0; padding-top: 8px; }
+.kc-tvp__title { margin: 0 0 16px; font-size: var(--text-3xl); font-weight: var(--w-bold); }
+/* The panels are the site's own; on a television their grids are rows of posters that wrap. */
+.kc-tvp__panel .kc-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+
+/* ── A show ── */
+
+.kc-tvs__head {
+  position: relative; z-index: 1; min-height: 360px; box-sizing: border-box;
+  padding: 54px var(--tv-margin-x) 12px;
+  transition: opacity var(--d-slow) var(--ease-out);
+}
+.kc-tvs__head .tv-spot { max-width: 520px; }
+.kc-tvs__head .tv-spot__title { font-size: var(--text-5xl); }
+.kc-tvs[data-spot] .kc-tvs__head { opacity: 0; }
+.kc-tvs { padding-bottom: 200px; }
+
+.kc-tvs__seasons { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 4px; }
+.kc-tvs__pills { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 var(--tv-margin-x); }
+.kc-tvs__pill {
+  padding: 6px 14px; border: 0; border-radius: var(--r-pill); background: transparent;
+  font: inherit; font-size: var(--text-sm); font-weight: var(--w-semibold); color: var(--fg-2);
+}
+.kc-tvs__pill.is-on {
+  color: var(--fg-1); background: var(--krystal-teal-dim);
+  box-shadow: inset 0 0 0 1px var(--border-accent);
+}
+.kc-tvs__episodes { align-items: flex-start; }
+.kc-tvs__episode { flex: none; width: var(--tv-wide-w); display: flex; flex-direction: column; gap: 6px; }
+.kc-tvs__episode.is-absent { opacity: 0.35; }
+.kc-tvs__name {
+  font-size: var(--text-sm); font-weight: var(--w-semibold); color: var(--fg-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.kc-tvs__length { font-size: var(--text-xs); color: var(--fg-4); }
+.kc-tvs__episode:focus-within .kc-tvs__name { color: var(--fg-1); }
+.kc-tvs__episode:focus-within .kc-tvs__length { color: var(--fg-2); }
+.kc-tvs__name, .kc-tvs__length { transition: transform var(--d-base) var(--ease-out); }
+.kc-tvs__episode:focus-within :is(.kc-tvs__name, .kc-tvs__length) { transform: translateY(12px); }
+
+/* ── Home ── */
+
+.kc-tvh__hero {
+  position: relative;
+  z-index: 1;
+  height: 400px;
+  box-sizing: border-box;
+  padding: 104px var(--tv-margin-x) 0;
+  transition: opacity var(--d-slow) var(--ease-out);
+}
+.kc-tvh[data-spot] .kc-tvh__hero { opacity: 0; }
+/* With focus in a spotlit page's rows, every card but the focused one steps back. */
+[data-spot] .tv-card:not(:focus-visible) { opacity: var(--tv-dim); }
+
+.kc-tvh__spot {
+  position: fixed;
+  top: 36px;
+  left: var(--tv-margin-x);
+  right: var(--tv-margin-x);
+  z-index: 2;
+  animation: tv-fade-in 260ms var(--ease-out);
+}
+
+.kc-tvh__rows {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Room below the last row, so it too can be brought up to the line. */
+  padding-bottom: 320px;
+}
+.kc-tvh__row { transition: opacity var(--d-slow) var(--ease-out); }
+.kc-tvh__row[data-past] { opacity: 0; }

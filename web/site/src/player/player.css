@@ -439,6 +439,26 @@
 .mp-frame--tiny .mp-gate__join { height: 40px; }
 .mp-frame--tiny .mp-prepare { padding: 14px; gap: 10px; }
 
+/* ── On a television: the remote's Back leaves, a menu is a panel down the right, a focused control is
+   a light pill, and subtitles are sized to be read from a sofa. No blur behind anything, for cost. ── */
+:root[data-tv] .mp-top .mp-round { display: none; }
+:root[data-tv] .mp-popover {
+  top: 0; right: 0; bottom: 0; width: 320px; max-height: none; border-radius: 0;
+  padding: 27px 28px 27px 24px; box-sizing: border-box;
+  background: var(--surface-1); backdrop-filter: none;
+  box-shadow: -1px 0 0 var(--border-subtle);
+}
+:root[data-tv] .mp-option { border-radius: var(--r-pill); }
+:root[data-tv] :is(.mp-play, .mp-icon, .mp-menu-button, .mp-option, .mp-menu__back):focus-visible {
+  background: var(--fg-1); color: var(--canvas); border-color: transparent;
+  box-shadow: var(--glow-accent), var(--shadow-lift); transform: scale(1.06);
+}
+:root[data-tv] :is(.mp-play, .mp-icon, .mp-menu-button, .mp-option, .mp-menu__back):focus-visible * { color: var(--canvas); }
+:root[data-tv] :is(.mp-menu-button, .mp-option):focus-visible :is(.mp-menu-button__value, .mp-option__value, .mp-option__sub) {
+  color: var(--fg-4);
+}
+:root[data-tv] .mp-cue { font-size: var(--cue-size, max(26px, 4.8cqh)); }
+
 @keyframes mp-spin { to { transform: rotate(360deg); } }
 @keyframes mp-rise { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes mp-tap { from { opacity: 0.4; transform: translateY(-50%) scale(0.85); } to { opacity: 1; transform: translateY(-50%) scale(1); } }
