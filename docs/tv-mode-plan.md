@@ -81,25 +81,47 @@ changes is where things are, and `verify:tv` says whether every control is still
 
 ### Step 2: the TV design, and building it
 
-The TV gets its own design in the Krystal Cinema design project, beside the desktop and phone ones,
-and the site draws it in TV mode the way it draws the phone's tab bar on a phone. The design is made
-first and the build follows it.
+The TV's design is the canvas section 2 links, drawn at 960×540 with the library's own artwork; the
+site draws it in TV mode the way it draws the phone's tab bar on a phone. Every page keeps a 48-pixel
+side and 27-pixel top and bottom margin, rows run past the right margin, one row to a line, and a
+focused card is scrolled to the start of its row. The focus look is the lift with a hairline
+(section 2), in place of the outline and halo `krystal-ui`'s `styles/tv.css` draws.
 
-What the design has to answer for, from what the Xiaomi showed:
+The pages, as drawn:
 
-- A 960×540 page seen from a sofa: the desktop layout there spends a quarter of the width on the
-  sidebar, puts the first row of films below the fold under the featured film, and draws controls
-  sized for a mouse.
-- The footer's place, and how focus enters and leaves the top bar on every page that is not Home.
-- One row to a line on every page, so Right at the end of a row has nothing to land on but the row's
-  own See all tile.
-- The focused element as the one thing the eye follows: the lift with a hairline (section 2) in
-  place of the outline and halo `krystal-ui`'s `styles/tv.css` draws, and how a row moves under it.
-  A focused card is scrolled to the start of its row.
-- Every page that stays in TV mode, the player's controls among them, and subtitles sized for the
-  distance.
-- Left out of TV mode beyond what already is: push notifications, installing the app, editing lists.
-- A margin for TVs that crop their edges, if the Xiaomi crops.
+- **Home** (locked): the top bar; a spotlight on whatever has focus, arriving on the newest film with
+  Watch focused; Continue watching, Watching now, Watch later, Recently added, Movies and TV Shows,
+  each ending in See all.
+- **A film**: no top bar, Back returns. The artwork fills the page; Resume (Watch when unstarted),
+  Restart and Save; under them the progress bar and `1:36:10 of 2:35:00 - (59m remaining)`. Below,
+  the cast as focusable round photos with their characters, then the details and the TMDB credit.
+- **A show**: the same header with Resume at the next episode, Follow and Save; season pills; the
+  season's episodes as stills with number, name and length. With an episode focused, the spotlight
+  is that episode: its season and number, name, length, air date, overview and time left.
+- **Discover**: the search field focused on arrival, OK raising the system keyboard; popular films
+  and shows below. With a query: the best match as a large card with Watch, More info and Save, then
+  the rest of what the catalogue answered.
+- **Movies and TV Shows**: Home's layout, one row per genre from the library, each ending in a
+  Discover more tile that searches the catalogue for that genre.
+- **Saved**: Watch later as a row, the focused title's name and facts under it; the lists as cards.
+- **Profile**: no top bar; its sections down the left (History, Requests, Following, Playback,
+  Subtitles, Appearance, Account, About) and the open one on the right. Requests holds what this
+  person waits on (Notify me) with Stop waiting, and the downloads they asked for.
+- **The player**: the title and who is watching at the top; the scrub bar with elapsed and
+  remaining time; Play or Pause, back and forward ten seconds, then Subtitles, Audio and Quality
+  with their values. Subtitles at 26 pixels. Menu opens the subtitles as a panel from the right,
+  with Size and Background under the languages.
+- Left out of TV mode beyond what already is: push notifications (and with them Profile's
+  Notifications), installing the app, editing lists.
+
+Upstream of the build, in the API and on every surface rather than the TV alone:
+
+- **Search by person.** OK on a cast member opens Discover's results for that person, which needs a
+  person search in the API. Desktop and phone gain the same from their cast lists.
+- **Search by genre.** A genre row's Discover more opens the catalogue's titles in that genre, which
+  needs a genre search in the API. Desktop and phone gain the same.
+
+Still open: the footer's place, and whether the Xiaomi crops its edges.
 
 What the build has to keep, measured:
 
