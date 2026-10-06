@@ -5,7 +5,10 @@
 const seg = encodeURIComponent;
 
 /** The tabs of the profile, in the order they are shown; the first is the page's own address. */
-export const PROFILE_TABS = ["history", "requests", "following", "notifications", "playback", "subtitles", "appearance", "account"];
+export const PROFILE_TABS = ["history", "offline", "requests", "following", "notifications", "playback", "subtitles", "appearance", "account"];
+
+/** The profile's tabs drawn from the device, which are all it shows with no connection. */
+export const DEVICE_TABS = ["offline", "playback", "subtitles", "appearance", "account"];
 
 export const homePath = "/";
 export const savedPath = "/saved";
@@ -54,3 +57,13 @@ export const profilePath = (tab) => (tab && tab !== PROFILE_TABS[0] ? "/profile/
 
 /** A room. */
 export const roomPath = (room) => "/r/" + seg(room);
+
+/** The query flag that plays a room's title from this device, alone, rather than in the room. */
+export const OFFLINE_FLAG = "offline";
+
+/**
+ * A film saved on this device, played from it: a room address of its own that the player opens with
+ * no hub, its timeline local. `at` is where to start, in seconds.
+ */
+export const playSavedPath = (titleId, at) => roomPath(crypto.randomUUID().replaceAll("-", "").slice(0, 8))
+  + "?title=" + seg(titleId) + "&" + OFFLINE_FLAG + "=1" + (at > 0 ? "&at=" + Math.floor(at) : "");

@@ -1,46 +1,40 @@
 // Krystal Cinema's service worker.
 //
-// It does three small things: satisfies the browser's installability criteria with a functional
-// `fetch` handler, gives an installed app a shell it can open while the host is unreachable without
-// ever touching the live data path, and shows the API's pushes, opening the page each names.
+// It does three things: satisfies the browser's installability criteria with a functional `fetch`
+// handler, holds the whole build so the installed app opens and gets around with no connection, and
+// shows the API's pushes, opening the page each names.
 //
-// It allowlists. Only page loads and the directories the build and the artwork are written to are
-// ever intercepted; every other request reaches the network untouched. The origin serves far more
-// than the API's /api prefix: a film's segments and subtitles under /media, the room hub under /hub,
-// and whatever else the API grows. A cached authenticated 200 hides an ended session from the page
-// and can hand one person's history to whoever opens the app next, and a cached segment is a film
-// copied into the browser's storage, so a route this file has never heard of is left alone.
+// The build writes `BUILD` below: its version and every file it put in dist/, the index as `/`. A
+// worker installing fetches all of them into a cache named by that version, and installs only when
+// every one arrived, so the cache it serves is always one whole build: the index and the chunks it
+// names, the player's lazy chunk, the fonts and the icons (the launch screens are Safari's, read when
+// the app is put on the Home Screen, and pass through untouched). Activating drops every other build's
+// cache. A deploy is a new version, which the browser finds on the next online page load.
 //
-// Vite's content-hashed assets are cached on demand, cache-first, which is safe because their URL
-// changes when their content does. The shell is network-first, so a deploy lands on the next online
-// load.
+// It allowlists. Only page loads and the files the build wrote are ever served from the cache; every
+// other request reaches the network untouched. The origin serves far more than the API's /api prefix:
+// a film's segments and subtitles under /media, the room hub under /hub, and whatever else the API
+// grows. A cached authenticated 200 hides an ended session from the page and can hand one person's
+// history to whoever opens the app next, and a cached segment is a film copied into the browser's
+// storage, so no API answer and no media is ever kept here. Films saved for offline are kept in the
+// Origin Private File System by the page (`src/offline/`), never in this cache.
 
-const VERSION = "v1";
-const PREFIX = "krystal-cinema-shell-";
-const CACHE = PREFIX + VERSION;
+// Written by the build (vite.config.js); in development nothing registers this worker.
+const BUILD = { version: "dev", files: [] };
 
-// The bare shell, available offline as soon as the worker installs. Hashed build assets are not
-// listed, since their names are not known here; they join the cache on first use.
-const CORE = [
-  "/",
-  "/manifest.webmanifest",
-  "/icons/icon.svg",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-  "/icons/icon-maskable-512.png",
-];
+const PREFIX = "krystal-cinema-build-";
+const CACHE = PREFIX + BUILD.version;
 
-// The only paths served from the cache: files the deploy wrote, none of them anything the API
-// computes.
-const CACHEABLE = ["/assets/", "/icons/", "/splash/"];
-const CACHEABLE_EXACT = ["/manifest.webmanifest"];
+// The build's files, by path: the only requests ever answered from the cache.
+const BUILT = new Set(BUILD.files);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      // One missing file must not wedge the install.
-      .then((cache) => Promise.allSettled(CORE.map((url) => cache.add(url))))
+      // Fetched past the HTTP cache, so the worker holds what this deploy serves. One file failing
+      // fails the install, which leaves the worker before it, and its whole build, in place.
+      .then((cache) => cache.addAll(BUILD.files.map((url) => new Request(url, { cache: "reload" }))))
       .then(() => self.skipWaiting())
   );
 });
@@ -60,43 +54,23 @@ self.addEventListener("fetch", (event) => {
 
   if (req.method !== "GET" || url.origin !== self.location.origin) return;
 
-  // A page: from the network, and the cached shell when that fails. Only the shell itself becomes
-  // the offline copy, since an error page stored under "/" would be what the installed app opens as
-  // whenever the host is down. The server answers every page with the same index, so one copy under
-  // "/" stands for all of them.
+  // A page: from the network, and this build's index when that fails or is answered with anything
+  // but a page (a gateway's error for a server that is down). The server answers every page
+  // with the same index, so the one copy under "/" stands for all of them. It is never replaced from
+  // a page load: it has to be the index whose chunks this build's cache holds.
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req)
-        .then((res) => {
-          if (isShell(res)) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put("/", copy));
-          }
-          return res;
-        })
-        .catch(() => caches.match("/"))
+        .then((res) => (isShell(res) ? res : caches.match("/", { cacheName: CACHE }).then((shell) => shell || res)))
+        .catch(() => caches.match("/", { cacheName: CACHE }))
     );
     return;
   }
 
-  const cacheable = CACHEABLE.some((p) => url.pathname.startsWith(p)) || CACHEABLE_EXACT.includes(url.pathname);
-  if (!cacheable) return;
+  if (!BUILT.has(url.pathname) || url.pathname === "/") return;
 
-  // Static files: from the cache, refreshed behind it.
-  event.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req)
-        .then((res) => {
-          if (res && res.status === 200 && res.type === "basic") {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
-          }
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
-  );
+  // A file of the build: from the cache, and from the network for one the cache somehow lacks.
+  event.respondWith(caches.match(url.pathname, { cacheName: CACHE }).then((cached) => cached || fetch(req)));
 });
 
 // A push: the API's notification, shown as it was worded, opening the page it names. A browser

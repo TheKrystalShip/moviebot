@@ -5,7 +5,7 @@ import { useLoad } from "../data.js";
 import { libraryPath, listPath, moviePath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, since } from "../time.js";
-import { ContinueCard, Empty, Failed, FilmCard, PosterArt, ShowCard, watchLink } from "../components/Film.jsx";
+import { ContinueCard, Empty, Failed, FilmCard, PosterArt, ShowCard, WatchButton, watchLink } from "../components/Film.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
 import { MoreTile } from "../components/TitleCards.jsx";
 import { BellButton } from "../components/Bell.jsx";
@@ -157,9 +157,9 @@ function Featured({ title, room }) {
           ? <span className="kc-featured__starring">Directed by <b>{d.directors.join(", ")}</b></span>
           : film.starring && <span className="kc-featured__starring">Starring <b>{film.starring}</b></span>}
         <div className="kc-actions">
-          <Button variant="primary" size="lg" icon={room ? "users" : "play"} {...watchLink(title.id, room && room.sessionId)}>
+          <WatchButton variant="primary" size="lg" icon={room ? "users" : "play"} titleId={title.id} sessionId={room && room.sessionId}>
             {room ? "Join the room" : "Watch"}
-          </Button>
+          </WatchButton>
           <Button size="lg" icon="info" {...linkProps(moviePath(title.id))}>
             More info
           </Button>

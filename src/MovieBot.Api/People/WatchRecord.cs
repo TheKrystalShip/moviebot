@@ -108,6 +108,37 @@ public sealed class WatchRecord : IPlayHistory, IDisposable
         }
     }
 
+    /// <summary>
+    /// Notes where somebody got to while watching away from any room, when it is newer than what is
+    /// held: a device reports what it watched once it is back online, which may be after the person
+    /// has watched further somewhere else. The film's last play moves only forward too. False when
+    /// what is held is as new or newer.
+    /// </summary>
+    public bool RecordIfNewer(string userId, string titleId, double positionSeconds, double durationSeconds, DateTimeOffset at)
+    {
+        if (durationSeconds <= 0) return false;
+        var position = Math.Clamp(positionSeconds, 0, durationSeconds);
+
+        lock (_gate)
+        {
+            if (!_data.People.TryGetValue(userId, out var films))
+                _data.People[userId] = films = [];
+            if (films.TryGetValue(titleId, out var held) && held.LastWatchedAt >= at) return false;
+
+            films[titleId] = new WatchEntry
+            {
+                PositionSeconds = position,
+                DurationSeconds = durationSeconds,
+                LastWatchedAt = at,
+                Finished = position >= durationSeconds * FinishedFraction
+            };
+            if (!_data.Titles.TryGetValue(titleId, out var play) || play.LastPlayedAt < at)
+                _data.Titles[titleId] = new TitlePlay { LastPlayedAt = at, LastPlayedBy = userId };
+            Schedule();
+            return true;
+        }
+    }
+
     /// <summary>One person's films, newest first.</summary>
     public IReadOnlyList<(string TitleId, WatchEntry Entry)> Entries(string userId)
     {

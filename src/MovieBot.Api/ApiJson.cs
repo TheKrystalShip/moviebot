@@ -84,6 +84,12 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 [JsonSerializable(typeof(Lists.SaveEntryRequest))]
 [JsonSerializable(typeof(Lists.ListMemberRequest))]
 [JsonSerializable(typeof(Shows.EpisodeNeighbours))]
+[JsonSerializable(typeof(Offline.OfflineOffer))]
+[JsonSerializable(typeof(Offline.OfflineSaveRequest))]
+[JsonSerializable(typeof(Offline.OfflinePackage))]
+[JsonSerializable(typeof(Offline.OfflineSave))]
+[JsonSerializable(typeof(List<Offline.OfflineSave>))]
+[JsonSerializable(typeof(List<Offline.OfflineProgress>))]
 [JsonSerializable(typeof(List<Participant>))]
 [JsonSerializable(typeof(List<RoomSummary>))]
 // Hub arguments and the clock the hub answers with.

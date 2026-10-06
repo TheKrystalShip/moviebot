@@ -17,6 +17,7 @@ using TheKrystalShip.MovieBot.Acquire.Configuration;
 using TheKrystalShip.MovieBot.Acquire.Subtitles;
 using TheKrystalShip.MovieBot.Api.Media;
 using TheKrystalShip.MovieBot.Api.Notifications;
+using TheKrystalShip.MovieBot.Api.Offline;
 using TheKrystalShip.WebPush;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Shows;
@@ -223,6 +224,17 @@ builder.Services.AddSingleton(sp => new ListStore(
     sp.GetRequiredService<ILogger<ListStore>>()));
 builder.Services.AddSingleton<ListPresenter>();
 
+// Save offline: what each person saved onto which device, the tracks measured for it, and the
+// transfers under way, which yield to the rooms.
+builder.Services.AddOptions<OfflineOptions>().Bind(builder.Configuration.GetSection(OfflineOptions.Section));
+builder.Services.AddSingleton(sp => new OfflineSaves(
+    StatePath(sp.GetRequiredService<IOptions<OfflineOptions>>().Value.Path, "offline.json"),
+    sp.GetRequiredService<IOptionsMonitor<OfflineOptions>>(),
+    sp.GetRequiredService<ILogger<OfflineSaves>>()));
+builder.Services.AddSingleton<ISaveHolds>(sp => sp.GetRequiredService<OfflineSaves>());
+builder.Services.AddSingleton<TrackIndexes>();
+builder.Services.AddSingleton<Transfers>();
+
 // The Activity's way in: its SDK code is redeemed with Cinema's own Discord application, whose client
 // id is the application id the settings file names once for the bot and the API together, and the
 // Discord token it buys is exchanged at the provider for one of the provider's.
@@ -379,6 +391,7 @@ app.MapShows();
 app.MapFollows();
 app.MapLists();
 app.MapNotifications();
+app.MapOffline();
 
 // Every room, for the bot as much as the site: it holds no state of its own, so what to say about
 // rooms it reads from here each time it is about to say it.

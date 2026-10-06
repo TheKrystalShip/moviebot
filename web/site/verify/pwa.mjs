@@ -49,8 +49,11 @@ const check = (ok, line) => { if (!ok) failed++; console.log(`${ok ? "âœ“" : "âœ
 
 const browser = await chromium.launch({ executablePath: chromePath() });
 const context = await browser.newContext();
+// A signed-out page leaves for the provider; held at the origin, it stays the page being measured.
+await context.route((url) => url.origin !== ORIGIN, (route) => route.abort());
 const page = await context.newPage();
 await page.goto(ORIGIN + "/", { waitUntil: "load" });
+await page.waitForLoadState("networkidle").catch(() => {});
 console.log(`${ORIGIN}, settled on ${new URL(page.url()).pathname}\n`);
 
 // The manifest, as Chrome parses it.
@@ -116,6 +119,21 @@ if (sw) {
   }, NEVER);
   check(result.controlled, "the worker controls the page after a reload");
   check(result.urls.includes("/") && result.urls.some((u) => u.startsWith("/assets/")), "the shell and the build's assets are kept for offline");
+
+  // The whole build: every file the build wrote into the worker's list is in its cache once it is
+  // installed, the player's lazy chunk, the fonts and the icons among them, and nothing else is.
+  const source = await (await fetch(ORIGIN + "/sw.js")).text();
+  const listed = source.match(/const BUILD = (\{.*?\});/);
+  const build = listed ? JSON.parse(listed[1]) : null;
+  check(!!build && build.version !== "dev" && build.files.length > 0, build ? `the worker lists build ${build.version}, ${build.files.length} files` : "the worker carries no build list");
+  if (build) {
+    const missing = build.files.filter((f) => !result.urls.includes(f));
+    check(missing.length === 0, missing.length ? `the build's files not kept: ${missing.join(", ")}` : "every file of the build is kept");
+    check(build.files.some((f) => /\/assets\/PlayerPage-.*\.js$/.test(f)), "the player's chunk is in the build's list");
+    check(build.files.some((f) => /\.(ttf|woff2?)$/.test(f)), "the fonts are in the build's list");
+    const extra = result.urls.filter((u) => !build.files.includes(u));
+    check(extra.length === 0, extra.length ? `kept beyond the build: ${extra.join(", ")}` : "nothing is kept beyond the build");
+  }
   const kept = NEVER.filter((p) => result.urls.includes(p));
   check(kept.length === 0, kept.length ? `kept routes it must not: ${kept.join(", ")}` : "kept none of the API, media, hub or health routes");
 

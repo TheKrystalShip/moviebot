@@ -488,7 +488,12 @@ button.kc-episode:disabled { cursor: progress; }
   width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--border-strong);
   display: flex; align-items: center; justify-content: center; color: var(--fg-2);
 }
+/* A season whose episodes can be saved offline: each row has Save offline's place at its end. */
+.kc-episode-line { display: flex; align-items: center; border-top: 1px solid var(--border-subtle); margin-top: -1px; }
+.kc-episode-line > .kc-episode { flex: 1; min-width: 0; border-top: 0; margin-top: 0; padding-right: 8px; }
+.kc-episode-save { flex: none; width: 40px; margin-right: 12px; display: flex; justify-content: center; }
 @media (max-width: 720px) {
+  .kc-episode-save { margin-right: 6px; }
   .kc-episode { grid-template-columns: 22px 96px minmax(0, 1fr) 30px; gap: 10px; padding: 10px 12px; }
   .kc-episode__still { width: 96px; }
   .kc-episode__progress, .kc-episode__score, .kc-episode__runtime { display: none; }
@@ -646,3 +651,29 @@ button.kc-episode:disabled { cursor: progress; }
   .kc-cue-style { grid-template-columns: minmax(0, 1fr); }
   .kc-cue-style .kc-cue-preview { position: relative; top: auto; }
 }
+
+/* ── Offline ── the banner holds the top of the column while it scrolls; a place or a control that
+   needs the server is drawn dimmed and takes no press. */
+.kc-offline-banner {
+  position: sticky; top: 0; z-index: 5; justify-content: center;
+  background: var(--canvas); border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+}
+.kc-nav-off { opacity: 0.4; }
+.tabbar .tabbar__tab:disabled { opacity: 0.4; }
+.kc-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.kc-fieldset:disabled .k-btn, .kc-fieldset:disabled .showcase-card__tool,
+.kc-fieldset:disabled .showcase-card__cta--act, .kc-fieldset:disabled .kc-segmented { opacity: 0.5; }
+.kc-offline-space { justify-content: flex-end; }
+
+/* ── Save offline ── the picker's lists, each choice's size at its end, and a save's progress. */
+.kc-save-pick { display: flex; flex-direction: column; gap: 16px; }
+.kc-save-pick__list { display: flex; flex-direction: column; gap: 8px; }
+.kc-save-pick__list--long { max-height: 220px; overflow-y: auto; padding-right: 4px; }
+.kc-save-pick__list .k-check { width: 100%; }
+.kc-save-pick__list .k-check__label { display: flex; flex: 1; gap: 12px; min-width: 0; }
+.kc-save-pick__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kc-save-pick__size { flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--fg-3); }
+.kc-save-pick__total { font-family: var(--font-mono); font-size: 12.5px; }
+.kc-save-progress { height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; margin-bottom: 10px; }
+.kc-save-progress > span { display: block; height: 100%; background: var(--krystal-teal); transition: width 0.25s linear; }

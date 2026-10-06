@@ -41,6 +41,7 @@ public sealed class LibraryClock(
     TitleLibrary library,
     IPlayHistory history,
     SessionStore sessions,
+    Offline.ISaveHolds saves,
     IOptions<LibraryOptions> options,
     TimeProvider clock)
 {
@@ -51,14 +52,16 @@ public sealed class LibraryClock(
     public DateTimeOffset? LeavesAt(string id) => IsSettled(id) ? SettledLeavesAt(id) : null;
 
     /// <summary>
-    /// The ids of the settled titles whose time is up and that no room holds. A title a room holds is
-    /// never due, whether or not anybody is in the room this second, and neither is anything that
-    /// leaves with it: a room on one episode holds its whole season.
+    /// The ids of the settled titles whose time is up and that no room and no save holds. A title a
+    /// room holds is never due, whether or not anybody is in the room this second, and neither is
+    /// anything that leaves with it: a room on one episode holds its whole season. A save still being
+    /// made holds its title the same way, because the device is copying it file by file.
     /// </summary>
     public IReadOnlyList<string> Due()
     {
         var now = clock.GetUtcNow();
         var held = sessions.Summaries().Select(r => r.TitleId).OfType<string>()
+            .Concat(saves.Holding(now))
             .Select(id => library.UnitOf(id) ?? id)
             .ToHashSet(StringComparer.Ordinal);
 

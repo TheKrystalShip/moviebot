@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
+import { useOnline } from "../connectivity.js";
 import { useCan } from "../session.js";
 import { wishWords } from "../pages/Discover.jsx";
 import { defaultOffer, watchNow } from "../watchNow.js";
@@ -15,7 +16,9 @@ import { SaveButton } from "./SaveButton.jsx";
 export function FilmActions({ imdbId, film, state }) {
   const downloading = useCan("cinema:download");
   const wishing = useCan("cinema:wish");
-  const [busy, setBusy] = React.useState(false);
+  const online = useOnline();
+  const [working, setBusy] = React.useState(false);
+  const busy = working || !online;
 
   const a = state.data;
   const offer = defaultOffer(a);

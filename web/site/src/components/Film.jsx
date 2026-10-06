@@ -1,7 +1,9 @@
 import React from "react";
 import { Button, Icon, ShowcaseCard } from "@thekrystalship/krystal-ui";
 import { episodeCode, filmName, posterUrl } from "../api.js";
-import { moviePath, roomPath, showPath } from "../paths.js";
+import { useOnline } from "../connectivity.js";
+import { useSave } from "../offline/hooks.js";
+import { moviePath, playSavedPath, roomPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, timeLeft } from "../time.js";
 
@@ -23,12 +25,30 @@ export function watchLink(titleId, sessionId, at) {
   return linkProps(watchHref(titleId, sessionId, at));
 }
 
+/**
+ * What Watch is for a title, as a control's props: its room while there is a connection; with none,
+ * the film played from this device at `at` when a finished save of it is here, and disabled when not.
+ */
+export function useWatchLink(titleId, sessionId, at) {
+  const online = useOnline();
+  const save = useSave(online ? null : titleId);
+  if (online) return watchLink(titleId, sessionId, at);
+  if (save.data && save.data.complete) return linkProps(playSavedPath(titleId, at));
+  return { disabled: true };
+}
+
+/** Watch as a button: `useWatchLink`'s target for the title, with the button's own props and words. */
+export function WatchButton({ titleId, sessionId, at, children, ...props }) {
+  return <Button {...props} {...useWatchLink(titleId, sessionId, at)}>{children}</Button>;
+}
+
 /** A film started and not finished: its artwork, how far in, how much is left, and a way back into it. */
 export function ContinueCard({ title, progress, remainingSeconds, room }) {
   const art = (title.details && title.details.backdropUrl) || posterUrl(title);
   const fraction = progress.durationSeconds > 0 ? Math.min(1, progress.positionSeconds / progress.durationSeconds) : 0;
+  const link = useWatchLink(title.id, room && room.sessionId, progress.positionSeconds);
   return (
-    <a className="kc-continue" {...watchLink(title.id, room && room.sessionId, progress.positionSeconds)}>
+    <a className="kc-continue" {...(link.disabled ? { "aria-disabled": "true" } : link)}>
       <div className="kc-poster-art kc-poster-art--wide">
         {art ? <img src={art} alt="" loading="lazy" /> : <span className="kc-poster-art__name">{filmName(title)}</span>}
         <span className="kc-continue__play"><Icon name="play" size={16} /></span>
@@ -72,6 +92,7 @@ export function FilmCard({ title, room, isNew }) {
   const progress = title.progress && !title.progress.finished && title.progress.positionSeconds > 0 ? title.progress : null;
   const poster = posterUrl(title);
   const ready = title.status === "ready";
+  const link = useWatchLink(title.id, room && room.sessionId, progress && progress.positionSeconds);
 
   const status =
     title.status === "transcoding" ? { tone: "notice", icon: "loader", label: "Still preparing" }
@@ -94,7 +115,7 @@ export function FilmCard({ title, room, isNew }) {
       ]}
       status={status}
       action={ready
-        ? { label: room ? "Join" : progress ? "Resume" : "Watch", onClick: () => navigate(watchHref(title.id, room && room.sessionId, progress && progress.positionSeconds)) }
+        ? { label: room ? "Join" : progress ? "Resume" : "Watch", onClick: link.disabled ? undefined : () => navigate(link.href) }
         : { label: "View" }} />
   );
 }
@@ -111,6 +132,7 @@ export function ShowCard({ show }) {
     : d && d.genres.length > 0 ? { label: d.genres.slice(0, 2).join(" · ") }
     : null;
   const to = resume ? resume.titleId : show.firstTitleId;
+  const link = useWatchLink(to, null, resume && resume.positionSeconds);
 
   return (
     <ShowcaseCard
@@ -123,7 +145,7 @@ export function ShowCard({ show }) {
         { icon: "layers", value: show.seasons.length, label: show.seasons.length === 1 ? "Season" : "Seasons" },
       ]}
       status={status}
-      action={{ label: resume ? "Resume" : "Watch", onClick: () => navigate(watchHref(to, null, resume && resume.positionSeconds)) }} />
+      action={{ label: resume ? "Resume" : "Watch", onClick: link.disabled ? undefined : () => navigate(link.href) }} />
   );
 }
 

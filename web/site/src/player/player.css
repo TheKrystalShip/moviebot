@@ -102,6 +102,23 @@
 }
 .mp-notice--error { border-color: var(--danger-fg); color: var(--danger-fg); }
 
+/* The room cannot be heard from: said above the film, which goes on playing what it has. */
+.mp-lost {
+  position: absolute; top: 84px; left: 50%; transform: translateX(-50%); z-index: 5;
+  display: inline-flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border-radius: 999px;
+  background: rgba(17, 22, 29, 0.92); backdrop-filter: blur(12px); border: 1px solid var(--warning-fg, var(--border-strong));
+  font-size: 13px; color: var(--fg-1); max-width: calc(100% - 32px);
+}
+.mp-lost:not(:has(.mp-lost__go)) { padding-right: 14px; }
+.mp-lost__text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-lost__go {
+  flex: none; height: 32px; padding: 0 14px; border-radius: 999px; border: none; cursor: pointer;
+  background: var(--krystal-teal); color: var(--fg-inverse); font-weight: 600; font-size: 13px;
+}
+.mp-lost__go:hover { background: var(--krystal-teal-hover); }
+.mp-frame--compact .mp-lost { top: 64px; }
+.mp-frame--tiny .mp-lost { top: 36px; font-size: 11.5px; }
+
 /* ── What a gesture is doing ── */
 .mp-gesture-skip {
   position: absolute; top: 50%; z-index: 4; pointer-events: none;

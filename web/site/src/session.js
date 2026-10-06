@@ -26,13 +26,24 @@
 // library's own user, so renewal, restoring and every caller are the same on a television as anywhere.
 // Signing out there revokes the refresh token (RFC 7009) and forgets the session; there is no provider
 // session in the television's browser to end.
+//
+// Without a connection (`connectivity.js`) a session is never ended. A token that has run out stands
+// as a stale session: the stored user's `sub`, name and actions, which is what the page draws and
+// keeps saved films by, until the connection is back and the refresh grant's answer decides. The
+// page never goes to the provider while offline, and what `/api/config` said is kept in localStorage
+// so a page opened with no connection still knows which provider's session it holds.
 
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
 import { ErrorResponse, User, UserManager, WebStorageStateStore } from "oidc-client-ts";
+import { isOnline, onReconnect, reached, unreached } from "./connectivity.js";
 import { onTv } from "./tv/tv.js";
 
 const PREFIX = "cinema.oidc.";
 const RETURN_KEY = "cinema:signin-return";
+const CONFIG_KEY = "cinema.config";
+
+/** How long the API is given to say where to sign in before the kept copy stands in. */
+const CONFIG_TIMEOUT_MS = 5000;
 
 /** How long before an access token runs out it is renewed, in seconds. */
 const RENEW_AHEAD_S = 60;
@@ -42,7 +53,10 @@ const PROVIDER_TIMEOUT_S = 10;
 
 export const sessionStore = createStore(null);
 
-/** The signed-in session: `{ token, expiresAt, user: { id, name, username }, actions }`, or null. */
+/**
+ * The signed-in session: `{ token, expiresAt, user: { id, name, username }, actions, stale }`, or
+ * null. `stale` is a session whose token ran out while there was no connection to renew it.
+ */
 export function useSession() {
   return useStore(sessionStore);
 }
@@ -64,16 +78,44 @@ let client = null;
 let renewing = null;
 let timer = null;
 
-/** What the API says about where to sign in. Asked once. */
+/**
+ * What the API says about where to sign in. Asked once, and kept, so that offline the copy from the
+ * last answer stands in.
+ */
 function config() {
-  configured ??= fetch("/api/config").then((response) => {
-    if (!response.ok) throw new Error(`MovieBot answered ${response.status}.`);
-    return response.json();
-  }).catch((error) => {
+  configured ??= (async () => {
+    const kept = keptConfig();
+    if (kept && !isOnline()) return kept;
+    let response;
+    try {
+      response = await fetch("/api/config", { signal: AbortSignal.timeout(CONFIG_TIMEOUT_MS) });
+    } catch (error) {
+      unreached();
+      if (kept) return kept;
+      throw error;
+    }
+    if (!response.ok) {
+      if (kept) return kept;
+      throw new Error(`MovieBot answered ${response.status}.`);
+    }
+    reached();
+    const answer = await response.json();
+    try { localStorage.setItem(CONFIG_KEY, JSON.stringify(answer)); } catch { /* the next page asks again */ }
+    return answer;
+  })().catch((error) => {
     configured = null;
     throw error;
   });
   return configured;
+}
+
+function keptConfig() {
+  try {
+    const kept = JSON.parse(localStorage.getItem(CONFIG_KEY) || "null");
+    return kept && kept.issuer ? kept : null;
+  } catch {
+    return null;
+  }
 }
 
 async function clientOf() {
@@ -109,9 +151,12 @@ function claimsOf(token) {
   }
 }
 
-/** The session the page holds for a user the library returned, or null for one with no usable token. */
-async function sessionFor(user) {
-  if (!user || !user.access_token || user.expired) return null;
+/**
+ * The session the page holds for a user the library returned, or null for one with no usable token.
+ * `stale` takes a user whose token has run out, for a page with no connection to renew it.
+ */
+async function sessionFor(user, { stale = false } = {}) {
+  if (!user || !user.access_token || (user.expired && !stale)) return null;
   const { actionsClaim } = await config();
   const claims = claimsOf(user.access_token) || {};
   const profile = user.profile || {};
@@ -125,6 +170,7 @@ async function sessionFor(user) {
       username: claims.preferred_username || profile.preferred_username || null,
     },
     actions: Array.isArray(listed) ? listed : typeof listed === "string" ? [listed] : [],
+    stale: !!user.expired,
   };
 }
 
@@ -133,7 +179,8 @@ function hold(session) {
   sessionStore.setState(() => session);
   if (timer) window.clearTimeout(timer);
   timer = null;
-  if (!session) return;
+  // A stale session is renewed when the connection comes back, not on a clock.
+  if (!session || session.stale) return;
   const wait = Math.max(5, session.expiresAt - Date.now() / 1000 - RENEW_AHEAD_S) * 1000;
   timer = window.setTimeout(() => { void renew(); }, wait);
 }
@@ -147,6 +194,8 @@ function renew() {
   renewing ??= (async () => {
     const manager = await clientOf();
     const before = await manager.getUser().catch(() => null);
+    // With no connection the provider is not asked, and the session stands as it is stored.
+    if (before && !isOnline()) return standStale(before);
     if (!before || !before.refresh_token) {
       hold(null);
       return null;
@@ -160,6 +209,7 @@ function renew() {
       if (!(error instanceof ErrorResponse)) {
         // The provider could not be asked: nothing is known about the session, so it is kept and
         // asked about again shortly.
+        if (!sessionStore.getState()) return standStale(before);
         timer = window.setTimeout(() => { void renew(); }, 15000);
         return sessionStore.getState();
       }
@@ -176,6 +226,26 @@ function renew() {
   })().finally(() => { renewing = null; });
   return renewing;
 }
+
+/**
+ * Holds the stored user as it stands, its token run out or not, for a page that cannot reach the
+ * provider; a session already held stays as it is. The refresh grant runs when the connection comes
+ * back (`onReconnect` below).
+ */
+async function standStale(user) {
+  const held = sessionStore.getState();
+  if (held) return held;
+  const session = await sessionFor(user, { stale: true });
+  hold(session);
+  return session;
+}
+
+// The connection back: a stale session, or one whose renewal waited on the network, is renewed now,
+// and the provider's answer decides whether it goes on.
+onReconnect(() => {
+  const session = sessionStore.getState();
+  if (session && (session.stale || session.expiresAt - Date.now() / 1000 <= RENEW_AHEAD_S)) void renew();
+});
 
 /** Picks up the session this browser holds, renewing it when its access token has run out. */
 export async function restore() {
@@ -384,6 +454,7 @@ export function sessionEnded() {
 
 /** Sends the browser to the provider to sign in, remembering where to come back to. */
 export async function beginSignIn(returnTo) {
+  if (!isOnline()) throw new Error("There is no connection to sign in over.");
   try { sessionStorage.setItem(RETURN_KEY, returnTo || "/"); } catch { /* the home page is a fine place to land */ }
   const manager = await clientOf();
   await manager.signinRedirect();

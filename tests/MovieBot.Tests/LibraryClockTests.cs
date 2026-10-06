@@ -63,8 +63,31 @@ public sealed class LibraryClockTests : IDisposable
         public DateTimeOffset RecordingSince { get; set; } = DateTimeOffset.MinValue;
     }
 
+    private readonly Saves _saves = new();
+
+    private sealed class Saves : Api.Offline.ISaveHolds
+    {
+        public HashSet<string> Held { get; } = [];
+
+        public IReadOnlySet<string> Holding(DateTimeOffset now) => Held;
+    }
+
+    [Fact]
+    public void A_title_a_save_holds_is_not_due()
+    {
+        Settle("heat-1995");
+        var clock = Clock();
+        SettledAt("heat-1995", TimeSpan.FromDays(8));
+
+        _saves.Held.Add("heat-1995");
+        Assert.Empty(clock.Due());
+
+        _saves.Held.Clear();
+        Assert.Equal(["heat-1995"], clock.Due());
+    }
+
     private LibraryClock Clock(double days = 7) => new(
-        _roots, _library, _plays, _sessions,
+        _roots, _library, _plays, _sessions, _saves,
         Options.Create(new LibraryOptions { LeaveAfterDays = days }), _time);
 
     private string Settle(string id)
@@ -226,7 +249,7 @@ public sealed class LibraryClockTests : IDisposable
     {
         var hotOnly = new MediaRoots(Hot);
         var clock = new LibraryClock(
-            hotOnly, LibraryOn(hotOnly), _plays, _sessions,
+            hotOnly, LibraryOn(hotOnly), _plays, _sessions, _saves,
             Options.Create(new LibraryOptions()), _time);
         Directory.CreateDirectory(Path.Combine(Hot, "heat-1995"));
         _time.SetUtcNow(DateTimeOffset.UtcNow.AddDays(365));

@@ -32,12 +32,13 @@ public sealed class PreferencesTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task What_the_site_sets_the_activity_reads()
     {
         using var put = await As("7002", site: true).PutAsJsonAsync("/api/me/preferences",
-            new ViewerPreferences { SubtitleLanguage = "es", QualityHeight = 720 });
+            new ViewerPreferences { SubtitleLanguage = "es", QualityHeight = 720, OfflineQualityHeight = 480 });
         put.EnsureSuccessStatusCode();
 
         var seen = await Read(As("7002", site: false));
         Assert.Equal("es", seen?.SubtitleLanguage);
         Assert.Equal(720, seen?.QualityHeight);
+        Assert.Equal(480, seen?.OfflineQualityHeight);
         Assert.Null(seen?.AudioLanguage);
 
         // Somebody else reads their own.
@@ -100,11 +101,12 @@ public sealed class PreferencesTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task A_meaningless_value_is_the_setting_left_alone()
     {
         using var put = await As("7004", site: true).PutAsJsonAsync("/api/me/preferences",
-            new ViewerPreferences { SubtitleLanguage = "  ", QualityHeight = -1 });
+            new ViewerPreferences { SubtitleLanguage = "  ", QualityHeight = -1, OfflineQualityHeight = 0 });
         var stored = await put.Content.ReadFromJsonAsync<ViewerPreferences>();
 
         Assert.Null(stored?.SubtitleLanguage);
         Assert.Null(stored?.QualityHeight);
+        Assert.Null(stored?.OfflineQualityHeight);
     }
 
     [Fact]

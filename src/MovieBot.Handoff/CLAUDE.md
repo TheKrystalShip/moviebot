@@ -153,10 +153,12 @@ not a title sequence a viewer wants to skip.
 
 ## Encoding the library again (`LibraryReencode`)
 
-`moviebot-handoff --reencode [id...]` encodes settled films again at the library's quality, from
-each film's own top rung (`Reencoder` in the ingest, which holds the measured choice of quality). A
-film is owed the pass while a rung of it records no quality or its ladder has a rung it lacks, so a
-film with only the top rung gains the step-down on the way, and a film goes over once.
+`moviebot-handoff --reencode [id...]` encodes settled films again at the library's quality, and adds
+the rungs a film's ladder has and the film lacks, from each film's own top rung (`Reencoder` in the
+ingest, which holds the measured choice of quality). A film is owed the pass while a rung of it
+records no quality or its ladder has a rung it lacks, and goes over once. A film with a rung at no
+recorded quality has its whole ladder made again, gaining any rung it lacks on the way; a film whose
+rungs all record one has only the missing rungs made, which is how the library gains `v2`.
 
 - **It runs as its own process beside the service and shares no lock with it,** so it takes only
   films the service leaves alone: settled ones, under the cold root and not the media root. The
@@ -167,6 +169,11 @@ film with only the top rung gains the step-down on the way, and a film goes over
 - **A film is swapped only when no room is playing it.** A player holding the old initialisation
   segment cannot decode the new rungs. One that is played meanwhile is left as it was and is owed
   again.
+- **A rung added beside the others is moved in whether or not a room plays the film.** The rungs
+  already there are not touched, so a player on them carries on; the master playlist and then the
+  manifest are rewritten, each through a temp file and a rename, and a player that already loaded the
+  film sees the new rung when it next loads it. A directory of the new rung's name that the manifest
+  does not list is what a pass that stopped before listing it left behind, and is replaced.
 - **The new segments are named apart** (`q23-seg00000.m4s`), because a segment is served as
   immutable and the old ones are still in caches under their own names.
 - **Everything happens on the cold disk by rename.** The rungs are written under the cold root's
@@ -188,6 +195,11 @@ The model of the two roots is `src/MovieBot.Core/CLAUDE.md`.
   break nothing, but it saturates the disk the viewer is about to read from, and waiting costs
   nothing: a finished film does not grow, and it settles on a later pass once nobody is playing it.
   If the API cannot say, nothing settles that pass.
+- **A save still being made counts as a room playing the film, and as a room holding it**
+  (`OccupiedRooms`, from `GET /api/library/saving`). A device is copying the film file by file, so
+  it is not settled, encoded again, removed by the library's clock or stripped of its source until the
+  save completes or its hold runs out; one answer read beside the rooms' keeps every pass that asks
+  about rooms honest about saves too.
 - **Nothing settles onto the cold root while a transcode writes to it.** Each film checks the ledger
   before its copy, so a transcode that begins between two copies holds the next one back, and a
   title a transcode is making is never owed a move, whichever root it is on.

@@ -9,7 +9,13 @@ import { leave } from "./leave.js";
 import { goBack, navigate, useRoute } from "./router.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { PLACES } from "./nav.js";
-import { discoverPath, homePath, libraryPath, moviePath, profilePath } from "./paths.js";
+import { OFFLINE_FLAG, discoverPath, homePath, libraryPath, moviePath, profilePath } from "./paths.js";
+import { useOnline } from "./connectivity.js";
+import { offlineSupported } from "./offline/store.js";
+import { sendProgress } from "./offline/progress.js";
+import { useOfflineSync } from "./offline/sync.js";
+import { FirstSignIn, NeedsConnection, OfflineBanner, OfflineHome, SavedShow, SavedTitle } from "./pages/Offline.jsx";
+import { SignOutDialog } from "./components/SignOutDialog.jsx";
 import { Home } from "./pages/Home.jsx";
 import { Library } from "./pages/Library.jsx";
 import { Title } from "./pages/Title.jsx";
@@ -38,7 +44,7 @@ const UNANSWERED = "The sign-in service is not answering. Try again in a moment.
 const ENDED = "Your session ended.";
 
 const place = (id) => ({ id, ...PLACES[id] });
-const HOME = ["home", "discover", "saved"].map(place);
+const HOME = ["home", "discover", "saved", ...(offlineSupported() && !onTv ? ["offline"] : [])].map(place);
 const LIBRARY = ["movies", "tv"].map(place);
 const WAITING = ["notify"].map(place);
 
@@ -68,6 +74,13 @@ const LIT = {
   list: { item: "saved", tab: "me" },
 };
 
+// What still works with no connection: Home, drawn from the device, and the profile, which leads to
+// the films saved on it. Every other place is drawn disabled.
+const REACHABLE_OFFLINE = new Set(["home", "offline", "me"]);
+
+/** What a route lights; the profile's Offline tab has a sidebar item of its own. */
+const litFor = (route) => (route.view === "profile" && route.tab === "offline" ? { item: "offline", tab: "me" } : LIT[route.view] || {});
+
 /**
  * Krystal Cinema: the shelf, the films on their way and on their way out, and the assistant. Every page
  * needs somebody signed in: one opened with nothing held leaves for the provider at once, and is where
@@ -85,20 +98,35 @@ export function App() {
   const route = useRoute();
   const embedded = route.view === "embed";
   const restored = useRestored(!embedded && route.view !== "signin");
+  const online = useOnline();
 
   const [waiting, setWaiting] = React.useState(null);
   // The last session held, which a television keeps its page drawn under while it signs in again.
   const held = React.useRef(null);
   if (session) held.current = session;
+  // The rooms this page has opened, which stay open when the connection goes: carrying on from the
+  // device is the player's to offer.
+  const opened = React.useRef(new Set());
+
+  // What was watched from the device goes to the API whenever somebody is signed in and it can be
+  // reached: on opening, and each time the connection comes back.
+  const sub = session && session.user.id;
+  React.useEffect(() => {
+    if (sub && online && !embedded) void sendProgress();
+  }, [sub, online, embedded]);
+  // The saves on this device set beside the API's records, and the ones under way carried on.
+  useOfflineSync(!embedded && !onTv);
 
   React.useEffect(() => {
-    if (!restored || session || route.view === "signin" || embedded || onTv) {
+    // With no connection nothing goes to the provider: a device with no session says a first sign-in
+    // needs one, and signs in once the connection is back.
+    if (!restored || session || route.view === "signin" || embedded || onTv || !online) {
       setWaiting(null);
       return;
     }
     if (sessionEnded()) setWaiting({ note: ENDED });
     else beginSignIn(route.href).catch(() => setWaiting({ note: UNANSWERED }));
-  }, [restored, session, route.view, route.href, embedded]);
+  }, [restored, session, route.view, route.href, embedded, online]);
 
   // The Activity proves who is watching through Discord, so it answers to no site session.
   if (embedded) return <React.Suspense fallback={<Dark />}><EmbedRoom /></React.Suspense>;
@@ -117,13 +145,18 @@ export function App() {
       </>
     );
   }
+  if (restored && !session && !online && !onTv) return <FirstSignIn />;
   if (!restored || !session) return waiting ? <Waiting note={waiting.note} returnTo={route.href} /> : <Dark />;
-  if (!can(session, "cinema:watch")) return <NoAccess onSignOut={leave} />;
-  // A room fills the screen: the film is the page, and the way out is its back button.
-  if (route.view === "room") {
+  if (!can(session, "cinema:watch")) return <><NoAccess onSignOut={leave} /><SignOutDialog /></>;
+  // A room fills the screen: the film is the page, and the way out is its back button. A saved film
+  // played from the device (`?offline=1`) is the player's alone; a room opened with no connection
+  // shows that it needs one.
+  const fromDevice = route.query.get(OFFLINE_FLAG) === "1";
+  if (route.view === "room" && (online || fromDevice || opened.current.has(route.arg))) {
+    if (!fromDevice) opened.current.add(route.arg);
     return (
       <React.Suspense fallback={<Dark />}>
-        <SiteRoom key={route.arg} room={route.arg} title={route.query.get("title")}
+        <SiteRoom key={route.arg} room={route.arg} title={route.query.get("title")} offline={fromDevice}
           onBack={() => goBack(route.query.get("title") ? moviePath(route.query.get("title")) : homePath)}
           onEmpty={() => navigate(libraryPath("film"))} />
       </React.Suspense>
@@ -133,6 +166,7 @@ export function App() {
 }
 
 function Frame({ session, route }) {
+  const online = useOnline();
   const [collapsed, setCollapsed] = useStoredFlag("cinema:sidebar:collapsed");
   const dock = useDock({ storageKey: "cinema:dock" });
   // A phone has the tab bar and no drawer, so only the right edge's swipe, the dock's, is taken.
@@ -145,11 +179,16 @@ function Frame({ session, route }) {
     if (mainRef.current) mainRef.current.scrollTop = 0;
   }, []);
 
-  const lit = LIT[route.view] || {};
+  const lit = litFor(route);
   const go = (path) => navigate(path);
-  const item = (n) => (
-    <NavItem key={n.id} icon={n.icon} label={n.label} active={lit.item === n.id} onClick={() => go(n.path)} />
-  );
+  const item = (n) => (online || REACHABLE_OFFLINE.has(n.id)
+    ? <NavItem key={n.id} icon={n.icon} label={n.label} active={lit.item === n.id} onClick={() => go(n.path)} />
+    : (
+      <div key={n.id} className="kc-nav-off" inert="" aria-disabled="true">
+        <NavItem icon={n.icon} label={n.label} active={lit.item === n.id} />
+      </div>
+    ));
+  useOfflineTabs(!online, TABS.map((t) => !REACHABLE_OFFLINE.has(t.id)));
   // A tab leaves the dock for its page. The tab of the page already open takes it back to its top.
   const tab = (t) => t.path
     ? {
@@ -200,18 +239,64 @@ function Frame({ session, route }) {
           <Dock dock={dock}>
             {dock.open && <CinemaAssistant session={session} docked dock={dock} onClose={() => dock.setOpen(false)} />}
           </Dock>
-          {!dock.open && <DockFab onClick={() => dock.setOpen(true)} />}
+          {!dock.open && online && <DockFab onClick={() => dock.setOpen(true)} />}
         </>}
         tabBar={<TabBar items={TABS.map(tab)} />}>
-        <PageStage route={route} render={(r) => <Page route={r} />} above={(r) => <Trail route={r} />} onShown={toTop} />
+        {!online && <OfflineBanner />}
+        <PageStage route={route} render={(r) => <Reachable route={r} />} above={(r) => <Trail route={r} />} onShown={toTop} />
         <SiteFooter />
       </AppShell>
       <Toasts />
+      <SignOutDialog />
     </>
   );
 }
 
 function noDrawer() {}
+
+/**
+ * Draws the tab bar's places that need the server disabled while there is no connection. krystal-ui's
+ * `TabBar` takes no disabled item, so its buttons are disabled in place, by the order `TABS` gives
+ * them; React sets no `disabled` of its own on them to undo it.
+ */
+function useOfflineTabs(offline, needsServer) {
+  const key = needsServer.join();
+  React.useLayoutEffect(() => {
+    const buttons = document.querySelectorAll(".tabbar .tabbar__tab");
+    buttons.forEach((button, i) => { button.disabled = offline && !!needsServer[i]; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offline, key]);
+}
+
+/**
+ * A page as the connection allows when it was opened. Opened with no connection it is drawn from the
+ * device (`DevicePage`), and drawn again from the server once the connection is back. Opened with one,
+ * it stays as it is when the connection goes: what it shows stands, and its controls that ask the
+ * server are disabled where they are drawn.
+ */
+function Reachable({ route }) {
+  const online = useOnline();
+  const [fromDevice, setFromDevice] = React.useState(!online);
+  React.useEffect(() => {
+    if (online && fromDevice) setFromDevice(false);
+  }, [online, fromDevice]);
+  return fromDevice ? <DevicePage route={route} /> : <Page route={route} />;
+}
+
+/** A page drawn with no connection: from the device's own store, or saying it needs a connection. */
+function DevicePage({ route }) {
+  switch (route.view) {
+    case "home": return <OfflineHome />;
+    case "movie": return <SavedTitle key={route.arg} titleId={route.arg} />;
+    case "show":
+    case "discover-show":
+      return <SavedShow key={route.arg} imdbId={route.arg} />;
+    case "profile": return <Profile tab={route.tab} fromDevice />;
+    case "about": return <About />;
+    case "notfound": return <NotFound />;
+    default: return <NeedsConnection />;
+  }
+}
 
 /**
  * Whether the session this browser holds has been picked up, renewing it first when its token has run

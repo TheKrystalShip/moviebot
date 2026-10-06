@@ -3,6 +3,7 @@ import {
   Button, Icon, IconButton, Input, Modal, Select, ShowcaseCard, Textarea, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, toast, useFilters,
 } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
+import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
 import { discoverFilmPath, listPath, moviePath, savedPath, showPath } from "../paths.js";
@@ -48,6 +49,7 @@ export function Saved() {
   const [naming, setNaming] = React.useState(false);
   const [name, setName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const online = useOnline();
 
   const create = async (e) => {
     e.preventDefault();
@@ -66,7 +68,7 @@ export function Saved() {
     <div className="kc-page">
       <PageHead title="Saved">
         {!naming && (
-          <Button size="lg" icon="list-plus" className="kc-head__action" onClick={() => setNaming(true)}>
+          <Button size="lg" icon="list-plus" className="kc-head__action" disabled={!online} onClick={() => setNaming(true)}>
             New list
           </Button>
         )}
@@ -143,6 +145,7 @@ export function ListPage({ id }) {
   const [renaming, setRenaming] = React.useState(null);
   const [people, setPeople] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const online = useOnline();
 
   useCrumb(view.data ? view.data.list.name : view.error && view.error.status === 404 ? "No such list" : null);
 
@@ -223,7 +226,7 @@ export function ListPage({ id }) {
     <div className="kc-page">
       <PageHead title={title} sub={sub}>
         {renaming === null && (
-          <div className="kc-head__action kc-list-actions">
+          <fieldset className="kc-head__action kc-list-actions kc-fieldset" disabled={!online}>
             {!list.watchLater && (
               <Button icon="users" onClick={() => setPeople(true)}>{list.members.length + 1}</Button>
             )}
@@ -236,7 +239,7 @@ export function ListPage({ id }) {
             {!owner && (
               <Button icon="log-out" onClick={leave}>Leave</Button>
             )}
-          </div>
+          </fieldset>
         )}
       </PageHead>
 

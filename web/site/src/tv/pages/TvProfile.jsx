@@ -9,8 +9,11 @@ import { TabStage } from "../../components/PageStage.jsx";
 import { panel } from "../../pages/Profile.jsx";
 import { About } from "../../pages/About.jsx";
 
-/** The profile's sections on a television: every tab but the browser's pushes, which a TV takes none of. */
-const SECTIONS = PROFILE_TAB_FACES.filter((t) => t.id !== "notifications");
+/**
+ * The profile's sections on a television: every tab but the browser's pushes and the films saved on
+ * a device, neither of which a TV takes.
+ */
+const SECTIONS = PROFILE_TAB_FACES.filter((t) => t.id !== "notifications" && t.id !== "offline");
 
 /**
  * Who is signed in and everything that is theirs, on a television: the person and their sections down

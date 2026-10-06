@@ -2,6 +2,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { Button, Icon, Input, Toggle, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
+import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { Drawer } from "./Drawer.jsx";
 
@@ -27,6 +28,7 @@ function useNarrow() {
  */
 export function SaveButton({ imdbId, kind, title }) {
   const lists = useLoad(() => api.lists(imdbId), [imdbId]);
+  const online = useOnline();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const narrow = useNarrow();
@@ -101,14 +103,14 @@ export function SaveButton({ imdbId, kind, title }) {
 
   if (!saved) {
     return (
-      <Button size="xl" icon="bookmark" disabled={busy} onClick={saveLater}>Save</Button>
+      <Button size="xl" icon="bookmark" disabled={busy || !online} onClick={saveLater}>Save</Button>
     );
   }
 
-  const menu = <SaveMenu lists={editable} busy={busy} onToggle={toggle} onCreate={create} />;
+  const menu = <SaveMenu lists={editable} busy={busy || !online} onToggle={toggle} onCreate={create} />;
   return (
     <div className="kc-follow" ref={ref}>
-      <Button variant="accent" size="xl" icon="bookmark-check" iconRight="chevron-down"
+      <Button variant="accent" size="xl" icon="bookmark-check" iconRight="chevron-down" disabled={!online}
         aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
         Saved
       </Button>

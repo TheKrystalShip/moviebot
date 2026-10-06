@@ -32,6 +32,9 @@ public static class CinemaActions
     /// <summary>Browse the library, open and move rooms, play films.</summary>
     public const string Watch = "cinema:watch";
 
+    /// <summary>Save a film onto a device and fetch its tracks whole.</summary>
+    public const string Offline = "cinema:offline";
+
     /// <summary>Start a download, and search the tracker for one.</summary>
     public const string Download = "cinema:download";
 
@@ -47,6 +50,7 @@ public static class CinemaActions
     public static readonly IReadOnlyList<CinemaAction> All =
     [
         new(Download, "Download films and shows", "execute"),
+        new(Offline, "Save films onto a device to watch without a connection", "execute"),
         new(ProfileRead, "Read your own history, preferences and notifications", "read", Self: true),
         new(ProfileWrite, "Change your own preferences, history, lists and notifications", "write", Self: true),
         new(Watch, "Watch films and open rooms", "execute"),

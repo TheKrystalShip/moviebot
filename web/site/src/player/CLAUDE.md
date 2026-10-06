@@ -12,8 +12,9 @@ Everything that differs between the site and the Activity is behind `Environment
 (`engine/environment.ts`): where the API is, how a manifest-relative media path becomes a URL, which
 room this is, which film the launch named and where in it to start, whether it is a television, who the viewer is, a good access token
 (`freshToken`) and which Cinema actions it holds (`holds`), the link that hands the room to someone
-else, where their presence is shown, and how the film is held sideways on a phone. Nothing else reads
-`location` or builds a URL. The site's room is the address and its viewer whoever signed in; the
+else, where their presence is shown, how the film is held sideways on a phone, and what the device
+keeps for the viewer (`solo`, `deviceCopy`, `keptPreferences`, `online`, `resumeAt`,
+`recordProgress`, below). Nothing else reads `location` or builds a URL. The site's room is the address and its viewer whoever signed in; the
 Activity's room is the voice channel and its viewer whoever the token the API exchanged for its Discord
 sign-in names, so `engine/discordEnvironment.ts` is the other implementation and nothing more. The
 viewer's id and name are the token's `sub` and `name` on both, and the hub takes them from the
@@ -185,6 +186,47 @@ connection's token rather than from anything the page sends.
   between the site and the Activity; the track picked for a film is held in `localStorage` per title,
   because a track id means nothing outside the film it came from. Volume and brightness stay in the
   browser: they are about the speakers and the screen in front of the person.
+
+## Playing from the device
+
+A film saved whole on the device (`src/offline/CLAUDE.md`) plays from it, alone or in a room.
+`deviceCopy.js` reads the save for the signed-in account into a `DeviceCopy`
+(`engine/media/deviceLoader.ts`): the saved manifest, each track's file with its segment index, and
+the subtitles, the preview sheet and the poster by the path each stands for. A save under way, or a
+track whose file is not the length the package says, is no copy at all.
+
+- **The device answers before the server.** `engine/media/devicePlaylist.ts` builds each saved
+  track's playlist from its index: one VOD playlist of byte ranges of `track.mp4`, the init segment at
+  offset 0 and each segment at the init segment's length plus every segment before it. The loader
+  (`deviceLoader`) answers those playlists and each range with a slice of the track's `File`, which
+  reads that range and nothing else, at the very addresses the server's playlists sit at, and hands
+  any other address to the ticketed loader. The master is composed from the manifest, so nothing at
+  all is asked of the server for what the device holds. The film is held on the saved rung, which is
+  the only one the quality menu offers. Only hls.js can be fed this way: where the browser plays HLS
+  itself a film is never played from the device.
+- **Alone, the timeline is the film's own** (`engine/session/local.ts`, `Environment.solo`, the
+  address's `offline=1`). It answers play, pause and seek as the hub does, with the state each leads
+  to, and the sync controller applies it exactly as it applies a room's: the rules above hold
+  unchanged, and none of them is written twice. A seek is granted whole, since the film is whole;
+  nothing is sent anywhere; no ticket is fetched; the controller is never told the timeline is live,
+  so it corrects no drift, and a film waiting on the disk waits rather than skipping. The room's
+  viewers, the invite, the announcements, episodes either side and OpenSubtitles are not drawn, the
+  join gate's press is Play, and the poster behind the frame is the saved one.
+- **Alone, the person is who the device last heard of.** Preferences are the API's while it can be
+  reached and `keptPreferences` otherwise, and a stored track choice stands only where the saved
+  copy has that track. A film named with no position starts from `resumeAt`: the newer of the
+  device's log and the API's record, from the beginning once most of it was watched.
+- **Alone, where the film got to is written down** (`recordProgress`, `src/offline/progress.js`):
+  every ten seconds while it plays, and on a pause, a seek, the end and leaving. The log is one entry
+  a title, sent with `POST /api/me/progress` whenever the site can reach the server, and an entry
+  goes once the API has answered for it.
+- **In a room, the hub keeps the timeline and the device the bytes.** Nothing about the other viewers
+  changes. The viewer reports the saved rung as the one it plays and the one it wants, since it asks
+  the server for none of the picture.
+- **A room lost is said over the film**, once the hub has been reconnecting past a moment or at once
+  when the site knows the server cannot be reached. When the film is saved here, the same line offers
+  to carry on alone from the device, from where this viewer's playhead is, which is where the room
+  was when it was last heard: the address becomes the film's own, with `at` that position.
 
 ## Each viewer's own presence
 

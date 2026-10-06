@@ -25,9 +25,26 @@ export interface HubHandlers {
   onStatus(status: ConnectionStatus): void;
 }
 
+/**
+ * What answers for a room's timeline: the hub, or a film's own timeline when it plays alone
+ * (`local.ts`). Every act is intent, answered with the state it led to.
+ */
+export interface Timeline {
+  readonly clock: ServerClock;
+  start(): Promise<SessionStatePush>;
+  resync(): Promise<void>;
+  loadTitle(titleId: string, startSeconds?: number | null): Promise<SessionStatePush>;
+  play(atSeconds: number): Promise<SessionStatePush>;
+  pause(atSeconds: number): Promise<SessionStatePush>;
+  seek(toSeconds: number): Promise<SessionStatePush>;
+  buffering(waiting: boolean): Promise<void>;
+  reportQuality(playingHeight: number | null, wantedHeight: number | null): Promise<void>;
+  stop(): Promise<void>;
+}
+
 const ProbeIntervalMs = 30_000;
 
-export class SessionHub {
+export class SessionHub implements Timeline {
   readonly clock = new ServerClock();
 
   private connection: HubConnection;

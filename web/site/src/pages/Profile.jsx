@@ -6,7 +6,11 @@ import { useLoad } from "../data.js";
 import { accountUrl, can, useCan, useSession } from "../session.js";
 import { leave } from "../leave.js";
 import { PROFILE_TAB_FACES } from "../nav.js";
-import { moviePath, profilePath, savedPath, showPath } from "../paths.js";
+import { DEVICE_TABS, moviePath, profilePath, savedPath, showPath } from "../paths.js";
+import { useOnline } from "../connectivity.js";
+import { keptPreferences } from "../offline/preferences.js";
+import { offlineSupported } from "../offline/store.js";
+import { NeedsConnection, OfflineTab } from "./Offline.jsx";
 import { linkProps, navigate } from "../router.js";
 import { ago, airDay } from "../time.js";
 import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
@@ -16,36 +20,60 @@ import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
 import { onTv } from "../tv/tv.js";
 
-const TABS = PROFILE_TAB_FACES;
+// The Offline tab is drawn where the browser can keep saved films.
+const TABS = PROFILE_TAB_FACES.filter((t) => t.id !== "offline" || offlineSupported());
 
 /**
  * Who is signed in and everything that is theirs: what they watched, what they asked for and how they
  * like to watch. Their sign-ins are the provider's, on its account page. The tab is in the address, so
  * a tab can be linked to and reloaded.
+ *
+ * `fromDevice` is the page drawn with no connection: it opens on the Offline tab, its tabs are the ones
+ * the device holds (`DEVICE_TABS`), and a tab that needs the server, reached by its address, says so.
  */
-export function Profile({ tab: named }) {
-  const tab = named || TABS[0].id;
+export function Profile({ tab: named, fromDevice = false }) {
+  const tab = named || (fromDevice ? "offline" : TABS[0].id);
   const session = useSession();
   const user = session && session.user;
+  const tabs = fromDevice ? TABS.filter((t) => DEVICE_TABS.includes(t.id) || t.id === tab) : TABS;
+  const online = useOnline();
+
+  React.useEffect(() => {
+    if (fromDevice && !named) navigate(profilePath("offline"), { replace: true });
+  }, [fromDevice, named]);
 
   return (
     <div className="kc-page kc-profile">
       <PageHead title={user ? user.name : "Profile"} sub={user && user.username ? "@" + user.username : null}>
         <Button size="lg" icon="log-out" className="kc-head__action" onClick={leave}>Sign out</Button>
       </PageHead>
-      <a className="kc-row kc-row--link kc-profile__saved" {...linkProps(savedPath)}>
-        <Icon name="bookmark" size={18} />
-        <span className="kc-row__title">Saved</span>
-        <Icon name="chevron-right" size={18} />
-      </a>
-      <SubTabs tabs={TABS} active={tab} onChange={(id) => navigate(profilePath(id), { replace: true })} />
-      <TabStage tab={tab} render={(shown) => <div className="kc-profile__panel">{panel(shown, session)}</div>} />
+      {!fromDevice && (
+        <a className="kc-row kc-row--link kc-profile__saved" {...linkProps(savedPath)}>
+          <Icon name="bookmark" size={18} />
+          <span className="kc-row__title">Saved</span>
+          <Icon name="chevron-right" size={18} />
+        </a>
+      )}
+      <SubTabs tabs={tabs} active={tab} onChange={(id) => navigate(profilePath(id), { replace: true })} />
+      <TabStage tab={tab} render={(shown) => (
+        <div className="kc-profile__panel">
+          {fromDevice && !DEVICE_TABS.includes(shown)
+            ? <NeedsConnection />
+            : (
+              // A tab that asks the server keeps what it drew when the connection goes, and asks nothing.
+              <fieldset className="kc-fieldset" disabled={!online && !DEVICE_TABS.includes(shown)}>
+                {panel(shown, session)}
+              </fieldset>
+            )}
+        </div>
+      )} />
     </div>
   );
 }
 
 export function panel(tab, session) {
   switch (tab) {
+    case "offline": return <OfflineTab />;
     case "requests": return <Requests session={session} />;
     case "following": return <Following />;
     case "notifications": return <Notifications />;
@@ -308,6 +336,9 @@ function Notifications() {
 // so a choice made elsewhere is never shown as something else.
 const LANGUAGES = ["en", "es", "fr", "de", "it", "pt", "ca", "nl", "pl", "ru", "ja", "ko", "zh", "ar", "tr"];
 const QUALITIES = [{ value: "", label: "Auto" }, { value: "1080", label: "1080p" }, { value: "720", label: "720p" }];
+// What Save offline picks by default; a title saves the widest rung no wider than the height's 16:9
+// width (`offline/choose.js`).
+const OFFLINE_QUALITIES = [...QUALITIES, { value: "480", label: "480p" }];
 
 const languageName = (code) => {
   try { return new Intl.DisplayNames(undefined, { type: "language" }).of(code) || code; } catch { return code; }
@@ -323,13 +354,25 @@ const orNull = (value) => value || null;
 /**
  * This person's playback preferences as stored, and changing them: `change` saves a patch at once,
  * `changeSoon` shows it at once and saves once the changing pauses, since a slider dragged across its
- * range is one decision.
+ * range is one decision. With no connection they are the copy kept on the device, shown and not
+ * changed (`fixed`).
  */
 function usePreferences() {
-  const stored = useLoad(() => api.preferences(), []);
+  const session = useSession();
+  const sub = session && session.user.id;
+  const online = useOnline();
+  const stored = useLoad(() => {
+    const kept = keptPreferences(sub);
+    if (!online && kept) return Promise.resolve(kept);
+    return api.preferences().catch((error) => {
+      if (error.status === 0 && kept) return kept;
+      throw error;
+    });
+  }, [sub]);
   const [saved, setSaved] = React.useState(null);
   const pending = React.useRef(null);
   const preferences = saved || stored.data;
+  const fixed = !online;
 
   const change = async (patch) => {
     try {
@@ -346,12 +389,16 @@ function usePreferences() {
       api.setPreferences(next).then(setSaved, (error) => toast.fromError(error, "Could not save that"));
     }, 600);
   };
-  return { preferences, stored, change, changeSoon };
+  return { preferences, stored, change, changeSoon, fixed };
 }
 
-/** How a film starts for this person: its audio language, its quality, and whether intros are skipped. */
+/**
+ * How a film starts for this person: its audio language, its quality, and whether intros are skipped;
+ * and the quality Save offline picks, where this browser can save.
+ */
 function Playback() {
-  const { preferences, stored, change } = usePreferences();
+  const session = useSession();
+  const { preferences, stored, change, fixed } = usePreferences();
   if (!preferences) return <Failed error={stored.error} onRetry={stored.reload} />;
 
   const qualities = preferences.qualityHeight && !QUALITIES.some((q) => q.value === String(preferences.qualityHeight))
@@ -359,36 +406,52 @@ function Playback() {
     : QUALITIES;
 
   return (
-    <SettingsSection icon="play" title="Playback">
-      <SettingsRow icon="audio-lines" title="Audio" sub="Original is the language it was made in.">
-        <Select value={preferences.audioLanguage || ""} options={languages(preferences.audioLanguage, "Original")}
-          aria-label="Audio language" onChange={(e) => change({ audioLanguage: orNull(e.target.value) })} />
-      </SettingsRow>
-      <SettingsRow icon="gauge" title="Quality" sub="Auto lets the connection decide.">
-        <div className="kc-segmented" role="radiogroup" aria-label="Quality">
-          {qualities.map((q) => {
-            const on = (preferences.qualityHeight ? String(preferences.qualityHeight) : "") === q.value;
-            return (
-              <button key={q.value} type="button" role="radio" aria-checked={on} className={"kc-segmented__option" + (on ? " is-on" : "")}
-                onClick={() => change({ qualityHeight: q.value ? Number(q.value) : null })}>{q.label}</button>
-            );
-          })}
-        </div>
-      </SettingsRow>
-      <SettingsRow icon="skip-forward" title="Skip intros and recaps automatically">
-        <Toggle on={Boolean(preferences.skipIntros)} label="Skip intros and recaps automatically" onChange={(on) => change({ skipIntros: on })} />
-      </SettingsRow>
-    </SettingsSection>
+    <fieldset className="kc-fieldset" disabled={fixed}>
+      <SettingsSection icon="play" title="Playback">
+        <SettingsRow icon="audio-lines" title="Audio" sub="Original is the language it was made in.">
+          <Select value={preferences.audioLanguage || ""} options={languages(preferences.audioLanguage, "Original")}
+            aria-label="Audio language" onChange={(e) => change({ audioLanguage: orNull(e.target.value) })} />
+        </SettingsRow>
+        <SettingsRow icon="gauge" title="Quality" sub="Auto lets the connection decide.">
+          <Heights label="Quality" options={qualities} value={preferences.qualityHeight}
+            onChange={(height) => change({ qualityHeight: height })} />
+        </SettingsRow>
+        <SettingsRow icon="skip-forward" title="Skip intros and recaps automatically">
+          <Toggle on={Boolean(preferences.skipIntros)} label="Skip intros and recaps automatically" onChange={(on) => change({ skipIntros: on })} />
+        </SettingsRow>
+        {offlineSupported() && can(session, "cinema:offline") && (
+          <SettingsRow icon="hard-drive-download" title="Save offline" sub="Auto saves the smallest on a phone or tablet.">
+            <Heights label="Save offline quality" options={OFFLINE_QUALITIES} value={preferences.offlineQualityHeight}
+              onChange={(height) => change({ offlineQualityHeight: height })} />
+          </SettingsRow>
+        )}
+      </SettingsSection>
+    </fieldset>
+  );
+}
+
+/** A choice of heights, Auto (`""`) among them: `value` is the stored height or null. */
+function Heights({ label, options, value, onChange }) {
+  return (
+    <div className="kc-segmented" role="radiogroup" aria-label={label}>
+      {options.map((q) => {
+        const on = (value ? String(value) : "") === q.value;
+        return (
+          <button key={q.value} type="button" role="radio" aria-checked={on} className={"kc-segmented__option" + (on ? " is-on" : "")}
+            onClick={() => onChange(q.value ? Number(q.value) : null)}>{q.label}</button>
+        );
+      })}
+    </div>
   );
 }
 
 /** Subtitles for this person: the language a film starts in, and how they are drawn, with a preview. */
 function SubtitleLook() {
-  const { preferences, stored, change, changeSoon } = usePreferences();
+  const { preferences, stored, change, changeSoon, fixed } = usePreferences();
   if (!preferences) return <Failed error={stored.error} onRetry={stored.reload} />;
 
   return (
-    <>
+    <fieldset className="kc-fieldset" disabled={fixed}>
       <SettingsSection icon="languages" title="Language">
         <SettingsRow icon="captions" title="Subtitles" sub="The language to start in, when there is one.">
           <Select value={preferences.subtitleLanguage || ""} options={languages(preferences.subtitleLanguage, "Off")}
@@ -403,7 +466,7 @@ function SubtitleLook() {
           <SubtitleStyleEditor style={preferences.subtitleStyle} onChange={(subtitleStyle) => changeSoon({ subtitleStyle })} />
         </div>
       </SettingsSection>
-    </>
+    </fieldset>
   );
 }
 

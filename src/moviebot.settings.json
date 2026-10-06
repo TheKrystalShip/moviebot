@@ -208,6 +208,19 @@
     "Path": ""
   },
 
+  // Save offline: films copied onto a person's device. Path is the file the saves are kept in (an
+  // empty one is offline.json in the state directory). A save still being made keeps its title in the
+  // library and in place for HoldHours after it was made. A person fetches at most
+  // MaxTransfersPerPerson tracks at once and the server sends at most MaxTransfers; while a room has
+  // somebody in it, each transfer is held to MegabitsPerTransferWhileWatched (0 for no limit).
+  "Offline": {
+    "Path": "",
+    "HoldHours": 48,
+    "MaxTransfersPerPerson": 2,
+    "MaxTransfers": 4,
+    "MegabitsPerTransferWhileWatched": 20
+  },
+
   // The film database that describes a film: credits, certificate, genres, overview, artwork. The
   // API asks it, keeps what it said and the artwork under Directory (an empty one is films/ in the
   // state directory), serves its own copies, and asks again after RefreshDays. The token is a

@@ -28,7 +28,7 @@ import { createServer } from "node:http";
 import { join } from "node:path";
 
 /** Every Cinema action: what the person a check signs in holds unless it names fewer. */
-export const EVERYTHING = ["cinema:watch", "cinema:download", "cinema:wish", "cinema:profile.read", "cinema:profile.write"];
+export const EVERYTHING = ["cinema:watch", "cinema:download", "cinema:wish", "cinema:offline", "cinema:profile.read", "cinema:profile.write"];
 
 /** The client the site signs in as, by the API's default. */
 export const SITE_CLIENT = "cinema-site";

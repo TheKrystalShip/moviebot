@@ -24,9 +24,10 @@ Three docs beside this one, each the authority for its own part: `docs/api-contr
 `MovieBot.Api` serves on the wire, `web/site/README.md` for Krystal Cinema, the site, and its player,
 which is also the Discord Activity, and `src/MovieBot.Bot/README.md` for the Discord surface. **The
 rules each part rests on live in a `CLAUDE.md` beside its code**: `deploy/`, `src/MovieBot.Api/` (with
-`Sessions/`, `Subtitles/`, `Acquisition/` and `Transcode/`), `src/MovieBot.Core/` (the two disks),
-`src/MovieBot.Ingest/`, `src/MovieBot.Handoff/`, `src/MovieBot.Assistant/` (with the wire it serves),
-`src/MovieBot.Bot/` (and each of its feature directories), and `web/site/src/player/`.
+`Sessions/`, `Subtitles/`, `Acquisition/`, `Transcode/` and `Offline/`), `src/MovieBot.Core/` (the
+two disks), `src/MovieBot.Ingest/`, `src/MovieBot.Handoff/`, `src/MovieBot.Assistant/` (with the wire
+it serves), `src/MovieBot.Bot/` (and each of its feature directories), `web/site/src/player/`, and
+`web/site/src/offline/` (the films saved on a device).
 `src/MovieBot.Client` is the API client the bot and the assistant share. `tv/` is the Android TV and
 Fire TV app around the site, Java built with the SDK's own tools, on a version clock of its own tagged
 `tv-v<version>`; `tv/README.md` is its authority.

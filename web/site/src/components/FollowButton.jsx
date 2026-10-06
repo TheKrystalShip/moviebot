@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, Icon, Toggle, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
+import { useOnline } from "../connectivity.js";
 import { useCan } from "../session.js";
 
 /**
@@ -9,8 +10,10 @@ import { useCan } from "../session.js";
  */
 export function FollowButton({ imdbId, title, follow, onChange }) {
   const downloading = useCan("cinema:download");
+  const online = useOnline();
   const [open, setOpen] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
+  const [working, setBusy] = React.useState(false);
+  const busy = working || !online;
   const ref = React.useRef(null);
 
   React.useEffect(() => {
@@ -57,7 +60,7 @@ export function FollowButton({ imdbId, title, follow, onChange }) {
 
   return (
     <div className="kc-follow" ref={ref}>
-      <Button variant="accent" size="xl" icon="bell-ring" iconRight="chevron-down"
+      <Button variant="accent" size="xl" icon="bell-ring" iconRight="chevron-down" disabled={!online}
         aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
         Following
       </Button>

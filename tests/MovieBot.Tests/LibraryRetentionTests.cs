@@ -47,6 +47,7 @@ public sealed class LibraryRetentionTests : IDisposable
     {
         public string Due { get; set; } = "[]";
         public string Rooms { get; set; } = "[]";
+        public string Saving { get; set; } = "[]";
         public HttpStatusCode DueStatus { get; set; } = HttpStatusCode.OK;
         public bool RoomsDown { get; set; }
 
@@ -61,6 +62,9 @@ public sealed class LibraryRetentionTests : IDisposable
 
             if (path.EndsWith("api/library/due", StringComparison.Ordinal))
                 return Task.FromResult(Json(DueStatus, Due));
+
+            if (path.EndsWith("api/library/saving", StringComparison.Ordinal))
+                return Task.FromResult(Json(HttpStatusCode.OK, Saving));
 
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
         }
@@ -89,6 +93,18 @@ public sealed class LibraryRetentionTests : IDisposable
 
         Assert.False(Directory.Exists(due));
         Assert.True(Directory.Exists(other));
+    }
+
+    [Fact]
+    public async Task A_due_film_a_save_holds_stays_and_a_saving_list_that_cannot_be_read_deletes_nothing()
+    {
+        var film = Title(Cold, "heat-1995");
+
+        await Library(new Api { Due = """["heat-1995"]""", Saving = """["heat-1995"]""" }).SweepAsync(CancellationToken.None);
+        Assert.True(Directory.Exists(film));
+
+        await Library(new Api { Due = """["heat-1995"]""", Saving = "not json" }).SweepAsync(CancellationToken.None);
+        Assert.True(Directory.Exists(film));
     }
 
     [Fact]

@@ -19,6 +19,12 @@ public sealed record ViewerPreferences
     public int? QualityHeight { get; init; }
 
     /// <summary>
+    /// The quality Save offline picks by default, as a height at 16:9, or null for the device's own
+    /// default. The site matches it to the widest rung no wider than that height's 16:9 width.
+    /// </summary>
+    public int? OfflineQualityHeight { get; init; }
+
+    /// <summary>
     /// Whether an intro or a recap is skipped on its own when this person is the only one in the room.
     /// With anybody else there the player offers the skip and leaves it to a press.
     /// </summary>
@@ -33,6 +39,7 @@ public sealed record ViewerPreferences
         SubtitleLanguage = string.IsNullOrWhiteSpace(SubtitleLanguage) ? null : SubtitleLanguage.Trim(),
         AudioLanguage = string.IsNullOrWhiteSpace(AudioLanguage) ? null : AudioLanguage.Trim(),
         QualityHeight = QualityHeight is > 0 ? QualityHeight : null,
+        OfflineQualityHeight = OfflineQualityHeight is > 0 ? OfflineQualityHeight : null,
         SubtitleStyle = SubtitleStyle?.Normalised(),
     };
 }

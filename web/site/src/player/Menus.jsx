@@ -169,7 +169,10 @@ function SubtitleOptions({ view, room, onStyle }) {
   const [fetching, setFetching] = React.useState(null);
   const film = manifest.id;
 
+  // A film played alone has the subtitles saved with it; fetching more is the room's.
+  const alone = view.solo;
   React.useEffect(() => {
+    if (alone) return undefined;
     let live = true;
     setFound(null);
     setFailure(null);
@@ -178,7 +181,7 @@ function SubtitleOptions({ view, room, onStyle }) {
       .then((answer) => { if (live) setFound(answer); })
       .catch((error) => { if (live) setFailure(error instanceof Error ? error.message : "OpenSubtitles did not answer."); });
     return () => { live = false; };
-  }, [film, room]);
+  }, [film, room, alone]);
 
   const take = async (candidate) => {
     setFetching(candidate.fileId);
@@ -210,8 +213,8 @@ function SubtitleOptions({ view, room, onStyle }) {
           <Icon name="chevron-right" size={15} />
         </button>
       </div>
-      <div className="mp-menu__section">OpenSubtitles</div>
-      <div className="mp-menu__list">
+      {!alone && <div className="mp-menu__section">OpenSubtitles</div>}
+      {!alone && <div className="mp-menu__list">
         {failure && <div className="mp-menu__message">{failure}</div>}
         {!failure && found === null && <div className="mp-menu__message"><Icon name="loader-circle" size={14} className="mp-spin" />Looking</div>}
         {!failure && found && offered.length === 0 && <div className="mp-menu__message">{found.explanation || "Nothing more to offer for this film."}</div>}
@@ -235,7 +238,7 @@ function SubtitleOptions({ view, room, onStyle }) {
               : <span className="mp-option__state"><Icon name="download" size={15} /></span>}
           </button>
         ))}
-      </div>
+      </div>}
     </>
   );
 }

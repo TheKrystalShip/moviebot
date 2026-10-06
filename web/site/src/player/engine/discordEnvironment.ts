@@ -205,6 +205,13 @@ export async function createDiscordEnvironment(
       const lock = (lock_state: 1 | 3) => void sdk.commands.setOrientationLockState({ lock_state }).catch(() => {});
       lock(Common.OrientationLockStateTypeObject.LANDSCAPE);
       return { enter: () => {}, release: () => lock(Common.OrientationLockStateTypeObject.UNLOCKED) };
-    }
+    },
+    // The Activity runs at Discord's origin, where nothing is saved: every film is the room's.
+    solo: false,
+    deviceCopy: () => Promise.resolve(null),
+    keptPreferences: () => null,
+    online: () => navigator.onLine,
+    resumeAt: () => Promise.resolve(null),
+    recordProgress: () => {}
   };
 }

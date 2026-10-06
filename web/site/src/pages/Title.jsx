@@ -1,5 +1,4 @@
 import React from "react";
-import { Button } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
@@ -7,12 +6,13 @@ import { tvPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
-import { Empty, Failed, PosterArt, watchLink } from "../components/Film.jsx";
+import { Empty, Failed, PosterArt, WatchButton } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
+import { SaveOffline, useOffersSaving } from "../components/SaveOffline.jsx";
 
 /**
- * One film in the library: what it is, who made it and who is in it, and watch.
+ * One film in the library: what it is, who made it and who is in it, watch, and Save offline.
  *
  * What the film is comes from the film database through the API, which keeps it; what is on this
  * server — its length, its picture, its size, how far this person got — comes from the library.
@@ -25,6 +25,7 @@ export function Title({ id }) {
   const rooms = useLoad(() => api.rooms(), [id]);
   const session = useSession();
   const me = session && session.user;
+  const saving = useOffersSaving();
 
   useCrumb(manifest.data
     ? (details.data && details.data.title) || (manifest.data.film && manifest.data.film.name) || manifest.data.title
@@ -96,13 +97,14 @@ export function Title({ id }) {
 
             <div className="kc-actions">
               {m.status !== "failed" && (
-                <Button variant="primary" size="xl" icon={room ? "users" : "play"}
-                  {...watchLink(m.id, room && room.sessionId, progress && progress.positionSeconds)}>
+                <WatchButton variant="primary" size="xl" icon={room ? "users" : "play"}
+                  titleId={m.id} sessionId={room && room.sessionId} at={progress && progress.positionSeconds}>
                   {room ? `Join the room (${room.participants})` : progress ? "Resume" : "Watch"}
                   {!room && progress && <span className="kc-btn__sub">{timeLeft(m.durationSeconds - progress.positionSeconds)}</span>}
-                </Button>
+                </WatchButton>
               )}
               {film.imdbId && <SaveButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
+              {saving && m.status === "ready" && <SaveOffline titleId={m.id} name={filmName(m)} />}
             </div>
             {played && (
               <span className="kc-note">Played {ago(played.at)} by {playedBy}</span>

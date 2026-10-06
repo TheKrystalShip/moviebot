@@ -18,6 +18,7 @@ npm run verify:routes  # every address, cold and by its flows, against a scratch
 npm run verify:mobile  # every page on iPhones and Galaxies, against a scratch site (verify/mobile/)
 npm run verify:pwa     # installable, and the service worker keeps only what it may (verify/pwa.mjs)
 npm run verify:tv      # every page driven by a remote's keys alone, against a scratch site (verify/tv.mjs)
+npm run verify:offline # the installed app with no connection and with the API down, against a scratch site (verify/offline.mjs)
 ```
 
 The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glances`, `/catalogue` and `/hub` to the API (`MOVIEBOT_API`, default
@@ -30,8 +31,8 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glanc
 |---|---|
 | `/` | A film to watch, then a row each for where the person left off, their Watch later (with Watch on a film the library holds, and See all opening it), the rooms watching something now, what was recently added, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail`. The Movies and TV Shows rows are dealt in a new order on every visit, kept while the page is open, and end in a tile that opens Discover |
 | `/movies`, `/tv` | Every film, or every show (one card each, however many of its episodes are here), with krystal-ui's `Toolbar`: a search by name, one Filters popover (state and genre for films, genre for shows) with the active ones as chips, and a sort with its direction. With a genre picked, the grid ends in a Discover more tile opening Discover's catalogue of that genre. On a phone a Movies \| TV shows switch under the heading moves between the two |
-| `/movies/<titleId>` | One film in the library: what it is, who played it last, save, and watch or resume. An episode's id forwards to its show's page at its season |
-| `/tv/<imdbId>`, `/tv/<imdbId>/season/<n>` | One show the library holds an episode of, at a season (the default season has no segment): what it is, its seasons as chips, each season's episodes with their stills and how far this person got, and resume. Every episode plays from its row, one that has to be fetched while it is prepared, and nothing on a row says which; with nothing of the show here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them. A show the library holds nothing of forwards to its `/discover/show/` address |
+| `/movies/<titleId>` | One film in the library: what it is, who played it last, save, Save offline, and watch or resume. An episode's id forwards to its show's page at its season |
+| `/tv/<imdbId>`, `/tv/<imdbId>/season/<n>` | One show the library holds an episode of, at a season (the default season has no segment): what it is, its seasons as chips, each season's episodes with their stills and how far this person got, and resume. Every episode plays from its row, one that has to be fetched while it is prepared, and nothing on a row says which; with nothing of the show here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them. Each episode that is ready has Save offline at its row's end. A show the library holds nothing of forwards to its `/discover/show/` address |
 | `/discover/show/<imdbId>`, `/discover/show/<imdbId>/season/<n>` | The same page for a show the library holds no episode of, where its episodes are picked to download. A show the library holds an episode of forwards to its `/tv/` address |
 | `/discover/film/<imdbId>` | A film that has to be fetched: what it is, and Watch (it plays while it is prepared) when the tracker offers it, how far the preparing has got while it is under way (`preparing · N%`), or Notify when it is not out digitally yet, and Save. A film that plays now forwards to its `/movies/` address |
 | `/discover?person=<personId>` | Discover's catalogue of one person's work: their portrait, name and what they are known for, then the films and shows they are credited on, most voted on first (`/api/catalogue/people/<personId>`), each card with the part they played or the job they did, leading to its page as any other answer does. Every cast member on a film's or show's page leads here, and so does each director, writer and creator in its credits |
@@ -40,7 +41,7 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glanc
 | `/saved` | Saved: the signed-in person's lists, Watch later first, then the rest most recently changed first, each its newest posters, name and size, and whose it is when it is somebody else's; and making a new one |
 | `/saved/<id>` | One list (`later` is the person's own Watch later): its titles newest saved first under Today, Yesterday, This week and each month, with krystal-ui's `Toolbar` to search titles and notes, narrow by kind and watched, and sort. Each is a poster card with its rating, year and length, its note or when it was saved and by whom on a shared list, and Watched when the person watched it; an owner or editor writes the note in a sheet over the page and takes it off, from the card's tools. Its owner renames it, deletes it, and puts people on it as editors or viewers; a member leaves it |
 | `/notify` | The films the signed-in person is waiting on, as poster cards marked Out now with the release once one is, each with Stop waiting; and finding a film by name in the catalogue, as `/discover`'s result cards, to wait on from its page |
-| `/profile`, `/profile/<tab>` | The signed-in person; History, the first tab, has no segment: History (each film a poster card with how far the person got along its foot, when they watched it, Resume, and a way to remove it), Requests (the films they wait on, each a poster card), Following (each followed show a poster card with its next episode, whether new episodes are downloaded, switched on the card, and Unfollow), Notifications, Playback (audio language, quality, skipping intros and recaps automatically), Subtitles (the language a film starts in, and how subtitles look with a preview of them), Appearance (the theme) and Account (who is signed in, and a link to the account's page at the provider, where it is managed); every tab one column at the page's width; signing out |
+| `/profile`, `/profile/<tab>` | The signed-in person; History, the first tab, has no segment: History (each film a poster card with how far the person got along its foot, when they watched it, Resume, and a way to remove it), Offline (every film saved on this device for this account as a poster card with its quality, size and length, how far a save under way has got and what it is doing with Pause or Resume, Play once saved and Remove, and what is saved and free on the device; drawn where the browser has the Origin Private File System, never on a television), Requests (the films they wait on, each a poster card), Following (each followed show a poster card with its next episode, whether new episodes are downloaded, switched on the card, and Unfollow), Notifications, Playback (audio language, quality, skipping intros and recaps automatically, and the quality Save offline picks where the browser can save), Subtitles (the language a film starts in, and how subtitles look with a preview of them), Appearance (the theme) and Account (who is signed in, and a link to the account's page at the provider, where it is managed); every tab one column at the page's width; signing out |
 | `/about` | What the site is, and where its film details come from |
 | `/signin` | Where the identity provider sends the browser back with its code; opened on its own, it goes to the provider |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from. A room waiting on a Watch now shows the film being found, arriving and starting, and plays it on its own |
@@ -81,7 +82,22 @@ any list the button reads Saved and opens the lists the person can add to, each 
 holds the title, and New list, which makes one and saves to it: a popover beside the button on a wide
 screen, the drawer on a phone.
 
-Wide screens get around by the sidebar, which has Discover and Saved under Home. A phone has
+Save offline keeps a film or an episode on this device to play with no connection (`src/offline/`).
+It is a button beside Save on a film's page and a round button at the end of each episode's row on a
+show's page, for whoever holds `cinema:offline`, in a browser with the Origin Private File System that
+plays through hls.js, never on a television or in the Activity, and only for a title that is ready. Its
+face says where the save stands: Save offline, then Queued, Saving, Paused or Waiting with how far it
+has got, Not saved when it failed, and On this device once it is here. Pressed, it opens one sheet:
+before a save, the quality (each rung the title has, with its size), the audio tracks and the text
+subtitles, each with its size, what the save takes and what is free on the device, the person's own
+choices picked (`offline/choose.js`); a device without room is told how much the save needs, and
+cannot start it. Under way, the sheet shows the save's progress with Pause or Resume and Remove; once
+saved, Play and Remove. Safari in a tab, rather than from the Home Screen, deletes a site's saved films
+after seven days unvisited, and the picker says so there. The word Save alone is the lists'; this one
+always says Offline or On this device.
+
+Wide screens get around by the sidebar, which has Discover, Saved and Offline (Profile's Offline tab)
+under Home. A phone has
 krystal-ui's `TabBar` along its bottom edge instead, and no drawer: Home (lit on `/`),
 Library (lit under `/movies` and `/tv`), Discover (lit under `/discover`), Assistant,
 which opens the dock above the bar rather than a page, and Me (`/profile`, lit on `/notify` and
@@ -108,6 +124,14 @@ the provider refuses, and a provider that does not answer, are shown the same wa
 Signing out is the provider's: its end-session endpoint ends the person's sign-in there and every
 session minted under it, and sends the browser back to `<origin>/`, which holds nothing and goes to the
 provider's sign-in. The account's page at the provider lists its sessions, and Profile links to it.
+Somebody with films saved on the device is first asked whether to keep them for the account's next
+sign-in here or remove them.
+
+With no connection a session is never ended: one whose access token has run out stands as the stored
+user's `sub`, name and actions until the connection is back, when the refresh grant runs and its answer
+decides. The page never goes to the provider while offline, and what `/api/config` said is kept in
+`localStorage` (`cinema.config`) so the page still knows whose session it holds. A device that holds no
+session says that a first sign-in needs a connection, and signs in once there is one.
 
 The token lists the Cinema actions the person holds, in the claim `/api/config` names, and the page
 shows a control only to somebody holding the action it needs (`can` and `useCan` in `src/session.js`):
@@ -149,6 +173,12 @@ Discord launches the Activity at the root of its URL mapping. A load carrying Di
 parameters is the Activity's, so the index rewrites its address to `/embed/` before the page reads it,
 and the player signs the viewer in through the Embedded App SDK and the API rather than the site's
 session.
+
+A film saved whole on the device plays from it. Alone, at `/r/<room>?title=<id>&offline=1`, it is
+the room's player on a timeline of its own, with no hub, no ticket and no request to the server for
+the film, so it plays with no connection; where it got to is written down on the device and sent to
+the API when there is a connection. In a room, the hub keeps the timeline and the device answers for
+the bytes, and if the room is lost the film carries on alone from where the room was.
 
 How the player behaves, and why: `src/player/CLAUDE.md`.
 
@@ -212,6 +242,39 @@ the session renewing on its own and surviving a restart, signing out revoking it
 code, a provider that cannot be reached, and a session that ends under a page. `--checks` and
 `--pages` narrow a run.
 
+`npm run verify:offline` runs `verify/saving.mjs` and then `verify/offline.mjs`. The first saves a
+title through its page's picker, in a signed-in Chromium reaching the scratch API through a proxy of
+its own that holds each track to a megabyte a second: the picker's rungs and defaults, the page closed
+mid-save and the next page carrying the save on by `Range` and `If-Range`, Pause holding across a
+reload and Resume finishing it, every track on the device byte for byte its playlist's files joined,
+the API told the save is complete, a device without room refused before anything is fetched, and a
+save the API no longer lists removed when the connection comes back. It needs a title in the scratch
+library whose playlists name only files it has (`MOVIEBOT_VERIFY_SAVE_TITLE`, by default the first);
+a library linked from a checkout's `media/`, which holds a film's first segments only, has none, and
+the check says so. The second installs the worker in a signed-in Chromium against the same scratch site,
+writes saves into the Origin Private File System in the store's layout (a film, an episode and a save
+under way, with the library's own artwork and placeholder tracks), cuts the network and opens the app
+cold in a second tab: Home leading with the saves, a saved film's page and its Play address, Profile's
+Offline tab with what is saved and free, Playback from the device, a show's saved episode, every page
+that needs the server saying so, a phone's tab bar, an expired session standing, a device with no
+session asking for a connection, the connection coming back, and the connection lost on a film's page.
+The walk repeats with the network up and the API refused, then answered by a gateway's `502`, and
+checks that a `500` from the API is not offline. Each offline state is screenshotted under
+`<dir>/runs/offline-<time>/`.
+
+`npm run verify:device` saves a film through the API as the saver does (the package, each track whole
+from `track.mp4`, the subtitle and the artwork) into a signed-in Chromium's Origin Private File
+System on the same scratch site, cuts the network, and plays it from the device: it starts with the
+person's kept subtitle language, plays, seeks by key and by the bar, pauses and writes down where it
+was, resumes there when opened again, reaches its end, and asks the network for nothing; with the
+connection back, both positions reach the API. Then a room of two, one viewer streaming and one
+playing from the device: they stay together, the device's viewer asks the server for none of the film
+and reports the saved rung, and with the connection cut it carries on alone from where the room was,
+while the viewer with nothing saved is told the room cannot be reached. It needs a Chromium with H.264
+and AAC and a ready film every one of whose segments is on disk, which is what the API offers to save
+(`MOVIEBOT_VERIFY_SAVED`, by default the first such film, `clip` first), and screenshots each state
+under `<dir>/runs/device-<time>/`.
+
 `npm run verify:routes` cold-loads every address in a fresh signed-in browser and checks where it lands and
 what it draws (the heading, the sidebar item and tab lit, Not found), including every earlier shape of an
 address and every non-canonical spelling; then the flows between addresses: a season chip and a profile
@@ -235,13 +298,51 @@ The site installs as an app, Krystal Cinema, from Android Chrome's "Install app"
 - **The artwork** under `public/icons/` and `public/splash/` is written by `scripts/make-icons.mjs`
   (needs `rsvg-convert`; no build runs it): the Movies entry's clapperboard on the accent's tile. Its
   launch-screen list and the `index.html` tags mirror each other.
-- **`public/sw.js`** is the service worker. It allowlists: page loads, network first with the
-  index kept as the offline shell, and the files under `/assets/`, `/icons/` and `/splash/`, cache
-  first. Anything else, the API, a film's media and the hub among it, goes to the network untouched,
-  so a cached answer can never outlive a session or hand one person's data to another. It is
-  registered by `src/registerSW.js` in a production build only, and never in the Activity, which runs
-  inside Discord at Discord's origin. It also shows the API's pushes: the sentence as the API wrote
-  it, opening the page it names in a window of the site already open, or a new one.
+- **`public/sw.js`** is the service worker. It holds the whole build: `vite.config.js` writes every
+  file the build put in `dist/` into it (the index as `/`; source maps and the launch screens left
+  out) with a version hashed from their contents, and a worker installs only once every one of them
+  is in its cache, the player's lazy chunk, the fonts and the icons among them, so the app opened with
+  no connection never meets a chunk it has not seen. A deploy is a new version, which drops the last
+  build's cache once it activates. It allowlists: page loads, network first with this build's index
+  as the shell when the network fails or a gateway answers in the site's place, and the build's own
+  files, cache first. Anything else, the API, a film's media and the hub among it, goes to the network
+  untouched, so a cached answer can never outlive a session or hand one person's data to another, and
+  a saved film is never in its cache. It is registered by `src/registerSW.js` in a production build
+  only, and never in the Activity, which runs inside Discord at Discord's origin. It also shows the
+  API's pushes: the sentence as the API wrote it, opening the page it names in a window of the site
+  already open, or a new one.
+
+## Without a connection
+
+The installed app opens and gets around with no connection, and plays what is saved on the device.
+
+- **Knowing it is offline** (`src/connectivity.js`): no network at all (`navigator.onLine`), a call to
+  the API that fails on the network, one answered by a gateway (a `502`, `503` or `504` that is not the
+  API's JSON) or by a captive portal (an HTML page where the API answers JSON or nothing), or a probe
+  of `/api/config` unanswered in five seconds. A `500` from the API is the server answering, and is
+  not offline. While offline the probe repeats from two seconds, doubling up to a minute, and at once
+  on the browser's `online` event or the page coming back into view; anything the server answers is
+  online again.
+- **What is drawn.** A banner across the top of every page says the app is offline and that saved
+  films play. A page opened with no connection is drawn from the device: Home is the films on this
+  device, a saved film's or episode's page is drawn from its `meta.json`, a show's page lists its saved
+  episodes, Profile opens on its Offline tab with Playback, Subtitles and Appearance shown from the
+  device and changing nothing, and About is drawn as ever. Every other page, reached by an address or a
+  push, says it needs a connection and leads to the films on the device. Home, Offline and Me stay live
+  in the sidebar and the tab bar; every other place is drawn disabled. No answer of the API's is
+  cached to draw any of it.
+- **Losing the connection on a page** leaves the page as it is, and disables what asks the server on
+  it: Watch, Save, Follow, Notify, a list's controls, a profile tab's controls and the assistant. In
+  a room the player says the room cannot be reached, and when the film is saved on the device offers
+  to carry on alone from it, from where the room was.
+- **Coming back** takes the banner away, renews the session, draws again from the server every page
+  that was drawn from the device, sends where films played from the device got to, and sets the
+  device's saves beside the API's records (`offline/sync.js`): removals made offline are forgotten
+  there, a save the API no longer lists or an account that no longer holds `cinema:watch` is removed
+  from the device, and every save under way that is not paused carries on.
+- **The device's store** is `src/offline/`, whose `CLAUDE.md` is the contract between the saver, the
+  pages and the player: the layout in the Origin Private File System, `meta.json`, the read API, and
+  the address a saved film plays at (`?offline=1` on a room's).
 
 ## On a television
 
@@ -314,8 +415,9 @@ the invite went out as a push or waits in their bell, never that it was seen.
 
 Installing needs HTTPS, which localhost is exempt from. `npm run verify:pwa [origin]` asks a real
 Chromium whether the site is installable, decodes every icon and launch screen at the size it is
-named for, and drives the API, media and hub routes through the controlled page to show none of
-them was kept; it defaults to the scratch site and takes a deployed origin as readily.
+named for, drives the API, media and hub routes through the controlled page to show none of them was
+kept, and checks that every file of the build the worker lists is in its cache and nothing else is;
+it defaults to the scratch site and takes a deployed origin as readily.
 
 ## The assistant
 

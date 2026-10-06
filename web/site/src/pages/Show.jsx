@@ -1,16 +1,18 @@
 import React from "react";
 import { Button, Icon } from "@thekrystalship/krystal-ui";
 import { api, episodeCode } from "../api.js";
+import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
 import { showPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago, airDay, clock, since, timeLeft } from "../time.js";
-import { Empty, Failed, watchLink } from "../components/Film.jsx";
+import { Empty, Failed, WatchButton, useWatchLink } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
+import { SaveOfflineMark, useOffersSaving } from "../components/SaveOffline.jsx";
 import { episodeRelease, openingEpisode, watchNow, watchOpening } from "../watchNow.js";
 
 /**
@@ -37,6 +39,8 @@ export function Show({ imdbId, season, inLibrary }) {
   const [starting, setStarting] = React.useState(false);
   const session = useSession();
   const me = session && session.user;
+  const online = useOnline();
+  const saving = useOffersSaving();
 
   useCrumb(show.data ? show.data.title : show.error && show.error.status === 404 ? "No such show" : null);
 
@@ -117,13 +121,13 @@ export function Show({ imdbId, season, inLibrary }) {
 
             <div className="kc-actions">
               {play && (
-                <Button variant="primary" size="xl" icon={room ? "users" : "play"}
-                  {...watchLink(play.titleId, room && room.sessionId, play.positionSeconds)}>
+                <WatchButton variant="primary" size="xl" icon={room ? "users" : "play"}
+                  titleId={play.titleId} sessionId={room && room.sessionId} at={play.positionSeconds}>
                   {room ? `Join the room (${room.participants})` : resume ? "Resume" : "Watch"}
-                </Button>
+                </WatchButton>
               )}
               {!play && opening && (
-                <Button variant="primary" size="xl" icon="play" disabled={starting} onClick={watchFirst}>Watch</Button>
+                <Button variant="primary" size="xl" icon="play" disabled={starting || !online} onClick={watchFirst}>Watch</Button>
               )}
               {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
               {s.imdbId && <SaveButton imdbId={s.imdbId} kind="show" title={s.title} />}
@@ -156,7 +160,7 @@ export function Show({ imdbId, season, inLibrary }) {
           </div>
 
           <SeasonPanel season={current} me={me} rooms={rooms.data || []}
-            offers={offers.data} showImdbId={s.imdbId} />
+            offers={offers.data} showImdbId={s.imdbId} showName={s.title} saving={saving} />
         </section>
       )}
 
@@ -177,8 +181,11 @@ export function Show({ imdbId, season, inLibrary }) {
   );
 }
 
-/** One season: when it was last played, and its episodes with how far this person got in each. */
-function SeasonPanel({ season, me, rooms, offers, showImdbId }) {
+/**
+ * One season: when it was last played, and its episodes with how far this person got in each. With
+ * Save offline offered (`saving`), every row has its place for it at its end, so the rows line up.
+ */
+function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, saving }) {
   const played = season.episodes.map((e) => e.lastPlayed).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at))[0];
   const playedBy = played && (me && played.byId === me.id ? "you" : played.byName);
   const aired = season.airDate ? new Date(season.airDate).getFullYear() : null;
@@ -194,18 +201,31 @@ function SeasonPanel({ season, me, rooms, offers, showImdbId }) {
         </div>
       </div>
 
-      {season.episodes.map((e) => <EpisodeRow key={e.number} episode={e} rooms={rooms} offers={offers} showImdbId={showImdbId} />)}
+      {season.episodes.map((e) => {
+        const row = <EpisodeRow key={e.number} episode={e} rooms={rooms} offers={offers} showImdbId={showImdbId} />;
+        if (!saving) return row;
+        return (
+          <div key={e.number} className="kc-episode-line">
+            {row}
+            {e.titleId && e.status === "ready"
+              ? <SaveOfflineMark titleId={e.titleId} name={`${showName} · ${episodeCode(e)}`} />
+              : <span className="kc-episode-save" />}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function EpisodeRow({ episode: e, rooms, offers, showImdbId }) {
   const [starting, setStarting] = React.useState(false);
+  const online = useOnline();
   const done = e.progress && e.progress.finished;
   const fraction = done ? 1
     : e.progress && e.durationSeconds ? Math.min(1, e.progress.positionSeconds / e.durationSeconds) : 0;
   const room = e.titleId && rooms.find((r) => r.titleId === e.titleId && r.participants > 0);
   const here = !!e.titleId && e.status !== "failed";
+  const play = useWatchLink(e.titleId, room && room.sessionId, !done && e.progress ? e.progress.positionSeconds : 0);
   // An episode that has to be fetched plays while it is prepared, from the same row as any other.
   const offer = !e.titleId ? episodeRelease(offers, e.season, e.number) : null;
   const watch = async () => {
@@ -239,7 +259,8 @@ function EpisodeRow({ episode: e, rooms, offers, showImdbId }) {
     </>
   );
 
-  if (here) return <a className="kc-episode" {...watchLink(e.titleId, room && room.sessionId, !done && e.progress ? e.progress.positionSeconds : 0)}>{inner}</a>;
-  if (offer) return <button type="button" className="kc-episode kc-episode--fetch" disabled={starting} onClick={watch}>{inner}</button>;
+  // With no connection a row plays from the device when the episode is saved here, and is inert when not.
+  if (here) return play.disabled ? <div className="kc-episode is-absent">{inner}</div> : <a className="kc-episode" {...play}>{inner}</a>;
+  if (offer) return <button type="button" className="kc-episode kc-episode--fetch" disabled={starting || !online} onClick={watch}>{inner}</button>;
   return <div className="kc-episode is-absent">{inner}</div>;
 }

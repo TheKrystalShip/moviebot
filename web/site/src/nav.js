@@ -10,6 +10,7 @@ export const PLACES = {
   home: { path: homePath, icon: "house", label: "Home" },
   discover: { path: discoverPath(), icon: "compass", label: "Discover" },
   saved: { path: savedPath, icon: "bookmark", label: "Saved" },
+  offline: { path: profilePath("offline"), icon: "hard-drive-download", label: "Offline" },
   movies: { path: libraryPath("film"), icon: "clapperboard", label: "Movies" },
   tv: { path: libraryPath("show"), icon: "tv", label: "TV Shows" },
   notify: { path: notifyPath, icon: "bell-plus", label: "Notify me" },
@@ -19,6 +20,7 @@ export const PLACES = {
 
 const FACES = {
   history: { icon: "history", label: "History" },
+  offline: { icon: "hard-drive-download", label: "Offline" },
   requests: { icon: "inbox", label: "Requests" },
   following: { icon: "tv", label: "Following" },
   notifications: { icon: "bell-ring", label: "Notifications" },

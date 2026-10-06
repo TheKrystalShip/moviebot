@@ -42,6 +42,7 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET /api/me/preferences` | `ViewerPreferences` — how the token's person watches; every field absent for somebody who set nothing. |
 | `PUT /api/me/preferences` | `ViewerPreferences` → the stored `ViewerPreferences`. A blank language or a height that is not positive is stored as absent |
 | `GET /api/me/progress` | `ProgressEntry[]` — the films and episodes the token's person started and did not finish, newest first: `{titleId, name, positionSeconds, durationSeconds, remainingSeconds, lastWatchedAt, episode?, showImdbId?}`. For an episode `name` is the show's and `episode` is `{season, number}`. A title the library no longer holds is left out |
+| `POST /api/me/progress` | `204` for `[{titleId, positionSeconds, watchedAt}]`, at most 500 — where a device that watched with no connection got to. Each is recorded as a room's play is, the person's entry and the film's last play, where `watchedAt` is newer than what is held; an older one, and one for a title the library no longer holds, changes nothing. A `watchedAt` ahead of the server's clock is taken as now. `400` for a position that is negative or not a number, or more than 500 entries |
 | `GET /api/me/history` | `HistoryEntry[]` — every film and episode the token's person watched, newest first: `{titleId, name, positionSeconds, durationSeconds, finished, lastWatchedAt, episode?, showImdbId?}`, named as above. `finished` is a position past 90 % of the title |
 | `DELETE /api/me/history/{titleId}` | `204` — forgets the person's entry for the film, and so their progress in it. The film's own last play stays |
 | `GET /api/me/follows` | `FollowView[]` — the shows the token's person follows, newest follow first: `{imdbId, title, posterUrl?, since, autoDownload, nextEpisode?}`. `nextEpisode` is `{season, episode, name?, airDate}`, the episode the film database expects next |
@@ -61,6 +62,7 @@ film ignores `at`.
   "subtitleLanguage": "es",   // the subtitle language to start on when the film carries it; absent for none
   "audioLanguage": "en",      // the audio language to start on when the film carries it; absent for the film's own
   "qualityHeight": 720,       // the rung to hold the film at; absent to let the connection decide
+  "offlineQualityHeight": 480, // the rung Save offline picks: the widest no wider than this height at 16:9; absent for the device's own pick
   "skipIntros": true,         // skip an intro or recap on its own when this person is alone in the room; false when never set
   "subtitleStyle": {          // how subtitles are drawn; absent, like any field of it, for the player's own look
     "size": 125,              // percent of the player's own size, 50 to 200
@@ -102,13 +104,14 @@ the log record beside them.
 Each route names the action it needs, and a route that names none admits nobody. Without a usable token
 the answer is `401` with `WWW-Authenticate: Bearer`; with one that lacks the action, `403`. Both carry
 `{error}`. The actions are `cinema:watch` (the library, rooms, the hub, tickets and media, subtitles,
-the people a room can invite, what the film database says of a title, a person or a genre), `cinema:download` and `cinema:wish` (below), and the self
+the people a room can invite, what the film database says of a title, a person or a genre),
+`cinema:offline` (saving a film onto a device, below), `cinema:download` and `cinema:wish` (below), and the self
 actions `cinema:profile.read` and `cinema:profile.write`, which every approved account holds, for a
 person's own records under `/api/me`, `/api/lists` and push. `/.well-known/tks-actions.json` serves the
 same declarations the checks name.
 
 The **service key** (`X-MovieBot-Service`) proves machine work that names nobody and opens only the
-routes that do such work: `/api/library/due`, `/api/transcode/*`, reading the library and the rooms,
+routes that do such work: `/api/library/due`, `/api/library/saving`, `/api/transcode/*`, reading the library and the rooms,
 putting a film into a room (recorded as MovieBot) and the downloads list. It never stands
 for a person.
 
@@ -185,6 +188,101 @@ Content types are set explicitly, because the framework knows none of them and h
 segment delivered as `application/octet-stream`: `application/vnd.apple.mpegurl`,
 `video/iso.segment`, `video/mp4`, `text/vtt`.
 
+### Save offline
+
+A person keeps a film on their device and plays it there alone, with no connection. Saving one takes
+`cinema:offline`, which the provider files beside `cinema:watch`; the records of what a person saved
+are their own and take the self actions. Only a title whose status is `ready` is saved: anything else
+is a `409`.
+
+| Route | Returns |
+|---|---|
+| `GET /api/titles/{id}/offline` | `OfflineOffer` — what the title can be saved as, each track with its exact size on disk. `404` for a title the library does not hold, `409` for one not `ready`. `cinema:offline` |
+| `POST /api/me/offline` | `OfflinePackage` for `{titleId, rung, audio, subtitles, device}` — records the save and answers everything the device fetches. `rung` is one video rendition's `rendition`, `audio` one or more audio `rendition`s, `subtitles` zero or more subtitle ids, `device` the name the device goes by, 1 to 100 characters. A save of the same title on the same device replaces that one, keeping its `id`. `400` for a rendition or subtitle the title does not have, no audio, or a bad device; `404` and `409` as above. `cinema:offline` |
+| `GET /api/me/offline` | `OfflineSave[]` — every save the token's person has, on every device, newest first. `cinema:profile.read` |
+| `POST /api/me/offline/{id}/complete` | `OfflineSave` — the device holds every byte, which ends the save's hold on the title. `404` for a save that is not this person's. `cinema:profile.write` |
+| `DELETE /api/me/offline/{id}` | `204` — forgets the save, and its hold with it; also when there was none. `cinema:profile.write` |
+| `GET,HEAD /media/{id}/{rendition}/track.mp4` | one track whole: the rendition's init segment and every segment after it, joined, as `video/mp4`. Ranged (`206`, `416`), with an exact `Content-Length` and a strong `ETag`; `If-Range` with that `ETag` resumes, and with any other answers the whole track. Served `no-store`. The bearer token of somebody holding `cinema:offline` who has a save of the title, never a ticket: `409` for a person with no save of it or a title not `ready`, `404` for a rendition the title does not have, `429` with `Retry-After` past the transfers allowed at once |
+
+```jsonc
+// OfflineOffer: GET /api/titles/{id}/offline
+{
+  "titleId": "coherence-2013",
+  "rungs": [   // the title's video renditions, tallest first; whatever its manifest lists
+    { "rendition": "v0", "uri": "v0/index.m3u8", "name": "818p", "width": 1920, "height": 818, "bytes": 3333456789 },
+    { "rendition": "v1", "uri": "v1/index.m3u8", "name": "546p", "width": 1280, "height": 546, "bytes": 1339012345 }
+  ],
+  "audio": [
+    { "rendition": "a0", "uri": "a0/index.m3u8", "kind": "feature", "language": "eng", "label": "English",
+      "channels": 2, "default": true, "bytes": 163456789 }
+  ],
+  "subtitles": [   // the text subtitles that can be shown; a bitmap track is not offered
+    { "id": "s3", "kind": "feature", "language": "eng", "label": "English", "hearingImpaired": false,
+      "forced": false, "bytes": 81234 }
+  ]
+}
+
+// OfflinePackage: POST /api/me/offline
+{
+  "save": OfflineSave,
+  "manifest": Manifest,   // the title's, holding only what was picked: the one rung, the audio, the subtitles
+  "bytes": 1502550368,    // every track and subtitle together, exactly
+  "tracks": [             // the video rung first, then each audio track in the order asked
+    {
+      "kind": "video",                        // "video" | "audio"
+      "rendition": "v1",
+      "uri": "v1/index.m3u8",                 // the manifest's uri for this rendition, which ties the two together
+      "url": "/media/coherence-2013/v1/track.mp4",
+      "bytes": 1339012345,                    // the file's exact length: initBytes plus every segment
+      "etag": "\"3f9a0c…\"",                  // what If-Range carries to resume it
+      "initBytes": 1033,                      // the init segment, at offset 0
+      "segmentSeconds": [2.002, 2.002, …],    // each segment's duration, in order
+      "segmentBytes": [512345, 498765, …]     // each segment's length; its offset is initBytes plus those before it
+    }
+  ],
+  "subtitles": [
+    { "id": "s3", "kind": "feature", "language": "eng", "label": "English", "hearingImpaired": false,
+      "forced": false, "url": "/media/coherence-2013/s3.vtt", "bytes": 81234 }
+  ],
+  "details": FilmFacts,   // what /api/titles carries as `details`: the film's, or an episode's show's; absent when not described
+  "episode": { "season": 2, "number": 4, "name": "…", "overview": "…" },   // an episode's own; absent for a film
+  "artwork": {            // each absent when there is none; open addresses but the preview sheet, which is the film's
+    "poster": "/films/tt2866360/poster.jpg",
+    "backdrop": "/films/tt2866360/backdrop.jpg",
+    "still": "/shows/tt…/s02e04.jpg",             // an episode's
+    "thumbnails": "/media/coherence-2013/thumbs.jpg"   // the scrub preview sheet the manifest's thumbnails describe
+  }
+}
+
+// OfflineSave
+{
+  "id": "5c0f3b2a9e7d4c18",
+  "titleId": "coherence-2013",
+  "rung": "v1", "audio": ["a0"], "subtitles": ["s3"],
+  "device": "Pixel 8",
+  "createdAt": "2026-10-06T19:00:00+00:00",
+  "completedAt": "2026-10-06T19:12:40+00:00",   // absent until the device says it holds every byte
+  "holdsUntil": "2026-10-08T19:00:00+00:00"     // absent once complete or past it
+}
+```
+
+- **Sizes are bytes on disk, never an estimate.** A rung's bitrate is a cap under constant quality,
+  so two films at one rung differ by a factor of two and more; every `bytes` is the files' own.
+- **A track is the files already on disk, joined.** The API runs no ffmpeg for it. A segment's
+  offset in the track is `initBytes` plus the lengths before it, so the playlists a device plays from
+  are built from `segmentSeconds` and `segmentBytes` as byte ranges of the one file.
+- **Media addresses take the bearer token.** A track, a subtitle and the preview sheet are fetched
+  with `Authorization: Bearer`; a ticket does not open a track. The artwork routes are open.
+- **A save in progress holds its title.** Until it is complete, and for `Offline:HoldHours` after it
+  was made, the title stays in the library and in place: the library's clock does not let it go, its
+  source is not removed, and it is neither moved between disks nor encoded again. Past that a save
+  still listed holds nothing, and a track whose files have changed answers its new `ETag`, so a
+  resume with `If-Range` gets the whole new track rather than a mix.
+- **Transfers yield to rooms.** A person runs at most `Offline:MaxTransfersPerPerson` tracks at once
+  and the server `Offline:MaxTransfers`; past either a request is a `429` with `Retry-After`. While a
+  room has somebody in it, each transfer is held to `Offline:MegabitsPerTransferWhileWatched`.
+- **What was watched with no connection comes back through `POST /api/me/progress`.**
+
 ### Transcode plan
 
 What the card should be doing, published for the hand-off to carry out, and the hand-off's report of
@@ -241,13 +339,15 @@ key, for the announcements the bot posts. The shapes are in
 | `POST /api/wishes` | `AddWishReply` for `{chosen}` |
 | `DELETE /api/wishes/{imdbId}` | `CancelWishReply` — the person comes off the wish |
 | `GET /api/library/due` | `string[]` — the ids of the settled films whose time is up; the **service key** alone |
+| `GET /api/library/saving` | `string[]` — the ids of the titles a save still being made holds (Save offline, below); the **service key** alone |
 
 - **A film stays in the library until it has gone `Library:LeaveAfterDays` without a play, and a
   show's season the same way, as one.** The clock is only on a title that has settled on the cold
   disk, and it counts from the latest of the last play, the moment it settled, and the moment plays
   began to be recorded; for a season, the latest play of any of its episodes and the latest of them
   to settle, so all of it falls due together. A film or season a room holds never leaves, a room on
-  one episode holding its season. Where a film stands on the clock is the server's alone: no route
+  one episode holding its season, and neither does one a save still being made holds, in the same
+  way. Where a film stands on the clock is the server's alone: no route
   serves it to a person, because a film that has left is fetched again the way any other is. The
   hand-off asks `/api/library/due` and deletes what it names, being the only process that writes the media roots; a hand-off the API cannot answer
   deletes nothing. The removal of a download's torrent and files after its seeding window is the

@@ -4,6 +4,42 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.0] - 2026-10-07
+
+### Added
+
+- **Save offline keeps a film or an episode on a phone, a tablet or a computer.** A film's page and
+  each ready episode's row have a control whose sheet picks the quality, audio and text subtitles,
+  each with its exact size, against the free space on the device; a device without room is told how
+  much it needs before anything moves. The transfer runs in a worker into the Origin Private File
+  System, one track after another, resumes by `Range` and `If-Range` across reloads and crashes, can
+  be paused, keeps the screen awake, and tells the API when it is complete. Profile's Offline tab
+  lists every save with its progress, and Playback sets the quality a save picks by default. Not on a
+  television or in the Activity. Site 0.41.0.
+- **A saved film plays from the device, with or without a connection**: alone on a timeline of its
+  own, starting with the person's kept preferences and resuming where they left off, its progress
+  logged on the device and sent when the server can be reached. In a room, a film saved whole on the
+  device plays from it while the hub keeps the timeline, and a room that cannot be reached offers to
+  carry on alone from the device.
+- **The installed site starts and gets around with no connection.** The service worker holds the
+  whole build, and still no API answer and no media. A network failure, a gateway's error page or an
+  unanswered probe of `/api/config` is offline, and an expired session stays signed in until the
+  connection returns. A banner says so; Home shows the films on the device, a saved film's page is
+  drawn from the device, Watch on a saved film plays it from there, and every page that needs the
+  server says so. Coming back online forgets removals made offline and removes saves the API no
+  longer lists. Signing out asks whether to remove the films saved on the device.
+- **The API's half of Save offline** (`cinema:offline`, granted beside `cinema:watch`).
+  `GET /api/titles/{id}/offline` answers what a title can be saved as with every track's bytes on
+  disk; `POST/GET /api/me/offline`, `POST /api/me/offline/{id}/complete` and
+  `DELETE /api/me/offline/{id}` keep each person's saves per device; `GET /media/{id}/{rendition}/track.mp4`
+  answers a rendition's files joined, ranged with a strong `ETag`. A save still being made holds its
+  title for `Offline:HoldHours`: the library's clock skips it and the hand-off, through
+  `GET /api/library/saving`, neither settles, re-encodes, removes nor frees the source of it.
+  Transfers are limited per person and per server and held to
+  `Offline:MegabitsPerTransferWhileWatched` while a room has anybody in it. `POST /api/me/progress`
+  takes what a device watched offline, the newer record winning, and `ViewerPreferences` gains
+  `offlineQualityHeight`. Api 2.8.0, Handoff 0.17.0.
+
 ## [2.19.0] - 2026-10-07
 
 ### Added

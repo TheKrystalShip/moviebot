@@ -3,10 +3,12 @@ import { environment, type Identity } from './environment';
 import { formatTime } from './format';
 import { prefs } from './prefs';
 import { playableHead, playableHeadOf } from './media/heads';
+import type { DeviceCopy } from './media/deviceLoader';
 import { FilmStream, type QualityLevel } from './media/stream';
 import { defaultAudioId } from './media/tracks';
 import { describeChange } from './session/changes';
-import { SessionHub, type ConnectionStatus } from './session/hub';
+import { SessionHub, type ConnectionStatus, type Timeline } from './session/hub';
+import { LocalTimeline } from './session/local';
 import { SyncController } from './session/sync';
 import type {
   Actor, Manifest, Participant, SeekClamped, SessionState, SubtitleSearch, SubtitleStyle, SubtitleTrack, ThumbnailStrip,
@@ -76,7 +78,16 @@ export interface RoomView {
   playingHeight: number | null;
   /** How this person watches, as the API keeps it for them. */
   preferences: ViewerPreferences;
+  /** The film plays alone from this device: there is no room, nobody else and nothing to invite to. */
+  solo: boolean;
+  /** The film this viewer holds is saved whole on this device, so it can go on with no connection. */
+  saved: boolean;
+  /** The poster saved on the device, as an address the page can draw, when the film plays alone. */
+  artwork: string | null;
 }
+
+/** How often a film played alone writes down where it has got to, while it plays. */
+const ProgressEveryMs = 10_000;
 
 /** What somebody in the room did to it, this viewer included, and who did it. */
 export interface Announcement {
@@ -92,9 +103,13 @@ const NoticeLifetimeMs = 8000;
  *
  * The page draws `view` and calls the methods below; it never touches the hub or the element's
  * timeline itself. Every control moves the whole room: there is one playhead and no host.
+ *
+ * A film played alone from the device (`Environment.solo`) is the same, with a timeline of its own in
+ * place of the hub (`session/local.ts`) and the device in place of the server: the controller and the
+ * stream do not tell the two apart.
  */
 export class PlayerRoom {
-  private hub: SessionHub | null = null;
+  private hub: Timeline | null = null;
   private controller: SyncController | null = null;
   private readonly stream: FilmStream;
   /** Undefined until the room has said, so the first state is always acted on. Starting at null
@@ -106,6 +121,14 @@ export class PlayerRoom {
   private readonly announcers = new Set<(announcement: Announcement) => void>();
   private disposed = false;
   private styleSave: ReturnType<typeof setTimeout> | null = null;
+  /** The film as the device holds it, for the title this viewer holds, or null. */
+  private copy: DeviceCopy | null = null;
+  private progressTimer: number | null = null;
+  private readonly recordProgress = () => {
+    const titleId = this.loadedTitleId;
+    if (!this.view.solo || !titleId || !this.stream.holdsFilm) return;
+    environment().recordProgress(titleId, this.video.currentTime);
+  };
   private readonly onVisible = () => {
     if (document.visibilityState === 'visible') void this.hub?.resync();
   };
@@ -137,7 +160,10 @@ export class PlayerRoom {
       qualityLevels: [],
       quality: null,
       preferences: {},
-      playingHeight: null
+      playingHeight: null,
+      solo: environment().solo,
+      saved: false,
+      artwork: null
     };
 
     this.stream = new FilmStream(video, {
@@ -188,6 +214,10 @@ export class PlayerRoom {
 
   async start(): Promise<void> {
     const env = environment();
+    if (env.solo) {
+      await this.startAlone();
+      return;
+    }
     if (env.authToken() === null) {
       this.set({ fatal: 'Sign in to watch.' });
       return;
@@ -242,17 +272,7 @@ export class PlayerRoom {
       }
     });
     this.hub = hub;
-
-    this.controller = new SyncController(this.video, hub.clock, {
-      play: (at) => void hub.play(at),
-      pause: (at) => void hub.pause(at),
-      seek: (to) => void hub.seek(to)
-    }, {
-      onState: (state) => this.onState(state, identity, launched),
-      onPlaybackBlocked: () => this.set({ gate: true }),
-      onInitialSeekChanged: (seeking) => this.set({ catchingUp: seeking }),
-      holdsFilm: () => this.stream.holdsFilm
-    });
+    this.controller = this.controllerFor(hub, identity, launched);
 
     try {
       this.set({ titles: await api.titles() });
@@ -289,7 +309,82 @@ export class PlayerRoom {
     }
   }
 
+  /**
+   * A film saved on this device, played alone: the film and its manifest from the device, how the
+   * person watches from the API while it can be asked and else as the device last heard it, and a
+   * timeline of its own, starting where the launch said or where the person last got to.
+   */
+  private async startAlone(): Promise<void> {
+    const env = environment();
+    let identity: Identity;
+    try {
+      identity = await env.identity();
+    } catch (error) {
+      this.set({ fatal: error instanceof Error ? error.message : 'Nobody is signed in.' });
+      return;
+    }
+    this.set({ identity });
+
+    const titleId = env.titleId();
+    const copy = titleId === null ? null : await env.deviceCopy(titleId).catch(() => null);
+    if (this.disposed) return;
+    if (titleId === null || copy === null) {
+      this.set({ fatal: 'This film is not saved on this device.' });
+      return;
+    }
+    this.copy = copy;
+    this.set({ saved: true, artwork: copy.poster === null ? null : URL.createObjectURL(copy.poster) });
+
+    let preferences = env.keptPreferences();
+    if (env.online()) {
+      try {
+        preferences = await api.preferences();
+      } catch {
+        /* What the device last heard stands. */
+      }
+    }
+    this.set({ preferences: preferences ?? {} });
+
+    const start = env.startAt()
+      ?? await env.resumeAt(titleId, copy.manifest.durationSeconds).catch(() => null)
+      ?? 0;
+    if (this.disposed) return;
+
+    const timeline = new LocalTimeline(env.sessionId(), titleId, start,
+      { userId: identity.userId, displayName: identity.displayName },
+      (push) => this.controller?.applyPush(push));
+    this.hub = timeline;
+    this.controller = this.controllerFor(timeline, identity, titleId);
+
+    // Where the person has got to is written down as they watch, and whenever they stop, skip or
+    // reach the end, so it is there for the API whenever a connection comes back.
+    for (const event of ['pause', 'seeked', 'ended']) this.video.addEventListener(event, this.recordProgress);
+    this.progressTimer = window.setInterval(() => {
+      if (!this.video.paused) this.recordProgress();
+    }, ProgressEveryMs);
+
+    this.controller.applyPush(await timeline.start(), true);
+  }
+
+  /** The controller that applies a timeline to the element, whichever timeline it is. */
+  private controllerFor(timeline: Timeline, identity: Identity, launched: string | null): SyncController {
+    return new SyncController(this.video, timeline.clock, {
+      play: (at) => void timeline.play(at),
+      pause: (at) => void timeline.pause(at),
+      seek: (to) => void timeline.seek(to)
+    }, {
+      onState: (state) => this.onState(state, identity, launched),
+      onPlaybackBlocked: () => this.set({ gate: true }),
+      onInitialSeekChanged: (seeking) => this.set({ catchingUp: seeking }),
+      holdsFilm: () => this.stream.holdsFilm
+    });
+  }
+
   dispose(): void {
+    this.recordProgress();
+    if (this.progressTimer !== null) window.clearInterval(this.progressTimer);
+    for (const event of ['pause', 'seeked', 'ended']) this.video.removeEventListener(event, this.recordProgress);
+    if (this.view.artwork !== null) URL.revokeObjectURL(this.view.artwork);
     this.disposed = true;
     // A style chosen just before leaving is still saved.
     if (this.styleSave !== null) {
@@ -311,8 +406,10 @@ export class PlayerRoom {
     // sees happen is what everybody sees. Only a state that moved the room on from the last one
     // counts; the first state is the room being joined, and a resync hands back a state already
     // seen, and neither is anybody acting on it.
+    // A film played alone has nobody else to say it to, and the person sees what they pressed.
     const previous = this.previous;
     const advanced = previous !== null
+      && !this.view.solo
       && state.epoch === previous.epoch
       && state.revision > previous.revision;
     const change = advanced ? describeChange(state, previous, identity.userId) : null;
@@ -356,31 +453,62 @@ export class PlayerRoom {
     this.set({ unplayable: null, gate: false, ready: false });
 
     if (titleId === null) {
-      this.set({ manifest: null, thumbnails: null, subtitleTrack: null, transcodeHead: null });
+      this.copy = null;
+      this.set({ manifest: null, thumbnails: null, subtitleTrack: null, transcodeHead: null, saved: false });
       void this.showPresence();
       return;
     }
 
+    // Alone, the film is the device's copy and nothing else. In a room it is the room's, and a copy
+    // saved whole on this device plays from it while the hub keeps the timeline.
     let manifest: Manifest;
-    try {
-      manifest = await api.manifest(titleId);
-    } catch {
-      this.notice(`The film ${titleId} could not be read.`, 'error');
-      return;
+    let copy: DeviceCopy | null;
+    if (this.view.solo) {
+      copy = this.copy;
+      if (copy === null || copy.manifest.id !== titleId) {
+        this.set({ unplayable: 'This film is not saved on this device.' });
+        return;
+      }
+      manifest = copy.manifest;
+    } else {
+      try {
+        manifest = await api.manifest(titleId);
+      } catch {
+        this.notice(`The film ${titleId} could not be read.`, 'error');
+        return;
+      }
+      copy = manifest.status === 'ready' ? await environment().deviceCopy(titleId).catch(() => null) : null;
     }
     if (this.loadedTitleId !== titleId) return;
+    this.copy = copy;
+    this.set({ saved: copy !== null });
 
-    // A choice made for this film stands. Otherwise the person's languages decide, where the film
-    // carries them, and the film's own default after that.
-    const stored = prefs.forTitle(manifest.id);
+    // A choice made for this film stands, where the film as this viewer holds it has the track: a
+    // copy saved on the device carries only the tracks picked when it was saved. Otherwise the
+    // person's languages decide, where the film carries them, and the film's own default after that.
+    const held = prefs.forTitle(manifest.id);
+    const stored = {
+      audioTrackId: manifest.audio.some((t) => t.id === held.audioTrackId) ? held.audioTrackId : undefined,
+      subtitleTrackId: held.subtitleTrackId === null || manifest.subtitles.some((t) => t.id === held.subtitleTrackId)
+        ? held.subtitleTrackId
+        : undefined
+    };
+    // Among tracks in the person's language, the ones saved on the device come first: they were picked
+    // when the film was saved, and they cost no connection.
     const { audioLanguage, subtitleLanguage } = this.view.preferences;
+    const onDevice = (ids: { id: string }[] | undefined) => (track: { id: string }) => ids?.some((t) => t.id === track.id) ?? false;
+    const first = <T extends { id: string }>(tracks: T[], held: (t: T) => boolean, wanted: (t: T) => boolean) =>
+      tracks.find((t) => wanted(t) && held(t)) ?? tracks.find(wanted);
     const audioId = stored.audioTrackId
-      ?? (audioLanguage ? manifest.audio.find((t) => t.kind === 'feature' && sameLanguage(t.language, audioLanguage))?.id : undefined)
+      ?? (audioLanguage
+        ? first(manifest.audio, onDevice(copy?.manifest.audio), (t) => t.kind === 'feature' && sameLanguage(t.language, audioLanguage))?.id
+        : undefined)
       ?? defaultAudioId(manifest) ?? null;
     const subtitleId = stored.subtitleTrackId !== undefined
       ? stored.subtitleTrackId
       : (subtitleLanguage
-        ? manifest.subtitles.find((t) => t.available && t.uri !== undefined && !t.forced && sameLanguage(t.language, subtitleLanguage))?.id ?? null
+        ? first(manifest.subtitles, onDevice(copy?.manifest.subtitles),
+          (t) => t.available && t.uri !== undefined && !t.forced && sameLanguage(t.language, subtitleLanguage))?.id ?? null
         : null);
 
     this.set({
@@ -396,7 +524,7 @@ export class PlayerRoom {
       return;
     }
 
-    await this.stream.load(manifest, this.controller?.roomPosition(), audioId ?? undefined, subtitleId, this.view.quality);
+    await this.stream.load(manifest, this.controller?.roomPosition(), audioId ?? undefined, subtitleId, this.view.quality, copy);
   }
 
   /**
@@ -586,7 +714,8 @@ export class PlayerRoom {
    */
   async refreshManifest(): Promise<void> {
     const current = this.view.manifest;
-    if (current === null) return;
+    // A film played alone has the subtitles that were saved with it, and nothing else to read.
+    if (current === null || this.view.solo) return;
     const fresh = await api.manifest(current.id);
     if (this.view.manifest === null || this.view.manifest.id !== fresh.id) return;
     this.stream.follow({ ...this.view.manifest, subtitles: fresh.subtitles, otherLanguages: fresh.otherLanguages });

@@ -4,6 +4,7 @@ import { environment } from '../environment';
 import type { Manifest, ThumbnailStrip } from '../types';
 import { buildMasterPlaylist, masterPlaylistUrl, type MasterPlaylist } from './masterPlaylist';
 import { covers, rungReach, wantedHeight } from './heads';
+import { DeviceAnswers, deviceLoader, type DeviceCopy } from './deviceLoader';
 import { ensureTicket, hasTicket, ticketedLoader, ticketedMediaUrl } from './mediaTicket';
 import { findSubtitle } from './tracks';
 
@@ -94,6 +95,11 @@ function mediaFetchInit(titleId: string): RequestInit | undefined {
  * The film in one media element: hls.js fed from the transcode, the audio rendition chosen, the
  * subtitle file attached, and the preview sheet fetched.
  *
+ * Where the film is saved whole on this device, the device answers first: the saved rung's and the
+ * saved audio's playlists and segments, the saved subtitles and the preview sheet are read from it,
+ * and the film is held on the saved rung. Played alone, the device is all there is; in a room,
+ * anything the device does not hold streams from the server as it would for anybody.
+ *
  * It owns no timeline and no controls. The room's position is the sync controller's to apply, and
  * what a person sees and presses is the page's: this answers whether the element holds the film,
  * and says when it cannot.
@@ -101,6 +107,9 @@ function mediaFetchInit(titleId: string): RequestInit | undefined {
 export class FilmStream {
   private hls: Hls | null = null;
   private manifest: Manifest | null = null;
+  /** The film as this device holds it, or null to stream every byte. */
+  private device: DeviceCopy | null = null;
+  private answers: DeviceAnswers | null = null;
   private master: MasterPlaylist | null = null;
   private masterUrl: string | null = null;
   private masterUrlIsBlob = false;
@@ -140,9 +149,12 @@ export class FilmStream {
     return this.ready && this.video.readyState >= HTMLMediaElement.HAVE_METADATA;
   }
 
-  /** Loads a title. Resolves once the media element holds it, or once it has given up. */
+  /**
+   * Loads a title, from `device` first where this device holds it whole. Resolves once the media
+   * element holds it, or once it has given up.
+   */
   async load(manifest: Manifest, startPosition: number | undefined, audioId: string | undefined,
-             subtitleId: string | null, quality: number | null): Promise<void> {
+             subtitleId: string | null, quality: number | null, device: DeviceCopy | null = null): Promise<void> {
     this.teardownSource();
     this.quality = quality;
     this.events.onQuality([], null);
@@ -151,17 +163,35 @@ export class FilmStream {
     this.ready = false;
     this.recoveries = 0;
 
-    // Before anything asks for a byte of the film, so every request for it carries the ticket.
-    await ensureTicket(manifest.id);
+    // Only hls.js can be handed a saved file: the browser's own HLS fetches every byte itself.
+    const solo = environment().solo;
+    const mse = Hls.isSupported();
+    if (solo && !mse) {
+      this.giveUp('This browser cannot play a film saved on the device.');
+      return;
+    }
+    const answers = device === null || !mse ? null : new DeviceAnswers(manifest.id, device);
+    this.answers = answers !== null && answers.playable ? answers : null;
+    this.device = this.answers === null ? null : device;
+    if (solo && this.answers === null) {
+      this.giveUp('This film is not saved whole on this device, so it cannot be played here.');
+      return;
+    }
+
+    // Before anything asks the server for a byte of the film, so every request for it carries the
+    // ticket. A film played alone asks the server for nothing.
+    if (!solo) await ensureTicket(manifest.id);
 
     this.master = buildMasterPlaylist(manifest);
 
     // The ingest writes a master when it can, and that one is authoritative. Composing one here
-    // covers a manifest that carries none, and is the same playlist either way.
-    this.masterUrlIsBlob = manifest.master === undefined;
-    this.masterUrl = manifest.master === undefined
+    // covers a manifest that carries none, and is the same playlist either way. A film the device
+    // holds has its master composed too, so not even that is asked of the server; alone, it is the
+    // saved manifest's, naming only what was saved.
+    this.masterUrlIsBlob = manifest.master === undefined || this.answers !== null;
+    this.masterUrl = this.masterUrlIsBlob
       ? masterPlaylistUrl(this.master)
-      : environment().mediaUrl(manifest.id, manifest.master);
+      : environment().mediaUrl(manifest.id, manifest.master!);
 
     void this.loadThumbnails(manifest);
 
@@ -180,7 +210,6 @@ export class FilmStream {
       this.settleLoad = settle;
     });
 
-    const mse = Hls.isSupported();
     if (mse && !(MediaSource.isTypeSupported(VideoCodec) && MediaSource.isTypeSupported(AudioCodec))) {
       this.giveUp(NoDecoderMessage);
       return;
@@ -188,6 +217,7 @@ export class FilmStream {
 
     if (mse) {
       const titleId = manifest.id;
+      const answers = this.answers;
 
       const hls = new Hls({
         enableWorker: true,
@@ -197,8 +227,9 @@ export class FilmStream {
         // A film's own bytes are opened by a ticket on the URL, which is what lets a shared cache
         // answer a whole room from one copy. The loader is where it goes: hls.js resolves a
         // segment against its playlist, and relative resolution drops the query string, so a
-        // ticket put on the playlist URL reaches none of the segments underneath it.
-        loader: ticketedLoader(titleId),
+        // ticket put on the playlist URL reaches none of the segments underneath it. A film the
+        // device holds is answered from it first.
+        loader: answers === null ? ticketedLoader(titleId) : deviceLoader(answers, ticketedLoader(titleId)),
         // The fallback, for a viewer whose ticket never arrived. Never sent alongside a ticket: a
         // shared cache refuses to store a response to a request carrying it.
         xhrSetup: (xhr) => {
@@ -211,6 +242,9 @@ export class FilmStream {
       hls.on(Hls.Events.ERROR, (_event, data) => this.onHlsError(data));
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (audioId !== undefined) this.selectAudio(audioId);
+        // The first playlist and segment are the saved rung's, not whatever the connection would
+        // have started on.
+        if (this.heldLevel() >= 0) hls.startLevel = this.heldLevel();
         this.selectQuality(this.quality);
         this.watchTimer = window.setInterval(() => this.watch(), WatchIntervalMs);
       });
@@ -304,15 +338,27 @@ export class FilmStream {
     this.reportQuality();
   }
 
-  /** The level the viewer's choice names, or -1 to let the connection decide. */
+  /**
+   * The level the viewer's choice names, or -1 to let the connection decide. A film the device holds
+   * stays on the saved rung, which is the one that costs no connection.
+   */
   private chosenLevel(): number {
     const hls = this.hls;
+    const held = this.heldLevel();
+    if (held >= 0) return held;
     if (hls === null || this.quality === null) return -1;
     const height = this.quality;
     const ranked = hls.levels.map((level, index) => ({ index, height: level.height }));
     const fits = ranked.filter((level) => level.height <= height).sort((a, b) => b.height - a.height);
     const shortest = [...ranked].sort((a, b) => a.height - b.height);
     return (fits[0] ?? shortest[0]).index;
+  }
+
+  /** The level of the rung saved on this device, or -1 when the device holds none of the film's. */
+  private heldLevel(): number {
+    const height = this.answers?.height;
+    if (this.hls === null || height === null || height === undefined) return -1;
+    return this.hls.levels.findIndex((level) => level.height === height);
   }
 
   /**
@@ -391,15 +437,18 @@ export class FilmStream {
     const hls = this.hls;
     if (hls === null || hls.levels.length === 0) return;
 
+    // A film played from the device holds the saved rung, so the saved rung is both what this viewer
+    // plays and all it wants: it asks the server for none of the picture.
     const current = hls.currentLevel;
     const playing = current >= 0 ? hls.levels[current]?.height ?? null : null;
+    const chosen = this.chosenLevel();
     const wanted = wantedHeight(
       hls.levels.map((level) => ({ height: level.height, bitrate: level.bitrate })),
       hls.bandwidthEstimate,
       current,
       hls.config.abrBandWidthFactor,
       hls.config.abrBandWidthUpFactor,
-      this.quality === null ? null : hls.levels[this.chosenLevel()]?.height ?? null
+      chosen < 0 ? null : hls.levels[chosen]?.height ?? null
     );
 
     const now = Date.now();
@@ -411,10 +460,13 @@ export class FilmStream {
     this.events.onViewerQuality(playing, wanted);
   }
 
+  /** The rungs on offer: every one the film has, or only the saved one where the device holds the film. */
   private reportQuality(): void {
     const hls = this.hls;
     if (hls === null) return;
+    const held = this.heldLevel();
     const levels = hls.levels
+      .filter((_, index) => held < 0 || index === held)
       .map((level) => ({ height: level.height, bitrateKbps: Math.round(level.bitrate / 1000) }))
       .sort((a, b) => b.height - a.height);
     const playing = hls.currentLevel >= 0 ? hls.levels[hls.currentLevel]?.height ?? null : null;
@@ -438,9 +490,7 @@ export class FilmStream {
     if (!track || !track.available || track.uri === undefined) return;
 
     try {
-      const response = await fetch(ticketedMediaUrl(manifest.id, track.uri), mediaFetchInit(manifest.id));
-      if (!response.ok) throw new Error(`subtitle answered ${response.status}`);
-      const blob = await response.blob();
+      const blob = await this.fileOf(manifest.id, track.uri);
       if (token !== this.subtitleToken) return;
 
       this.subtitleUrl = URL.createObjectURL(blob);
@@ -482,15 +532,28 @@ export class FilmStream {
     }
 
     try {
-      const response = await fetch(ticketedMediaUrl(manifest.id, manifest.thumbnails.uri), mediaFetchInit(manifest.id));
-      if (!response.ok) throw new Error(`previews answered ${response.status}`);
-
-      this.thumbnailUrl = URL.createObjectURL(await response.blob());
+      const blob = await this.fileOf(manifest.id, manifest.thumbnails.uri);
+      if (this.manifest?.id !== manifest.id) return;
+      this.thumbnailUrl = URL.createObjectURL(blob);
       this.events.onThumbnails(manifest.thumbnails, this.thumbnailUrl);
     } catch {
       // A bar that previews nothing is worth strictly more than one that previews a grey box.
       this.events.onThumbnails(null, null);
     }
+  }
+
+  /**
+   * A file of the film beside its tracks, a subtitle or the preview sheet: the device's copy where it
+   * holds one, else the server's, which a film played alone never asks for.
+   */
+  private async fileOf(titleId: string, relative: string): Promise<Blob> {
+    const held = this.device === null ? null : await this.device.file(relative).catch(() => null);
+    if (held !== null) return held;
+    if (environment().solo) throw new Error(`${relative} is not saved on this device`);
+
+    const response = await fetch(ticketedMediaUrl(titleId, relative), mediaFetchInit(titleId));
+    if (!response.ok) throw new Error(`${relative} answered ${response.status}`);
+    return response.blob();
   }
 
   private releaseThumbnails(): void {

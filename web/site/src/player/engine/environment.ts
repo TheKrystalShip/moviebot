@@ -1,11 +1,16 @@
+import type { DeviceCopy } from './media/deviceLoader';
+import type { ViewerPreferences } from './types';
+
 /**
  * The seam between the player and whatever front door it is served through.
  *
  * Everything that differs between the site and the Discord Activity lives here: where the API is,
  * how a manifest-relative media path becomes a URL, which room this is, which title the launch
- * named, who the viewer is, and how the film is held sideways on a phone. The rest of the player asks the environment and never reads
- * `location` or builds a URL of its own, so a front door with rewritten paths and an externally
- * supplied identity is a different implementation of this interface and nothing else.
+ * named, who the viewer is, how the film is held sideways on a phone, and what the device keeps for
+ * the viewer: the films they saved, how they watch, and where they got to in a film played alone. The
+ * rest of the player asks the environment and never reads `location` or builds a URL of its own, so a
+ * front door with rewritten paths and an externally supplied identity is a different implementation
+ * of this interface and nothing else.
  */
 export interface Identity {
   userId: string;
@@ -80,6 +85,24 @@ export interface Environment {
   setPresence(presence: Presence | null): Promise<void>;
   /** Holds `frame` sideways on a phone; the player releases it when it closes. */
   landscape(frame: HTMLElement): Landscape;
+  /**
+   * Whether the launched film is played alone from this device: no room, no hub and no ticket, on a
+   * timeline of its own. Only a front door that keeps saved films opens one.
+   */
+  readonly solo: boolean;
+  /** This viewer's complete save of a title on this device, or null where there is none to play. */
+  deviceCopy(titleId: string): Promise<DeviceCopy | null>;
+  /** How this viewer watches as this device last heard it from the API, or null where nothing is kept. */
+  keptPreferences(): ViewerPreferences | null;
+  /** Whether the server can be reached, as the front door last measured it. */
+  online(): boolean;
+  /**
+   * Where a film played alone should start when the launch named no position: the newer of the
+   * device's own record and what the API last said, or null for the beginning.
+   */
+  resumeAt(titleId: string, durationSeconds: number): Promise<number | null>;
+  /** Where this viewer has got to in a film played alone, kept on the device until the API has it. */
+  recordProgress(titleId: string, positionSeconds: number): void;
 }
 
 type LockableOrientation = ScreenOrientation & { lock?(orientation: string): Promise<void> };
@@ -111,6 +134,13 @@ export interface SiteViewer {
   freshToken(): Promise<string | null>;
   identity(): Identity | null;
   holds(action: string): boolean;
+  /** Whether the site can reach the server, as it last measured. */
+  online(): boolean;
+  /** The films this person saved on the device, their kept preferences and their record of what they watched alone. */
+  deviceCopy(titleId: string): Promise<DeviceCopy | null>;
+  keptPreferences(): ViewerPreferences | null;
+  resumeAt(titleId: string, durationSeconds: number): Promise<number | null>;
+  recordProgress(titleId: string, positionSeconds: number): void;
 }
 
 /** A television holds nothing sideways: the screen already is. */
@@ -119,9 +149,12 @@ const noLandscape: Landscape = { enter: () => {}, release: () => {} };
 /**
  * The player on Krystal Cinema. The room and the film are the address, and the viewer is whoever
  * signed in to the site: their token is the proof, and the name it carries is what the room calls them.
- * `tv` is the site's own judgement of whether it is on a television.
+ * `tv` is the site's own judgement of whether it is on a television, and `solo` that the address
+ * plays the film from the device alone.
  */
-export function createSiteEnvironment(sessionId: string, titleId: string | null, viewer: SiteViewer, tv = false): Environment {
+export function createSiteEnvironment(
+  sessionId: string, titleId: string | null, viewer: SiteViewer, tv = false, solo = false
+): Environment {
   const origin = window.location.origin;
   return {
     name: 'site',
@@ -145,7 +178,13 @@ export function createSiteEnvironment(sessionId: string, titleId: string | null,
     },
     roomUrl: () => `${origin}/r/${encodeURIComponent(sessionId)}`,
     setPresence: () => Promise.resolve(),
-    landscape: tv ? () => noLandscape : browserLandscape
+    landscape: tv ? () => noLandscape : browserLandscape,
+    solo,
+    deviceCopy: (title) => viewer.deviceCopy(title),
+    keptPreferences: () => viewer.keptPreferences(),
+    online: () => viewer.online(),
+    resumeAt: (title, duration) => viewer.resumeAt(title, duration),
+    recordProgress: (title, seconds) => viewer.recordProgress(title, seconds)
   };
 }
 

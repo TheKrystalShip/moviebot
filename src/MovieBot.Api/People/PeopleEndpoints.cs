@@ -12,6 +12,9 @@ namespace TheKrystalShip.MovieBot.Api.People;
 /// </summary>
 public static class PeopleEndpoints
 {
+    /// <summary>The most progress entries one request carries: weeks of watching on one device.</summary>
+    private const int MaxProgressBatch = 500;
+
     public static void MapPeople(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/me/preferences", (HttpContext context, PreferenceStore store) =>
@@ -43,6 +46,33 @@ public static class PeopleEndpoints
 
             return Results.Ok(entries);
         }).RequireAction(CinemaActions.ProfileRead);
+
+        // Where a device that watched with no connection got to. Each entry is recorded the way a
+        // room's stretch is, and only where it is newer than what is held: the person may have
+        // watched further elsewhere since.
+        app.MapPost("/api/me/progress", (List<Offline.OfflineProgress> body, HttpContext context, WatchRecord record,
+            TitleLibrary library, PersonDirectory people, TimeProvider clock) =>
+        {
+            if (Person(context) is not { } person) return NoPerson();
+            if (body.Count > MaxProgressBatch)
+                return Results.Json(new ErrorReply($"Send at most {MaxProgressBatch} at a time."),
+                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status400BadRequest);
+            if (body.Any(p => string.IsNullOrEmpty(p.TitleId) || !double.IsFinite(p.PositionSeconds) || p.PositionSeconds < 0))
+                return Results.Json(new ErrorReply("Each entry names a title and a position that is not negative."),
+                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status400BadRequest);
+
+            var now = clock.GetUtcNow();
+            people.Remember(person.UserId, person.DisplayName);
+            foreach (var entry in body)
+            {
+                if (library.Get(entry.TitleId!) is not { } manifest) continue;
+                // A device's clock can run ahead; a play cannot have happened after now.
+                var at = entry.WatchedAt > now ? now : entry.WatchedAt;
+                record.RecordIfNewer(person.UserId, entry.TitleId!, entry.PositionSeconds, manifest.DurationSeconds, at);
+            }
+
+            return Results.NoContent();
+        }).RequireAction(CinemaActions.ProfileWrite);
 
         app.MapGet("/api/me/history", (HttpContext context, WatchRecord record, TitleLibrary library, SessionStore sessions, TimeProvider clock) =>
         {

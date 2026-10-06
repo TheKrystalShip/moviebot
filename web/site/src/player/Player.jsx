@@ -241,7 +241,7 @@ function useFrameSize(ref) {
  * was never opened from, and a link to the room in place of the invite, since Discord does the
  * inviting.
  */
-export function Player({ embed = false, onBack, onEmpty }) {
+export function Player({ embed = false, online = true, onBack, onEmpty, onCarryOn }) {
   const frameRef = React.useRef(null);
   const videoRef = React.useRef(null);
   const [room, setRoom] = React.useState(null);
@@ -259,14 +259,37 @@ export function Player({ embed = false, onBack, onEmpty }) {
   return (
     <div ref={frameRef} className={`mp-frame mp-frame--${size}`} data-size={size}>
       <video ref={videoRef} className="mp-video" playsInline preload="auto" />
-      {room && view && <Stage room={room} view={view} size={size} embed={embed} frameRef={frameRef} videoRef={videoRef} onBack={onBack} onEmpty={onEmpty} />}
+      {room && view && <Stage room={room} view={view} size={size} embed={embed} online={online} frameRef={frameRef} videoRef={videoRef}
+        onBack={onBack} onEmpty={onEmpty} onCarryOn={onCarryOn} />}
     </div>
   );
 }
 
-function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty }) {
+/** A dropped connection shorter than this is the hub reconnecting, and not worth saying. */
+const LostGraceMs = 4000;
+
+/**
+ * Whether the room cannot be heard from: the hub has been reconnecting past a moment, or the page
+ * knows the server cannot be reached at all. A film played alone has no room to lose.
+ */
+function useRoomLost(view, online) {
+  const down = !view.solo && !view.fatal && view.state !== null
+    && (view.connection === "reconnecting" || view.connection === "disconnected" || !online);
+  const [lost, setLost] = React.useState(false);
+  React.useEffect(() => {
+    if (!down) { setLost(false); return undefined; }
+    if (!online) { setLost(true); return undefined; }
+    const timer = window.setTimeout(() => setLost(true), LostGraceMs);
+    return () => window.clearTimeout(timer);
+  }, [down, online]);
+  return lost;
+}
+
+function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, onEmpty, onCarryOn }) {
   const video = videoRef.current;
   const manifest = view.manifest;
+  const solo = view.solo;
+  const lost = useRoomLost(view, online);
   const compact = size !== "wide";
   const [menu, setMenu] = React.useState(null);
   // The subtitle menu's style editor is open: a sample line stands in while the film says nothing.
@@ -282,7 +305,8 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   const [brightness, setBrightness] = React.useState(() => prefs.brightness());
   const [fullscreen, setFullscreen] = React.useState(false);
   const idleTimer = React.useRef(null);
-  const around = useNeighbours(manifest);
+  // A film played alone is the one the device holds, and has no episodes either side to move to.
+  const around = useNeighbours(solo ? null : manifest);
   const next = nextOf(around, manifest);
   // A failed fetch over a film still playing is this viewer's to put away; the room keeps it.
   const [dismissed, setDismissed] = React.useState(null);
@@ -537,7 +561,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
     gestures.onPointerUp(e);
   };
 
-  const everyone = people(view);
+  const everyone = solo ? [] : people(view);
   const others = view.identity ? everyone.filter((p) => p.userId !== view.identity.userId) : everyone;
   const skipOffer = useSkipOffer(room, view, clock.position, others.length === 0);
   const titleHeld = view.state &&(view.state.titleId ?? null) !== null;
@@ -548,8 +572,9 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
   const sheet = compact;
   const swipe = remoteScrub ?? (gestures.hud && gestures.hud.kind === "seek" ? gestures.hud.at : null);
 
-  const backdrop = posterOf(manifest);
+  const backdrop = solo ? view.artwork : posterOf(manifest);
   const frameStyle = { "--mp-poster": backdrop ? `url("${backdrop}")` : "none" };
+  const carryOn = lost && view.saved && manifest && onCarryOn ? () => onCarryOn(manifest.id, clock.position) : null;
 
   return (
     <div className={"mp-stage" + (shown ? " is-shown" : " is-idle") + (view.ready ? " is-playing-film" : "")} style={frameStyle}
@@ -572,12 +597,22 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
             <span className="mp-top__name">{filmName(manifest)}</span>
             {size !== "tiny" && <span className="mp-top__sub">{filmLine(manifest, around)}</span>}
           </div>
-          <div className="mp-top__room">
-            <div className="mp-avatars">{everyone.map((p) => <Avatar key={p.userId} person={p} />)}</div>
-            {size === "wide" && <span className="mp-top__count">{everyone.length > 1 ? `${everyone.length} watching` : "Just you"}</span>}
-            {size !== "tiny" && !tv && <InviteButton embed={embed} compact={compact} open={invite} manifest={manifest}
-              onToggle={() => { setMenu(null); setOverflow(false); setInvite((o) => !o); }} />}
-          </div>
+          {!solo && (
+            <div className="mp-top__room">
+              <div className="mp-avatars">{everyone.map((p) => <Avatar key={p.userId} person={p} />)}</div>
+              {size === "wide" && <span className="mp-top__count">{everyone.length > 1 ? `${everyone.length} watching` : "Just you"}</span>}
+              {size !== "tiny" && !tv && <InviteButton embed={embed} compact={compact} open={invite} manifest={manifest}
+                onToggle={() => { setMenu(null); setOverflow(false); setInvite((o) => !o); }} />}
+            </div>
+          )}
+        </div>
+      )}
+
+      {lost && (
+        <div className="mp-lost" role="status">
+          <Icon name="wifi-off" size={16} />
+          <span className="mp-lost__text">The room can't be reached</span>
+          {carryOn && <button type="button" className="mp-lost__go" onClick={carryOn}>Carry on from this device</button>}
         </div>
       )}
 
@@ -597,7 +632,7 @@ function Stage({ room, view, size, embed, frameRef, videoRef, onBack, onEmpty })
       {/* ── What stands in the middle of the frame ── */}
       {waiting && <div className="mp-spinner" role="status" aria-label="Waiting for the film"><Icon name="loader-circle" size={36} className="mp-spin" /></div>}
       {preparing && <Preparing manifest={manifest} head={view.transcodeHead} />}
-      {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} focused={tv} onJoin={() => { takeScreen(); room.joinPlayback(); }} />}
+      {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} focused={tv} solo={solo} onJoin={() => { takeScreen(); room.joinPlayback(); }} />}
       {view.unplayable && <Message icon="circle-alert" title="This cannot play here" text={view.unplayable} />}
       {view.fatal && <Message icon="circle-alert" title={view.fatal} action={!embed && onBack ? { label: "Back", go: onBack } : null} />}
       {/* What the room waits on, over whatever it holds: a film pressed into an empty room, or the
@@ -742,7 +777,7 @@ function Overflow({ view, volume, onVolume, onNudge, onPick, onClose }) {
         <div className="mp-option mp-option--volume">
           <Volume position={volume.position} muted={volume.muted} onChange={onVolume} onNudge={onNudge} />
         </div>
-        {link && <CopyLink link={link} className="mp-option" />}
+        {link && !view.solo && <CopyLink link={link} className="mp-option" />}
       </div>
     </Drawer>
   );
@@ -888,8 +923,9 @@ function InvitePanel({ everyone }) {
 /**
  * The browser would not start the film without a press. Who is watching and where they are is
  * what makes pressing it worth it, and the line underneath says what this viewer brings with them.
+ * A film played alone has nobody to join, and the press is Play.
  */
-function JoinGate({ view, others, position, focused, onJoin }) {
+function JoinGate({ view, others, position, focused, solo, onJoin }) {
   const manifest = view.manifest;
   const subtitle = subtitleValue(view);
   const brings = [
@@ -905,7 +941,9 @@ function JoinGate({ view, others, position, focused, onJoin }) {
         <span className="mp-gate__where">{formatTime(position)} of {formatTime(manifest.durationSeconds)}</span>
       </div>
       <div className="mp-gate__bar"><div style={{ width: `${manifest.durationSeconds > 0 ? Math.min(100, (position / manifest.durationSeconds) * 100) : 0}%` }} /></div>
-      <button type="button" className="mp-gate__join" autoFocus={focused} onClick={onJoin}><Icon name="users" size={18} />Join</button>
+      <button type="button" className="mp-gate__join" autoFocus={focused} onClick={onJoin}>
+        <Icon name={solo ? "play" : "users"} size={18} />{solo ? "Play" : "Join"}
+      </button>
       {view.identity && (
         <span className="mp-gate__me">Signed in as {view.identity.displayName}{brings.length > 0 ? ` · ${brings.join(", ")} from your settings` : ""}</span>
       )}

@@ -4,8 +4,14 @@
 // good: the session is renewed once and the call made again, and a second 401 is a session that has
 // ended, which the page answers by saying so and offering the way back rather than showing a library
 // that failed to load. A 403 is the person's account not letting them do what they asked.
+//
+// Every call tells `connectivity.js` whether the server answered: a call that fails on the network,
+// or is answered by a gateway or a captive portal rather than by MovieBot, is the page going offline,
+// and anything the server answers, an error among it, is the page online.
 
-import { forget, freshToken } from "./session.js";
+import { answeredByServer, reached, unreached } from "./connectivity.js";
+import { keepPreferences } from "./offline/preferences.js";
+import { forget, freshToken, sessionStore } from "./session.js";
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -14,15 +20,25 @@ export class ApiError extends Error {
   }
 }
 
+const UNANSWERED = "MovieBot is not answering. Try again in a moment.";
+
 async function send(method, path, body, token) {
   const headers = { Accept: "application/json" };
   if (token) headers.Authorization = "Bearer " + token;
   if (body !== undefined) headers["Content-Type"] = "application/json";
+  let response;
   try {
-    return await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    response = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch {
-    throw new ApiError(0, "MovieBot is not answering. Try again in a moment.");
+    unreached();
+    throw new ApiError(0, UNANSWERED);
   }
+  if (!answeredByServer(response)) {
+    unreached();
+    throw new ApiError(0, UNANSWERED);
+  }
+  reached();
+  return response;
 }
 
 async function call(method, path, body) {
@@ -41,6 +57,13 @@ async function call(method, path, body) {
 }
 
 const enc = encodeURIComponent;
+
+/** Keeps the signed-in person's preferences as the API answered them, and answers them. */
+function kept(preferences) {
+  const session = sessionStore.getState();
+  if (session) keepPreferences(session.user.id, preferences);
+  return preferences;
+}
 
 export const api = {
   titles: () => call("GET", "/api/titles"),
@@ -75,10 +98,23 @@ export const api = {
 
   // What the signed-in person has watched, and how they watch.
   progress: () => call("GET", "/api/me/progress"),
+  // Where films played from the device got to, sent once there is a connection (`offline/progress.js`).
+  sendProgress: (entries) => call("POST", "/api/me/progress", entries),
   history: () => call("GET", "/api/me/history"),
   forgetHistory: (id) => call("DELETE", `/api/me/history/${enc(id)}`),
-  preferences: () => call("GET", "/api/me/preferences"),
-  setPreferences: (preferences) => call("PUT", "/api/me/preferences", preferences),
+  // Each answer is kept on the device for the account, which is what offline pages and the player
+  // read with no connection (`offline/preferences.js`).
+  preferences: () => call("GET", "/api/me/preferences").then(kept),
+  setPreferences: (preferences) => call("PUT", "/api/me/preferences", preferences).then(kept),
+
+  // Films saved on a device: what a title can be saved as, saving it (which answers the package the
+  // device fetches), every save the person has on any device, saying one holds every byte, and
+  // forgetting one this device no longer holds.
+  offlineOffer: (id) => call("GET", `/api/titles/${enc(id)}/offline`),
+  saveOffline: (request) => call("POST", "/api/me/offline", request),
+  offlineSaves: () => call("GET", "/api/me/offline"),
+  completeSave: (id) => call("POST", `/api/me/offline/${enc(id)}/complete`),
+  forgetSave: (id) => call("DELETE", `/api/me/offline/${enc(id)}`),
 
   // Lists of films and shows to watch later. `later` names the signed-in person's own Watch later;
   // asked about a title, each list says whether it holds it.
