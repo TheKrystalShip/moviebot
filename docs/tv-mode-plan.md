@@ -121,7 +121,12 @@ Upstream of the build, in the API and on every surface rather than the TV alone:
 - **Search by genre.** A genre row's Discover more opens the catalogue's titles in that genre, which
   needs a genre search in the API. Desktop and phone gain the same.
 
-Still open: the footer's place, and whether the Xiaomi crops its edges.
+TV mode draws no footer. The TMDB credit, the one thing in it that has to stay, is on About and at the
+foot of every film and show page.
+
+The Xiaomi shows the whole picture: a pattern of 1% bands drawn to the page's edge is visible in full
+on every side. The 5% margin stays regardless, for TVs that do crop and because a sofa reads a page
+better with room around it.
 
 What the build has to keep, measured:
 
