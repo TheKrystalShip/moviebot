@@ -36,6 +36,13 @@
 }
 .kc-tv-avatar:focus-visible span { background: transparent; color: inherit; }
 
+/* Every button in a row of actions is one height, whatever size the component it comes from asks for
+   (Save and Follow ask for the desktop's largest). */
+:root[data-tv] .tv-spot__actions .k-btn {
+  height: 40px; padding: 0 18px; gap: 8px; font-size: var(--text-md);
+}
+:root[data-tv] .tv-spot__actions .k-btn svg { width: 16px; height: 16px; }
+
 .kc-tv-rating { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-1); }
 .kc-tv-rating svg { color: var(--warning-fg); fill: var(--warning-fg); }
 .kc-tv-credit { font-size: var(--text-sm); color: var(--fg-3); }

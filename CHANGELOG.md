@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.12.1] - 2026-10-06
+
+### Fixed
+
+- **Krystal Cinema on a television**: every button in a row of actions (Watch, More info, Save,
+  Follow, Resume, Restart) is one height. Save and Follow were drawn a size taller. Site 0.36.1.
+
 ## [2.12.0] - 2026-10-06
 
 ### Added
