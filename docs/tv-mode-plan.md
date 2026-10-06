@@ -50,6 +50,7 @@ The reference device is the user's Xiaomi TV running Fire TV, reached over the L
 | Places off the bar | About is in Profile; Notify me folds into Profile's Requests |
 | Leaving soon | Not a page on any surface. The library clock runs internally and nobody sees it, since Discover reaches any film and it plays within minutes |
 | The primary button | Dark text on the accent, which holds contrast from a sofa |
+| How focus looks | A lift with a hairline: the focused card grows by about 15% and casts a deep shadow, a 1 px white edge sits on it with a faint glow of the accent, and its neighbours dim. A focused button or tab becomes a white pill with dark text, with the same shadow and glow. No outline and no underline |
 | The phone channel | Out of scope; see section 6 |
 | Where the wrapper lives | `moviebot/tv/`, its own version clock, tagged `tv-v<version>`. That prefix keeps it out of `release.yml`, which fires on `v*` |
 | Building the wrapper | On hotrod: a JDK and Android's command-line tools under the user's home, no Android Studio. Installed on the TV with `adb` over the LAN once developer options are on |
@@ -92,9 +93,9 @@ What the design has to answer for, from what the Xiaomi showed:
 - The footer's place, and how focus enters and leaves the top bar on every page that is not Home.
 - One row to a line on every page, so Right at the end of a row has nothing to land on but the row's
   own See all tile.
-- The focused element as the one thing the eye follows: a highlight lighter than the thick white
-  outline TV mode draws today, chosen from the candidates on the canvas, and how a row moves under
-  it. A focused card is scrolled to the start of its row.
+- The focused element as the one thing the eye follows: the lift with a hairline (section 2) in
+  place of the outline and halo `krystal-ui`'s `styles/tv.css` draws, and how a row moves under it.
+  A focused card is scrolled to the start of its row.
 - Every page that stays in TV mode, the player's controls among them, and subtitles sized for the
   distance.
 - Left out of TV mode beyond what already is: push notifications, installing the app, editing lists.
