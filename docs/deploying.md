@@ -12,7 +12,7 @@ With everything under [Before you start](#before-you-start) ready, it takes abou
 | Piece | What it does |
 |---|---|
 | `moviebot-api` | Serves the player, your films, and the live connection that keeps everyone in a room at the same moment of the film |
-| `moviebot-bot` | The Discord bot: the `/watch`, `/download`, `/notify` and `/keep` commands |
+| `moviebot-bot` | The Discord bot: the `/watch`, `/download`, `/notify` and `/voice` commands |
 | `moviebot-handoff` | Watches for finished downloads and prepares them for playback on your GPU |
 | `moviebot-assistant` | Optional. Answers what people say or type to MovieBot, using a language model you run yourself |
 | `moviebot-ingest` | A command for adding films you already have |
@@ -144,7 +144,7 @@ their own way.
 Note the provider's issuer address (value 7), exactly as its tokens carry it, for example
 `https://auth.example.com`. MovieBot's actions arrive at the provider unassigned; give them to people
 through its roles: `cinema:watch` to watch, `cinema:download` to fetch films, `cinema:wish` to wait on
-one that is not out, `cinema:keep` to keep a film in the library. Somebody signed in who may not watch
+one that is not out. Somebody signed in who may not watch
 is told their account has no access yet.
 
 ## Step 4: Fill in the settings
@@ -295,7 +295,7 @@ Play, pause and seeking are shared by everyone in the room. Volume, subtitles an
 track are each person's own.
 
 The site at `https://YOUR.DOMAIN` is the same library in a browser: browse it, search for films,
-fetch or keep them, wait on one that is not out yet, and join a room a voice channel is watching.
+fetch them, wait on one that is not out yet, and join a room a voice channel is watching.
 Signing in goes through your identity provider, and what each person may do is the actions their
 roles there give them. The bot and the player inside Discord act for the account a person's Discord
 identity is linked to at the provider; somebody whose Discord account no approved account holds is
@@ -368,7 +368,7 @@ journalctl -u moviebot-handoff -n 50 --no-pager
 | `/etc/moviebot/moviebot.env` | Your secrets, and any setting overridden without editing the settings file |
 | `/opt/moviebot` | The programs, replaced on every upgrade |
 | `/srv/moviebot/media` | Your film library |
-| `/srv/moviebot/downloads` | Downloads, which keep seeding for a week and are then removed; a film that has moved to the cold disk leaves your library after a week without a play, unless someone uses `/keep`, and one on a host with no cold disk never leaves |
+| `/srv/moviebot/downloads` | Downloads, which keep seeding for a week and are then removed; a film that has moved to the cold disk leaves your library after a week without a play and is fetched again when somebody asks for it, and one on a host with no cold disk never leaves |
 | `/srv/moviebot/incoming` | Films you add yourself, before `moviebot-ingest` prepares them |
 | `/var/lib/moviebot`, `/var/lib/moviebot-bot`, `/var/lib/moviebot-assistant` | Open rooms, fetched subtitles, the wish list and the television app (`tv.apk`); the bot's saved state; the assistant's conversations, what people asked it to remember, and the key its notifications are sent with, which cannot be made again without every browser subscribing again |
 | `/etc/systemd/system/moviebot-*.service` | The service definitions |

@@ -2,8 +2,7 @@ import React from "react";
 import { Button, Icon, Rail } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
-import { useSession } from "../session.js";
-import { leavingPath, libraryPath, listPath, moviePath } from "../paths.js";
+import { libraryPath, listPath, moviePath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, since } from "../time.js";
 import { ContinueCard, Empty, Failed, FilmCard, PosterArt, ShowCard, watchLink } from "../components/Film.jsx";
@@ -18,16 +17,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The front page: a film to watch, where this person left off, the rooms watching something now,
- * their Watch later, what arrived lately, what leaves next, and the shelf split into films and shows.
- * Every row is something the API measured; a row with nothing in it is left out rather than drawn
- * empty.
+ * their Watch later, what arrived lately, and the shelf split into films and shows. Every row is
+ * something the API measured; a row with nothing in it is left out rather than drawn empty.
  */
 export function Home() {
-  const session = useSession();
-  const me = session && session.user;
   const titles = useLoad(() => api.titles(), []);
   const rooms = useLoad(() => api.rooms(), [], { every: 15000 });
-  const stays = useLoad(() => api.stays().catch(() => []), []);
   const progress = useLoad(() => api.progress().catch(() => []), []);
   const showList = useLoad(() => api.shows().catch(() => []), []);
   const later = useLoad(() => api.list("later").catch(() => null), []);
@@ -39,16 +34,8 @@ export function Home() {
   const library = (titles.data || []).filter((t) => t.status !== "failed");
   const byId = new Map(library.map((t) => [t.id, t]));
   const shows = showList.data || [];
-  const showByImdb = new Map(shows.filter((s) => s.imdbId).map((s) => [s.imdbId, s]));
-  // An episode stands for its show on a shelf.
-  const showOfTitle = (t) => t && t.episode && t.film && showByImdb.get(t.film.imdbId);
   // Watching now means somebody is there: an empty room is kept a while after the last person leaves.
   const watching = (rooms.data || []).filter((r) => r.titleId && r.participants > 0 && byId.has(r.titleId));
-  // What leaves next: every settled film and season nobody has kept, soonest first. A season is one
-  // entry, as the API lists it.
-  const leaving = (stays.data || [])
-    .filter((s) => s.settled && !s.keeperId && s.daysLeft != null && byId.has(s.titleId))
-    .sort((a, b) => a.daysLeft - b.daysLeft);
   const continuing = (progress.data || []).filter((p) => byId.has(p.titleId));
   const isRecent = (at) => at && Date.now() - Date.parse(at) <= RECENT_DAYS * DAY_MS;
   const films = library.filter((t) => t.kind !== "show");
@@ -56,18 +43,12 @@ export function Home() {
     ...films.filter((t) => isRecent(t.addedAt)).map((t) => ({ film: t, at: t.addedAt })),
     ...shows.filter((s) => isRecent(s.addedAt)).map((s) => ({ show: s, at: s.addedAt })),
   ].sort((a, b) => b.at.localeCompare(a.at));
-  const stayOf = new Map((stays.data || []).map((s) => [s.titleId, s]));
   const recentIds = new Set(recent.filter((r) => r.film).map((r) => r.film.id));
   const card = (t) => (
-    <FilmCard title={t} stay={stayOf.get(t.id)} me={me} room={watching.find((r) => r.titleId === t.id)} isNew={recentIds.has(t.id)} />
+    <FilmCard title={t} room={watching.find((r) => r.titleId === t.id)} isNew={recentIds.has(t.id)} />
   );
-  const either = (item) => (item.show ? <ShowCard show={item.show} stay={item.stay} me={me} /> : card(item.film));
+  const either = (item) => (item.show ? <ShowCard show={item.show} /> : card(item.film));
   const keyOf = (item) => (item.show ? "show:" + (item.show.imdbId || item.show.firstTitleId) : item.film.id);
-  const leavingItems = leaving.map((s) => {
-    const t = byId.get(s.titleId);
-    const show = showOfTitle(t);
-    return show ? { show, stay: s } : { film: t };
-  });
 
   const featured = newest(films);
 
@@ -133,14 +114,6 @@ export function Home() {
           renderItem={either} />
       )}
 
-      {leavingItems.length > 0 && (
-        <Rail
-          variant="posters" icon="hourglass" title="Leaving soon" count={leavingItems.length}
-          onViewAll={() => navigate(leavingPath)} viewAllLabel="See all"
-          items={leavingItems} itemKey={(item) => (item.show ? "season:" + item.stay.unit : item.film.id)}
-          renderItem={either} />
-      )}
-
       {films.length > 0 && (
         <Rail
           variant="posters" icon="clapperboard" title="Movies" count={films.length}
@@ -154,7 +127,7 @@ export function Home() {
           variant="posters" icon="tv" title="TV Shows" count={shows.length}
           onViewAll={() => navigate(libraryPath("show"))} viewAllLabel="All shows"
           items={[...dealt(shows, showKey, deal), MORE]} itemKey={(s) => (s === MORE ? "more" : showKey(s))}
-          renderItem={(s) => (s === MORE ? <MoreTile label="Any show" /> : <ShowCard show={s} me={me} />)} />
+          renderItem={(s) => (s === MORE ? <MoreTile label="Any show" /> : <ShowCard show={s} />)} />
       )}
     </div>
   );

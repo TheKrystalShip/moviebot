@@ -3,10 +3,9 @@
 # API of its own, over a library of its own, so nothing the harness does reaches a library people use.
 #
 # The library is the checkout's media/ hard-linked into two roots — most films on the media root, the
-# first few on a cold root, where they are on the library's clock. A hard link is free and the API
+# first few on a cold root, the way a host with both disks holds them. A hard link is free and the API
 # replaces a manifest rather than editing it, so the source library is never written to. The state
-# directory is made fresh on every start, with the watch record begun some days ago so that a film
-# nobody has played is close to leaving.
+# directory is made fresh on every start.
 #
 # Runs in the foreground; stop it with Ctrl-C. run.mjs reads the keys this writes.
 #
@@ -17,7 +16,6 @@
 #   MOVIEBOT_VERIFY_DIR         where everything goes          (~/.cache/moviebot-verify)
 #   MOVIEBOT_VERIFY_MEDIA       the library to link from       (<repo>/media); same filesystem as the dir
 #   MOVIEBOT_VERIFY_COLD        films put on the cold root     (5)
-#   MOVIEBOT_VERIFY_CLOCK_DAYS  how long ago the record began  (5)
 #   MOVIEBOT_VERIFY_PORT        the API's port                 (8299)
 #   MOVIEBOT_VERIFY_TMDB_TOKEN_FILE  a file holding a TMDB read token; without one, films carry no
 #                                    ratings, genres or backdrops
@@ -29,7 +27,6 @@ repo="$(cd "$site/../.." && pwd)"
 dir="${MOVIEBOT_VERIFY_DIR:-$HOME/.cache/moviebot-verify}"
 source_media="${MOVIEBOT_VERIFY_MEDIA:-$repo/media}"
 cold_count="${MOVIEBOT_VERIFY_COLD:-5}"
-clock_days="${MOVIEBOT_VERIFY_CLOCK_DAYS:-5}"
 port="${MOVIEBOT_VERIFY_PORT:-8299}"
 
 mkdir -p "$dir"
@@ -58,11 +55,9 @@ for film in "$source_media"/*/; do
 done
 (( i > 0 )) || { echo "No films under $source_media." >&2; exit 1; }
 
-# A fresh state directory, its watch record begun $clock_days days ago.
+# A fresh state directory.
 rm -rf "$dir/state"
 mkdir -p "$dir/state/subtitles"
-since="$(date -u -d "-$clock_days days" +%Y-%m-%dT%H:%M:%S+00:00)"
-printf '{"people":{},"titles":{},"since":"%s"}\n' "$since" > "$dir/state/watch.json"
 
 # Keys of the scratch API's own, made once and kept beside it for run.mjs.
 if [[ ! -f "$dir/keys.env" ]] || ! grep -q '^MEDIA_TICKET_KEY=' "$dir/keys.env"; then
@@ -88,7 +83,7 @@ if [[ -n "${MOVIEBOT_VERIFY_TMDB_TOKEN_FILE:-}" ]]; then
   tmdb=("Tmdb__ReadAccessToken=$(cat "$MOVIEBOT_VERIFY_TMDB_TOKEN_FILE")")
 fi
 
-echo "Scratch Krystal Cinema on http://127.0.0.1:$port: $i films, $cold_count on the clock since $since."
+echo "Scratch Krystal Cinema on http://127.0.0.1:$port: $i films, $cold_count of them on the cold root."
 cd "$dir/api"
 # The API refuses to start without a tracker category; the harness reaches no tracker.
 env \

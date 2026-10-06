@@ -93,7 +93,6 @@ through the app's debug build, from the page's long-animation-frame records:
   rows made the frame after slower, and the stylesheet's size costs nothing measurable.
 - Profile draws the site's own panels inside the TV's frame. Requests is the desktop's cards rather
   than the rows the design draws.
-- Leaving soon is decided away on every surface (section 2) and is still drawn on desktop and phone.
 
 The pages, as designed and built:
 

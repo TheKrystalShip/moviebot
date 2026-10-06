@@ -47,12 +47,6 @@ export function since(iso) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/** Whole days a film has before it leaves: "3 days left", "1 day left", "leaves today". */
-export function daysLeft(days) {
-  if (days <= 0) return "leaves today";
-  return `${days} ${days === 1 ? "day" : "days"} left`;
-}
-
 /** A calendar day from the API, "2026-10-08", the way a person says it: "Wed 8 Oct". */
 export function airDay(date) {
   const [year, month, day] = String(date).slice(0, 10).split("-").map(Number);

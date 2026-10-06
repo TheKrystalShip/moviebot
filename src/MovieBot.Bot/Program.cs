@@ -11,7 +11,6 @@ using TheKrystalShip.MovieBot.Bot.Assistant;
 using TheKrystalShip.MovieBot.Bot.Configuration;
 using TheKrystalShip.MovieBot.Bot.Discord;
 using TheKrystalShip.MovieBot.Bot.Download;
-using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Acquire.Configuration;
 using TheKrystalShip.MovieBot.Bot.Launch;
@@ -146,15 +145,10 @@ builder.Services.AddSingleton<WatchCommand>();
 // and the API has never heard of a Discord message.
 builder.Services.AddSingleton<LaunchCards>();
 
-// Keeps a film in the library, and says on every launch how long a film has left. The keep is the
-// API's, which the library's clock reads when it decides what goes.
-builder.Services.AddSingleton<KeepCommand>();
-builder.Services.AddSingleton<IFilmRetention>(sp => sp.GetRequiredService<KeepCommand>());
-
-// The acquiring half. The API starts every download, holds every wish and records every keep; the
-// bot asks it, and reads the torrent client itself only for what it shows in Discord — a download's
-// progress, and the film becoming watchable. The title index is read here too, for /notify's
-// suggestions as somebody types.
+// The acquiring half. The API starts every download and holds every wish; the bot asks it, and
+// reads the torrent client itself only for what it shows in Discord — a download's progress, and the
+// film becoming watchable. The title index is read here too, for /notify's suggestions as somebody
+// types.
 builder.Services.AddAcquire(builder.Configuration);
 builder.Services.AddSingleton<DownloadCommand>();
 builder.Services.AddSingleton(TimeProvider.System);

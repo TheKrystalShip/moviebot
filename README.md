@@ -33,7 +33,7 @@ Playback starts seconds after a film is requested, while it is still being trans
   web/site ◄────── HLS, SignalR ──►     MovieBot.Api  ◄─────────────────── web/site
   (the player)                           │        ▲                     (Krystal Cinema)
      moviebot-acquire: tracker,  ◄───────┘        └── manifests, segments ── MovieBot.Ingest
-     downloads, wishes, keeps                                                    ▲
+     downloads, wishes                                                           ▲
                                                   MovieBot.Handoff ──────────────┘
                                                   (finished download → library)
 ```
@@ -55,14 +55,16 @@ Playback starts seconds after a film is requested, while it is still being trans
 5. **The hand-off** watches for downloads, picks the feature file, and runs ingest while the
    download is still arriving, so the film is announced as soon as it can be played. It also
    removes a download's torrent and files once it has seeded long enough, and removes a settled film
-   from the library once it has gone its time without a play and nobody keeps it.
+   from the library once it has gone its time without a play. Which films are on disk is the server's
+   business alone: nothing anybody sees says whether a film is here or has to be fetched, and a film
+   that has left is fetched again like any other.
 6. **The assistant** answers what people say or type to MovieBot with a small local language
-   model, acting through the API: it can move a room, put a film on, and propose a download, a wish
-   or a keep for somebody to agree to. It speaks the same chat protocol as the KGSM assistant, so one
+   model, acting through the API: it can move a room, put a film on, and propose a download or a wish
+   for somebody to agree to. It speaks the same chat protocol as the KGSM assistant, so one
    chat client serves both.
 7. **Krystal Cinema** is the site: the library in a browser, for the people the identity provider
    lets watch. It searches,
-   fetches, keeps and waits on films through the API as the person signed in, carries the assistant
+   fetches and waits on films through the API as the person signed in, carries the assistant
    in a dock, and opens the player, in a room of its own or in one a voice channel is watching.
 
 A single transcode serves the whole room because there is only one playhead. On an NVENC GPU a
@@ -75,7 +77,6 @@ A single transcode serves the whole room because there is only one playhead. On 
 | `/watch title:<name>` | Loads a film into the room for the voice channel you are in, downloading it first if needed |
 | `/download film:<name>` | Fetches a film without playing it, so it is ready later |
 | `/notify add\|list\|cancel` | Waits on a film that cannot be downloaded yet, and announces when it can |
-| `/keep add\|remove\|list` | Keeps a film in the library past its time without a play, or lets it go |
 | `/voice join\|status\|leave` | Listens in the voice channel for spoken commands |
 
 See [`src/MovieBot.Bot/README.md`](src/MovieBot.Bot/README.md) for the bot, and
@@ -245,7 +246,7 @@ MovieBot signs nobody in. It is a client and a resource server of an OpenID Conn
 tks-auth or any other that mints ES256 access tokens
 for the audience `cinema` listing the person's Cinema actions in a claim. Everything except sign-in,
 the pages, the configuration, cover art and the action manifest requires such a token, and each route
-checks the action it needs: `cinema:watch`, `cinema:download`, `cinema:wish` or `cinema:keep`.
+checks the action it needs: `cinema:watch`, `cinema:download` or `cinema:wish`.
 
 - `Oidc:Issuer` names the provider. The API records it the first time it starts and refuses to start
   against another until `Oidc:AdoptIssuer` names the new one, since every record is kept by the

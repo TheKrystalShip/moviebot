@@ -200,7 +200,7 @@ public sealed class ListTests(SessionFixture fixture) : IClassFixture<SessionFix
     {
         var owner = As("8030", "Ana");
         var member = As("8031", "Bo");
-        var id = await Create(owner, "Leaving soon");
+        var id = await Create(owner, "Friday picks");
         (await owner.PutAsJsonAsync($"/api/lists/{id}/members/8031", new ListMemberRequest { Role = "editor" })).EnsureSuccessStatusCode();
 
         using (var leave = await member.DeleteAsync($"/api/lists/{id}/members/8031"))

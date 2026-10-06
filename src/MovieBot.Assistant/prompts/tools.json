@@ -72,18 +72,6 @@
       { "name": "imdb_id", "description": "The film's imdb id, which watch_film gives when the tracker has no release." }
     ]
   },
-  "keep_film": {
-    "description": "Proposes keeping a film in the library, so it never leaves for want of a play.",
-    "params": [
-      { "name": "title", "description": "The film's id from the library, or its name." }
-    ]
-  },
-  "let_go": {
-    "description": "Proposes removing a keep, so a film goes back on the library's clock and leaves once it has gone its time without a play.",
-    "params": [
-      { "name": "title", "description": "The film's id from the library, or its name." }
-    ]
-  },
   "download_show": {
     "description": "Fetches episodes of a TV show for later: one season, all of it or the episodes they name. Use when they ask for a show, a season or episodes rather than a film. It starts only when somebody confirms. Shows come at 720p unless they ask for 1080p.",
     "params": [

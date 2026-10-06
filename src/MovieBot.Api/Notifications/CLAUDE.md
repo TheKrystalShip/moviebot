@@ -34,6 +34,5 @@ rest on. `Notifier` is the one way anything here tells anybody anything.
   told the episode is out; every other follower, with or without `autoDownload`, gets the `episode`
   notice, and so does everyone when the download is refused. A follower who switched `episode` off
   still has it in the bell.
-- **What leaves is the library clock's to say.** `LeavingNotices` reads `LibraryClock.Stays()`, so a
-  title it says leaves is the title the sweep deletes, and tells everybody the watch record says
-  watched any of the unit once per date it is due.
+- **Nothing is said about the library itself.** A film settling, moving between disks or leaving is
+  the server's business; a person hears about what they asked for and what they follow.

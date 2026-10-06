@@ -13,8 +13,7 @@ the tools, the conversation and the proposals are the service's (`src/MovieBot.A
 - **What stays here is Discord.** The heard line, the launch card for a `launch` frame, the buttons
   under a proposal, and what a confirmed act posts: the same sentence and embed the slash command
   posts (`DownloadCommand.Describe`, `NotifyCommand.Describe`), and for a download the progress
-  message the watcher keeps current. One wording for one act, whoever asked. A keep is posted as the
-  sentence the service wrote for it.
+  message the watcher keeps current. One wording for one act, whoever asked.
 - **The buttons carry the service's token, and so does a spoken yes.** It redeems once, at the
   service, so whichever arrives first carries the act out. The bot redeems it with the token of
   whoever agreed, and the act is done as them: they are the one spending it, and the API decides

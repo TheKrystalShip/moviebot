@@ -64,7 +64,6 @@ export function trailFor(route, name) {
       return [home, { label: PLACES.profile.label, href: profilePath() }, { label: face.label }];
     }
     case "notify":
-    case "leaving":
     case "about": return [home, place(route.view, true)];
     case "notfound": return [home, { label: "Not found" }];
     default: return [];

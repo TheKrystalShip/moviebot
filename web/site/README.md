@@ -28,10 +28,10 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glanc
 
 | Path | What it is |
 |---|---|
-| `/` | A film to watch, then a row each for where the person left off, their Watch later (with Watch on a film the library holds, and See all opening it), the rooms watching something now, what was recently added, what leaves next, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail`. The Movies and TV Shows rows are dealt in a new order on every visit, kept while the page is open, and end in a tile that opens Discover |
-| `/movies`, `/tv` | Every film, or every show (one card each, however many of its episodes are here), with krystal-ui's `Toolbar`: a search by name, one Filters popover (state, stay, genre) with the active ones as chips, and a sort with its direction. With a genre picked, the grid ends in a Discover more tile opening Discover's catalogue of that genre. On a phone a Movies \| TV shows switch under the heading moves between the two |
-| `/movies/<titleId>` | One film in the library: what it is, who played it last, how long it stays, keep or let go, save, and watch or resume. An episode's id forwards to its show's page at its season |
-| `/tv/<imdbId>`, `/tv/<imdbId>/season/<n>` | One show the library holds an episode of, at a season (the default season has no segment): what it is, its seasons as chips with how long each stays, each season's episodes with their stills and how far this person got, resume, keep a season, and the request sheet that picks seasons and episodes to download at 720p (the default) or 1080p. Every episode the tracker has plays from its row while it arrives, each season can be downloaded whole, first episode first, and with nothing of it here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them. A show the library holds nothing of forwards to its `/discover/show/` address |
+| `/` | A film to watch, then a row each for where the person left off, their Watch later (with Watch on a film the library holds, and See all opening it), the rooms watching something now, what was recently added, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail`. The Movies and TV Shows rows are dealt in a new order on every visit, kept while the page is open, and end in a tile that opens Discover |
+| `/movies`, `/tv` | Every film, or every show (one card each, however many of its episodes are here), with krystal-ui's `Toolbar`: a search by name, one Filters popover (state and genre for films, genre for shows) with the active ones as chips, and a sort with its direction. With a genre picked, the grid ends in a Discover more tile opening Discover's catalogue of that genre. On a phone a Movies \| TV shows switch under the heading moves between the two |
+| `/movies/<titleId>` | One film in the library: what it is, who played it last, save, and watch or resume. An episode's id forwards to its show's page at its season |
+| `/tv/<imdbId>`, `/tv/<imdbId>/season/<n>` | One show the library holds an episode of, at a season (the default season has no segment): what it is, its seasons as chips, each season's episodes with their stills and how far this person got, resume, and the request sheet that picks seasons and episodes to download at 720p (the default) or 1080p. Every episode the tracker has plays from its row while it arrives, each season can be downloaded whole, first episode first, and with nothing of it here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them. A show the library holds nothing of forwards to its `/discover/show/` address |
 | `/discover/show/<imdbId>`, `/discover/show/<imdbId>/season/<n>` | The same page for a show the library holds no episode of, where its episodes are picked to download. A show the library holds an episode of forwards to its `/tv/` address |
 | `/discover/film/<imdbId>` | A film that is not here: what it is, and Watch (now, while it arrives) and Download (1080p, the default, or 720p, with the size of each) when the tracker offers it, the download's progress while it is on its way, or Notify when it is not out digitally yet, and Save. A film in the library forwards to its `/movies/` address |
 | `/discover?person=<personId>` | Discover's catalogue of one person's work: their portrait, name and what they are known for, then the films and shows they are credited on, most voted on first (`/api/catalogue/people/<personId>`), each card with the part they played or the job they did, marked when the library holds it and leading to its page as any other answer does. Every cast member on a film's or show's page leads here, and so does each director, writer and creator in its credits |
@@ -40,8 +40,7 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glanc
 | `/saved` | Saved: the signed-in person's lists, Watch later first, then the rest most recently changed first, each its newest posters, name and size, and whose it is when it is somebody else's; and making a new one |
 | `/saved/<id>` | One list (`later` is the person's own Watch later): its titles newest saved first under Today, Yesterday, This week and each month, with krystal-ui's `Toolbar` to search titles and notes, narrow by kind, library and watched, and sort. Each is a poster card with its rating, year and length, its note or when it was saved and by whom on a shared list, and Watched when the person watched it; an owner or editor writes the note in a sheet over the page and takes it off, from the card's tools. Its owner renames it, deletes it, and puts people on it as editors or viewers; a member leaves it |
 | `/notify` | The films the signed-in person is waiting on, as poster cards marked Out now with the release once one is, each with Stop waiting; and finding a film by name in the catalogue, as `/discover`'s result cards, to wait on from its page |
-| `/leaving` | Every settled film and season as a poster card, grouped by leaving soon, on the clock and kept: its rating, year and days left, when it was last played or who keeps it, and Keep or Let go from the card's tools |
-| `/profile`, `/profile/<tab>` | The signed-in person; History, the first tab, has no segment: History (each film a poster card with how far the person got along its foot, when they watched it, Resume, and a way to remove it), Requests (the films they wait on and the downloads they asked for, each a poster card, a download with its progress), Following (each followed show a poster card with its next episode, whether new episodes are downloaded, switched on the card, and Unfollow), Notifications, Playback (audio language, quality, skipping intros and recaps automatically), Subtitles (the language a film starts in, and how subtitles look with a preview of them), Appearance (the theme) and Account (who is signed in, and a link to the account's page at the provider, where it is managed); every tab one column at the page's width; signing out |
+| `/profile`, `/profile/<tab>` | The signed-in person; History, the first tab, has no segment: History (each film a poster card with how far the person got along its foot, when they watched it, Resume, and a way to remove it), Requests (the films they wait on, each a poster card), Following (each followed show a poster card with its next episode, whether new episodes are downloaded, switched on the card, and Unfollow), Notifications, Playback (audio language, quality, skipping intros and recaps automatically), Subtitles (the language a film starts in, and how subtitles look with a preview of them), Appearance (the theme) and Account (who is signed in, and a link to the account's page at the provider, where it is managed); every tab one column at the page's width; signing out |
 | `/about` | What the site is, and where its film details come from |
 | `/signin` | Where the identity provider sends the browser back with its code; opened on its own, it goes to the provider |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from. A room waiting on a Watch now shows the film being found, arriving and starting, and plays it on its own |
@@ -83,7 +82,7 @@ holds the title, and New list, which makes one and saves to it: a popover beside
 screen, the drawer on a phone.
 
 Wide screens get around by the sidebar, which has Discover and Saved under Home. A phone has
-krystal-ui's `TabBar` along its bottom edge instead, and no drawer: Home (lit on `/` and `/leaving`),
+krystal-ui's `TabBar` along its bottom edge instead, and no drawer: Home (lit on `/`),
 Library (lit under `/movies` and `/tv`), Discover (lit under `/discover`), Assistant,
 which opens the dock above the bar rather than a page, and Me (`/profile`, lit on `/notify` and
 `/saved` too), whose page leads to Saved. What each page lights is one table in `App.jsx`, by the route's
@@ -112,8 +111,8 @@ provider's sign-in. The account's page at the provider lists its sessions, and P
 
 The token lists the Cinema actions the person holds, in the claim `/api/config` names, and the page
 shows a control only to somebody holding the action it needs (`can` and `useCan` in `src/session.js`):
-Download and Watch on a film that is not here need `cinema:download`, Notify `cinema:wish`, Keep
-`cinema:keep`. An approved account without `cinema:watch` sees one page saying it has no access to
+Download and Watch on a film that is not here need `cinema:download`, Notify `cinema:wish`. An
+approved account without `cinema:watch` sees one page saying it has no access to
 Krystal Cinema, with Sign out and the account's page. The API checks every action again.
 
 A television signs in with the device authorization grant (RFC 8628) as the device client
@@ -322,7 +321,7 @@ them was kept; it defaults to the scratch site and takes a deployed origin as re
 
 The dock holds krystal-ui's `Chat`, talking to moviebot-assistant at `/assistant` as the signed-in
 person. A film the assistant puts on or finds comes back as the tool's card and is drawn with a way
-to watch it; a proposal (a download, a wish, a keep, subtitles) is confirmed in the chat by the person
+to watch it; a proposal (a download, a wish, subtitles) is confirmed in the chat by the person
 who asked for it.
 
 ## Rules

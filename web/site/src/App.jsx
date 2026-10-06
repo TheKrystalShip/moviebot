@@ -18,7 +18,6 @@ import { CatalogueFilm } from "./pages/CatalogueFilm.jsx";
 import { Discover, DISCOVER_FIELD } from "./pages/Discover.jsx";
 import { Notify } from "./pages/Notify.jsx";
 import { ListPage, Saved } from "./pages/Saved.jsx";
-import { Leaving } from "./pages/Leaving.jsx";
 import { Profile } from "./pages/Profile.jsx";
 import { Dark, NoAccess, SignInReturn, Waiting } from "./pages/SignIn.jsx";
 import { About } from "./pages/About.jsx";
@@ -41,7 +40,7 @@ const ENDED = "Your session ended.";
 const place = (id) => ({ id, ...PLACES[id] });
 const HOME = ["home", "discover", "saved"].map(place);
 const LIBRARY = ["movies", "tv"].map(place);
-const LIFECYCLE = ["notify", "leaving"].map(place);
+const WAITING = ["notify"].map(place);
 
 // A phone's way around: a tab for each place. The assistant's tab opens the dock rather than a page.
 const TABS = [
@@ -56,7 +55,6 @@ const TABS = [
 // not listed lights neither.
 const LIT = {
   home: { item: "home", tab: "home" },
-  leaving: { item: "leaving", tab: "home" },
   movies: { item: "movies", tab: "library" },
   movie: { item: "movies", tab: "library" },
   tv: { item: "tv", tab: "library" },
@@ -195,7 +193,7 @@ function Frame({ session, route }) {
             </>}>
             <SidebarGroup>{HOME.map(item)}</SidebarGroup>
             <SidebarGroup>{LIBRARY.map(item)}</SidebarGroup>
-            <SidebarGroup>{LIFECYCLE.filter((n) => n.id !== "notify" || can(session, "cinema:wish")).map(item)}</SidebarGroup>
+            {can(session, "cinema:wish") && <SidebarGroup>{WAITING.map(item)}</SidebarGroup>}
           </Sidebar>
         }
         aside={<>
@@ -270,7 +268,6 @@ function Page({ route }) {
     case "saved": return <Saved />;
     case "list": return <ListPage key={route.arg} id={route.arg} />;
     case "notify": return <Notify />;
-    case "leaving": return <Leaving />;
     case "profile": return <Profile tab={route.tab} />;
     case "about": return <About />;
     default: return <NotFound />;

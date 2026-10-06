@@ -20,8 +20,8 @@ that could disagree with reality. A download's own notes live on the torrent.
 Everything in a reply was measured while the command ran. The bot never opens a manifest, never
 caches a title and never claims a state it did not read.
 
-Downloads, wishes and keeps are the API's: the bot asks it to start one, wait on a film or keep
-one, and words in Discord what it answers (`docs/api-contract.md`, "Fetching films").
+Downloads and wishes are the API's: the bot asks it to start one or wait on a film, and words in
+Discord what it answers (`docs/api-contract.md`, "Fetching films").
 
 ## It acts as the person who asked
 
@@ -175,9 +175,6 @@ ready is how anybody starts it.
   down — skips it rather than refusing, since neither is needed to fetch a film and the worst a
   skipped check costs is a second copy of something.
 - **It needs no voice channel**, because there is no room in it.
-- **It is on the same clock as any other film.** A film fetched long before anybody watches it
-  leaves the library once it has gone its time without a play; `/keep` is what stops that, and the
-  announcement says how long the film has once it has settled.
 
 The reply is the progress message, which the same updater keeps current and the same watcher
 announces, because a download fetched for later is a download.
@@ -200,8 +197,7 @@ and the tracker is asked once a show is picked, for every season it offers under
 - **Leaving episodes out takes the whole season**; naming them takes only those, as numbers and
   ranges.
 - **Each download is a download.** Every planned torrent posts its own progress message and is
-  announced when its first episode can be watched, on the same clock as any film; `/keep` on an
-  episode keeps its whole season.
+  announced when its first episode can be watched.
 
 ## Listening in a voice channel
 
@@ -253,8 +249,8 @@ and the words go first to a gate that knows a handful of verbs, with no model in
 What the gate does not read goes to moviebot-assistant as a turn in this room, asked by the person
 who said it. The assistant answers with moviebot-llm, a small model on hotbox's card, and holds the
 room's conversation, its tools and what it proposed (`src/MovieBot.Assistant/CLAUDE.md`). Every act
-its tools take is the API's, so loading a film, a download, a wish and a keep are the same acts as
-`/watch`, the tracker pick, `/notify` and `/keep`, and a confirmed one is posted in the same words
+its tools take is the API's, so loading a film, a download and a wish are the same acts as
+`/watch`, the tracker pick and `/notify`, and a confirmed one is posted in the same words
 and embeds. The bot has no engine of its own: when the assistant cannot be reached, the request is
 answered with one sentence saying so, and everything else the bot does goes on as before.
 
@@ -268,8 +264,8 @@ answered with one sentence saying so, and everything else the bot does goes on a
   conversation again. A paused room is described as "waiting to be played", because measured on
   this model "carry on" against a room described only as paused came back as a pause or a question.
 - **Moving the room happens at once; spending something waits.** Play, pause, seek and loading a
-  film act immediately, as the person who asked. A download, a fetched subtitle, a wish and a keep
-  are posted as a proposal with two buttons, and a spoken yes or no within
+  film act immediately, as the person who asked. A download, a fetched subtitle and a wish are
+  posted as a proposal with two buttons, and a spoken yes or no within
   `Assistant:ConfirmWindowSeconds` is the same answer. One token backs both, so whichever comes
   first acts and the other finds it spent. The window takes the next thing its speaker says, and
   anything that is neither a yes nor a no spends it without a word: in a room watching a film that

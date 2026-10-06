@@ -81,7 +81,7 @@ export function CinemaAssistant({ session, docked, dock, onClose, onExpand }) {
       storageKey={"cinema:chat:" + (user ? user.id : "anonymous")}
       assistantName="MovieBot"
       profile={cinemaProfile}
-      suggestions={["What should we watch tonight?", "What's leaving this week?", "Get Dune: Part Two"]}
+      suggestions={["What should we watch tonight?", "What's on in the rooms?", "Get Dune: Part Two"]}
       primer="I can find films in the library, fetch ones that aren't here yet, and tell you when one comes out."
       noAssistant="MovieBot's assistant isn't answering right now."
       renderCards={(msg) => <FilmCards cards={msg.cards} />} />

@@ -4,6 +4,32 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.16.0] - 2026-10-06
+
+### Removed
+
+- **The library is no longer anything a person sees or tends.** Which films are on disk, how long
+  each stays and when it goes are the server's alone: a film that has left is fetched again like any
+  other, in minutes. Gone from every surface: the site's Leaving soon page, its Home row and nav
+  entry, the hourglass and days-left status on film and show cards, the stay pill and Keep / Un-keep
+  on a film's and a season's page, and the library's Stay filter; the `leaving` and `kept`
+  notifications and their switches; the bot's `/keep` command and the "On disk" line on launch cards
+  and download announcements; the assistant's `keep_film` and `let_go` tools and the stay line in
+  what it says about a film. The API drops `GET /api/stays`, `GET /api/titles/{id}/stay`,
+  `PUT`/`DELETE /api/titles/{id}/keep`, the `cinema:keep` action, the keep store and
+  `Library:Keeps`. The library's clock itself is unchanged: a settled film or season leaves after
+  `Library:LeaveAfterDays` without a play unless a room holds it, and the hand-off still deletes only
+  what `/api/library/due` names. API 2.5.0, Bot 2.1.0, Assistant 2.3.0, MovieBot.Core 3.0.0
+  (`TitleStay` is gone), MovieBot.Client 5.0.0.
+- **Profile's Requests tab no longer lists downloads.** It showed the torrent client's view of each
+  download a person started, release name and all, and is the waiting list alone. Site 0.39.0.
+
+### Operational
+
+- `keeps.json` in the API's state directory is no longer read. The films it held go back on the
+  clock on the first sweep after the upgrade, so any that have gone their time without a play leave
+  then.
+
 ## [2.15.1] - 2026-10-06
 
 ### Changed

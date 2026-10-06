@@ -7,8 +7,8 @@ namespace TheKrystalShip.MovieBot.Api.Shows;
 
 /// <summary>
 /// A show as its page shows it: the description, and every season with its episodes, each episode
-/// joined with whether the library holds it, the asking person's progress in it, and each season's
-/// stay. Works for a show the library does not hold, which is the page somebody picks episodes on.
+/// joined with whether the library holds it and the asking person's progress in it. Works for a show
+/// the library does not hold, which is the page somebody picks episodes on.
 /// </summary>
 public sealed record ShowView
 {
@@ -59,9 +59,6 @@ public sealed record SeasonView
     public string? AirDate { get; init; }
     public string? Overview { get; init; }
     public required List<EpisodeView> Episodes { get; init; }
-
-    /// <summary>How long the season stays, and who keeps it; absent while the library holds none of it.</summary>
-    public TitleStay? Stay { get; init; }
 }
 
 public sealed record EpisodeView
@@ -167,7 +164,7 @@ public static class ShowViews
     /// <summary>The page of one show, from what is kept and what the library holds of it.</summary>
     public static ShowView View(
         this ShowStore store, string imdbId, StoredShow? stored,
-        IReadOnlyList<TitleSummary> episodes, Func<string, TitleStay?> stayOf, StoredFollow? follow = null)
+        IReadOnlyList<TitleSummary> episodes, StoredFollow? follow = null)
     {
         var d = stored?.Details;
         string? Image(string file) => store.HasImage(imdbId, file) ? ImageUrl(imdbId, file) : null;
@@ -212,7 +209,6 @@ public static class ShowViews
                 };
             }).ToList();
 
-            var first = rows.FirstOrDefault(r => r.TitleId is not null)?.TitleId;
             return new SeasonView
             {
                 Number = n,
@@ -220,7 +216,6 @@ public static class ShowViews
                 AirDate = season?.AirDate,
                 Overview = season?.Overview,
                 Episodes = rows,
-                Stay = first is null ? null : stayOf(first),
             };
         }).ToList();
 

@@ -1,7 +1,7 @@
 import React from "react";
 import { Button, Icon, toast } from "@thekrystalship/krystal-ui";
 import { api, episodeCode } from "../api.js";
-import { SOON_DAYS, leaveRule, stayWords, useLoad } from "../data.js";
+import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
 import { showPath } from "../paths.js";
 import { navigate } from "../router.js";
@@ -16,8 +16,8 @@ import { openingEpisode, watchNow, watchOpening } from "../watchNow.js";
 import { downloadWords } from "./Discover.jsx";
 
 /**
- * One show: what it is, its seasons with their episodes, where this person picks up, how long each
- * season stays, and getting more of it. Works for a show the library does not hold yet, which is
+ * One show: what it is, its seasons with their episodes, where this person picks up, and getting more
+ * of it. Works for a show the library does not hold yet, which is
  * where its episodes are picked to download.
  *
  * What the show is comes from the film database through the API; which episodes are on this server,
@@ -33,12 +33,10 @@ export function Show({ imdbId, season, inLibrary }) {
   const library = useLoad(() => api.shows().then((all) => all.find((s) => s.imdbId === imdbId) || null).catch(() => null), [imdbId]);
   const rooms = useLoad(() => api.rooms(), [imdbId]);
   const downloading = useCan("cinema:download");
-  const keeping = useCan("cinema:keep");
   // What the tracker offers, so every episode it holds can be played; kept a few minutes by the API,
   // and asked by somebody who may fetch an episode.
   const offers = useLoad(() => (downloading ? api.showReleases(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId, downloading]);
   const [requesting, setRequesting] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
   const [starting, setStarting] = React.useState(false);
   const session = useSession();
   const me = session && session.user;
@@ -84,20 +82,6 @@ export function Show({ imdbId, season, inLibrary }) {
   };
   const years = s.firstYear ? `${s.firstYear}–${s.inProduction ? "" : s.lastYear || ""}` : null;
   const episodeCount = seasons.reduce((n, x) => n + x.episodes.length, 0);
-
-  const keep = async (stay, keeping) => {
-    setBusy(true);
-    try {
-      if (keeping) await api.keep(stay.titleId);
-      else await api.unkeep(stay.titleId);
-      toast.success(keeping ? `${s.title} Season ${stay.season} is kept, so it stays.` : `${s.title} Season ${stay.season} is back on the clock.`);
-      show.reload();
-    } catch (error) {
-      toast.fromError(error, "That did not change anything");
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const facts = [
     ["Aired", years],
@@ -173,22 +157,16 @@ export function Show({ imdbId, season, inLibrary }) {
       {seasons.length > 0 && (
         <section className="kc-section">
           <div className="kc-seasons">
-            {seasons.map((x) => {
-              const stay = x.stay && x.stay.settled ? x.stay : null;
-              const leaving = stay && !stay.keeperId && stay.daysLeft != null && stay.daysLeft <= SOON_DAYS;
-              return (
-                <button key={x.number} type="button"
-                  className={"kc-season-chip" + (x.number === current.number ? " is-on" : "")}
-                  onClick={() => navigate(showPath(imdbId, { held: inLibrary, season: x.number }), { replace: true })}>
-                  Season {x.number}
-                  {stay && stay.keeperId && <span className="kc-season-chip__flag is-kept"><Icon name="pin" size={12} />Kept</span>}
-                  {leaving && <span className={"kc-season-chip__flag" + (stay.daysLeft <= 1 ? " is-danger" : "")}><Icon name="hourglass" size={12} />{stayWords(stay, me)}</span>}
-                </button>
-              );
-            })}
+            {seasons.map((x) => (
+              <button key={x.number} type="button"
+                className={"kc-season-chip" + (x.number === current.number ? " is-on" : "")}
+                onClick={() => navigate(showPath(imdbId, { held: inLibrary, season: x.number }), { replace: true })}>
+                Season {x.number}
+              </button>
+            ))}
           </div>
 
-          <SeasonPanel season={current} me={me} busy={busy} onKeep={keeping ? keep : null} rooms={rooms.data || []}
+          <SeasonPanel season={current} me={me} rooms={rooms.data || []}
             offers={offers.data} showImdbId={s.imdbId} showTitle={s.title} onFetched={show.reload} />
         </section>
       )}
@@ -214,10 +192,9 @@ export function Show({ imdbId, season, inLibrary }) {
   );
 }
 
-/** One season: its stay and its keep, and its episodes with how far this person got in each. */
-function SeasonPanel({ season, me, busy, onKeep, rooms, offers, showImdbId, showTitle, onFetched }) {
+/** One season: when it was last played, and its episodes with how far this person got in each. */
+function SeasonPanel({ season, me, rooms, offers, showImdbId, showTitle, onFetched }) {
   const [fetching, setFetching] = React.useState(false);
-  const stay = season.stay && season.stay.settled ? season.stay : null;
   const fetchable = fetchableIn(season, offers);
 
   // The whole of the season not here, at 720p, first episode first: the season's pack where there
@@ -245,7 +222,6 @@ function SeasonPanel({ season, me, busy, onKeep, rooms, offers, showImdbId, show
   const played = season.episodes.map((e) => e.lastPlayed).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at))[0];
   const playedBy = played && (me && played.byId === me.id ? "you" : played.byName);
   const aired = season.airDate ? new Date(season.airDate).getFullYear() : null;
-  const leaving = stay && !stay.keeperId && stay.daysLeft != null && stay.daysLeft <= SOON_DAYS;
 
   return (
     <div className="kc-season">
@@ -253,15 +229,9 @@ function SeasonPanel({ season, me, busy, onKeep, rooms, offers, showImdbId, show
         <div className="kc-season__text">
           <span className="kc-season__title">Season {season.number} · {season.episodes.length} episodes{aired ? ` · ${aired}` : ""}</span>
           <span className="kc-season__note">
-            {stay && stay.keeperId ? "Stays for everyone until someone un-keeps it"
-              : played ? `Last played ${ago(played.at)} by ${playedBy}`
-              : stay ? leaveRule(stay) : "Not played yet"}
+            {played ? `Last played ${ago(played.at)} by ${playedBy}` : "Not played yet"}
           </span>
         </div>
-        {stay && <span className={"kc-pill" + (leaving ? " kc-pill--warn" : "")}>{stayWords(stay, me)}</span>}
-        {stay && onKeep && (stay.keeperId
-          ? <Button size="lg" icon="pin-off" disabled={busy} onClick={() => onKeep(stay, false)}>Un-keep season</Button>
-          : <Button size="lg" icon="pin" disabled={busy} onClick={() => onKeep(stay, true)}>Keep season</Button>)}
         {fetchable.length > 0 && (
           <Button size="lg" icon="download" disabled={fetching} onClick={fetchSeason}>
             {fetchable.length === season.episodes.length ? "Download season" : `Download the other ${fetchable.length}`}

@@ -72,13 +72,6 @@ export const api = {
     if (error.status === 409) return { outcome: "full" };
     throw error;
   }),
-  downloads: () => call("GET", "/api/downloads"),
-
-  // How long a settled film stays. A keep is the signed-in person's own: the token names who.
-  stays: () => call("GET", "/api/stays"),
-  stay: (id) => call("GET", `/api/titles/${enc(id)}/stay`),
-  keep: (id) => call("PUT", `/api/titles/${enc(id)}/keep`),
-  unkeep: (id) => call("DELETE", `/api/titles/${enc(id)}/keep`),
 
   // What the signed-in person has watched, and how they watch.
   progress: () => call("GET", "/api/me/progress"),

@@ -12,12 +12,6 @@ public static class NotificationKinds
     /// <summary>A download somebody started can be watched, or could not be made watchable.</summary>
     public const string Ready = "ready";
 
-    /// <summary>Something somebody watched leaves the library within a day.</summary>
-    public const string Leaving = "leaving";
-
-    /// <summary>Somebody kept, or let go of, something this person watched.</summary>
-    public const string Kept = "kept";
-
     /// <summary>An episode of a show this person follows is out and the tracker offers it.</summary>
     public const string Episode = "episode";
 
@@ -72,23 +66,16 @@ public sealed record NotificationPreferences
 
     public bool Ready { get; init; } = true;
 
-    public bool Leaving { get; init; } = true;
-
     public bool Episode { get; init; } = true;
 
     public bool Shared { get; init; } = true;
-
-    /// <summary>Off unless asked for: every keep of anything a person watched adds up.</summary>
-    public bool Kept { get; init; }
 
     /// <summary>Whether a notification of this kind is pushed. An invite always is.</summary>
     public bool Allows(string kind) => kind switch
     {
         NotificationKinds.Available => Available,
         NotificationKinds.Ready => Ready,
-        NotificationKinds.Leaving => Leaving,
         NotificationKinds.Episode => Episode,
-        NotificationKinds.Kept => Kept,
         NotificationKinds.Shared => Shared,
         _ => true,
     };

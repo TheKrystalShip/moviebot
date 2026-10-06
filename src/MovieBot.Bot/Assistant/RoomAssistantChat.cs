@@ -7,7 +7,6 @@ using Microsoft.Extensions.Options;
 using TheKrystalShip.Discord.Voice;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Download;
-using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Bot.Launch;
 using TheKrystalShip.MovieBot.Bot.Notify;
 using TheKrystalShip.MovieBot.Bot.Sessions;
@@ -84,7 +83,6 @@ public sealed class RoomAssistantChat(
     AssistantClient assistant,
     MovieBotApiClient api,
     ILaunchPresenter presenter,
-    IFilmRetention retention,
     LaunchCards cards,
     DownloadCommand downloads,
     VoiceAttention attention,
@@ -202,7 +200,6 @@ public sealed class RoomAssistantChat(
                 RequestedBy = launch.RequestedBy,
                 Replaced = launch.Replaced is { } replaced ? library.FirstOrDefault(t => t.Name == replaced) : null,
                 AlreadyWatching = launch.AlreadyWatching,
-                OnDisk = await retention.NoticeForAsync(title.Id, ct),
             }, ct);
 
             var posted = await chat.SendMessageAsync(

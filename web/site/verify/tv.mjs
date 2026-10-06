@@ -83,7 +83,6 @@ const PAGES = [
   { name: "list", path: "/saved/later" },
   { name: "discover", path: "/discover" },
   { name: "notify", path: "/notify" },
-  { name: "leaving", path: "/leaving" },
   ...PROFILE_TABS.map((tab) => ({ name: "profile" + (tab ? "-" + tab.slice(1) : ""), path: "/profile" + tab })),
   { name: "about", path: "/about" },
 ];

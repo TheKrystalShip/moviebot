@@ -209,7 +209,8 @@ The model of the two roots is `src/MovieBot.Core/CLAUDE.md`.
 Disk is finite, and a film is let go of twice, on two unrelated clocks. The tracker's clock frees
 the **source**: the torrent and the files it downloaded. The library's clock removes a **transcoded
 film** that has settled on the cold disk. Neither knows about the other, and each removes only its
-own half. Keeping a film is `src/MovieBot.Bot/Keep/CLAUDE.md`.
+own half. Neither is anything a person sees or sets: a film that has left is fetched again the way
+any film is.
 
 ### The tracker's clock (`RetentionWorker`)
 
@@ -234,14 +235,12 @@ acts on it and what is checked first.
   for a week is a fault to read about in the log, not a source to remove.
 - **Nothing is removed while the cold volume is out.** A pass that cannot see the library acts on
   nothing it cannot ask about.
-- **A kept film's source goes like any other.** A keep pins the film in the library and has no say
-  over a torrent the tracker has been paid its seeding on.
 
 ### The library's clock (`LibraryWorker`)
 
 A settled film, one that is ready and whose directory is on the cold root alone, leaves once it has gone
-`Library:LeaveAfterDays` without a play, unless somebody keeps it. The rule is the API's alone
-(`LibraryClock`), because the plays and the keeps are its records; the hand-off asks `GET
+`Library:LeaveAfterDays` without a play. The rule is the API's alone (`LibraryClock`), because the
+plays and the rooms are its records; the hand-off asks `GET
 /api/library/due` and deletes what comes back, being the only process allowed to write the media
 roots.
 

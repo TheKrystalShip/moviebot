@@ -3,7 +3,6 @@ using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Api.Library;
-using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
 
@@ -12,7 +11,7 @@ namespace TheKrystalShip.MovieBot.Api.Notifications;
 /// <summary>How a notification names what it is about, and the page it opens.</summary>
 public static class Naming
 {
-    /// <summary>A film by its name and year; an episode by its show and season, which is what a person keeps and downloads.</summary>
+    /// <summary>A film by its name and year; an episode by its show and season, which is what a person downloads.</summary>
     public static string Name(Manifest manifest) =>
         manifest.Episode is { } episode
             ? $"{manifest.Film?.Name ?? manifest.Title} Season {episode.Season.ToString(CultureInfo.InvariantCulture)}"
@@ -130,91 +129,6 @@ public sealed class ReadyNotices(
         catch (OperationCanceledException)
         {
             return false;
-        }
-    }
-}
-
-/// <summary>
-/// Tells everybody who watched something that it leaves the library within a day, once per date it
-/// is due: a play moves the date, and the new one is news again.
-///
-/// The library's clock is the one rule (<see cref="LibraryClock"/>), so what this says leaves is what
-/// the sweep deletes. A kept or unsettled title has no date and is never mentioned.
-/// </summary>
-public sealed class LeavingNotices(
-    LibraryClock clock,
-    TitleLibrary library,
-    WatchRecord record,
-    Notifier notifier,
-    TimeProvider time,
-    ILogger<LeavingNotices> logger) : BackgroundService
-{
-    public static readonly TimeSpan Warning = TimeSpan.FromDays(1);
-
-    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(30);
-
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        using var timer = new PeriodicTimer(Interval);
-        do
-        {
-            try
-            {
-                await PassAsync(stoppingToken);
-            }
-            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
-            {
-                logger.LogWarning(ex, "A pass over what leaves soon failed.");
-            }
-        }
-        while (await ReadyNotices.WaitAsync(timer, stoppingToken));
-    }
-
-    public async Task PassAsync(CancellationToken ct)
-    {
-        var now = time.GetUtcNow();
-        foreach (var stay in clock.Stays())
-        {
-            if (stay.KeeperId is not null || stay.LeavesAt is not { } leavesAt) continue;
-            if (leavesAt <= now || leavesAt - now > Warning) continue;
-            if (library.Get(stay.TitleId) is not { } manifest) continue;
-
-            var ids = library.IdsIn(stay.Unit);
-            var name = Naming.Name(manifest);
-            foreach (var person in record.Watchers(ids))
-            {
-                await notifier.TellAsync(person, new NotificationDraft
-                {
-                    Kind = NotificationKinds.Leaving,
-                    Key = $"leaving:{stay.Unit}:{leavesAt.UtcDateTime.ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture)}",
-                    Text = $"{name} leaves within a day. Play it or keep it to stop the timer.",
-                    Url = Naming.PathOf(manifest),
-                    Action = "Keep",
-                }, ct);
-            }
-        }
-    }
-}
-
-/// <summary>Tells everybody who watched something that somebody kept it, or let it go.</summary>
-public sealed class KeepNotices(TitleLibrary library, WatchRecord record, Notifier notifier, TimeProvider time)
-{
-    public async Task TellAsync(string unit, Actor keeper, bool kept, CancellationToken ct)
-    {
-        var ids = library.IdsIn(unit);
-        if (ids.Count == 0 || library.Get(ids[0]) is not { } manifest) return;
-
-        var name = Naming.Name(manifest);
-        var at = time.GetUtcNow().ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
-        foreach (var person in record.Watchers(ids).Where(p => p != keeper.UserId))
-        {
-            await notifier.TellAsync(person, new NotificationDraft
-            {
-                Kind = NotificationKinds.Kept,
-                Key = $"kept:{unit}:{at}",
-                Text = kept ? $"{keeper.DisplayName} kept {name}." : $"{keeper.DisplayName} let {name} go back on the clock.",
-                Url = Naming.PathOf(manifest),
-            }, ct);
         }
     }
 }

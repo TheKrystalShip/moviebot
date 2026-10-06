@@ -200,26 +200,6 @@ public sealed class MovieBotApiClient
             method: HttpMethod.Delete)
         ?? new CancelWishReply { Outcome = "notWaiting" };
 
-    /// <summary>Every settled film and how long it stays, soonest to leave first, the kept ones last.</summary>
-    public async Task<IReadOnlyList<TitleStay>> ListStaysAsync(CancellationToken ct) =>
-        await GetAsync("api/stays",
-            ManifestJsonContext.Default.IReadOnlyListTitleStay, "The library's films could not be read.", ct) ?? [];
-
-    /// <summary>How long a film stays in the library and who keeps it, or null when the library holds no such film.</summary>
-    public Task<TitleStay?> StayAsync(string titleId, CancellationToken ct) =>
-        GetAsync($"api/titles/{Uri.EscapeDataString(titleId)}/stay",
-            ManifestJsonContext.Default.TitleStay, "The film's stay could not be read.", ct, missing: true);
-
-    /// <summary>Keeps a film as the person this client acts as; null when the library holds no such film.</summary>
-    public Task<TitleStay?> KeepAsync(string titleId, CancellationToken ct) =>
-        GetAsync($"api/titles/{Uri.EscapeDataString(titleId)}/keep", ManifestJsonContext.Default.TitleStay,
-            "The film could not be kept.", ct, missing: true, method: HttpMethod.Put);
-
-    /// <summary>Lets a film go back on the library's clock as the person this client acts as; null when the library holds no such film.</summary>
-    public Task<TitleStay?> ReleaseKeepAsync(string titleId, CancellationToken ct) =>
-        GetAsync($"api/titles/{Uri.EscapeDataString(titleId)}/keep", ManifestJsonContext.Default.TitleStay,
-            "The film could not be let go.", ct, missing: true, method: HttpMethod.Delete);
-
     /// <summary>
     /// Whether the API is answering. Used at startup so an unreachable backend is reported once,
     /// on the log, rather than for the first time in front of a room.

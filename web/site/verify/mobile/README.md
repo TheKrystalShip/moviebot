@@ -38,16 +38,14 @@ any view has a fault.
 ## The scratch site
 
 The checkout's `media/` is hard-linked into a library of the harness's own, so nothing a run does
-reaches a library people use: the first few films go on a cold root, where they are on the library's
-clock, and the rest on the media root. A hard link costs nothing and the API replaces a manifest
+reaches a library people use: the first few films go on a cold root and the rest on the media root,
+the way a host with both disks holds them. A hard link costs nothing and the API replaces a manifest
 rather than editing it, so the source library is never written to; it does mean the harness directory
-and `media/` share a filesystem. The state directory is new on every start, its watch record begun some
-days ago so that a film nobody has played is close to leaving. The film database is asked through a
-token read from a file, and what it says is kept between runs.
+and `media/` share a filesystem. The state directory is new on every start. The film database is asked
+through a token read from a file, and what it says is kept between runs.
 
-`stage.mjs` then puts in what a person would see: the viewer partway through three films, a film they
-keep, two others watching in rooms of their own, one of them a film about to leave, a Watch later
-with a note on one film, a list of the viewer's shared with Ben, and one of Ana's the viewer may add
+`stage.mjs` then puts in what a person would see: the viewer partway through three films, two others
+watching in rooms of their own, a Watch later with a note on one film, a list of the viewer's shared with Ben, and one of Ana's the viewer may add
 to. It does it through the API and the room hub, never by writing a file. The viewer is signed in with a member's
 token signed by the scratch API's own key, which is what signing in on the site hands back.
 

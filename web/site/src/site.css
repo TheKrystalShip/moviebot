@@ -239,8 +239,6 @@ button { font-family: inherit; }
 .kc-tt__meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--fg-2); }
 .kc-tt__score-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .kc-tt__overview { margin: 0; font-size: 15px; line-height: 1.55; color: var(--fg-2); text-wrap: pretty; }
-.kc-tt__stay { display: flex; flex-direction: column; gap: 3px; margin-left: 6px; }
-.kc-tt__stay-note { font-size: 12px; color: var(--fg-3); }
 @media (max-width: 720px) {
   .kc-tt__art { width: 100%; opacity: 0.35; }
   .kc-tt__shade { background: linear-gradient(to top, var(--canvas) 30%, rgba(11, 15, 20, 0.6)); }
@@ -452,9 +450,6 @@ a.kc-row__title:hover { color: var(--krystal-teal-hover); }
 }
 .kc-season-chip:hover { background: var(--surface-2); }
 .kc-season-chip.is-on { background: var(--krystal-teal-dim); color: var(--krystal-teal); border-color: var(--border-accent); }
-.kc-season-chip__flag { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; color: var(--warning-fg); }
-.kc-season-chip__flag.is-danger { color: var(--danger-fg); }
-.kc-season-chip__flag.is-kept { color: var(--krystal-teal-hover); }
 
 .kc-season { background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; }
 .kc-season__head {

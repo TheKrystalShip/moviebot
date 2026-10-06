@@ -10,7 +10,6 @@ export const PROFILE_TABS = ["history", "requests", "following", "notifications"
 export const homePath = "/";
 export const savedPath = "/saved";
 export const notifyPath = "/notify";
-export const leavingPath = "/leaving";
 export const aboutPath = "/about";
 /** Where the provider sends the browser back with a code. */
 export const signInPath = "/signin";

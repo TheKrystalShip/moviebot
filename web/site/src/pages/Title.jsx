@@ -1,33 +1,29 @@
 import React from "react";
-import { Button, toast } from "@thekrystalship/krystal-ui";
+import { Button } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../api.js";
-import { leaveRule, stayWords, useLoad } from "../data.js";
+import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
 import { tvPath } from "../paths.js";
 import { navigate } from "../router.js";
-import { useCan, useSession } from "../session.js";
+import { useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, watchLink } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton, bytes } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 
 /**
- * One film in the library: what it is, who made it and who is in it, how long it stays, and watch.
+ * One film in the library: what it is, who made it and who is in it, and watch.
  *
  * What the film is comes from the film database through the API, which keeps it; what is on this
- * server — its length, its picture, its size, how long it stays, how far this person got — comes from
- * the library.
+ * server — its length, its picture, its size, how far this person got — comes from the library.
  */
 export function Title({ id }) {
   const manifest = useLoad(() => api.title(id), [id]);
   const listing = useLoad(() => api.titles().then((all) => all.find((t) => t.id === id) || null), [id]);
   const imdbId = manifest.data && manifest.data.film && manifest.data.film.imdbId;
   const details = useLoad(() => (imdbId ? api.film(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId]);
-  const stay = useLoad(() => api.stay(id).catch(() => null), [id]);
   const rooms = useLoad(() => api.rooms(), [id]);
-  const [busy, setBusy] = React.useState(false);
   const session = useSession();
-  const keeping = useCan("cinema:keep");
   const me = session && session.user;
 
   useCrumb(manifest.data
@@ -53,7 +49,6 @@ export function Title({ id }) {
   const film = m.film || {};
   const d = details.data;
   const summary = listing.data;
-  const held = stay.data && stay.data.settled ? stay.data : null;
   // A room with nobody in it is not one to join: it is kept a while after the last person leaves.
   const room = (rooms.data || []).find((r) => r.titleId === m.id && r.participants > 0);
   const backdrop = (d && d.backdropUrl) || posterUrl(title);
@@ -61,20 +56,6 @@ export function Title({ id }) {
     ? summary.progress : null;
   const played = summary && summary.lastPlayed;
   const playedBy = played && (me && played.byId === me.id ? "you" : played.byName);
-
-  const keep = async (keeping) => {
-    setBusy(true);
-    try {
-      if (keeping) await api.keep(m.id);
-      else await api.unkeep(m.id);
-      toast.success(keeping ? `${filmName(title)} is kept, so it stays.` : `${filmName(title)} is back on the clock.`);
-      stay.reload();
-    } catch (error) {
-      toast.fromError(error, "That did not change anything");
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const facts = [
     ["Released", d && d.releaseDate ? new Date(d.releaseDate).getFullYear() : film.year],
@@ -121,20 +102,7 @@ export function Title({ id }) {
                   {!room && progress && <span className="kc-btn__sub">{timeLeft(m.durationSeconds - progress.positionSeconds)}</span>}
                 </Button>
               )}
-              {held && keeping && (held.keeperId
-                ? <Button size="xl" icon="pin-off" disabled={busy} onClick={() => keep(false)}>Un-keep</Button>
-                : <Button size="xl" icon="pin" disabled={busy} onClick={() => keep(true)}>Keep</Button>)}
               {film.imdbId && <SaveButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
-              {held && (
-                <span className="kc-tt__stay">
-                  <span className="kc-pill">{stayWords(held, me)}</span>
-                  <span className="kc-tt__stay-note">
-                    {held.keeperId
-                      ? "Stays for everyone until someone un-keeps it"
-                      : leaveRule(held)}
-                  </span>
-                </span>
-              )}
             </div>
             {played && (
               <span className="kc-note">Played {ago(played.at)} by {playedBy}</span>

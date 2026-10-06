@@ -107,7 +107,6 @@ public class SessionFixture : WebApplicationFactory<Program>
                 ["People:Preferences"] = Path.Combine(StateRoot, "preferences.json"),
                 ["People:Directory"] = Path.Combine(StateRoot, "people.json"),
                 ["People:Watch"] = Path.Combine(StateRoot, "watch.json"),
-                ["Library:Keeps"] = Path.Combine(StateRoot, "keeps.json"),
                 ["Notifications:Inbox"] = Path.Combine(StateRoot, "notifications.json"),
                 ["Notifications:Devices"] = Path.Combine(StateRoot, "push-devices.json"),
                 ["Notifications:Keys"] = Path.Combine(StateRoot, "push-keys.json"),

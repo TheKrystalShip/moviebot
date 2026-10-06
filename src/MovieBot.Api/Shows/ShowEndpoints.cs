@@ -23,7 +23,7 @@ public static class ShowEndpoints
         // A show by its IMDb id, in the library or not: the page somebody picks episodes on shows it
         // as fully as one on the shelf.
         app.MapGet("/api/shows/{imdbId}", async (string imdbId, HttpContext context, LibraryListing library,
-            ShowStore shows, LibraryClock stays, WatchRecord record, PersonDirectory people,
+            ShowStore shows, WatchRecord record, PersonDirectory people,
             SessionStore sessions, FollowStore follows, TimeProvider clock, CancellationToken ct) =>
         {
             if (!FilmStore.IsImdbId(imdbId))
@@ -43,7 +43,7 @@ public static class ShowEndpoints
                         ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
 
             var person = PeopleEndpoints.Person(context);
-            return Results.Ok(shows.View(imdbId, stored, episodes, stays.StayOf,
+            return Results.Ok(shows.View(imdbId, stored, episodes,
                 person is null ? null : follows.Get(person.UserId, imdbId)));
         }).RequireAction(CinemaActions.Watch);
 

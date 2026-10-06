@@ -48,9 +48,6 @@ public sealed record ConfirmOutcome
 
     public AddWishReply? Wish { get; init; }
 
-    /// <summary>Where the film stands once a keep or a let-go ran; <see cref="Kind"/> says which.</summary>
-    public TitleStay? Keep { get; init; }
-
     public SubtitleAdded? Subtitle { get; init; }
 
     public static ConfirmOutcome Refused(string text) => new() { Text = text, Success = false, Verdict = "refused" };

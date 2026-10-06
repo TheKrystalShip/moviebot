@@ -179,14 +179,9 @@ builder.Services.AddSingleton<WatchNow>();
 builder.Services.AddHostedService<NextEpisodes>();
 builder.Services.AddHostedService<WatchNowLoader>();
 
-// Who keeps which film, and the rule for when a settled film that nobody keeps leaves. Both are
-// answered here and acted on by the hand-off, which is the one process that writes the media roots.
+// The rule for when a settled film leaves the library. It is answered here and acted on by the
+// hand-off, which is the one process that writes the media roots.
 builder.Services.AddOptions<LibraryOptions>().Bind(builder.Configuration.GetSection(LibraryOptions.Section));
-builder.Services.AddSingleton(sp => new KeepStore(
-    StatePath(sp.GetRequiredService<IConfiguration>()["Library:Keeps"], "keeps.json"),
-    sp.GetRequiredService<ILogger<KeepStore>>()));
-// A keeper is shown by the name this gives, and by their id where it gives none.
-builder.Services.AddSingleton<KeeperNames>(sp => sp.GetRequiredService<PersonDirectory>().NameOf);
 builder.Services.AddSingleton<LibraryClock>();
 
 // What the GPU should be doing, published for the hand-off to carry out. The quality each viewer
@@ -212,9 +207,7 @@ builder.Services.AddSingleton(sp => new NotificationPreferenceStore(
     sp.GetRequiredService<ILogger<NotificationPreferenceStore>>()));
 builder.Services.AddHttpClient<WebPushSender>(http => http.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddSingleton<Notifier>();
-builder.Services.AddSingleton<KeepNotices>();
 builder.Services.AddHostedService<ReadyNotices>();
-builder.Services.AddHostedService<LeavingNotices>();
 
 // Following a show: who follows what, and the watcher that tells them when an episode is out.
 builder.Services.AddOptions<FollowOptions>().Bind(builder.Configuration.GetSection(FollowOptions.Section));

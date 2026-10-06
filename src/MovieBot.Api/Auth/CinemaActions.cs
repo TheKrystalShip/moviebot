@@ -38,9 +38,6 @@ public static class CinemaActions
     /// <summary>Wait on a film that cannot be fetched yet.</summary>
     public const string Wish = "cinema:wish";
 
-    /// <summary>Keep a film in the library, or let one go back on its clock.</summary>
-    public const string Keep = "cinema:keep";
-
     /// <summary>Read your own history, progress, preferences, lists, follows and notifications.</summary>
     public const string ProfileRead = "cinema:profile.read";
 
@@ -50,7 +47,6 @@ public static class CinemaActions
     public static readonly IReadOnlyList<CinemaAction> All =
     [
         new(Download, "Download films and shows", "execute"),
-        new(Keep, "Keep films in the library", "write"),
         new(ProfileRead, "Read your own history, preferences and notifications", "read", Self: true),
         new(ProfileWrite, "Change your own preferences, history, lists and notifications", "write", Self: true),
         new(Watch, "Watch films and open rooms", "execute"),

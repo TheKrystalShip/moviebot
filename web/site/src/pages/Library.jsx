@@ -4,7 +4,6 @@ import {
 } from "@thekrystalship/krystal-ui";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
-import { useSession } from "../session.js";
 import { discoverGenrePath, libraryPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard } from "../components/Film.jsx";
@@ -28,7 +27,7 @@ const KINDS = {
 };
 
 /**
- * Every title of one kind on the shelf, searched by name, narrowed by state, stay and genre, and
+ * Every title of one kind on the shelf, searched by name, narrowed by state and genre, and
  * ordered the way somebody asks; with a genre picked, the last tile leads on to Discover's catalogue
  * of that genre. The kind is the API's word for what a title is.
  */
@@ -64,47 +63,26 @@ const SHOW_SORTS = [
 
 /**
  * Every show the library holds, one card each however many of its episodes are here, searched by
- * name, narrowed by genre and stay, and ordered the way somebody asks.
+ * name, narrowed by genre, and ordered the way somebody asks.
  */
 function ShowLibrary() {
   const shows = useLoad(() => api.shows(), []);
-  const stays = useLoad(() => api.stays().catch(() => []), []);
-  const titles = useLoad(() => api.titles().catch(() => []), []);
-  const me = (useSession() || {}).user;
-  const f = useFilters({ search: "", stay: "any", genre: "all" });
+  const f = useFilters({ search: "", genre: "all" });
   const [sort, setSort] = React.useState({ key: "added", dir: "desc" });
 
-  // A show's stay on its card is the season that leaves first.
-  const showOf = new Map((titles.data || []).filter((t) => t.episode).map((t) => [t.id, t.film && t.film.imdbId]));
-  const stayOf = new Map();
-  for (const s of stays.data || []) {
-    const show = showOf.get(s.titleId);
-    if (!show) continue;
-    const known = stayOf.get(show);
-    if (!known || (s.daysLeft ?? 1e9) < (known.daysLeft ?? 1e9)) stayOf.set(show, s);
-  }
-
   const all = shows.data || [];
-  const stayFilters = [
-    { value: "any", label: "Any", test: () => true },
-    { value: "kept", label: "Kept", test: (s) => !!(stayOf.get(s.imdbId) && stayOf.get(s.imdbId).keeperId) },
-    { value: "clock", label: "On the clock", test: (s) => !!(stayOf.get(s.imdbId) && !stayOf.get(s.imdbId).keeperId) },
-  ];
   const genreCounts = new Map();
   for (const s of all) for (const g of (s.details && s.details.genres) || []) genreCounts.set(g, (genreCounts.get(g) || 0) + 1);
   const genres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
-  const stay = stayFilters.find((s) => s.value === f.values.stay) || stayFilters[0];
   const inGenre = (s) => f.values.genre === "all" || !!(s.details && s.details.genres.includes(f.values.genre));
   const query = f.debouncedQuery.trim().toLowerCase();
   const order = SHOW_SORTS.find((s) => s.value === sort.key) || SHOW_SORTS[0];
   const shown = all
-    .filter((s) => (!query || s.title.toLowerCase().includes(query)) && stay.test(s) && inGenre(s))
+    .filter((s) => (!query || s.title.toLowerCase().includes(query)) && inGenre(s))
     .sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
 
-  const option = (o) => ({ value: o.value, label: o.label, count: all.filter(o.test).length });
   const fields = [
-    { id: "stay", label: "Stay", value: f.values.stay, onChange: (v) => f.set("stay", v), default: "any", options: stayFilters.map(option) },
     {
       id: "genre", label: "Genre", value: f.values.genre, onChange: (v) => f.set("genre", v), default: "all", hidden: genres.length === 0,
       options: [{ value: "all", label: "Every genre" }, ...genres.map(([g, n]) => ({ value: g, label: g, count: n }))],
@@ -131,7 +109,7 @@ function ShowLibrary() {
       {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
       {(shown.length > 0 || f.values.genre !== "all") && (
         <div className="kc-grid">
-          {shown.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} stay={stayOf.get(s.imdbId)} me={me} />)}
+          {shown.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} />)}
           {f.values.genre !== "all" && <MoreTile label="Discover more" to={discoverGenrePath("show", f.values.genre)} />}
         </div>
       )}
@@ -142,13 +120,10 @@ function ShowLibrary() {
 function FilmLibrary() {
   const kind = "film";
   const titles = useLoad(() => api.titles(), []);
-  const stays = useLoad(() => api.stays().catch(() => []), []);
-  const me = (useSession() || {}).user;
-  const f = useFilters({ search: "", state: "all", stay: "any", genre: "all" });
+  const f = useFilters({ search: "", state: "all", genre: "all" });
   const [sort, setSort] = React.useState({ key: "added", dir: "desc" });
   const words = KINDS[kind] || KINDS.film;
 
-  const stayOf = new Map((stays.data || []).map((s) => [s.titleId, s]));
   const all = (titles.data || []).filter((t) => (kind === "show" ? t.kind === "show" : t.kind !== "show"));
 
   const states = [
@@ -157,30 +132,23 @@ function FilmLibrary() {
     { value: "preparing", label: "Preparing", test: (t) => t.status === "transcoding" },
     { value: "failed", label: "Could not be prepared", test: (t) => t.status === "failed" },
   ];
-  const stayFilters = [
-    { value: "any", label: "Any", test: () => true },
-    { value: "kept", label: "Kept", test: (t) => !!(stayOf.get(t.id) && stayOf.get(t.id).keeperId) },
-    { value: "clock", label: "On the clock", test: (t) => !!(stayOf.get(t.id) && !stayOf.get(t.id).keeperId) },
-  ];
   // The genres the shelf actually holds, most common first: a genre nothing here is in is no filter.
   const genreCounts = new Map();
   for (const t of all) for (const g of (t.details && t.details.genres) || []) genreCounts.set(g, (genreCounts.get(g) || 0) + 1);
   const genres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
   const state = states.find((s) => s.value === f.values.state) || states[0];
-  const stay = stayFilters.find((s) => s.value === f.values.stay) || stayFilters[0];
   const inGenre = (t) => f.values.genre === "all" || !!(t.details && t.details.genres.includes(f.values.genre));
   const query = f.debouncedQuery.trim().toLowerCase();
   const matches = (t) => !query || filmName(t).toLowerCase().includes(query);
   const order = SORTS.find((s) => s.value === sort.key) || SORTS[0];
   const shown = all
-    .filter((t) => matches(t) && state.test(t) && stay.test(t) && inGenre(t))
+    .filter((t) => matches(t) && state.test(t) && inGenre(t))
     .sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
 
   const option = (o) => ({ value: o.value, label: o.label, count: all.filter(o.test).length });
   const fields = [
     { id: "state", label: "State", value: f.values.state, onChange: (v) => f.set("state", v), default: "all", options: states.map(option) },
-    { id: "stay", label: "Stay", value: f.values.stay, onChange: (v) => f.set("stay", v), default: "any", options: stayFilters.map(option) },
     {
       id: "genre", label: "Genre", value: f.values.genre, onChange: (v) => f.set("genre", v), default: "all", hidden: genres.length === 0,
       options: [{ value: "all", label: "Every genre" }, ...genres.map(([g, n]) => ({ value: g, label: g, count: n }))],
@@ -209,7 +177,7 @@ function FilmLibrary() {
       {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
       {(shown.length > 0 || f.values.genre !== "all") && (
         <div className="kc-grid">
-          {shown.map((t) => <FilmCard key={t.id} title={t} stay={stayOf.get(t.id)} me={me} />)}
+          {shown.map((t) => <FilmCard key={t.id} title={t} />)}
           {f.values.genre !== "all" && <MoreTile label="Discover more" to={discoverGenrePath(kind, f.values.genre)} />}
         </div>
       )}

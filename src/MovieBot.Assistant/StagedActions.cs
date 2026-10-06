@@ -53,8 +53,6 @@ public sealed class StagedAction
         RoomTools.DownloadFilm or RoomTools.DownloadOnly or RoomTools.DownloadShow => "download",
         RoomTools.FetchSubtitle => "fetch_subtitle",
         RoomTools.AddWish => "wish",
-        RoomTools.KeepFilm => "keep",
-        RoomTools.LetGo => "release",
         _ => Kind,
     };
 

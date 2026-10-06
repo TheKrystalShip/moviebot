@@ -114,17 +114,13 @@ function HistoryCard({ row, title, onForget }) {
   );
 }
 
-/** The films this person is waiting on, and the downloads they asked for, under way or done. */
+/** The films this person is waiting on. */
 function Requests({ session }) {
   const user = session && session.user;
   const wishing = can(session, "cinema:wish");
   const downloading = can(session, "cinema:download");
   const wishes = useLoad(() => (wishing ? api.wishes() : Promise.resolve([])), [wishing]);
-  const downloads = useLoad(() => (downloading ? api.downloads() : Promise.resolve([])), [downloading], { every: 5000 });
   const mine = (wishes.data || []).filter((w) => w.subscribers.some((s) => user && s.userId === user.id));
-  const rows = (downloads.data || [])
-    .filter((d) => user && d.requestedBy === user.id)
-    .sort((a, b) => Number(a.isFinished) - Number(b.isFinished));
 
   const cancel = async (wish) => {
     try {
@@ -136,9 +132,7 @@ function Requests({ session }) {
     }
   };
 
-  // Both shelves wait for both reads, behind one row of placeholders, so the tab draws once at its height.
-  const answered = (load) => Boolean(load.data || load.error);
-  if (!answered(wishes) || !answered(downloads)) return <CardsSkeleton count={8} row />;
+  if (!wishes.data && !wishes.error) return <CardsSkeleton count={8} row />;
 
   return (
     <>
@@ -158,38 +152,7 @@ function Requests({ session }) {
           </div>
         )}
       </section>}
-
-      {downloading && <section className="kc-shelf">
-        <div className="kc-shelf__head"><h2>Downloads</h2></div>
-        <Failed error={downloads.error} onRetry={downloads.reload} />
-        {downloads.data && rows.length === 0 && <Empty icon="download" title="Nothing downloading" />}
-        {rows.length > 0 && (
-          <div className="kc-grid">
-            {rows.map((d) => <DownloadCard key={d.hash} download={d} />)}
-          </div>
-        )}
-      </section>}
     </>
-  );
-}
-
-/** A download this person asked for: how far it has got, and Watch once enough of it is here. */
-function DownloadCard({ download: d }) {
-  const watchable = d.libraryId && (d.isFinished || d.isWatchable);
-  return (
-    <ShowcaseCard
-      className="kc-card"
-      name={d.name}
-      art={keptArt(d.imdbId)}
-      onPick={() => { if (d.libraryId) navigate(moviePath(d.libraryId)); }}
-      progress={d.isFinished ? 1 : d.progress}
-      specs={[]}
-      status={d.isFinished
-        ? { tone: "success", icon: "check", label: "Downloaded" }
-        : { tone: "active", live: true, icon: "download", label: d.summary, title: d.release }}
-      action={watchable
-        ? { label: "Watch", onClick: () => navigate(watchHref(d.libraryId)) }
-        : d.libraryId ? { label: "View" } : null} />
   );
 }
 
@@ -260,8 +223,6 @@ function Following() {
 const KINDS = [
   { id: "available", title: "A title I'm waiting for can be downloaded", sub: "Anything on your Notify me list." },
   { id: "ready", title: "A download I started is ready to watch", sub: "Includes partial season downloads." },
-  { id: "leaving", title: "Something I watched leaves tomorrow", sub: "One push per title, the day before it leaves." },
-  { id: "kept", title: "Someone keeps or un-keeps a title I watched", sub: "Off by default, since it can get chatty." },
   { id: "episode", title: "New episodes of shows you follow" },
   { id: "shared", title: "Someone shares a list with me" },
 ];

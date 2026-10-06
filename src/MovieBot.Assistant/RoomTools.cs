@@ -29,9 +29,8 @@ namespace TheKrystalShip.MovieBot.Assistant;
 /// <para>
 /// <b>What runs at once and what waits is decided here, per tool.</b> Reading and moving the room run
 /// immediately: pausing is the point of a film room, it is undone by saying so, and the player already
-/// tells everyone who did it. A download, a fetched subtitle, a wish and a keep each spend something —
-/// disk, a daily allowance, a place on the disk — so those are proposed, and happen when somebody
-/// agrees.
+/// tells everyone who did it. A download, a fetched subtitle and a wish each spend something — disk,
+/// a daily allowance, the tracker's time — so those are proposed, and happen when somebody agrees.
 /// </para>
 /// <para>
 /// <b>Never throws.</b> A failure is a sentence the model reads and can say, naming what to do
@@ -93,8 +92,6 @@ public sealed partial class RoomTools(
     public const string DownloadOnly = "download_only";
     public const string FetchSubtitle = "fetch_subtitle";
     public const string AddWish = "add_wish";
-    public const string KeepFilm = "keep_film";
-    public const string LetGo = "let_go";
     public const string DownloadShow = "download_show";
     public const string Remember = "remember";
     public const string Forget = "forget";
@@ -104,7 +101,7 @@ public sealed partial class RoomTools(
     public static readonly IReadOnlyList<string> Names =
     [
         RoomState, ListRooms, GetTitle, DownloadStatus, WishListTool, Resume, Pause, Seek, SeekRelative,
-        WatchFilm, DownloadFilm, DownloadOnly, FetchSubtitle, AddWish, KeepFilm, LetGo, DownloadShow,
+        WatchFilm, DownloadFilm, DownloadOnly, FetchSubtitle, AddWish, DownloadShow,
         Remember, Forget, Recall,
     ];
 
@@ -126,7 +123,7 @@ public sealed partial class RoomTools(
     public static readonly IReadOnlySet<string> Proposals =
         new HashSet<string>(StringComparer.Ordinal)
         {
-            DownloadFilm, DownloadOnly, FetchSubtitle, AddWish, KeepFilm, LetGo, DownloadShow,
+            DownloadFilm, DownloadOnly, FetchSubtitle, AddWish, DownloadShow,
         };
 
     /// <summary>The tools that move the room, which is what a question about why the film stopped is answered from.</summary>
@@ -224,8 +221,6 @@ public sealed partial class RoomTools(
                 DownloadOnly => await DownloadOnlyAsync(call.Arg("title"), call.Arg("torrent_id"), ct),
                 FetchSubtitle => await ProposeSubtitleAsync(call.Arg("title"), ct),
                 AddWish => await ProposeWishAsync(call.Arg("imdb_id"), ct),
-                KeepFilm => await ProposeKeepAsync(call.Arg("title"), keeping: true, ct),
-                LetGo => await ProposeKeepAsync(call.Arg("title"), keeping: false, ct),
                 DownloadShow => await ProposeShowAsync(call.Arg("show"), call.Arg("season"), call.Arg("episodes"), call.Arg("quality"), ct),
                 Remember or Forget or Recall => Memory(call),
                 _ => $"There is no tool called {call.Name}. Use one of the tools you were given.",
@@ -347,23 +342,7 @@ public sealed partial class RoomTools(
 
         if (manifest.Chapters.Count > 0) text.AppendLine($"{manifest.Chapters.Count} chapters.");
 
-        if (await api.StayAsync(title.Id, ct) is { } stay && StaysNote(stay) is { } note) text.AppendLine(note);
-
         return Tell(text.ToString().TrimEnd());
-    }
-
-    /// <summary>
-    /// How long a film stays in the library, in one sentence, or null for a film that has not settled
-    /// and is on no clock yet.
-    /// </summary>
-    public static string? StaysNote(TitleStay stay)
-    {
-        if (stay.KeeperId is not null) return $"{stay.KeeperName ?? stay.KeeperId} has kept it, so it stays.";
-        if (stay.DaysLeft is not { } days) return null;
-
-        return days == 0
-            ? "Leaves today unless somebody plays or keeps it."
-            : $"Leaves in {days} {(days == 1 ? "day" : "days")} unless somebody plays or keeps it.";
     }
 
     private async Task<string> DownloadStatusAsync(CancellationToken ct)
@@ -1016,43 +995,6 @@ public sealed partial class RoomTools(
                 Wish = reply,
             };
         });
-    }
-
-    private async Task<string> ProposeKeepAsync(string? query, bool keeping, CancellationToken ct)
-    {
-        var (title, refusal) = await ResolveAsync(query, ct);
-        if (title is null) return refusal!;
-
-        var stay = await api.StayAsync(title.Id, ct);
-        if (stay is null) return Tell($"{title.Name} has just left the library.");
-
-        if (keeping && stay.KeeperId is not null) return Tell($"{title.Name} is already kept.");
-        if (!keeping && stay.KeeperId is null) return Tell($"{title.Name} is not kept, so it is already on the library's clock.");
-
-        var id = title.Id;
-        var kind = keeping ? KeepFilm : LetGo;
-
-        return Propose(kind,
-            keeping ? $"keep {title.Name} in the library" : $"let {title.Name} go back on the library's clock",
-            title.Name,
-            async (agreed, ct2) =>
-            {
-                var now = keeping ? await agreed.Api.KeepAsync(id, ct2) : await agreed.Api.ReleaseKeepAsync(id, ct2);
-                var done = now is not null && (now.KeeperId is not null) == keeping;
-                return new ConfirmOutcome
-                {
-                    Text = now is null
-                        ? $"{title.Name} has left the library, so there is nothing to change."
-                        : keeping
-                            ? done ? $"{title.Name} is kept, so it stays." : $"{title.Name} was already kept."
-                            : done ? $"{title.Name} is no longer kept. " + StaysNote(now)
-                                   : $"{title.Name} was kept again before this went through.",
-                    Success = done,
-                    Verdict = done ? "accepted" : "failed",
-                    Kind = kind,
-                    Keep = now,
-                };
-            });
     }
 
     /// <summary>

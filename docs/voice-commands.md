@@ -80,7 +80,7 @@ pause it" — is not read as the verb at all.
 
 Anything the room verbs do not read is a turn of the assistant, which answers in the channel's
 chat rather than out loud (the film's sound already plays in every viewer's browser). It can
-call on the bot's own commands, so the same things `/watch`, `/download`, `/notify` and `/keep` do
+call on the bot's own commands, so the same things `/watch`, `/download` and `/notify` do
 from a text channel can be asked for by voice, alongside questions about what is happening.
 
 **Watching a film**
@@ -109,9 +109,6 @@ download; nothing is loaded, and the film waits in the library until somebody as
 at which point `/watch`, or "put it on", starts it. Asking to *watch* a film that is not here is
 the other tool and still switches the room to it once it arrives, so what separates the two is
 whether a film was asked for now or for later.
-
-A film fetched this way is on the same clock as any other film: ask to keep it if it is for
-a weekend away.
 
 **Downloading a specific release**
 
@@ -151,17 +148,10 @@ just offer is refused).
 "okay computer, let me know when Dune Part Three comes out"
 ```
 
-**Keeping a film around, or not**
-
-```
-"okay computer, keep this one"
-"okay computer, let this one go"
-```
-
 ## Confirming
 
 Watching a film that has to be downloaded, fetching one for later, downloading a specific
-release, fetching subtitles, waiting on a film, and keeping or un-keeping one are all proposed
+release, fetching subtitles and waiting on a film are all proposed
 rather than acted on straight away. Each proposal is a message with two buttons under it in the text channel, and answering out
 loud works the same:
 
@@ -176,7 +166,7 @@ its own after `Assistant__OfferMinutes`.
 
 ## What is not a voice command
 
-`/watch`, `/download`, `/notify` and `/keep` are typed slash commands, not spoken ones — see
+`/watch`, `/download`, `/show` and `/notify` are typed slash commands, not spoken ones — see
 `src/MovieBot.Bot/README.md` for their syntax. A `/watch` from inside a voice channel is what
 opens the way back into a room whose launch card has expired; nothing spoken re-issues an
 invite.

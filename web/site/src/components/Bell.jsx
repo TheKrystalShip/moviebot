@@ -7,6 +7,9 @@ import { ago } from "../time.js";
 import { KIND, markRead, useNotifications } from "../notifications.js";
 import { Drawer } from "./Drawer.jsx";
 
+/** How a kind this page does not know is drawn: plainly, as a notification. */
+const UNKNOWN_KIND = { icon: "bell", tone: "neutral" };
+
 /**
  * The bell in the sidebar, above the person: "Notifications" and how many are unread, or the bell
  * alone with its count on the collapsed rail. It opens the list beside the sidebar.
@@ -124,7 +127,7 @@ function BellList({ onClose }) {
         )}
         {!items && error && <div className="kc-bell__empty"><span>{error.message}</span></div>}
         {(items || []).map((n) => {
-          const kind = KIND[n.kind] || KIND.kept;
+          const kind = KIND[n.kind] || UNKNOWN_KIND;
           return (
             <div key={n.id} className={"kc-bell__item" + (n.read ? "" : " is-unread") + (n.url ? " is-link" : "")}
               role={n.url ? "button" : undefined} tabIndex={n.url ? 0 : undefined}

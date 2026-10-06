@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Bot.Discord;
-using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Bot.Launch;
 using TheKrystalShip.MovieBot.Bot.Sessions;
 
@@ -45,7 +44,6 @@ public sealed class DownloadWatcher(
     MovieBotApiClient api,
     ILaunchPresenter presenter,
     LaunchCards cards,
-    IFilmRetention retention,
     ILogger<DownloadWatcher> logger) : BackgroundService
 {
     /// <summary>
@@ -117,7 +115,6 @@ public sealed class DownloadWatcher(
             var room = roomTag is null ? null : TorrentTags.ReadRoom(roomTag);
 
             var id = download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null);
-            var onDisk = id is null || failed ? null : await retention.NoticeForAsync(id, ct);
 
             LaunchReply? launch = null;
             if (!failed && room is { } roomId)
@@ -133,7 +130,7 @@ public sealed class DownloadWatcher(
                 {
                     library ??= await api.ListTitlesAsync(ct);
 
-                    launch = await TryLoadIntoRoomAsync(download, id, roomId, requester, onDisk, library, ct);
+                    launch = await TryLoadIntoRoomAsync(download, id, roomId, requester, library, ct);
 
                     // The film is watchable and the room is still waiting for it. The listing
                     // lags the manifest by at most a moment, so the next pass is the answer
@@ -142,7 +139,7 @@ public sealed class DownloadWatcher(
                 }
             }
 
-            if (!await TryAnnounceAsync(channelId, download, failed, requester, launch, onDisk))
+            if (!await TryAnnounceAsync(channelId, download, failed, requester, launch))
                 continue;
 
             await acquisition.ClearTagAsync(download.Hash, tag, ct);
@@ -156,7 +153,7 @@ public sealed class DownloadWatcher(
     /// when the API could not be reached; both are answered by the next pass.
     /// </summary>
     private async Task<LaunchReply?> TryLoadIntoRoomAsync(
-        DownloadStatus download, string id, ulong roomId, ulong? requester, string? onDisk,
+        DownloadStatus download, string id, ulong roomId, ulong? requester,
         IReadOnlyList<LibraryTitle> library, CancellationToken ct)
     {
         var title = library.FirstOrDefault(t => t.Id == id);
@@ -191,7 +188,6 @@ public sealed class DownloadWatcher(
                 RequestedBy = requestedBy,
                 Replaced = replaced,
                 AlreadyWatching = alreadyWatching,
-                OnDisk = onDisk,
             }, ct);
 
             logger.LogInformation("{RequestedBy} {Verb} {TitleId} in session {SessionId}",
@@ -232,8 +228,7 @@ public sealed class DownloadWatcher(
     }
 
     private async Task<bool> TryAnnounceAsync(
-        ulong channelId, DownloadStatus download, bool failed, ulong? requester, LaunchReply? launch,
-        string? onDisk)
+        ulong channelId, DownloadStatus download, bool failed, ulong? requester, LaunchReply? launch)
     {
         try
         {
@@ -251,7 +246,7 @@ public sealed class DownloadWatcher(
             // the film was started in a room, in which case the message is the launch itself.
             var embed = failed ? DownloadEmbed.Failed(download)
                 : launch is { } ready ? ready.Embed
-                : DownloadEmbed.Ready(download, onDisk);
+                : DownloadEmbed.Ready(download);
 
             // The mention has to be in the message itself: text inside an embed renders as a
             // mention and notifies nobody.

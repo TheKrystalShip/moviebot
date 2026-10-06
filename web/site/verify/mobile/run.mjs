@@ -156,7 +156,7 @@ const staged = flag("no-stage")
   : await stage(base, issuer);
 if (flag("no-stage")) {
   const titles = await (await fetch(base + "/api/titles", { headers: { Authorization: `Bearer ${staged.token}` } })).json();
-  staged.film = staged.leaving = staged.kept = titles.find((t) => t.status === "ready") || titles[0];
+  staged.film = titles.find((t) => t.status === "ready") || titles[0];
 }
 
 const results = [];

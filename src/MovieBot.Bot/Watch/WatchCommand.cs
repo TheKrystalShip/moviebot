@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.MovieBot.Bot.Api;
-using TheKrystalShip.MovieBot.Bot.Keep;
 using TheKrystalShip.MovieBot.Bot.Launch;
 using TheKrystalShip.MovieBot.Bot.Sessions;
 using TheKrystalShip.MovieBot.Core;
@@ -50,7 +49,6 @@ public sealed record WatchResult(
 public sealed class WatchCommand(
     MovieBotApiClient api,
     ILaunchPresenter presenter,
-    IFilmRetention retention,
     ILogger<WatchCommand> logger)
 {
     /// <summary>What a person whose account may not watch is told.</summary>
@@ -152,7 +150,6 @@ public sealed class WatchCommand(
             RequestedBy = request.RequestedBy,
             Replaced = replaced,
             AlreadyWatching = alreadyWatching,
-            OnDisk = await retention.NoticeForAsync(title.Id, ct),
         }, ct);
 
         logger.LogInformation("{RequestedBy} {Verb} {TitleId} in session {SessionId}",

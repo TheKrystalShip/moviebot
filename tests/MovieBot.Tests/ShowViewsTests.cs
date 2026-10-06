@@ -98,7 +98,7 @@ public sealed class ShowViewsTests(SessionFixture fixture) : IClassFixture<Sessi
             ],
         };
 
-        var view = store.View("tt11280740", stored, [Episode(1, 2), Episode(2, 1)], _ => null);
+        var view = store.View("tt11280740", stored, [Episode(1, 2), Episode(2, 1)]);
 
         Assert.Equal([1, 2], view.Seasons.Select(s => s.Number));
         Assert.Null(view.Seasons[0].Episodes[0].TitleId);

@@ -102,14 +102,14 @@ the log record beside them.
 Each route names the action it needs, and a route that names none admits nobody. Without a usable token
 the answer is `401` with `WWW-Authenticate: Bearer`; with one that lacks the action, `403`. Both carry
 `{error}`. The actions are `cinema:watch` (the library, rooms, the hub, tickets and media, subtitles,
-the people a room can invite, what the film database says of a title, a person or a genre), `cinema:download`, `cinema:wish` and `cinema:keep` (below), and the self
+the people a room can invite, what the film database says of a title, a person or a genre), `cinema:download` and `cinema:wish` (below), and the self
 actions `cinema:profile.read` and `cinema:profile.write`, which every approved account holds, for a
 person's own records under `/api/me`, `/api/lists` and push. `/.well-known/tks-actions.json` serves the
 same declarations the checks name.
 
 The **service key** (`X-MovieBot-Service`) proves machine work that names nobody and opens only the
 routes that do such work: `/api/library/due`, `/api/transcode/*`, reading the library and the rooms,
-putting a film into a room (recorded as MovieBot), the downloads list and a film's stay. It never stands
+putting a film into a room (recorded as MovieBot) and the downloads list. It never stands
 for a person.
 
 The **Discord Activity** has no browser to redirect. `POST /api/auth/discord/callback` takes `{code}`,
@@ -213,13 +213,12 @@ when the unit entered its state. Each disk is `{name, freeBytes, totalBytes}`.
 
 ### Fetching films
 
-The API is the one writer of downloads, wishes and keeps. A download, its searches and Watch now take
-`cinema:download`; a wish takes `cinema:wish`; keeping or letting a film go takes `cinema:keep`;
-finding a film in the title index and asking whether it can be watched take either of the first two;
-reading how long films stay takes `cinema:watch`. No request names who asked: the person is the
-token's, whichever client carried it, and the download's tags, the wish, the keep and the log record
-them. A download may name a Discord channel to be announced in, which the bot does. `GET /api/downloads`
-and a film's stay also answer the service key, for the announcements the bot posts. The shapes are in
+The API is the one writer of downloads and wishes. A download, its searches and Watch now take
+`cinema:download`; a wish takes `cinema:wish`; finding a film in the title index and asking whether
+it can be watched take either. No request names who asked: the person is the token's, whichever
+client carried it, and the download's tags, the wish and the log record them. A download may name a
+Discord channel to be announced in, which the bot does. `GET /api/downloads` also answers the service
+key, for the announcements the bot posts. The shapes are in
 `src/MovieBot.Core/Acquisition.cs`; the API reads the tracker, `QBittorrent`, `Download`, `Selection`,
 `Library` and `Notify` settings to serve them.
 
@@ -239,24 +238,16 @@ and a film's stay also answer the service key, for the announcements the bot pos
 | `GET /api/wishes` | `WishView[]` — the wishes the person waits on; one the tracker has answered carries `release`, the `ReleaseOffer` found for it |
 | `POST /api/wishes` | `AddWishReply` for `{chosen}` |
 | `DELETE /api/wishes/{imdbId}` | `CancelWishReply` — the person comes off the wish |
-| `GET /api/titles/{id}/stay` | `TitleStay`, or 404 for a film the library does not hold |
-| `GET /api/stays` | `TitleStay[]` — every settled film and season, soonest to leave first, the kept ones after them; a season is listed once, by its first episode |
-| `PUT /api/titles/{id}/keep` | `TitleStay`; a film already kept stays its first keeper's. Keeping an episode keeps its season |
-| `DELETE /api/titles/{id}/keep` | `TitleStay`; 404 for a film the library does not hold |
 | `GET /api/library/due` | `string[]` — the ids of the settled films whose time is up; the **service key** alone |
 
 - **A film stays in the library until it has gone `Library:LeaveAfterDays` without a play, and a
   show's season the same way, as one.** The clock is only on a title that has settled on the cold
   disk, and it counts from the latest of the last play, the moment it settled, and the moment plays
   began to be recorded; for a season, the latest play of any of its episodes and the latest of them
-  to settle, so all of it falls due together. A film or season somebody keeps never leaves, and
-  neither does one a room holds, a room on one episode holding its season. `TitleStay` is `{titleId,
-  unit, season?, settled, keeperId?, keeperName?, keptAt?, lastPlayedAt?, leavesAt?, daysLeft?,
-  leaveAfterDays}`: `unit` is what stays or leaves as one (a film's id, or a season's,
-  `tt11280740:s02`), `leaveAfterDays` is the rule itself, `leavesAt` and `daysLeft` are absent while
-  it is kept or has not settled, and `keeperName` is the keeper's name where one is known, the id
-  otherwise. A keep is held by the API, by unit, and outlives the torrent. The hand-off asks `/api/library/due` and deletes
-  what it names, being the only process that writes the media roots; a hand-off the API cannot answer
+  to settle, so all of it falls due together. A film or season a room holds never leaves, a room on
+  one episode holding its season. Where a film stands on the clock is the server's alone: no route
+  serves it to a person, because a film that has left is fetched again the way any other is. The
+  hand-off asks `/api/library/due` and deletes what it names, being the only process that writes the media roots; a hand-off the API cannot answer
   deletes nothing. The removal of a download's torrent and files after its seeding window is the
   tracker's clock, which the hand-off keeps on its own and no route shows.
 
@@ -371,7 +362,7 @@ names. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 |---|---|
 | `GET /api/me/notifications` | `NotificationsReply` — `{unread, items: [{id, kind, text, url?, action?, createdAt, read}]}`, newest first; a person keeps their newest 50, none older than 30 days |
 | `POST /api/me/notifications/read` | 204 for `{ids?}` — marks those read, or all of them when none are named |
-| `GET /api/me/notifications/preferences` | `NotificationPreferences` — `{available, ready, leaving, episode, shared, kept}`, which kinds are pushed; everything but `kept` is on until switched off |
+| `GET /api/me/notifications/preferences` | `NotificationPreferences` — `{available, ready, episode, shared}`, which kinds are pushed; each is on until switched off |
 | `PUT /api/me/notifications/preferences` | `NotificationPreferences`, as stored |
 | `GET /api/push/key` | `{publicKey}` — this server's VAPID key, base64url, which a browser subscribes with |
 | `GET /api/me/push?endpoint=` | `{subscribed, devices}` — whether that browser is registered to this person, and how many are |
@@ -381,15 +372,14 @@ names. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 | `POST /api/rooms/{room}/invite` | `InviteReply` for `{userId}` — `{delivery}`, `push` when a push service took it for at least one of their devices and `bell` when it waits in their bell alone. 404 for somebody unknown |
 
 - **Kinds.** `available`: a film somebody waits on can be downloaded. `ready`: a download they started
-  can be watched, or could not be made watchable. `leaving`: something they watched leaves the
-  library within a day. `episode`: a new episode of a show they follow is out and the tracker offers
-  it, "Show S5 · E4 is out.", opening `/tv/{imdbId}/season/{n}`. `kept`: somebody else kept, or
-  let go of, something they watched. `shared`: somebody put them on one of their lists, "Ana shared
+  can be watched, or could not be made watchable. `episode`: a new episode of a show they follow is
+  out and the tracker offers it, "Show S5 · E4 is out.", opening `/tv/{imdbId}/season/{n}`. `shared`:
+  somebody put them on one of their lists, "Ana shared
   their list Friday night with you.", opening `/saved/{id}`. `invite`:
   somebody asked them into a room; an invite is pushed whatever the person chose.
 - **One thing is said once.** Each notification carries the thing it is about, and a person holding a
-  notification about it is not told again: a download once, a wish once, a title leaving once per
-  date it is due, since a play moves the date, an episode once, a list once per person put on it.
+  notification about it is not told again: a download once, a wish once, an episode once, a list once
+  per person put on it.
 - **A switch holds back the push, not the record.** A kind switched off still lands in the bell.
 - **The text is written once for every surface.** It mentions nobody and names no command, so the
   bell and the push show it as it is.
@@ -520,7 +510,6 @@ id), absent when nobody has; `byName` is absent when that person's name was neve
   "posterUrl": "/shows/tt11280740/poster.jpg", "backdropUrl": "/shows/tt11280740/backdrop.jpg",
   "seasons": [{
     "number": 2, "name": "Season 2", "airDate": "2025-01-16",
-    "stay": { "titleId": "severance-s02e01", "unit": "tt11280740:s02", "season": 2, "daysLeft": 7, … },  // absent while the library holds none of it
     "episodes": [{
       "season": 2, "number": 4, "name": "Woe's Hollow", "airDate": "2025-02-07", "runtimeMinutes": 51,
       "rating": 8.6, "votes": 120, "stillUrl": "/shows/tt11280740/s02e04.jpg",

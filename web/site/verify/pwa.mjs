@@ -42,7 +42,7 @@ const ORIGIN = process.argv[2] ? new URL(process.argv[2]).origin : scratchOrigin
 
 // Routes the origin answers that the worker must never keep: the API, a film's media, the room hub,
 // and the health report. Each is fetched through the controlled page, and the cache read back.
-const NEVER = ["/api/config", "/api/titles", "/api/stays", "/health", "/media/probe/poster.jpg", "/media/probe/index.m3u8", "/hub/session/negotiate"];
+const NEVER = ["/api/config", "/api/titles", "/api/shows", "/health", "/media/probe/poster.jpg", "/media/probe/index.m3u8", "/hub/session/negotiate"];
 
 let failed = 0;
 const check = (ok, line) => { if (!ok) failed++; console.log(`${ok ? "✓" : "✗"} ${line}`); };

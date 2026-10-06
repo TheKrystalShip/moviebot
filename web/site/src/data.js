@@ -1,12 +1,11 @@
 // Reading the API for a page: what came back, whether it is still coming, and what went wrong.
 //
-// Nothing is cached across pages: the library, the downloads and the stays are read when a page asks
-// for them, so what a page shows is what the API says now. A page that shows something moving, a
-// download, reads it again on an interval while it is open. A page navigated to is prepared out of
-// sight until its first reads are answered (`LoadTracker`), so the read never shows as an empty page.
+// Nothing is cached across pages: the library, the rooms and the wishes are read when a page asks for
+// them, so what a page shows is what the API says now. A page that shows something moving, the rooms,
+// reads it again on an interval while it is open. A page navigated to is prepared out of sight until
+// its first reads are answered (`LoadTracker`), so the read never shows as an empty page.
 
 import React from "react";
-import { daysLeft } from "./time.js";
 
 /**
  * What a page being prepared out of sight waits on (`PageStage`): every read a page makes on mounting
@@ -44,27 +43,4 @@ export function useLoad(load, deps, { every } = {}) {
   }, [every]);
 
   return { ...state, reload: () => setTick((t) => t + 1) };
-}
-
-/** Days left at which a film on the library's clock is about to leave, and said so in warning colour. */
-export const SOON_DAYS = 3;
-
-/** The library's rule in words, from the stay the API answered, which carries the rule itself. */
-export function leaveRule(stay) {
-  const days = stay && stay.leaveAfterDays;
-  if (!days) return "Leaves after a while without a play";
-  return `Leaves after ${days} ${days === 1 ? "day" : "days"} without a play`;
-}
-
-/** Whoever kept a film, as the person asking reads it: "you" for their own keep. */
-export function keeperOf(stay, me) {
-  if (!stay || !stay.keeperId) return null;
-  return me && stay.keeperId === me.id ? "you" : stay.keeperName || "someone";
-}
-
-/** How long a film stays, in a few words: "kept by Jo", "3 days left", or nothing before it has settled. */
-export function stayWords(stay, me) {
-  if (!stay || !stay.settled) return null;
-  if (stay.keeperId) return `kept by ${keeperOf(stay, me)}`;
-  return stay.daysLeft == null ? null : daysLeft(stay.daysLeft);
 }

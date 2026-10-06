@@ -59,8 +59,6 @@ export async function markRead(ids) {
 export const KIND = {
   available: { icon: "bell-ring", tone: "teal" },
   ready: { icon: "circle-check", tone: "success" },
-  leaving: { icon: "hourglass", tone: "warning" },
-  kept: { icon: "pin", tone: "neutral" },
   invite: { icon: "user-plus", tone: "teal" },
   episode: { icon: "tv", tone: "teal" },
   shared: { icon: "bookmark", tone: "teal" },

@@ -1,7 +1,6 @@
 import React from "react";
 import { Button, Icon, ShowcaseCard } from "@thekrystalship/krystal-ui";
 import { episodeCode, filmName, posterUrl } from "../api.js";
-import { SOON_DAYS, stayWords } from "../data.js";
 import { moviePath, roomPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, timeLeft } from "../time.js";
@@ -60,28 +59,25 @@ export function PosterArt({ title, className = "", children }) {
 
 /**
  * A film on a shelf, as krystal-ui's ShowcaseCard: the poster with the name on it, its rating, year
- * and length, one line saying where it stands, and Watch. What a page knows beside the film — its
- * stay, a room watching it, whether it is new — is optional, and a card without it says less rather
- * than guessing. How far the person got comes with the title itself.
+ * and length, one line saying where it stands, and Watch. What a page knows beside the film — a room
+ * watching it, whether it is new — is optional, and a card without it says less rather than guessing.
+ * How far the person got comes with the title itself.
  *
  * The one status line, in precedence order: a film not ready says so; then a room watching it; then
- * how far this person got; then its stay (a keep, or days left on the clock); then its genres.
+ * how far this person got; then its genres.
  */
-export function FilmCard({ title, stay, me, room, isNew }) {
+export function FilmCard({ title, room, isNew }) {
   const film = title.film || {};
   const d = title.details;
   const progress = title.progress && !title.progress.finished && title.progress.positionSeconds > 0 ? title.progress : null;
   const poster = posterUrl(title);
   const ready = title.status === "ready";
-  const leavingSoon = stay && stay.settled && !stay.keeperId && stay.daysLeft != null && stay.daysLeft <= SOON_DAYS;
 
   const status =
     title.status === "transcoding" ? { tone: "notice", icon: "loader", label: "Still preparing" }
     : title.status === "failed" ? { tone: "warning", icon: "triangle-alert", label: "Could not be prepared" }
     : room ? { tone: "active", icon: "users", label: room.paused ? "A room has it paused" : "A room is watching" }
     : progress ? { tone: "active", icon: "history", label: timeLeft(Math.max(0, title.durationSeconds - progress.positionSeconds)) }
-    : stay && stay.keeperId ? { tone: "success", icon: "bookmark-check", label: stayWords(stay, me) }
-    : stay && stay.settled && stay.daysLeft != null ? { tone: leavingSoon ? "warning" : null, icon: "hourglass", label: stayWords(stay, me) }
     : d && d.genres.length > 0 ? { label: d.genres.slice(0, 2).join(" · ") }
     : null;
 
@@ -90,7 +86,6 @@ export function FilmCard({ title, stay, me, room, isNew }) {
       name={film.name || title.title}
       art={poster ? `url("${poster}")` : null}
       onPick={() => navigate(moviePath(title.id))}
-      corner={leavingSoon ? { icon: "hourglass", label: stayWords(stay, me), title: "Leaves unless somebody plays or keeps it" } : null}
       badge={isNew ? { tone: "info", label: "New" } : null}
       specs={[
         { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
@@ -106,16 +101,13 @@ export function FilmCard({ title, stay, me, room, isNew }) {
 
 /**
  * A show on a shelf, the same card as a film's: its poster and name, rating, years and seasons, where
- * this person picks up or how long it stays, and Watch or Resume into the episode that is next.
+ * this person picks up, and Watch or Resume into the episode that is next.
  */
-export function ShowCard({ show, stay, me }) {
+export function ShowCard({ show }) {
   const d = show.details;
   const resume = show.resume;
-  const leavingSoon = stay && stay.settled && !stay.keeperId && stay.daysLeft != null && stay.daysLeft <= SOON_DAYS;
   const status =
     resume ? { tone: "active", icon: "history", label: `${episodeCode({ season: resume.season, number: resume.episode })}${resume.positionSeconds > 0 ? " · " + timeLeft(resume.durationSeconds - resume.positionSeconds) : ""}` }
-    : stay && stay.keeperId ? { tone: "success", icon: "bookmark-check", label: stayWords(stay, me) }
-    : stay && stay.settled && stay.daysLeft != null ? { tone: leavingSoon ? "warning" : null, icon: "hourglass", label: `S${stay.season} · ${stayWords(stay, me)}` }
     : d && d.genres.length > 0 ? { label: d.genres.slice(0, 2).join(" · ") }
     : null;
   const to = resume ? resume.titleId : show.firstTitleId;
@@ -125,7 +117,6 @@ export function ShowCard({ show, stay, me }) {
       name={show.title}
       art={d && d.posterUrl ? `url("${d.posterUrl}")` : null}
       onPick={() => navigate(show.imdbId ? showPath(show.imdbId) : moviePath(show.firstTitleId))}
-      corner={leavingSoon ? { icon: "hourglass", label: `S${stay.season} · ${stayWords(stay, me)}`, title: "Leaves unless somebody plays or keeps it" } : null}
       specs={[
         { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
         { icon: "calendar", value: show.firstYear || null, label: "Year" },

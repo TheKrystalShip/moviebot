@@ -123,7 +123,6 @@ const TRAILS = {
   "/profile/requests": [HOME, ["Profile", "/profile"], ["Requests", null]],
   "/profile/playback": [HOME, ["Profile", "/profile"], ["Playback", null]],
   "/notify": [HOME, ["Notify me", null]],
-  "/leaving": [HOME, ["Leaving soon", null]],
   "/about": [HOME, ["About", null]],
   "/nonsense": [HOME, ["Not found", null]],
   "/nonsense/": [HOME, ["Not found", null]],
@@ -211,7 +210,6 @@ await cold("/profile/playback", { lands: "/profile/playback", subtab: "Playback"
 await cold("/profile/nope", { lands: "/profile", subtab: "History" });
 await cold("/notify", { lands: "/notify", ...here("Notify me", "Me") });
 await cold("/notify/", { lands: "/notify" });
-await cold("/leaving", { lands: "/leaving", ...here("Leaving soon", "Home") });
 await cold("/about", { lands: "/about", h1: /About/ });
 await cold("/about/x", { lands: "/about" });
 await cold("/r", { lands: "/" });

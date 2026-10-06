@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
-using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Sessions;
@@ -26,7 +25,6 @@ public sealed class LibraryClockTests : IDisposable
     private readonly Plays _plays = new();
     private readonly MediaRoots _roots;
     private readonly SessionStore _sessions;
-    private readonly KeepStore _keeps;
 
     private string Hot => Path.Combine(_root, "media");
     private string Cold => Path.Combine(_root, "cold");
@@ -38,7 +36,6 @@ public sealed class LibraryClockTests : IDisposable
         File.WriteAllText(Path.Combine(Cold, MediaRoots.ColdMarker), "");
 
         _roots = new MediaRoots(Hot, Cold, _time);
-        _keeps = new KeepStore(Path.Combine(_root, "keeps.json"), NullLogger<KeepStore>.Instance);
         _library = LibraryOn(_roots);
         _sessions = new SessionStore(_library, _time);
     }
@@ -66,8 +63,8 @@ public sealed class LibraryClockTests : IDisposable
         public DateTimeOffset RecordingSince { get; set; } = DateTimeOffset.MinValue;
     }
 
-    private LibraryClock Clock(KeeperNames? names = null, double days = 7) => new(
-        _roots, _library, _keeps, _plays, _sessions, names ?? (_ => null),
+    private LibraryClock Clock(double days = 7) => new(
+        _roots, _library, _plays, _sessions,
         Options.Create(new LibraryOptions { LeaveAfterDays = days }), _time);
 
     private string Settle(string id)
@@ -103,17 +100,12 @@ public sealed class LibraryClockTests : IDisposable
         var clock = Clock();
 
         var settled = SettledAt("heat-1995", TimeSpan.FromDays(3));
-        var stay = clock.StayOf("heat-1995")!;
 
-        Assert.True(stay.Settled);
-        Assert.Null(stay.LastPlayedAt);
-        Assert.Equal(settled.AddDays(7), stay.LeavesAt);
-        Assert.Equal(4, stay.DaysLeft);
+        Assert.Equal(settled.AddDays(7), clock.LeavesAt("heat-1995"));
         Assert.Empty(clock.Due());
 
         SettledAt("heat-1995", TimeSpan.FromDays(7));
         Assert.Equal(["heat-1995"], clock.Due());
-        Assert.Equal(0, clock.StayOf("heat-1995")!.DaysLeft);
     }
 
     /// <summary>
@@ -128,10 +120,7 @@ public sealed class LibraryClockTests : IDisposable
         var settled = SettledAt("heat-1995", TimeSpan.FromDays(30));
         _plays.RecordingSince = settled.AddDays(29);
 
-        var stay = clock.StayOf("heat-1995")!;
-
-        Assert.Equal(settled.AddDays(36), stay.LeavesAt);
-        Assert.Equal(6, stay.DaysLeft);
+        Assert.Equal(settled.AddDays(36), clock.LeavesAt("heat-1995"));
         Assert.Empty(clock.Due());
     }
 
@@ -144,8 +133,7 @@ public sealed class LibraryClockTests : IDisposable
         _plays.At["heat-1995"] = settled.AddDays(5);
 
         Assert.Empty(clock.Due());
-        Assert.Equal(settled.AddDays(12), clock.StayOf("heat-1995")!.LeavesAt);
-        Assert.Equal(settled.AddDays(5), clock.StayOf("heat-1995")!.LastPlayedAt);
+        Assert.Equal(settled.AddDays(12), clock.LeavesAt("heat-1995"));
 
         SettledAt("heat-1995", TimeSpan.FromDays(12));
         Assert.Equal(["heat-1995"], clock.Due());
@@ -160,26 +148,7 @@ public sealed class LibraryClockTests : IDisposable
         _plays.At["heat-1995"] = settled.AddDays(-30);
 
         Assert.Empty(clock.Due());
-        Assert.Equal(settled.AddDays(7), clock.StayOf("heat-1995")!.LeavesAt);
-    }
-
-    [Fact]
-    public void A_kept_film_is_never_due_and_has_no_date()
-    {
-        Settle("heat-1995");
-        var clock = Clock();
-        _keeps.Add("heat-1995", "42", _time.GetUtcNow());
-
-        SettledAt("heat-1995", TimeSpan.FromDays(400));
-        var stay = clock.StayOf("heat-1995")!;
-
-        Assert.Empty(clock.Due());
-        Assert.Equal("42", stay.KeeperId);
-        Assert.Null(stay.LeavesAt);
-        Assert.Null(stay.DaysLeft);
-
-        _keeps.Remove("heat-1995");
-        Assert.Equal(["heat-1995"], clock.Due());
+        Assert.Equal(settled.AddDays(7), clock.LeavesAt("heat-1995"));
     }
 
     [Fact]
@@ -207,12 +176,9 @@ public sealed class LibraryClockTests : IDisposable
         var clock = Clock();
         _time.SetUtcNow(DateTimeOffset.UtcNow.AddDays(365));
 
-        var stay = clock.StayOf("heat-1995")!;
-
-        Assert.False(stay.Settled);
-        Assert.Null(stay.LeavesAt);
+        Assert.False(clock.IsSettled("heat-1995"));
+        Assert.Null(clock.LeavesAt("heat-1995"));
         Assert.Empty(clock.Due());
-        Assert.Empty(clock.Stays());
     }
 
     [Fact]
@@ -223,13 +189,9 @@ public sealed class LibraryClockTests : IDisposable
         var clock = Clock();
         _time.SetUtcNow(DateTimeOffset.UtcNow.AddDays(365));
 
-        var stay = clock.StayOf("making")!;
-
-        Assert.False(stay.Settled);
-        Assert.Null(stay.LeavesAt);
-        Assert.Null(stay.DaysLeft);
+        Assert.False(clock.IsSettled("making"));
+        Assert.Null(clock.LeavesAt("making"));
         Assert.Empty(clock.Due());
-        Assert.Empty(clock.Stays());
     }
 
     [Fact]
@@ -240,7 +202,7 @@ public sealed class LibraryClockTests : IDisposable
         var clock = Clock();
         _time.SetUtcNow(DateTimeOffset.UtcNow.AddDays(365));
 
-        Assert.False(clock.StayOf("heat-1995")!.Settled);
+        Assert.False(clock.IsSettled("heat-1995"));
         Assert.Empty(clock.Due());
     }
 
@@ -256,7 +218,7 @@ public sealed class LibraryClockTests : IDisposable
         _time.Advance(MediaRoots.Recheck + TimeSpan.FromSeconds(1));
 
         Assert.Empty(clock.Due());
-        Assert.Empty(clock.Stays());
+        Assert.False(clock.IsSettled("heat-1995"));
     }
 
     [Fact]
@@ -264,57 +226,13 @@ public sealed class LibraryClockTests : IDisposable
     {
         var hotOnly = new MediaRoots(Hot);
         var clock = new LibraryClock(
-            hotOnly, LibraryOn(hotOnly), _keeps, _plays, _sessions, _ => null,
+            hotOnly, LibraryOn(hotOnly), _plays, _sessions,
             Options.Create(new LibraryOptions()), _time);
         Directory.CreateDirectory(Path.Combine(Hot, "heat-1995"));
         _time.SetUtcNow(DateTimeOffset.UtcNow.AddDays(365));
 
         Assert.Empty(clock.Due());
-        Assert.False(clock.StayOf("heat-1995")!.Settled);
-    }
-
-    [Fact]
-    public void Days_left_round_up_so_a_film_with_an_hour_left_still_says_one_day()
-    {
-        Settle("heat-1995");
-        var clock = Clock();
-
-        SettledAt("heat-1995", TimeSpan.FromDays(7) - TimeSpan.FromHours(1));
-        Assert.Equal(1, clock.StayOf("heat-1995")!.DaysLeft);
-        Assert.Empty(clock.Due());
-
-        SettledAt("heat-1995", TimeSpan.FromDays(100));
-        Assert.Equal(0, clock.StayOf("heat-1995")!.DaysLeft);
-    }
-
-    [Fact]
-    public void Stays_list_the_settled_films_soonest_to_leave_first_and_the_kept_ones_last()
-    {
-        Settle("a-kept");
-        Settle("b-old");
-        Settle("c-newer");
-        Directory.CreateDirectory(Path.Combine(Hot, "d-making"));
-        var clock = Clock();
-        var settled = DateTimeOffset.UtcNow;
-        _time.SetUtcNow(settled.AddDays(20));
-
-        _keeps.Add("a-kept", "1", _time.GetUtcNow());
-        _plays.At["b-old"] = settled.AddDays(10);
-        _plays.At["c-newer"] = settled.AddDays(19);
-
-        var stays = clock.Stays();
-
-        Assert.Equal(["b-old", "c-newer", "a-kept"], stays.Select(s => s.TitleId));
-    }
-
-    [Fact]
-    public void A_keeper_is_shown_by_the_name_the_directory_gives_and_by_id_otherwise()
-    {
-        Settle("heat-1995");
-        _keeps.Add("heat-1995", "42", _time.GetUtcNow());
-
-        Assert.Equal("42", Clock().StayOf("heat-1995")!.KeeperName);
-        Assert.Equal("Bea", Clock(id => id == "42" ? "Bea" : null).StayOf("heat-1995")!.KeeperName);
+        Assert.False(clock.IsSettled("heat-1995"));
     }
 
     [Theory]
@@ -324,35 +242,14 @@ public sealed class LibraryClockTests : IDisposable
     [InlineData("")]
     public void An_id_that_could_leave_the_roots_is_not_a_film(string id)
     {
-        Assert.Null(Clock().StayOf(id));
+        Assert.Null(Clock().LeavesAt(id));
         Assert.False(Clock().IsSettled(id));
     }
 
     [Fact]
-    public void A_film_the_library_does_not_hold_has_no_stay()
+    public void A_film_the_library_does_not_hold_has_no_date()
     {
-        Assert.Null(Clock().StayOf("nothing-here"));
-    }
-
-    [Fact]
-    public void A_keep_outlives_a_restart_and_the_first_keeper_keeps_it()
-    {
-        var path = Path.Combine(_root, "persist", "keeps.json");
-        var store = new KeepStore(path, NullLogger<KeepStore>.Instance);
-        var now = DateTimeOffset.UtcNow;
-
-        var first = store.Add("heat-1995", "1", now);
-        var second = store.Add("heat-1995", "2", now.AddMinutes(1));
-
-        Assert.Equal("1", second.KeeperId);
-        Assert.Equal(first.KeptAt, second.KeptAt);
-
-        var reopened = new KeepStore(path, NullLogger<KeepStore>.Instance);
-        Assert.Equal("1", reopened.Get("heat-1995")?.KeeperId);
-
-        Assert.True(reopened.Remove("heat-1995"));
-        Assert.False(reopened.Remove("heat-1995"));
-        Assert.Null(new KeepStore(path, NullLogger<KeepStore>.Instance).Get("heat-1995"));
+        Assert.Null(Clock().LeavesAt("nothing-here"));
     }
 
     /// <summary>Settles an episode of a show, with the manifest that says which.</summary>
@@ -382,31 +279,13 @@ public sealed class LibraryClockTests : IDisposable
 
         // Watching one episode keeps its season, and only its season.
         _plays.At["severance-s02e02"] = settled.AddDays(2);
-        Assert.Equal(settled.AddDays(9), clock.StayOf("severance-s02e01")!.LeavesAt);
-        Assert.Equal("tt11280740:s02", clock.StayOf("severance-s02e01")!.Unit);
-        Assert.Equal(2, clock.StayOf("severance-s02e01")!.Season);
-
-        // A season is listed once.
-        Assert.Equal(2, clock.Stays().Count);
+        Assert.Equal(settled.AddDays(9), clock.LeavesAt("severance-s02e01"));
 
         _time.SetUtcNow(settled.AddDays(8));
         Assert.Equal(["severance-s01e01"], clock.Due());
 
         _time.SetUtcNow(settled.AddDays(10));
         Assert.Equal(["severance-s01e01", "severance-s02e01", "severance-s02e02"], clock.Due().Order(StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public void A_keep_on_a_season_keeps_every_episode_in_it()
-    {
-        SettleEpisode("severance-s02e01", 2, 1);
-        SettleEpisode("severance-s02e02", 2, 2);
-        var clock = Clock();
-        _keeps.Add("tt11280740:s02", "1", DateTimeOffset.UtcNow);
-        SettledAt("severance-s02e01", TimeSpan.FromDays(100));
-
-        Assert.Empty(clock.Due());
-        Assert.Equal("1", clock.StayOf("severance-s02e02")!.KeeperId);
     }
 
     [Fact]
@@ -419,15 +298,5 @@ public sealed class LibraryClockTests : IDisposable
         SettledAt("severance-s02e01", TimeSpan.FromDays(100));
 
         Assert.Empty(clock.Due());
-    }
-
-    [Fact]
-    public void A_keep_file_that_cannot_be_read_is_not_read_as_nobody_keeping_anything()
-    {
-        var path = Path.Combine(_root, "broken", "keeps.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, "{ not json");
-
-        Assert.ThrowsAny<Exception>(() => new KeepStore(path, NullLogger<KeepStore>.Instance));
     }
 }

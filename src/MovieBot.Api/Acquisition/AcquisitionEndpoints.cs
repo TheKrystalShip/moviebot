@@ -10,13 +10,12 @@ using TheKrystalShip.MovieBot.Core;
 namespace TheKrystalShip.MovieBot.Api.Acquisition;
 
 /// <summary>
-/// Fetching films, waiting on them and keeping them.
+/// Fetching films and waiting on them.
 ///
-/// These spend things — the disk, the tracker's ratio, an hourly call to the tracker for every wish,
-/// a film's place on the disk — so each takes its own action, checked on the token: downloading,
-/// wishing, keeping. Whoever the token names is who asked, whichever client carried the request; a
-/// request says nothing about who asked, so no client can say it is somebody else. Reading how long a
-/// film stays is reading the library, and takes watching.
+/// These spend things — the disk, the tracker's ratio, an hourly call to the tracker for every wish —
+/// so each takes its own action, checked on the token: downloading, wishing. Whoever the token names is
+/// who asked, whichever client carried the request; a request says nothing about who asked, so no
+/// client can say it is somebody else.
 /// </summary>
 public static class AcquisitionEndpoints
 {
@@ -129,61 +128,11 @@ public static class AcquisitionEndpoints
             CinemaPerson.Of(context) is { } person ? Results.Ok(wishes.Cancel(person.UserId, imdbId)) : NoPerson())
             .RequireAction(CinemaActions.Wish);
 
-        // How long each film stays in the library, and who keeps it. A film the library does not hold
-        // is a 404, since nothing about one that is not there would be a fact. The bot reads a film's
-        // stay for the announcement it posts when a download can be watched.
-        group.MapGet("/titles/{id}/stay", (string id, LibraryClock library) =>
-            library.StayOf(id) is { } stay ? Results.Ok(stay) : NoSuchTitle())
-            .RequireActionOrService(CinemaActions.Watch);
-
-        group.MapGet("/stays", (LibraryClock library) => Results.Ok(library.Stays().ToList()))
-            .RequireAction(CinemaActions.Watch);
-
-        // A keep is on what stays or leaves as one, so keeping an episode keeps its season.
-        group.MapPut("/titles/{id}/keep", async (string id, HttpContext context,
-            LibraryClock library, KeepStore keeps, KeepNotices notices, TimeProvider clock, ILogger<KeepStore> logger) =>
-        {
-            if (library.StayOf(id) is not { } stay) return NoSuchTitle();
-            if (CinemaPerson.Of(context) is not { } person) return NoPerson();
-
-            var already = keeps.Get(stay.Unit) is not null;
-            keeps.Add(stay.Unit, person.UserId, clock.GetUtcNow());
-            if (!already)
-            {
-                logger.LogInformation("{User} kept {Unit}{Via}.", person.DisplayName, stay.Unit, Through(person));
-                await notices.TellAsync(stay.Unit, person.Actor, kept: true, context.RequestAborted);
-            }
-
-            return Results.Ok(library.StayOf(id));
-        }).RequireAction(CinemaActions.Keep);
-
-        group.MapDelete("/titles/{id}/keep", async (string id, HttpContext context,
-            LibraryClock library, KeepStore keeps, KeepNotices notices, ILogger<KeepStore> logger) =>
-        {
-            if (library.StayOf(id) is not { } stay) return NoSuchTitle();
-            if (CinemaPerson.Of(context) is not { } person) return NoPerson();
-
-            if (keeps.Remove(stay.Unit))
-            {
-                logger.LogInformation("{User} let {Unit} go{Via}.", person.DisplayName, stay.Unit, Through(person));
-                await notices.TellAsync(stay.Unit, person.Actor, kept: false, context.RequestAborted);
-            }
-
-            return Results.Ok(library.StayOf(id));
-        }).RequireAction(CinemaActions.Keep);
-
         // What the hand-off deletes: the settled films whose time is up. It is asked by the one process
         // that writes the media roots, and a person has no business with it.
         group.MapGet("/library/due", (LibraryClock library) => Results.Ok(library.Due().ToArray()))
             .RequireService();
     }
-
-    /// <summary>The client that carried an act, for the log line that records it.</summary>
-    internal static string Through(CinemaPerson person) => person.Via is { } via ? $" through {via}" : "";
-
-    private static IResult NoSuchTitle() =>
-        Results.Json(new ErrorReply("The library holds no film under that id."), ApiJsonContext.Default.ErrorReply,
-            statusCode: StatusCodes.Status404NotFound);
 
     /// <summary>An act a person performs, asked for by something that is nobody.</summary>
     private static IResult NoPerson() =>

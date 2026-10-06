@@ -34,7 +34,7 @@ in `MovieBot.Client/AssistantWire.cs`, written as this service writes it, an abs
 **One frame is this product's own: `launch`**, `{titleId, name, requestedBy, sessionId?, replaced?,
 alreadyWatching}` — a film put on in a room, or, with no `sessionId`, found for a person to open. Each
 client presents it its own way: the bot posts a launch card, the site opens the player. A confirmed
-proposal's `result` carries the API's own answer (`download`, `wish`, `keep`, `subtitle`) beside the
+proposal's `result` carries the API's own answer (`download`, `wish`, `subtitle`) beside the
 sentence, so a client words its message from facts rather than parsing text.
 
 ## Who is asking
@@ -83,8 +83,8 @@ sentence, so a client words its message from facts rather than parsing text.
 
 ## Rules the brain rests on
 
-- **Every act is the API's, and the tools only decide what to ask it.** A download, a wish and a keep
-  are carried out by the API as the person whose token asks, so the bot's slash commands and this
+- **Every act is the API's, and the tools only decide what to ask it.** A download and a wish are
+  carried out by the API as the person whose token asks, so the bot's slash commands and this
   service cannot disagree about what one is.
 - **Live state goes in the turn's context, never in the instructions.** The chat template renders the
   instructions ahead of the tool catalog, so a changing byte there re-reads the catalog and the

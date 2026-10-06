@@ -1,16 +1,15 @@
 # Fetching films
 
-The API is the one writer of downloads, wishes and keeps; the bot and the assistant are clients of
+The API is the one writer of downloads and wishes; the bot and the assistant are clients of
 these routes and present what they answer (`docs/api-contract.md`, "Fetching films"). The tracker,
 the title index, the torrent client, the disk budget and the tag vocabulary are moviebot-acquire's,
 and this directory is where the API calls them.
 
 - **Spending anything takes an action, and the person is the token's.** Watching does not let anybody
-  fill the disk or spend the tracker's ratio: a download takes `cinema:download`, a wish `cinema:wish`
-  and a keep `cinema:keep`, whichever client carries the token — the site's, the Activity's or one the
-  bot exchanged for the Discord user it acts for. No request names who asked; the tags, the wish, the
-  keep records and the log record the token's person, and the client acting for them where there is
-  one.
+  fill the disk or spend the tracker's ratio: a download takes `cinema:download` and a wish
+  `cinema:wish`, whichever client carries the token — the site's, the Activity's or one the bot
+  exchanged for the Discord user it acts for. No request names who asked; the tags, the wish and the
+  log record the token's person, and the client acting for them where there is one.
 - **A download names a release this API offered.** `OfferedReleases` remembers what a search or a
   picker answered, and a pick is resolved against it. An id nothing offered is refused before the
   torrent client is asked, so a client cannot fetch whatever torrent id it likes.
@@ -46,36 +45,31 @@ and this directory is where the API calls them.
   every episode on it, Watch now and the prefetcher all read the same answer, and the tracker caps
   how often a member may call it.
 
-## Keeps and the library's clock
+## The library's clock
 
 How long a settled film stays in the library is this API's to say (`Library/LibraryClock`), and the
-hand-off, the one process that writes the media roots, deletes what it names. The routes are in
-`docs/api-contract.md`; these are the rules they rest on.
+hand-off, the one process that writes the media roots, deletes what it names. The route is in
+`docs/api-contract.md`; these are the rules it rests on.
 
-- **A keep is held by unit in `keeps.json`, never on the torrent.** The torrent is removed once
-  its seeding is done and the film is in the library for much longer, so a keep that lived on it
-  would protect nothing. Anyone may keep and anyone may let go; the record names who.
+- **The library is the server's and nobody else's.** Whether a film is on disk, how long it stays and
+  when it goes are never shown to a person and never theirs to change: a film that has left is
+  fetched again the way any film is, so there is nothing for anybody to watch over or protect.
 - **A show's season stays and leaves as one** (`TitleLibrary.UnitOf`): a film is its own unit and an
-  episode's is its season, because a season is what a person keeps and what "Leaving soon" names.
-  Its clock runs from the latest play of any episode and the latest episode to settle, a keep on it
-  keeps every episode, a room on one episode holds the season, and every settled episode in it falls
-  due at the same moment.
-- **The rule is written once.** `LibraryClock` answers a film's stay, the list of stays and what is
-  due from the same computation, so the page that says "3 days left" and the sweep that deletes cannot
-  disagree. The hand-off applies the answer and decides nothing of its own.
+  episode's is its season, because a season is one torrent and is fetched as one. Its clock runs from
+  the latest play of any episode and the latest episode to settle, a room on one episode holds the
+  season, and every settled episode in it falls due at the same moment.
+- **The rule is written once.** `LibraryClock` answers a title's date and what is due from the same
+  computation. The hand-off applies the answer and decides nothing of its own.
 - **Only a settled film is on the clock**: its directory is on the cold root and not also on the media
   root. The count runs from the latest of the last play (`IPlayHistory`), the moment it settled, and
   the moment plays began to be recorded (`IPlayHistory.RecordingSince`): a film that settles long
   after it was last watched is not due the instant it lands, and a film with no recorded play is one
   nobody has played since recording began, which is all that can be known about it.
-- **A kept film has no `leavesAt`, and neither does one that has not settled.** A date for a film
-  that cannot leave would be invented.
+- **A film that has not settled has no date.** A date for a film that is not on the clock would be
+  invented.
 - **A film a room holds is never due**, whether or not anybody is in the room this second.
-- **A keep file that cannot be read stops the store from starting.** Reading it as "nobody keeps
-  anything" would let every film leave on the next sweep; with no answer, nothing is deleted.
 - **`/api/library/due` answers the service key alone.** It names what will be deleted, and only the
   hand-off has any business asking.
-- **A keeper is shown by the name `KeeperNames` gives, and by id where it gives none.**
 
 ## Wishes
 

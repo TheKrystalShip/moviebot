@@ -2,10 +2,8 @@
 // it: through the API and the room hub, never by writing a file. The person looking is a member of the
 // server, signed in on the site; two others are watching films in rooms of their own.
 //
-//   - the viewer is partway through three films, one of them on the library's clock (so its clock
-//     restarts and it has its full stay)
-//   - the viewer keeps one film on the clock
-//   - Ana is playing a film on the clock, so a room is watching something about to leave
+//   - the viewer is partway through three films
+//   - Ana is playing a film
 //   - Ben has a film paused
 //
 // The rooms stay open, with their people in them, until `close()` is called.
@@ -71,25 +69,18 @@ async function described(api, token, timeoutMs = 90000) {
 export async function stage(api, issuer, { tmdb = true } = {}) {
   const token = memberToken(issuer, VIEWER);
   const titles = tmdb ? await described(api, token) : await call(api, token, "GET", "/api/titles");
-  const stays = await call(api, token, "GET", "/api/stays");
   const ready = titles.filter((t) => t.status === "ready");
-  const settled = ready.filter((t) => stays.some((s) => s.titleId === t.id && s.settled));
-  const fresh = ready.filter((t) => !settled.includes(t));
-  if (settled.length < 3 || fresh.length < 3) {
-    throw new Error(`Staging needs three films on the clock and three off it; the library has ${settled.length} and ${fresh.length}.`);
-  }
+  if (ready.length < 5) throw new Error(`Staging needs five ready films; the library has ${ready.length}.`);
 
   // The viewer's progress: partway through, then out of the room, which is what records it.
-  for (const [title, fraction] of [[settled[0], 0.35], [fresh[0], 0.6], [fresh[1], 0.2]]) {
+  for (const [title, fraction] of [[ready[0], 0.6], [ready[1], 0.2], [ready[2], 0.35]]) {
     const hub = await sitIn(api, issuer, VIEWER, `verify-progress-${title.id}`, title.id, Math.floor(title.durationSeconds * fraction), false);
     await hub.stop();
   }
 
-  await call(api, token, "PUT", `/api/titles/${encodeURIComponent(settled[1].id)}/keep`);
-
   const rooms = [
-    await sitIn(api, issuer, OTHERS[0], "verify-ana", settled[2].id, 1800, true),
-    await sitIn(api, issuer, OTHERS[1], "verify-ben", fresh[2].id, 900, false),
+    await sitIn(api, issuer, OTHERS[0], "verify-ana", ready[3].id, 1800, true),
+    await sitIn(api, issuer, OTHERS[1], "verify-ben", ready[4].id, 900, false),
   ];
 
   // Lists: the viewer's Watch later with a note on one, a list of the viewer's shared with Ben, and
@@ -110,9 +101,7 @@ export async function stage(api, issuer, { tmdb = true } = {}) {
   return {
     token,
     list: theirs.list.id,
-    film: fresh[0],
-    leaving: settled[2],
-    kept: settled[1],
+    film: ready[0],
     async close() { await Promise.all(rooms.map((hub) => hub.stop())); },
   };
 }

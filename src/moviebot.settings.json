@@ -128,12 +128,10 @@
   },
 
   // How long a film stays in the library once it has settled on the cold disk: LeaveAfterDays after
-  // its last play, or after it settled when nobody has played it, unless somebody keeps it. The API
-  // decides what is due and the hand-off deletes it. An empty Keeps writes keeps.json in the state
-  // directory.
+  // its last play, or after it settled when nobody has played it. The API decides what is due and the
+  // hand-off deletes it.
   "Library": {
-    "LeaveAfterDays": 7,
-    "Keeps": ""
+    "LeaveAfterDays": 7
   },
 
   // What the API's planner decides the card should be doing, for the hand-off to carry out. A watched

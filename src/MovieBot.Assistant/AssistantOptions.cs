@@ -15,7 +15,7 @@ public sealed class AssistantOptions
     public string PromptDirectory { get; set; } = "prompts";
 
     /// <summary>
-    /// How long a proposed download, keep or fetch waits for somebody to agree, in minutes. After it
+    /// How long a proposed download, wish or fetch waits for somebody to agree, in minutes. After it
     /// the handle redeems nothing and says so.
     /// </summary>
     public int OfferMinutes { get; set; } = 10;

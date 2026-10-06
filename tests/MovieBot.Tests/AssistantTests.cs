@@ -89,7 +89,7 @@ public sealed class AssistantPartsTests
     public void A_proposal_is_redeemed_once_by_an_unguessable_token()
     {
         var staged = new StagedActions(Options.Create(new AssistantOptions()), TimeProvider.System);
-        var action = staged.Stage("keep_film", "keep Heat", "Heat", Turn(1), (_, _) => Task.FromResult(Kept));
+        var action = staged.Stage("add_wish", "wait on Heat", "Heat", Turn(1), (_, _) => Task.FromResult(Done));
 
         Assert.Matches("^[0-9a-f]{32}$", action.Token);
         Assert.Same(action, staged.Take(action.Token));
@@ -101,7 +101,7 @@ public sealed class AssistantPartsTests
     {
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var staged = new StagedActions(Options.Create(new AssistantOptions { OfferMinutes = 10 }), clock);
-        var action = staged.Stage("download_film", "download Heat", "Heat", Turn(1), (_, _) => Task.FromResult(Kept));
+        var action = staged.Stage("download_film", "download Heat", "Heat", Turn(1), (_, _) => Task.FromResult(Done));
 
         clock.Advance(TimeSpan.FromMinutes(11));
 
@@ -116,8 +116,8 @@ public sealed class AssistantPartsTests
     public void A_proposal_made_on_the_site_is_the_asker_s_alone_and_a_room_s_is_anybody_s()
     {
         var staged = new StagedActions(Options.Create(new AssistantOptions()), TimeProvider.System);
-        var mine = staged.Stage("keep_film", "keep Heat", "Heat", AssistantPartsTests.SitePerson(), (_, _) => Task.FromResult(Kept));
-        var room = staged.Stage("keep_film", "keep Heat", "Heat", Turn(1), (_, _) => Task.FromResult(Kept));
+        var mine = staged.Stage("add_wish", "wait on Heat", "Heat", AssistantPartsTests.SitePerson(), (_, _) => Task.FromResult(Done));
+        var room = staged.Stage("add_wish", "wait on Heat", "Heat", Turn(1), (_, _) => Task.FromResult(Done));
 
         Assert.Null(staged.Take(mine.Token, "77"));
         Assert.Single(staged.Pending(mine.ConversationId));
@@ -125,7 +125,7 @@ public sealed class AssistantPartsTests
         Assert.Same(room, staged.Take(room.Token, "77"));
     }
 
-    private static readonly ConfirmOutcome Kept = new() { Text = "kept", Success = true, Verdict = "accepted" };
+    private static readonly ConfirmOutcome Done = new() { Text = "done", Success = true, Verdict = "accepted" };
 
     [Theory]
     [InlineData("1:02:03", 3723)]

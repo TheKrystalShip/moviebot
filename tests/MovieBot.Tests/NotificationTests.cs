@@ -133,26 +133,27 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
         const string endpoint = "https://push.invalid/send/8141";
         await Subscribe(person, endpoint);
         var notifier = fixture.Services.GetRequiredService<Notifier>();
-        var draft = new NotificationDraft { Kind = NotificationKinds.Kept, Key = "kept:heat:1", Text = "Alex kept Heat (1995)." };
+        var draft = new NotificationDraft { Kind = NotificationKinds.Shared, Key = "shared:later:1", Text = "Alex shared Later with you." };
 
-        // Kept is off unless asked for.
+        using var off = await person.PutAsJsonAsync("/api/me/notifications/preferences", new NotificationPreferences { Shared = false });
         var first = await notifier.TellAsync("8141", draft, CancellationToken.None);
         Assert.Equal(new Delivery(0), first);
         Assert.Null(await notifier.TellAsync("8141", draft, CancellationToken.None));
         Assert.Equal(0, fixture.PushService.SentTo(endpoint));
         Assert.Single((await Bell(person)).Items);
 
-        using var put = await person.PutAsJsonAsync("/api/me/notifications/preferences", new NotificationPreferences { Kept = true });
-        var pushed = await notifier.TellAsync("8141", draft with { Key = "kept:heat:2" }, CancellationToken.None);
+        using var on = await person.PutAsJsonAsync("/api/me/notifications/preferences", new NotificationPreferences { Shared = true });
+        var pushed = await notifier.TellAsync("8141", draft with { Key = "shared:later:2" }, CancellationToken.None);
         Assert.Equal(new Delivery(1), pushed);
     }
 
     [Fact]
-    public async Task Somebody_who_chose_nothing_has_every_kind_but_keeps()
+    public async Task Somebody_who_chose_nothing_has_every_kind()
     {
         var preferences = await As("8151").GetFromJsonAsync<NotificationPreferences>("/api/me/notifications/preferences");
 
-        Assert.Equal(new NotificationPreferences { Available = true, Ready = true, Leaving = true, Kept = false }, preferences);
+        Assert.Equal(new NotificationPreferences(), preferences);
+        Assert.True(preferences!.Available && preferences.Ready && preferences.Episode && preferences.Shared);
     }
 
     [Fact]

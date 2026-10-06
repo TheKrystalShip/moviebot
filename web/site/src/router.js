@@ -3,7 +3,7 @@
 
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
 import {
-  PROFILE_TABS, aboutPath, discoverFilmPath, discoverPath, discoverShowPath, homePath, leavingPath, libraryPath,
+  PROFILE_TABS, aboutPath, discoverFilmPath, discoverPath, discoverShowPath, homePath, libraryPath,
   listPath, moviePath, notifyPath, profilePath, roomPath, savedPath, signInPath, tvPath,
 } from "./paths.js";
 
@@ -46,7 +46,7 @@ function arrived(segments, search) {
  * `notfound` and keeps the address as typed.
  *
  *   view      which page: home, movies, movie, tv, show, discover, discover-film, discover-show, saved,
- *             list, notify, leaving, profile, about, signin, room, embed, notfound
+ *             list, notify, profile, about, signin, room, embed, notfound
  *   arg       the id the path carries: a title, a show, a film, a list or a room
  *   season    the season a show's path names, or null for the show's own choice
  *   tab       the profile tab the path names, or null for the first
@@ -91,7 +91,6 @@ function parse(href) {
       break;
     }
     case "notify": route = shaped("notify", notifyPath); break;
-    case "leaving": route = shaped("leaving", leavingPath); break;
     case "about": route = shaped("about", aboutPath); break;
     case "signin": route = shaped("signin", signInPath); break;
     case "r":
