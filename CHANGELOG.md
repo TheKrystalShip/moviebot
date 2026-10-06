@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.14.0] - 2026-10-06
+
+### Added
+
+- **Krystal Cinema for Android TV and Fire TV** (`tv/`, its own version clock, `tv/CHANGELOG.md`):
+  the site in an app launched from a television's home screen, built with the Android SDK's own
+  tools by `tv/build.sh`. The API serves the build made for its site at `/tv.apk`, from `Tv:App` or
+  `tv.apk` in the state directory, for a TV's Downloader to fetch.
+
+### Changed
+
+- **No link leaves the site on a television**: Profile's account shows the provider's address as
+  text, and About's TMDB logo is not a link. Site 0.38.0.
+
 ## [2.13.0] - 2026-10-06
 
 ### Added

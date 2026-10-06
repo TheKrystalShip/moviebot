@@ -301,6 +301,19 @@ roles there give them. The bot and the player inside Discord act for the account
 identity is linked to at the provider; somebody whose Discord account no approved account holds is
 told an administrator has to approve them.
 
+### On a television
+
+Krystal Cinema has an app for Android TV and Fire TV, which shows the site in its television design
+and signs in with a code approved on a phone (the `cinema-tv` client from step 3b). It is built for one
+site, so build it for yours from a checkout of the repository, as `tv/README.md` says
+(`tv/build.sh --origin https://YOUR.DOMAIN`), and put it where the site serves it:
+
+```bash
+sudo cp krystal-cinema-tv-<version>.apk /var/lib/moviebot/tv.apk
+```
+
+A Fire TV then fetches it with the Downloader app from `https://YOUR.DOMAIN/tv.apk`.
+
 ## Adding films you already have
 
 Copy the film into `/srv/moviebot/incoming`, where the `moviebot` user can read it, then prepare
@@ -357,5 +370,5 @@ journalctl -u moviebot-handoff -n 50 --no-pager
 | `/srv/moviebot/media` | Your film library |
 | `/srv/moviebot/downloads` | Downloads, which keep seeding for a week and are then removed; a film that has moved to the cold disk leaves your library after a week without a play, unless someone uses `/keep`, and one on a host with no cold disk never leaves |
 | `/srv/moviebot/incoming` | Films you add yourself, before `moviebot-ingest` prepares them |
-| `/var/lib/moviebot`, `/var/lib/moviebot-bot`, `/var/lib/moviebot-assistant` | Open rooms, fetched subtitles and the wish list; the bot's saved state; the assistant's conversations, what people asked it to remember, and the key its notifications are sent with, which cannot be made again without every browser subscribing again |
+| `/var/lib/moviebot`, `/var/lib/moviebot-bot`, `/var/lib/moviebot-assistant` | Open rooms, fetched subtitles, the wish list and the television app (`tv.apk`); the bot's saved state; the assistant's conversations, what people asked it to remember, and the key its notifications are sent with, which cannot be made again without every browser subscribing again |
 | `/etc/systemd/system/moviebot-*.service` | The service definitions |

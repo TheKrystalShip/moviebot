@@ -14,6 +14,7 @@ import { TabStage } from "../components/PageStage.jsx";
 import { CardsSkeleton, WishCard, keptArt } from "../components/TitleCards.jsx";
 import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
+import { onTv } from "../tv/tv.js";
 
 const TABS = PROFILE_TAB_FACES;
 
@@ -456,7 +457,8 @@ function Appearance() {
 
 /**
  * Where this person's account lives. Krystal Cinema keeps no sign-in of its own: the name, the
- * password and every session are the provider's, on its account page.
+ * password and every session are the provider's, on its account page. A television leaves the site for
+ * nothing, so there its address is shown to open on a phone.
  */
 function Account({ session }) {
   const user = session && session.user;
@@ -468,7 +470,9 @@ function Account({ session }) {
       <SettingsRow icon="user" title={user ? user.name : "Signed in"} sub={user && user.username ? "@" + user.username : null} />
       <SettingsRow icon="external-link" title="Managed outside Krystal Cinema"
         sub={url ? `Your name, password and sessions are kept at ${new URL(url).host}.` : "Your name, password and sessions are kept by your account provider."}>
-        <Button icon="external-link" href={url || ""} disabled={!url}>Manage account</Button>
+        {onTv
+          ? url && <span className="kc-account-address">{url.replace(/^https?:\/\//, "")}</span>
+          : <Button icon="external-link" href={url || ""} disabled={!url}>Manage account</Button>}
       </SettingsRow>
     </SettingsSection>
   );

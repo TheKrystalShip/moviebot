@@ -26,6 +26,14 @@ ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff mo
 `moviebot-assistant` is reached by the bot on loopback and by the site at `/assistant/` on the vhost,
 which strips the prefix (`nginx-moviebot.conf`).
 
+The television app (`tv/README.md`) is built here and handed to hotbox on its own, into the API's
+state directory, where `/tv.apk` serves it and no deploy of the services touches it:
+
+```bash
+tv/build.sh
+rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
+```
+
 - **Settings are two files and the environment.** Every service reads `moviebot.settings.json`
   twice: the copy of `src/moviebot.settings.json` published beside its binary holds the defaults,
   and `/home/heisen/.config/moviebot/moviebot.settings.json` (`deploy/hotbox.settings.json`, which

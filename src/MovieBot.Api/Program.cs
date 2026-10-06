@@ -330,6 +330,19 @@ app.MapGet("/api/config", (IOptions<DiscordAuthOptions> discord, IOptions<OidcOp
 // route's check names.
 app.MapGet("/.well-known/tks-actions.json", () => Results.Ok(CinemaActions.Manifest())).AllowAnonymous();
 
+// The television app built for this site (`tv/`), which a TV fetches with Downloader from an address
+// short enough to type with a remote. It is kept apart from the site's files, `Tv:App` or `tv.apk` in
+// the state directory, so deploying either leaves the other in place. A host without one answers 404.
+// It goes without a Content-Disposition: the address already names the file, and Downloader stalls on
+// one that carries the RFC 5987 `filename*` form beside `filename`.
+app.MapMethods("/tv.apk", [HttpMethods.Get, HttpMethods.Head], (IConfiguration configuration, HttpContext context) =>
+{
+    var path = StatePath(configuration["Tv:App"], "tv.apk");
+    if (!File.Exists(path)) return Results.NotFound();
+    context.Response.Headers.CacheControl = "no-cache";
+    return Results.File(path, "application/vnd.android.package-archive", enableRangeProcessing: true);
+}).AllowAnonymous();
+
 // Each title with what the film database said about it, from what is kept: a listing never waits
 // on the network, and a film not described yet is listed without it. Each carries the asking
 // person's progress and when the film was last played, and a caller that is nobody gets no progress.

@@ -301,6 +301,32 @@ public sealed class AccessTests(SessionFixture fixture) : IClassFixture<SessionF
     }
 
     [Fact]
+    public async Task The_television_app_is_served_to_anybody_when_the_host_has_one()
+    {
+        var app = Path.Combine(Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"), "tv.apk");
+        Directory.CreateDirectory(Path.GetDirectoryName(app)!);
+        try
+        {
+            using var factory = fixture.WithWebHostBuilder(builder =>
+                builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
+                    new Dictionary<string, string?> { ["Tv:App"] = app })));
+            var client = factory.CreateClient();
+
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/tv.apk")).StatusCode);
+
+            await File.WriteAllBytesAsync(app, [0x50, 0x4b, 0x03, 0x04]);
+            var served = await client.GetAsync("/tv.apk");
+            Assert.Equal(HttpStatusCode.OK, served.StatusCode);
+            Assert.Equal("application/vnd.android.package-archive", served.Content.Headers.ContentType?.MediaType);
+            Assert.Equal([0x50, 0x4b, 0x03, 0x04], await served.Content.ReadAsByteArrayAsync());
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(app)!, recursive: true);
+        }
+    }
+
+    [Fact]
     public void The_api_does_not_start_against_an_issuer_its_records_were_not_kept_against()
     {
         var record = Path.Combine(Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"), "issuer");

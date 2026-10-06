@@ -71,13 +71,13 @@ These exist and are not restated here:
 | The TV signing in: the `cinema-tv` client named on `/api/config`, the code screen and its QR, each answer's handling, the code over a page whose session ended, signing out by revocation | `web/site/README.md` "Signing in", `web/site/src/tv/TvSignIn.jsx`, `docs/deploying.md` |
 | The API accepting any token whose audience is the Cinema application, whatever client asked for it | `src/MovieBot.Api/Auth/CinemaAuthentication.cs` |
 | Media: HLS fMP4, H.264 High at level 4.2 with stereo AAC-LC, WebVTT drawn by the page, `MediaSource.isTypeSupported` asked before anything is fetched | `web/site/README.md` "A viewer who cannot play the film" |
-
-What does not exist: the wrapper.
+| The app: one activity on the site's origin, the TV mark, Back and Menu, other origins refused, the unreachable page, its build, signing, version clock and debug build; `/tv.apk` and Downloader | `tv/README.md`, `docs/api-contract.md`, `deploy/CLAUDE.md`, `docs/deploying.md` |
 
 ## 4. Steps
 
-Step 1, knowing it is a TV, moving focus, showing focus and the remote's keys, step 2, the TV's own
-design, and step 3, signing the TV in, are built (section 3); what step 2 leaves open is under it.
+Every step is built (section 3): step 1, knowing it is a TV, moving focus, showing focus and the
+remote's keys; step 2, the TV's own design; step 3, signing the TV in; step 4, the app. What step 2
+leaves open is under it, and this plan stands until that is settled.
 
 ### Step 2: what the TV's design leaves open
 
@@ -131,95 +131,33 @@ better with room around it.
 
 Not drawn in TV mode, for cost: `backdrop-filter` anywhere, the page fade animations.
 
-### Step 4: the wrapper app
-
-`moviebot/tv/`: one Java activity holding a full-screen WebView on the site's origin, with no
-dependencies and no bridge between the page and the app.
-
-- **App id `com.thekrystalship.cinema`**, named Krystal Cinema. It is permanent once on anybody's TV.
-  Minimum SDK 25 (Fire OS 6), a recent target so Google TV devices take it too. Leanback launcher
-  entry with a 320×180 banner and an icon drawn from the TKS mark and the wordmark, made once and
-  committed; `android.software.leanback` and the touchscreen not required, so it installs on Android
-  TV and Fire TV alike.
-- `KrystalCinemaTV/<version>` appended to the WebView's user agent, which turns TV mode on.
-- **Back and Menu in one place, `dispatchKeyEvent`**: Back handed to the page as
-  `window.krystalTv.back()` and the app finished only when it answers false, Menu as
-  `window.krystalTv.menu()` since the WebView declines it. That works on every API level without the
-  deprecated `onBackPressed`. Fire OS's keyboard takes Back for itself while it is up.
-- **No bridge.** Measured on the Xiaomi with nothing else keeping the screen on: a playing `<video>`
-  makes the WebView hold `KEEP_SCREEN_ON` on the window by itself, and pausing releases it, so the
-  screensaver never starts during a film and can after a pause, as in any streaming app. The page
-  never asks; the Screen Wake Lock API is granted there too should it ever need to. With nothing
-  exposed to the page, no other origin can reach anything of the app's. The app keeps no screen on
-  itself. Media playback needs no gesture inside the app.
-- **The site's origin is the app's whole world.** It is the origin tks-auth answers `/token` and
-  `/revoke` for across origins (the site's client registers it; the device client has none).
-  Navigation to any other origin is refused: the TV has no browser to hand it to (the Xiaomi has none
-  installed), and a page off the site has no remote handling, so Back there would close the app.
-- **The origin is a value the app holds, not a constant it is written around**, so one source can be
-  both the app this step ships and an app store's later (section 6). One class answers it, and the
-  user agent, the navigation rule, what is loaded and the debug build's `url` extra all ask it. This
-  step's build carries it fixed, `https://movies.thekrystalship.com` by default and `--origin` for
-  another host's: a build that fixes its origin never asks for one and offers no way to change it. A
-  build without `--origin` is the store's shape and is not made in this step; nothing in the app
-  assumes the origin is known before it is asked for.
-- **Nothing the app does is particular to one server.** The client it signs in as, the provider and
-  every page come from the site the origin names (`/api/config` and the site itself); the app adds
-  only the TV mark, Back and Menu, the navigation rule and storage. It asks for no permission beyond
-  `INTERNET` and never installs anything, since a store refuses an app that updates itself.
-- **The site draws no link out in TV mode**: Profile's Manage account shows the provider's address
-  as text, to open on a phone, and About's TMDB logo is not a link. The app's refusal is the safety
-  net for any that is missed.
-- **DOM storage on**, so the session in `localStorage` survives launches and updates; uninstalling or
-  clearing the app's data is a new sign-in.
-- **Built with the probe's chain**, `javac`, `d8`, `aapt2`, `zipalign` and `apksigner`, by `tv/build.sh`
-  on hotrod from `~/Android`. Gradle, its Android plugin and Kotlin are rejected: hundreds of MB and
-  their version churn to build one file, for dependency management and Play bundles a sideloaded
-  app with no dependencies does not use.
-- **A debug build replaces the probe app**: remote debugging on, cleartext allowed, and the address
-  taken from the launch's `url` extra, which is how it reaches the scratch site. A release build has
-  none of the three.
-- **Signed with a release key made once with `keytool`** and kept in `~/.config/krystal-cinema-tv/`
-  (0600), never in the repository. Android takes an update only under the same key, so losing it
-  means every TV uninstalls and installs again; backing it up is the user's. A store signs what it
-  distributes with a key of its own, so a sideloaded install and a store's do not update each other
-  even under the same app id: moving a TV between them is uninstalling, and signing in again.
-- **Its own version clock**, tagged `tv-v<version>`; `versionCode` is major×10000 + minor×100 + patch.
-- **The site serves its own app at `/tv.apk`**, as `application/vnd.android.package-archive`, which the
-  API's static files have to be told. A friend's TV gets it with the Downloader app from the Amazon
-  Appstore and that address, short enough to type with a remote, and always the build for the site
-  it points at. `/tv` is the TV Shows page, hence the extension. A deploy copies the APK beside the
-  site. A sideloaded app is not updated by the TV; the wrapper changes rarely, since the site updates
-  itself, and an update is the same address again.
-
-Done when: the app installs from hotrod onto the Xiaomi, launches from the Fire TV home screen, steps
-1 to 3 hold there, a film playing past the five-minute screensaver is never interrupted, and a TV
-fetches the app from `/tv.apk` with Downloader.
-
 ## 5. Testing
 
 - **`npm run verify:tv`** in a desktop Chromium at 960×540 (`web/site/README.md` "Verifying").
 - **The Xiaomi** for what only a device shows: the keys the remote really sends, the frame rate,
   decoding, the screensaver, and the QR scanned by a real phone.
 
-Until the wrapper's debug build takes its place, the Xiaomi is reached through a probe app kept
-outside any repository, in
-`~/Android/tvprobe` beside the toolchain (`~/Android/jdk`, a JDK 21, and `~/Android/Sdk` with
-`platform-tools`, `build-tools;35.0.0` and `platforms;android-35`). It is one Java activity holding a
-full-screen WebView with remote debugging on, the TV mark in its user agent, Back and Menu handed to
-the page, and the screen kept awake unless launched with `--ez awake false`; it logs every key it
-sees, every console line and what Back and Menu answered under the logcat tag `tvprobe`, and opens the
-address in its `url` extra. Restarting it moves its devtools socket to the new process, so the
-`adb forward` for :9333 is pointed again at `webview_devtools_remote_<pid>`.
+The Xiaomi runs the app's debug build (`tv/README.md`) on the scratch site, through `adb reverse`, and
+its pages are driven over the DevTools protocol by `~/Android/tvprobe/drive.mjs`, kept outside any
+repository beside the toolchain (`~/Android/jdk`, a JDK 21, and `~/Android/Sdk` with `platform-tools`,
+`build-tools;35.0.0` and `platforms;android-35`). Each launch of the app is a new process, and so a new
+`webview_devtools_remote_<pid>` for the forward on :9333.
 
 ```bash
+A=~/Android/Sdk/platform-tools/adb
 web/site/verify/mobile/scratch.sh                        # the scratch site, with MOVIEBOT_VERIFY_TMDB_TOKEN_FILE
-~/Android/tvprobe/build.sh [url]                         # build, install, open; reverses 8299, 8300, 8765; devtools on :9333
+$A reverse tcp:8299 tcp:8299; $A reverse tcp:8300 tcp:8300
+tv/build.sh --debug --install --open http://127.0.0.1:8299/
+$A forward tcp:9333 localabstract:webview_devtools_remote_$($A shell pidof com.thekrystalship.cinema.debug)
 node ~/Android/tvprobe/drive.mjs stage                   # stage the scratch site (keeps the staged rooms open while it runs)
 node ~/Android/tvprobe/drive.mjs plant http://127.0.0.1:9333   # sign the TV in as the staged viewer
 node ~/Android/tvprobe/drive.mjs walk http://127.0.0.1:9333 DPAD_DOWN DPAD_RIGHT   # press keys, log focus
-~/Android/Sdk/platform-tools/adb exec-out screencap -p > shot.png                   # what the TV shows
+$A exec-out screencap -p > shot.png                      # what the TV shows
 ```
+
+What a page holds on the device is read from Android itself: `dumpsys power` for the screen lock a
+playing film takes, `dumpsys dreams` for the screensaver, and `settings put system screen_off_timeout`
+to bring the screensaver closer for a test, put back afterwards.
 
 The scratch library is `moviebot/media/`, which holds every film's manifest, playlists, artwork and
 subtitles copied from hotbox without their segments, so pages draw; `coherence-2013` also holds its
@@ -229,9 +167,11 @@ first five minutes, which the player checks play.
 
 **The app in a TV's own store.** Decided against for now: the friends a cinema is shared with get the
 same app from `/tv.apk` with Downloader, at the cost of a one-time setting per TV and updates fetched
-by hand, which the thin wrapper rarely needs. The door is kept open by step 4's app holding its origin
-as a value and nothing in it being particular to one server. A store's version is then the same
-source built without `--origin`, and needs:
+by hand, which the thin app rarely needs. The door is kept open by the app (`tv/README.md`) holding
+its origin as a value one class answers, and nothing in it being particular to one server. A store's
+version is then the same source built without `--origin`. A store signs what it distributes with a
+key of its own, so a sideloaded install and a store's do not update each other even under the same
+app id: moving a TV between them is uninstalling, and signing in again. It needs:
 
 - A first screen asking for the server's address, taken with the system keyboard, accepted only once
   `<origin>/api/config` answers as Krystal Cinema, and kept; and a way to change it.

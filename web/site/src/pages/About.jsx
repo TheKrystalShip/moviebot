@@ -1,5 +1,6 @@
 import tmdbLogo from "../assets/tmdb.svg";
 import { PageHead } from "../components/Film.jsx";
+import { onTv } from "../tv/tv.js";
 
 /** What this site is, and where what it shows about movies and shows comes from. */
 export function About() {
@@ -18,9 +19,14 @@ export function About() {
 
       <section className="kc-about__block kc-about__tmdb">
         <h2>Details and artwork</h2>
-        <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer" className="kc-about__logo">
-          <img src={tmdbLogo} alt="The Movie Database (TMDB)" />
-        </a>
+        {/* A television leaves the site for nothing, so there the logo leads nowhere. */}
+        {onTv
+          ? <span className="kc-about__logo"><img src={tmdbLogo} alt="The Movie Database (TMDB)" /></span>
+          : (
+            <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer" className="kc-about__logo">
+              <img src={tmdbLogo} alt="The Movie Database (TMDB)" />
+            </a>
+          )}
         <p>
           Ratings, credits, certificates, genres, overviews and artwork come from The Movie Database (TMDB).
           This product uses the TMDB API but is not endorsed or certified by TMDB.

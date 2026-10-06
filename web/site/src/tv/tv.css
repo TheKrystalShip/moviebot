@@ -326,3 +326,6 @@
 .kc-tv-signin__stopped {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
+
+/* The provider's account page, as an address to open on a phone. */
+.kc-account-address { font-size: var(--text-lg); color: var(--fg-1); white-space: nowrap; }

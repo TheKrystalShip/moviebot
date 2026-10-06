@@ -27,7 +27,9 @@ rules each part rests on live in a `CLAUDE.md` beside its code**: `deploy/`, `sr
 `Sessions/`, `Subtitles/`, `Acquisition/` and `Transcode/`), `src/MovieBot.Core/` (the two disks),
 `src/MovieBot.Ingest/`, `src/MovieBot.Handoff/`, `src/MovieBot.Assistant/` (with the wire it serves),
 `src/MovieBot.Bot/` (and each of its feature directories), and `web/site/src/player/`.
-`src/MovieBot.Client` is the API client the bot and the assistant share.
+`src/MovieBot.Client` is the API client the bot and the assistant share. `tv/` is the Android TV and
+Fire TV app around the site, Java built with the SDK's own tools, on a version clock of its own tagged
+`tv-v<version>`; `tv/README.md` is its authority.
 
 **MovieBot signs nobody in.** Every person is an account at an OpenID Connect provider that mints
 access tokens for the audience `cinema` listing the Cinema actions they hold; tks-auth is the one

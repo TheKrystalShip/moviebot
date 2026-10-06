@@ -42,6 +42,12 @@
     "IssuerRecord": ""
   },
 
+  // The television app built for this site (tv/), served at /tv.apk. App is its path; empty is
+  // tv.apk in the state directory. Without the file, /tv.apk answers 404.
+  "Tv": {
+    "App": ""
+  },
+
   // Where people reach this host: the https address the Activity is mapped to.
   "Player": {
     "BaseUrl": ""

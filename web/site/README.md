@@ -246,8 +246,8 @@ The site installs as an app, Krystal Cinema, from Android Chrome's "Install app"
 
 ## On a television
 
-The site runs on an Android TV or a Fire TV inside a wrapper app that shows it in a WebView, driven by
-the remote. `src/tv/` is all of it that is the site's own.
+The site runs on an Android TV or a Fire TV inside the app in `tv/` (`tv/README.md`), which shows it
+in a WebView, driven by the remote. `src/tv/` is all of it that is the site's own.
 
 - **Knowing it is a television** (`src/tv/tv.js`): the wrapper's mark, `KrystalCinemaTV`, in the
   user agent, or `?tv=1` on any address, which holds for the rest of the tab (`?tv=0` lets go of it)
@@ -290,6 +290,10 @@ the remote. `src/tv/` is all of it that is the site's own.
 - **Signing in** is a code approved on a phone: "Signing in" above.
 - **Typing** is Fire OS's keyboard, which OK on a field raises, with its own QR code for typing on a
   phone. A submitted search moves focus off the field, which closes the keyboard over the results.
+- **No link leaves the site on a television**: a TV's browser, where it has one (Silk on Fire TV), is
+  driven by an on-screen cursor rather than the remote's focus, and the app refuses any link off the
+  site: Profile's account shows the provider's address as text, to open on a phone, and About's
+  TMDB logo is not a link.
 - **Left out on a television**: the assistant, pushes (and Profile's Notifications with them),
   installing the app, making and changing lists, and in the player the volume (the set's own buttons
   hold it), full screen (the screen already is) and the invite (nobody across the room is handed a
