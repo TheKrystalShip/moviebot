@@ -310,8 +310,8 @@ app.MapGet("/health", (SessionStore sessions, MediaRoots roots) =>
         "ok", rooms.Count, rooms.Sum(r => r.Participants), roots.ColdState.Problem));
 }).AllowAnonymous();
 
-// What the page needs before it can sign anybody in, none of it a secret: the provider and the client
-// the site signs in with, the claim a person's actions arrive in, and the Discord application id,
+// What the page needs before it can sign anybody in, none of it a secret: the provider, the client
+// the site signs in with and the one a television signs in with, the claim a person's actions arrive in, and the Discord application id,
 // which is in every invite link and in the Activity's own URL. Serving it means the page needs no
 // build-time configuration and no rebuild when any of it changes. The public address rides along
 // for the same reason: it is where Discord's own servers fetch a poster from, which the page cannot
@@ -322,6 +322,7 @@ app.MapGet("/api/config", (IOptions<DiscordAuthOptions> discord, IOptions<OidcOp
         configuration["Api:PublicBaseUrl"] is { Length: > 0 } url ? url.TrimEnd('/') : null,
         oidc.Value.Issuer,
         oidc.Value.SiteClientId,
+        oidc.Value.TvClientId,
         oidc.Value.ActionsClaim)))
     .AllowAnonymous();
 

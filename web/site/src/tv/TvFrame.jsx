@@ -39,9 +39,10 @@ export function useBarAway(away) {
  * Krystal Cinema on a television: one page at a time in a column that fills the screen, under the
  * bar on the pages it leads to. A film's, a show's and the profile's pages have no bar; Back leaves
  * them. On a page with the bar, Back first brings focus up into it, and from there goes back a page,
- * or from Home leaves the app.
+ * or from Home leaves the app. `held` is the frame kept under the sign-in code after its session
+ * ended, which takes no key: Back there leaves the app.
  */
-export function TvFrame({ session, route }) {
+export function TvFrame({ session, route, held = false }) {
   const mainRef = React.useRef(null);
   const lit = BAR.find((b) => b.views.includes(route.view));
   const [scrolled, setScrolled] = React.useState(false);
@@ -65,12 +66,12 @@ export function TvFrame({ session, route }) {
 
   const home = route.view === "home";
   const barred = !!lit;
-  React.useEffect(() => onBack(() => {
+  React.useEffect(() => held ? undefined : onBack(() => {
     if (barred && focusNavigation()) return true;
     if (home) return false;
     goBack(homePath);
     return true;
-  }), [home, barred]);
+  }), [home, barred, held]);
 
   // Focus come up into the bar takes the page back to its top, where the bar belongs, and the page
   // steps back while it is there.

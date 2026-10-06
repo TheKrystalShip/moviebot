@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.0] - 2026-10-06
+
+### Added
+
+- **A television signs in with a code approved on a phone.** On a TV with nothing held, Krystal
+  Cinema shows a code, the address to enter it at, a QR code of the address with the code in it, and
+  the time left, and signs in once somebody approves it at the provider: the device authorization
+  grant (RFC 8628) as the new public client `cinema-tv`. The session renews like any other and
+  survives restarting the app and the phone signing out. A code that runs out is replaced; a
+  provider that cannot be reached, a refusal, and a client the provider will not sign in this way each
+  have one screen. A session that ends while a page is open puts the code over the page, and approval
+  returns to it. Signing out on a TV revokes its refresh token at the provider (RFC 7009).
+  `/api/config` names the client as `tvClientId`, from `Oidc:TvClientId` (default `cinema-tv`); the
+  provider needs that client registered with the device grant, and token revocation for a TV to sign
+  out. Site 0.37.0.
+
 ## [2.12.1] - 2026-10-06
 
 ### Fixed

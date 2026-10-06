@@ -2,7 +2,7 @@
 // walked with the arrow keys from where focus starts, against the scratch site verify/mobile/scratch.sh
 // serves (staged first, by its run or `node verify/mobile/run.mjs`).
 //
-//   node verify/tv.mjs [--checks pages,overlays,back,player] [--pages home,title] [--out dir]
+//   node verify/tv.mjs [--checks pages,overlays,back,player,signin] [--pages home,title] [--out dir]
 //
 // Each page is checked for:
 // - focus starting on a control when it opens, and on screen;
@@ -13,6 +13,9 @@
 // Back going back a page to the control it was left on, Back on Home going to the bar and then
 // being left to the app, and the player: the play button focused, OK playing, presses gathered into
 // one skip, a held key scrubbing and sending one seek, Menu opening the subtitles, and Back leaving.
+// Last, signing in through the test provider's device grant, where the check decides for the person:
+// the code and its QR, approval, a restart, signing out, a refusal, an expired code, a provider that
+// cannot be reached, and a session that ends under a page.
 //
 // A control is what the page draws that takes focus by Tab: not anything hidden or being prepared out
 // of sight, not a container that is focusable only to be scrolled, and not a control inside a card
@@ -27,7 +30,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { VIEWER, memberToken } from "./mobile/stage.mjs";
-import { issuerIn } from "./issuer.mjs";
+import { TV_CLIENT, issuerIn } from "./issuer.mjs";
 
 const args = process.argv.slice(2);
 const option = (name, fallback) => {
@@ -104,7 +107,7 @@ const browser = await chromium.launch({ executablePath: chromePath(), args: ["--
 
 async function open(path) {
   const context = await browser.newContext({ viewport: Viewport, reducedMotion: "reduce" });
-  await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), issuer.planted(VIEWER, { hours: 6 }));
+  await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), issuer.planted(VIEWER, { hours: 6, client: TV_CLIENT }));
   const page = await context.newPage();
   page.on("pageerror", (e) => failures.push(`${path}: page error ${e.message}`));
   await page.goto(base + path + (path.includes("?") ? "&" : "?") + "tv=1", { waitUntil: "load" });
@@ -418,7 +421,178 @@ async function player() {
   }
 }
 
-const checks = option("checks", "pages,overlays,back,player").split(",");
+/** The test provider's own doors (verify/issuer.mjs), where a check decides for the person. */
+const provider = async (path, method = "POST") => (await fetch(issuer.url + path, { method })).json();
+const waitingCodes = async () => (await provider("/verify/devices", "GET")).map((d) => d.userCode);
+
+/** Opens `path` on a television holding `planted`, or nothing: the page signs itself in. */
+async function openSignedOut(path, planted) {
+  const context = await browser.newContext({ viewport: Viewport, reducedMotion: "reduce" });
+  if (planted) await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), planted);
+  const page = await context.newPage();
+  page.on("pageerror", (e) => failures.push(`${path}: page error ${e.message}`));
+  await page.goto(base + path + "?tv=1", { waitUntil: "load" });
+  return { page, close: () => context.close() };
+}
+
+const codeOn = (page, timeout = 8000) =>
+  page.locator(".kc-tv-signin__code").textContent({ timeout }).catch(() => null);
+const focusedText = (page) => page.evaluate(() => document.activeElement && document.activeElement.textContent.trim());
+const until = async (what, timeout) => {
+  const end = Date.now() + timeout;
+  while (Date.now() < end) {
+    if (await what()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return false;
+};
+
+/**
+ * Signing a television in: the code and its QR shown with nothing held, approval opening the page that
+ * was asked for, the session surviving a restart, signing out revoking it, a refusal, an expired code,
+ * a provider that cannot be reached, and a session that ends under a page.
+ */
+async function signIn() {
+  console.log("\nsign-in");
+  {
+    const { page, close } = await openSignedOut("/movies");
+    try {
+      const code = await codeOn(page);
+      const waiting = await waitingCodes();
+      if (!code || !waiting.includes(code)) fail("sign-in", `the screen shows ${code}, the provider is waiting on ${waiting.join(", ") || "nothing"}`);
+      else pass(`a television with nothing held shows the code the provider issued (${code})`);
+      const drawn = await page.locator(".kc-tv-signin__qr svg path").getAttribute("d", { timeout: 5000 }).catch(() => null);
+      if (!drawn) fail("sign-in", "no QR code drawn");
+      else pass("the QR code is drawn");
+      await page.screenshot({ path: join(out, "signin.png") });
+      if (await page.evaluate(() => window.krystalTv.back()) !== false) fail("sign-in", "Back on the code screen was kept by the page");
+      else pass("Back on the code screen is left to the app");
+
+      // An access token of seventy seconds, which the page renews ten seconds in.
+      const alive = async () => (await provider("/verify/sessions", "GET")).filter((s) => s.person.id === VIEWER.id).length;
+      const before = await alive();
+      await provider("/verify/access?seconds=70");
+      await provider(`/verify/decide?code=${code}&decision=approve&person=${VIEWER.id}&name=${encodeURIComponent(VIEWER.name)}`);
+      const inside = await until(() => page.locator(".tv-bar").isVisible(), 15000);
+      await provider("/verify/access?seconds=300");
+      const path = new URL(page.url()).pathname;
+      if (!inside || path !== "/movies") fail("sign-in", `approval left ${path}${inside ? "" : " with no bar"}`);
+      else pass("approval opens the page that was asked for");
+
+      const stored = () => page.evaluate((client) => {
+        const key = Object.keys(localStorage).find((k) => k.startsWith("cinema.oidc.user:") && k.endsWith(":" + client));
+        return key ? JSON.parse(localStorage.getItem(key)) : null;
+      }, TV_CLIENT);
+      const first = await stored();
+      const renewed = await until(async () => {
+        const now = await stored();
+        return now && first && now.access_token !== first.access_token && now.refresh_token !== first.refresh_token;
+      }, 30000);
+      const sessions = await alive() - before;
+      if (!first || !renewed || sessions !== 1 || !(await page.locator(".tv-bar").isVisible())) {
+        fail("sign-in", `the session ${renewed ? "renewed" : "did not renew"} on its own, ${sessions} new at the provider`);
+      } else pass("the session renews on its own, rotating its refresh token");
+
+      await page.reload({ waitUntil: "load" });
+      await page.waitForTimeout(SettleMs);
+      if (await page.locator(".kc-tv-signin").count() > 0 || !(await page.locator(".tv-bar").isVisible())) fail("sign-in", "the session did not survive a restart");
+      else pass("the session survives a restart");
+
+      await page.goto(base + "/profile/account", { waitUntil: "load" });
+      await page.waitForTimeout(SettleMs);
+      await page.getByRole("button", { name: "Sign out" }).first().click();
+      const back = await codeOn(page);
+      const left = await alive() - before;
+      if (!back || left !== 0) fail("sign-in", `signing out left ${left} session(s) at the provider${back ? "" : " and no code shown"}`);
+      else pass("signing out revokes the session and shows a new code");
+    } finally {
+      await close();
+    }
+  }
+  {
+    const { page, close } = await openSignedOut("/");
+    try {
+      const code = await codeOn(page);
+      await provider(`/verify/decide?code=${code}&decision=deny&person=${VIEWER.id}`);
+      const refused = await until(() => page.getByText("Sign-in refused").isVisible(), 15000);
+      const focused = await focusedText(page);
+      if (!refused || focused !== "New code") fail("sign-in", `a refusal shows ${refused ? "itself" : "nothing"} with focus on ${focused}`);
+      else pass("a refusal is shown with New code focused");
+      await page.keyboard.press("Enter");
+      const next = await codeOn(page);
+      if (!next || next === code) fail("sign-in", "New code drew no new code");
+      else pass("New code draws a new code");
+    } finally {
+      await close();
+    }
+  }
+  {
+    await provider("/verify/lifetime?seconds=6");
+    const { page, close } = await openSignedOut("/");
+    try {
+      const first = await codeOn(page);
+      await provider("/verify/lifetime?seconds=600");
+      const replaced = await until(async () => {
+        const now = await codeOn(page, 500);
+        return now && now !== first;
+      }, 20000);
+      if (!replaced) fail("sign-in", "an expired code was not replaced");
+      else pass("an expired code is replaced unasked");
+    } finally {
+      await provider("/verify/lifetime?seconds=600");
+      await close();
+    }
+  }
+  {
+    await provider("/verify/down?on=1");
+    const { page, close } = await openSignedOut("/");
+    try {
+      const shown = await until(() => page.getByText("Can't reach sign-in").isVisible(), 15000);
+      const focused = await focusedText(page);
+      if (!shown || focused !== "Retry") fail("sign-in", `a provider that cannot be reached shows ${shown ? "itself" : "nothing"} with focus on ${focused}`);
+      else pass("a provider that cannot be reached is shown with Retry focused");
+      await page.screenshot({ path: join(out, "signin-unreachable.png") });
+      await provider("/verify/down?on=0");
+      if (!(await codeOn(page, 15000))) fail("sign-in", "no code once the provider answered again");
+      else pass("a code is drawn once the provider answers again, unasked");
+    } finally {
+      await provider("/verify/down?on=0");
+      await close();
+    }
+  }
+  {
+    // Fifteen seconds after opening, the renewal presents a refresh token the provider never issued.
+    const planted = issuer.planted(VIEWER, { seconds: 75, client: TV_CLIENT, refresh: "ended" });
+    const { page, close } = await openSignedOut("/movies", planted);
+    try {
+      await page.waitForTimeout(SettleMs);
+      await page.evaluate(() => { document.querySelector(".kc-tv-main").dataset.kept = "1"; });
+      const covered = await until(() => page.locator(".kc-tv-signin.is-over").isVisible(), 30000);
+      const under = await page.evaluate(() => {
+        const main = document.querySelector('.kc-tv-main[data-kept="1"]');
+        return !!main && !!main.closest("[inert]");
+      });
+      if (!covered || !under) fail("sign-in", `an ended session ${covered ? "covered" : "did not cover"} the page${under ? "" : ", which was not kept out of reach beneath"}`);
+      else pass("an ended session puts the code over the page, out of reach beneath it");
+      await page.screenshot({ path: join(out, "signin-over.png") });
+      if (await page.evaluate(() => window.krystalTv.back()) !== false) fail("sign-in", "Back over an ended session was kept by the page");
+      else pass("Back over an ended session is left to the app");
+      const code = await codeOn(page);
+      await provider(`/verify/decide?code=${code}&decision=approve&person=${VIEWER.id}&name=${encodeURIComponent(VIEWER.name)}`);
+      const gone = await until(async () => await page.locator(".kc-tv-signin").count() === 0, 15000);
+      const kept = await page.evaluate(() => {
+        const main = document.querySelector('.kc-tv-main[data-kept="1"]');
+        return !!main && !main.closest("[inert]");
+      });
+      if (!gone || !kept) fail("sign-in", `approval ${gone ? "" : "did not take the code away and "}${kept ? "" : "did not return to the page it covered"}`);
+      else pass("approval returns to the page the code covered");
+    } finally {
+      await close();
+    }
+  }
+}
+
+const checks = option("checks", "pages,overlays,back,player,signin").split(",");
 try {
   if (checks.includes("pages")) for (const p of PAGES) if (!pageNames || pageNames.includes(p.name)) await walk(p);
   if (checks.includes("overlays")) {
@@ -427,6 +601,7 @@ try {
   }
   if (checks.includes("back")) await backs();
   if (checks.includes("player")) await player();
+  if (checks.includes("signin")) await signIn();
 } finally {
   await browser.close();
 }

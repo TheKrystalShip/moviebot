@@ -25,7 +25,8 @@
   // provider's issuer, exactly as its tokens carry it, and has no default: the API records it the first
   // time it starts and refuses another until AdoptIssuer names it (an empty IssuerRecord is the file
   // `issuer` in the state directory). Access tokens are taken for Audience alone and list a person's
-  // Cinema actions in ActionsClaim. The site signs in as the public client SiteClientId; the API
+  // Cinema actions in ActionsClaim. The site signs in as the public client SiteClientId, and on a
+  // television as the public device client TvClientId; the API
   // exchanges the Activity's Discord token as ActivityClientId and the bot a Discord user as
   // BotClientId, each a confidential client whose secret is set only in the environment, as
   // Oidc__ActivityClientSecret and Oidc__BotClientSecret.
@@ -34,6 +35,7 @@
     "Audience": "cinema",
     "ActionsClaim": "tks_actions",
     "SiteClientId": "cinema-site",
+    "TvClientId": "cinema-tv",
     "ActivityClientId": "cinema-activity",
     "BotClientId": "cinema-bot",
     "AdoptIssuer": "",

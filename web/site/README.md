@@ -116,6 +116,23 @@ Download and Watch on a film that is not here need `cinema:download`, Notify `ci
 `cinema:keep`. An approved account without `cinema:watch` sees one page saying it has no access to
 Krystal Cinema, with Sign out and the account's page. The API checks every action again.
 
+A television signs in with the device authorization grant (RFC 8628) as the device client
+`/api/config` names (`tvClientId`), and never goes to the provider. With nothing held it shows a code
+(`src/tv/TvSignIn.jsx`): the address to enter it at, the code itself, a QR code of the address with the
+code in it, drawn by `lean-qr`, which only a television fetches, and the time left on it. It polls the
+token endpoint at the interval it was given, five seconds longer on each `slow_down`, and a code that
+runs out is replaced unasked. A poll that fails on the network keeps the code and keeps polling, and is
+shown only if it is still failing when the code runs out; a provider that cannot be reached for a code
+is shown with Retry and asked again on a lengthening wait up to a minute; a refusal is shown with New
+code; a provider that will not sign this client in that way is shown and not asked again. The tokens
+that come back are stored as `oidc-client-ts`'s own user under the device client, so renewal and
+restoring are the same as anywhere. The session lasts as long as the provider keeps it from its last
+renewal. One that ends while a page is open puts the code over the page, which stays drawn beneath it
+out of reach and is where approval returns; a room is left rather than kept under it, and joined again
+after approval at the room's position. Signing out on a television revokes the refresh token at the
+provider's revocation endpoint (RFC 7009) and forgets the session, since it holds no provider session
+to end.
+
 The Activity signs in through the API instead, since it has no browser to redirect: the code the
 Embedded App SDK gives it is posted to `/api/auth/discord/callback`, which answers Discord's access
 token for the SDK and the provider's token for the person, and the same call with the Discord token is
@@ -188,8 +205,13 @@ was left on, Back on Home going to the bar and then being the app's, and
 the player: play focused, OK playing, presses gathered into one skip, slower presses skipping from the
 scrub bar, a held key scrubbing and seeking once, Menu, Play/Pause and Back. The player's checks need
 video in the scratch library, which `moviebot/media/` holds only for the films given their segments
-(`coherence-2013` by default, `MOVIEBOT_VERIFY_TV_FILM` for another). `--checks` and `--pages` narrow a
-run.
+(`coherence-2013` by default, `MOVIEBOT_VERIFY_TV_FILM` for another). Last, signing in: the scratch
+site's test provider (`verify/issuer.mjs`) serves the device grant and revocation the way tks-auth
+does, with doors of its own where the check approves or refuses for the person, shortens a code or a
+token, and stops answering; the check sees the code and its QR, approval opening the page asked for,
+the session renewing on its own and surviving a restart, signing out revoking it, a refusal, an expired
+code, a provider that cannot be reached, and a session that ends under a page. `--checks` and
+`--pages` narrow a run.
 
 `npm run verify:routes` cold-loads every address in a fresh signed-in browser and checks where it lands and
 what it draws (the heading, the sidebar item and tab lit, Not found), including every earlier shape of an
@@ -264,7 +286,8 @@ the remote. `src/tv/` is all of it that is the site's own.
   desktop browser in TV mode, Escape stands for Back and the context-menu key for Menu.
 - **Back** closes an open overlay first, then whatever a screen holds of its own (the player's), then
   goes back a page. On a page with the bar it first moves focus up into the bar; on Home, from the
-  bar, it is the app's.
+  bar, it is the app's, and so it is on the sign-in code.
+- **Signing in** is a code approved on a phone: "Signing in" above.
 - **Typing** is Fire OS's keyboard, which OK on a field raises, with its own QR code for typing on a
   phone. A submitted search moves focus off the field, which closes the keyboard over the results.
 - **Left out on a television**: the assistant, pushes (and Profile's Notifications with them),

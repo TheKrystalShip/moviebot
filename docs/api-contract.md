@@ -12,7 +12,7 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | Route | Returns |
 |---|---|
 | `GET /health` | `{"status":"ok","rooms":n,"watching":n,"coldStorage"?}` — occupied rooms and people, no names. `coldStorage` carries what is wrong with the disk films are kept on and is absent when nothing is, which is also the answer when there is no such disk |
-| `GET /api/config` | `{discordClientId?, publicBaseUrl?, issuer, clientId, actionsClaim}` — where the page signs in: the identity provider's issuer, the public client the site signs in as, and the claim a person's actions arrive in. Open |
+| `GET /api/config` | `{discordClientId?, publicBaseUrl?, issuer, clientId, tvClientId, actionsClaim}` — where the page signs in: the identity provider's issuer, the public client the site signs in as, the public device client it signs in as on a television, and the claim a person's actions arrive in. Open |
 | `GET /.well-known/tks-actions.json` | the action manifest (`kgsm-docs/reference/action-manifest.md`): every action Cinema checks, in the namespace `cinema`, at `cluster`, the self actions marked `self`. Open: the provider reads it |
 | `GET /api/titles` | `TitleSummary[]`. The library as listed at most ten seconds ago, as are the episodes `/api/shows` and `/api/shows/{imdbId}` group; a person's progress and last plays on it are current |
 | `GET /api/titles/{id}` | `Manifest`, or 404 |

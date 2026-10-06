@@ -117,7 +117,7 @@ and keeps are `Acquisition/CLAUDE.md`; the plan the hand-off transcodes by is
   account into a name, learned from every token validated; a record never shows an id where a name
   belongs. When somebody was last seen is held in memory alone.
 - **The API publishes what a page needs to sign in on `/api/config`**: the issuer, the site's client
-  id and the actions claim, and its public address. The Activity's origin is Discord's proxy,
+  id and the television's, the actions claim, and its public address. The Activity's origin is Discord's proxy,
   reachable only from inside the Activity, and the poster a viewer's presence shows is fetched by
   Discord's servers, so the page builds the poster URL from that address.
 - **The Activity signs in through the API** (`Discord/ActivitySignIn.cs`). It has no browser to

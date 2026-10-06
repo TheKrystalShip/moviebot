@@ -40,7 +40,7 @@ The reference device is the user's Xiaomi TV running Fire TV, reached over the L
 | How the TV runs the site | A WebView wrapper app around the site, not a TV browser and not a Trusted Web Activity (Fire TV has no Chrome to host one) |
 | Spatial navigation | Our own, in the site, reading geometry from the DOM. Norigin is rejected because it has to wrap every focusable element in its hooks, which ties krystal-ui to it |
 | Holding Left or Right in the player | Scrubs with the preview, and moves the room once, when the key is let go |
-| Sign-in | RFC 8628, served by tks-auth 4.5.0 (`tks-auth/src/Auth.Anchor/CLAUDE.md`, "The device grant"): a code and a QR on the TV, approved on a phone |
+| Sign-in | RFC 8628, served by tks-auth (`tks-auth/src/Auth.Anchor/CLAUDE.md`, "The device grant"): a code and a QR on the TV, approved on a phone; signing out is RFC 7009 revocation |
 | One person per TV | A TV is signed in as one person. Changing person is signing out and in again; there is no profile picker |
 | Typing on the TV | The system keyboard, which OK on a focused field in the WebView raises. Fire OS's keyboard carries its own QR code for typing from a phone and takes voice from the remote's microphone, at no cost to us |
 | The TV's layout | A design of its own, the way the phone has its tab bar instead of the sidebar, drawn at the TV's page size on the canvas https://claude.ai/artifact/BeZQYibgdZx37EYSvFxz16. The desktop layout at 960×540 is not the base; the sidebar and the footer are redesigned for the TV, and how focus moves through them is settled with that design rather than tuned before it |
@@ -66,17 +66,18 @@ These exist and are not restated here:
 | The TV's own pages: the bar, spotlit rows, a film's and a show's page, Discover, Movies and TV Shows by genre, Saved, Profile, the player's panel; the focus look | `web/site/README.md` "On a television", `web/site/src/tv/`; krystal-ui `TvBar`, `TvSpotlight`, `TvRow`, `TvCard` and `styles/tv.css`, its README "On a television" |
 | Discover by person and by genre, on every surface | `docs/api-contract.md`, `web/site/README.md` |
 | `npm run verify:tv` | `web/site/README.md` "Verifying" |
-| The device grant: `/device_authorization`, polling `/token`, the `/device` approval page, device sessions surviving the phone's sign-out | `tks-auth/src/Auth.Anchor/CLAUDE.md` |
+| The device grant: `/device_authorization`, polling `/token`, the `/device` approval page, device sessions surviving the phone's sign-out; `/revoke` ending a session | `tks-auth/src/Auth.Anchor/CLAUDE.md` |
 | The site's session: `oidc-client-ts`, tokens in `localStorage` under `cinema.oidc.`, `restore`, `freshToken`, `signOut` | `web/site/src/session.js`, `web/site/README.md` "Signing in" |
+| The TV signing in: the `cinema-tv` client named on `/api/config`, the code screen and its QR, each answer's handling, the code over a page whose session ended, signing out by revocation | `web/site/README.md` "Signing in", `web/site/src/tv/TvSignIn.jsx`, `docs/deploying.md` |
 | The API accepting any token whose audience is the Cinema application, whatever client asked for it | `src/MovieBot.Api/Auth/CinemaAuthentication.cs` |
 | Media: HLS fMP4, H.264 High at level 4.2 with stereo AAC-LC, WebVTT drawn by the page, `MediaSource.isTypeSupported` asked before anything is fetched | `web/site/README.md` "A viewer who cannot play the film" |
 
-What does not exist: a client registered for the TV and its sign-in screen, and the wrapper.
+What does not exist: the wrapper.
 
 ## 4. Steps
 
-Step 1, knowing it is a TV, moving focus, showing focus and the remote's keys, and step 2, the TV's
-own design, are built (section 3); what step 2 leaves open is under it.
+Step 1, knowing it is a TV, moving focus, showing focus and the remote's keys, step 2, the TV's own
+design, and step 3, signing the TV in, are built (section 3); what step 2 leaves open is under it.
 
 ### Step 2: what the TV's design leaves open
 
@@ -130,58 +131,6 @@ better with room around it.
 
 Not drawn in TV mode, for cost: `backdrop-filter` anywhere, the page fade animations.
 
-### Step 3: signing the TV in
-
-- Register the TV's client: `tks-auth app client add <cinema application> --client-id cinema-tv
-  --device`. `/api/config` names it beside the site's client id: `AuthOptions` gains it, declared
-  with its default in `src/moviebot.settings.json`, and `packaging/` and `docs/deploying.md` name it,
-  since a release carries it.
-- On a TV with no session, the site shows the sign-in screen instead of going to the provider: the
-  user code large, `verification_uri` as text, a QR code of `verification_uri_complete`, and the
-  remaining time. It polls `/token` at the interval it was given, adding five seconds on `slow_down`,
-  and starts over with a new code on `expired_token`.
-- **The session is an `oidc-client-ts` `User`.** On a TV the `UserManager` is built with the
-  `cinema-tv` client id, since tks-auth continues a session only for the client it was minted for, and
-  the TV never runs the redirect flow. Approval builds a `User` from the device grant's answer (access
-  and refresh token, `expires_at`, a profile read from the access token's claims, as `sessionFor`
-  already reads them) and saves it with `manager.storeUser`. From there `restore`, `renew`,
-  `freshToken`, the renewal timer and the check against another tab's rotation run unchanged:
-  `oidc-client-ts` 3.5.0 keeps the stored profile when a refresh answer carries no `id_token`, and the
-  device grant's never does. Only the code request and the polling are the site's own; a second
-  session store behind the same functions is rejected, as a second copy of the renewal logic.
-- **The QR is drawn by `lean-qr`, as SVG**, imported from inside the sign-in screen so only a TV ever
-  fetches it. Measured bundled with its SVG renderer: 7.8 KB minified, 4.2 KB gzipped, MIT, no
-  dependencies. `uqr` is the same size at 0.1; `qrcode-generator` is 7.6 KB gzipped; `qrcode` pulls in
-  `pngjs` and `yargs`.
-- **A TV session lasts as long as the anchor's session lifetime, measured from its last renewal.**
-  tks-auth sets a session's end to now plus `refreshLifetimeDays` (30 by default) at every rotation,
-  so a TV in use renews every five minutes and stays signed in, and one left unused for that long has
-  to sign in again. No lifetime is set per client.
-- **A session that ends shows the sign-in screen.** On a cold start the refused refresh leaves no
-  session, and the code screen is the first thing shown. One that ends while a page is open puts the
-  code screen over the page rather than in place of it, and approval returns to that page: the site's
-  rule that an ended session never discards what somebody was doing holds, with the way back drawn on
-  the spot.
-- **Each answer from the provider has one handling**, shown as a short state and one focused button:
-
-  | Answer | The screen |
-  |---|---|
-  | `/device_authorization` unreachable | "Can't reach sign-in"; retries on its own with a lengthening wait capped near a minute, and Retry |
-  | A poll fails on the network | The code stays and polling goes on; the failure is shown only if it still holds when the code expires |
-  | `slow_down` | Five seconds more between polls, nothing shown |
-  | `expired_token` | A new code, unasked |
-  | `access_denied` | "Sign-in refused" and New code; no new code unasked, since the refusal was somebody's decision |
-  | `invalid_client`, `unauthorized_client` | "This TV can't sign in", no retry: the client is misconfigured and retrying cannot mend it |
-
-- **Signing out revokes the refresh token at the provider** through `manager.revokeTokens(["refresh_token"])`,
-  then forgets the session with `removeUser`. The provider's end-session page is not used: it needs an
-  `id_token` and ends a browser's provider session, and a TV has neither. This rests on tks-auth serving
-  RFC 7009 `/revoke`, advertised as `revocation_endpoint`, which ends the session a public client's
-  refresh token belongs to (upstream work, tks-auth daemon 4.6.0).
-
-Done when: a fresh TV signs in by scanning the QR with a phone, survives the phone signing out and the
-app being restarted, and renews on its own.
-
 ### Step 4: the wrapper app
 
 `moviebot/tv/`: one activity holding a full-screen WebView on `https://movies.thekrystalship.com`.
@@ -206,6 +155,9 @@ Deep dive:
 - What the app does with a link out of the site (the provider's pages, TMDB's credit).
 - DOM storage on and kept across launches: the TV's session lives in `localStorage`, and without it
   every restart is a new sign-in.
+- The site loaded from its own origin: tks-auth answers `/token` and `/revoke` across origins only for
+  a registered client's redirect or sign-out origin, and the device client has none, so the TV signs in
+  because the site's client registers that origin.
 - Whether the app is written in Kotlin with a Gradle build or kept to the plain `javac`, `d8`,
   `aapt2` and `apksigner` chain the probe uses, which needs nothing more on hotrod.
 - How the friend's TV gets it: the Downloader app and an address to fetch it from.

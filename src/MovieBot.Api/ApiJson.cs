@@ -19,11 +19,12 @@ public sealed record HealthReport(string Status, int Rooms, int Watching, string
 
 /// <summary>
 /// What the page needs to know about this host before it can sign anybody in: the identity provider's
-/// issuer, the client the site signs in with, the claim a person's actions arrive in, the Discord
-/// application the Activity runs as, and the public address.
+/// issuer, the client the site signs in with and the one it signs in with on a television, the claim a
+/// person's actions arrive in, the Discord application the Activity runs as, and the public address.
 /// </summary>
 public sealed record ClientConfig(
-    string? DiscordClientId, string? PublicBaseUrl, string Issuer, string ClientId, string ActionsClaim);
+    string? DiscordClientId, string? PublicBaseUrl, string Issuer, string ClientId, string TvClientId,
+    string ActionsClaim);
 
 /// <summary>A refusal and its reason, which is the one shape every error body takes.</summary>
 public sealed record ErrorReply(string Error);

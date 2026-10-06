@@ -285,3 +285,44 @@
 }
 .kc-tvh__row { transition: opacity var(--d-slow) var(--ease-out); }
 .kc-tvh__row[data-past] { opacity: 0; }
+
+/* ── Signing in ──────────────────────────────────────────────────────────────────────────────────
+   The code a phone approves, read from a sofa: the address and the code large on the left, the QR on
+   a white tile on the right. Over a page whose session ended it covers the page, which shows faintly
+   through. */
+.kc-tv-signin {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; flex-direction: column;
+  padding: var(--tv-margin-y) var(--tv-margin-x);
+  background: var(--canvas);
+}
+.kc-tv-signin.is-over { background: color-mix(in srgb, var(--canvas) 97%, transparent); }
+.kc-tv-signin__head {
+  display: flex; align-items: center; gap: 12px;
+  font-size: var(--text-xl); font-weight: var(--w-semibold); color: var(--fg-1);
+}
+.kc-tv-signin__body {
+  flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 48px;
+  padding: 0 32px;
+}
+.kc-tv-signin__text h1, .kc-tv-signin__stopped h1 {
+  margin: 0 0 18px; font-size: var(--text-4xl); font-weight: var(--w-semibold); color: var(--fg-1);
+}
+.kc-tv-signin__address { margin: 0; font-size: var(--text-2xl); color: var(--fg-2); }
+.kc-tv-signin__code {
+  margin: 14px 0 0;
+  font-family: var(--font-mono); font-size: 64px; font-weight: var(--w-semibold);
+  letter-spacing: 0.08em; color: var(--fg-1); white-space: nowrap;
+}
+.kc-tv-signin__left {
+  margin: 18px 0 0; font-size: var(--text-lg); color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+.kc-tv-signin__qr {
+  flex: none; width: 260px; height: 260px; border-radius: var(--r-lg);
+  background: #fff;
+}
+.kc-tv-signin__qr svg { display: block; width: 100%; height: 100%; fill: #000; }
+.kc-tv-signin__stopped {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+}

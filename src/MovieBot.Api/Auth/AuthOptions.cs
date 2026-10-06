@@ -45,6 +45,12 @@ public sealed class OidcOptions
     public string SiteClientId { get; set; } = "cinema-site";
 
     /// <summary>
+    /// The public client the site signs in with on a television: the device authorization grant, a code
+    /// shown on the screen and approved on a phone.
+    /// </summary>
+    public string TvClientId { get; set; } = "cinema-tv";
+
+    /// <summary>
     /// The confidential client the API presents when it exchanges the Activity's Discord access token for
     /// one of the provider's.
     /// </summary>

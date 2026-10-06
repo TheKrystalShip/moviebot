@@ -218,6 +218,7 @@ public sealed class AccessTests(SessionFixture fixture) : IClassFixture<SessionF
 
         Assert.Equal(TestIssuer.Issuer, config.GetProperty("issuer").GetString());
         Assert.Equal("cinema-site", config.GetProperty("clientId").GetString());
+        Assert.Equal("cinema-tv", config.GetProperty("tvClientId").GetString());
         Assert.Equal("tks_actions", config.GetProperty("actionsClaim").GetString());
     }
 

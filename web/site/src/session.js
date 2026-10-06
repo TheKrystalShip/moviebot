@@ -19,9 +19,17 @@
 // Signing out is the provider's: its end-session endpoint ends the provider's own session and every
 // session minted under it, and sends the browser back to the site, which finds nothing held and leaves
 // for the provider's sign-in.
+//
+// A television never goes to the provider. It signs in as the device client the API names, through
+// the device authorization grant (RFC 8628): it asks for a code, shows it for a phone to approve, and
+// polls the token endpoint until somebody decides. The tokens that come back are stored as the
+// library's own user, so renewal, restoring and every caller are the same on a television as anywhere.
+// Signing out there revokes the refresh token (RFC 7009) and forgets the session; there is no provider
+// session in the television's browser to end.
 
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
-import { ErrorResponse, UserManager, WebStorageStateStore } from "oidc-client-ts";
+import { ErrorResponse, User, UserManager, WebStorageStateStore } from "oidc-client-ts";
+import { onTv } from "./tv/tv.js";
 
 const PREFIX = "cinema.oidc.";
 const RETURN_KEY = "cinema:signin-return";
@@ -70,11 +78,12 @@ function config() {
 
 async function clientOf() {
   if (client) return client;
-  const { issuer, clientId } = await config();
+  const { issuer, clientId, tvClientId } = await config();
   const origin = window.location.origin;
   client = new UserManager({
     authority: issuer,
-    client_id: clientId,
+    // The provider continues a session only for the client it was minted for.
+    client_id: onTv ? tvClientId : clientId,
     redirect_uri: origin + "/signin",
     post_logout_redirect_uri: origin + "/",
     response_type: "code",
@@ -210,6 +219,7 @@ export async function freshToken({ refused = false } = {}) {
  * and the site's first page opened.
  */
 export async function signOut() {
+  if (onTv) return signOutTv();
   let manager = null;
   let user = null;
   try {
@@ -230,6 +240,130 @@ export async function signOut() {
     }
   }
   window.location.assign("/");
+}
+
+/**
+ * Signs a television out: its refresh token is revoked at the provider, which ends the session, and
+ * forgotten here. A provider that cannot be asked leaves the session to run out there, or to be ended
+ * from the account's page; this television holds nothing either way.
+ */
+async function signOutTv() {
+  try {
+    const manager = await clientOf();
+    await manager.revokeTokens(["refresh_token"]).catch(() => {});
+    await manager.removeUser();
+  } catch {
+    // Nothing was held, or the provider's address was never learned; either way nothing is held now.
+  }
+  hold(null);
+  lost = false;
+}
+
+/**
+ * Why a television's sign-in stopped: the provider could not be reached (`unreachable`), the person
+ * refused (`refused`), the code ran out (`expired`), or the provider will not sign this client in
+ * this way (`misconfigured`).
+ */
+export class DeviceSignInError extends Error {
+  constructor(kind, message) {
+    super(message || kind);
+    this.kind = kind;
+  }
+}
+
+/** What an OAuth error answer means for a television waiting on a code. */
+const DeviceOutcomes = {
+  authorization_pending: "pending",
+  slow_down: "slow",
+  access_denied: "refused",
+  expired_token: "expired",
+  invalid_grant: "expired",
+  temporarily_unavailable: "unreachable",
+};
+
+/** Posts a form to the provider, answering its JSON, and throws a `DeviceSignInError` it can name. */
+async function postForm(url, fields) {
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+      body: new URLSearchParams(fields),
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_S * 1000),
+    });
+  } catch {
+    throw new DeviceSignInError("unreachable");
+  }
+  const body = await response.json().catch(() => null);
+  if (response.ok && body) return body;
+  if (response.status >= 500 || response.status === 429 || !body) throw new DeviceSignInError("unreachable");
+  throw new DeviceSignInError(DeviceOutcomes[body.error] || "misconfigured", body.error_description || body.error);
+}
+
+/**
+ * Asks the provider for a code a person approves on another device: `{ deviceCode, userCode, uri,
+ * uriComplete, expiresAt, interval }`, the expiry in milliseconds and the interval in seconds.
+ */
+export async function requestDeviceCode() {
+  let manager;
+  let endpoint;
+  try {
+    manager = await clientOf();
+    endpoint = (await manager.metadataService.getMetadata()).device_authorization_endpoint;
+  } catch {
+    throw new DeviceSignInError("unreachable");
+  }
+  if (!endpoint) throw new DeviceSignInError("misconfigured", "The provider serves no device sign-in.");
+  const answer = await postForm(endpoint, { client_id: manager.settings.client_id, scope: "openid" });
+  return {
+    deviceCode: answer.device_code,
+    userCode: answer.user_code,
+    uri: answer.verification_uri,
+    uriComplete: answer.verification_uri_complete || answer.verification_uri,
+    expiresAt: Date.now() + Number(answer.expires_in) * 1000,
+    interval: Math.max(1, Number(answer.interval) || 5),
+  };
+}
+
+/**
+ * Asks once whether the person has decided on `code`: `pending` or `slow` while they have not, the
+ * session once they approved. A refusal, an expiry and a provider that cannot be reached throw.
+ */
+export async function pollDeviceCode(code) {
+  const manager = await clientOf();
+  let endpoint;
+  try {
+    endpoint = await manager.metadataService.getTokenEndpoint();
+  } catch {
+    throw new DeviceSignInError("unreachable");
+  }
+  let answer;
+  try {
+    answer = await postForm(endpoint, {
+      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      device_code: code.deviceCode,
+      client_id: manager.settings.client_id,
+    });
+  } catch (error) {
+    if (error.kind === "pending" || error.kind === "slow") return error.kind;
+    throw error;
+  }
+  const claims = claimsOf(answer.access_token) || {};
+  const user = new User({
+    access_token: answer.access_token,
+    refresh_token: answer.refresh_token,
+    id_token: answer.id_token || undefined,
+    token_type: answer.token_type || "Bearer",
+    scope: answer.scope || "openid",
+    expires_at: Math.floor(Date.now() / 1000) + Number(answer.expires_in || 0),
+    profile: { sub: claims.sub, name: claims.name, preferred_username: claims.preferred_username },
+  });
+  const session = await sessionFor(user);
+  if (!session) throw new DeviceSignInError("misconfigured", "The provider sent back no usable token.");
+  await manager.storeUser(user);
+  lost = false;
+  hold(session);
+  return session;
 }
 
 /** Forgets a session the API refused even once renewed: it has ended, and the page says so. */

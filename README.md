@@ -250,7 +250,9 @@ checks the action it needs: `cinema:watch`, `cinema:download`, `cinema:wish` or 
 - `Oidc:Issuer` names the provider. The API records it the first time it starts and refuses to start
   against another until `Oidc:AdoptIssuer` names the new one, since every record is kept by the
   provider's account ids.
-- The site is a public client (`Oidc:SiteClientId`) with the redirect `<origin>/signin`.
+- The site is a public client (`Oidc:SiteClientId`) with the redirect `<origin>/signin`, and on a
+  television a public client allowed the device authorization grant (`Oidc:TvClientId`), which signs
+  out by revoking its refresh token.
 - The Activity and the bot are confidential clients that exchange a Discord identity for a person's
   token at the provider: `Oidc:ActivityClientId` with `Oidc:ActivityClientSecret`, and
   `Oidc:BotClientId` with `Oidc:BotClientSecret`.

@@ -137,6 +137,7 @@ their own way.
 | Application id and audience | `cinema` |
 | Action manifest | `https://movies.example.com/.well-known/tks-actions.json` |
 | The site's client | `cinema-site`, public (no secret), redirect `https://movies.example.com/signin`, sign-out redirect `https://movies.example.com/` |
+| The television's client | `cinema-tv`, public, allowed the device authorization grant (RFC 8628): a TV shows a code that a phone approves. No redirect. Your provider also needs token revocation (RFC 7009) for a TV to sign out |
 | The player's exchange | `cinema-activity`, confidential, allowed to present your Discord application (value 1). Its secret is value 5 |
 | The bot | `cinema-bot`, confidential, allowed to act for people by their linked Discord accounts. Its secret is value 6 |
 

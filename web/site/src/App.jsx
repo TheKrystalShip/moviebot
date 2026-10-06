@@ -29,6 +29,7 @@ import { PageStage } from "./components/PageStage.jsx";
 import { Trail } from "./components/Trail.jsx";
 import { onTv } from "./tv/tv.js";
 import { TvFrame } from "./tv/TvFrame.jsx";
+import { TvSignIn } from "./tv/TvSignIn.jsx";
 
 // The player carries hls.js, the hub client and Discord's SDK; only a room pays for them.
 const EmbedRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.EmbedRoom })));
@@ -75,6 +76,11 @@ const LIT = {
  * the browser returns once they are. A session that ends while a page is open is shown, with the way
  * back offered, never followed. Somebody signed in whose account may not watch is told there is nothing
  * here for them yet.
+ *
+ * A television never leaves for the provider: with nothing held it shows its sign-in code. A session
+ * that ends there puts the code over the page, which stays drawn and out of reach beneath it and is
+ * where approval returns. A room is not kept under it: its position is the room's, and joining again
+ * after approval picks it up where it is.
  */
 export function App() {
   const session = useSession();
@@ -83,9 +89,12 @@ export function App() {
   const restored = useRestored(!embedded && route.view !== "signin");
 
   const [waiting, setWaiting] = React.useState(null);
+  // The last session held, which a television keeps its page drawn under while it signs in again.
+  const held = React.useRef(null);
+  if (session) held.current = session;
 
   React.useEffect(() => {
-    if (!restored || session || route.view === "signin" || embedded) {
+    if (!restored || session || route.view === "signin" || embedded || onTv) {
       setWaiting(null);
       return;
     }
@@ -96,6 +105,20 @@ export function App() {
   // The Activity proves who is watching through Discord, so it answers to no site session.
   if (embedded) return <React.Suspense fallback={<Dark />}><EmbedRoom /></React.Suspense>;
   if (route.view === "signin") return <SignInReturn query={route.query} />;
+  const covered = onTv && restored && !session && sessionEnded() && held.current && route.view !== "room";
+  if (onTv && restored && !session && !covered) return <TvSignIn />;
+  if (covered || (onTv && session && can(session, "cinema:watch") && route.view !== "room")) {
+    const shown = session || held.current;
+    // One tree whether covered or not, so the page under the code is the page approval returns to.
+    return (
+      <>
+        <div inert={covered ? "" : undefined} aria-hidden={covered ? "true" : undefined} style={{ display: "contents" }}>
+          <TvFrame key={shown.user.id} session={shown} route={route} held={!!covered} />
+        </div>
+        {covered && <TvSignIn over />}
+      </>
+    );
+  }
   if (!restored || !session) return waiting ? <Waiting note={waiting.note} returnTo={route.href} /> : <Dark />;
   if (!can(session, "cinema:watch")) return <NoAccess onSignOut={leave} />;
   // A room fills the screen: the film is the page, and the way out is its back button.
@@ -108,7 +131,7 @@ export function App() {
       </React.Suspense>
     );
   }
-  return onTv ? <TvFrame session={session} route={route} /> : <Frame session={session} route={route} />;
+  return <Frame session={session} route={route} />;
 }
 
 function Frame({ session, route }) {

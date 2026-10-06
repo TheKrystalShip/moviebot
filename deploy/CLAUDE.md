@@ -76,8 +76,9 @@ which strips the prefix (`nginx-moviebot.conf`).
 - **People sign in at tks-auth, which knows Cinema as an application.** The issuer is
   `https://auth.thekrystalship.com` (`Oidc.Issuer` in `deploy/hotbox.settings.json`), and Cinema is
   registered there with the id and audience `cinema` and its manifest at
-  `https://movies.thekrystalship.com/.well-known/tks-actions.json`; its three clients are the site
-  (`cinema-site`, public, redirect `https://movies.thekrystalship.com/signin`), the API's exchange for
+  `https://movies.thekrystalship.com/.well-known/tks-actions.json`; its four clients are the site
+  (`cinema-site`, public, redirect `https://movies.thekrystalship.com/signin`), a television
+  (`cinema-tv`, public, the device grant), the API's exchange for
   the Activity (`cinema-activity`, confidential, presenting Cinema's Discord application) and the bot
   (`cinema-bot`, confidential, acting for linked Discord users). The two client secrets are
   `Oidc__ActivityClientSecret` and `Oidc__BotClientSecret` in the environment file. The API records
