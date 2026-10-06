@@ -47,7 +47,7 @@ public static class TranscodeEstimate
 
     /// <summary>
     /// The estimate for a probed source under the options the ingest will run with: the top rung
-    /// and the step-down where the source is wider than it, each audio track at its own rate, and
+    /// and each step-down the source is wider than, each audio track at its own rate, and
     /// the dialogue boost's extra rendition of every track that is not commentary.
     /// </summary>
     public static long For(ProbeResult probe, IngestOptions options)

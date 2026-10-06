@@ -81,19 +81,22 @@ public sealed class TranscodePlacementTests : IDisposable
     };
 
     [Fact]
-    public void A_source_wider_than_the_step_down_is_reserved_for_both_rungs()
+    public void A_source_is_reserved_for_every_rung_its_ladder_has()
     {
+        var small = Ladder.StepDowns[1].BitrateKbps;
         var wide = TranscodeEstimate.For(Probe(1920, 1040, 3600, Audio(1)), Options());
-        var narrow = TranscodeEstimate.For(Probe(1280, 720, 3600, Audio(1)), Options());
+        var between = TranscodeEstimate.For(Probe(1280, 720, 3600, Audio(1)), Options());
+        var narrow = TranscodeEstimate.For(Probe(854, 480, 3600, Audio(1)), Options());
 
-        Assert.Equal(TranscodeEstimate.Bytes(3600, [9000, 4000], [256]), wide);
+        Assert.Equal(TranscodeEstimate.Bytes(3600, [9000, 4000, small], [256]), wide);
+        Assert.Equal(TranscodeEstimate.Bytes(3600, [9000, small], [256]), between);
         Assert.Equal(TranscodeEstimate.Bytes(3600, [9000], [256]), narrow);
     }
 
     [Fact]
     public void Commentary_costs_its_own_rate_and_the_dialogue_boost_adds_a_rendition_of_every_other_track()
     {
-        var probe = Probe(1280, 720, 3600, Audio(1), Audio(2, commentary: true));
+        var probe = Probe(854, 480, 3600, Audio(1), Audio(2, commentary: true));
 
         Assert.Equal(TranscodeEstimate.Bytes(3600, [9000], [256, 128]), TranscodeEstimate.For(probe, Options()));
         Assert.Equal(

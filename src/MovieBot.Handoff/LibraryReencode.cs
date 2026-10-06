@@ -7,8 +7,9 @@ using TheKrystalShip.MovieBot.Ingest.Pipeline;
 namespace TheKrystalShip.MovieBot.Handoff;
 
 /// <summary>
-/// Encodes the library's films again at the library's quality (<see cref="Reencoder"/>), one at a
-/// time, while nobody is watching anything.
+/// Encodes the library's films again at the library's quality, and adds the rungs a film's ladder
+/// has and the film lacks (<see cref="Reencoder"/>), one film at a time, while nobody is watching
+/// anything.
 ///
 /// It runs as its own process beside the hand-off service and shares no lock with it, so it takes
 /// only films that service leaves alone: settled ones, under the cold root and not the media root.
@@ -45,7 +46,7 @@ public sealed class LibraryReencode(
             .Order(StringComparer.Ordinal)
             .ToList();
 
-        logger.LogInformation("{Count} films to encode again at quality {Cq}.", owed.Count, Reencoder.LibraryCq);
+        logger.LogInformation("{Count} films owed a pass at quality {Cq}.", owed.Count, Reencoder.LibraryCq);
 
         var failed = 0;
         long before = 0, after = 0;
@@ -87,7 +88,12 @@ public sealed class LibraryReencode(
             return (0, 0);
 
         var before = RungBytes(titleDirectory, manifest);
-        logger.LogInformation("Encoding {Id} again ({Size:F1} GiB of video).", id, before / Gib);
+        var replaces = Reencoder.Replaces(manifest);
+        if (replaces)
+            logger.LogInformation("Encoding {Id} again ({Size:F1} GiB of video).", id, before / Gib);
+        else
+            logger.LogInformation("Adding {Rungs} to {Id}.",
+                string.Join(", ", Reencoder.Owed(manifest).Select(r => r.Directory)), id);
 
         IReadOnlyList<Rendition> renditions;
         try
@@ -103,12 +109,9 @@ public sealed class LibraryReencode(
             return null;
         }
 
-        // Swapped only when nobody is playing it: a player holding the old initialisation segment
-        // cannot decode the new rungs. A pass that cannot ask swaps nothing.
-        var playing = await rooms.PlayingTitlesAsync(ct);
-        if (playing is null || playing.Contains(id) || !Directory.Exists(titleDirectory))
+        if (!Directory.Exists(titleDirectory))
         {
-            logger.LogWarning("{Id} is being played or is gone; it stays as it is.", id);
+            logger.LogWarning("{Id} is gone; nothing is moved in.", id);
             DeleteQuietly(titleWork);
             return (0, 0);
         }
@@ -118,6 +121,26 @@ public sealed class LibraryReencode(
         {
             DeleteQuietly(titleWork);
             return null;
+        }
+
+        if (!replaces)
+        {
+            AddRungs(titleDirectory, titleWork, current, renditions);
+            DeleteQuietly(titleWork);
+
+            var added = RungBytes(titleDirectory, current) - before;
+            logger.LogInformation("{Id}: added {Size:F2} GiB of video.", id, added / Gib);
+            return (before, before + added);
+        }
+
+        // Swapped only when nobody is playing it: a player holding the old initialisation segment
+        // cannot decode the new rungs. A pass that cannot ask swaps nothing.
+        var playing = await rooms.PlayingTitlesAsync(ct);
+        if (playing is null || playing.Contains(id))
+        {
+            logger.LogWarning("{Id} is being played; it stays as it is.", id);
+            DeleteQuietly(titleWork);
+            return (0, 0);
         }
 
         var directories = current.Video.Renditions.Select(DirectoryOf)
@@ -148,6 +171,38 @@ public sealed class LibraryReencode(
         logger.LogInformation("{Id}: {Before:F1} GiB to {After:F1} GiB of video.", id, before / Gib, after / Gib);
 
         return (before, after);
+    }
+
+    /// <summary>
+    /// Moves the rungs a title lacks in beside the ones it has, then lists them, the master first so
+    /// the manifest never lists a rung the master cannot play. The rungs already there are not
+    /// touched, so a player on them carries on, and one holding the master it loaded sees the new
+    /// rung when it next loads the film. A directory of the same name that the manifest does not
+    /// list is what a pass that stopped before listing it left behind, and is replaced.
+    /// </summary>
+    private static void AddRungs(
+        string titleDirectory, string titleWork, Manifest current, IReadOnlyList<Rendition> renditions)
+    {
+        var listed = current.Video.Renditions.Select(DirectoryOf).ToHashSet(StringComparer.Ordinal);
+        var adding = renditions.Where(r => !listed.Contains(DirectoryOf(r))).ToList();
+        if (adding.Count == 0) return;
+
+        foreach (var rendition in adding)
+        {
+            var live = Path.Combine(titleDirectory, DirectoryOf(rendition));
+            if (Directory.Exists(live)) Directory.Delete(live, recursive: true);
+            Directory.Move(Path.Combine(titleWork, DirectoryOf(rendition)), live);
+        }
+
+        var order = Ladder.For(current.Video.Width, current.Video.Height).Select(r => r.Directory).ToList();
+        current.Video = current.Video with
+        {
+            Renditions = current.Video.Renditions.Concat(adding)
+                .OrderBy(r => order.IndexOf(DirectoryOf(r)) is var i and >= 0 ? i : order.Count)
+                .ToList()
+        };
+        MasterPlaylist.Write(titleDirectory, current);
+        ManifestJson.WriteAtomic(Path.Combine(titleDirectory, "manifest.json"), current);
     }
 
     /// <summary>
@@ -201,7 +256,7 @@ public sealed class LibraryReencode(
     private bool IsSettled(string cold, string id) =>
         Directory.Exists(Path.Combine(cold, id)) && !Directory.Exists(roots.WorkingDirectoryOf(id));
 
-    private static string DirectoryOf(Rendition rendition) => rendition.Uri.Split('/')[0];
+    private static string DirectoryOf(Rendition rendition) => Reencoder.DirectoryOf(rendition);
 
     private static long RungBytes(string titleDirectory, Manifest manifest) =>
         manifest.Video.Renditions

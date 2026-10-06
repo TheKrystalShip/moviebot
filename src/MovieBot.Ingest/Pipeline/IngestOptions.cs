@@ -76,19 +76,21 @@ public sealed record IngestOptions
     public string VideoBitrate { get; init; } = $"{Ladder.TopKbps}k";
 
     /// <summary>
-    /// The width the second rung is scaled to, and the bitrate it is encoded at.
+    /// The rungs under the top one: the width each is scaled to and the bitrate it is encoded at,
+    /// widest first. Empty writes the top rung alone.
     ///
-    /// A player can only drop to a rung that exists, and this is the rung it drops to. It is sized
-    /// to carry a path the top rung cannot — a little over a third of its bitrate — because a
-    /// viewer who cannot sustain the top bitrate otherwise has nowhere to go, and a fragment that
-    /// cannot arrive in time stops the film for good at whatever second the buffer empties.
+    /// A player can only drop to a rung that exists, and these are the rungs it drops to. `v1`, at
+    /// 1280 wide, is sized to carry a path the top rung cannot — a little over a third of its
+    /// bitrate — because a viewer who cannot sustain the top bitrate otherwise has nowhere to go,
+    /// and a fragment that cannot arrive in time stops the film for good at whatever second the
+    /// buffer empties. `v2`, at 854 wide, is the copy a phone keeps offline and what a weak mobile
+    /// connection streams; its bitrate is measured below.
     ///
-    /// The ladder stops at two, because every rung is a full copy of the film on a disk that holds
-    /// the whole library. A source narrower than this is served by the top rung alone: upscaling
+    /// The ladder stops at three, because every rung is a full copy of the film on a disk that
+    /// holds the whole library. A source no wider than a step-down does without it: upscaling
     /// spends the space and carries no more picture than the source has.
     /// </summary>
-    public int StepDownWidth { get; init; } = Ladder.StepDownWidth;
-    public string StepDownBitrate { get; init; } = $"{Ladder.StepDownKbps}k";
+    public IReadOnlyList<LadderStep> StepDowns { get; init; } = Ladder.StepDowns;
 
     /// <summary>
     /// The NVENC constant-quality target every rung is encoded at. Lower is better quality and a

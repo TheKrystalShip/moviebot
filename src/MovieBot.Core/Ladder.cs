@@ -7,18 +7,20 @@ public sealed record LadderRung(string Directory, int Width, int Height, int Bit
     public string Uri => $"{Directory}/index.m3u8";
 }
 
+/// <summary>A rung below the top one: the width it is scaled to and the bitrate it is encoded at.</summary>
+public sealed record LadderStep(string Directory, int Width, int BitrateKbps);
+
 /// <summary>
 /// The set of qualities a source of a given size is encoded into. It is written once, here, because
 /// two processes need the answer: the ingest makes the rungs, and the planner compares a finished
 /// title against what a source of its size should have to find what it is owed.
 ///
-/// The top rung is the source's own dimensions. The step-down joins it only where the source is
-/// wider: scaling up spends a second copy of the film on no more picture than the first carries.
+/// The top rung is the source's own dimensions. Each step-down joins it only where the source is
+/// wider: scaling up spends another copy of the film on no more picture than the source carries.
 /// </summary>
 public static class Ladder
 {
     public const string TopDirectory = "v0";
-    public const string StepDownDirectory = "v1";
 
     /// <summary>
     /// What the ingest encodes at unless told otherwise, and so what the planner judges a finished
@@ -26,20 +28,38 @@ public static class Ladder
     /// is lives on <c>IngestOptions</c>, which takes its defaults from here.
     /// </summary>
     public const int TopKbps = 9000;
-    public const int StepDownWidth = 1280;
-    public const int StepDownKbps = 4000;
     public const int SegmentSeconds = 2;
 
+    /// <summary>The rungs under the top one, widest first.</summary>
+    public static readonly IReadOnlyList<LadderStep> StepDowns =
+    [
+        new("v1", 1280, 4000),
+        new("v2", 854, 1600)
+    ];
+
+    /// <summary>The ladder a source of this size is owed at the default bitrates.</summary>
+    public static List<LadderRung> For(int sourceWidth, int sourceHeight) =>
+        For(sourceWidth, sourceHeight, TopKbps, StepDowns);
+
+    /// <summary>
+    /// The top rung, then every step-down narrower than the source, widest first. A step-down at
+    /// no bitrate is left out.
+    /// </summary>
     public static List<LadderRung> For(
-        int sourceWidth, int sourceHeight, int topKbps, int stepDownWidth, int stepDownKbps)
+        int sourceWidth, int sourceHeight, int topKbps, IReadOnlyList<LadderStep> stepDowns)
     {
         var rungs = new List<LadderRung> { new(TopDirectory, sourceWidth, sourceHeight, topKbps) };
 
-        if (sourceWidth <= 0 || sourceHeight <= 0 || sourceWidth <= stepDownWidth || stepDownKbps <= 0)
-            return rungs;
+        if (sourceWidth <= 0 || sourceHeight <= 0) return rungs;
 
-        rungs.Add(new LadderRung(
-            StepDownDirectory, stepDownWidth, ScaledHeight(sourceWidth, sourceHeight, stepDownWidth), stepDownKbps));
+        foreach (var step in stepDowns)
+        {
+            if (sourceWidth <= step.Width || step.BitrateKbps <= 0) continue;
+
+            rungs.Add(new LadderRung(
+                step.Directory, step.Width, ScaledHeight(sourceWidth, sourceHeight, step.Width), step.BitrateKbps));
+        }
+
         return rungs;
     }
 

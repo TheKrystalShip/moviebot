@@ -60,7 +60,7 @@ writes.
 - **What a finished title is owed is computed on every plan and never recorded.** Each finished
   title's manifest is compared with `Ladder.For` of its source's dimensions, and each rung it lacks
   is a `rung-add` unit; a title still being made contributes its unfinished rungs and audio as
-  `video-rung` and `audio`. The ladder rule and its bitrates, step-down width and segment length are
+  `video-rung` and `audio`. The ladder rule and its bitrates, step-down widths and segment length are
   `MovieBot.Core`'s `Ladder`, which the ingest's defaults are taken from, so the planner compares
   against what a first pass would have made and nothing has to be kept in step by hand. Whether the source is
   still on disk is the executor's to find out; the plan names the rung.

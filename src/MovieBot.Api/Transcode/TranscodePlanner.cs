@@ -193,8 +193,7 @@ public static class TranscodePlanner
     {
         if (title.SourceWidth <= 0 || title.SourceHeight <= 0) return;
 
-        var ladder = Ladder.For(
-            title.SourceWidth, title.SourceHeight, Ladder.TopKbps, Ladder.StepDownWidth, Ladder.StepDownKbps);
+        var ladder = Ladder.For(title.SourceWidth, title.SourceHeight);
         var have = title.Rungs.Select(r => r.Directory).ToHashSet(StringComparer.Ordinal);
 
         foreach (var rung in ladder)

@@ -42,18 +42,46 @@ public sealed class ReencoderTests
     }
 
     [Fact]
-    public void A_film_already_gone_over_or_made_at_the_new_quality_is_not_owed()
+    public void A_film_with_its_whole_ladder_at_a_recorded_quality_is_not_owed()
     {
         Assert.False(Reencoder.IsOwed(Film(TitleStatus.Ready, 1920, 1080,
-            Rung("v0", Reencoder.LibraryCq), Rung("v1", Reencoder.LibraryCq))));
+            Rung("v0", Reencoder.LibraryCq), Rung("v1", Reencoder.LibraryCq), Rung("v2", Reencoder.LibraryCq))));
         Assert.False(Reencoder.IsOwed(Film(TitleStatus.Ready, 1920, 1080,
-            Rung("v0", IngestOptions.DefaultCq), Rung("v1", IngestOptions.DefaultCq))));
+            Rung("v0", IngestOptions.DefaultCq), Rung("v1", IngestOptions.DefaultCq), Rung("v2", IngestOptions.DefaultCq))));
+    }
+
+    /// <summary>
+    /// A film whose rungs all record a quality keeps them, so a player on them carries on: only the
+    /// rung it lacks is made, and nothing it has is replaced.
+    /// </summary>
+    [Fact]
+    public void A_film_at_a_recorded_quality_is_owed_only_the_rung_it_lacks()
+    {
+        var film = Film(TitleStatus.Ready, 1920, 1080,
+            Rung("v0", IngestOptions.DefaultCq), Rung("v1", Reencoder.LibraryCq));
+
+        Assert.True(Reencoder.IsOwed(film));
+        Assert.False(Reencoder.Replaces(film));
+        var owed = Assert.Single(Reencoder.Owed(film));
+        Assert.Equal(new LadderRung("v2", 854, 480, Ladder.StepDowns[1].BitrateKbps), owed);
     }
 
     [Fact]
-    public void A_narrow_film_with_one_recorded_rung_is_not_owed_a_step_down()
+    public void A_film_with_a_rung_at_no_recorded_quality_has_its_whole_ladder_made_again()
     {
-        Assert.False(Reencoder.IsOwed(Film(TitleStatus.Ready, 1280, 720, Rung("v0", IngestOptions.DefaultCq))));
+        var film = Film(TitleStatus.Ready, 1920, 1080, Rung("v0", 0), Rung("v1", 0));
+
+        Assert.True(Reencoder.Replaces(film));
+        Assert.Equal(["v0", "v1", "v2"], Reencoder.Owed(film).Select(r => r.Directory));
+    }
+
+    [Fact]
+    public void A_narrow_film_with_one_recorded_rung_is_owed_the_small_rung_alone()
+    {
+        var film = Film(TitleStatus.Ready, 1280, 720, Rung("v0", IngestOptions.DefaultCq));
+
+        Assert.Equal(["v2"], Reencoder.Owed(film).Select(r => r.Directory));
+        Assert.False(Reencoder.IsOwed(Film(TitleStatus.Ready, 854, 480, Rung("v0", IngestOptions.DefaultCq))));
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Core;
 using TheKrystalShip.MovieBot.Ingest.Pipeline;
 using Xunit;
 
@@ -10,19 +11,18 @@ namespace TheKrystalShip.MovieBot.Tests;
 /// </summary>
 public sealed class VideoLadderTests
 {
-    private static IngestOptions Options(string stepDown = "4M") => new()
+    private static IngestOptions Options() => new()
     {
         SourcePath = "/dev/null",
-        OutputRoot = "/tmp",
-        StepDownBitrate = stepDown
+        OutputRoot = "/tmp"
     };
 
     [Fact]
-    public void A_wide_source_gains_a_step_down_under_the_top_rung()
+    public void A_wide_source_gains_both_step_downs_under_the_top_rung()
     {
         var ladder = VideoLadder.For(1920, 1080, Options());
 
-        Assert.Equal(2, ladder.Count);
+        Assert.Equal(3, ladder.Count);
         Assert.Equal("v0", ladder[0].Directory);
         Assert.Equal(9000, ladder[0].BitrateKbps);
         Assert.Null(ladder[0].ScaleFilter);
@@ -31,6 +31,31 @@ public sealed class VideoLadderTests
         Assert.Equal(1280, ladder[1].Width);
         Assert.Equal(720, ladder[1].Height);
         Assert.Equal(4000, ladder[1].BitrateKbps);
+        Assert.Equal("scale=1280:-2", ladder[1].ScaleFilter);
+
+        Assert.Equal("v2", ladder[2].Directory);
+        Assert.Equal(854, ladder[2].Width);
+        Assert.Equal(480, ladder[2].Height);
+        Assert.Equal("480p", ladder[2].Name);
+        Assert.Equal(Ladder.StepDowns[1].BitrateKbps, ladder[2].BitrateKbps);
+        Assert.Equal("scale=854:-2", ladder[2].ScaleFilter);
+    }
+
+    /// <summary>
+    /// The small rung joins anything wider than it, so a 720p episode gains it without the 1280
+    /// step-down it is no wider than.
+    /// </summary>
+    [Theory]
+    [InlineData(1280, 720, 480)]
+    [InlineData(1280, 532, 354)]
+    [InlineData(1024, 576, 480)]
+    public void A_source_between_the_step_downs_gains_the_small_rung_alone(int width, int height, int small)
+    {
+        var ladder = VideoLadder.For(width, height, Options());
+
+        Assert.Equal(["v0", "v2"], ladder.Select(r => r.Directory));
+        Assert.Equal(854, ladder[1].Width);
+        Assert.Equal(small, ladder[1].Height);
     }
 
     /// <summary>
@@ -39,23 +64,25 @@ public sealed class VideoLadderTests
     /// is what ffmpeg's <c>-2</c> picks and what H.264 can encode.
     /// </summary>
     [Theory]
-    [InlineData(1920, 804, 536)]
-    [InlineData(1920, 1080, 720)]
-    [InlineData(1920, 802, 534)]
-    [InlineData(1920, 817, 544)]
-    public void The_step_down_height_is_even_and_keeps_the_aspect_ratio(
-        int sourceWidth, int sourceHeight, int expected)
+    [InlineData(1920, 804, 536, 358)]
+    [InlineData(1920, 1080, 720, 480)]
+    [InlineData(1920, 802, 534, 356)]
+    [InlineData(1920, 817, 544, 364)]
+    [InlineData(1916, 796, 532, 354)]
+    public void The_step_down_heights_are_even_and_keep_the_aspect_ratio(
+        int sourceWidth, int sourceHeight, int expected, int small)
     {
         var ladder = VideoLadder.For(sourceWidth, sourceHeight, Options());
 
         Assert.Equal(expected, ladder[1].Height);
-        Assert.Equal(0, ladder[1].Height % 2);
+        Assert.Equal(small, ladder[2].Height);
+        Assert.All(ladder.Skip(1), r => Assert.Equal(0, r.Height % 2));
     }
 
     [Theory]
-    [InlineData(1280, 720)]
     [InlineData(854, 480)]
-    public void A_source_no_wider_than_the_step_down_keeps_one_rung(int width, int height)
+    [InlineData(720, 300)]
+    public void A_source_no_wider_than_the_small_rung_keeps_one_rung(int width, int height)
     {
         var ladder = VideoLadder.For(width, height, Options());
 
@@ -64,9 +91,9 @@ public sealed class VideoLadderTests
     }
 
     [Fact]
-    public void A_step_down_of_zero_writes_one_rung()
+    public void No_step_downs_writes_one_rung()
     {
-        Assert.Single(VideoLadder.For(1920, 1080, Options(stepDown: "0")));
+        Assert.Single(VideoLadder.For(1920, 1080, Options() with { StepDowns = [] }));
     }
 
     /// <summary>

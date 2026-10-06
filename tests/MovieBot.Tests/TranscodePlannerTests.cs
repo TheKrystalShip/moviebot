@@ -19,6 +19,7 @@ public sealed class TranscodePlannerTests
 
     private static readonly TranscodeRung Top = new("v0", 1920, 1080, 9000);
     private static readonly TranscodeRung Step = new("v1", 1280, 720, 4000);
+    private static readonly TranscodeRung Small = new("v2", 854, 480, Ladder.StepDowns[1].BitrateKbps);
 
     /// <summary>A film still being made, both rungs and its audio at the same head.</summary>
     private static PlanTitle Making(string id, double head, double? audio = null, params TranscodeRung[] rungs)
@@ -29,7 +30,7 @@ public sealed class TranscodePlannerTests
     }
 
     private static PlanTitle Finished(string id, params TranscodeRung[] rungs) =>
-        new(id, TitleStatus.Ready, Duration, 1920, 1080, rungs.Length == 0 ? [Top, Step] : rungs, true,
+        new(id, TitleStatus.Ready, Duration, 1920, 1080, rungs.Length == 0 ? [Top, Step, Small] : rungs, true,
             new TitleHeads(new Dictionary<string, double>(), Duration));
 
     private static PlanRoom Room(string title, double playhead, params int[] wanted) =>
@@ -349,7 +350,7 @@ public sealed class TranscodePlannerTests
     public void A_film_may_settle_when_it_is_ready_and_no_room_holds_it()
     {
         var plan = Plan(
-            [Finished("watched", Top, Step), Finished("idle", Top, Step), Making("making", head: 10)],
+            [Finished("watched"), Finished("idle"), Making("making", head: 10)],
             [Room("watched", 10)]);
 
         Assert.Equal(2, plan.Titles.Count);
@@ -361,7 +362,7 @@ public sealed class TranscodePlannerTests
     public void An_idle_room_holding_a_finished_film_does_not_block_it_settling()
     {
         var plan = Plan(
-            [Finished("film", Top, Step)],
+            [Finished("film")],
             [new PlanRoom("idle", "film", 90, 0, [IViewerQuality.Top])]);
 
         Assert.True(plan.Titles.Single().MaySettle);
@@ -370,7 +371,7 @@ public sealed class TranscodePlannerTests
     [Fact]
     public void A_paused_room_with_somebody_in_it_blocks_settling()
     {
-        var plan = Plan([Finished("film", Top, Step)], [Room("film", 90)]);
+        var plan = Plan([Finished("film")], [Room("film", 90)]);
 
         Assert.False(plan.Titles.Single().MaySettle);
     }
@@ -379,7 +380,7 @@ public sealed class TranscodePlannerTests
     public void A_room_nobody_is_in_is_not_demand()
     {
         var plan = Plan(
-            [Making("film", head: 100, rungs: Top), Finished("done", Top, Step)],
+            [Making("film", head: 100, rungs: Top), Finished("done")],
             [new PlanRoom("empty", "film", 90, 0, [IViewerQuality.Top])]);
 
         Assert.Equal(5, Unit(plan, Video("film", "v0")).Tier);
@@ -396,29 +397,64 @@ public sealed class TranscodePlannerTests
     // Owed work.
 
     [Fact]
-    public void A_finished_film_with_one_rung_of_a_wide_source_is_owed_the_step_down()
+    public void A_finished_film_with_one_rung_of_a_wide_source_is_owed_both_step_downs()
     {
         var plan = Plan([Finished("film", Top)]);
 
+        Assert.Equal(2, plan.Units.Count);
+        Assert.All(plan.Units, u => Assert.Equal(TranscodeUnitKind.RungAdd, u.Kind));
+
+        var step = Unit(plan, TranscodePlanner.UnitId(TranscodeUnitKind.RungAdd, "film", "v1"));
+        Assert.Equal(1280, step.Rung!.Width);
+        Assert.Equal(720, step.Rung.Height);
+        Assert.Equal(4000, step.Rung.BitrateKbps);
+        Assert.Equal(0, step.FromSegment);
+
+        var small = Unit(plan, TranscodePlanner.UnitId(TranscodeUnitKind.RungAdd, "film", "v2"));
+        Assert.Equal(854, small.Rung!.Width);
+        Assert.Equal(480, small.Rung.Height);
+    }
+
+    [Fact]
+    public void A_finished_film_with_two_rungs_is_owed_the_small_one()
+    {
+        var plan = Plan([Finished("film", Top, Step)]);
+
         var owed = Assert.Single(plan.Units);
-        Assert.Equal(TranscodeUnitKind.RungAdd, owed.Kind);
-        Assert.Equal("v1", owed.Rung!.Directory);
-        Assert.Equal(1280, owed.Rung.Width);
-        Assert.Equal(720, owed.Rung.Height);
-        Assert.Equal(4000, owed.Rung.BitrateKbps);
-        Assert.Equal(0, owed.FromSegment);
+        Assert.Equal(TranscodePlanner.UnitId(TranscodeUnitKind.RungAdd, "film", "v2"), owed.Id);
+        Assert.Equal(new TranscodeRung("v2", 854, 480, Ladder.StepDowns[1].BitrateKbps), owed.Rung);
+        Assert.Equal(6, owed.Tier);
     }
 
     [Fact]
     public void A_finished_film_with_its_whole_ladder_is_owed_nothing()
     {
-        Assert.Empty(Plan([Finished("film", Top, Step)]).Units);
+        Assert.Empty(Plan([Finished("film")]).Units);
+    }
+
+    /// <summary>A viewer capped at 480p is served the small rung rather than the step-down.</summary>
+    [Fact]
+    public void A_low_wanted_height_is_served_by_the_small_rung()
+    {
+        Assert.Equal("v2", TranscodePlanner.RungFor([Top, Step, Small], 480)!.Directory);
+        Assert.Equal("v2", TranscodePlanner.RungFor([Top, Step, Small], 360)!.Directory);
+        Assert.Equal("v1", TranscodePlanner.RungFor([Top, Step, Small], 720)!.Directory);
     }
 
     [Fact]
-    public void A_source_no_wider_than_the_step_down_is_owed_no_second_rung()
+    public void A_source_between_the_step_downs_is_owed_the_small_rung_alone()
     {
         var narrow = new PlanTitle("narrow", TitleStatus.Ready, Duration, 1280, 720, [new("v0", 1280, 720, 9000)], true,
+            new TitleHeads(new Dictionary<string, double>(), Duration));
+
+        var owed = Assert.Single(Plan([narrow]).Units);
+        Assert.Equal("v2", owed.Rung!.Directory);
+    }
+
+    [Fact]
+    public void A_source_no_wider_than_the_small_rung_is_owed_no_second_rung()
+    {
+        var narrow = new PlanTitle("narrow", TitleStatus.Ready, Duration, 854, 480, [new("v0", 854, 480, 9000)], true,
             new TitleHeads(new Dictionary<string, double>(), Duration));
 
         Assert.Empty(Plan([narrow]).Units);
@@ -446,7 +482,7 @@ public sealed class TranscodePlannerTests
     {
         foreach (var (width, height) in new[] { (1920, 1080), (1920, 800), (3840, 2160), (1280, 720), (640, 480) })
         {
-            var core = Ladder.For(width, height, 9000, 1280, 4000);
+            var core = Ladder.For(width, height);
             var ingest = TheKrystalShip.MovieBot.Ingest.Pipeline.VideoLadder.For(
                 width, height, new TheKrystalShip.MovieBot.Ingest.Pipeline.IngestOptions
                 {

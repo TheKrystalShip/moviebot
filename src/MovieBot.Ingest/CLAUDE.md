@@ -67,15 +67,21 @@ Driven entirely by what the container says, because the sample film makes every 
 
 - **Playlists are `EVENT`, not `VOD`.** That is the whole mechanism behind playback starting seconds
   in. ffmpeg appends `#EXT-X-ENDLIST` on completion, so the playlist becomes a normal VOD by itself.
-- **A film is written at two sizes, and every rung is cut on the same keyframe expression.** A player
-  can only drop to a rung that exists, and a viewer who cannot sustain the top bitrate stops for good
-  at whatever second the buffer empties. `v0` is the source's own size and `v1` is 1280 wide, and both
-  are forced to a keyframe on each segment boundary so segment *n* of one opens on the same frame as
-  segment *n* of the other, which is what makes a switch mid-film seamless. Each rung is its own
-  process and the expression is the only thing tying them together; the first frame of segment *n*
-  has the same timestamp in both, on SDR and on tone-mapped HDR, and is a keyframe. A source no wider than the
-  step-down keeps one rung, because upscaling spends a second copy of the film on no more picture. The
-  ladder stops at two: every rung is a full copy on a disk that holds the whole library.
+- **A film is written at up to three sizes, and every rung is cut on the same keyframe expression.**
+  A player can only drop to a rung that exists, and a viewer who cannot sustain the top bitrate stops
+  for good at whatever second the buffer empties. `v0` is the source's own size, `v1` is 1280 wide and
+  `v2` is 854 wide (`Ladder.StepDowns`), and every rung is forced to a keyframe on each segment
+  boundary so segment *n* of one opens on the same frame as segment *n* of another, which is what
+  makes a switch mid-film seamless. Each rung is its own process and the expression is the only thing
+  tying them together; the first frame of segment *n* has the same timestamp in all of them, on SDR
+  and on tone-mapped HDR, and is a keyframe. A step-down joins only a source wider than it, because
+  upscaling spends another copy of the film on no more picture, so a 720p episode has `v0` and `v2`.
+  The ladder stops at three: every rung is a full copy on a disk that holds the whole library.
+- **`v2` is the copy a phone keeps and what a weak connection streams.** It is encoded like every
+  rung, at quality 25 with 1600 kbit/s as its target. Scored with VMAF against the source on
+  two-minute clips of five films, it holds 94.5 to 98.9 under the phone model and 80 to 88 under the
+  television model, which is what 480p scaled to a 1080p screen looks like. It comes out at 0.8 to
+  1.1 Mbit/s, about half a gigabyte an hour, so the target bounds only the grainiest film.
 - **Every rung is encoded at constant quality 25** (`IngestOptions.DefaultCq`), with the rung's
   bitrate as the target and four thirds of it as the cap. The quality decides a film's size, and
   the cap only bounds the grainiest. Scored with VMAF against the source on two-minute clips of four
@@ -134,9 +140,12 @@ Driven entirely by what the container says, because the sample film makes every 
   16 Mbps HEVC Main 10 source costs 35 s of CPU per 40 s of film against 5.5 s on the GPU, and pins
   every core for the length of a feature. A source whose codec has a `*_cuvid` decoder here (H.264
   8-bit 4:2:0, HEVC 4:2:0 at 8 or 10 bits, VP9 8-bit; `MainPassArguments.CuvidDecoder`) is decoded
-  with it, and the step-down is produced at its size by `-resize`, whose height is the one
-  `VideoLadder` advertises. The step-down alone runs at 19.6x that way against 9.1x with a CPU scale
-  behind `-hwaccel cuda`. Frames land in system memory, which is where `tonemap_opencl` wants them;
+  with it, and each step-down is produced at its size by `-resize`, whose height is the one
+  `VideoLadder` advertises. The 1280 step-down alone runs at 19.6x that way against 9.1x with a CPU
+  scale behind `-hwaccel cuda`. Every rung decodes the source for itself, so on hotbox's P2000 a
+  1080p H.264 main pass is bound by NVDEC: measured on two-minute clips of two Blu-ray rips, the
+  video of the pass runs at 9.4x to 10.2x with two rungs and 7.4x to 8.2x with three, the decoder at
+  100% and the encoder at 85%. Frames land in system memory, which is where `tonemap_opencl` wants them;
   keeping them on the card from decoder to encoder was measured and is slower (7.8x for the pair
   against 8.6x), so the `format` filter stays.
 - **A decoder that cannot open the source gives way to the generic path.** A cuvid unit that fails

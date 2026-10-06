@@ -1,4 +1,5 @@
 using System.Globalization;
+using TheKrystalShip.MovieBot.Core;
 using TheKrystalShip.MovieBot.Ingest.Ffmpeg;
 using TheKrystalShip.MovieBot.Ingest.Pipeline;
 
@@ -69,7 +70,7 @@ public static class Program
         var outputRoot = Path.Combine(Directory.GetCurrentDirectory(), "media");
         string? id = null;
         var bitrate = "9M";
-        var stepDown = "4M";
+        var topOnly = false;
         var cq = IngestOptions.DefaultCq;
         var segment = 2;
         bool? toneMap = null;
@@ -93,8 +94,8 @@ public static class Program
                 case "--bitrate":
                     bitrate = Next(args, ref i, arg);
                     break;
-                case "--step-down":
-                    stepDown = Next(args, ref i, arg);
+                case "--top-only":
+                    topOnly = true;
                     break;
                 case "--cq":
                     cq = int.Parse(Next(args, ref i, arg), CultureInfo.InvariantCulture);
@@ -142,7 +143,7 @@ public static class Program
             OutputRoot = outputRoot,
             Id = id,
             VideoBitrate = bitrate,
-            StepDownBitrate = stepDown,
+            StepDowns = topOnly ? [] : Ladder.StepDowns,
             Cq = cq,
             SegmentSeconds = segment,
             ForceToneMap = toneMap,
@@ -171,8 +172,9 @@ public static class Program
         The playlists are EVENT type, so the film becomes playable within seconds while the
         transcode continues; the manifest carries how far the head has reached.
 
-        Two rungs are written: the source's own size, and a 1280-wide step-down a viewer whose
-        connection dips can fall back to. A source no wider than the step-down gets one rung.
+        Up to three rungs are written: the source's own size, and step-downs 1280 and 854 wide
+        that a viewer whose connection dips can fall back to. A source no wider than a step-down
+        does without it.
 
         Once the film is transcoded, each feature track gains a second mix with the dialogue
         raised over the music and effects, listed as "<track> — Dialogue boost".
@@ -181,7 +183,7 @@ public static class Program
           -o, --out <dir>        Output root. Default: ./media
               --id <slug>        Output directory and manifest id. Default: derived from the title
               --bitrate <rate>   Top rung bitrate, e.g. 9M or 4500k. Default: 9M
-              --step-down <rate> Second rung bitrate, at 1280 wide. 0 writes one rung. Default: 4M
+              --top-only         Write the top rung alone, with no step-downs
               --cq <n>           NVENC constant quality, lower is better. Default: {IngestOptions.DefaultCq}
               --segment <sec>    Segment length; the GOP is pinned to match. Default: 2
               --tonemap <mode>   auto|on|off. Default: auto, from the source transfer function

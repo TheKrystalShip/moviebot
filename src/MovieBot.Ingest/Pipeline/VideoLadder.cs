@@ -44,15 +44,14 @@ public static class VideoLadder
     /// <summary>
     /// Builds the ladder for a source of the given size.
     ///
-    /// The top rung is the source's own dimensions. The step-down joins it only where the source
-    /// is wider: scaling up spends a second copy of the film on no more picture than the first
-    /// one carries.
+    /// The top rung is the source's own dimensions. Each step-down joins it only where the source
+    /// is wider: scaling up spends another copy of the film on no more picture than the source
+    /// carries.
     /// </summary>
     public static List<VideoRung> For(int sourceWidth, int sourceHeight, IngestOptions options)
     {
         var shape = Ladder.For(
-            sourceWidth, sourceHeight, ParseBitrate(options.VideoBitrate),
-            options.StepDownWidth, ParseBitrate(options.StepDownBitrate));
+            sourceWidth, sourceHeight, ParseBitrate(options.VideoBitrate), options.StepDowns);
 
         return shape.Select(r => new VideoRung
         {

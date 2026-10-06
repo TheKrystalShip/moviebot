@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.0] - 2026-10-07
+
+### Added
+
+- **Every film gains a third rung, `v2`, 854 wide.** It is what a weak connection streams and the
+  copy a phone saves offline: encoded at quality 25 with a 1600 kbit/s target, it comes out at about
+  half a gigabyte an hour and scores 94.5 to 98.9 under VMAF's phone model. `Ladder.StepDowns` lists
+  the rungs under the top one, and the ingest, the re-encode, the hand-off's reservation and the
+  transcode planner all read it, so a new film is made with all three. A film already in the library
+  gains `v2` from `moviebot-handoff --reencode`, which makes only the rungs a film lacks, from its top
+  rung, and moves them in beside the ones it has without touching them, whether or not a room is
+  playing it. Core 4.0.0, Ingest 1.16.0, Handoff 0.16.0, Api 2.7.0.
+
 ## [2.18.0] - 2026-10-06
 
 ### Changed
