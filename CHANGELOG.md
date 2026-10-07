@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.1] - 2026-10-07
+
+### Fixed
+
+- **Listing a person's offline wants no longer fails with a 500 when `offline.json` predates
+  wants.** A saves file without a `wants` key (or without `people`) read that half as null rather
+  than empty, so `GET /api/me/offline/wants`, and asking for a want, threw on every call. Api 2.11.1.
+
 ## [2.25.0] - 2026-10-07
 
 ### Changed

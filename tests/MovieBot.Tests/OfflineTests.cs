@@ -349,6 +349,24 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
         Assert.Contains("heat-1995", reread.Holding(made.AddHours(1)));
     }
 
+    [Theory]
+    [InlineData("""{ "people": {} }""")]
+    [InlineData("""{ "wants": {} }""")]
+    [InlineData("""{}""")]
+    public void A_file_missing_either_half_reads_as_empty_in_that_half(string json)
+    {
+        var path = Path.Combine(fixture.StateRoot, $"partial-{Guid.NewGuid():n}.json");
+        Directory.CreateDirectory(fixture.StateRoot);
+        File.WriteAllText(path, json);
+        var saves = new OfflineSaves(path, new Monitor(new OfflineOptions()), NullLogger<OfflineSaves>.Instance);
+        var now = DateTimeOffset.UtcNow;
+
+        Assert.Empty(saves.WantsOf("p", now));
+        Assert.Empty(saves.For("p"));
+        Assert.Single(saves.Want("p", "tt0113277", null, "Pixel", new WantPick(720), now));
+        saves.Save("p", "heat-1995", "v1", ["a0"], [], "Pixel", now);
+    }
+
     [Fact]
     public async Task Progress_from_a_device_is_recorded_where_it_is_newer()
     {

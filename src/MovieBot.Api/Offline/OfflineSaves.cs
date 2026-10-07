@@ -87,12 +87,16 @@ public sealed record StoredWant
 /// </summary>
 public sealed record WantPick(int? Height, string? AudioLanguage = null, string? SubtitleLanguage = null);
 
-/// <summary>Everything the saves keep: each person's saves and wants, by account.</summary>
+/// <summary>
+/// Everything the saves keep: each person's saves and wants, by account. The properties are settable
+/// rather than init-only because the generated deserializer assigns every init-only property, the
+/// ones the file lacks as null, and a file written before one half existed lacks it.
+/// </summary>
 public sealed record OfflineData
 {
-    public Dictionary<string, List<StoredSave>> People { get; init; } = [];
+    public Dictionary<string, List<StoredSave>> People { get; set; } = [];
 
-    public Dictionary<string, List<StoredWant>> Wants { get; init; } = [];
+    public Dictionary<string, List<StoredWant>> Wants { get; set; } = [];
 }
 
 [JsonSourceGenerationOptions(
