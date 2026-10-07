@@ -6,7 +6,9 @@
 // connection (a save that cannot reach the server waits for it to come back), the Wake Lock that keeps
 // a phone's screen on while the page saves, and the person's pauses, kept per account in localStorage
 // so a reload resumes every save but the paused ones. One save runs at a time, one track after
-// another; the rest wait their turn.
+// another; the rest wait their turn. A save of a title the server is still making is written a
+// stretch at a time: what has been made, then the package asked for again a little later, until the
+// package says the title is whole; the other saves run in between.
 //
 // A save is the worker's to write only while it holds the title's lock, so two tabs never write one
 // save: a tab that finds it held waits for the lock and takes the save over when the other tab lets go
@@ -24,6 +26,8 @@ import { forgotten, listSaves, readSave, removeAccount, removeSave, space } from
 
 const PAUSED_KEY = "cinema.offline.paused.";
 const CHANNEL = "cinema-offline-saving";
+/** How long a save of a title still being made waits between one stretch of it and the next. */
+const GROW_MS = 15000;
 
 /** A save refused before a byte moved because the device has no room for it. */
 export class NoRoom extends Error {
@@ -53,6 +57,8 @@ let queue = [];
 /** The save the worker is writing: a job from the queue, and why it is being stopped (`ending`). */
 let running = null;
 let wakeLock = null;
+/** The saves of titles still being made waiting to ask for their next stretch, by title id. */
+const growing = new Map();
 
 /** What one title's save is doing, or null. */
 export function useSaving(titleId) {
@@ -194,6 +200,7 @@ function metaOf(sub, pkg) {
     saveId: pkg.save.id,
     startedAt: new Date().toISOString(),
     completedAt: null,
+    growing: !!pkg.growing,
     package: pkg,
   };
 }
@@ -260,6 +267,11 @@ async function heard(message) {
       if (save) toast.info(`Downloaded ${saveTitle(save.meta)}.`);
       break;
     }
+    case "growing":
+      // The server is still making the title: what it has made is here, and the rest is asked for later.
+      set(job.titleId, { state: "saving" });
+      later(job.sub, job.titleId);
+      break;
     case "stopped":
       if (job.ending === "paused") {
         // The last progress said lags the bytes the worker wrote before it let go.
@@ -305,6 +317,34 @@ function failed(titleId, message) {
   set(titleId, { state: "failed", message });
 }
 
+/**
+ * Asks for the next stretch of a title the server is still making once it has had time to make more,
+ * and queues it. With no connection the save waits for one, as any save does; a title gone from the
+ * library, or one that could not be made, fails the save.
+ */
+function later(sub, titleId) {
+  clearTimeout(growing.get(titleId));
+  growing.set(titleId, setTimeout(async () => {
+    growing.delete(titleId);
+    if (currentSub() !== sub || pausedOf(sub).includes(titleId)) return;
+    if (!isOnline()) {
+      enqueue({ sub, titleId });
+      return;
+    }
+    try {
+      enqueue({ sub, titleId, meta: await repost({ sub, titleId }) });
+    } catch (error) {
+      if (error && (error.status === 404 || error.status === 409)) failed(titleId, error.message || "This film could not be downloaded.");
+      else later(sub, titleId);
+    }
+  }, GROW_MS));
+}
+
+function stopGrowing(titleId) {
+  clearTimeout(growing.get(titleId));
+  growing.delete(titleId);
+}
+
 const saveTitle = (meta) => (meta.episode && meta.show ? `${meta.show.name} S${meta.episode.season} · E${meta.episode.number}` : meta.name);
 
 /** Pauses a save; it stays paused across reloads until the person resumes it. */
@@ -313,6 +353,7 @@ export function pauseSave(titleId) {
   if (!sub) return;
   setPaused(sub, titleId, true);
   queue = queue.filter((j) => j.titleId !== titleId);
+  stopGrowing(titleId);
   if (running && running.titleId === titleId) stopRunning("paused");
   else set(titleId, { state: "paused" });
   if (channel) channel.postMessage({ type: "pause", sub, titleId });
@@ -333,6 +374,7 @@ export function resumeSave(titleId) {
  */
 export async function removeFromDevice(sub, titleId, { forget = true } = {}) {
   queue = queue.filter((j) => !(j.sub === sub && j.titleId === titleId));
+  stopGrowing(titleId);
   if (running && running.sub === sub && running.titleId === titleId) stopRunning("removed");
   if (channel) channel.postMessage({ type: "stop", sub, titleId });
   setPaused(sub, titleId, false);
@@ -356,6 +398,7 @@ export async function removeAllFromDevice(sub) {
 /** Stops every transfer of an account in this tab, leaving what is on the device. */
 export function stopAccount(sub, ending = "signed-out") {
   queue = queue.filter((j) => j.sub !== sub);
+  for (const titleId of [...growing.keys()]) stopGrowing(titleId);
   if (running && running.sub === sub) stopRunning(ending);
   saving.setState({});
 }
@@ -373,7 +416,7 @@ export async function resumeUnfinished(sub) {
       continue;
     }
     const entry = saving.getState()[save.titleId];
-    if (running && running.titleId === save.titleId) continue;
+    if ((running && running.titleId === save.titleId) || growing.has(save.titleId)) continue;
     if (entry && entry.state === "failed") continue;
     if (!entry) set(save.titleId, { received: save.receivedBytes, bytes: save.meta.bytes }, { tell: false });
     enqueue({ sub, titleId: save.titleId });

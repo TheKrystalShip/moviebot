@@ -39,9 +39,10 @@ public sealed class TrackResult(
         response.ContentType = "video/mp4";
 
         // A range against another version of the track would join two films' bytes; the whole new
-        // track is the answer to it.
+        // track is the answer to it. A validator of a stretch the track still begins with is this
+        // version, grown.
         var ifRange = request.Headers[HeaderNames.IfRange].ToString();
-        var rangeHeader = ifRange.Length > 0 && ifRange != track.ETag ? null : request.Headers[HeaderNames.Range].ToString();
+        var rangeHeader = ifRange.Length > 0 && !track.Continues(ifRange) ? null : request.Headers[HeaderNames.Range].ToString();
 
         var range = ByteRange.Parse(rangeHeader, track.Length, out var satisfiable);
         if (!satisfiable)
@@ -56,7 +57,8 @@ public sealed class TrackResult(
         if (range is { } r)
         {
             response.StatusCode = StatusCodes.Status206PartialContent;
-            response.Headers[HeaderNames.ContentRange] = $"bytes {r.Start}-{r.End}/{track.Length}";
+            // A growing track's whole length is not known yet.
+            response.Headers[HeaderNames.ContentRange] = $"bytes {r.Start}-{r.End}/{(track.Ended ? track.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) : "*")}";
         }
         response.ContentLength = length;
 

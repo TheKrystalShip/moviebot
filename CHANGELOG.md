@@ -4,6 +4,36 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.22.0] - 2026-10-07
+
+### Added
+
+- **Download reaches anything the tracker offers, not only what the library already holds.** A film
+  found in Discover or on its catalogue page, a film still being transcoded, every episode of a show
+  the library holds or the tracker offers, and a whole season (Download season, or Download N more
+  once some are on their way) are downloaded from a sheet that asks for the quality alone (1080p,
+  720p or 480p; the person's Download quality, else 480p on a phone and 720p elsewhere). The server
+  fetches the release (a film at 1080p, a season's episodes out of its pack at 720p, one torrent per
+  release), and the control says Preparing with how much has arrived there; once the library can
+  play it the device starts the download itself, with the default audio and subtitles, and pulls
+  each track as the transcode writes it, finishing when the film is whole. New routes:
+  `POST`/`GET /api/me/offline/wants` and `DELETE /api/me/offline/wants/{id}`, taking
+  `cinema:download` as well as `cinema:offline`; wants are kept beside the saves and waited on for
+  `Offline:WantDays` (14). API 2.9.0, site 0.43.0.
+
+### Changed
+
+- **A title still being transcoded can be saved, as it grows.** Its offer, package and tracks are
+  marked `growing` and measured as far as the encoder has got; a growing track's `Content-Range`
+  gives its length as `*`. A track's `ETag` now carries how many files it covers (`"<hash>-<n>"`),
+  and `If-Range` resumes with any validator whose first files still hash the same, so a device holding
+  a stretch of a growing track carries on from it. A validator without a count is read as the whole
+  track's, as before. Only a title that failed is refused.
+- **The download worker keeps bytes under their own validator.** Each track's file records the
+  `ETag` its bytes arrived under; a new package no longer starts a track over because its `etag`
+  changed, and a whole `200` to a resume drops the bytes held before the package is asked for again.
+  Subtitles and artwork already on the device from the same address are not fetched again.
+
 ## [2.21.0] - 2026-10-07
 
 ### Changed

@@ -5,9 +5,15 @@
 //
 // The page holds the session, so the worker asks it for the bearer token at the start of every
 // request (`token`), and once more, renewed, when a request is refused. A track resumes from the
-// length already on disk, by `Range`, with `If-Range` naming the `etag` the package carries: a track
-// whose files changed since is answered whole, and the bytes on disk are of another encoding, so the
-// save is reported stale and the page asks for a new package. A `429` waits for its `Retry-After`.
+// length already on disk, by `Range`, with `If-Range` naming the validator the bytes on disk arrived
+// under (the file's `etag`, else the package's): a track whose files changed since is answered whole,
+// the bytes on disk are of another encoding and are dropped, and the save is reported stale so the
+// page asks for a new package. A `429` waits for its `Retry-After`.
+//
+// A package marked `growing` is a title the server is still making: each track is fetched as far as the
+// package says it has got, and the run ends `growing` rather than `done`, for the page to ask for the
+// package again later and carry on from what is on disk. The server answers a validator of a stretch
+// its track still begins with as that track, so the bytes held stay good as the track grows.
 //
 // While a save is written its per-title lock (`cinema-offline-save:<sub>/<titleId>`) is held, so a
 // second tab of this origin never writes the same save, and removing a save waits for the writer to
@@ -15,7 +21,7 @@
 //
 // Messages in: `run` `{ sub, titleId, meta? }` (a `meta` is a new package to write; without one the
 // save on disk is resumed), `stop` `{ sub, titleId }`, `token` `{ n, token }`. Out: `token`
-// `{ n, refused }`, `progress` `{ titleId, received, bytes }`, and one of `done`, `stopped`,
+// `{ n, refused }`, `progress` `{ titleId, received, bytes }`, and one of `done`, `growing`, `stopped`,
 // `elsewhere`, `unreached`, `stale`, `failed` `{ titleId, status, message }` to end each run. A write
 // a reader should see is said on the store's `cinema-offline` channel, which reaches every page.
 
@@ -104,6 +110,7 @@ async function save(sub, titleId, fresh, signal) {
     if (file.role === "video" || file.role === "audio") await track(dir, meta, file, progress, signal);
     else await small(dir, meta, file, progress, signal);
   }
+  if (meta.growing) throw new Ended("growing");
 
   meta.completedAt = new Date().toISOString();
   await writeJson(dir, META, meta);
@@ -113,15 +120,28 @@ async function save(sub, titleId, fresh, signal) {
 /**
  * A new package: its subtitles and artwork are fetched first, which are small, so `meta.json` lists
  * every file with its exact length; then `meta.json` is written, and the files a former package left
- * that this one does not list are removed. A track kept from a former package of the same title
- * resumes only when its `etag` is the same; any other is started again.
+ * that this one does not list are removed. A small file a former package of the same title holds
+ * whole from the same address is kept as it is. A track kept from a former package keeps the
+ * validator its bytes arrived under, and the server says whether its track still begins with them.
  */
 async function begin(dir, meta, before, signal) {
   const held = new Map();
   const files = [];
+  const formerly = new Map(((before && before.files) || []).map((f) => [f.role === "subtitle" ? "subtitle:" + f.id : f.role, f]));
+  const formerTracks = new Map(((before && before.package && before.package.tracks) || []).map((t) => [t.rendition, t]));
   for (const file of meta.files) {
     if (file.role === "video" || file.role === "audio") {
-      files.push(file);
+      const former = (before && before.files.find((f) => f.name === file.name)) || null;
+      const formerTrack = formerTracks.get(file.rendition);
+      const kept = former && (former.etag || (formerTrack && formerTrack.etag));
+      const holding = kept && (await sizeOf(dir, file.name)) > 0;
+      if (!holding) await truncate(dir, file.name);
+      files.push({ ...file, etag: holding ? kept : (trackOf(meta, file) || {}).etag || null });
+      continue;
+    }
+    const former = formerly.get(file.role === "subtitle" ? "subtitle:" + file.id : file.role);
+    if (former && former.url === file.url && former.bytes > 0 && (await sizeOf(dir, former.name)) === former.bytes) {
+      files.push(former);
       continue;
     }
     const body = await fetchSmall(file.url, file.auth, signal);
@@ -135,12 +155,6 @@ async function begin(dir, meta, before, signal) {
   }
   const written = { ...meta, files, bytes: files.reduce((sum, f) => sum + f.bytes, 0) };
 
-  const etags = new Map(((before && before.package && before.package.tracks) || []).map((t) => [t.rendition, t.etag]));
-  for (const file of written.files) {
-    if (file.role !== "video" && file.role !== "audio") continue;
-    const now = trackOf(written, file);
-    if (etags.get(file.rendition) !== (now && now.etag)) await truncate(dir, file.name);
-  }
   const listed = new Set([META, ...written.files.map((f) => f.name)]);
   const left = [];
   for await (const [name] of dir.entries()) if (!listed.has(name)) left.push(name);
@@ -171,11 +185,16 @@ async function small(dir, meta, file, progress, signal) {
   changed();
 }
 
-/** One track, from the length on disk to its end. */
+/**
+ * One track, from the length on disk to its end, or for a growing package to as far as the package
+ * says the server has got. Each answer's `ETag` is what the bytes on disk arrived under from then on.
+ */
 async function track(dir, meta, file, progress, signal) {
   const source = trackOf(meta, file);
   if (!source) throw new Ended("failed", { message: "The download lists a track its package does not hold." });
+  const growing = !!meta.growing;
   const handle = await (await dir.getFileHandle(file.name, { create: true })).createSyncAccessHandle();
+  let validated = false;
   try {
     let at = handle.getSize();
     if (at > file.bytes) {
@@ -187,10 +206,10 @@ async function track(dir, meta, file, progress, signal) {
     let refused = false;
     while (at < file.bytes) {
       const headers = { Authorization: "Bearer " + ((await token(refused)) || "") };
-      if (at > 0) {
-        headers.Range = `bytes=${at}-`;
-        headers["If-Range"] = source.etag;
-      }
+      // A growing track is asked for only as far as the package names, which its segment index covers.
+      if (growing) headers.Range = `bytes=${at}-${file.bytes - 1}`;
+      else if (at > 0) headers.Range = `bytes=${at}-`;
+      if (at > 0) headers["If-Range"] = file.etag || source.etag;
       let response;
       try {
         response = await fetch(source.url, { headers, cache: "no-store", signal });
@@ -212,7 +231,13 @@ async function track(dir, meta, file, progress, signal) {
         continue;
       }
       if (response.status === 409) throw new Ended("stale", { status: 409 });
-      if (response.status === 200 && (at > 0 || Number(response.headers.get("Content-Length")) !== file.bytes)) {
+      if (response.status === 200 && at > 0) {
+        // What is on disk is of another encoding: it goes, and the package is asked for again.
+        handle.truncate(0);
+        throw new Ended("stale", { status: 200 });
+      }
+      if (response.status === 200 && (growing ? Number(response.headers.get("Content-Length")) < file.bytes
+        : Number(response.headers.get("Content-Length")) !== file.bytes)) {
         throw new Ended("stale", { status: 200 });
       }
       if (response.status === 206 && !String(response.headers.get("Content-Range") || "").startsWith(`bytes ${at}-`)) {
@@ -223,6 +248,11 @@ async function track(dir, meta, file, progress, signal) {
         throw new Ended("failed", { status: response.status, message: (answer && answer.error) || `MovieBot answered ${response.status}.` });
       }
 
+      const etag = response.headers.get("ETag");
+      if (etag && etag !== file.etag) {
+        file.etag = etag;
+        validated = true;
+      }
       const reader = response.body.getReader();
       let unflushed = 0;
       try {
@@ -231,10 +261,10 @@ async function track(dir, meta, file, progress, signal) {
           if (done) break;
           const room = file.bytes - at;
           const chunk = value.byteLength > room ? value.subarray(0, room) : value;
-          const wrote = handle.write(chunk, { at });
-          at += wrote;
-          unflushed += wrote;
-          progress.add(wrote);
+          const written = handle.write(chunk, { at });
+          at += written;
+          unflushed += written;
+          progress.add(written);
           if (unflushed >= FLUSH_EVERY) {
             handle.flush();
             unflushed = 0;
@@ -255,6 +285,8 @@ async function track(dir, meta, file, progress, signal) {
   } finally {
     handle.close();
   }
+  // The validator the bytes arrived under is kept, so the next package resumes them.
+  if (validated) await writeJson(dir, META, meta);
   changed();
 }
 

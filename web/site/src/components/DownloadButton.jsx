@@ -4,10 +4,12 @@ import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { keptPreferences } from "../offline/preferences.js";
-import { defaultAudio, defaultRung, defaultSubtitles, evictedUnvisited, sameLanguage } from "../offline/choose.js";
+import { defaultAudio, defaultRung, defaultSubtitles, evictedUnvisited, handheld, sameLanguage } from "../offline/choose.js";
 import { useSave, useSaves, useSpace } from "../offline/hooks.js";
 import { NoRoom, pauseSave, removeFromDevice, restingState, resumeSave, startSave, useSaving, useSavingAll } from "../offline/saver.js";
 import { offlineSupported } from "../offline/store.js";
+import { askDownload, letGo, useRefused, useWants, wantOf } from "../offline/wants.js";
+import { episodeRelease } from "../watchNow.js";
 import { size } from "../pages/Offline.jsx";
 import { playSavedPath } from "../paths.js";
 import { linkProps } from "../router.js";
@@ -18,11 +20,16 @@ import { Drawer } from "./Drawer.jsx";
 import { useNarrow } from "./SaveButton.jsx";
 import "./download.css";
 
-// Download on a film's page and on an episode's row: one control whose face says where the download
-// stands (not downloaded, under way, downloaded) and which opens the one sheet for all of it: the
-// choice of quality, audio and subtitles before it, its progress with Pause and Resume while under
-// way, and Play and Remove once it is here. The sheet is the drawer on a phone and a dialog on a wide
-// screen. "Save" is the lists' word; this one is always Download.
+// Download on a film's page, on an episode's row and on a season: one control whose face says where
+// the download stands (not downloaded, preparing on the server, under way, downloaded) and which opens
+// the one sheet for all of it: the choice of quality, audio and subtitles before it, its progress with
+// Pause and Resume while under way, and Play and Remove once it is here. The sheet is the drawer on a
+// phone and a dialog on a wide screen. "Save" is the lists' word; this one is always Download.
+//
+// A title the library does not hold whole yet (one the tracker offers, or one still being made) is
+// asked for by its quality alone: the server fetches and prepares it, and this device downloads it
+// as it is made, with the audio and subtitles picked by default (`offline/wants.js`). Until the
+// device's download begins the control says the title is being prepared.
 
 let playable = null;
 
@@ -55,17 +62,53 @@ const STATES = {
   waiting: { icon: "wifi-off", label: "Waiting for a connection" },
   elsewhere: { icon: "hard-drive-download", label: "Downloading in another tab" },
   failed: { icon: "triangle-alert", label: "Not downloaded" },
+  preparing: { icon: "hourglass", label: "Preparing" },
+};
+
+/** What each stage of a want on the server is, under the sheet's figures. */
+const STAGES = {
+  finding: "Finding a release",
+  downloading: "Arriving on the server",
+  preparing: "Being prepared",
+  ready: "Starting",
 };
 
 /**
- * Where a title's download stands on this device: `{ kind: "none" }`, `{ kind: "done", save }`, or
- * `{ kind: "underway", state, received, bytes, message, save }`, from the store and the saver together.
+ * Where a title's download stands on this device: `{ kind: "none" }`, `{ kind: "done", save }`,
+ * `{ kind: "underway", state, received, bytes, message, save }`, from the store and the saver together,
+ * or, with nothing of it here, `{ kind: "preparing", want, failed, percent, message }` while the
+ * server prepares what this device asked for (`imdbId`, and `season` and `number` for an episode).
  */
-function useStanding(titleId) {
+function useStanding(titleId, imdbId = null, season = null, number = null) {
   const save = useSave(titleId);
   const live = useSaving(titleId);
   const online = useOnline();
-  return standingOf(titleId, save.data, live, online, save.loading);
+  const wants = useWants();
+  const refused = useRefused();
+  const standing = standingOf(titleId, save.data, live, online, save.loading);
+  if (standing.kind !== "none") return standing;
+  const want = wantOf(wants, imdbId, season, number);
+  return want ? wantStanding(want, refused) : standing;
+}
+
+/** A want as the controls draw it. */
+function wantStanding(want, refused) {
+  const refusal = refused[want.id];
+  if (want.stage === "failed" || refusal) {
+    return { kind: "preparing", want, failed: true, percent: null, message: problemWords(refusal || want) };
+  }
+  const percent = want.stage === "downloading" && want.progress != null ? Math.floor(want.progress * 100) : null;
+  return { kind: "preparing", want, failed: false, percent, message: null };
+}
+
+function problemWords(p) {
+  switch (p.problem) {
+    case "notOffered": return "The tracker has nothing to download it from.";
+    case "refused": return p.refusal || "The server turned the download down.";
+    case "notWatchable": return "It could not be prepared.";
+    case "noRoom": return p.message || "There is not enough room on this device.";
+    default: return p.message || "The server could not fetch it.";
+  }
 }
 
 function standingOf(titleId, held, live, online, loading = false) {
@@ -81,7 +124,21 @@ function standingOf(titleId, held, live, online, loading = false) {
   return { kind: loading ? "loading" : "none" };
 }
 
-const percent = (s) => (s.bytes > 0 ? Math.floor((100 * Math.min(s.received, s.bytes)) / s.bytes) : 0);
+/**
+ * How much of a title the server has made, for a save of one it is still making: the shortest of its
+ * tracks' seconds against the film's length. 1 for a title already whole.
+ */
+function made(save) {
+  const meta = save && save.meta;
+  if (!meta || !meta.growing || !meta.durationSeconds) return 1;
+  const tracks = (meta.package && meta.package.tracks) || [];
+  if (!tracks.length) return 0;
+  const seconds = Math.min(...tracks.map((t) => (t.segmentSeconds || []).reduce((n, s) => n + s, 0)));
+  return Math.max(0, Math.min(1, seconds / meta.durationSeconds));
+}
+
+/** How far a download under way has got: what is here of what there is, scaled by how much of it there is yet. */
+const percent = (s) => (s.bytes > 0 ? Math.floor((100 * made(s.save) * Math.min(s.received, s.bytes)) / s.bytes) : 0);
 
 /**
  * Every download of the signed-in account on this device, by title id: `{ kind, state, percent, save }`,
@@ -104,26 +161,40 @@ export function useDownloads() {
 
 /**
  * What a shelf marks its cards with: `film(titleId)` is a film card's `download`, `episodes(imdbId)`
- * a show card's `downloaded`, the number of its episodes downloaded.
+ * a show card's `downloaded`, the number of its episodes downloaded, and `want(imdbId, season,
+ * number)` what the server is preparing for this device of a film or an episode with nothing here yet.
  */
 export function useDownloadMarks() {
   const downloads = useDownloads();
+  const wants = useWants();
+  const refused = useRefused();
   return React.useMemo(() => {
     const shows = new Map();
     for (const d of downloads.values()) {
       const imdbId = d.kind === "done" && d.save.meta.show && d.save.meta.show.imdbId;
       if (imdbId) shows.set(imdbId, (shows.get(imdbId) || 0) + 1);
     }
-    return { film: (titleId) => downloads.get(titleId), episodes: (imdbId) => shows.get(imdbId) || 0 };
-  }, [downloads]);
+    return {
+      film: (titleId) => downloads.get(titleId),
+      episodes: (imdbId) => shows.get(imdbId) || 0,
+      want: (imdbId, season = null, number = null) => {
+        const want = wantOf(wants, imdbId, season, number);
+        return want ? wantStanding(want, refused) : null;
+      },
+    };
+  }, [downloads, wants, refused]);
 }
 
 /**
- * A row's line for a download from `useDownloads`: "Downloaded · 480p", or what it is doing and how
- * far it has got ("Downloading · 34%"); null for none.
+ * A row's line for a download from `useDownloadMarks`: "Downloaded · 480p", or what it is doing and
+ * how far it has got ("Downloading · 34%", "Preparing · 12%"); null for none.
  */
 export function downloadLine(download) {
   if (!download) return null;
+  if (download.kind === "preparing") {
+    if (download.failed) return STATES.failed.label;
+    return download.percent != null ? `${STATES.preparing.label} · ${download.percent}%` : STATES.preparing.label;
+  }
   if (download.kind === "done") {
     const quality = download.save.meta.quality && download.save.meta.quality.label;
     return quality ? `Downloaded · ${quality}` : "Downloaded";
@@ -134,6 +205,7 @@ export function downloadLine(download) {
 
 /** The face of the control: its icon and words. */
 function face(standing) {
+  if (standing.kind === "preparing") return { icon: standing.failed ? STATES.failed.icon : STATES.preparing.icon, label: downloadLine(standing) };
   if (standing.kind === "done") return { icon: "circle-check", label: "Downloaded" };
   if (standing.kind === "underway") {
     const state = STATES[standing.state] || STATES.queued;
@@ -144,41 +216,84 @@ function face(standing) {
 
 /**
  * Download on a film's page. `head` is what the sheet is headed with: `{ name, context, runtime,
- * still, backdrop }`, `context` the line under the name and `still` the image beside it.
+ * still, backdrop }`, `context` the line under the name and `still` the image beside it. `titleId` is
+ * the library's title, absent for a film it does not hold; `ready` whether the title is whole, which
+ * is what lets its quality, audio and subtitles be picked; `imdbId` the film, by which one not whole is
+ * asked for.
  */
-export function DownloadButton({ titleId, head }) {
-  const standing = useStanding(titleId);
+export function DownloadButton({ titleId = null, imdbId = null, ready = false, head }) {
+  const standing = useStanding(titleId, imdbId);
   const online = useOnline();
   const [open, setOpen] = React.useState(false);
   if (standing.kind === "loading") return null;
   const { icon, label } = face(standing);
+  const target = { titleId, imdbId, ready, episodes: null };
   return (
     <>
       <Button variant="outline" size="xl" icon={icon} className={"kc-dl-button" + (standing.kind !== "none" ? " is-held" : "")}
         disabled={standing.kind === "none" && !online} onClick={() => setOpen(true)}>
         {label}
       </Button>
-      {open && <DownloadSheet titleId={titleId} head={head} standing={standing} onClose={() => setOpen(false)} />}
+      {open && <DownloadSheet target={target} head={head} standing={standing} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-/** Download on an episode's row: a square button at the row's end, a ring while under way. */
-export function DownloadMark({ titleId, head }) {
-  const standing = useStanding(titleId);
+/**
+ * Download on an episode's row: a square button at the row's end, a ring while under way. `imdbId` is
+ * the show's, and `season` and `number` the episode's, by which one not whole is asked for.
+ */
+export function DownloadMark({ titleId = null, imdbId = null, season = null, number = null, ready = false, head }) {
+  const standing = useStanding(titleId, imdbId, season, number);
   const online = useOnline();
   const [open, setOpen] = React.useState(false);
   if (standing.kind === "loading") return <span className="kc-episode-save" />;
   const { icon, label } = face(standing);
-  const p = standing.kind === "underway" ? percent(standing) : 0;
+  const target = { titleId, imdbId, ready, episodes: season != null ? [{ season, episode: number }] : null };
+  const ring = standing.kind === "underway"
+    ? <Ring percent={percent(standing)} state={standing.state} />
+    : standing.kind === "preparing" && !standing.failed ? <Ring percent={standing.percent || 0} state="preparing" /> : null;
   return (
     <span className="kc-episode-save">
       <button type="button" className={"kc-dl-mark is-" + standing.kind} aria-label={`${label}: ${head.name}`} title={label}
         disabled={standing.kind === "none" && !online} onClick={() => setOpen(true)}>
-        {standing.kind === "underway" ? <Ring percent={p} state={standing.state} /> : <Icon name={icon} size={18} />}
+        {ring || <Icon name={icon} size={18} />}
       </button>
-      {open && <DownloadSheet titleId={titleId} head={head} standing={standing} onClose={() => setOpen(false)} />}
+      {open && <DownloadSheet target={target} head={head} standing={standing} onClose={() => setOpen(false)} />}
     </span>
+  );
+}
+
+/**
+ * Download season: every episode of a season this device has not downloaded or asked for, that the
+ * library holds or the tracker offers, asked for together at one quality. Says so once every one is
+ * here or on its way.
+ */
+export function SeasonDownload({ imdbId, showName, season, offers, backdrop }) {
+  const marks = useDownloadMarks();
+  const online = useOnline();
+  const [open, setOpen] = React.useState(false);
+  const eligible = season.episodes.filter((e) => (e.titleId && e.status !== "failed") || episodeRelease(offers, e.season, e.number));
+  if (!eligible.length) return null;
+  const mark = (e) => (e.titleId && marks.film(e.titleId)) || marks.want(imdbId, e.season, e.number);
+  const remaining = eligible.filter((e) => !mark(e) || (mark(e).kind === "preparing" && mark(e).failed));
+  const done = eligible.every((e) => { const m = mark(e); return m && m.kind === "done"; });
+  const label = done ? "Downloaded"
+    : remaining.length === 0 ? "Downloading"
+      : remaining.length === eligible.length ? "Download season" : `Download ${remaining.length} more`;
+  const count = `${remaining.length} ${remaining.length === 1 ? "episode" : "episodes"}`;
+  return (
+    <>
+      <Button variant="outline" size="sm" icon={done ? "circle-check" : "hard-drive-download"} className="kc-dl-season"
+        disabled={remaining.length === 0 || !online} onClick={() => setOpen(true)}>
+        {label}
+      </Button>
+      {open && (
+        <WantSheet head={{ name: showName, context: `Season ${season.number} · ${count}`, still: backdrop, backdrop }}
+          eyebrow="Download season" target={{ imdbId, episodes: remaining.map((e) => ({ season: e.season, episode: e.number })) }}
+          onClose={() => setOpen(false)} />
+      )}
+    </>
   );
 }
 
@@ -199,12 +314,126 @@ function Ring({ percent: p, state }) {
   );
 }
 
-function DownloadSheet({ titleId, head, standing, onClose }) {
+/**
+ * The sheet for where a download stands. `target` is what Download asks for: `{ titleId, imdbId,
+ * ready, episodes }`. A title whole in the library has its parts picked; anything else, its quality.
+ */
+function DownloadSheet({ target, head, standing, onClose }) {
   const [removing, setRemoving] = React.useState(false);
+  const titleId = target.titleId || (standing.save && standing.save.titleId);
   if (removing) return <RemoveSheet titleId={titleId} head={head} standing={standing} onClose={onClose} onKeep={() => setRemoving(false)} />;
   if (standing.kind === "done") return <DoneSheet titleId={titleId} head={head} save={standing.save} onClose={onClose} onRemove={() => setRemoving(true)} />;
   if (standing.kind === "underway") return <UnderwaySheet titleId={titleId} head={head} standing={standing} onClose={onClose} onRemove={() => setRemoving(true)} />;
-  return <PickSheet titleId={titleId} head={head} onClose={onClose} />;
+  if (standing.kind === "preparing") return <PreparingSheet head={head} standing={standing} onClose={onClose} />;
+  if (target.titleId && target.ready) return <PickSheet titleId={target.titleId} head={head} onClose={onClose} />;
+  return <WantSheet head={head} target={target} onClose={onClose} />;
+}
+
+/** The qualities a title not yet whole is asked for at, by picture height. */
+const HEIGHTS = [1080, 720, 480];
+
+/** The quality picked by default: the person's Download quality, else the smallest on a phone or a tablet. */
+function defaultHeight(preferences) {
+  return (preferences && preferences.offlineQualityHeight) || (handheld() ? 480 : 720);
+}
+
+/**
+ * Before a download of a title the library does not hold whole: its quality, the one thing there is
+ * to pick before the server has it. The audio and subtitles are picked by default once it does.
+ */
+function WantSheet({ head, target, eyebrow = "Download", onClose }) {
+  const session = useSession();
+  const sub = session && session.user.id;
+  const online = useOnline();
+  const narrow = useNarrow();
+  const preferences = useLoad(() => api.preferences().catch(() => keptPreferences(sub)), [sub]);
+  const room = useSpace();
+  const [height, setHeight] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    if (height == null && !preferences.loading) setHeight(defaultHeight(preferences.data));
+  }, [height, preferences.loading, preferences.data]);
+
+  const download = async () => {
+    setBusy(true);
+    try {
+      await askDownload({ imdbId: target.imdbId, episodes: target.episodes, height });
+      onClose();
+    } catch (error) {
+      setBusy(false);
+      toast.fromError(error, "Could not download it");
+    }
+  };
+
+  const foot = (
+    <>
+      <DeviceSpace space={room.data} need={0} />
+      {!narrow && <Button variant="outline" size="lg" disabled={busy} onClick={onClose}>Cancel</Button>}
+      <Button variant="primary" size="lg" icon="hard-drive-download" busy={busy} className="kc-dl-start"
+        disabled={!online || height == null} onClick={download}>
+        Download
+      </Button>
+    </>
+  );
+
+  return (
+    <Sheet head={head} eyebrow={eyebrow} sub={joined(head.context, head.runtime)} onClose={onClose} canClose={!busy}
+      className="kc-dl-pick" foot={foot}>
+      {height != null && (
+        <Section label="Quality">
+          <OptionList label="Quality" value={height} variant={narrow ? "list" : "segmented"}
+            options={HEIGHTS.map((h) => ({ value: h, label: `${h}p` }))}
+            onChange={(value) => setHeight(value)} />
+        </Section>
+      )}
+    </Sheet>
+  );
+}
+
+/**
+ * What the server is preparing for this device: how far it has got, and Cancel; or why it could not,
+ * with Try again and Remove.
+ */
+function PreparingSheet({ head, standing, onClose }) {
+  const [busy, setBusy] = React.useState(false);
+  const want = standing.want;
+  const act = (what) => async () => {
+    setBusy(true);
+    try {
+      await what();
+      onClose();
+    } catch (error) {
+      setBusy(false);
+      toast.fromError(error, "Could not do that");
+    }
+  };
+  const stop = act(() => letGo(want));
+  const again = act(() => askDownload({ imdbId: want.imdbId, episodes: want.episode ? [want.episode] : null, height: want.height }));
+  const quality = want.height ? `${want.height}p` : null;
+
+  return (
+    <Sheet head={head} eyebrow={standing.failed ? STATES.failed.label : STATES.preparing.label} tone={standing.failed ? "failed" : "active"}
+      sub={joined(head.context, quality)} onClose={onClose} canClose={!busy} className="kc-dl-underway"
+      foot={standing.failed
+        ? <>
+          <Button variant="outline" size="lg" icon="trash-2" disabled={busy} onClick={stop}>Remove</Button>
+          <Button variant="primary" size="lg" icon="rotate-ccw" busy={busy} onClick={again}>Try again</Button>
+        </>
+        : <Button variant="outline" size="lg" icon="x" busy={busy} onClick={stop}>Cancel</Button>}>
+      {standing.failed
+        ? <Notice tone="danger" icon="triangle-alert">{standing.message}</Notice>
+        : (
+          <div className="kc-dl-progress">
+            <span className="kc-dl-progress__figures">
+              <span className="kc-dl-progress__percent">{standing.percent != null ? `${standing.percent}%` : "—"}</span>
+              <span className="kc-dl-progress__bytes">{STAGES[want.stage] || STAGES.finding}</span>
+            </span>
+            <Meter label="Prepared" max={100} value={standing.percent || 0} />
+          </div>
+        )}
+    </Sheet>
+  );
 }
 
 /**

@@ -224,14 +224,15 @@ builder.Services.AddSingleton(sp => new ListStore(
     sp.GetRequiredService<ILogger<ListStore>>()));
 builder.Services.AddSingleton<ListPresenter>();
 
-// Save offline: what each person saved onto which device, the tracks measured for it, and the
-// transfers under way, which yield to the rooms.
+// Save offline: what each person saved onto which device or asked one to download, the tracks
+// measured for it, and the transfers under way, which yield to the rooms.
 builder.Services.AddOptions<OfflineOptions>().Bind(builder.Configuration.GetSection(OfflineOptions.Section));
 builder.Services.AddSingleton(sp => new OfflineSaves(
     StatePath(sp.GetRequiredService<IOptions<OfflineOptions>>().Value.Path, "offline.json"),
     sp.GetRequiredService<IOptionsMonitor<OfflineOptions>>(),
     sp.GetRequiredService<ILogger<OfflineSaves>>()));
 builder.Services.AddSingleton<ISaveHolds>(sp => sp.GetRequiredService<OfflineSaves>());
+builder.Services.AddSingleton<OfflineWanting>();
 builder.Services.AddSingleton<TrackIndexes>();
 builder.Services.AddSingleton<Transfers>();
 

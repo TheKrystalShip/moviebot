@@ -18,7 +18,7 @@ npm run verify:routes  # every address, cold and by its flows, against a scratch
 npm run verify:mobile  # every page on iPhones and Galaxies, against a scratch site (verify/mobile/)
 npm run verify:pwa     # installable, and the service worker keeps only what it may (verify/pwa.mjs)
 npm run verify:tv      # every page driven by a remote's keys alone, against a scratch site (verify/tv.mjs)
-npm run verify:offline # the installed app with no connection and with the API down, against a scratch site (verify/offline.mjs)
+npm run verify:offline # Download of a whole film and of one still being made, and the installed app with no connection and with the API down, against a scratch site (verify/saving.mjs, verify/growing.mjs, verify/offline.mjs)
 ```
 
 The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glances`, `/catalogue` and `/hub` to the API (`MOVIEBOT_API`, default
@@ -32,9 +32,9 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glanc
 | `/` | A film to watch, then a row each for where the person left off, their Watch later (with Watch on a film the library holds, and See all opening it), the rooms watching something now, what was recently added, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail`. The Movies and TV Shows rows are dealt in a new order on every visit, kept while the page is open, and end in a tile that opens Discover |
 | `/movies`, `/tv` | Every film, or every show (one card each, however many of its episodes are here), with krystal-ui's `Toolbar`: a search by name, one Filters popover (state and genre for films, genre for shows, and Downloaded for either where the browser downloads) with the active ones as chips, and a sort with its direction. With a genre picked, the grid ends in a Discover more tile opening Discover's catalogue of that genre. On a phone a Movies \| TV shows switch under the heading moves between the two |
 | `/movies/<titleId>` | One film in the library: what it is, who played it last, save, Download, and watch or resume. An episode's id forwards to its show's page at its season |
-| `/tv/<imdbId>`, `/tv/<imdbId>/season/<n>` | One show the library holds an episode of, at a season (the default season has no segment): what it is, its seasons as chips, each season's episodes with their stills and how far this person got, and resume. Every episode plays from its row, one that has to be fetched while it is prepared, and nothing on a row says which; with nothing of the show here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them. Each episode that is ready has Download at its row's end. A show the library holds nothing of forwards to its `/discover/show/` address |
+| `/tv/<imdbId>`, `/tv/<imdbId>/season/<n>` | One show the library holds an episode of, at a season (the default season has no segment): what it is, its seasons as chips, each season's episodes with their stills and how far this person got, and resume. Every episode plays from its row, one that has to be fetched while it is prepared, and nothing on a row says which; with nothing of the show here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them. Each episode that can be downloaded has Download at its row's end, and each season Download season in its head. A show the library holds nothing of forwards to its `/discover/show/` address |
 | `/discover/show/<imdbId>`, `/discover/show/<imdbId>/season/<n>` | The same page for a show the library holds no episode of, where its episodes are picked to download. A show the library holds an episode of forwards to its `/tv/` address |
-| `/discover/film/<imdbId>` | A film that has to be fetched: what it is, and Watch (it plays while it is prepared) when the tracker offers it, how far the preparing has got while it is under way (`preparing · N%`), or Notify when it is not out digitally yet, and Save. A film that plays now forwards to its `/movies/` address |
+| `/discover/film/<imdbId>` | A film that has to be fetched: what it is, and Watch (it plays while it is prepared) and Download when the tracker offers it, how far the preparing has got while it is under way (`preparing · N%`), or Notify when it is not out digitally yet, and Save. A film that plays now forwards to its `/movies/` address |
 | `/discover?person=<personId>` | Discover's catalogue of one person's work: their portrait, name and what they are known for, then the films and shows they are credited on, most voted on first (`/api/catalogue/people/<personId>`), each card with the part they played or the job they did, leading to its page as any other answer does. Every cast member on a film's or show's page leads here, and so does each director, writer and creator in its credits |
 | `/discover?genre=<name>&kind=<film\|show>` | Discover's catalogue of one genre: the most popular films or shows in it (`/api/catalogue/genre`), as the same cards |
 | `/discover`, `/discover?q=` | Finding anything to watch, here or not. A large field and, with nothing typed, the films and shows popular this week (`/api/popular`), each leading to its page. With a query, the catalogue's films and shows together in its own order (`/api/titles/find`, or films alone for somebody who may only wish), each by its poster, rating, year and cast: the first answer large, with what it is about and the actions its own page offers, asked for as soon as it is shown (`components/FilmActions.jsx` for a film, Watch from its seasons for a show), and the rest as cards under More results, a skeleton of both while the catalogue is asked. Anything the server can play by that name that the catalogue did not answer with joins those cards. A result is a result wherever it plays from: nothing on a card says whether it is here, and one that plays now plays from the card. `/`, Ctrl+K or Cmd+K anywhere outside a text field opens it with the field focused, and a fine pointer focuses the field on arrival |
@@ -83,22 +83,36 @@ holds the title, and New list, which makes one and saves to it: a popover beside
 screen, the drawer on a phone.
 
 Download keeps a film or an episode on this device to play with no connection (`src/offline/`,
-`components/DownloadButton.jsx`). It is an outline button beside Save on a film's page (on a phone
-Watch spans the column and Save and Download share the row under it) and a square button at the end
-of each episode's row on a show's page, for whoever holds `cinema:offline`, in a browser with the
-Origin Private File System that plays through hls.js, never on a television or in the Activity, and
-only for a title that is ready. Its face says where the download stands: Download, then Queued,
-Downloading, Paused or Waiting with how far it has got, Not downloaded when it failed, and Downloaded
-in the accent once it is here; an episode's button draws a ring of its progress while under way and a
-check once downloaded, and its row says the same under its name (Downloading · 34%, Downloaded · 480p
-in the accent). Pressed, it opens one sheet, the drawer on a phone and a dialog with the
+`components/DownloadButton.jsx`). It is an outline button beside Save on a film's page, in the
+library or not (on a phone Watch spans the column and Save and Download share the row under it),
+beside Watch on a film found in Discover, a square button at the end of each episode's row on a
+show's page, and Download season in each season's head, for whoever holds `cinema:offline`, in a
+browser with the Origin Private File System that plays through hls.js, never on a television or in
+the Activity. A title whole in the library is downloaded by anybody who holds it; one still being
+made, one the tracker offers, and a season take `cinema:download` too, because the server fetches
+and prepares them first (`offline/wants.js`), and the device downloads each as it is made. Download
+season asks for every episode of the season the library holds or the tracker offers that this
+device has not downloaded or asked for (Download N more once some are), at one quality, and says
+Downloading, then Downloaded, once every one is on its way or here. Its face says where the download
+stands: Download, then Preparing with how much of it has arrived on the server while the server
+fetches and prepares it, Queued, Downloading, Paused or Waiting with how far it has got (of a title
+still being made, of the whole title), Not downloaded when it failed, and Downloaded in the accent
+once it is here; an episode's button draws a ring of its progress while preparing and under way and a
+check once downloaded, and its row says the same under its name (Preparing · 12%, Downloading · 34%,
+Downloaded · 480p in the accent). Pressed, it opens one sheet, the drawer on a phone and a dialog with the
 backdrop above it on a wide screen, headed by the title's still or poster, a small label (Download,
-Downloading, Downloaded), its name and a line under it. Before a download it holds Quality, one choice
+Preparing, Downloading, Downloaded), its name and a line under it. Before a download of a title whole
+in the library it holds Quality, one choice
 among the title's rungs, and Audio and Subtitles, any number, each row with its size, as krystal-ui's
 `OptionList`; the person's own choices are picked (`offline/choose.js`), and the subtitles beyond
 their languages and the picked audio's fold under "N more languages". Its foot is a `Meter` of the
 device's space with the download's share and what is free, and Download with the download's size; a
-device without room is told how much the download needs, and cannot start it. Under way, the sheet
+device without room is told how much the download needs, and cannot start it. Before a download of
+anything else it holds Quality alone, 1080p, 720p or 480p, the person's Download quality picked, else
+480p on a phone or a tablet and 720p elsewhere; the audio and subtitles are picked by default once the
+server has the title. Preparing, the sheet shows how much has arrived on the server and what it is
+doing (Finding a release, Arriving on the server, Being prepared), and Cancel; one that could not be
+fetched says why, with Remove and Try again. Under way, the sheet
 shows the percent and the bytes, a meter, a row each for the picture, the sound and the subtitles
 with how far each has got, Cancel, and Pause or Resume; downloaded, its quality, size, audio and
 subtitles, when it was downloaded, Remove and Play. Cancel and Remove ask first (Remove download?,

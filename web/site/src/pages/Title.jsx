@@ -4,7 +4,7 @@ import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
 import { tvPath } from "../paths.js";
 import { navigate } from "../router.js";
-import { useSession } from "../session.js";
+import { useCan, useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, WatchButton } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
@@ -33,6 +33,8 @@ export function Title({ id, fromDevice = false }) {
   const session = useSession();
   const me = session && session.user;
   const saving = useOffersSaving();
+  // A film still being made is downloaded as it is made, which fetches onto the server.
+  const fetching = useCan("cinema:download") && !fromDevice;
 
   useCrumb(manifest.data
     ? (details.data && details.data.title) || (manifest.data.film && manifest.data.film.name) || manifest.data.title
@@ -112,8 +114,8 @@ export function Title({ id, fromDevice = false }) {
                 </WatchButton>
               )}
               {film.imdbId && <SaveButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
-              {saving && m.status === "ready" && (
-                <DownloadButton titleId={m.id} head={{
+              {saving && (m.status === "ready" || (fetching && m.status === "transcoding" && film.imdbId)) && (
+                <DownloadButton titleId={m.id} imdbId={film.imdbId || null} ready={m.status === "ready"} head={{
                   name: (d && d.title) || filmName(m), context: film.year || (d && d.year) || null,
                   runtime: clock(m.durationSeconds), still: posterUrl(title), portrait: true, backdrop,
                 }} />

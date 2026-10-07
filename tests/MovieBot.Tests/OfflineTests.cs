@@ -63,8 +63,11 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
             ["Offline:MaxTransfersPerPerson"] = "1",
         };
 
-        /// <summary>A rendition's playlist and files, each segment of a length of its own so an offset error shows.</summary>
-        private static void Rendition(string directory, string prefix, double[] seconds, int seed)
+        /// <summary>
+        /// A rendition's playlist and files, each segment of a length of its own so an offset error shows.
+        /// One not <paramref name="ended"/> is still being encoded.
+        /// </summary>
+        public static void Rendition(string directory, string prefix, double[] seconds, int seed, bool ended = true)
         {
             Directory.CreateDirectory(directory);
             var random = new Random(seed);
@@ -78,8 +81,46 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
                 File.WriteAllBytes(Path.Combine(directory, name), Bytes(random, 5000 + 1000 * i + seed));
                 playlist.Append(System.Globalization.CultureInfo.InvariantCulture, $"#EXTINF:{seconds[i]:0.000000},\n{name}\n");
             }
-            playlist.Append("#EXT-X-ENDLIST\n");
+            if (ended) playlist.Append("#EXT-X-ENDLIST\n");
             File.WriteAllText(Path.Combine(directory, "index.m3u8"), playlist.ToString());
+        }
+
+        /// <summary>
+        /// A film the hand-off is still encoding, by <paramref name="imdbId"/>: two segments of its one
+        /// rung and one of its audio made so far.
+        /// </summary>
+        public void Growing(string id, string imdbId)
+        {
+            var directory = Path.Combine(MediaRoot, id);
+            Rendition(Path.Combine(directory, "v0"), "", [2.002, 2.002], seed: 4, ended: false);
+            Rendition(Path.Combine(directory, "a0"), "", [4.0], seed: 5, ended: false);
+            ManifestJson.WriteAtomic(Path.Combine(directory, "manifest.json"), new Manifest
+            {
+                Id = id,
+                Title = "Growing Film",
+                DurationSeconds = 600,
+                Status = TitleStatus.Transcoding,
+                HeadSeconds = 4,
+                Film = new FilmIdentity { ImdbId = imdbId, Name = "Growing Film", Year = 2026 },
+                Video = new VideoInfo
+                {
+                    Width = 854, Height = 356, SourceCodec = "h264", SourceHdr = "sdr",
+                    Renditions = [new Rendition { Name = "356p", BitrateKbps = 1600, Width = 854, Height = 356, Uri = "v0/index.m3u8" }],
+                },
+                Audio = [new AudioTrack { Id = "a0", Kind = TrackKind.Feature, Language = "eng", Label = "English", Channels = 2, Default = true, Uri = "a0/index.m3u8" }],
+                Subtitles = [],
+            });
+        }
+
+        /// <summary>One more segment of a growing rendition, written and then listed, as the encoder does.</summary>
+        public void Grow(string id, string rendition, int seed)
+        {
+            var directory = Path.Combine(MediaRoot, id, rendition);
+            var playlist = Path.Combine(directory, "index.m3u8");
+            var count = File.ReadAllLines(playlist).Count(l => l.StartsWith("seg", StringComparison.Ordinal));
+            var name = $"seg{count:00000}.m4s";
+            File.WriteAllBytes(Path.Combine(directory, name), Bytes(new Random(seed), 4321 + seed));
+            File.AppendAllText(playlist, $"#EXTINF:2.002000,\n{name}\n");
         }
 
         private static byte[] Bytes(Random random, int length)
@@ -96,9 +137,9 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
     };
 
     /// <summary>What the files of a rendition joined are, read straight off the disk.</summary>
-    private byte[] Joined(string rendition)
+    private byte[] Joined(string rendition, string title = Film)
     {
-        var directory = Path.Combine(fixture.MediaRoot, Film, rendition);
+        var directory = Path.Combine(fixture.MediaRoot, title, rendition);
         var lines = File.ReadAllLines(Path.Combine(directory, "index.m3u8"));
         var init = lines.First(l => l.StartsWith("#EXT-X-MAP")).Split('"')[1];
         return [.. new[] { init }.Concat(lines.Where(l => l.Length > 0 && l[0] != '#'))
@@ -127,11 +168,19 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
     }
 
     [Fact]
-    public async Task A_title_that_is_not_ready_is_a_conflict_and_saving_needs_the_action()
+    public async Task A_title_that_failed_is_a_conflict_and_saving_needs_the_action()
     {
         var person = fixture.CreatePersonClient("o2");
-        using var transcoding = await person.GetAsync($"/api/titles/{SessionFixture.TranscodingTitle}/offline");
-        Assert.Equal(HttpStatusCode.Conflict, transcoding.StatusCode);
+        var failed = Path.Combine(fixture.MediaRoot, "failed-film");
+        Directory.CreateDirectory(failed);
+        ManifestJson.WriteAtomic(Path.Combine(failed, "manifest.json"), new Manifest
+        {
+            Id = "failed-film", Title = "Failed Film", Status = TitleStatus.Failed, DurationSeconds = 60,
+            Video = new VideoInfo { Width = 854, Height = 356, SourceCodec = "h264", SourceHdr = "sdr", Renditions = [] },
+            Audio = [], Subtitles = [],
+        });
+        using var conflict = await person.GetAsync("/api/titles/failed-film/offline");
+        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
 
         var watcher = fixture.CreatePersonClient("o2", actions: [CinemaActions.Watch, CinemaActions.ProfileRead, CinemaActions.ProfileWrite]);
         using var refused = await watcher.PostAsJsonAsync("/api/me/offline",
@@ -330,6 +379,120 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
         Assert.Equal(HttpStatusCode.BadRequest, negative.StatusCode);
     }
 
+    [Fact]
+    public async Task A_title_still_being_made_is_saved_as_it_grows()
+    {
+        fixture.Growing("growing-a", "tt9000001");
+        var client = fixture.CreatePersonClient("o10");
+
+        var offer = await client.GetFromJsonAsync<OfflineOffer>("/api/titles/growing-a/offline", Json);
+        Assert.True(offer!.Growing);
+        Assert.Equal(Joined("v0", "growing-a").LongLength, offer.Rungs.Single().Bytes);
+
+        using var asked = await client.PostAsJsonAsync("/api/me/offline",
+            new { titleId = "growing-a", rung = "v0", audio = new[] { "a0" }, device = "Pixel" });
+        asked.EnsureSuccessStatusCode();
+        var package = (await asked.Content.ReadFromJsonAsync<OfflinePackage>(Json))!;
+        Assert.True(package.Growing);
+        var track = package.Tracks[0];
+        Assert.Equal([2.002, 2.002], track.SegmentSeconds);
+
+        using var first = await client.GetAsync(track.Url);
+        var held = await first.Content.ReadAsByteArrayAsync();
+        Assert.Equal(track.Bytes, held.LongLength);
+
+        fixture.Grow("growing-a", "v0", seed: 9);
+
+        // What the device holds is how the track begins now, so it carries on from there.
+        using var more = new HttpRequestMessage(HttpMethod.Get, track.Url);
+        more.Headers.Range = new RangeHeaderValue(held.Length, null);
+        more.Headers.IfRange = new RangeConditionHeaderValue(new EntityTagHeaderValue(track.Etag));
+        using var rest = await client.SendAsync(more);
+        Assert.Equal(HttpStatusCode.PartialContent, rest.StatusCode);
+        Assert.EndsWith("/*", rest.Content.Headers.ContentRange?.ToString());
+        Assert.NotEqual(track.Etag, rest.Headers.ETag?.ToString());
+        Assert.Equal(Joined("v0", "growing-a"), held.Concat(await rest.Content.ReadAsByteArrayAsync()).ToArray());
+
+        // A stretch of something else is answered with the whole track.
+        using var other = new HttpRequestMessage(HttpMethod.Get, track.Url);
+        other.Headers.Range = new RangeHeaderValue(held.Length, null);
+        other.Headers.IfRange = new RangeConditionHeaderValue(new EntityTagHeaderValue("\"0123456789abcdef0123456789abcdef-2\""));
+        using var whole = await client.SendAsync(other);
+        Assert.Equal(HttpStatusCode.OK, whole.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_film_the_library_holds_is_ready_to_download_at_once_and_the_want_goes_once_the_device_saves_it()
+    {
+        fixture.Growing("growing-b", "tt9000002");
+        var client = fixture.CreatePersonClient("o11");
+
+        using var asked = await client.PostAsJsonAsync("/api/me/offline/wants", new { imdbId = "tt9000002", height = 480, device = "Pixel" });
+        asked.EnsureSuccessStatusCode();
+        var want = Assert.Single((await asked.Content.ReadFromJsonAsync<List<OfflineWant>>(Json))!);
+        Assert.Equal(WantStages.Ready, want.Stage);
+        Assert.Equal("growing-b", want.TitleId);
+        Assert.Equal(480, want.Height);
+
+        // Another device saving it leaves this device waiting; this device saving it ends the wait.
+        using var elsewhere = await client.PostAsJsonAsync("/api/me/offline",
+            new { titleId = "growing-b", rung = "v0", audio = new[] { "a0" }, device = "Laptop" });
+        elsewhere.EnsureSuccessStatusCode();
+        Assert.Single((await client.GetFromJsonAsync<List<OfflineWant>>("/api/me/offline/wants", Json))!);
+
+        using var here = await client.PostAsJsonAsync("/api/me/offline",
+            new { titleId = "growing-b", rung = "v0", audio = new[] { "a0" }, device = "Pixel" });
+        here.EnsureSuccessStatusCode();
+        Assert.Empty((await client.GetFromJsonAsync<List<OfflineWant>>("/api/me/offline/wants", Json))!);
+    }
+
+    [Fact]
+    public async Task A_want_takes_downloading_and_is_the_person_s_own_to_let_go()
+    {
+        fixture.Growing("growing-c", "tt9000003");
+        var saver = fixture.CreatePersonClient("o12",
+            actions: [CinemaActions.Watch, CinemaActions.Offline, CinemaActions.ProfileRead, CinemaActions.ProfileWrite]);
+        using var refused = await saver.PostAsJsonAsync("/api/me/offline/wants", new { imdbId = "tt9000003", device = "Pixel" });
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+
+        var client = fixture.CreatePersonClient("o13");
+        using var bad = await client.PostAsJsonAsync("/api/me/offline/wants", new { imdbId = "nope", device = "Pixel" });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+
+        using var asked = await client.PostAsJsonAsync("/api/me/offline/wants", new { imdbId = "tt9000003", device = "Pixel" });
+        var want = Assert.Single((await asked.Content.ReadFromJsonAsync<List<OfflineWant>>(Json))!);
+        Assert.Empty((await fixture.CreatePersonClient("o14").GetFromJsonAsync<List<OfflineWant>>("/api/me/offline/wants", Json))!);
+
+        using var gone = await client.DeleteAsync($"/api/me/offline/wants/{want.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, gone.StatusCode);
+        Assert.Empty((await client.GetFromJsonAsync<List<OfflineWant>>("/api/me/offline/wants", Json))!);
+    }
+
+    [Fact]
+    public void A_want_is_waited_on_for_its_days_and_one_that_failed_is_asked_for_afresh()
+    {
+        var path = Path.Combine(fixture.StateRoot, $"wants-{Guid.NewGuid():n}.json");
+        var saves = new OfflineSaves(path, new Monitor(new OfflineOptions { WantDays = 14 }), NullLogger<OfflineSaves>.Instance);
+        var made = DateTimeOffset.UtcNow;
+        var season = new List<EpisodePick> { new(1, 1), new(1, 2) };
+
+        var wants = saves.Want("p", "tt0903747", season, "Pixel", null, made);
+        Assert.Equal(2, wants.Count);
+        saves.Fetched("p", wants[0].Id, null, WantStages.NotOffered);
+        saves.Fetched("p", wants[1].Id, "abc");
+
+        var again = saves.Want("p", "tt0903747", season, "Pixel", 480, made.AddHours(1));
+        Assert.Equal(wants.Select(w => w.Id), again.Select(w => w.Id));
+        Assert.Null(again[0].Problem);
+        Assert.Equal("abc", again[1].Hash);
+        Assert.All(again, w => Assert.Equal(480, w.Height));
+
+        var reread = new OfflineSaves(path, new Monitor(new OfflineOptions { WantDays = 14 }), NullLogger<OfflineSaves>.Instance);
+        Assert.Equal(2, reread.WantsOf("p", made.AddDays(13)).Count);
+        // The episode asked for afresh counts its days from then.
+        Assert.Single(reread.WantsOf("p", made.AddDays(14).AddMinutes(30)));
+    }
+
     [Theory]
     [InlineData(null, 100, null, null, true)]
     [InlineData("bytes=0-", 100, 0L, 99L, true)]
@@ -371,6 +534,8 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
 
         Assert.NotNull(TrackIndex.Read(directory, "v1", playlist));
         Assert.Null(TrackIndex.Read(directory, "v1", playlist.Replace("#EXT-X-ENDLIST", "")));
+        // A title still being made reads the playlist as far as it has got.
+        Assert.False(TrackIndex.Read(directory, "v1", playlist.Replace("#EXT-X-ENDLIST", ""), growing: true)!.Ended);
         Assert.Null(TrackIndex.Read(directory, "v1", playlist.Replace("seg00001.m4s", "../a0/seg00001.m4s")));
     }
 

@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Library;
@@ -8,21 +9,24 @@ using TheKrystalShip.MovieBot.Core;
 namespace TheKrystalShip.MovieBot.Api.Offline;
 
 /// <summary>
-/// Save offline: what a title can be saved as, the saves a person has made, and the one file per
-/// track a device fetches. Saving takes <see cref="CinemaActions.Offline"/>; the records are the
-/// person's own and read and change on the self actions, so a device can still learn its saves are
-/// gone from an account that no longer may save.
+/// Save offline: what a title can be saved as, the saves a person has made, what they asked a device
+/// to download before the library held it, and the one file per track a device fetches. Saving takes
+/// <see cref="CinemaActions.Offline"/>; the records are the person's own and read and change on the
+/// self actions, so a device can still learn its saves are gone from an account that no longer may save.
 /// </summary>
 public static class OfflineEndpoints
 {
     /// <summary>How long a device refused for being past the limits waits before asking again.</summary>
     private const int RetryAfterSeconds = 10;
 
+    /// <summary>The most episodes one Download asks for: a season, with room to spare.</summary>
+    private const int MaxWantedEpisodes = 100;
+
     public static void MapOffline(this WebApplication app)
     {
         app.MapGet("/api/titles/{id}/offline", (string id, TitleLibrary library, TrackIndexes indexes, SubtitleStore subtitles) =>
         {
-            if (Ready(id, library) is { } refused) return refused;
+            if (Saveable(id, library) is { } refused) return refused;
             var manifest = library.Get(id)!;
             return library.DirectoryOf(id) is { } directory
                 ? Results.Ok(Offer(id, manifest, directory, indexes, subtitles))
@@ -35,7 +39,7 @@ public static class OfflineEndpoints
         {
             if (CinemaPerson.Of(context) is not { } person) return NoPerson();
             if (string.IsNullOrEmpty(body.TitleId)) return Bad("Name the title to save.");
-            if (Ready(body.TitleId, library) is { } refused) return refused;
+            if (Saveable(body.TitleId, library) is { } refused) return refused;
 
             var id = body.TitleId;
             var manifest = library.Get(id)!;
@@ -60,7 +64,7 @@ public static class OfflineEndpoints
             var tracks = new List<OfflineTrack>();
             foreach (var (kind, rendition, uri) in audio.Select(a => ("audio", a!.Rendition, a.Uri)).Prepend(("video", rung.Rendition, rung.Uri)))
             {
-                if (indexes.Of(directory, uri) is not { } track) return Results.NotFound();
+                if (indexes.Of(directory, uri, offer.Growing) is not { } track) return Results.NotFound();
                 tracks.Add(new OfflineTrack(kind, rendition, uri, $"/media/{id}/{rendition}/track.mp4", track.Length,
                     track.ETag, track.InitBytes, track.Seconds, track.SegmentBytes));
             }
@@ -68,6 +72,9 @@ public static class OfflineEndpoints
             var subtitleViews = picked.Select(s => s! with { Url = $"/media/{id}/{SubtitleUri(manifest, s.Id)}" }).ToList();
             var now = clock.GetUtcNow();
             var stored = saves.Save(person.UserId, id, rung.Rendition, audioIds, subtitleIds, device, now);
+            // The device has what it waited on, if it asked for this before the library held it.
+            saves.Fulfilled(person.UserId, device, manifest.Film?.ImdbId,
+                manifest.Episode is { } place ? new EpisodePick(place.Season, place.Number) : null);
 
             var details = manifest.Kind == TitleKind.Show ? shows.Facts(manifest.Film?.ImdbId) : films.Facts(manifest.Film?.ImdbId);
             return Results.Ok(new OfflinePackage(
@@ -78,8 +85,43 @@ public static class OfflineEndpoints
                 subtitleViews,
                 details,
                 EpisodeOf(manifest, shows),
-                ArtworkOf(id, manifest, details, shows)));
+                ArtworkOf(id, manifest, details, shows),
+                offer.Growing));
         }).RequireAction(CinemaActions.Offline);
+
+        // Download of a title the library does not hold yet: fetched onto the server, and downloaded
+        // by the device once the library holds it. Fetching spends the disk and the tracker, so it
+        // takes downloading as well as saving.
+        app.MapPost("/api/me/offline/wants", async (OfflineWantRequest body, HttpContext context, OfflineWanting wanting,
+            CancellationToken ct) =>
+        {
+            if (CinemaPerson.Of(context) is not { } person) return NoPerson();
+            if (!person.Holds(CinemaActions.Download))
+                return Results.Json(new ErrorReply("Your account does not let you fetch titles onto the server."),
+                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status403Forbidden);
+            if (body.ImdbId is not { } imdbId || !ImdbId.IsValid(imdbId)) return Bad("That is not an IMDb id.");
+            var device = body.Device?.Trim() ?? "";
+            if (device.Length is 0 or > 100) return Bad("Name the device, in 1 to 100 characters.");
+            if (body.Episodes is { Count: > MaxWantedEpisodes }) return Bad($"Ask for at most {MaxWantedEpisodes} episodes at once.");
+            if (body.Episodes?.Any(e => e.Season < 0 || e.Episode < 1) == true) return Bad("That is not an episode.");
+            if (body.Height is <= 0 or > 4320) return Bad("That is not a picture height.");
+
+            return Results.Ok(await wanting.AskAsync(person.Actor, imdbId, body.Episodes, device, body.Height, ct));
+        }).RequireAction(CinemaActions.Offline);
+
+        app.MapGet("/api/me/offline/wants", async (HttpContext context, OfflineWanting wanting, CancellationToken ct) =>
+            CinemaPerson.Of(context) is { } person
+                ? Results.Ok(await wanting.ListAsync(person.UserId, ct))
+                : NoPerson())
+            .RequireAction(CinemaActions.ProfileRead);
+
+        // Letting go of a want leaves its download to the library, which other people may be waiting on.
+        app.MapDelete("/api/me/offline/wants/{wantId}", (string wantId, HttpContext context, OfflineSaves saves) =>
+        {
+            if (CinemaPerson.Of(context) is not { } person) return NoPerson();
+            saves.Unwant(person.UserId, wantId);
+            return Results.NoContent();
+        }).RequireAction(CinemaActions.ProfileWrite);
 
         app.MapGet("/api/me/offline", (HttpContext context, OfflineSaves saves, TimeProvider clock) =>
         {
@@ -119,7 +161,7 @@ public static class OfflineEndpoints
             ILoggerFactory loggers) =>
         {
             if (CinemaPerson.Of(context) is not { } person) return NoPerson();
-            if (Ready(id, library) is { } refused) return refused;
+            if (Saveable(id, library) is { } refused) return refused;
             if (!saves.Has(person.UserId, id))
                 return Conflict("Save the title offline before fetching its tracks.");
 
@@ -127,7 +169,8 @@ public static class OfflineEndpoints
             var uri = manifest.Video.Renditions.Select(r => r.Uri)
                 .Concat(manifest.Audio.Select(a => a.Uri))
                 .FirstOrDefault(u => u.StartsWith(rendition + "/", StringComparison.Ordinal));
-            if (uri is null || library.DirectoryOf(id) is not { } directory || indexes.Of(directory, uri) is not { } track)
+            if (uri is null || library.DirectoryOf(id) is not { } directory
+                || indexes.Of(directory, uri, Growing(manifest)) is not { } track)
                 return Results.NotFound();
 
             Transfers.Lease? lease = null;
@@ -143,13 +186,17 @@ public static class OfflineEndpoints
         }).RequireAction(CinemaActions.Offline);
     }
 
-    /// <summary>Everything a title can be saved as, each track measured on disk.</summary>
+    /// <summary>
+    /// Everything a title can be saved as, each track measured on disk; of a title still being made,
+    /// each rendition whose encoding has begun, measured as far as it has got.
+    /// </summary>
     public static OfflineOffer Offer(string id, Manifest manifest, string directory, TrackIndexes indexes, SubtitleStore subtitles)
     {
+        var growing = Growing(manifest);
         var rungs = new List<OfflineRung>();
         foreach (var r in manifest.Video.Renditions.OrderByDescending(r => r.Height))
         {
-            if (indexes.Of(directory, r.Uri) is not { } track) continue;
+            if (indexes.Of(directory, r.Uri, growing) is not { } track) continue;
             var (width, height) = r.SizeIn(manifest.Video);
             rungs.Add(new OfflineRung(track.Rendition, r.Uri, r.Name, width, height, track.Length));
         }
@@ -157,7 +204,7 @@ public static class OfflineEndpoints
         var audio = new List<OfflineAudio>();
         foreach (var a in manifest.Audio)
         {
-            if (indexes.Of(directory, a.Uri) is not { } track) continue;
+            if (indexes.Of(directory, a.Uri, growing) is not { } track) continue;
             audio.Add(new OfflineAudio(track.Rendition, a.Uri, a.Kind, a.Language, a.Label, a.Channels, a.Default, track.Length));
         }
 
@@ -171,7 +218,7 @@ public static class OfflineEndpoints
             text.Add(new OfflineSubtitle(s.Id, s.Kind, s.Language, s.Label, s.HearingImpaired, s.Forced, new FileInfo(path).Length));
         }
 
-        return new OfflineOffer(id, rungs, audio, text);
+        return new OfflineOffer(id, rungs, audio, text, growing);
     }
 
     /// <summary>
@@ -221,14 +268,20 @@ public static class OfflineEndpoints
             manifest.Thumbnails is { } sheet ? $"/media/{id}/{sheet.Uri}" : null);
     }
 
-    /// <summary>Null when the title may be saved; otherwise the refusal.</summary>
-    private static IResult? Ready(string id, TitleLibrary library) =>
+    /// <summary>
+    /// Null when the title may be saved: one that is ready, or one still being made, which a device
+    /// saves as it is made. Otherwise the refusal.
+    /// </summary>
+    private static IResult? Saveable(string id, TitleLibrary library) =>
         library.Get(id) switch
         {
             null => Results.NotFound(),
-            { Status: not TitleStatus.Ready } => Conflict("Only a title that is ready can be saved offline."),
+            { Status: TitleStatus.Failed } => Conflict("This title could not be prepared, so it cannot be downloaded."),
             _ => null,
         };
+
+    /// <summary>Whether a title is still being made, and so saved as it grows.</summary>
+    private static bool Growing(Manifest manifest) => manifest.Status != TitleStatus.Ready;
 
     private static string SubtitleUri(Manifest manifest, string id) => manifest.Subtitles.First(s => s.Id == id).Uri!;
 

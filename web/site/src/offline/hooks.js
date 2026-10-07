@@ -34,11 +34,11 @@ export function useSaves() {
   return useStoreRead(() => listSaves(sub), [sub]);
 }
 
-/** One title's save for the signed-in account, or null when this device holds none. */
+/** One title's save for the signed-in account, or null when this device holds none or no title is named. */
 export function useSave(titleId) {
   const session = useSession();
   const sub = session && session.user.id;
-  return useStoreRead(() => readSave(sub, titleId), [sub, titleId]);
+  return useStoreRead(() => (titleId ? readSave(sub, titleId) : Promise.resolve(null)), [sub, titleId]);
 }
 
 /**

@@ -12,7 +12,7 @@ import { Empty, Failed, WatchButton, useWatchLink } from "../components/Film.jsx
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
-import { DownloadMark, downloadLine, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
+import { DownloadMark, SeasonDownload, downloadLine, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
 import { episodeRelease, openingEpisode, watchNow, watchOpening } from "../watchNow.js";
 import { useKeptShow } from "../offline/hooks.js";
 import { refreshShow } from "../offline/shows.js";
@@ -175,7 +175,8 @@ export function Show({ imdbId, season, inLibrary, fromDevice = false }) {
           </div>
 
           <SeasonPanel season={current} me={me} rooms={rooms.data || []}
-            offers={offers.data} showImdbId={s.imdbId} showName={s.title} backdrop={s.backdropUrl || s.posterUrl} saving={saving} />
+            offers={offers.data} showImdbId={s.imdbId} showName={s.title} backdrop={s.backdropUrl || s.posterUrl} saving={saving}
+            fetching={saving && downloading} />
         </section>
       )}
 
@@ -199,13 +200,17 @@ export function Show({ imdbId, season, inLibrary, fromDevice = false }) {
 /**
  * One season: when it was last played, and its episodes with how far this person got in each. With
  * Download offered (`saving`), every row has its place for it at its end, so the rows line up, and a
- * row whose episode is downloaded or downloading says so under its name.
+ * row whose episode is downloaded, downloading or being prepared says so under its name. An episode
+ * whole in the library can be downloaded by anybody who may download; one still being made or only
+ * on the tracker, and the season together, by somebody who may also fetch onto the server (`fetching`).
  */
-function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, backdrop, saving }) {
+function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, backdrop, saving, fetching }) {
   const played = season.episodes.map((e) => e.lastPlayed).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at))[0];
   const playedBy = played && (me && played.byId === me.id ? "you" : played.byName);
   const aired = season.airDate ? new Date(season.airDate).getFullYear() : null;
   const marks = useDownloadMarks();
+  const downloadable = (e) => (e.titleId && e.status === "ready")
+    || (fetching && ((e.titleId && e.status === "transcoding") || (!e.titleId && !!episodeRelease(offers, e.season, e.number))));
 
   return (
     <div className="kc-season">
@@ -216,21 +221,23 @@ function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, backdrop
             {played ? `Last played ${ago(played.at)} by ${playedBy}` : "Not played yet"}
           </span>
         </div>
+        {fetching && <SeasonDownload imdbId={showImdbId} showName={showName} season={season} offers={offers} backdrop={backdrop} />}
       </div>
 
       {season.episodes.map((e) => {
         const row = <EpisodeRow key={e.number} episode={e} rooms={rooms} offers={offers} showImdbId={showImdbId}
-          download={saving && e.titleId ? marks.film(e.titleId) : null} />;
+          download={saving ? (e.titleId && marks.film(e.titleId)) || marks.want(showImdbId, e.season, e.number) : null} />;
         if (!saving) return row;
         return (
           <div key={e.number} className="kc-episode-line">
             {row}
-            {e.titleId && e.status === "ready"
-              ? <DownloadMark titleId={e.titleId} head={{
-                  name: e.name || `Episode ${e.number}`, context: `${showName} · ${episodeCode(e)}`,
-                  runtime: e.runtimeMinutes ? `${e.runtimeMinutes} min` : e.durationSeconds ? clock(e.durationSeconds) : null,
-                  still: e.stillUrl, backdrop,
-                }} />
+            {downloadable(e) || marks.want(showImdbId, e.season, e.number)
+              ? <DownloadMark titleId={e.titleId || null} imdbId={showImdbId} season={e.season} number={e.number}
+                  ready={e.status === "ready"} head={{
+                    name: e.name || `Episode ${e.number}`, context: `${showName} · ${episodeCode(e)}`,
+                    runtime: e.runtimeMinutes ? `${e.runtimeMinutes} min` : e.durationSeconds ? clock(e.durationSeconds) : null,
+                    still: e.stillUrl, backdrop,
+                  }} />
               : <span className="kc-episode-save" />}
           </div>
         );

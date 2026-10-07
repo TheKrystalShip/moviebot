@@ -2,7 +2,8 @@
 // and whenever the connection comes back: the removals made with no connection are forgotten at the
 // API, a save the API no longer lists is removed from the device, an account that no longer holds
 // `cinema:watch` keeps nothing here, a save finished while the API could not be told is told now,
-// every save under way that is not paused carries on, and every show a saved episode belongs to is kept.
+// every save under way that is not paused carries on, every show a saved episode belongs to is kept,
+// and what this device asked for before the library held it is asked after (`wants.js`).
 
 import React from "react";
 import { api } from "../api.js";
@@ -11,6 +12,7 @@ import { can, useSession } from "../session.js";
 import { forgotten, listSaves, offlineSupported, pendingForgets } from "./store.js";
 import { removeAllFromDevice, removeFromDevice, resumeUnfinished, stopAccount } from "./saver.js";
 import { keepMissingShows } from "./shows.js";
+import { stopWants, tendWants } from "./wants.js";
 
 let syncing = null;
 
@@ -41,6 +43,7 @@ async function settle(session) {
   }
   await resumeUnfinished(sub);
   await keepMissingShows(sub);
+  if (can(session, "cinema:offline")) await tendWants();
 }
 
 async function forgetPending(sub) {
@@ -70,6 +73,7 @@ export function useOfflineSync(enabled) {
     return () => {
       stop();
       stopAccount(sub);
+      stopWants();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sub, watching]);

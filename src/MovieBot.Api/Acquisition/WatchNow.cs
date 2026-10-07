@@ -236,10 +236,16 @@ public sealed class WatchNow(
     }
 
     /// <summary>The best release at the quality asked for, at a digital source or better; a film's default is 1080p.</summary>
-    private async Task<Release?> PickAsync(WatchNowRequest request, CancellationToken ct)
+    private Task<Release?> PickAsync(WatchNowRequest request, CancellationToken ct) =>
+        BestReleaseAsync(request.ImdbId, request.Quality == "720p" ? Resolution.Hd720 : Resolution.Hd1080, ct);
+
+    /// <summary>
+    /// The best release of a film at <paramref name="wanted"/>, else the best at any resolution, from a
+    /// digital source up; null when the tracker offers none.
+    /// </summary>
+    internal async Task<Release?> BestReleaseAsync(string imdbId, Resolution wanted, CancellationToken ct)
     {
-        var ranked = await search.ByImdbAsync(request.ImdbId, ct);
-        var wanted = request.Quality == "720p" ? Resolution.Hd720 : Resolution.Hd1080;
+        var ranked = await search.ByImdbAsync(imdbId, ct);
         var digital = ranked.Candidates.Where(r => r.Source >= notify.Value.MinimumSource).ToList();
         return digital.FirstOrDefault(r => r.Resolution == wanted) ?? digital.FirstOrDefault();
     }
@@ -304,7 +310,7 @@ public sealed class WatchNow(
         library.List().FirstOrDefault(t => t.Kind != TitleKind.Show && t.Status != TitleStatus.Failed
             && string.Equals(t.Film?.ImdbId, imdbId, StringComparison.OrdinalIgnoreCase));
 
-    private static DownloadStatus? DownloadOf(IReadOnlyList<DownloadStatus> all, string imdbId) =>
+    internal static DownloadStatus? DownloadOf(IReadOnlyList<DownloadStatus> all, string imdbId) =>
         all.FirstOrDefault(d => d.Tags.Select(TorrentTags.ReadImdb)
             .Any(i => string.Equals(i, imdbId, StringComparison.OrdinalIgnoreCase)));
 

@@ -482,8 +482,10 @@ for (const path of ["/tv/tt0903747/season/3", "/discover?q=matrix", "/movies/the
     await page.getByRole("button", { name: "Sign out" }).waitFor({ timeout: 10000 });
     // The API refuses the session from here on, and the planted one has no refresh token to renew it.
     await page.route("**/api/**", (route) => route.fulfill({ status: 401, contentType: "application/json", body: "{}" }));
-    await page.locator(".nav-item", { hasText: "Discover" }).first().click();
     const card = page.locator(".kc-signin__card");
+    // A request the page was already making may be the one refused; otherwise moving on makes one.
+    await page.waitForTimeout(500);
+    if (!(await card.isVisible())) await page.locator(".nav-item", { hasText: "Discover" }).first().click();
     await card.waitFor({ timeout: 10000 });
     await page.waitForTimeout(1500);
     if (!(await card.textContent()).includes("Your session ended.")) problems.push(`says ${await card.textContent()}`);

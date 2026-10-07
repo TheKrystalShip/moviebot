@@ -124,6 +124,11 @@ export const api = {
   offlineSaves: () => call("GET", "/api/me/offline"),
   completeSave: (id) => call("POST", `/api/me/offline/${enc(id)}/complete`),
   forgetSave: (id) => call("DELETE", `/api/me/offline/${enc(id)}`),
+  // Download of what the library does not hold yet: fetched onto the server, then downloaded here
+  // (`offline/wants.js`).
+  wantOffline: (request) => call("POST", "/api/me/offline/wants", request),
+  offlineWants: () => call("GET", "/api/me/offline/wants"),
+  unwant: (id) => call("DELETE", `/api/me/offline/wants/${enc(id)}`),
 
   // Lists of films and shows to watch later. `later` names the signed-in person's own Watch later;
   // asked about a title, each list says whether it holds it.

@@ -26,5 +26,13 @@ public sealed class OfflineOptions
     /// </summary>
     public double MegabitsPerTransferWhileWatched { get; set; } = 20;
 
+    /// <summary>
+    /// How long a title asked for before the library held it is waited on. A season can take days to
+    /// arrive; a device that never came back for what it asked for is not waited on for ever.
+    /// </summary>
+    public double WantDays { get; set; } = 14;
+
     public TimeSpan Hold => TimeSpan.FromHours(HoldHours);
+
+    public TimeSpan WantFor => TimeSpan.FromDays(WantDays);
 }

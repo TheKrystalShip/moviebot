@@ -41,8 +41,8 @@ worker that writes a save names every file the way the page reads it. Nothing el
   "durationSeconds": 5340,
   "quality": { "rendition": "v1", "width": 1280, "height": 546, "label": "546p" },
   "files": [                         // every file the save holds, each written under its `name`
-    { "name": "v1.mp4", "role": "video", "rendition": "v1", "bytes": 1339012345 },
-    { "name": "a0.mp4", "role": "audio", "rendition": "a0", "language": "eng", "label": "English", "bytes": 163456789 },
+    { "name": "v1.mp4", "role": "video", "rendition": "v1", "bytes": 1339012345, "etag": "\"3f9a…-2697\"" },
+    { "name": "a0.mp4", "role": "audio", "rendition": "a0", "language": "eng", "label": "English", "bytes": 163456789, "etag": "\"…\"" },
     { "name": "s3.vtt", "role": "subtitle", "id": "s3", "language": "eng", "label": "English", "bytes": 81234 },
     { "name": "poster.jpg", "role": "poster", "type": "image/jpeg", "bytes": 81234 },
     { "name": "backdrop.jpg", "role": "backdrop", "type": "image/jpeg", "bytes": 234567 }
@@ -51,9 +51,14 @@ worker that writes a save names every file the way the page reads it. Nothing el
   "saveId": "5c0f3b2a9e7d4c18",      // the API's record (`package.save.id`)
   "startedAt": "2026-10-06T19:00:00Z",
   "completedAt": null,               // set by the saver once every file holds its `bytes`
+  "growing": false,                  // the package's: true while the server is still making the title
   "package": { }                     // the OfflinePackage POST /api/me/offline answered, whole
 }
 ```
+
+A track's `etag` is the validator the bytes on disk arrived under, which is what resumes them. Of a
+title still being made, a track's `bytes` are as far as the package says it has got, and the package
+is asked for again until it is no longer `growing`.
 
 The fields above `package` are what a page draws from, so nothing reading a save parses the package.
 `package` is kept whole for the player: the segment index (`tracks[].initBytes`, `segmentSeconds`,
@@ -119,7 +124,8 @@ A show's page drawn from here with no show kept shows its downloaded episodes al
 
 `saver.worker.js` writes through sync access handles, which exist only in a dedicated worker, using
 `saveDir(sub, titleId, { create: true })` for the directory. Its order is fixed, so a reader never
-meets a half-made save: the subtitles and artwork are fetched into memory first (they are small), so
+meets a half-made save: the subtitles and artwork are fetched into memory first (they are small, and
+one a former package of the save holds whole from the same address is kept), so
 `meta.json` is written first with `completedAt: null` and every file with its exact `bytes`; then each
 file under its listed `name`; then `meta.json` again with `completedAt` set. A subtitle's and an
 artwork's entry also carries the `url` it came from and whether it needs the bearer token (`auth`, the
@@ -128,13 +134,21 @@ by its role and the type it arrived as (`poster.jpg`); one that cannot be fetche
 listing. It posts `"changed"` on the `cinema-offline` channel after each write a reader should see,
 which reaches every page, the one that started the save among them.
 
-A track resumes from its length on disk, by `Range` with `If-Range` naming the package's `etag`. An
-answer that is not that range (a whole `200`, a `206` from elsewhere) or a `409` means the save is
-stale: the page asks for the package again as it was chosen, once, and the worker writes it as new,
-starting again every track whose `etag` changed and removing any file the new listing does not name.
-A `429` waits for `Retry-After`; a broken connection is retried three times, then the save waits for
-the connection to come back. Each request asks the page for the bearer token, so a transfer that
-outlives a token renews it.
+A track resumes from its length on disk, by `Range` with `If-Range` naming the file's `etag` (the
+package's for a save written before files carried one), and each answer's `ETag` becomes the file's.
+A whole `200` to a resume means the bytes on disk are of another encoding: they are dropped, and the
+save is stale, as is one answered a `206` from elsewhere or a `409`. The page asks for the package
+again as it was chosen, once, and the worker writes it as new, keeping each track's bytes under their
+own validator for the server to judge, every subtitle and artwork already whole from the same address,
+and removing any file the new listing does not name. A `429` waits for `Retry-After`; a broken
+connection is retried three times, then the save waits for the connection to come back. Each request
+asks the page for the bearer token, so a transfer that outlives a token renews it.
+
+A package that is `growing` is written a stretch at a time: each track is asked for up to its listed
+`bytes`, and the worker ends the run `growing` instead of setting `completedAt`. The page asks for the
+package again `GROW_MS` later and queues it, other saves running in between; the server answers the
+validator of a stretch its track still begins with as that track, so each stretch carries on from the
+last. A title that failed or left the library meanwhile fails the save.
 
 `saver.js` is the page's half: `startSave` (asks `navigator.storage.persist()`, refuses with `NoRoom`
 before anything is fetched when `estimate()` leaves too little, then posts the save and queues it),
@@ -172,6 +186,19 @@ picked audio language. `deviceName()` is what this device is called on the API's
 the system and a mark kept in localStorage, so saving a title again from here replaces this device's
 save and never another's.
 
+## Asking for what the library does not hold (`wants.js`)
+
+A film or episode the library does not hold whole is asked for at a quality alone
+(`askDownload({ imdbId, episodes, height })`, `POST /api/me/offline/wants`), and the server fetches
+and prepares it. This side keeps this device's wants as the API last listed them (`useWants`,
+`wantOf`, those whose `device` is `deviceName()`), asks again every `TEND_MS` while any is waiting,
+and starts the download of each one `ready` with `downloadAt(titleId, height)`: the widest rung no
+wider than the height at 16:9 (`rungFor`), or the default rung for none, with the default audio and
+subtitles. Saving the title lets the want go at the API; a title already saved here lets it go
+outright. A want this device could not start (no room, the title gone) is kept with why
+(`useRefused`) until it is asked for again. `tendWants` runs from `sync.js` and after every ask;
+`letGo(want)` stops waiting on one.
+
 ## Keeping in step with the API (`sync.js`)
 
 `useOfflineSync` (in `App.jsx`) runs `reconcile` when a page loads with a connection and whenever the
@@ -179,7 +206,8 @@ connection comes back. It forgets at the API the saves removed with no connectio
 removes from the device every save whose `saveId` the API no longer lists (one started after the list
 was asked for is left alone), removes every save of an account that no longer holds `cinema:watch`,
 tells the API of a save finished while it could not be told, resumes every unfinished save that is
-not paused, and keeps every show a saved episode belongs to that is not kept. A save with no `saveId`
+not paused, keeps every show a saved episode belongs to that is not kept, and asks after this
+device's wants for an account holding `cinema:offline`. A save with no `saveId`
 is not the API's to judge and is left as it is.
 
 ## Playing a saved film

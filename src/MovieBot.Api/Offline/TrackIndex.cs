@@ -13,8 +13,13 @@ namespace TheKrystalShip.MovieBot.Api.Offline;
 /// <param name="Sizes">Each of <paramref name="Files"/>' length.</param>
 /// <param name="Offsets">Where each of <paramref name="Files"/> begins in the track.</param>
 /// <param name="Seconds">Each segment's duration; one fewer than the files, the init segment having none.</param>
+/// <param name="Ended">
+/// Whether the playlist ends. A rendition still being encoded is a track that grows: its files are the
+/// ones listed so far, and the encoder only ever adds to them.
+/// </param>
 public sealed record TrackIndex(
-    string Rendition, IReadOnlyList<string> Files, long[] Sizes, long[] Offsets, double[] Seconds, long Length, string ETag)
+    string Rendition, IReadOnlyList<string> Files, long[] Sizes, long[] Offsets, double[] Seconds, long Length, string ETag,
+    bool Ended = true)
 {
     public long InitBytes => Sizes[0];
 
@@ -29,11 +34,33 @@ public sealed record TrackIndex(
     }
 
     /// <summary>
-    /// Reads a rendition's playlist and measures its files. Null when the playlist is missing, names a
-    /// file outside its directory or one that is not there, or does not end: a track is only ever a
-    /// whole rendition.
+    /// Whether <paramref name="validator"/>, an <see cref="ETag"/> this track or an earlier stretch of it
+    /// answered, names bytes this track still begins with: its first files under the same names and
+    /// lengths. A segment is never rewritten under its own name, so those are the same bytes, and a
+    /// device holding a stretch of a growing track resumes it as the track grows.
     /// </summary>
-    public static TrackIndex? Read(string renditionDirectory, string rendition, string playlist)
+    public bool Continues(string? validator)
+    {
+        if (string.IsNullOrEmpty(validator)) return false;
+        if (validator == ETag) return true;
+
+        var body = validator.Trim('"');
+        var dash = body.LastIndexOf('-');
+        if (dash < 0)
+            // A validator naming no count names every file, as a finished track's always did.
+            return validator == $"\"{Hash(Files, Sizes, Files.Count)}\"";
+        return int.TryParse(body[(dash + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out var count)
+            && count > 0 && count <= Files.Count
+            && body[..dash] == Hash(Files, Sizes, count);
+    }
+
+    /// <summary>
+    /// Reads a rendition's playlist and measures its files. Null when the playlist is missing, names a
+    /// file outside its directory or one that is not there, or does not end and <paramref name="growing"/>
+    /// is false: a finished title's track is only ever a whole rendition. A growing track needs its init
+    /// segment and nothing more.
+    /// </summary>
+    public static TrackIndex? Read(string renditionDirectory, string rendition, string playlist, bool growing = false)
     {
         string? init = null;
         var names = new List<string>();
@@ -73,7 +100,8 @@ public sealed record TrackIndex(
             }
         }
 
-        if (!ended || init is null || names.Count == 0) return null;
+        if (init is null) return null;
+        if (ended ? names.Count == 0 : !growing) return null;
 
         var files = new List<string>(names.Count + 1) { init };
         files.AddRange(names);
@@ -91,21 +119,23 @@ public sealed record TrackIndex(
             length += info.Length;
         }
 
-        return new TrackIndex(rendition, files, sizes, offsets, [.. seconds], length, ETagOf(files, sizes));
+        return new TrackIndex(rendition, files, sizes, offsets, [.. seconds], length,
+            $"\"{Hash(files, sizes, files.Count)}-{files.Count.ToString(CultureInfo.InvariantCulture)}\"", ended);
     }
 
     /// <summary>
-    /// A strong validator from every file's name and length. A segment is never rewritten under its
-    /// own name, so the same names and lengths are the same bytes, and a rendition encoded again
-    /// writes its segments under other names.
+    /// What a strong validator is made of: the name and length of each of the first
+    /// <paramref name="count"/> files, which the validator also carries. A segment is never rewritten
+    /// under its own name, so the same names and lengths are the same bytes, and a rendition encoded
+    /// again writes its segments under other names.
     /// </summary>
-    private static string ETagOf(IReadOnlyList<string> files, long[] sizes)
+    private static string Hash(IReadOnlyList<string> files, long[] sizes, int count)
     {
         var text = new StringBuilder();
-        for (var i = 0; i < files.Count; i++)
+        for (var i = 0; i < count; i++)
             text.Append(files[i]).Append(':').Append(sizes[i].ToString(CultureInfo.InvariantCulture)).Append('\n');
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString()));
-        return $"\"{Convert.ToHexStringLower(hash.AsSpan(0, 16))}\"";
+        return Convert.ToHexStringLower(hash.AsSpan(0, 16));
     }
 
     private static string? QuotedUri(string line)
@@ -141,9 +171,10 @@ public sealed class TrackIndexes
     /// <summary>
     /// The track whose playlist is <paramref name="uri"/> under a title's directory, as the manifest
     /// names it (<c>v1/index.m3u8</c>): the rendition is the directory, which holds every file the
-    /// playlist lists. Null when it is not a whole rendition.
+    /// playlist lists. Null when it is not a whole rendition, or with <paramref name="growing"/> one
+    /// with its init segment written.
     /// </summary>
-    public TrackIndex? Of(string titleDirectory, string uri)
+    public TrackIndex? Of(string titleDirectory, string uri, bool growing = false)
     {
         var slash = uri.IndexOf('/');
         if (slash <= 0 || uri.IndexOf('/', slash + 1) >= 0) return null;
@@ -154,12 +185,12 @@ public sealed class TrackIndexes
 
         if (_kept.TryGetValue(playlist.FullName, out var known)
             && known.PlaylistWrite == playlist.LastWriteTimeUtc && known.PlaylistLength == playlist.Length)
-            return known.Index;
+            return known.Index.Ended || growing ? known.Index : null;
 
         TrackIndex? index;
         try
         {
-            index = TrackIndex.Read(directory, rendition, File.ReadAllText(playlist.FullName));
+            index = TrackIndex.Read(directory, rendition, File.ReadAllText(playlist.FullName), growing);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

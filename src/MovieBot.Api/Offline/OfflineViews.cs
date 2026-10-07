@@ -14,9 +14,12 @@ public sealed record OfflineSubtitle(
     string Id, TrackKind Kind, string Language, string Label, bool HearingImpaired, bool Forced, long Bytes,
     string? Url = null);
 
-/// <summary>What <c>GET /api/titles/{id}/offline</c> answers: everything the title can be saved as.</summary>
+/// <summary>
+/// What <c>GET /api/titles/{id}/offline</c> answers: everything the title can be saved as. A title still
+/// being made is <c>Growing</c>, and each size is what is on disk of it so far.
+/// </summary>
 public sealed record OfflineOffer(
-    string TitleId, List<OfflineRung> Rungs, List<OfflineAudio> Audio, List<OfflineSubtitle> Subtitles);
+    string TitleId, List<OfflineRung> Rungs, List<OfflineAudio> Audio, List<OfflineSubtitle> Subtitles, bool Growing);
 
 /// <summary>What a device asks to save.</summary>
 public sealed record OfflineSaveRequest(
@@ -41,10 +44,58 @@ public sealed record OfflineEpisode(int Season, int Number, string? Name, string
 /// <summary>The artwork a saved title is shown with, each at an open address.</summary>
 public sealed record OfflineArtwork(string? Poster, string? Backdrop, string? Still, string? Thumbnails);
 
-/// <summary>What <c>POST /api/me/offline</c> answers: everything the device fetches and keeps.</summary>
+/// <summary>
+/// What <c>POST /api/me/offline</c> answers: everything the device fetches and keeps. A title still being
+/// made is <c>Growing</c>: its tracks are what is on disk so far, and the device asks again for more.
+/// </summary>
 public sealed record OfflinePackage(
     OfflineSave Save, Manifest Manifest, long Bytes, List<OfflineTrack> Tracks, List<OfflineSubtitle> Subtitles,
-    Films.FilmFacts? Details, OfflineEpisode? Episode, OfflineArtwork Artwork);
+    Films.FilmFacts? Details, OfflineEpisode? Episode, OfflineArtwork Artwork, bool Growing);
+
+/// <summary>
+/// What a device asks to download before the library holds it: a film by its IMDb id, or a show's
+/// episodes by the show's. <c>Height</c> is the picture height to download at, absent for the device's own.
+/// </summary>
+public sealed record OfflineWantRequest(string? ImdbId, List<EpisodePick>? Episodes, int? Height, string? Device);
+
+/// <summary>
+/// A want as the person reads it back, with where it stands (<see cref="WantStages"/>): <c>Progress</c>
+/// is how much of it the server has, from 0 to 1, while it is downloading there; <c>TitleId</c> is the
+/// library's title once the device can download it.
+/// </summary>
+public sealed record OfflineWant(
+    string Id, string ImdbId, EpisodePick? Episode, string Device, int? Height, DateTimeOffset CreatedAt,
+    string Stage, double? Progress, string? Problem, string? Refusal, string? TitleId);
+
+/// <summary>Where a want stands, and why one that failed did.</summary>
+public static class WantStages
+{
+    /// <summary>A release is being picked for it.</summary>
+    public const string Finding = "finding";
+
+    /// <summary>Its download is arriving on the server.</summary>
+    public const string Downloading = "downloading";
+
+    /// <summary>It has arrived and is being made into something a device can download.</summary>
+    public const string Preparing = "preparing";
+
+    /// <summary>The library holds it; the device downloads <c>TitleId</c>.</summary>
+    public const string Ready = "ready";
+
+    public const string Failed = "failed";
+
+    /// <summary>The tracker offers nothing it could be fetched from.</summary>
+    public const string NotOffered = "notOffered";
+
+    /// <summary>The disk budget or the tracker turned the download down; <c>Refusal</c> says why.</summary>
+    public const string Refused = "refused";
+
+    /// <summary>The tracker or the torrent client could not be reached, or the download has gone.</summary>
+    public const string Unavailable = "unavailable";
+
+    /// <summary>It arrived and could not be made watchable.</summary>
+    public const string NotWatchable = "notWatchable";
+}
 
 /// <summary>One stretch watched on a device with no connection.</summary>
 public sealed record OfflineProgress(string? TitleId, double PositionSeconds, DateTimeOffset WatchedAt);

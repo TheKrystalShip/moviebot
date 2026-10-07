@@ -5,17 +5,20 @@ import { useOnline } from "../connectivity.js";
 import { useCan } from "../session.js";
 import { wishWords } from "../pages/Discover.jsx";
 import { defaultOffer, watchNow } from "../watchNow.js";
+import { DownloadButton, useOffersSaving } from "./DownloadButton.jsx";
 import { SaveButton } from "./SaveButton.jsx";
 
 /**
  * What can be done with a film that has to be fetched, from what its availability says: Watch when it
- * can be fetched or is already being prepared, with how far the preparing has got, Notify when it is
- * not out digitally yet, and Save. `state` is the `useLoad` of `api.availability`, which the caller
- * asks for and can reload; `film` is `{title, year}`.
+ * can be fetched or is already being prepared, with how far the preparing has got, Download onto this
+ * device the same way, Notify when it is not out digitally yet, and Save. `state` is the `useLoad` of
+ * `api.availability`, which the caller asks for and can reload; `film` is the film as `api.film`
+ * describes it.
  */
 export function FilmActions({ imdbId, film, state }) {
   const downloading = useCan("cinema:download");
   const wishing = useCan("cinema:wish");
+  const saving = useOffersSaving();
   const online = useOnline();
   const [working, setBusy] = React.useState(false);
   const busy = working || !online;
@@ -79,6 +82,12 @@ export function FilmActions({ imdbId, film, state }) {
           disabled={busy} onClick={watch}>
           Watch
         </Button>
+      )}
+      {a && downloading && saving && (arriving || offer) && (
+        <DownloadButton imdbId={imdbId} head={{
+          name: film.title, context: film.year || null, runtime: film.runtimeMinutes ? `${film.runtimeMinutes} min` : null,
+          still: film.posterUrl, portrait: true, backdrop: film.backdropUrl || film.posterUrl,
+        }} />
       )}
       {arriving && <span className="kc-pill kc-pill--info">preparing · {Math.floor(arriving.progress * 100)}%</span>}
 

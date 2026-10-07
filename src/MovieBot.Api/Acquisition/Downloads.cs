@@ -26,8 +26,12 @@ public sealed class Downloads(
     /// The site room waiting to watch it, for Watch now, which loads it there once it can be opened.
     /// </param>
     /// <param name="watchEpisode">For a show's release, the episode of it the room waits on.</param>
+    /// <param name="tell">
+    /// Whether whoever asked is told once it can be watched. A download onto a device is not: the device
+    /// is what they wait on, and it says when it has the film.
+    /// </param>
     public async Task<StartDownloadReply> StartAsync(StartDownloadRequest request, Actor? asker, CancellationToken ct,
-        string? watchRoom = null, EpisodeNumber? watchEpisode = null)
+        string? watchRoom = null, EpisodeNumber? watchEpisode = null, bool tell = true)
     {
         if (offered.Resolve(request.TorrentId) is not { } release)
             return new StartDownloadReply { Outcome = "noLongerOffered" };
@@ -44,7 +48,7 @@ public sealed class Downloads(
                 tags.Add(TorrentTags.Requester(asker.UserId));
                 // An episode watched now is not news: its season's torrent may be watchable already
                 // for another episode, and the room the person is in shows the one they pressed.
-                if (watchEpisode is null) tags.Add(TorrentTags.Tell);
+                if (watchEpisode is null && tell) tags.Add(TorrentTags.Tell);
             }
             if (watchRoom is not null) tags.Add(TorrentTags.Watch(watchRoom, watchEpisode));
 

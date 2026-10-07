@@ -1,7 +1,8 @@
 # Save offline (`Offline/`)
 
-A person copies a film onto their device and plays it there alone. The wire is
-`docs/api-contract.md`, "Save offline"; these are the rules it rests on.
+A person copies a film onto their device and plays it there alone, whether the library holds it
+whole, is still making it, or has yet to fetch it. The wire is `docs/api-contract.md`, "Save
+offline"; these are the rules it rests on.
 
 - **A track is the files already on disk, joined.** `TrackIndex` reads a rendition's playlist for
   its init segment and its segments in order and measures each file; `TrackResult` writes them out
@@ -14,9 +15,16 @@ A person copies a film onto their device and plays it there alone. The wire is
 - **A track is measured once.** `TrackIndexes` keeps each one keyed by its playlist's path, length and
   write time: measuring is a stat of thousands of segments on a disk that may be a platter, and a
   resumed transfer asks for the same track again. A rendition encoded again rewrites its playlist.
-- **A resume never joins two films.** The track's strong `ETag` hashes every file's name and length,
-  a segment is never rewritten under its own name, and a `Range` whose `If-Range` names another
-  `ETag` is answered with the whole track.
+- **A resume never joins two films.** The track's strong `ETag` hashes every file's name and length
+  and carries how many files that is, a segment is never rewritten under its own name, and a `Range`
+  whose `If-Range` names another `ETag` is answered with the whole track. `TrackIndex.Continues`
+  accepts a validator whose count of files hashes the same over this track's first files: the bytes
+  that validator stood for are how this track begins.
+- **A title still being made is saved as it grows.** The encoder only ever adds a segment to a
+  playlist once it is whole, so a playlist not yet ended is a track as far as it has got: the offer,
+  the package and the track route read it so (`growing`), and a device holding a stretch of it
+  resumes by the validator that stretch arrived under. A finished title's track is only ever its
+  whole rendition. A title that failed is not saved.
 - **A title moving between disks under a transfer is followed.** A file not where the transfer found
   the title is looked for in the title's directory as it is now; both copies are whole while they
   overlap, so the bytes are the same.
@@ -40,6 +48,18 @@ A person copies a film onto their device and plays it there alone. The wire is
 - **The records are the person's own.** Listing, completing and forgetting a save take the self
   actions, so a device can still learn its saves are gone from an account that may no longer save.
   Forgetting a save that is not there is the same end state and answers `204`.
+- **A title the library does not hold is wanted, then saved** (`OfflineWanting`). A want names a
+  film, or an episode by its show and place, a device and a height, and sits beside the saves in
+  `offline.json`. Asking records it and answers at once; the release is picked and the download
+  started after the answer, as Watch now does, a film's at 1080p and a season's episodes out of its
+  pack at 720p, one download per release, and a film already arriving is waited on rather than
+  fetched again. Fetching spends the disk and the tracker, so asking takes `cinema:download` as well
+  as `cinema:offline`, and nobody is told the download can be watched, because the device is what the
+  person waits on. Where a want stands is read from the library and the torrent client each time it
+  is asked and never kept, so a restart loses nothing. The device saves the title once it is ready,
+  which lets the device's wants for it go; a want also goes when the person lets it go, and is not
+  waited on past `Offline:WantDays`. A want holds nothing: the download is the library's like any
+  other.
 - **Progress from a device is recorded where it is newer** (`WatchRecord.RecordIfNewer`): the
   person's entry and the film's last play each move only forward, a `watchedAt` ahead of the server's
   clock is taken as now, and a title the library no longer holds is skipped, as a room's stretch is.

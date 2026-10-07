@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Offline;
 
@@ -26,10 +27,48 @@ public sealed record StoredSave
     public DateTimeOffset? CompletedAt { get; init; }
 }
 
-/// <summary>Everything the saves keep: each person's, by account.</summary>
+/// <summary>
+/// A film or an episode a person asked to download onto a device before the library could give it to
+/// them, as it is kept. The device downloads it once the library holds it, and the want goes then.
+/// </summary>
+public sealed record StoredWant
+{
+    public required string Id { get; init; }
+
+    /// <summary>The film's IMDb id, or an episode's show's.</summary>
+    public required string ImdbId { get; init; }
+
+    /// <summary>The episode; absent for a film.</summary>
+    public EpisodePick? Episode { get; init; }
+
+    /// <summary>The name the device goes by, as it gave it.</summary>
+    public required string Device { get; init; }
+
+    /// <summary>The picture height the device downloads it at; absent for the device's own pick.</summary>
+    public int? Height { get; init; }
+
+    public required DateTimeOffset CreatedAt { get; init; }
+
+    /// <summary>The download fetching it, once one was started or found.</summary>
+    public string? Hash { get; init; }
+
+    /// <summary>Why nothing could be started for it (<see cref="WantStages"/>' problems); absent otherwise.</summary>
+    public string? Problem { get; init; }
+
+    /// <summary>The disk budget's or the tracker's words, for a download refused.</summary>
+    public string? Refusal { get; init; }
+
+    /// <summary>Whether this is the film or episode <paramref name="imdbId"/> and <paramref name="episode"/> name.</summary>
+    public bool Is(string? imdbId, EpisodePick? episode) =>
+        string.Equals(ImdbId, imdbId, StringComparison.OrdinalIgnoreCase) && Episode == episode;
+}
+
+/// <summary>Everything the saves keep: each person's saves and wants, by account.</summary>
 public sealed record OfflineData
 {
     public Dictionary<string, List<StoredSave>> People { get; init; } = [];
+
+    public Dictionary<string, List<StoredWant>> Wants { get; init; } = [];
 }
 
 [JsonSourceGenerationOptions(
@@ -54,6 +93,11 @@ public interface ISaveHolds
 /// would leave the device holding half of one film and half of another. The hold ends when the device
 /// says it has every byte, when the save is forgotten, or <see cref="OfflineOptions.HoldHours"/> after
 /// the save was made, so a device that walked away mid-save holds nothing for long.
+///
+/// Beside the saves are the wants: what a person asked a device to download before the library held
+/// it. A want holds nothing; it is what the device waits on, and it goes when the device saves the
+/// title it became, when the person lets it go, or <see cref="OfflineOptions.WantDays"/> after it was
+/// asked for.
 /// </summary>
 public sealed class OfflineSaves : ISaveHolds
 {
@@ -155,13 +199,106 @@ public sealed class OfflineSaves : ISaveHolds
                 .ToHashSet(StringComparer.Ordinal);
     }
 
+    /// <summary>A person's wants not yet past <see cref="OfflineOptions.WantDays"/>, the oldest first.</summary>
+    public List<StoredWant> WantsOf(string userId, DateTimeOffset now)
+    {
+        var since = now - _options.CurrentValue.WantFor;
+        lock (_gate)
+            return [.. (_data.Wants.GetValueOrDefault(userId) ?? []).Where(w => w.CreatedAt > since).OrderBy(w => w.CreatedAt)];
+    }
+
+    /// <summary>
+    /// Records a want for each of <paramref name="episodes"/> of a show, or for the film when there are
+    /// none. Asking again for one the device already wants keeps it, with the height asked now; one that
+    /// could not be fetched is asked for afresh. Answers the wants, in the order asked.
+    /// </summary>
+    public List<StoredWant> Want(string userId, string imdbId, IReadOnlyList<EpisodePick>? episodes, string device,
+        int? height, DateTimeOffset now)
+    {
+        lock (_gate)
+        {
+            var since = now - _options.CurrentValue.WantFor;
+            var mine = (_data.Wants.GetValueOrDefault(userId) ?? []).Where(w => w.CreatedAt > since).ToList();
+            var asked = new List<StoredWant>();
+            var each = episodes is { Count: > 0 } picked
+                ? picked.Distinct().Select(e => (EpisodePick?)e).ToList()
+                : new List<EpisodePick?> { null };
+            foreach (var episode in each)
+            {
+                var existing = mine.FirstOrDefault(w => w.Device == device && w.Is(imdbId, episode));
+                var want = existing is { Problem: null }
+                    ? existing with { Height = height }
+                    : new StoredWant
+                    {
+                        Id = existing?.Id ?? NewId(), ImdbId = imdbId, Episode = episode, Device = device, Height = height,
+                        CreatedAt = now,
+                    };
+                mine = [.. mine.Where(w => w.Id != want.Id), want];
+                asked.Add(want);
+            }
+
+            CommitWants(userId, mine);
+            return asked;
+        }
+    }
+
+    /// <summary>
+    /// Records what fetching a want came to: the download fetching it, or the problem that stopped one
+    /// being started. A want let go of meanwhile stays gone.
+    /// </summary>
+    public void Fetched(string userId, string id, string? hash, string? problem = null, string? refusal = null)
+    {
+        lock (_gate)
+        {
+            var mine = _data.Wants.GetValueOrDefault(userId) ?? [];
+            if (!mine.Any(w => w.Id == id)) return;
+            CommitWants(userId, [.. mine.Select(w => w.Id == id ? w with { Hash = hash, Problem = problem, Refusal = refusal } : w)]);
+        }
+    }
+
+    /// <summary>Lets a want go. False when the person had none by that id.</summary>
+    public bool Unwant(string userId, string id)
+    {
+        lock (_gate)
+        {
+            var mine = _data.Wants.GetValueOrDefault(userId) ?? [];
+            if (!mine.Any(w => w.Id == id)) return false;
+            CommitWants(userId, [.. mine.Where(w => w.Id != id)]);
+            return true;
+        }
+    }
+
+    /// <summary>Lets go of the device's wants for a title it has just saved: it has what it waited on.</summary>
+    public void Fulfilled(string userId, string device, string? imdbId, EpisodePick? episode)
+    {
+        lock (_gate)
+        {
+            var mine = _data.Wants.GetValueOrDefault(userId) ?? [];
+            if (!mine.Any(w => w.Device == device && w.Is(imdbId, episode))) return;
+            CommitWants(userId, [.. mine.Where(w => !(w.Device == device && w.Is(imdbId, episode)))]);
+        }
+    }
+
     /// <summary>Called with the gate held.</summary>
     private void Commit(string userId, List<StoredSave> saves)
     {
         var people = new Dictionary<string, List<StoredSave>>(_data.People);
         if (saves.Count == 0) people.Remove(userId); else people[userId] = saves;
-        _data = _data with { People = people };
+        Write(_data with { People = people });
+    }
 
+    /// <summary>Called with the gate held.</summary>
+    private void CommitWants(string userId, List<StoredWant> wants)
+    {
+        var all = new Dictionary<string, List<StoredWant>>(_data.Wants);
+        if (wants.Count == 0) all.Remove(userId); else all[userId] = wants;
+        Write(_data with { Wants = all });
+    }
+
+    /// <summary>Called with the gate held.</summary>
+    private void Write(OfflineData data)
+    {
+        _data = data;
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
