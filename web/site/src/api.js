@@ -11,6 +11,7 @@
 
 import { answeredByServer, reached, unreached } from "./connectivity.js";
 import { keepPreferences } from "./offline/preferences.js";
+import { keepProgress } from "./offline/progress.js";
 import { forget, freshToken, sessionStore } from "./session.js";
 
 export class ApiError extends Error {
@@ -65,6 +66,13 @@ function kept(preferences) {
   return preferences;
 }
 
+/** Keeps where the signed-in person got to as the API answered it, and answers it. */
+function keptPosition(entries) {
+  const session = sessionStore.getState();
+  if (session) keepProgress(session.user.id, entries);
+  return entries;
+}
+
 export const api = {
   titles: () => call("GET", "/api/titles"),
   title: (id) => call("GET", `/api/titles/${enc(id)}`),
@@ -97,7 +105,8 @@ export const api = {
   }),
 
   // What the signed-in person has watched, and how they watch.
-  progress: () => call("GET", "/api/me/progress"),
+  // Kept on the device for the account, which Home reads with no connection (`offline/progress.js`).
+  progress: () => call("GET", "/api/me/progress").then(keptPosition),
   // Where films played from the device got to, sent once there is a connection (`offline/progress.js`).
   sendProgress: (entries) => call("POST", "/api/me/progress", entries),
   history: () => call("GET", "/api/me/history"),

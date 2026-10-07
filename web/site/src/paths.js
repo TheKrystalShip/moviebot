@@ -5,10 +5,7 @@
 const seg = encodeURIComponent;
 
 /** The tabs of the profile, in the order they are shown; the first is the page's own address. */
-export const PROFILE_TABS = ["history", "offline", "requests", "following", "notifications", "playback", "subtitles", "appearance", "account"];
-
-/** The profile's tabs drawn from the device, which are all it shows with no connection. */
-export const DEVICE_TABS = ["offline", "playback", "subtitles", "appearance", "account"];
+export const PROFILE_TABS = ["history", "requests", "following", "notifications", "playback", "subtitles", "appearance", "account"];
 
 export const homePath = "/";
 export const savedPath = "/saved";

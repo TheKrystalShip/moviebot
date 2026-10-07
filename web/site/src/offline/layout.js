@@ -4,9 +4,12 @@
 //
 //   /<account>/<title>/meta.json        what was saved, from the package the API answered
 //   /<account>/<title>/<file name>      each track, subtitle and artwork file meta.json lists
+//   /<account>/.shows/<show>/show.json  a show any saved episode belongs to, as the API described it
+//   /<account>/.shows/<show>/<name>     its poster, backdrop and episode stills, which show.json lists
 //
-// `<account>` is the provider's `sub` and `<title>` the title's id, each encoded so any string makes a
-// legal name. Nothing else is kept at the root.
+// `<account>` is the provider's `sub`, `<title>` the title's id and `<show>` the show's IMDb id, each
+// encoded so any string makes a legal name; an encoded name never holds a bare `.`, so `.shows` is no
+// title's. Nothing else is kept at the root.
 
 /** The file every save's directory holds, written last by the saver and read first by the page. */
 export const META = "meta.json";
@@ -28,7 +31,10 @@ export const accountDirName = name;
 /** The directory name a title's save is kept under. */
 export const titleDirName = name;
 
-/** The title id a save's directory name stands for. */
+/** The directory name a kept show is kept under. */
+export const showDirName = name;
+
+/** The title id a save's directory name stands for, and the IMDb id a kept show's does. */
 export const titleIdOf = unname;
 
 /** The origin's private root: the same directory from the page and from a worker. */
@@ -52,6 +58,25 @@ export async function saveDir(sub, titleId, { create = false } = {}) {
   if (!account) return null;
   try {
     return await account.getDirectoryHandle(titleDirName(titleId), { create });
+  } catch (error) {
+    if (!create && error && error.name === "NotFoundError") return null;
+    throw error;
+  }
+}
+
+/** The file a kept show's directory holds, written after its artwork. */
+export const SHOW_META = "show.json";
+
+/** The directory under an account's that holds its kept shows. */
+export const SHOWS = ".shows";
+
+/** A kept show's directory under an account's, or null when there is none and `create` is not asked for. */
+export async function showDir(sub, imdbId, { create = false } = {}) {
+  const account = await accountDir(sub, { create });
+  if (!account) return null;
+  try {
+    const shows = await account.getDirectoryHandle(SHOWS, { create });
+    return await shows.getDirectoryHandle(showDirName(imdbId), { create });
   } catch (error) {
     if (!create && error && error.name === "NotFoundError") return null;
     throw error;

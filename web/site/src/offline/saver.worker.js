@@ -95,7 +95,7 @@ async function save(sub, titleId, fresh, signal) {
     meta = await begin(dir, fresh, before, signal);
   } else {
     meta = await readMeta(dir);
-    if (!meta) throw new Ended("failed", { message: "This save is not on the device." });
+    if (!meta) throw new Ended("failed", { message: "This download is not on the device." });
   }
   if (meta.completedAt) return;
 
@@ -174,7 +174,7 @@ async function small(dir, meta, file, progress, signal) {
 /** One track, from the length on disk to its end. */
 async function track(dir, meta, file, progress, signal) {
   const source = trackOf(meta, file);
-  if (!source) throw new Ended("failed", { message: "The save lists a track its package does not hold." });
+  if (!source) throw new Ended("failed", { message: "The download lists a track its package does not hold." });
   const handle = await (await dir.getFileHandle(file.name, { create: true })).createSyncAccessHandle();
   try {
     let at = handle.getSize();

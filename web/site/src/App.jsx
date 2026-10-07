@@ -11,10 +11,9 @@ import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { PLACES } from "./nav.js";
 import { OFFLINE_FLAG, discoverPath, homePath, libraryPath, moviePath, profilePath } from "./paths.js";
 import { useOnline } from "./connectivity.js";
-import { offlineSupported } from "./offline/store.js";
 import { sendProgress } from "./offline/progress.js";
 import { useOfflineSync } from "./offline/sync.js";
-import { FirstSignIn, NeedsConnection, OfflineBanner, OfflineHome, SavedShow, SavedTitle } from "./pages/Offline.jsx";
+import { FirstSignIn, Off, Unreachable } from "./pages/Offline.jsx";
 import { SignOutDialog } from "./components/SignOutDialog.jsx";
 import { Home } from "./pages/Home.jsx";
 import { Library } from "./pages/Library.jsx";
@@ -44,7 +43,7 @@ const UNANSWERED = "The sign-in service is not answering. Try again in a moment.
 const ENDED = "Your session ended.";
 
 const place = (id) => ({ id, ...PLACES[id] });
-const HOME = ["home", "discover", "saved", ...(offlineSupported() && !onTv ? ["offline"] : [])].map(place);
+const HOME = ["home", "discover", "saved"].map(place);
 const LIBRARY = ["movies", "tv"].map(place);
 const WAITING = ["notify"].map(place);
 
@@ -74,12 +73,9 @@ const LIT = {
   list: { item: "saved", tab: "me" },
 };
 
-// What still works with no connection: Home, drawn from the device, and the profile, which leads to
-// the films saved on it. Every other place is drawn disabled.
-const REACHABLE_OFFLINE = new Set(["home", "offline", "me"]);
-
-/** What a route lights; the profile's Offline tab has a sidebar item of its own. */
-const litFor = (route) => (route.view === "profile" && route.tab === "offline" ? { item: "offline", tab: "me" } : LIT[route.view] || {});
+// The places that need the server, drawn disabled with no connection. Every other place draws what the
+// device holds.
+const NEEDS_SERVER = new Set(["discover", "saved", "notify", "assistant"]);
 
 /**
  * Krystal Cinema: the shelf, the films on their way and on their way out, and the assistant. Every page
@@ -150,7 +146,7 @@ export function App() {
   if (!can(session, "cinema:watch")) return <><NoAccess onSignOut={leave} /><SignOutDialog /></>;
   // A room fills the screen: the film is the page, and the way out is its back button. A saved film
   // played from the device (`?offline=1`) is the player's alone; a room opened with no connection
-  // shows that it needs one.
+  // says it is out of reach.
   const fromDevice = route.query.get(OFFLINE_FLAG) === "1";
   if (route.view === "room" && (online || fromDevice || opened.current.has(route.arg))) {
     if (!fromDevice) opened.current.add(route.arg);
@@ -179,21 +175,17 @@ function Frame({ session, route }) {
     if (mainRef.current) mainRef.current.scrollTop = 0;
   }, []);
 
-  const lit = litFor(route);
+  const lit = LIT[route.view] || {};
   const go = (path) => navigate(path);
-  const item = (n) => (online || REACHABLE_OFFLINE.has(n.id)
+  const item = (n) => (online || !NEEDS_SERVER.has(n.id)
     ? <NavItem key={n.id} icon={n.icon} label={n.label} active={lit.item === n.id} onClick={() => go(n.path)} />
-    : (
-      <div key={n.id} className="kc-nav-off" inert="" aria-disabled="true">
-        <NavItem icon={n.icon} label={n.label} active={lit.item === n.id} />
-      </div>
-    ));
-  useOfflineTabs(!online, TABS.map((t) => !REACHABLE_OFFLINE.has(t.id)));
+    : <Off key={n.id}><NavItem icon={n.icon} label={n.label} /></Off>);
+  useOfflineTabs(!online, TABS.map((t) => NEEDS_SERVER.has(t.id)));
   // A tab leaves the dock for its page. The tab of the page already open takes it back to its top.
   const tab = (t) => t.path
     ? {
       id: t.id, icon: t.icon, label: t.label,
-      active: !dock.open && lit.tab === t.id,
+      active: !dock.open && lit.tab === t.id && (online || !NEEDS_SERVER.has(t.id)),
       onClick: () => {
         dock.setOpen(false);
         if (route.path === t.path && mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
@@ -219,7 +211,7 @@ function Frame({ session, route }) {
             onToggleCollapse={() => setCollapsed((c) => !c)}
             closeNav
             foot={<>
-              <BellNavItem />
+              {online ? <BellNavItem /> : <Off><BellNavItem /></Off>}
               <SidebarAccount
                 user={session.user}
                 sub={session.user.username ? "@" + session.user.username : null}
@@ -237,12 +229,13 @@ function Frame({ session, route }) {
         }
         aside={<>
           <Dock dock={dock}>
-            {dock.open && <CinemaAssistant session={session} docked dock={dock} onClose={() => dock.setOpen(false)} />}
+            {dock.open && (online
+              ? <CinemaAssistant session={session} docked dock={dock} onClose={() => dock.setOpen(false)} />
+              : <Unreachable place="assistant" onClose={() => dock.setOpen(false)} />)}
           </Dock>
           {!dock.open && online && <DockFab onClick={() => dock.setOpen(true)} />}
         </>}
         tabBar={<TabBar items={TABS.map(tab)} />}>
-        {!online && <OfflineBanner />}
         <PageStage route={route} render={(r) => <Reachable route={r} />} above={(r) => <Trail route={r} />} onShown={toTop} />
         <SiteFooter />
       </AppShell>
@@ -269,10 +262,10 @@ function useOfflineTabs(offline, needsServer) {
 }
 
 /**
- * A page as the connection allows when it was opened. Opened with no connection it is drawn from the
- * device (`DevicePage`), and drawn again from the server once the connection is back. Opened with one,
- * it stays as it is when the connection goes: what it shows stands, and its controls that ask the
- * server are disabled where they are drawn.
+ * A page as the connection allows when it was opened. Opened with no connection it is the same page
+ * drawn from the device (`fromDevice`), and drawn again from the server once the connection is back.
+ * Opened with one, it stays as it is when the connection goes: what it shows stands, and its controls
+ * that ask the server are disabled where they are drawn.
  */
 function Reachable({ route }) {
   const online = useOnline();
@@ -280,22 +273,7 @@ function Reachable({ route }) {
   React.useEffect(() => {
     if (online && fromDevice) setFromDevice(false);
   }, [online, fromDevice]);
-  return fromDevice ? <DevicePage route={route} /> : <Page route={route} />;
-}
-
-/** A page drawn with no connection: from the device's own store, or saying it needs a connection. */
-function DevicePage({ route }) {
-  switch (route.view) {
-    case "home": return <OfflineHome />;
-    case "movie": return <SavedTitle key={route.arg} titleId={route.arg} />;
-    case "show":
-    case "discover-show":
-      return <SavedShow key={route.arg} imdbId={route.arg} />;
-    case "profile": return <Profile tab={route.tab} fromDevice />;
-    case "about": return <About />;
-    case "notfound": return <NotFound />;
-    default: return <NeedsConnection />;
-  }
+  return <Page key={fromDevice ? "device" : "server"} route={route} fromDevice={fromDevice} />;
 }
 
 /**
@@ -339,22 +317,32 @@ function useDiscoverKey(onDiscover) {
   }, [onDiscover]);
 }
 
-function Page({ route }) {
+/**
+ * The page a route names. `fromDevice` is the page opened with no connection: the pages the device can
+ * draw are drawn from it, Discover says it is out of reach, and so does every page only the server
+ * can give.
+ */
+function Page({ route, fromDevice }) {
   switch (route.view) {
-    case "home": return <Home />;
-    case "movies": return <Library key="film" kind="film" />;
-    case "tv": return <Library key="show" kind="show" />;
-    case "movie": return <Title key={route.arg} id={route.arg} />;
+    case "home": return <Home fromDevice={fromDevice} />;
+    case "movies": return <Library key="film" kind="film" fromDevice={fromDevice} />;
+    case "tv": return <Library key="show" kind="show" fromDevice={fromDevice} />;
+    case "movie": return <Title key={route.arg} id={route.arg} fromDevice={fromDevice} />;
     case "show":
     case "discover-show":
-      return <Show key={route.arg} imdbId={route.arg} season={route.season} inLibrary={route.view === "show"} />;
+      return <Show key={route.arg} imdbId={route.arg} season={route.season} inLibrary={route.view === "show"} fromDevice={fromDevice} />;
+    case "profile": return <Profile tab={route.tab} fromDevice={fromDevice} />;
+    case "about": return <About />;
+    case "notfound": return <NotFound />;
+    default: break;
+  }
+  if (fromDevice) return <Unreachable place={route.view === "discover" || route.view === "discover-film" ? "discover" : null} />;
+  switch (route.view) {
     case "discover-film": return <CatalogueFilm key={route.arg} imdbId={route.arg} />;
     case "discover": return <Discover query={route.query} />;
     case "saved": return <Saved />;
     case "list": return <ListPage key={route.arg} id={route.arg} />;
     case "notify": return <Notify />;
-    case "profile": return <Profile tab={route.tab} />;
-    case "about": return <About />;
     default: return <NotFound />;
   }
 }

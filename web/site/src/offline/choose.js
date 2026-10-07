@@ -1,7 +1,7 @@
-// What Save offline picks before the person changes anything, and what this device is called on the
+// What Download picks before the person changes anything, and what this device is called on the
 // API's record of a save.
 //
-// The rung: the person's own Save offline quality where they set one (`offlineQualityHeight`), else
+// The rung: the person's own Download quality where they set one (`offlineQualityHeight`), else
 // the smallest on a phone or a tablet, which have the least room and the smallest screens, and the
 // step-down anywhere else, a laptop's screen showing little of what the top rung adds over it. Audio:
 // the person's language where the title carries it, else the title's own default. Subtitles: every

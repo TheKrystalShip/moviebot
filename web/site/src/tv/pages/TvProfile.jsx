@@ -10,10 +10,9 @@ import { panel } from "../../pages/Profile.jsx";
 import { About } from "../../pages/About.jsx";
 
 /**
- * The profile's sections on a television: every tab but the browser's pushes and the films saved on
- * a device, neither of which a TV takes.
+ * The profile's sections on a television: every tab but the browser's pushes, which a TV does not take.
  */
-const SECTIONS = PROFILE_TAB_FACES.filter((t) => t.id !== "notifications" && t.id !== "offline");
+const SECTIONS = PROFILE_TAB_FACES.filter((t) => t.id !== "notifications");
 
 /**
  * Who is signed in and everything that is theirs, on a television: the person and their sections down

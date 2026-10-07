@@ -9,20 +9,27 @@ import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, WatchButton } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
-import { SaveOffline, useOffersSaving } from "../components/SaveOffline.jsx";
+import { DownloadButton, useOffersSaving } from "../components/DownloadButton.jsx";
+import { useDeviceTitle } from "../offline/hooks.js";
+import { Unreachable } from "./Offline.jsx";
 
 /**
- * One film in the library: what it is, who made it and who is in it, watch, and Save offline.
+ * One film in the library: what it is, who made it and who is in it, watch, and Download.
  *
  * What the film is comes from the film database through the API, which keeps it; what is on this
  * server — its length, its picture, its size, how far this person got — comes from the library.
+ * `fromDevice` is the page opened with no connection, drawn from the film's download on this device
+ * (`useDeviceTitle`); a film not downloaded here cannot be drawn.
  */
-export function Title({ id }) {
-  const manifest = useLoad(() => api.title(id), [id]);
-  const listing = useLoad(() => api.titles().then((all) => all.find((t) => t.id === id) || null), [id]);
-  const imdbId = manifest.data && manifest.data.film && manifest.data.film.imdbId;
-  const details = useLoad(() => (imdbId ? api.film(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId]);
-  const rooms = useLoad(() => api.rooms(), [id]);
+export function Title({ id, fromDevice = false }) {
+  const device = useDeviceTitle(id, fromDevice);
+  const served = useLoad(() => (fromDevice ? Promise.resolve(null) : api.title(id)), [id]);
+  const manifest = fromDevice ? device.manifest : served;
+  const listing = useLoad(() => (fromDevice ? Promise.resolve(null) : api.titles().then((all) => all.find((t) => t.id === id) || null)), [id]);
+  const imdbId = !fromDevice && manifest.data && manifest.data.film && manifest.data.film.imdbId;
+  const described = useLoad(() => (imdbId ? api.film(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId]);
+  const details = fromDevice ? device.details : described;
+  const rooms = useLoad(() => (fromDevice ? Promise.resolve([]) : api.rooms()), [id]);
   const session = useSession();
   const me = session && session.user;
   const saving = useOffersSaving();
@@ -38,6 +45,7 @@ export function Title({ id }) {
     if (episodeOf) navigate(episodeOf, { replace: true });
   }, [episodeOf]);
   if (episodeOf) return <div className="kc-page" />;
+  if (fromDevice && !manifest.data) return manifest.loading ? <div className="kc-page" /> : <Unreachable />;
 
   if (manifest.error && manifest.error.status === 404) {
     return <div className="kc-page"><Empty title="Not found">Search for it in Discover to watch it.</Empty></div>;
@@ -46,10 +54,10 @@ export function Title({ id }) {
   if (!manifest.data) return <div className="kc-page"><Failed error={manifest.error} onRetry={manifest.reload} /></div>;
 
   const m = manifest.data;
-  const title = { id: m.id, title: m.title, poster: m.poster, film: m.film };
+  const title = { id: m.id, title: m.title, poster: m.poster, film: m.film, details: details.data };
   const film = m.film || {};
   const d = details.data;
-  const summary = listing.data;
+  const summary = fromDevice ? device.summary : listing.data;
   // A room with nobody in it is not one to join: it is kept a while after the last person leaves.
   const room = (rooms.data || []).find((r) => r.titleId === m.id && r.participants > 0);
   const backdrop = (d && d.backdropUrl) || posterUrl(title);
@@ -104,7 +112,12 @@ export function Title({ id }) {
                 </WatchButton>
               )}
               {film.imdbId && <SaveButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
-              {saving && m.status === "ready" && <SaveOffline titleId={m.id} name={filmName(m)} />}
+              {saving && m.status === "ready" && (
+                <DownloadButton titleId={m.id} head={{
+                  name: (d && d.title) || filmName(m), context: film.year || (d && d.year) || null,
+                  runtime: clock(m.durationSeconds), still: posterUrl(title), portrait: true, backdrop,
+                }} />
+              )}
             </div>
             {played && (
               <span className="kc-note">Played {ago(played.at)} by {playedBy}</span>

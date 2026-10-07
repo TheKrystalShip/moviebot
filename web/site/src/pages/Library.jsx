@@ -2,12 +2,25 @@ import React from "react";
 import {
   Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, useFilters,
 } from "@thekrystalship/krystal-ui";
-import { api, filmName } from "../api.js";
-import { useLoad } from "../data.js";
+import { filmName } from "../api.js";
+import { useOnline } from "../connectivity.js";
+import { useLibrary } from "../offline/hooks.js";
 import { discoverGenrePath, libraryPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard } from "../components/Film.jsx";
 import { MoreTile } from "../components/TitleCards.jsx";
+import { useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
+
+/**
+ * The Filters popover's Download field, where this browser downloads: every title, or only those
+ * downloaded to this device (`held`).
+ */
+function downloadField(f, offered, all, held) {
+  return {
+    id: "download", label: "Download", value: f.values.download, onChange: (v) => f.set("download", v), default: "all", hidden: !offered,
+    options: [{ value: "all", label: "All" }, { value: "downloaded", label: "Downloaded", count: all.filter(held).length }],
+  };
+}
 
 const rating = (t) => (t.details && t.details.rating) || 0;
 const year = (t) => (t.film && t.film.year) || 0;
@@ -27,12 +40,12 @@ const KINDS = {
 };
 
 /**
- * Every title of one kind on the shelf, searched by name, narrowed by state and genre, and
+ * Every title of one kind on the shelf, searched by name, narrowed by state, genre and download, and
  * ordered the way somebody asks; with a genre picked, the last tile leads on to Discover's catalogue
  * of that genre. The kind is the API's word for what a title is.
  */
-export function Library({ kind = "film" }) {
-  return kind === "show" ? <ShowLibrary /> : <FilmLibrary />;
+export function Library({ kind = "film", fromDevice = false }) {
+  return kind === "show" ? <ShowLibrary fromDevice={fromDevice} /> : <FilmLibrary fromDevice={fromDevice} />;
 }
 
 /**
@@ -65,9 +78,13 @@ const SHOW_SORTS = [
  * Every show the library holds, one card each however many of its episodes are here, searched by
  * name, narrowed by genre, and ordered the way somebody asks.
  */
-function ShowLibrary() {
-  const shows = useLoad(() => api.shows(), []);
-  const f = useFilters({ search: "", genre: "all" });
+function ShowLibrary({ fromDevice }) {
+  const shows = useLibrary("show", fromDevice);
+  const online = useOnline();
+  const f = useFilters({ search: "", genre: "all", download: "all" });
+  const offered = useOffersSaving();
+  const marks = useDownloadMarks();
+  const held = (s) => marks.episodes(s.imdbId) > 0;
   const [sort, setSort] = React.useState({ key: "added", dir: "desc" });
 
   const all = shows.data || [];
@@ -79,7 +96,7 @@ function ShowLibrary() {
   const query = f.debouncedQuery.trim().toLowerCase();
   const order = SHOW_SORTS.find((s) => s.value === sort.key) || SHOW_SORTS[0];
   const shown = all
-    .filter((s) => (!query || s.title.toLowerCase().includes(query)) && inGenre(s))
+    .filter((s) => (!query || s.title.toLowerCase().includes(query)) && inGenre(s) && (f.values.download === "all" || held(s)))
     .sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
 
   const fields = [
@@ -87,6 +104,7 @@ function ShowLibrary() {
       id: "genre", label: "Genre", value: f.values.genre, onChange: (v) => f.set("genre", v), default: "all", hidden: genres.length === 0,
       options: [{ value: "all", label: "Every genre" }, ...genres.map(([g, n]) => ({ value: g, label: g, count: n }))],
     },
+    downloadField(f, offered, all, held),
   ];
 
   return (
@@ -109,18 +127,22 @@ function ShowLibrary() {
       {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
       {(shown.length > 0 || f.values.genre !== "all") && (
         <div className="kc-grid">
-          {shown.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} />)}
-          {f.values.genre !== "all" && <MoreTile label="Discover more" to={discoverGenrePath("show", f.values.genre)} />}
+          {shown.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} downloaded={marks.episodes(s.imdbId)} />)}
+          {online && f.values.genre !== "all" && <MoreTile label="Discover more" to={discoverGenrePath("show", f.values.genre)} />}
         </div>
       )}
     </div>
   );
 }
 
-function FilmLibrary() {
+function FilmLibrary({ fromDevice }) {
   const kind = "film";
-  const titles = useLoad(() => api.titles(), []);
-  const f = useFilters({ search: "", state: "all", genre: "all" });
+  const titles = useLibrary("film", fromDevice);
+  const online = useOnline();
+  const f = useFilters({ search: "", state: "all", genre: "all", download: "all" });
+  const offered = useOffersSaving();
+  const marks = useDownloadMarks();
+  const held = (t) => !!marks.film(t.id) && marks.film(t.id).kind === "done";
   const [sort, setSort] = React.useState({ key: "added", dir: "desc" });
   const words = KINDS[kind] || KINDS.film;
 
@@ -143,7 +165,7 @@ function FilmLibrary() {
   const matches = (t) => !query || filmName(t).toLowerCase().includes(query);
   const order = SORTS.find((s) => s.value === sort.key) || SORTS[0];
   const shown = all
-    .filter((t) => matches(t) && state.test(t) && inGenre(t))
+    .filter((t) => matches(t) && state.test(t) && inGenre(t) && (f.values.download === "all" || held(t)))
     .sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
 
   const option = (o) => ({ value: o.value, label: o.label, count: all.filter(o.test).length });
@@ -153,6 +175,7 @@ function FilmLibrary() {
       id: "genre", label: "Genre", value: f.values.genre, onChange: (v) => f.set("genre", v), default: "all", hidden: genres.length === 0,
       options: [{ value: "all", label: "Every genre" }, ...genres.map(([g, n]) => ({ value: g, label: g, count: n }))],
     },
+    downloadField(f, offered, all, held),
   ];
   const unit = all.length === 1 ? words.unit[0] : words.unit[1];
 
@@ -177,8 +200,8 @@ function FilmLibrary() {
       {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
       {(shown.length > 0 || f.values.genre !== "all") && (
         <div className="kc-grid">
-          {shown.map((t) => <FilmCard key={t.id} title={t} />)}
-          {f.values.genre !== "all" && <MoreTile label="Discover more" to={discoverGenrePath(kind, f.values.genre)} />}
+          {shown.map((t) => <FilmCard key={t.id} title={t} download={marks.film(t.id)} />)}
+          {online && f.values.genre !== "all" && <MoreTile label="Discover more" to={discoverGenrePath(kind, f.values.genre)} />}
         </div>
       )}
     </div>

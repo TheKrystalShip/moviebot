@@ -9,6 +9,7 @@ import { api } from "./api.js";
 import { forgotten, listSaves, pendingForgets } from "./offline/store.js";
 import { removeAllFromDevice, stopAccount } from "./offline/saver.js";
 import { forgetPreferences } from "./offline/preferences.js";
+import { forgetKeptProgress } from "./offline/progress.js";
 import { sessionStore, signOut } from "./session.js";
 
 /** The question being asked before signing out: `{ sub, count, bytes }`, or null. */
@@ -36,6 +37,7 @@ export async function finishLeaving(remove) {
   if (asked && remove) {
     await removeAllFromDevice(asked.sub).catch(() => {});
     forgetPreferences(asked.sub);
+    forgetKeptProgress(asked.sub);
     // The API's records of them are forgotten now, while the token still works; with no connection
     // they stay queued for this account's next sign-in on the device.
     for (const id of pendingForgets(asked.sub)) {

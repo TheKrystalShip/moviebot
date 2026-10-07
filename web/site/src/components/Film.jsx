@@ -77,6 +77,13 @@ export function PosterArt({ title, className = "", children }) {
   );
 }
 
+/** A card's marks for a download on this device: the pill on its poster, and its progress while under way. */
+function downloadMarks(download) {
+  if (!download) return {};
+  if (download.kind === "done") return { corner: { icon: "circle-check", label: "Downloaded" }, className: "kc-card--dl kc-card--dl-done" };
+  return { corner: { label: `Downloading ${download.percent}%` }, progress: download.percent / 100, className: "kc-card--dl kc-card--dl-underway" };
+}
+
 /**
  * A film on a shelf, as krystal-ui's ShowcaseCard: the poster with the name on it, its rating, year
  * and length, one line saying where it stands, and Watch. What a page knows beside the film — a room
@@ -84,9 +91,10 @@ export function PosterArt({ title, className = "", children }) {
  * How far the person got comes with the title itself.
  *
  * The one status line, in precedence order: a film not ready says so; then a room watching it; then
- * how far this person got; then its genres.
+ * how far this person got; then its genres. A film downloaded to this device (`download`, from
+ * `useDownloads`) has a pill on its poster, and one downloading has its progress along the poster's foot.
  */
-export function FilmCard({ title, room, isNew }) {
+export function FilmCard({ title, room, isNew, download }) {
   const film = title.film || {};
   const d = title.details;
   const progress = title.progress && !title.progress.finished && title.progress.positionSeconds > 0 ? title.progress : null;
@@ -108,6 +116,7 @@ export function FilmCard({ title, room, isNew }) {
       art={poster ? `url("${poster}")` : null}
       onPick={() => navigate(moviePath(title.id))}
       badge={isNew ? { tone: "info", label: "New" } : null}
+      {...downloadMarks(download)}
       specs={[
         { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
         { icon: "calendar", value: film.year || null, label: "Year" },
@@ -122,9 +131,10 @@ export function FilmCard({ title, room, isNew }) {
 
 /**
  * A show on a shelf, the same card as a film's: its poster and name, rating, years and seasons, where
- * this person picks up, and Watch or Resume into the episode that is next.
+ * this person picks up, and Watch or Resume into the episode that is next. A show with episodes
+ * downloaded to this device (`downloaded`) says how many on its poster.
  */
-export function ShowCard({ show }) {
+export function ShowCard({ show, downloaded = 0 }) {
   const d = show.details;
   const resume = show.resume;
   const status =
@@ -139,6 +149,7 @@ export function ShowCard({ show }) {
       name={show.title}
       art={d && d.posterUrl ? `url("${d.posterUrl}")` : null}
       onPick={() => navigate(show.imdbId ? showPath(show.imdbId) : moviePath(show.firstTitleId))}
+      {...(downloaded > 0 ? { corner: { icon: "circle-check", label: `${downloaded} downloaded` }, className: "kc-card--dl kc-card--dl-done" } : {})}
       specs={[
         { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
         { icon: "calendar", value: show.firstYear || null, label: "Year" },

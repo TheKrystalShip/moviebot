@@ -2,6 +2,7 @@ import React from "react";
 import { Button, Icon, Rail, ShowcaseCard, Skeleton } from "@thekrystalship/krystal-ui";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
+import { useOnline } from "../connectivity.js";
 import { useCan } from "../session.js";
 import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
@@ -26,6 +27,7 @@ export const DISCOVER_FIELD = "kc-search--discover";
  * so it can be shared and reloaded.
  */
 export function Discover({ query }) {
+  const online = useOnline();
   const q = (query.get("q") || "").trim();
   const person = /^\d+$/.test(query.get("person") || "") ? query.get("person") : null;
   const genre = (query.get("genre") || "").trim();
@@ -80,11 +82,11 @@ export function Discover({ query }) {
   return (
     <div className="kc-page kc-discover">
       <PageHead title="Discover" />
-      <form className={"kc-search " + DISCOVER_FIELD} onSubmit={submit} role="search">
+      <form className={"kc-search " + DISCOVER_FIELD + (online ? "" : " is-off")} onSubmit={submit} role="search">
         <Icon name="search" size={20} />
-        <input ref={field} value={draft} onChange={(e) => setDraft(e.target.value)}
+        <input ref={field} value={draft} onChange={(e) => setDraft(e.target.value)} disabled={!online}
           placeholder="Any movie or show" aria-label="Any movie or show" enterKeyHint="search" />
-        <Button type="submit" variant="primary" size="lg">Search</Button>
+        <Button type="submit" variant="primary" size="lg" disabled={!online}>Search</Button>
       </form>
 
       {!q && person && <PersonWork key={person} personId={person} where={where} />}

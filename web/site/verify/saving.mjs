@@ -1,6 +1,6 @@
-// Save offline, end to end in a real Chromium: a title saved through its page's picker, the page closed
-// mid-save and the save carried on by the next page from what was on disk (by `Range`, with
-// `If-Range`), pausing and resuming from the Offline tab, every file on the device byte for byte the
+// Download, end to end in a real Chromium: a title downloaded through its page's sheet, the page closed
+// mid-download and the download carried on by the next page from what was on disk (by `Range`, with
+// `If-Range`), pausing and resuming from the sheet, every file on the device byte for byte the
 // server's (each track the concatenation of its playlist's files on disk), the API told the save is
 // complete, a device without room refused before a byte moves, and a save the API no longer lists
 // removed from the device when the connection comes back.
@@ -98,7 +98,6 @@ if (!TITLE) {
   console.error("The scratch library holds no title whose files are all there to save. Link a whole one into it (MOVIEBOT_VERIFY_MEDIA).");
   process.exit(2);
 }
-const NAME = (titles.find((t) => t.id === TITLE) || {}).title || TITLE;
 console.log(`Saving ${TITLE}: ${OFFER.rungs.map((r) => `${r.rendition} ${r.bytes}`).join(", ")}`);
 
 // ── A proxy holding each track to RATE ───────────────────────────────────────────────────────────
@@ -198,41 +197,48 @@ const context = await browser.newContext({ viewport: { width: 1280, height: 900 
 // The picker, and the save started from it.
 let page = await tab(context);
 await page.goto(base + `/movies/${TITLE}`, { waitUntil: "load" });
-// The control's face changes with the save, so it is found by every face it has.
-const FACES = /^(Save offline|Queued|Saving|Paused|Waiting|Not saved|On this device)/;
-const button = page.locator(".kc-tt .kc-actions button", { hasText: FACES });
+// The control's face changes with the download, so it is found by every face it has.
+const FACES = /^(Download|Queued|Paused|Waiting|Not downloaded)/;
+const filmButton = (p) => p.locator(".kc-tt .kc-actions button", { hasText: FACES });
+const button = filmButton(page);
 await button.waitFor({ timeout: 15000 });
-check(true, "a film's page offers Save offline");
+check(true, "a film's page offers Download");
 await button.click();
-const sheet = page.locator(".kc-save-sheet");
+const sheet = page.locator(".kc-dl-pick");
 await sheet.waitFor({ timeout: 10000 });
-await page.locator(".kc-save-pick").waitFor({ timeout: 10000 });
-const picker = await page.evaluate(() => ({
-  options: [...document.querySelectorAll(".kc-save-sheet select option")].map((o) => [o.value, o.textContent]),
-  chosen: document.querySelector(".kc-save-sheet select")?.value,
-  audio: [...document.querySelectorAll(".kc-save-sheet .k-check")].filter((c) => c.querySelector("input").checked).map((c) => c.textContent),
-  total: document.querySelector(".kc-save-pick__total")?.textContent,
-}));
-check(picker.options.length === OFFER.rungs.length && picker.options.every(([, label]) => /· [\d.]+ [KMG]?B$/.test(label)),
-  `the picker lists every rung with its size (${picker.options.map(([, l]) => l).join("; ")})`);
+await sheet.locator(".k-optlist").first().waitFor({ timeout: 10000 });
+const picker = await page.evaluate(() => {
+  const [quality, audio] = document.querySelectorAll(".kc-dl-pick .k-optlist");
+  const rows = (list) => [...list.querySelectorAll(".k-optlist__row")];
+  return {
+    options: rows(quality).map((r) => [r.querySelector("input").value, r.querySelector(".k-optlist__aside")?.textContent || ""]),
+    chosen: rows(quality).map((r) => r.querySelector("input")).find((i) => i.checked)?.value,
+    audio: rows(audio).filter((r) => r.querySelector("input").checked).map((r) => r.textContent),
+    space: document.querySelector(".kc-dl-pick .k-meter__caption")?.textContent,
+    start: document.querySelector(".kc-dl-pick .kc-dl-start")?.textContent,
+  };
+});
+check(picker.options.length === OFFER.rungs.length && picker.options.every(([, size]) => /^[\d.]+ [KMG]?B$/.test(size)),
+  `the sheet lists every rung with its size (${picker.options.map(([v, s]) => `${v} ${s}`).join("; ")})`);
 const stepDown = OFFER.rungs[Math.min(1, OFFER.rungs.length - 1)].rendition;
 check(picker.chosen === stepDown, `a desktop's default is the step-down (${picker.chosen}, wanted ${stepDown})`);
 check(picker.audio.length >= 1, `the default audio is picked (${picker.audio.join(", ")})`);
-check(/free on this device/.test(picker.total || ""), `the picker says what it takes and what is free (${picker.total})`);
+check(/free/.test(picker.space || "") && /^Download · [\d.]+ [KMG]?B$/.test(picker.start || ""),
+  `the sheet says what is free and what the download takes (${picker.space}; ${picker.start})`);
 await page.screenshot({ path: join(shots, "picker.png") });
 
-await sheet.locator(".k-modal__foot button", { hasText: "Save offline" }).click();
+await sheet.locator(".kc-dl-start").click();
 await sheet.waitFor({ state: "detached", timeout: 15000 });
 const label = await waitFor(async () => {
   const text = await button.textContent().catch(() => "");
-  return /Saving · \d+%/.test(text) ? text : null;
+  return /Downloading · \d+%/.test(text) ? text : null;
 }, 15000);
-check(!!label, `the button shows the save's progress (${label})`);
+check(!!label, `the button shows the download's progress (${label})`);
 
 // Part way through, the page goes, and the worker with it. A file being written reads as empty from
-// the page until its writer lets go, so how far the save has got is read from the control.
+// the page until its writer lets go, so how far the download has got is read from the control.
 await waitFor(async () => {
-  const match = /Saving · (\d+)%/.exec(await button.textContent().catch(() => ""));
+  const match = /Downloading · (\d+)%/.exec(await button.textContent().catch(() => ""));
   return match && Number(match[1]) >= 25;
 }, 60000);
 const partway = await onDevice(page);
@@ -250,16 +256,22 @@ const left = await (async () => {
 check(!!left && received(left) > 0 && received(left) < left.meta.bytes,
   `closing the page mid-save leaves part of it on the device (${received(left)} of ${left && left.meta.bytes})`);
 
-// The next page carries the save on from what is on disk, and the Offline tab shows it and pauses it.
+// The next page carries the download on from what is on disk, and its sheet shows it and pauses it.
 page = await tab(context);
-await page.goto(base + "/profile/offline", { waitUntil: "load" });
-const card = page.locator(".showcase-card", { hasText: NAME }).first();
-await card.waitFor({ timeout: 15000 });
+await page.goto(base + `/movies/${TITLE}`, { waitUntil: "load" });
+const control = filmButton(page);
+await control.waitFor({ timeout: 15000 });
 const status = await waitFor(async () => {
-  const text = await card.locator(".showcase-card__status").textContent().catch(() => "");
-  return /Saving · \d+%/.test(text) ? text : null;
+  const text = await control.textContent().catch(() => "");
+  return /Downloading · \d+%/.test(text) ? text : null;
 }, 15000);
-check(!!status, `the Offline tab shows the save carrying on with its progress (${status})`);
+check(!!status, `the film's page shows the download carrying on with its progress (${status})`);
+await control.click();
+const underway = page.locator(".kc-dl-underway");
+await underway.waitFor({ timeout: 10000 });
+const parts = await underway.locator(".kc-dl-part").allTextContents();
+check(/^\d+%$/.test(await underway.locator(".kc-dl-progress__percent").textContent()) && parts.some((t) => t.startsWith("Picture")),
+  `the sheet shows the download's percent and each of its parts (${parts.join("; ")})`);
 // The control says Saving as soon as the save is queued, ahead of its first request; the resumed
 // request is waited for, and has to start where the track on disk ends.
 const partial = left ? left.meta.files.find((f) => (f.role === "video" || f.role === "audio") && left.sizes[f.name] > 0 && left.sizes[f.name] < f.bytes) : null;
@@ -267,38 +279,47 @@ const from = partial ? `bytes=${left.sizes[partial.name]}-` : null;
 const resumed = await waitFor(() => transfers.find((t) => partial && t.url.endsWith(`/${partial.rendition}/track.mp4`) && t.range === from && t.status), 30000);
 check(!!resumed && resumed.status === 206 && !!resumed.ifRange,
   `the transfer resumed from what was on disk (${resumed ? `${resumed.range}, If-Range ${resumed.ifRange}, ${resumed.status}` : `no request for ${from || "a part-saved track"}: ${JSON.stringify(transfers.map((t) => [t.url, t.range, t.status]))}`})`);
-await page.screenshot({ path: join(shots, "offline-tab-saving.png") });
+await page.screenshot({ path: join(shots, "sheet-downloading.png") });
 
-await card.locator(".showcase-card__tool[aria-label^='Pause saving']").click();
+await underway.locator(".k-modal__foot button", { hasText: "Pause" }).click();
 const paused = await waitFor(async () => {
-  const text = await card.locator(".showcase-card__status").textContent().catch(() => "");
+  const text = await control.textContent().catch(() => "");
   return /Paused · \d+%/.test(text) ? text : null;
 }, 10000);
 const atPause = received(await onDevice(page));
 await page.waitForTimeout(2500);
 const afterPause = received(await onDevice(page));
 check(!!paused && afterPause === atPause, `Pause stops the transfer (${paused}; ${atPause} then ${afterPause} bytes)`);
-await page.screenshot({ path: join(shots, "offline-tab-paused.png") });
+await page.screenshot({ path: join(shots, "sheet-paused.png") });
 
 // A pause stands across a reload.
 await page.reload({ waitUntil: "load" });
-await card.waitFor({ timeout: 15000 });
+await control.waitFor({ timeout: 15000 });
 await page.waitForTimeout(2500);
-const stillPaused = await card.locator(".showcase-card__status").textContent().catch(() => "");
-check(/Paused/.test(stillPaused) && received(await onDevice(page)) === afterPause, `a paused save stays paused across a reload (${stillPaused})`);
+const stillPaused = await control.textContent().catch(() => "");
+check(/Paused/.test(stillPaused) && received(await onDevice(page)) === afterPause, `a paused download stays paused across a reload (${stillPaused})`);
 
-await card.locator(".showcase-card__tool[aria-label^='Resume saving']").click();
+await control.click();
+await underway.locator(".k-modal__foot button", { hasText: "Resume" }).click();
 const done = await waitFor(async () => {
   const state = await onDevice(page);
   return state && state.meta.completedAt ? state : null;
 }, 120000);
-check(!!done, `Resume carries the save to the end, and meta.json is written again with completedAt (${done && done.meta.completedAt})`);
+check(!!done, `Resume carries the download to the end, and meta.json is written again with completedAt (${done && done.meta.completedAt})`);
 const savedStatus = await waitFor(async () => {
-  const text = await card.locator(".showcase-card__status").textContent().catch(() => "");
-  return /Saved/.test(text) ? text : null;
+  const text = await control.textContent().catch(() => "");
+  return /^Downloaded$/.test(text) ? text : null;
 }, 10000);
-check(!!savedStatus, `the Offline tab shows it saved, with Play (${savedStatus})`);
-await page.screenshot({ path: join(shots, "offline-tab-saved.png") });
+check(!!savedStatus, `the film's page says it is downloaded (${savedStatus})`);
+// The sheet left open follows the download, and is the downloaded one once it finishes.
+const doneSheet = page.locator(".kc-dl-done");
+if (!(await doneSheet.isVisible())) await control.click();
+await doneSheet.waitFor({ timeout: 10000 });
+const facts = await doneSheet.locator(".kc-dl-fact").allTextContents();
+check(facts.length === 4 && await doneSheet.locator(".k-modal__foot a, .k-modal__foot button", { hasText: "Play" }).count() === 1,
+  `the sheet shows what is downloaded, with Play (${facts.join("; ")})`);
+await page.screenshot({ path: join(shots, "sheet-downloaded.png") });
+await page.keyboard.press("Escape");
 
 // Every byte the server's.
 if (done) {
@@ -328,11 +349,11 @@ console.log(`  track requests: ${transfers.length}, ${tokens.size} distinct toke
 // The film's page says it is here.
 await page.goto(base + `/movies/${TITLE}`, { waitUntil: "load" });
 const here = await waitFor(async () => {
-  const text = await page.locator(".kc-tt .kc-actions button", { hasText: "On this device" }).textContent().catch(() => null);
+  const text = await page.locator(".kc-tt .kc-actions button", { hasText: "Downloaded" }).textContent().catch(() => null);
   return text;
 }, 10000);
-check(!!here, `the film's page says it is on this device (${here})`);
-await page.screenshot({ path: join(shots, "film-on-device.png") });
+check(!!here, `the film's page says it is downloaded after a reload (${here})`);
+await page.screenshot({ path: join(shots, "film-downloaded.png") });
 
 // A device without room is refused before anything moves.
 {
@@ -347,10 +368,10 @@ await page.screenshot({ path: join(shots, "film-on-device.png") });
   const before = (await call("GET", "/api/me/offline")).body.length;
   const seen = transfers.length;
   await p.goto(base + `/movies/${TITLE}`, { waitUntil: "load" });
-  await p.locator(".kc-tt .kc-actions button", { hasText: "Save offline" }).click();
-  await p.locator(".kc-save-pick").waitFor({ timeout: 10000 });
-  const refusal = await p.locator(".kc-save-sheet .k-notice", { hasText: "Needs" }).textContent().catch(() => null);
-  const disabled = await p.locator(".kc-save-sheet .k-modal__foot button", { hasText: "Save offline" }).isDisabled();
+  await p.locator(".kc-tt .kc-actions button", { hasText: /^Download$/ }).click();
+  await p.locator(".kc-dl-pick .k-optlist").first().waitFor({ timeout: 10000 });
+  const refusal = await p.locator(".kc-dl-pick .k-notice", { hasText: "Needs" }).textContent().catch(() => null);
+  const disabled = await p.locator(".kc-dl-pick .kc-dl-start").isDisabled();
   check(!!refusal && disabled, `a device without room is told how much it needs, and cannot start (${refusal})`);
   check((await call("GET", "/api/me/offline")).body.length === before && transfers.length === seen, "nothing was asked of the API or fetched");
   await p.screenshot({ path: join(shots, "no-room.png") });

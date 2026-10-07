@@ -1,8 +1,8 @@
 // The device's saves set beside the API's records of them, whenever a page loads with a connection
 // and whenever the connection comes back: the removals made with no connection are forgotten at the
 // API, a save the API no longer lists is removed from the device, an account that no longer holds
-// `cinema:watch` keeps nothing here, a save finished while the API could not be told is told now, and
-// every save under way that is not paused carries on.
+// `cinema:watch` keeps nothing here, a save finished while the API could not be told is told now,
+// every save under way that is not paused carries on, and every show a saved episode belongs to is kept.
 
 import React from "react";
 import { api } from "../api.js";
@@ -10,6 +10,7 @@ import { onReconnect, useOnline } from "../connectivity.js";
 import { can, useSession } from "../session.js";
 import { forgotten, listSaves, offlineSupported, pendingForgets } from "./store.js";
 import { removeAllFromDevice, removeFromDevice, resumeUnfinished, stopAccount } from "./saver.js";
+import { keepMissingShows } from "./shows.js";
 
 let syncing = null;
 
@@ -39,6 +40,7 @@ async function settle(session) {
     else if (save.complete && !record.completedAt) await api.completeSave(id).catch(() => {});
   }
   await resumeUnfinished(sub);
+  await keepMissingShows(sub);
 }
 
 async function forgetPending(sub) {

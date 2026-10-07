@@ -1,0 +1,118 @@
+/* ── Download ── the control on a film's page and an episode's row, and the sheet it opens. */
+
+/* On a film's page, an outline button that takes the accent once anything of the film is here. */
+.kc-dl-button.is-held { border-color: var(--border-accent); background: var(--krystal-teal-dim); color: var(--krystal-teal-hover); }
+
+/* At an episode's row's end: a square button, a ring while under way, the accent once downloaded. */
+.kc-dl-mark {
+  width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: transparent; color: var(--fg-2); cursor: pointer;
+}
+.kc-dl-mark:hover:not(:disabled) { background: var(--surface-2); color: var(--fg-1); }
+.kc-dl-mark:disabled { opacity: 0.4; cursor: default; }
+.kc-dl-mark.is-underway { color: var(--fg-1); }
+.kc-dl-mark.is-done { border-color: var(--border-accent); background: var(--krystal-teal-dim); color: var(--krystal-teal); }
+.kc-dl-ring { position: relative; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; }
+.kc-dl-ring svg { position: absolute; inset: 0; }
+.kc-dl-ring circle { fill: none; stroke-width: 2.5; }
+.kc-dl-ring__track { stroke: var(--surface-3); }
+.kc-dl-ring__done { stroke: var(--krystal-teal); stroke-linecap: round; transition: stroke-dasharray 0.25s linear; }
+.kc-dl-ring__stop { width: 6px; height: 6px; border-radius: 1px; background: currentColor; }
+
+/* An episode's row says where its download stands under its name, in the accent once downloaded. */
+.kc-episode__sub--download { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-2); }
+.kc-episode__sub--download.is-done { color: var(--krystal-teal); }
+
+/* The sheet. On a phone the drawer reaches nearly to the top, its body scrolling between a fixed head
+   and foot. */
+.kc-drawer.kc-dl-drawer { max-height: calc(100% - 52px); padding: 0; overflow: hidden; background: var(--surface-1); border-radius: 12px 12px 0 0; }
+.kc-dl-drawer .kc-drawer__grabber { width: 40px; height: 5px; margin: 8px auto 0; }
+.kc-dl-head { flex-shrink: 0; display: flex; gap: 12px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-subtle); }
+.kc-dl-head__still {
+  flex-shrink: 0; width: 72px; aspect-ratio: 16 / 9; object-fit: cover;
+  border-radius: var(--r-sm); border: 1px solid var(--border-subtle);
+}
+.kc-dl-head__still.is-portrait { width: 40px; aspect-ratio: 2 / 3; }
+.kc-dl-head__text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.kc-dl-head__eyebrow {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; color: var(--fg-3);
+}
+.kc-dl-head__eyebrow.is-active { color: var(--krystal-teal); }
+.kc-dl-head__eyebrow.is-done { color: var(--success-fg, var(--success)); }
+.kc-dl-head__eyebrow.is-failed { color: var(--danger); }
+.kc-dl-head__name { font-size: 17px; font-weight: 600; color: var(--fg-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0; text-transform: none; }
+.kc-dl-head__sub { font-size: 12px; color: var(--fg-3); font-weight: 400; letter-spacing: 0; text-transform: none; }
+.kc-dl-head__close {
+  flex-shrink: 0; align-self: flex-start; width: 44px; height: 44px; margin: -6px -10px 0 0; padding: 0;
+  display: flex; align-items: center; justify-content: center; border: none; border-radius: var(--r-sm);
+  background: transparent; color: var(--fg-3); cursor: pointer;
+}
+.kc-dl-head__close:hover { color: var(--fg-1); background: var(--surface-2); }
+.kc-dl-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 18px; }
+.kc-dl-foot {
+  flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;
+  padding: 12px 18px max(18px, env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border-subtle);
+}
+/* Two actions share the foot equally; the picker's one fills it under the device's space. */
+.kc-dl-underway .kc-dl-foot, .kc-dl-done .kc-dl-foot, .kc-dl-remove .kc-dl-foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.kc-dl-foot .k-btn { width: 100%; justify-content: center; }
+
+/* On a wide screen, the dialog: the backdrop above, the label and name over its foot. */
+.kc-dl-dialog .k-modal__art { height: 120px; }
+.kc-dl-dialog .k-modal__art + .k-modal__head { margin-top: -54px; position: relative; }
+.kc-dl-dialog .k-modal__head { align-items: flex-end; }
+.kc-dl-dialog .kc-dl-head__name { font-size: 20px; font-weight: 700; }
+.kc-dl-dialog .k-modal__body { display: flex; flex-direction: column; gap: 16px; }
+.kc-dl-dialog .k-modal__foot { align-items: center; gap: 12px; }
+.kc-dl-dialog .kc-dl-space { flex: 1; min-width: 0; }
+.kc-dl-pick.kc-dl-dialog .kc-dl-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.kc-dl-pair { display: flex; flex-direction: column; gap: 18px; }
+
+.kc-dl-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.kc-dl-section__label { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-3); }
+
+/* Under way: the share done, large, and each part of the download with its state. */
+.kc-dl-progress { display: flex; flex-direction: column; gap: 8px; }
+.kc-dl-progress__figures { display: flex; align-items: baseline; gap: 10px; }
+.kc-dl-progress__percent { font-family: var(--font-mono); font-size: 28px; font-weight: 500; color: var(--fg-1); }
+.kc-dl-progress__bytes { font-family: var(--font-mono); font-size: 12px; color: var(--fg-3); }
+.kc-dl-parts { border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; }
+.kc-dl-part { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 14px; background: var(--surface-2); }
+.kc-dl-part + .kc-dl-part { border-top: 1px solid var(--border-subtle); }
+.kc-dl-part > svg { color: var(--fg-4); }
+.kc-dl-part.is-active > svg { color: var(--krystal-teal); }
+.kc-dl-part.is-done > svg { color: var(--success-fg, var(--success)); }
+.kc-dl-part__name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kc-dl-part__name > span { color: var(--fg-3); }
+.kc-dl-part__size { font-family: var(--font-mono); font-size: 12px; color: var(--fg-3); }
+.kc-dl-part.is-active .kc-dl-part__size { color: var(--fg-2); }
+
+/* Downloaded: what it holds, as a grid of facts. */
+.kc-dl-facts {
+  margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px;
+  background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden;
+}
+.kc-dl-fact { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: var(--surface-2); min-width: 0; }
+.kc-dl-fact dt { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-3); }
+.kc-dl-fact dd { margin: 0; font-size: 14px; font-weight: 600; color: var(--fg-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kc-dl-fact dd.is-mono { font-family: var(--font-mono); }
+.kc-dl-when { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-3); }
+
+/* Remove: a question, what it frees, Keep and Remove. */
+.kc-dl-head--remove { padding: 18px 18px 16px; border-bottom: 0; }
+.kc-dl-remove__icon {
+  flex-shrink: 0; width: 44px; height: 44px; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger);
+}
+.kc-dl-remove__what { font-size: 12.5px; color: var(--fg-3); }
+.kc-dl-remove__what .is-mono, .kc-dl-remove .is-mono { font-family: var(--font-mono); }
+
+/* A card on a shelf whose title is downloaded, or downloading: a pill on its poster. */
+.kc-card--dl .showcase-card__corner {
+  height: 24px; padding: 0 8px; border-radius: 999px; gap: 5px; font-size: 11px; font-weight: 600;
+  background: rgba(11, 15, 20, 0.75); border: 1px solid var(--border-strong); color: var(--fg-1);
+}
+.kc-card--dl-done .showcase-card__corner { border-color: var(--border-accent); color: var(--krystal-teal); }
+.kc-card--dl-underway .showcase-card__corner { font-family: var(--font-mono); }
+.kc-card--dl-underway .showcase-card__progress { background: var(--surface-3); }

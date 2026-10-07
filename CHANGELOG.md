@@ -4,6 +4,31 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.21.0] - 2026-10-07
+
+### Changed
+
+- **Saving a film for later without a connection is Download, and downloads live in the Library.**
+  Everything a person reads says Download, Downloading · N%, Downloaded and Remove download?; Save
+  stays the word for lists. The sheet is the phone's bottom drawer, or a dialog with the backdrop on
+  a wide screen: quality, audio and subtitles as full-width rows (krystal-ui's `OptionList`), the
+  device's space as a `Meter`, and Download · size; then the download's progress per part with Pause
+  and Cancel, then its facts with Play and Remove. A film's page has Download beside Save, an
+  episode row a button that turns into a progress ring and then a check, with the state under the
+  episode's name. Library and Home cards carry a Downloaded or Downloading N% mark, and the Library's
+  Filters gain Downloaded. Profile's Offline tab is gone. Profile › Playback's Download quality row
+  no longer crushes its title on a phone. Site 0.42.0, krystal-ui 0.18.1.
+- **With no connection the site is the same site, showing only what is downloaded, and says
+  nothing about it.** Home's hero and rails, the Library, a film's page and a show's page are drawn
+  from the device; a show is kept whole on the device (description, seasons, every episode and
+  still, written by a worker so Safari keeps it too) once any of its episodes is downloaded, and its
+  page dims the episodes that are not here. Continue watching reads the last progress the server
+  gave beside what was watched on the device. Everything that needs the server is disabled without
+  a word: Discover, the assistant, the bell, Saved and Notify, Profile's History, Requests,
+  Following and Notifications, Save and Follow. Discover, the assistant and any other page the
+  device cannot draw say only that it is not available offline, with a way to the Library. The
+  offline banner and the "Needs a connection" pages are gone.
+
 ## [2.20.0] - 2026-10-07
 
 ### Added

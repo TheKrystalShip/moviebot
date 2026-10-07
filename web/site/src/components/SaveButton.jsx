@@ -8,7 +8,7 @@ import { Drawer } from "./Drawer.jsx";
 
 const NARROW = "(max-width: 720px)";
 
-function useNarrow() {
+export function useNarrow() {
   const query = () => typeof window !== "undefined" && !!window.matchMedia && window.matchMedia(NARROW).matches;
   const [narrow, setNarrow] = React.useState(query);
   React.useEffect(() => {
@@ -99,7 +99,8 @@ export function SaveButton({ imdbId, kind, title }) {
     toast.success(`Saved ${title} to ${made.list.name}.`);
   }, "Could not make that list");
 
-  if (!lists.data) return null;
+  // With no connection to say which lists hold it, it is drawn as it starts, out of reach.
+  if (!lists.data) return online ? null : <Button size="xl" icon="bookmark" disabled>Save</Button>;
 
   if (!saved) {
     return (

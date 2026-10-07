@@ -1,8 +1,11 @@
 // The films saved on this device, as the page reads them: listing an account's saves, reading one,
-// its artwork, the room left on the device, and removing a save or every save of an account.
+// its artwork, the room left on the device, and removing a save or every save of an account; and the
+// shows those saves' episodes belong to, kept beside them.
 // `CLAUDE.md` beside this file is the contract the saver and the player build against.
 
-import { accountDir, accountDirName, isMeta, META, root, saveDir, titleDirName, titleIdOf } from "./layout.js";
+import {
+  accountDir, accountDirName, isMeta, META, root, saveDir, SHOW_META, SHOWS, showDir, showDirName, titleDirName, titleIdOf,
+} from "./layout.js";
 
 const CHANNEL = "cinema-offline";
 const FORGET_KEY = "cinema.offline.forget.";
@@ -42,7 +45,7 @@ export async function listSaves(sub) {
   if (!account) return [];
   const saves = [];
   for await (const [name, handle] of account.entries()) {
-    if (handle.kind !== "directory") continue;
+    if (handle.kind !== "directory" || name === SHOWS) continue;
     const save = await readFrom(handle, titleIdOf(name));
     if (save) saves.push(save);
   }
@@ -91,27 +94,127 @@ export async function space() {
 
 /**
  * Removes a save from the device. A save the API holds a record of (`meta.saveId`) is queued to be
- * forgotten there, which is sent once there is a connection (`pendingForgets`).
+ * forgotten there, which is sent once there is a connection (`pendingForgets`). The last episode of a
+ * show to go takes the kept show with it.
  */
 export async function removeSave(sub, titleId) {
   const save = await readSave(sub, titleId);
   const account = await accountDir(sub);
   if (account) {
-    await account.removeEntry(titleDirName(titleId), { recursive: true }).catch((error) => {
-      if (!error || error.name !== "NotFoundError") throw error;
-    });
+    await account.removeEntry(titleDirName(titleId), { recursive: true }).catch(ignoreMissing);
   }
   if (save && save.meta.saveId) queueForget(sub, save.meta.saveId);
+  const show = save && save.meta.show && save.meta.show.imdbId;
+  if (show && !(await listSaves(sub)).some((s) => s.meta.show && s.meta.show.imdbId === show)) {
+    await removeShow(sub, show);
+  }
   savesChanged();
+}
+
+function ignoreMissing(error) {
+  if (!error || error.name !== "NotFoundError") throw error;
+}
+
+/**
+ * A show kept on the device for its saved episodes: `{ imdbId, keptAt, show, files }`, `show` the
+ * `GET /api/shows/{imdbId}` answer as it was and `files` the artwork kept beside it,
+ * `[{ name, url, type }]` by the URL the answer names it at. Null when none is kept.
+ */
+export async function readShow(sub, imdbId) {
+  if (!sub || !imdbId || !offlineSupported()) return null;
+  const dir = await showDir(sub, imdbId);
+  if (!dir) return null;
+  try {
+    const kept = JSON.parse(await (await (await dir.getFileHandle(SHOW_META)).getFile()).text());
+    return kept && kept.imdbId === imdbId && kept.show && Array.isArray(kept.files) ? kept : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Every show kept for an account. */
+export async function listShows(sub) {
+  if (!sub || !offlineSupported()) return [];
+  const account = await accountDir(sub);
+  if (!account) return [];
+  let shows;
+  try {
+    shows = await account.getDirectoryHandle(SHOWS);
+  } catch {
+    return [];
+  }
+  const kept = [];
+  for await (const [name, handle] of shows.entries()) {
+    if (handle.kind !== "directory") continue;
+    const show = await readShow(sub, titleIdOf(name));
+    if (show) kept.push(show);
+  }
+  return kept;
+}
+
+/** A kept show's artwork file as a `Blob` of its type, or null when it is not on the device. */
+export async function showFile(sub, imdbId, entry) {
+  const dir = await showDir(sub, imdbId);
+  if (!dir) return null;
+  try {
+    const file = await (await dir.getFileHandle(entry.name)).getFile();
+    return file.size > 0 ? new Blob([file], { type: entry.type || "" }) : null;
+  } catch {
+    return null;
+  }
+}
+
+let showWorker = null;
+let showWrites = 0;
+const pendingShows = new Map();
+
+function showWorkerOf() {
+  if (!showWorker) {
+    showWorker = new Worker(new URL("./show.worker.js", import.meta.url), { type: "module" });
+    showWorker.onmessage = ({ data }) => {
+      const pending = pendingShows.get(data.id);
+      if (!pending) return;
+      pendingShows.delete(data.id);
+      if (data.ok) pending.resolve(true);
+      else pending.reject(new Error(data.error || "The show could not be kept."));
+    };
+  }
+  return showWorker;
+}
+
+/**
+ * Writes a kept show: each artwork file in `artwork` (`Map` of name to `Blob`) first, then `show.json`,
+ * so a reader never meets a listing of a file not yet there, and drops any file the listing no longer
+ * names. The writing is `show.worker.js`'s, through sync access handles, which every browser with the
+ * file system has in a worker. Answers once it is written.
+ */
+export function writeShow(sub, kept, artwork) {
+  if (!sub || !offlineSupported() || typeof Worker !== "function") return Promise.resolve(false);
+  const id = ++showWrites;
+  return new Promise((resolve, reject) => {
+    pendingShows.set(id, { resolve, reject });
+    showWorkerOf().postMessage({ id, sub, imdbId: kept.imdbId, kept, artwork: [...artwork] });
+  });
+}
+
+/** Removes a kept show from the device. */
+export async function removeShow(sub, imdbId) {
+  const account = await accountDir(sub);
+  if (!account) return;
+  let shows;
+  try {
+    shows = await account.getDirectoryHandle(SHOWS);
+  } catch {
+    return;
+  }
+  await shows.removeEntry(showDirName(imdbId), { recursive: true }).catch(ignoreMissing);
 }
 
 /** Removes every save an account has on this device. */
 export async function removeAccount(sub) {
   if (!sub || !offlineSupported()) return;
   const saves = await listSaves(sub);
-  await (await root()).removeEntry(accountDirName(sub), { recursive: true }).catch((error) => {
-    if (!error || error.name !== "NotFoundError") throw error;
-  });
+  await (await root()).removeEntry(accountDirName(sub), { recursive: true }).catch(ignoreMissing);
   for (const save of saves) if (save.meta.saveId) queueForget(sub, save.meta.saveId);
   savesChanged();
 }

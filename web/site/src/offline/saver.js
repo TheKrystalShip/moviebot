@@ -1,4 +1,4 @@
-// Save offline's transfer, from the page: starting a save, the queue of saves under way, pausing,
+// Download's transfer, from the page: starting a save, the queue of saves under way, pausing,
 // resuming and removing one, and what each is doing for the controls that draw it.
 //
 // The bytes are written by `saver.worker.js`; this side holds what the worker cannot: the session
@@ -19,6 +19,7 @@ import { isOnline, onReconnect, probe, unreached } from "../connectivity.js";
 import { freshToken, sessionStore } from "../session.js";
 import { deviceName } from "./choose.js";
 import { FORMAT } from "./layout.js";
+import { keepShow } from "./shows.js";
 import { forgotten, listSaves, readSave, removeAccount, removeSave, space } from "./store.js";
 
 const PAUSED_KEY = "cinema.offline.paused.";
@@ -124,7 +125,7 @@ function workerOf() {
  */
 export async function startSave({ titleId, rung, audio, subtitles }) {
   const sub = currentSub();
-  if (!sub) throw new Error("Sign in to save films.");
+  if (!sub) throw new Error("Sign in to download films.");
   // Asked first, while the press that asked for the save is still the page's to show a prompt for.
   const persisted = navigator.storage && navigator.storage.persist ? navigator.storage.persist().catch(() => false) : null;
   const need = rung.bytes + audio.reduce((sum, a) => sum + a.bytes, 0) + subtitles.reduce((sum, s) => sum + s.bytes, 0);
@@ -136,13 +137,16 @@ export async function startSave({ titleId, rung, audio, subtitles }) {
     titleId, rung: rung.rendition, audio: audio.map((a) => a.rendition), subtitles: subtitles.map((s) => s.id), device: deviceName(),
   });
   setPaused(sub, titleId, false);
-  enqueue({ sub, titleId, meta: metaOf(sub, pkg) });
+  const meta = metaOf(sub, pkg);
+  enqueue({ sub, titleId, meta });
+  // An episode's show is kept beside it, so its page draws whole with no connection (`shows.js`).
+  if (meta.show) void keepShow(sub, meta.show.imdbId);
 }
 
 /** Asks for the package of a save again, as it was chosen, and writes it as a new one. */
 async function repost(job) {
   const save = job.meta ? job.meta.package.save : (await readSave(job.sub, job.titleId))?.meta.package.save;
-  if (!save) throw new Error("This save is not on the device.");
+  if (!save) throw new Error("This download is not on the device.");
   const pkg = await api.saveOffline({ titleId: job.titleId, rung: save.rung, audio: save.audio, subtitles: save.subtitles, device: deviceName() });
   return metaOf(job.sub, pkg);
 }
@@ -182,6 +186,7 @@ function metaOf(sub, pkg) {
     episode,
     overview: (pkg.episode && pkg.episode.overview) || d.overview || null,
     genres: d.genres || [],
+    rating: d.rating ?? null,
     durationSeconds: m.durationSeconds,
     quality: { rendition: rendition(rung.uri), width: rung.width || null, height: rung.height || null, label: rung.name || null },
     files,
@@ -252,7 +257,7 @@ async function heard(message) {
       set(job.titleId, null);
       const save = await readSave(job.sub, job.titleId).catch(() => null);
       if (save && save.meta.saveId) api.completeSave(save.meta.saveId).catch(() => {});
-      if (save) toast.info(`${saveTitle(save.meta)} is on this device.`);
+      if (save) toast.info(`Downloaded ${saveTitle(save.meta)}.`);
       break;
     }
     case "stopped":
@@ -281,17 +286,17 @@ async function heard(message) {
       // The API no longer holds the record (`409`), or the track's files changed: the save is asked
       // for again as it was chosen, once, and written as the new package says.
       if (job.reposted) {
-        failed(job.titleId, "This film changed on the server while it was saved. Remove it and save it again.");
+        failed(job.titleId, "This film changed on the server while it was downloaded. Remove it and download it again.");
         break;
       }
       try {
         queue = [{ sub: job.sub, titleId: job.titleId, meta: await repost(job), reposted: true }, ...queue];
       } catch (error) {
-        failed(job.titleId, error.message || "This film could not be saved.");
+        failed(job.titleId, error.message || "This film could not be downloaded.");
       }
       break;
     default:
-      failed(job.titleId, message.message || "This film could not be saved.");
+      failed(job.titleId, message.message || "This film could not be downloaded.");
   }
   next();
 }

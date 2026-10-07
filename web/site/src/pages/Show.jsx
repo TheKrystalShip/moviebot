@@ -12,8 +12,11 @@ import { Empty, Failed, WatchButton, useWatchLink } from "../components/Film.jsx
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
-import { SaveOfflineMark, useOffersSaving } from "../components/SaveOffline.jsx";
+import { DownloadMark, downloadLine, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
 import { episodeRelease, openingEpisode, watchNow, watchOpening } from "../watchNow.js";
+import { useKeptShow } from "../offline/hooks.js";
+import { refreshShow } from "../offline/shows.js";
+import { Unreachable } from "./Offline.jsx";
 
 /**
  * One show: what it is, its seasons with their episodes, where this person picks up, and watching any
@@ -27,12 +30,19 @@ import { episodeRelease, openingEpisode, watchNow, watchOpening } from "../watch
  * shelf's address or Discover's). Both are the page's to correct once it knows the show: a show with
  * an episode here belongs at the shelf's address, one without at Discover's, and a season the show
  * does not have is dropped, each by replacing the address.
+ *
+ * `fromDevice` is the page opened with no connection, drawn from the show kept on the device for its
+ * downloaded episodes (`offline/shows.js`); the episodes not downloaded are drawn and cannot be played.
+ * Read from the API while the device keeps the show, the page writes it there again.
  */
-export function Show({ imdbId, season, inLibrary }) {
-  const show = useLoad(() => api.show(imdbId), [imdbId]);
-  const library = useLoad(() => api.shows().then((all) => all.find((s) => s.imdbId === imdbId) || null).catch(() => null), [imdbId]);
-  const rooms = useLoad(() => api.rooms(), [imdbId]);
-  const downloading = useCan("cinema:download");
+export function Show({ imdbId, season, inLibrary, fromDevice = false }) {
+  const fetched = useLoad(() => (fromDevice ? Promise.resolve(null) : api.show(imdbId)), [imdbId]);
+  const kept = useKeptShow(imdbId, fromDevice);
+  const show = fromDevice ? kept : fetched;
+  const library = useLoad(() => (fromDevice ? Promise.resolve(null)
+    : api.shows().then((all) => all.find((s) => s.imdbId === imdbId) || null).catch(() => null)), [imdbId]);
+  const rooms = useLoad(() => (fromDevice ? Promise.resolve([]) : api.rooms()), [imdbId]);
+  const downloading = useCan("cinema:download") && !fromDevice;
   // What the tracker offers, so every episode it holds can be played; kept a few minutes by the API,
   // and asked by somebody who may fetch an episode.
   const offers = useLoad(() => (downloading ? api.showReleases(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId, downloading]);
@@ -41,6 +51,10 @@ export function Show({ imdbId, season, inLibrary }) {
   const me = session && session.user;
   const online = useOnline();
   const saving = useOffersSaving();
+  const sub = me && me.id;
+  React.useEffect(() => {
+    if (!fromDevice && fetched.data) void refreshShow(sub, fetched.data);
+  }, [fromDevice, sub, fetched.data]);
 
   useCrumb(show.data ? show.data.title : show.error && show.error.status === 404 ? "No such show" : null);
 
@@ -53,6 +67,7 @@ export function Show({ imdbId, season, inLibrary }) {
   }, [imdbId, season, inLibrary, episodesHere, hasSeason]);
   if (episodesHere !== null && (episodesHere !== inLibrary || (season != null && !hasSeason))) return <div className="kc-page" />;
 
+  if (fromDevice && !show.data) return show.loading ? <div className="kc-page" /> : <Unreachable place={inLibrary ? null : "discover"} />;
   if (show.error && show.error.status === 404) {
     return <div className="kc-page"><Empty icon="tv" title="No such show">The film database has no show under this id.</Empty></div>;
   }
@@ -160,7 +175,7 @@ export function Show({ imdbId, season, inLibrary }) {
           </div>
 
           <SeasonPanel season={current} me={me} rooms={rooms.data || []}
-            offers={offers.data} showImdbId={s.imdbId} showName={s.title} saving={saving} />
+            offers={offers.data} showImdbId={s.imdbId} showName={s.title} backdrop={s.backdropUrl || s.posterUrl} saving={saving} />
         </section>
       )}
 
@@ -183,12 +198,14 @@ export function Show({ imdbId, season, inLibrary }) {
 
 /**
  * One season: when it was last played, and its episodes with how far this person got in each. With
- * Save offline offered (`saving`), every row has its place for it at its end, so the rows line up.
+ * Download offered (`saving`), every row has its place for it at its end, so the rows line up, and a
+ * row whose episode is downloaded or downloading says so under its name.
  */
-function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, saving }) {
+function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, backdrop, saving }) {
   const played = season.episodes.map((e) => e.lastPlayed).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at))[0];
   const playedBy = played && (me && played.byId === me.id ? "you" : played.byName);
   const aired = season.airDate ? new Date(season.airDate).getFullYear() : null;
+  const marks = useDownloadMarks();
 
   return (
     <div className="kc-season">
@@ -202,13 +219,18 @@ function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, saving }
       </div>
 
       {season.episodes.map((e) => {
-        const row = <EpisodeRow key={e.number} episode={e} rooms={rooms} offers={offers} showImdbId={showImdbId} />;
+        const row = <EpisodeRow key={e.number} episode={e} rooms={rooms} offers={offers} showImdbId={showImdbId}
+          download={saving && e.titleId ? marks.film(e.titleId) : null} />;
         if (!saving) return row;
         return (
           <div key={e.number} className="kc-episode-line">
             {row}
             {e.titleId && e.status === "ready"
-              ? <SaveOfflineMark titleId={e.titleId} name={`${showName} · ${episodeCode(e)}`} />
+              ? <DownloadMark titleId={e.titleId} head={{
+                  name: e.name || `Episode ${e.number}`, context: `${showName} · ${episodeCode(e)}`,
+                  runtime: e.runtimeMinutes ? `${e.runtimeMinutes} min` : e.durationSeconds ? clock(e.durationSeconds) : null,
+                  still: e.stillUrl, backdrop,
+                }} />
               : <span className="kc-episode-save" />}
           </div>
         );
@@ -217,7 +239,7 @@ function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, saving }
   );
 }
 
-function EpisodeRow({ episode: e, rooms, offers, showImdbId }) {
+function EpisodeRow({ episode: e, rooms, offers, showImdbId, download }) {
   const [starting, setStarting] = React.useState(false);
   const online = useOnline();
   const done = e.progress && e.progress.finished;
@@ -244,13 +266,17 @@ function EpisodeRow({ episode: e, rooms, offers, showImdbId }) {
       </span>
       <span className="kc-episode__text">
         <span className={"kc-episode__title" + (done ? " is-done" : "")}>{e.name || `Episode ${e.number}`}</span>
-        <span className="kc-episode__sub">
-          {e.titleId && e.status === "failed" ? "Could not be prepared"
-            : here && e.status === "transcoding" ? "Still being prepared"
-            : starting ? "Starting…"
-            : here || offer ? (e.airDate ? `Aired ${e.airDate}` : null)
-            : "Not available yet"}
-        </span>
+        {download
+          ? <span className={"kc-episode__sub kc-episode__sub--download" + (download.kind === "done" ? " is-done" : "")}>{downloadLine(download)}</span>
+          : (
+            <span className="kc-episode__sub">
+              {e.titleId && e.status === "failed" ? "Could not be prepared"
+                : here && e.status === "transcoding" ? "Still being prepared"
+                : starting ? "Starting…"
+                : here || offer ? (e.airDate ? `Aired ${e.airDate}` : null)
+                : "Not available yet"}
+            </span>
+          )}
       </span>
       <span className="kc-episode__progress"><span style={{ width: `${Math.round(fraction * 100)}%` }} className={done ? "is-done" : ""} /></span>
       <span className="kc-episode__score">{e.rating ? <><Icon name="star" size={11} />{e.rating.toFixed(1)}</> : null}</span>
@@ -259,8 +285,9 @@ function EpisodeRow({ episode: e, rooms, offers, showImdbId }) {
     </>
   );
 
-  // With no connection a row plays from the device when the episode is saved here, and is inert when not.
-  if (here) return play.disabled ? <div className="kc-episode is-absent">{inner}</div> : <a className="kc-episode" {...play}>{inner}</a>;
-  if (offer) return <button type="button" className="kc-episode kc-episode--fetch" disabled={starting || !online} onClick={watch}>{inner}</button>;
-  return <div className="kc-episode is-absent">{inner}</div>;
+  // With no connection a row plays from the device when the episode is downloaded here, and is dimmed
+  // and inert when not.
+  if (here) return play.disabled ? <div className={"kc-episode is-absent" + (online ? "" : " is-off")}>{inner}</div> : <a className="kc-episode" {...play}>{inner}</a>;
+  if (offer) return <button type="button" className={"kc-episode kc-episode--fetch" + (online ? "" : " is-off")} disabled={starting || !online} onClick={watch}>{inner}</button>;
+  return <div className={"kc-episode is-absent" + (online ? "" : " is-off")}>{inner}</div>;
 }

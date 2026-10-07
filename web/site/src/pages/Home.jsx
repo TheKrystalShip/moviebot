@@ -4,7 +4,11 @@ import { api, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
 import { libraryPath, listPath, moviePath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
-import { clock, since } from "../time.js";
+import { ago, clock, since } from "../time.js";
+import { useOnline } from "../connectivity.js";
+import { useDeviceLibrary } from "../offline/hooks.js";
+import { Off } from "./Offline.jsx";
+import { useDownloadMarks } from "../components/DownloadButton.jsx";
 import { ContinueCard, Empty, Failed, FilmCard, PosterArt, ShowCard, WatchButton, watchLink } from "../components/Film.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
 import { MoreTile } from "../components/TitleCards.jsx";
@@ -19,10 +23,67 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * The front page: a film to watch, where this person left off, the rooms watching something now,
  * their Watch later, what arrived lately, and the shelf split into films and shows. Every row is
  * something the API measured; a row with nothing in it is left out rather than drawn empty.
+ * `fromDevice` is the page opened with no connection, drawing what is downloaded (`DeviceHome`).
  */
-export function Home() {
+export function Home({ fromDevice = false }) {
+  return fromDevice ? <DeviceHome /> : <ServerHome />;
+}
+
+/**
+ * The front page from the downloads on this device: the film downloaded last at the top, where this
+ * person left off in what is here, and the films and the shows here, each leading to the library. A
+ * row that would list what is not here is not drawn.
+ */
+function DeviceHome() {
+  const device = useDeviceLibrary();
+  const marks = useDownloadMarks();
+  if (!device.data) return <div className="kc-page"><PhoneHead /></div>;
+  const { films, shows, titles, continuing } = device.data;
+  if (films.length === 0 && shows.length === 0) {
+    return (
+      <div className="kc-page">
+        <PhoneHead />
+        <Empty icon="download" title="Nothing downloaded" />
+      </div>
+    );
+  }
+  const latest = (a, b) => String(b.addedAt || "").localeCompare(String(a.addedAt || ""));
+  const featured = [...films].sort(latest)[0];
+  return (
+    <div className="kc-page kc-home">
+      <PhoneHead />
+      {featured && <Featured title={featured} eyebrow={`Downloaded ${ago(featured.savedAt)}`} />}
+
+      {continuing.length > 0 && (
+        <Rail
+          variant="wide" icon="history" title="Continue watching" count={continuing.length}
+          items={continuing} itemKey={(p) => p.titleId}
+          renderItem={(p) => <ContinueCard title={titles.get(p.titleId)} progress={p} remainingSeconds={p.remainingSeconds} />} />
+      )}
+
+      {films.length > 0 && (
+        <Rail
+          variant="posters" icon="clapperboard" title="Movies" count={films.length}
+          onViewAll={() => navigate(libraryPath("film"))} viewAllLabel="All movies"
+          items={[...films].sort(latest)} itemKey={(t) => t.id}
+          renderItem={(t) => <FilmCard title={t} download={marks.film(t.id)} />} />
+      )}
+
+      {shows.length > 0 && (
+        <Rail
+          variant="posters" icon="tv" title="TV Shows" count={shows.length}
+          onViewAll={() => navigate(libraryPath("show"))} viewAllLabel="All shows"
+          items={[...shows].sort(latest)} itemKey={showKey}
+          renderItem={(s) => <ShowCard show={s} downloaded={marks.episodes(s.imdbId)} />} />
+      )}
+    </div>
+  );
+}
+
+function ServerHome() {
   const titles = useLoad(() => api.titles(), []);
   const rooms = useLoad(() => api.rooms(), [], { every: 15000 });
+  const marks = useDownloadMarks();
   const progress = useLoad(() => api.progress().catch(() => []), []);
   const showList = useLoad(() => api.shows().catch(() => []), []);
   const later = useLoad(() => api.list("later").catch(() => null), []);
@@ -45,9 +106,9 @@ export function Home() {
   ].sort((a, b) => b.at.localeCompare(a.at));
   const recentIds = new Set(recent.filter((r) => r.film).map((r) => r.film.id));
   const card = (t) => (
-    <FilmCard title={t} room={watching.find((r) => r.titleId === t.id)} isNew={recentIds.has(t.id)} />
+    <FilmCard title={t} room={watching.find((r) => r.titleId === t.id)} isNew={recentIds.has(t.id)} download={marks.film(t.id)} />
   );
-  const either = (item) => (item.show ? <ShowCard show={item.show} /> : card(item.film));
+  const either = (item) => (item.show ? <ShowCard show={item.show} downloaded={marks.episodes(item.show.imdbId)} /> : card(item.film));
   const keyOf = (item) => (item.show ? "show:" + (item.show.imdbId || item.show.firstTitleId) : item.film.id);
 
   const featured = newest(films);
@@ -127,14 +188,17 @@ export function Home() {
           variant="posters" icon="tv" title="TV Shows" count={shows.length}
           onViewAll={() => navigate(libraryPath("show"))} viewAllLabel="All shows"
           items={[...dealt(shows, showKey, deal), MORE]} itemKey={(s) => (s === MORE ? "more" : showKey(s))}
-          renderItem={(s) => (s === MORE ? <MoreTile label="Any show" /> : <ShowCard show={s} />)} />
+          renderItem={(s) => (s === MORE ? <MoreTile label="Any show" /> : <ShowCard show={s} downloaded={marks.episodes(s.imdbId)} />)} />
       )}
     </div>
   );
 }
 
-/** The film at the top: the newest on the shelf, with what the film database says about it. */
-function Featured({ title, room }) {
+/**
+ * The film at the top: the newest on the shelf, with what the film database says about it. `eyebrow`
+ * says why it is here where the shelf's own words do not.
+ */
+function Featured({ title, room, eyebrow }) {
   const d = title.details;
   const art = (d && d.backdropUrl) || posterUrl(title);
   const film = title.film || {};
@@ -143,7 +207,7 @@ function Featured({ title, room }) {
       {art && <div className="kc-featured__art" style={{ backgroundImage: `url("${art}")` }} />}
       <div className="kc-featured__scrim" />
       <div className="kc-featured__body">
-        <span className="kc-eyebrow">{room ? "Watching now" : title.addedAt ? `Added ${since(title.addedAt).toLowerCase()}` : "From the library"}</span>
+        <span className="kc-eyebrow">{room ? "Watching now" : eyebrow || (title.addedAt ? `Added ${since(title.addedAt).toLowerCase()}` : "From the library")}</span>
         <h1>{film.name || title.title}</h1>
         <div className="kc-featured__meta">
           {d && d.rating && <FilmScore rating={d.rating} votes={d.votes} compact />}
@@ -199,11 +263,12 @@ export function newest(library) {
  * at the right. A wide screen has all three in the sidebar and does not draw it.
  */
 function PhoneHead() {
+  const online = useOnline();
   return (
     <div className="kc-phonehead">
       <img src={markUrl} width="26" height="26" alt="" />
       <span className="kc-phonehead__name">Krystal Cinema</span>
-      <BellButton />
+      {online ? <BellButton /> : <Off><BellButton /></Off>}
     </div>
   );
 }

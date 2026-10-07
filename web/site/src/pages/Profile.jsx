@@ -6,11 +6,11 @@ import { useLoad } from "../data.js";
 import { accountUrl, can, useCan, useSession } from "../session.js";
 import { leave } from "../leave.js";
 import { PROFILE_TAB_FACES } from "../nav.js";
-import { DEVICE_TABS, moviePath, profilePath, savedPath, showPath } from "../paths.js";
+import { PROFILE_TABS, moviePath, profilePath, savedPath, showPath } from "../paths.js";
 import { useOnline } from "../connectivity.js";
 import { keptPreferences } from "../offline/preferences.js";
 import { offlineSupported } from "../offline/store.js";
-import { NeedsConnection, OfflineTab } from "./Offline.jsx";
+import { Off } from "./Offline.jsx";
 import { linkProps, navigate } from "../router.js";
 import { ago, airDay } from "../time.js";
 import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
@@ -20,60 +20,80 @@ import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
 import { onTv } from "../tv/tv.js";
 
-// The Offline tab is drawn where the browser can keep saved films.
-const TABS = PROFILE_TAB_FACES.filter((t) => t.id !== "offline" || offlineSupported());
+// The tabs that show what only the server holds. With no connection they are drawn disabled; the
+// others show what the device keeps (Playback and Subtitles, read-only) or the browser's own (Appearance).
+const SERVER_TABS = new Set(["history", "requests", "following", "notifications"]);
+
+/** The tab a profile opened with no connection shows when its address names none it can. */
+const DEVICE_TAB = "playback";
 
 /**
  * Who is signed in and everything that is theirs: what they watched, what they asked for and how they
  * like to watch. Their sign-ins are the provider's, on its account page. The tab is in the address, so
  * a tab can be linked to and reloaded.
  *
- * `fromDevice` is the page drawn with no connection: it opens on the Offline tab, its tabs are the ones
- * the device holds (`DEVICE_TABS`), and a tab that needs the server, reached by its address, says so.
+ * With no connection the tabs that need the server are disabled. `fromDevice` is the page opened with
+ * none: a tab that needs the server is never drawn, and the page shows Playback in its place.
  */
 export function Profile({ tab: named, fromDevice = false }) {
-  const tab = named || (fromDevice ? "offline" : TABS[0].id);
+  const asked = named || PROFILE_TABS[0];
+  const tab = fromDevice && SERVER_TABS.has(asked) ? DEVICE_TAB : asked;
   const session = useSession();
   const user = session && session.user;
-  const tabs = fromDevice ? TABS.filter((t) => DEVICE_TABS.includes(t.id) || t.id === tab) : TABS;
   const online = useOnline();
+  const tabsRef = React.useRef(null);
+  useDisabledTabs(tabsRef, !online, PROFILE_TAB_FACES.map((t) => SERVER_TABS.has(t.id)));
 
   React.useEffect(() => {
-    if (fromDevice && !named) navigate(profilePath("offline"), { replace: true });
-  }, [fromDevice, named]);
+    if (tab !== asked) navigate(profilePath(tab), { replace: true });
+  }, [tab, asked]);
 
+  const saved = (
+    <a className="kc-row kc-row--link kc-profile__saved" {...linkProps(savedPath)}>
+      <Icon name="bookmark" size={18} />
+      <span className="kc-row__title">Saved</span>
+      <Icon name="chevron-right" size={18} />
+    </a>
+  );
   return (
     <div className="kc-page kc-profile">
       <PageHead title={user ? user.name : "Profile"} sub={user && user.username ? "@" + user.username : null}>
         <Button size="lg" icon="log-out" className="kc-head__action" onClick={leave}>Sign out</Button>
       </PageHead>
-      {!fromDevice && (
-        <a className="kc-row kc-row--link kc-profile__saved" {...linkProps(savedPath)}>
-          <Icon name="bookmark" size={18} />
-          <span className="kc-row__title">Saved</span>
-          <Icon name="chevron-right" size={18} />
-        </a>
-      )}
-      <SubTabs tabs={tabs} active={tab} onChange={(id) => navigate(profilePath(id), { replace: true })} />
+      {online ? saved : <Off>{saved}</Off>}
+      <div ref={tabsRef} className="kc-profile__tabs">
+        <SubTabs tabs={PROFILE_TAB_FACES} active={tab} onChange={(id) => navigate(profilePath(id), { replace: true })} />
+      </div>
       <TabStage tab={tab} render={(shown) => (
         <div className="kc-profile__panel">
-          {fromDevice && !DEVICE_TABS.includes(shown)
-            ? <NeedsConnection />
-            : (
-              // A tab that asks the server keeps what it drew when the connection goes, and asks nothing.
-              <fieldset className="kc-fieldset" disabled={!online && !DEVICE_TABS.includes(shown)}>
-                {panel(shown, session)}
-              </fieldset>
-            )}
+          {/* A tab that asks the server keeps what it drew when the connection goes, and asks nothing. */}
+          <fieldset className="kc-fieldset" disabled={!online && SERVER_TABS.has(shown)}>
+            {panel(shown, session)}
+          </fieldset>
         </div>
       )} />
     </div>
   );
 }
 
+/**
+ * Disables the tabs that need the server while `offline`, both the row of tabs and the phone's
+ * picker. krystal-ui's `SubTabs` takes no disabled tab, so they are disabled in place, by the order
+ * `PROFILE_TAB_FACES` gives them; React sets no `disabled` of its own on them to undo it.
+ */
+function useDisabledTabs(ref, offline, needsServer) {
+  const key = needsServer.join();
+  React.useLayoutEffect(() => {
+    if (!ref.current) return;
+    const off = (i) => offline && !!needsServer[i];
+    ref.current.querySelectorAll(".subtab").forEach((button, i) => { button.disabled = off(i); });
+    ref.current.querySelectorAll(".subtabs-mobile option").forEach((option, i) => { option.disabled = off(i); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offline, key]);
+}
+
 export function panel(tab, session) {
   switch (tab) {
-    case "offline": return <OfflineTab />;
     case "requests": return <Requests session={session} />;
     case "following": return <Following />;
     case "notifications": return <Notifications />;
@@ -336,7 +356,7 @@ function Notifications() {
 // so a choice made elsewhere is never shown as something else.
 const LANGUAGES = ["en", "es", "fr", "de", "it", "pt", "ca", "nl", "pl", "ru", "ja", "ko", "zh", "ar", "tr"];
 const QUALITIES = [{ value: "", label: "Auto" }, { value: "1080", label: "1080p" }, { value: "720", label: "720p" }];
-// What Save offline picks by default; a title saves the widest rung no wider than the height's 16:9
+// What Download picks by default; a title downloads the widest rung no wider than the height's 16:9
 // width (`offline/choose.js`).
 const OFFLINE_QUALITIES = [...QUALITIES, { value: "480", label: "480p" }];
 
@@ -394,7 +414,7 @@ function usePreferences() {
 
 /**
  * How a film starts for this person: its audio language, its quality, and whether intros are skipped;
- * and the quality Save offline picks, where this browser can save.
+ * and the quality Download picks, where this browser can download.
  */
 function Playback() {
   const session = useSession();
@@ -420,8 +440,8 @@ function Playback() {
           <Toggle on={Boolean(preferences.skipIntros)} label="Skip intros and recaps automatically" onChange={(on) => change({ skipIntros: on })} />
         </SettingsRow>
         {offlineSupported() && can(session, "cinema:offline") && (
-          <SettingsRow icon="hard-drive-download" title="Save offline" sub="Auto saves the smallest on a phone or tablet.">
-            <Heights label="Save offline quality" options={OFFLINE_QUALITIES} value={preferences.offlineQualityHeight}
+          <SettingsRow icon="hard-drive-download" title="Download quality" sub="Auto downloads the smallest on a phone or tablet.">
+            <Heights label="Download quality" options={OFFLINE_QUALITIES} value={preferences.offlineQualityHeight}
               onChange={(height) => change({ offlineQualityHeight: height })} />
           </SettingsRow>
         )}
@@ -433,7 +453,7 @@ function Playback() {
 /** A choice of heights, Auto (`""`) among them: `value` is the stored height or null. */
 function Heights({ label, options, value, onChange }) {
   return (
-    <div className="kc-segmented" role="radiogroup" aria-label={label}>
+    <div className="kc-segmented kc-heights" role="radiogroup" aria-label={label}>
       {options.map((q) => {
         const on = (value ? String(value) : "") === q.value;
         return (
@@ -488,6 +508,7 @@ function Account({ session }) {
   const user = session && session.user;
   const where = useLoad(() => accountUrl(), []);
   const url = where.data;
+  const online = useOnline();
 
   return (
     <SettingsSection icon="user-cog" title="Account">
@@ -496,7 +517,7 @@ function Account({ session }) {
         sub={url ? `Your name, password and sessions are kept at ${new URL(url).host}.` : "Your name, password and sessions are kept by your account provider."}>
         {onTv
           ? url && <span className="kc-account-address">{url.replace(/^https?:\/\//, "")}</span>
-          : <Button icon="external-link" href={url || ""} disabled={!url}>Manage account</Button>}
+          : <Button icon="external-link" href={url || ""} disabled={!url || !online}>Manage account</Button>}
       </SettingsRow>
     </SettingsSection>
   );
