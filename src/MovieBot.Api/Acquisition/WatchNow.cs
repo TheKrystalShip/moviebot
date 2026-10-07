@@ -140,12 +140,12 @@ public sealed class WatchNow(
         if (all is not null && request.Episodes is null && DownloadOf(all, request.ImdbId) is { } arriving)
         {
             // Already on its way: the room waits on the same download rather than starting another.
-            await acquisition.TagAsync(arriving.Hash, TorrentTags.Watch(room), ct);
-            await PrepareAsync(room, new RoomPreparing
+            await HoldAsync(room, new RoomPreparing
             {
                 ImdbId = request.ImdbId, Name = await NameAsync(request.ImdbId, null, null, ct),
                 Stage = PreparingStages.Downloading, Progress = arriving.Progress,
-            }, ct);
+            }, asker, ct);
+            await acquisition.TagAsync(arriving.Hash, TorrentTags.Watch(room), ct);
             return new WatchNowReply { Outcome = "preparing", Room = room };
         }
 
@@ -153,13 +153,13 @@ public sealed class WatchNow(
         if (streams.Used >= streams.Limit) return new WatchNowReply { Outcome = "full", Streams = streams };
 
         var chosen = request.TorrentId is { } id ? offered.Resolve(id) : null;
-        await PrepareAsync(room, new RoomPreparing
+        await HoldAsync(room, new RoomPreparing
         {
-            ImdbId = request.ImdbId,
+            ImdbId = request.ImdbId, Season = episode?.Season, Episode = episode?.Episode,
             Name = await NameAsync(request.ImdbId, chosen, episode, ct),
             Stage = PreparingStages.Finding,
             Release = chosen is null ? null : Label(chosen),
-        }, ct);
+        }, asker, ct);
 
         // The person is in the room by the time this is decided, watching it be found.
         _ = Task.Run(() => FetchAsync(room, request, episode, chosen, asker));
@@ -183,7 +183,8 @@ public sealed class WatchNow(
         var name = await NameAsync(request.ImdbId, chosen, episode, ct);
         RoomPreparing Failed(string problem, string? refusal = null) => new()
         {
-            ImdbId = request.ImdbId, Name = name, Stage = PreparingStages.Failed, Problem = problem, Refusal = refusal,
+            ImdbId = request.ImdbId, Season = episode?.Season, Episode = episode?.Episode,
+            Name = name, Stage = PreparingStages.Failed, Problem = problem, Refusal = refusal,
         };
 
         try
@@ -213,7 +214,8 @@ public sealed class WatchNow(
                     logger.LogInformation("{User} is watching {Film} while it arrives, in room {Room}.", asker.DisplayName, name, room);
                     await PrepareAsync(room, new RoomPreparing
                     {
-                        ImdbId = request.ImdbId, Name = name, Stage = PreparingStages.Downloading,
+                        ImdbId = request.ImdbId, Season = episode?.Season, Episode = episode?.Episode,
+                        Name = name, Stage = PreparingStages.Downloading,
                         Release = Label(release), Progress = 0,
                     }, ct);
                     break;
@@ -255,8 +257,19 @@ public sealed class WatchNow(
         return dubbed ?? digital.FirstOrDefault(r => r.Resolution == wanted) ?? digital.FirstOrDefault();
     }
 
+    /// <summary>
+    /// Puts what is about to arrive into the room in place of whatever it held, as the person who
+    /// asked: every viewer's player moves to it at once.
+    /// </summary>
+    private Task HoldAsync(string room, RoomPreparing preparing, Actor asker, CancellationToken ct) =>
+        controls.ApplyAsync(room, "load", asker, a => sessions.Prepare(room, preparing, a), ct: ct);
+
+    /// <summary>
+    /// How the fetch is getting on, said in the room only while the room still holds it: somebody may
+    /// have put something else on since.
+    /// </summary>
     private Task PrepareAsync(string room, RoomPreparing preparing, CancellationToken ct) =>
-        controls.ReportAsync(room, preparing, ct);
+        preparing.SameItem(sessions.GetOrCreate(room).Preparing) ? controls.ReportAsync(room, preparing, ct) : Task.CompletedTask;
 
     /// <summary>
     /// What the room calls the film while it waits: the catalogue's name, which is the one every page
@@ -393,14 +406,23 @@ public sealed class WatchNowLoader(
         var room = watch.Room;
         var current = sessions.GetOrCreate(room).Preparing;
         var imdbId = download.Tags.Select(TorrentTags.ReadImdb).FirstOrDefault(i => i is not null) ?? current?.ImdbId ?? "";
-        var name = current?.Name ?? ReleaseParser.ParseName(download.Name).Display;
+
+        // A room holds one thing. A room that has been given something else since it asked for this
+        // is no longer waiting on it, so the download stops naming it.
+        var item = new RoomPreparing
+        {
+            ImdbId = imdbId, Season = watch.Episode?.Season, Episode = watch.Episode?.Episode, Name = "", Stage = "",
+        };
+        if (!item.SameItem(current))
+        {
+            await acquisition.ClearTagAsync(download.Hash, tag, ct);
+            return;
+        }
+        var name = current!.Name;
 
         if (download.Tags.Contains(TorrentTags.IngestFailed))
         {
-            await PrepareAsync(room, new RoomPreparing
-            {
-                ImdbId = imdbId, Name = name, Stage = PreparingStages.Failed, Problem = "notWatchable", Release = current?.Release,
-            }, ct);
+            await PrepareAsync(room, current with { Stage = PreparingStages.Failed, Problem = "notWatchable", Progress = null }, ct);
             await acquisition.ClearTagAsync(download.Hash, tag, ct);
             return;
         }
@@ -424,9 +446,9 @@ public sealed class WatchNowLoader(
             return;
         }
 
-        await PrepareAsync(room, new RoomPreparing
+        await PrepareAsync(room, current with
         {
-            ImdbId = imdbId, Name = name, Stage = PreparingStages.Downloading, Release = current?.Release,
+            Stage = PreparingStages.Downloading,
             // Hundredths: a push per pass is as often as the panel is redrawn, and no oftener.
             Progress = Math.Round(watch.Episode is { } wanted ? await EpisodeProgressAsync(download, wanted, ct) : download.Progress, 2),
         }, ct);

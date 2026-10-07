@@ -67,11 +67,10 @@ export interface Environment {
    */
   startAt(): number | null;
   /**
-   * The room holds this title. The front door keeps it where `titleId` reads the launch from and
-   * drops the launch's `startAt`, so a reload names the film the room is on and the room is not
-   * sent back to the one the page was opened with.
+   * The room holds something, so the launch is spent: the front door drops `titleId` and `startAt`
+   * from where it reads them, and a reload rejoins the room on whatever it holds.
    */
-  showing(titleId: string): void;
+  forgetLaunch(): void;
   /**
    * The viewer's access token, the one the identity provider minted for them, while it is good, or
    * null when there is nothing to present. Every closed route refuses a request without one.
@@ -150,15 +149,16 @@ export interface SiteViewer {
 }
 
 /**
- * The page's own address with `title` naming the film and no `at`, or null when it already says so.
+ * The page's own address without the launch's `title` and `at`, or null when it carries neither.
  * Everything else the address carries stays.
  */
-export function addressShowing(titleId: string): string | null {
+export function addressWithoutLaunch(): string | null {
   const query = new URLSearchParams(window.location.search);
-  if (query.get('title') === titleId && !query.has('at')) return null;
-  query.set('title', titleId);
+  if (!query.has('title') && !query.has('at')) return null;
+  query.delete('title');
   query.delete('at');
-  return `${window.location.pathname}?${query.toString()}`;
+  const rest = query.toString();
+  return window.location.pathname + (rest ? `?${rest}` : '');
 }
 
 /** A television holds nothing sideways: the screen already is. */
@@ -188,8 +188,8 @@ export function createSiteEnvironment(
       const seconds = Number(new URLSearchParams(window.location.search).get('at'));
       return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
     },
-    showing: (title) => {
-      const address = addressShowing(title);
+    forgetLaunch: () => {
+      const address = addressWithoutLaunch();
       if (address !== null) replaceAddress(address);
     },
     authToken: () => viewer.token(),

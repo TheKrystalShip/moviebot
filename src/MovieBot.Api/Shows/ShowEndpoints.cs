@@ -47,45 +47,6 @@ public static class ShowEndpoints
                 person is null ? null : follows.Get(person.UserId, imdbId)));
         }).RequireAction(CinemaActions.Watch);
 
-        // The episodes either side of one the library holds, which is what a player's previous and
-        // next move the room to. Absent at either end.
-        app.MapGet("/api/titles/{id}/neighbours", async (string id, TitleLibrary library, LibraryListing listing, ShowStore shows,
-            ShowOfferCache offers, CancellationToken ct) =>
-        {
-            if (library.Get(id) is not { } manifest) return Results.NotFound();
-            if (manifest.Episode is null || manifest.Film?.ImdbId is not { } show)
-                return Results.Ok(new EpisodeNeighbours(null, null));
-
-            var titles = ShowViews.Ordered([.. listing.Titles().Where(t => t.Film?.ImdbId == show)]);
-            var at = titles.FindIndex(t => t.Id == id);
-            var previous = at > 0 ? titles[at - 1] : null;
-            var next = at >= 0 && at < titles.Count - 1 ? titles[at + 1] : null;
-
-            // The episode right after this one, when it is not the next one here and the tracker
-            // offers it: what next fetches. A tracker that cannot be asked offers nothing.
-            EpisodeIdentity? fetchable = null;
-            if (shows.EpisodeAfter(show, manifest.Episode) is { } after
-                && (next?.Episode is not { } here || here.Season != after.Season || here.Number != after.Number))
-            {
-                try
-                {
-                    if (ShowOfferCache.Offers(await offers.GetAsync(show, ct), new EpisodeNumber(after.Season, after.Number)))
-                        fetchable = after;
-                }
-                catch (TrackerException)
-                {
-                }
-            }
-
-            return Results.Ok(new EpisodeNeighbours(
-                previous, next,
-                shows.EpisodeName(show, manifest.Episode),
-                shows.EpisodeName(show, previous?.Episode),
-                shows.EpisodeName(show, next?.Episode),
-                fetchable,
-                shows.EpisodeName(show, fetchable)));
-        }).RequireAction(CinemaActions.Watch);
-
         // What the tracker offers for a show, season by season: packs and single episodes, each best
         // first, every one remembered so a download can name it.
         app.MapGet("/api/shows/{imdbId}/releases", async (string imdbId, ShowOfferCache cache, CancellationToken ct) =>

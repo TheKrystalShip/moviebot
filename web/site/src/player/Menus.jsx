@@ -6,7 +6,6 @@ import { formatTime } from "./engine/format.ts";
 import { SubtitleStyleEditor } from "./SubtitleStyleEditor.jsx";
 import { EpisodeRow } from "../components/EpisodeRow.jsx";
 import { useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
-import { episodeRelease } from "../watchNow.js";
 import { Drawer } from "../components/Drawer.jsx";
 
 const languageNames = (() => {
@@ -56,21 +55,6 @@ export const hasEpisodes = (view) => Boolean(view.manifest && view.manifest.epis
 
 /** What the episode menu's button says: the episode playing. */
 export const episodeValue = (view) => `S${view.manifest.episode.season} · E${view.manifest.episode.number}`;
-
-/**
- * Fetches an episode the library does not hold into the room: the release `torrentId` names, else the
- * best at the quality of the one playing, read from its picture as the server reads it. The room
- * shows it arriving.
- */
-export function fetchEpisode(manifest, season, number, torrentId) {
-  return api.watchNow({
-    imdbId: manifest.film.imdbId,
-    torrentId,
-    episodes: [{ season, episode: number }],
-    room: environment().sessionId(),
-    quality: manifest.video && manifest.video.width >= 1800 ? "1080p" : "720p",
-  });
-}
 
 /**
  * One menu over the film: a popover above the control bar where the frame is wide, a sheet from
@@ -128,20 +112,18 @@ function ChapterOptions({ view, room, position, onClose }) {
 const seasonsRead = new Map();
 
 /**
- * Every episode of the season playing, as the show's page lists it (`EpisodeRow`), the one playing
- * marked and the list opened on it. Choosing an episode puts it on for the whole room, as next does:
- * one the library holds is loaded, and one the tracker offers is fetched into the room at the quality
- * of the one playing, for a viewer who may download, with the room showing it arriving. The season is
- * read again whenever the menu opens, so what the library gained since is there.
+ * Every episode of the season the room holds, as the show's page lists it (`EpisodeRow`), the one the
+ * room holds marked, as its state says, and the list opened on it. Choosing an episode asks the room
+ * for it, and the server decides how it gets there, as it does for next; an episode the library lacks
+ * can be chosen by a viewer who may download. The season is read again whenever the menu opens, so
+ * what the library gained since is there.
  */
 function EpisodeOptions({ view, room, onClose }) {
   const manifest = view.manifest;
   const imdbId = manifest.film.imdbId;
   const seasonNumber = manifest.episode.season;
   const [show, setShow] = React.useState(() => seasonsRead.get(imdbId) || null);
-  const [offers, setOffers] = React.useState(null);
   const [failure, setFailure] = React.useState(null);
-  const [fetching, setFetching] = React.useState(null);
   const list = React.useRef(null);
   const marks = useDownloadMarks();
   const saving = useOffersSaving();
@@ -153,13 +135,14 @@ function EpisodeOptions({ view, room, onClose }) {
       seasonsRead.set(imdbId, read);
       if (live) setShow(read);
     }).catch(() => { if (live && !seasonsRead.has(imdbId)) setFailure("The season could not be read."); });
-    if (mayFetch) api.showReleases(imdbId).then((read) => { if (live) setOffers(read); }, () => {});
     return () => { live = false; };
-  }, [imdbId, mayFetch]);
+  }, [imdbId]);
 
   const season = show && show.seasons.find((s) => s.number === seasonNumber);
   const episodes = season ? season.episodes : [];
-  const playing = (e) => e.titleId === manifest.id || (e.season === manifest.episode.season && e.number === manifest.episode.number);
+  const state = view.state || {};
+  const playing = (e) => (state.titleId ? e.titleId === state.titleId
+    : Boolean(state.preparing && state.preparing.season === e.season && state.preparing.episode === e.number));
 
   // The list opens on the episode playing, however far down the season it is.
   const drawn = episodes.length > 0;
@@ -168,24 +151,10 @@ function EpisodeOptions({ view, room, onClose }) {
     if (on) on.scrollIntoView({ block: "center" });
   }, [drawn]);
 
-  const take = async (episode, offer) => {
-    setFetching(episode.number);
-    setFailure(null);
-    try {
-      await fetchEpisode(manifest, episode.season, episode.number, offer.torrentId);
-      onClose();
-    } catch {
-      setFailure("That episode could not be fetched.");
-    } finally {
-      setFetching(null);
-    }
-  };
-
   const pick = (e) => {
     if (playing(e)) return onClose;
-    if (e.titleId) return e.status === "failed" ? null : () => { room.pickTitle(e.titleId); onClose(); };
-    const offer = mayFetch ? episodeRelease(offers, e.season, e.number) : null;
-    return offer ? () => { if (fetching === null) void take(e, offer); } : null;
+    if ((e.titleId && e.status !== "failed") || mayFetch) return () => { room.playEpisode(e.season, e.number); onClose(); };
+    return null;
   };
 
   return (
@@ -193,7 +162,7 @@ function EpisodeOptions({ view, room, onClose }) {
       {failure && <div className="mp-menu__message">{failure}</div>}
       {!failure && show === null && <div className="mp-menu__message"><Icon name="loader-circle" size={14} className="mp-spin" />Looking</div>}
       {episodes.map((e) => (
-        <EpisodeRow key={e.number} episode={e} current={playing(e)} onPick={pick(e)} starting={fetching === e.number}
+        <EpisodeRow key={e.number} episode={e} current={playing(e)} onPick={pick(e)}
           download={saving ? (e.titleId && marks.film(e.titleId)) || marks.want(imdbId, e.season, e.number) : null} />
       ))}
     </div>

@@ -116,13 +116,4 @@ public sealed class ShowViewsTests(SessionFixture fixture) : IClassFixture<Sessi
         Assert.Equal(JsonValueKind.Array, JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.ValueKind);
     }
 
-    [Fact]
-    public async Task A_film_has_no_neighbouring_episodes()
-    {
-        var body = await fixture.CreatePersonClient().GetStringAsync($"/api/titles/{SessionFixture.Heat}/neighbours");
-
-        using var neighbours = JsonDocument.Parse(body);
-        Assert.False(neighbours.RootElement.TryGetProperty("previous", out _));
-        Assert.False(neighbours.RootElement.TryGetProperty("next", out _));
-    }
 }

@@ -107,6 +107,21 @@ export class SessionHub implements Timeline {
     return this.connection.invoke<SessionStatePush>('LoadTitle', titleId, startSeconds);
   }
 
+  /** Asks the room for the episode after what it holds; the server decides how it gets there. */
+  next(): Promise<void> {
+    return this.connection.invoke('Next');
+  }
+
+  /** Asks the room for the episode before what it holds. */
+  previous(): Promise<void> {
+    return this.connection.invoke('Previous');
+  }
+
+  /** Asks the room for one episode of the show it holds. */
+  playEpisode(season: number, number: number): Promise<void> {
+    return this.connection.invoke('PlayEpisode', season, number);
+  }
+
   play(atSeconds: number): Promise<SessionStatePush> {
     return this.connection.invoke<SessionStatePush>('Play', atSeconds);
   }

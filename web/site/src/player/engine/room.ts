@@ -116,11 +116,12 @@ export class PlayerRoom {
    *  makes an empty room indistinguishable from one nothing has been heard about yet. */
   private loadedTitleId: string | null | undefined;
   /**
-   * The film the launch named, which is the only thing that knows what an empty room should hold,
-   * until the room holds a film. From then on the room is the authority on what it shows, and the
-   * film this viewer last held is what an emptied room is given back.
+   * The film the launch named, which is what an empty room is given, until the room holds anything.
+   * From then on the room is the authority on what it holds.
    */
   private launched: string | null = null;
+  /** The room's hub, for the acts only a room has: moving through a show. Null for a film played alone. */
+  private roomHub: SessionHub | null = null;
   private previous: SessionState | null = null;
   private noticeIds = 0;
   private readonly subscribers = new Set<() => void>();
@@ -278,6 +279,7 @@ export class PlayerRoom {
       }
     });
     this.hub = hub;
+    this.roomHub = hub;
     this.controller = this.controllerFor(hub, identity);
 
     try {
@@ -309,9 +311,8 @@ export class PlayerRoom {
 
     // A launch link names the film. The room is told once, by whoever arrives while it is showing
     // something else; a viewer joining a room that already holds the title says nothing, because
-    // loading it again would send everyone back to the beginning. The front door keeps what the
-    // room shows where the launch is read from (`Environment.showing`), so reloading the page names
-    // the room's own film and tells it nothing.
+    // loading it again would send everyone back to the beginning. Once the room holds anything the
+    // front door forgets the launch (`Environment.forgetLaunch`), so a reload tells the room nothing.
     if (launched !== null && (joined.state.titleId ?? null) !== null && joined.state.titleId !== launched) {
       await hub.loadTitle(launched);
     }
@@ -432,26 +433,19 @@ export class PlayerRoom {
     // Normalised first: a room holding no film leaves the field out of the state altogether, so
     // what arrives is undefined and never the null it is compared against.
     const titleId = state.titleId ?? null;
-    if (titleId !== this.loadedTitleId) {
-      // What this viewer was watching until this state arrived, which is the only record of it
-      // left once the room says it is showing nothing.
-      const held = this.loadedTitleId ?? null;
-      void this.loadTitle(titleId);
+    // The room holds one thing: a title, or something arriving, which is no title to this player.
+    // A room holding nothing at all is given the film its launch named, from where it said.
+    const holds = titleId !== null || state.preparing != null;
+    if (!holds && this.launched !== null) {
+      void this.hub?.loadTitle(this.launched, environment().startAt());
+      this.launched = null;
+    } else if (holds && !this.view.solo) {
+      this.launched = null;
+      environment().forgetLaunch();
+    }
 
-      // A room holding nothing, while this page is holding a film, is a room nobody has told yet:
-      // a fresh link, or one the server built again after forgetting it. The link names the film
-      // where there is one; inside the Activity there is only an invite, which names nothing, so
-      // what this viewer already has open is the answer. Only the empty case, because a room
-      // showing something else was told by somebody. A start rides only with the launched film.
-      const launched = this.launched;
-      const restore = launched ?? held;
-      if (restore !== null && titleId === null) {
-        void this.hub?.loadTitle(restore, restore === launched ? environment().startAt() : null);
-      }
-      if (titleId !== null) {
-        this.launched = null;
-        if (!this.view.solo) environment().showing(titleId);
-      }
+    if (titleId !== this.loadedTitleId) {
+      void this.loadTitle(titleId);
       return;
     }
 
@@ -609,6 +603,26 @@ export class PlayerRoom {
     void this.hub?.loadTitle(titleId);
   }
 
+  /**
+   * Moves the room through the show it holds: the episode after, the one before, or one by its place.
+   * The server decides what that is and how it gets there; a refusal is said over the film.
+   */
+  nextEpisode(): void {
+    this.ask(this.roomHub?.next());
+  }
+
+  previousEpisode(): void {
+    this.ask(this.roomHub?.previous());
+  }
+
+  playEpisode(season: number, number: number): void {
+    this.ask(this.roomHub?.playEpisode(season, number));
+  }
+
+  private ask(asked: Promise<void> | undefined): void {
+    asked?.catch((error: unknown) => this.notice(hubMessage(error) ?? 'That episode cannot be put on.', 'error'));
+  }
+
   /** The press the browser was waiting for, which catches this viewer up to the room. */
   joinPlayback(): void {
     this.set({ gate: false });
@@ -740,4 +754,11 @@ export class PlayerRoom {
     if (manifest === null) throw new Error('No film is loaded.');
     return manifest.id;
   }
+}
+
+/** What the server said when it refused a hub call, without the client library's wrapping. */
+function hubMessage(error: unknown): string | null {
+  const said = error instanceof Error ? error.message : '';
+  const at = said.indexOf('HubException: ');
+  return at >= 0 ? said.slice(at + 'HubException: '.length) : null;
 }

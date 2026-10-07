@@ -21,6 +21,7 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET /api/sessions` | `RoomSummary[]` — every room, what it is watching, how many are in it |
 | `GET /api/sessions/{id}` | `SessionStatePush` — creates the session if new |
 | `GET /api/sessions/{id}/participants` | `Participant[]` |
+| `GET /api/sessions/{id}/around` | `{current?, previous?, next?}` — the episode the room holds, by its title or as it arrives, and the episodes either side, each `{season, number, name?, titleId?}`: the next of its season else the first of the next, as the film database lists the show, or as the library holds it for a show it has not described, and previous the other way. `titleId` is absent for one the library does not hold, which is named only to somebody holding `cinema:download`. All absent for a film |
 | `POST /api/sessions/{id}/title` | `SessionStatePush` — puts a film in the room, or 404 if the library has no such title. The body is `{titleId, startSeconds?}`; `startSeconds` puts the room there instead of at the beginning, held to the transcode head like a seek. Recorded as the token's person, or as MovieBot on the service key |
 | `POST /api/sessions/{id}/play` | `RoomChanged` |
 | `POST /api/sessions/{id}/pause` | `RoomChanged` |
@@ -37,7 +38,6 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET,HEAD /catalogue/people/{personId}.jpg` | a person's portrait, kept with their credits; open like a film's artwork |
 | `GET /api/shows` | `ShowSummary[]` — the shows the library holds, one entry each: `{imdbId?, title, firstYear?, lastYear?, status?, details?, seasons, episodes, addedAt?, sizeBytes, lastPlayed?, resume?, firstTitleId}` |
 | `GET /api/shows/{imdbId}` | `ShowView` — a show as the film database describes it, in the library or not, every season with its episodes joined with the library and the asking person's progress. `404` when neither the database nor the library knows it, `503` when the database cannot be asked and nothing is kept |
-| `GET /api/titles/{id}/neighbours` | `{previous?, next?, name?, previousName?, nextName?, fetchable?, fetchableName?}` — the episodes either side of one, among those the library holds, as `TitleSummary`, and what each is called where the show's description says; `fetchable` (`{season, number}`) is the episode right after this one when it is not here and the tracker offers it, which a player's next fetches into the room. All absent for a film. 404 for a title the library does not hold |
 | `GET,HEAD /shows/{imdbId}/{poster.jpg,backdrop.jpg,cast-N.jpg,sNNeMM.jpg}` | a show's artwork and its episodes' stills, open like a film's |
 | `GET /api/me/preferences` | `ViewerPreferences` — how the token's person watches; every field absent for somebody who set nothing. |
 | `PUT /api/me/preferences` | `ViewerPreferences` → the stored `ViewerPreferences`. A blank language or a height that is not positive is stored as absent |
@@ -54,8 +54,8 @@ given another film, or somebody leaves it, each person who was watching is credi
 to; a film a room is playing right now is answered from the room itself. A paused room left open
 records nothing. Opening a film
 at `/r/{room}?title={id}&at={seconds}` into an empty room starts it there; a room already holding a
-film ignores `at`. The site keeps that address naming whatever the room is showing, without `at`,
-so reopening it rejoins the room where it is.
+film ignores `at`. Once the room holds anything the site takes `title` and `at` off the address,
+so reopening it rejoins the room wherever it is.
 
 ```jsonc
 // ViewerPreferences: the defaults a film starts with, for a person wherever they sign in
@@ -428,12 +428,17 @@ has the room added to its download. Otherwise the release is `torrentId`, one th
 best at `quality` (`1080p` unless `720p` is asked) from a digital source up; `episodes` fetches only
 those out of a show's release and is how a show is watched.
 
-What the room waits on is on its state, `preparing: {imdbId, name, stage, release?, progress?,
-problem?, refusal?}`, pushed to everybody in it: `stage` is `finding` (the release is being picked),
-`downloading` (`progress` from 0 to 1) or `failed` (`problem`: `notOffered`, `refused`,
-`unavailable`, `notWatchable`). These states name nobody in `updatedBy`. The download carries the
-room as `watch:<room>`; once the hand-off marks it watchable the film is loaded into the room and
-played as the person who pressed it, and `preparing` goes. A download watched this way still owes its
+A room holds one thing. What is arriving is put into the room the moment it is asked for, in place
+of whatever the room held, as the person who asked: the room's state has no `titleId` and carries
+`preparing: {imdbId, season?, episode?, name, stage, release?, progress?, problem?, refusal?}`, pushed
+to everybody in it, `season` and `episode` naming an episode. `stage` is `finding` (the release is
+being picked), `downloading` (`progress` from 0 to 1) or `failed` (`problem`: `notOffered`,
+`refused`, `unavailable`, `notWatchable`); a report of how it is getting on names nobody in
+`updatedBy`. The download carries the room as `watch:<room>`; once the hand-off marks it watchable
+it is loaded into the room and played as the person who pressed it, and `preparing` goes. A room
+given anything else meanwhile is no longer waiting on it: the download stops naming the room, and
+nothing it reports reaches the room. A room kept across a restart keeps what it holds; one still
+being looked for is `failed` with `unavailable`. A download watched this way still owes its
 requester a "ready" notification, which is not sent while they are in a room playing it.
 
 An episode is watched the same way, named in `episodes` (the first is the one the room waits on).
@@ -707,6 +712,9 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | Method | Signature | Notes |
 |---|---|---|
 | `Join` | `(sessionId) → SessionStatePush` | call first; everything else throws until you do. The viewer is the connection's token: its `sub` and `name` |
+| `Next` | `()` | the episode after what the room holds, put on, or fetched into the room at the quality of the one playing for somebody holding `cinema:download`; a `HubException` when there is none to put on |
+| `Previous` | `()` | the episode before, the same way |
+| `PlayEpisode` | `(season, number)` | an episode of the show the room holds, the same way |
 | `LoadTitle` | `(titleId, startSeconds: double?) → SessionStatePush` | from `startSeconds`, held to the transcode head, or from 0 when null; a playing room keeps playing, a paused one stays paused. Both arguments are always sent, null for no start |
 | `Play` | `(atSeconds) → SessionStatePush` | |
 | `Pause` | `(atSeconds) → SessionStatePush` | |

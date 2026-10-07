@@ -127,18 +127,6 @@ export interface EpisodePlace {
   number: number;
 }
 
-/** The episodes either side of one the library holds, and what each is called where that is known. */
-export interface EpisodeNeighbours {
-  previous?: TitleSummary;
-  next?: TitleSummary;
-  name?: string;
-  previousName?: string;
-  nextName?: string;
-  /** The episode right after this one when it is not here and the tracker offers it: what next fetches. */
-  fetchable?: { season: number; number: number };
-  fetchableName?: string;
-}
-
 /** One episode of a show as its description lists it, joined with the library and the viewer's progress. */
 export interface ShowEpisode {
   season: number;
@@ -161,17 +149,6 @@ export interface ShowSeasons {
   imdbId: string;
   title: string;
   seasons: { number: number; name?: string; episodes: ShowEpisode[] }[];
-}
-
-/** A release the tracker offers, as far as choosing one to fetch needs it. */
-export interface ReleaseOffer {
-  torrentId: number;
-  resolution?: string;
-}
-
-/** What the tracker offers for a show, season by season: packs, and single episodes, each best first. */
-export interface ShowOffers {
-  seasons: { season: number; packs: ReleaseOffer[]; episodes: { episode: number; releases: ReleaseOffer[] }[] }[];
 }
 
 /** One point in the film with a name, as the container already records it. */
@@ -267,6 +244,9 @@ export interface RungHead {
 /** A film being fetched for a room: found, arriving, or not coming. */
 export interface RoomPreparing {
   imdbId: string;
+  /** For an episode, its season and number: the room holds that episode while it arrives. */
+  season?: number;
+  episode?: number;
   name: string;
   stage: 'finding' | 'downloading' | 'failed';
   /** The release as its resolution and source: "1080p WEB". */
@@ -276,6 +256,21 @@ export interface RoomPreparing {
   /** Why it will not arrive: notOffered, refused, unavailable or notWatchable. */
   problem?: string;
   refusal?: string;
+}
+
+/** An episode either side of what a room holds, by its place and name; `titleId` when the library holds it. */
+export interface RoomEpisode {
+  season: number;
+  number: number;
+  name?: string;
+  titleId?: string;
+}
+
+/** The episode a room holds and the ones either side, as the server decides them; all absent for a film. */
+export interface RoomAround {
+  current?: RoomEpisode;
+  previous?: RoomEpisode;
+  next?: RoomEpisode;
 }
 
 export interface SessionStatePush {

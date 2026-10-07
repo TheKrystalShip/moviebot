@@ -178,6 +178,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<WishSweep>());
 builder.Services.AddOptions<WatchOptions>().Bind(builder.Configuration.GetSection(WatchOptions.Section));
 builder.Services.AddSingleton<ShowOfferCache>();
 builder.Services.AddSingleton<WatchNow>();
+builder.Services.AddSingleton<RoomEpisodes>();
 // The episode after the one a room is watching, fetched so next has something to play.
 builder.Services.AddHostedService<NextEpisodes>();
 builder.Services.AddHostedService<WatchNowLoader>();
@@ -413,6 +414,12 @@ app.MapGet("/api/sessions/{sessionId}", (string sessionId, SessionStore sessions
 
 app.MapGet("/api/sessions/{sessionId}/participants", (string sessionId, SessionStore sessions) =>
     Results.Ok(sessions.Participants(sessionId)))
+    .RequireAction(CinemaActions.Watch);
+
+// The episodes either side of what the room holds, which a player's previous and next name; an
+// episode the library lacks is offered only to somebody who may fetch it.
+app.MapGet("/api/sessions/{sessionId}/around", (string sessionId, HttpContext context, RoomEpisodes episodes) =>
+    Results.Ok(episodes.Around(sessionId, CinemaPerson.Of(context)?.Holds(CinemaActions.Download) == true)))
     .RequireAction(CinemaActions.Watch);
 
 app.MapRooms();

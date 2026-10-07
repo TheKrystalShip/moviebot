@@ -120,6 +120,26 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     }
 
     /// <summary>
+    /// Puts something that is arriving into the room in place of what it held: the room holds no
+    /// title, only <paramref name="preparing"/>, from the beginning, and every viewer is told it as
+    /// <paramref name="actor"/> changing the film. Playing or paused stays as it was.
+    /// </summary>
+    public MutationResult Prepare(string sessionId, RoomPreparing preparing, Actor actor)
+    {
+        var entry = Entry(sessionId);
+        lock (entry.Gate)
+        {
+            EndSpan(entry, Viewers(entry));
+            entry.State = Advance(entry.State with { TitleId = null, Preparing = preparing }, actor) with
+            {
+                PositionSeconds = 0,
+                AnchorUtc = clock.GetUtcNow()
+            };
+            return new MutationResult(WithCurrentHead(entry.State), null);
+        }
+    }
+
+    /// <summary>
     /// Says what film the room is waiting on and how far it has got, or that it waits on nothing.
     ///
     /// Nobody did this: the server is reporting on a download, so the state names no actor, which is
@@ -426,9 +446,12 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         {
             _sessions[room.State.SessionId] = new SessionEntry
             {
-                // What a room waits on is read again from the downloads on the next pass, which is
-                // the record of it; a copy from before the restart may describe one since finished.
-                State = room.State with { Preparing = null },
+                // What a room holds while it arrives is kept, and its download's tag carries it on.
+                // One still being looked for had its search end with the server, so it is said to
+                // be unavailable rather than waited on for ever.
+                State = room.State.Preparing is { Stage: PreparingStages.Finding } finding
+                    ? room.State with { Preparing = finding with { Stage = PreparingStages.Failed, Problem = "unavailable" } }
+                    : room.State,
                 LastActivityUtc = room.LastActivityUtc
             };
         }

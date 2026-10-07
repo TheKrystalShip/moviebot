@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.30.0] - 2026-10-07
+
+### Changed
+
+- **A room holds one thing, and the API decides what it is.** Asking for something that is not here
+  puts it into the room at once in place of what it held: the state has no `titleId` and
+  `preparing` names it, an episode by `season` and `episode`. Every player, its address and its
+  Episodes menu move to it immediately rather than when it arrives. A room given anything else stops
+  waiting on what it asked for before, so two presses no longer load two episodes one after the
+  other. What a room holds while it arrives is kept across a restart.
+- **Next, previous and the Episodes menu are requests to the room.** The hub's `Next`, `Previous`
+  and `PlayEpisode(season, number)` decide on the server whether an episode is loaded or fetched, at
+  what quality, and whether the person may; `GET /api/sessions/{id}/around` names what the room
+  holds and the episodes either side. The player keeps no episode rules of its own, and
+  `/api/titles/{id}/neighbours` is gone.
+- **The address is the room alone once it holds anything.** `?title=` and `at` are taken off rather
+  than rewritten, on the site and in the Activity. Api 2.14.0, Core 4.2.0, Site 0.49.0.
+
 ## [2.29.0] - 2026-10-07
 
 ### Changed

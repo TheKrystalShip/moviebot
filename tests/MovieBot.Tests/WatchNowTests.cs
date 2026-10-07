@@ -408,6 +408,32 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
     }
 
     [Fact]
+    public async Task A_room_holds_what_it_was_last_given_and_stops_waiting_on_what_it_held_before()
+    {
+        var sessions = fixture.Services.GetRequiredService<SessionStore>();
+        sessions.LoadTitle("one-thing", SessionFixture.Heat, new Actor("6001", "Sam"));
+
+        // Asking for an episode that is not here puts it in the room at once, in place of the film.
+        using var episode = await Member().PostAsJsonAsync("/api/watch", new WatchNowRequest
+        {
+            ImdbId = WatchNowFixture.Show, Episodes = [new EpisodePick(1, 3)], Room = "one-thing",
+        });
+        Assert.Equal("preparing", (await episode.Content.ReadFromJsonAsync<WatchNowReply>())!.Outcome);
+        var holding = Room("one-thing");
+        Assert.Null(holding.TitleId);
+        Assert.Equal((1, 3), (holding.Preparing!.Season, holding.Preparing.Episode));
+        Assert.Equal("6001", holding.UpdatedBy?.UserId);
+        await Until(() => fixture.Torrents.Held.TryGetValue(WatchNowFixture.ShowHash, out var held)
+            && held.Tags.Contains("watch:one-thing:s01e03"));
+
+        // Given something else, the room holds that, and the season's torrent stops naming the room
+        // for the episode it no longer waits on.
+        sessions.LoadTitle("one-thing", SessionFixture.Heat, new Actor("6001", "Sam"));
+        Assert.Null(Room("one-thing").Preparing);
+        await Until(() => !fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags.Contains("watch:one-thing:s01e03"));
+    }
+
+    [Fact]
     public async Task An_episode_here_already_is_loaded_into_the_room_at_once()
     {
         fixture.AddEpisode("show-s01e01", WatchNowFixture.Show, "Show", 1, 1);
@@ -436,9 +462,10 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
         var tags = fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags;
         Assert.DoesNotContain(tags, t => t.StartsWith(TorrentTags.RequesterPrefix, StringComparison.Ordinal) && t.EndsWith("6002", StringComparison.Ordinal));
 
-        // The neighbours of the episode being watched name the next as on its way rather than here.
-        var neighbours = await Member().GetFromJsonAsync<System.Text.Json.Nodes.JsonObject>("/api/titles/show-s01e02/neighbours");
-        Assert.Equal(3, (int)neighbours!["fetchable"]!["number"]!);
+        // The room names the next as one to fetch rather than one here, to somebody who may fetch it.
+        var around = await Member().GetFromJsonAsync<System.Text.Json.Nodes.JsonObject>("/api/sessions/show-watching/around");
+        Assert.Equal(3, (int)around!["next"]!["number"]!);
+        Assert.Null(around["next"]!["titleId"]);
     }
 
     [Fact]

@@ -1,5 +1,5 @@
 import { Common, DiscordSDK } from '@discord/embedded-app-sdk';
-import { addressShowing } from './environment';
+import { addressWithoutLaunch } from './environment';
 import type { Environment, Identity, Presence } from './environment';
 
 /**
@@ -195,9 +195,9 @@ export async function createDiscordEnvironment(
     // An Activity is launched by Discord from a URL the site never writes, so there is nowhere for a
     // position to ride.
     startAt: () => null,
-    // The Activity reloads at the address it was launched at, so the launch is rewritten there.
-    showing: (title) => {
-      const address = addressShowing(title);
+    // The Activity reloads at the address it was launched at, so the launch is taken off it there.
+    forgetLaunch: () => {
+      const address = addressWithoutLaunch();
       if (address !== null) window.history.replaceState(window.history.state, '', address);
     },
     identity: async () => identity,

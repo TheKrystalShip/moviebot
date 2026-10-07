@@ -13,10 +13,19 @@ public static class PreparingStages
     public const string Failed = "failed";
 }
 
-/// <summary>The film a room is waiting on.</summary>
+/// <summary>
+/// What a room holds while it arrives: a film by <see cref="ImdbId"/>, or a show's episode by the
+/// show's id with <see cref="Season"/> and <see cref="Episode"/>. A room holding it holds no title.
+/// </summary>
 public sealed record RoomPreparing
 {
     public required string ImdbId { get; init; }
+
+    /// <summary>The episode's season, for an episode; absent for a film.</summary>
+    public int? Season { get; init; }
+
+    /// <summary>The episode's number in its season, for an episode; absent for a film.</summary>
+    public int? Episode { get; init; }
 
     /// <summary>What the film is called, with its year, or a show's episode as <c>Severance S02E04</c>.</summary>
     public required string Name { get; init; }
@@ -35,6 +44,10 @@ public sealed record RoomPreparing
 
     /// <summary>What the torrent client or the tracker said when it refused, where it said something.</summary>
     public string? Refusal { get; init; }
+
+    /// <summary>Whether this names the same film or episode as <paramref name="other"/>, whatever either's progress.</summary>
+    public bool SameItem(RoomPreparing? other) =>
+        other is not null && other.ImdbId == ImdbId && other.Season == Season && other.Episode == Episode;
 }
 
 /// <summary>How many films are being watched while they arrive, and how many may be.</summary>

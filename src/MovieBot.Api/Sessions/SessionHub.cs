@@ -16,7 +16,7 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// it opens, and nothing a client sends says who it is.
 /// </summary>
 public sealed class SessionHub(
-    SessionStore sessions, RoomControls controls, ViewerQuality quality, IOptions<OidcOptions> oidc,
+    SessionStore sessions, RoomControls controls, RoomEpisodes episodes, ViewerQuality quality, IOptions<OidcOptions> oidc,
     ILogger<SessionHub> logger) : Hub
 {
     private const string SessionIdKey = "sessionId";
@@ -60,6 +60,30 @@ public sealed class SessionHub(
     /// </summary>
     public Task<SessionStatePush> LoadTitle(string titleId, double? startSeconds) =>
         Mutate("load", actor => sessions.LoadTitle(SessionId(), titleId, actor, startSeconds));
+
+    /// <summary>
+    /// Moves the room to the episode after what it holds, deciding on the server whether that loads it
+    /// or fetches it. Refused when there is nothing after it that this person can put on.
+    /// </summary>
+    public async Task Next()
+    {
+        if (!await episodes.NextAsync(SessionId(), Person(), Context.ConnectionAborted))
+            throw new HubException("There is no next episode to put on.");
+    }
+
+    /// <summary>Moves the room to the episode before what it holds.</summary>
+    public async Task Previous()
+    {
+        if (!await episodes.PreviousAsync(SessionId(), Person(), Context.ConnectionAborted))
+            throw new HubException("There is no previous episode to put on.");
+    }
+
+    /// <summary>Puts an episode of the show the room holds on for the room.</summary>
+    public async Task PlayEpisode(int season, int number)
+    {
+        if (!await episodes.PlayAsync(SessionId(), season, number, Person(), Context.ConnectionAborted))
+            throw new HubException("That episode cannot be put on.");
+    }
 
     public Task<SessionStatePush> Play(double atSeconds) =>
         Mutate("play", actor => sessions.Play(SessionId(), atSeconds, actor));
@@ -136,6 +160,12 @@ public sealed class SessionHub(
         Context.Items.TryGetValue(SessionIdKey, out var value) && value is string sessionId
             ? sessionId
             : throw new HubException("Join a session first.");
+
+    private CinemaPerson Person() =>
+        Context.User?.Identities.FirstOrDefault(i => i.AuthenticationType == CinemaSchemes.Bearer) is { } identity
+        && CinemaPerson.From(identity, oidc.Value.ActionsClaim) is { } person
+            ? person
+            : throw new HubException("Sign in to change the room.");
 
     private Actor CurrentActor() =>
         Context.Items.TryGetValue(ActorKey, out var value) && value is Actor actor

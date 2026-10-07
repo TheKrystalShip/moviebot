@@ -83,7 +83,7 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 [JsonSerializable(typeof(Lists.ListNameRequest))]
 [JsonSerializable(typeof(Lists.SaveEntryRequest))]
 [JsonSerializable(typeof(Lists.ListMemberRequest))]
-[JsonSerializable(typeof(Shows.EpisodeNeighbours))]
+[JsonSerializable(typeof(Sessions.RoomAround))]
 [JsonSerializable(typeof(Offline.OfflineOffer))]
 [JsonSerializable(typeof(Offline.OfflineSaveRequest))]
 [JsonSerializable(typeof(Offline.OfflinePackage))]

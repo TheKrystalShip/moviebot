@@ -106,20 +106,6 @@ public sealed record ShowSummary
     public required string FirstTitleId { get; init; }
 }
 
-/// <summary>
-/// The episodes either side of one, among those the library holds, with what each of the three is
-/// called where the show's description says.
-/// </summary>
-/// <summary>
-/// The episodes either side of one among those the library holds, and, when the episode right after
-/// it is not here, that episode as the tracker offers it (<see cref="Fetchable"/>), which a player's
-/// next fetches into the room.
-/// </summary>
-public sealed record EpisodeNeighbours(
-    TitleSummary? Previous, TitleSummary? Next,
-    string? Name = null, string? PreviousName = null, string? NextName = null,
-    EpisodeIdentity? Fetchable = null, string? FetchableName = null);
-
 public static class ShowViews
 {
     public static string ImageUrl(string imdbId, string file) => $"/shows/{imdbId}/{file}";
@@ -307,6 +293,18 @@ public static class ShowViews
             .Where(e => e.Season > episode.Season || (e.Season == episode.Season && e.Number > episode.Number))
             .OrderBy(e => e.Season).ThenBy(e => e.Number)
             .FirstOrDefault();
+
+    /// <summary>
+    /// The episode before one, as the film database lists the show: the one before it in its season,
+    /// else the last of the season before. Null at the start, and for a show the database has not described.
+    /// </summary>
+    public static EpisodeIdentity? EpisodeBefore(this ShowStore store, string showImdbId, EpisodeIdentity episode) =>
+        store.Held(showImdbId)?.Seasons
+            .Where(s => s.Number >= 1)
+            .SelectMany(s => s.Episodes.Select(e => new EpisodeIdentity { Season = s.Number, Number = e.Number }))
+            .Where(e => e.Season < episode.Season || (e.Season == episode.Season && e.Number < episode.Number))
+            .OrderBy(e => e.Season).ThenBy(e => e.Number)
+            .LastOrDefault();
 
     public static List<TitleSummary> Ordered(IReadOnlyList<TitleSummary> episodes) =>
         [.. episodes.Where(e => e.Episode is not null)
