@@ -4,6 +4,9 @@ import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";
 import { formatTime } from "./engine/format.ts";
 import { SubtitleStyleEditor } from "./SubtitleStyleEditor.jsx";
+import { EpisodeRow } from "../components/EpisodeRow.jsx";
+import { useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
+import { episodeRelease } from "../watchNow.js";
 import { Drawer } from "../components/Drawer.jsx";
 
 const languageNames = (() => {
@@ -55,12 +58,14 @@ export const hasEpisodes = (view) => Boolean(view.manifest && view.manifest.epis
 export const episodeValue = (view) => `S${view.manifest.episode.season} · E${view.manifest.episode.number}`;
 
 /**
- * Fetches an episode the library does not hold into the room, at the quality of the one playing,
- * read from its picture as the server reads it; the room shows it arriving.
+ * Fetches an episode the library does not hold into the room: the release `torrentId` names, else the
+ * best at the quality of the one playing, read from its picture as the server reads it. The room
+ * shows it arriving.
  */
-export function fetchEpisode(manifest, season, number) {
+export function fetchEpisode(manifest, season, number, torrentId) {
   return api.watchNow({
     imdbId: manifest.film.imdbId,
+    torrentId,
     episodes: [{ season, episode: number }],
     room: environment().sessionId(),
     quality: manifest.video && manifest.video.width >= 1800 ? "1080p" : "720p",
@@ -90,7 +95,7 @@ export function Menu({ kind, view, room, sheet, position, styling, onStyling, on
     );
   }
   return (
-    <div className={"mp-popover" + (kind === "subs" || kind === "episodes" ? " mp-popover--wide" : "") + " mp-menu"} role="menu" aria-label={title}>
+    <div className={"mp-popover" + (kind === "subs" ? " mp-popover--wide" : kind === "episodes" ? " mp-popover--episodes" : "") + " mp-menu"} role="menu" aria-label={title}>
       <div className="mp-menu__head">
         {back && (
           <button type="button" className="mp-menu__back" aria-label={back.label} onClick={back.onClick}>
@@ -122,36 +127,25 @@ function ChapterOptions({ view, room, position, onClose }) {
 /** Each show's seasons as last read, so the menu draws at once while it is read again. */
 const seasonsRead = new Map();
 
-/** Today as an air date is written, in the viewer's own day. */
-const today = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-};
-
-/** Where the viewer is in an episode, in a few words, or its length when they have not started it. */
-function episodeSub(episode) {
-  const length = episode.durationSeconds ? formatTime(episode.durationSeconds)
-    : episode.runtimeMinutes ? `${episode.runtimeMinutes}m` : null;
-  const progress = episode.progress;
-  const where = !progress ? null : progress.finished ? "Watched"
-    : episode.durationSeconds ? `${formatTime(Math.max(0, episode.durationSeconds - progress.positionSeconds))} left` : "Started";
-  return [length, where].filter(Boolean).join(" · ");
-}
-
 /**
- * Every episode of the season playing, the one playing marked. Picking one the library holds puts
- * it on for the whole room, as next does; one it does not hold is fetched into the room when the
- * viewer may download, and the room shows it arriving. One not yet aired is listed and not offered.
- * The season is read again whenever the menu opens, so what the library gained since is offered.
+ * Every episode of the season playing, as the show's page lists it (`EpisodeRow`), the one playing
+ * marked and the list opened on it. Choosing an episode puts it on for the whole room, as next does:
+ * one the library holds is loaded, and one the tracker offers is fetched into the room at the quality
+ * of the one playing, for a viewer who may download, with the room showing it arriving. The season is
+ * read again whenever the menu opens, so what the library gained since is there.
  */
 function EpisodeOptions({ view, room, onClose }) {
   const manifest = view.manifest;
   const imdbId = manifest.film.imdbId;
   const seasonNumber = manifest.episode.season;
   const [show, setShow] = React.useState(() => seasonsRead.get(imdbId) || null);
+  const [offers, setOffers] = React.useState(null);
   const [failure, setFailure] = React.useState(null);
   const [fetching, setFetching] = React.useState(null);
   const list = React.useRef(null);
+  const marks = useDownloadMarks();
+  const saving = useOffersSaving();
+  const mayFetch = environment().holds("cinema:download");
 
   React.useEffect(() => {
     let live = true;
@@ -159,8 +153,9 @@ function EpisodeOptions({ view, room, onClose }) {
       seasonsRead.set(imdbId, read);
       if (live) setShow(read);
     }).catch(() => { if (live && !seasonsRead.has(imdbId)) setFailure("The season could not be read."); });
+    if (mayFetch) api.showReleases(imdbId).then((read) => { if (live) setOffers(read); }, () => {});
     return () => { live = false; };
-  }, [imdbId]);
+  }, [imdbId, mayFetch]);
 
   const season = show && show.seasons.find((s) => s.number === seasonNumber);
   const episodes = season ? season.episodes : [];
@@ -169,17 +164,15 @@ function EpisodeOptions({ view, room, onClose }) {
   // The list opens on the episode playing, however far down the season it is.
   const drawn = episodes.length > 0;
   React.useLayoutEffect(() => {
-    const on = drawn && list.current && list.current.querySelector(".mp-option.is-on");
+    const on = drawn && list.current && list.current.querySelector(".kc-episode.is-current");
     if (on) on.scrollIntoView({ block: "center" });
   }, [drawn]);
 
-  const mayFetch = environment().holds("cinema:download");
-  const aired = today();
-  const take = async (episode) => {
+  const take = async (episode, offer) => {
     setFetching(episode.number);
     setFailure(null);
     try {
-      await fetchEpisode(manifest, episode.season, episode.number);
+      await fetchEpisode(manifest, episode.season, episode.number, offer.torrentId);
       onClose();
     } catch {
       setFailure("That episode could not be fetched.");
@@ -188,27 +181,21 @@ function EpisodeOptions({ view, room, onClose }) {
     }
   };
 
+  const pick = (e) => {
+    if (playing(e)) return onClose;
+    if (e.titleId) return e.status === "failed" ? null : () => { room.pickTitle(e.titleId); onClose(); };
+    const offer = mayFetch ? episodeRelease(offers, e.season, e.number) : null;
+    return offer ? () => { if (fetching === null) void take(e, offer); } : null;
+  };
+
   return (
-    <div className="mp-menu__list" ref={list}>
+    <div className="mp-episodes" ref={list}>
       {failure && <div className="mp-menu__message">{failure}</div>}
       {!failure && show === null && <div className="mp-menu__message"><Icon name="loader-circle" size={14} className="mp-spin" />Looking</div>}
-      {episodes.map((e) => {
-        const label = `${e.number} · ${e.name || `Episode ${e.number}`}`;
-        if (playing(e)) return <Option key={e.number} on label={label} sub={episodeSub(e)} onPick={onClose} />;
-        if (e.titleId) {
-          return <Option key={e.number} on={false} label={label} sub={episodeSub(e)}
-            onPick={() => { room.pickTitle(e.titleId); onClose(); }} />;
-        }
-        const upcoming = Boolean(e.airDate && e.airDate > aired);
-        return (
-          <Option key={e.number} on={false} label={label} disabled={upcoming || !mayFetch || fetching !== null}
-            sub={upcoming ? `Airs ${e.airDate}` : "Not here"} onPick={() => void take(e)}>
-            {!upcoming && mayFetch && (fetching === e.number
-              ? <span className="mp-option__state is-loading"><Icon name="loader-circle" size={15} className="mp-spin" /></span>
-              : <span className="mp-option__state"><Icon name="download" size={15} /></span>)}
-          </Option>
-        );
-      })}
+      {episodes.map((e) => (
+        <EpisodeRow key={e.number} episode={e} current={playing(e)} onPick={pick(e)} starting={fetching === e.number}
+          download={saving ? (e.titleId && marks.film(e.titleId)) || marks.want(imdbId, e.season, e.number) : null} />
+      ))}
     </div>
   );
 }

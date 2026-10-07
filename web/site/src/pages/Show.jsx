@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon } from "@thekrystalship/krystal-ui";
+import { Button } from "@thekrystalship/krystal-ui";
 import { api, episodeCode } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
@@ -12,7 +12,8 @@ import { Empty, Failed, WatchButton, useWatchLink } from "../components/Film.jsx
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
-import { DownloadMark, SeasonDownload, downloadLine, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
+import { DownloadMark, SeasonDownload, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
+import { EpisodeRow } from "../components/EpisodeRow.jsx";
 import { episodeRelease, openingEpisode, watchNow, watchOpening } from "../watchNow.js";
 import { useKeptShow } from "../offline/hooks.js";
 import { refreshShow } from "../offline/shows.js";
@@ -225,7 +226,7 @@ function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, backdrop
       </div>
 
       {season.episodes.map((e) => {
-        const row = <EpisodeRow key={e.number} episode={e} rooms={rooms} offers={offers} showImdbId={showImdbId}
+        const row = <SeasonEpisode key={e.number} episode={e} rooms={rooms} offers={offers} showImdbId={showImdbId}
           download={saving ? (e.titleId && marks.film(e.titleId)) || marks.want(showImdbId, e.season, e.number) : null} />;
         if (!saving) return row;
         return (
@@ -246,12 +247,11 @@ function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, backdrop
   );
 }
 
-function EpisodeRow({ episode: e, rooms, offers, showImdbId, download }) {
+/** An episode's row on the page: a link to watch it, or a press that fetches it while it plays. */
+function SeasonEpisode({ episode: e, rooms, offers, showImdbId, download }) {
   const [starting, setStarting] = React.useState(false);
   const online = useOnline();
   const done = e.progress && e.progress.finished;
-  const fraction = done ? 1
-    : e.progress && e.durationSeconds ? Math.min(1, e.progress.positionSeconds / e.durationSeconds) : 0;
   const room = e.titleId && rooms.find((r) => r.titleId === e.titleId && r.participants > 0);
   const here = !!e.titleId && e.status !== "failed";
   const play = useWatchLink(e.titleId, room && room.sessionId, !done && e.progress ? e.progress.positionSeconds : 0);
@@ -263,38 +263,8 @@ function EpisodeRow({ episode: e, rooms, offers, showImdbId, download }) {
     const started = await watchNow({ imdbId: showImdbId, torrentId: offer.torrentId, episodes: [{ season: e.season, episode: e.number }] });
     if (!started) setStarting(false);
   };
-  const runtime = e.runtimeMinutes ? `${e.runtimeMinutes}m` : e.durationSeconds ? clock(e.durationSeconds) : null;
-  const inner = (
-    <>
-      <span className="kc-episode__n">{e.number}</span>
-      <span className="kc-episode__still">
-        {e.stillUrl && <img src={e.stillUrl} alt="" loading="lazy" />}
-        {fraction > 0 && <span className="kc-bar"><span style={{ width: `${Math.round(fraction * 100)}%` }} className={done ? "is-done" : ""} /></span>}
-      </span>
-      <span className="kc-episode__text">
-        <span className={"kc-episode__title" + (done ? " is-done" : "")}>{e.name || `Episode ${e.number}`}</span>
-        {download
-          ? <span className={"kc-episode__sub kc-episode__sub--download" + (download.kind === "done" ? " is-done" : "")}>{downloadLine(download)}</span>
-          : (
-            <span className="kc-episode__sub">
-              {e.titleId && e.status === "failed" ? "Could not be prepared"
-                : here && e.status === "transcoding" ? "Still being prepared"
-                : starting ? "Starting…"
-                : here || offer ? (e.airDate ? `Aired ${e.airDate}` : null)
-                : "Not available yet"}
-            </span>
-          )}
-      </span>
-      <span className="kc-episode__progress"><span style={{ width: `${Math.round(fraction * 100)}%` }} className={done ? "is-done" : ""} /></span>
-      <span className="kc-episode__score">{e.rating ? <><Icon name="star" size={11} />{e.rating.toFixed(1)}</> : null}</span>
-      <span className="kc-episode__runtime">{runtime}</span>
-      <span className="kc-episode__go"><Icon name={here || offer ? (room ? "users" : done ? "check" : "play") : "cloud-off"} size={13} /></span>
-    </>
-  );
-
   // With no connection a row plays from the device when the episode is downloaded here, and is dimmed
   // and inert when not.
-  if (here) return play.disabled ? <div className={"kc-episode is-absent" + (online ? "" : " is-off")}>{inner}</div> : <a className="kc-episode" {...play}>{inner}</a>;
-  if (offer) return <button type="button" className={"kc-episode kc-episode--fetch" + (online ? "" : " is-off")} disabled={starting || !online} onClick={watch}>{inner}</button>;
-  return <div className={"kc-episode is-absent" + (online ? "" : " is-off")}>{inner}</div>;
+  return <EpisodeRow episode={e} download={download} room={!!room} starting={starting} off={!online}
+    link={here && !play.disabled ? play : null} onPick={!here && offer ? watch : null} />;
 }

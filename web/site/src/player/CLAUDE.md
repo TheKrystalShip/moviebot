@@ -68,10 +68,12 @@ connection's token rather than from anything the page sends.
   browser; a viewer's quality is reported up to the server alone (below). Chapters moves the room
   like the scrub bar; a chapter's start is also a mark on the bar, and pointing names the chapter.
   Episodes moves the room like next. No menu explains itself: its header is its name.
-- **An episode's menu is its season** (`/api/shows/{imdbId}`, read again each time it opens). Every
-  episode the film database or the library lists, the one playing marked and the list opened on it.
-  One the library holds puts it on for the whole room; one it does not is fetched into the room as
-  next fetches it, for a viewer holding `cinema:download`; one not yet aired is listed and not offered.
+- **An episode's menu is its season, drawn as the show's page draws it** (`components/EpisodeRow.jsx`,
+  from `/api/shows/{imdbId}`, read again each time it opens): still, name, score and length, the one
+  playing marked and the list opened on it. Choosing a row is all it takes. One the library holds is
+  put on for the whole room; one the tracker offers (`/api/shows/{imdbId}/releases`) is fetched into
+  the room as next fetches it, for a viewer holding `cinema:download`. A row says nothing about where
+  an episode stands except its download to this device, where the site offers Download.
 - **Moving between episodes is a button, never automatic.** An episode has previous and next
   controls the whole time it plays, from `/api/titles/{id}/neighbours` (the episodes either side among
   those the library holds), and from its closing stretch — the last chapter when that is the credits,

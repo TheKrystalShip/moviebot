@@ -499,6 +499,7 @@ button.kc-episode:disabled { cursor: progress; }
   width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--border-strong);
   display: flex; align-items: center; justify-content: center; color: var(--fg-2);
 }
+.kc-episode__go:empty { border-color: transparent; }
 /* A season whose episodes can be downloaded: each row has Download's place at its end. */
 .kc-episode-line { display: flex; align-items: center; border-top: 1px solid var(--border-subtle); margin-top: -1px; }
 .kc-episode-line > .kc-episode { flex: 1; min-width: 0; border-top: 0; margin-top: 0; padding-right: 8px; }

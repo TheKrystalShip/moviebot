@@ -146,6 +146,9 @@ export interface ShowEpisode {
   name?: string;
   airDate?: string;
   runtimeMinutes?: number;
+  rating?: number;
+  /** The episode's still, served from here. */
+  stillUrl?: string;
   /** The library's title for the episode; absent when the library does not hold it. */
   titleId?: string;
   status?: TitleStatus;
@@ -158,6 +161,17 @@ export interface ShowSeasons {
   imdbId: string;
   title: string;
   seasons: { number: number; name?: string; episodes: ShowEpisode[] }[];
+}
+
+/** A release the tracker offers, as far as choosing one to fetch needs it. */
+export interface ReleaseOffer {
+  torrentId: number;
+  resolution?: string;
+}
+
+/** What the tracker offers for a show, season by season: packs, and single episodes, each best first. */
+export interface ShowOffers {
+  seasons: { season: number; packs: ReleaseOffer[]; episodes: { episode: number; releases: ReleaseOffer[] }[] }[];
 }
 
 /** One point in the film with a name, as the container already records it. */

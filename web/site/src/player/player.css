@@ -328,6 +328,22 @@
   color: var(--fg-1);
 }
 .mp-popover--wide { width: 340px; }
+/* The season as the show's page lists it, without the progress column: the still carries the bar. */
+.mp-popover--episodes { width: min(600px, calc(100% - 56px)); }
+.mp-episodes { display: flex; flex-direction: column; padding: 4px 0; }
+.mp-episodes .kc-episode {
+  grid-template-columns: 24px 112px minmax(0, 1fr) 52px 52px 30px; gap: 12px; padding: 10px 16px;
+}
+.mp-episodes .kc-episode:first-of-type { border-top: 0; }
+.mp-episodes .kc-episode__progress { display: none; }
+.mp-episodes .kc-episode.is-current { background: rgba(64, 160, 192, 0.12); }
+.mp-episodes .kc-episode.is-current .kc-episode__go { border-color: var(--krystal-teal); color: var(--krystal-teal); }
+.mp-frame:not(.mp-frame--wide) .mp-episodes .kc-episode,
+:root[data-tv] .mp-episodes .kc-episode { grid-template-columns: 22px 96px minmax(0, 1fr) 30px; gap: 10px; padding: 10px 12px; }
+.mp-frame:not(.mp-frame--wide) .mp-episodes .kc-episode__still,
+:root[data-tv] .mp-episodes .kc-episode__still { width: 96px; }
+.mp-frame:not(.mp-frame--wide) .mp-episodes :is(.kc-episode__score, .kc-episode__runtime),
+:root[data-tv] .mp-episodes :is(.kc-episode__score, .kc-episode__runtime) { display: none; }
 /* The style editor's drawer leaves room above it for the sample line it is styling. */
 .kc-drawer.is-styling { max-height: 45%; }
 .mp-menu__head {
@@ -466,6 +482,11 @@
   box-shadow: -1px 0 0 var(--border-subtle);
 }
 :root[data-tv] .mp-option { border-radius: var(--r-pill); }
+:root[data-tv] .mp-popover--episodes { width: 420px; padding-left: 12px; padding-right: 12px; }
+:root[data-tv] .mp-episodes .kc-episode { border-radius: var(--r-sm); }
+:root[data-tv] .mp-episodes .kc-episode:focus-visible { outline: none; background: var(--fg-1); box-shadow: var(--glow-accent); }
+:root[data-tv] .mp-episodes .kc-episode:focus-visible :is(.kc-episode__title, .kc-episode__n, .kc-episode__go) { color: var(--canvas); }
+:root[data-tv] .mp-episodes .kc-episode:focus-visible .kc-episode__sub { color: var(--fg-4); }
 :root[data-tv] :is(.mp-play, .mp-icon, .mp-menu-button, .mp-option, .mp-menu__back):focus-visible {
   background: var(--fg-1); color: var(--canvas); border-color: transparent;
   box-shadow: var(--glow-accent), var(--shadow-lift); transform: scale(1.06);

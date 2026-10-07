@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.27.0] - 2026-10-07
+
+### Changed
+
+- **The player's Episodes menu is the season as the show's page lists it**, one shared row
+  (`EpisodeRow`): still with how far the person got, name, score, length, and the one playing
+  marked. Choosing a row plays it for the room; an episode the library lacks is fetched from the
+  release the tracker offers, as on the show's page, and one it does not offer cannot be chosen.
+- **An episode's row says nothing about where the episode stands** other than its download to this
+  device: "Not here", "Still being prepared", "Could not be prepared" and "Not available yet" are
+  gone from the player and the show's page, and the row's line is when it aired. Site 0.47.0.
+
 ## [2.26.0] - 2026-10-07
 
 ### Added

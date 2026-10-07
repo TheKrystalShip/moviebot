@@ -1,6 +1,6 @@
 import { environment } from './environment';
 import type {
-  EpisodeNeighbours, Manifest, Participant, Person, ShowSeasons, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary,
+  EpisodeNeighbours, Manifest, Participant, Person, ShowOffers, ShowSeasons, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary,
   ViewerPreferences
 } from './types';
 
@@ -50,6 +50,9 @@ export const api = {
   /** A show's seasons and their episodes, each joined with the library: what the episode menu lists. */
   show: (imdbId: string) => getJson<ShowSeasons>(`/api/shows/${encodeURIComponent(imdbId)}`),
 
+  /** What the tracker offers for a show, which an episode the library lacks is fetched from. */
+  showReleases: (imdbId: string) => getJson<ShowOffers>(`/api/shows/${encodeURIComponent(imdbId)}/releases`),
+
   /** What a request for this film's bytes carries instead of who is asking. */
   mediaTicket: (id: string) =>
     getJson<{ ticket: string; expiresAt: string }>(`/api/titles/${encodeURIComponent(id)}/ticket`),
@@ -71,7 +74,7 @@ export const api = {
    * Fetches an episode into a room and plays it the moment it can be opened; the room shows it
    * arriving. It takes downloading, which the viewer's account may not hold.
    */
-  watchNow: (request: { imdbId: string; episodes: { season: number; episode: number }[]; room: string; quality: string }) =>
+  watchNow: (request: { imdbId: string; torrentId?: number; episodes: { season: number; episode: number }[]; room: string; quality: string }) =>
     sendJson<{ outcome: string; room?: string }>('/api/watch', 'POST', request),
 
   /** Everybody who can be asked into a room, most recently seen first, without the person asking. */
