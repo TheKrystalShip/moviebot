@@ -171,7 +171,10 @@ Driven entirely by what the container says, because the sample film makes every 
 
 ## Dialogue boost (`Pipeline/DialogueBoost.cs`)
 
-- **Every feature track gains a dialogue-boost mix, made after the main pass.** A film's dialogue
+- **The boost is off unless asked for** (`Handoff.DialogueBoost`, `--dialogue-boost` on the CLI). It
+  fills every core for longer than a room waits for a film, so the track it adds is rarely there by
+  the time anybody would pick it.
+- **With it on, every feature track gains a dialogue-boost mix, made after the main pass.** A film's dialogue
   lives in the centre channel, which exists as its own signal only until the downmix, so the mix
   weights it above the fronts and surrounds there, then compresses and runs `loudnorm`. Measured on a
   5.1 feature, the gap between the dialogue and the loudest ten seconds goes from 20 dB to 9. The

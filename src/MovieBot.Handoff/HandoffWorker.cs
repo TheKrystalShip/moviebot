@@ -280,7 +280,8 @@ public sealed class HandoffWorker(
         {
             SourcePath = source,
             OutputRoot = roots.Hot,
-            SubtitleLanguages = _options.SubtitleLanguages
+            SubtitleLanguages = _options.SubtitleLanguages,
+            DialogueBoost = _options.DialogueBoost
         });
 
         _estimates[key] = bytes;
@@ -500,6 +501,7 @@ public sealed class HandoffWorker(
                 Episode = episode,
                 PosterSource = poster,
                 SubtitleLanguages = _options.SubtitleLanguages,
+                DialogueBoost = _options.DialogueBoost,
                 Availability = whole ? null : new TorrentAvailability(acquisition, download.Hash, source, file.Path),
                 Force = true,
             };
@@ -581,6 +583,7 @@ public sealed class HandoffWorker(
             Film = film is null ? null : FilmMetadata.Identify(film),
             PosterSource = poster,
             SubtitleLanguages = _options.SubtitleLanguages,
+            DialogueBoost = _options.DialogueBoost,
             Availability = availability,
 
             // Reaching here means the previous attempt did not finish, since the tag is removed

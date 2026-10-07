@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.0] - 2026-10-07
+
+### Changed
+
+- **The dialogue-boost mix is off unless asked for.** It fills every core on hotbox for minutes after
+  each title and is rarely done before a room has started watching, so a title now turns ready after
+  the main pass and lists only its source's own audio tracks. `Handoff.DialogueBoost` (default
+  `false`) turns it back on for the hand-off, and the ingest CLI's `--dialogue-boost` asks for it in
+  place of `--no-dialogue-boost`. Titles already mixed keep their boosted tracks. Handoff 0.18.0,
+  Ingest 1.17.0.
+
 ## [2.24.0] - 2026-10-07
 
 ### Added

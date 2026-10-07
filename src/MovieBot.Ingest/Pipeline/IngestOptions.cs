@@ -113,9 +113,10 @@ public sealed record IngestOptions
     /// <summary>
     /// Whether each feature track gains a second mix with the dialogue raised over the music and
     /// effects. It is made after the main pass, so it costs nothing in how soon a film plays and
-    /// only delays the moment the title reports itself ready.
+    /// only delays the moment the title reports itself ready. Off unless asked for: the pass is
+    /// CPU-bound and fills every core for as long as it runs.
     /// </summary>
-    public bool DialogueBoost { get; init; } = true;
+    public bool DialogueBoost { get; init; }
 
     /// <summary>
     /// Segment length. The GOP is pinned to match so every segment opens on a keyframe and

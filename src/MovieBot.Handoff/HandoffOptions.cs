@@ -79,4 +79,12 @@ public sealed class HandoffOptions
     /// left behind can be extracted again from it until retention lets the film go.
     /// </summary>
     public string[] SubtitleLanguages { get; set; } = ["eng"];
+
+    /// <summary>
+    /// Whether each feature track gains a second mix with the dialogue raised over the music and
+    /// effects. Off: the mix is a CPU-bound pass after the video that fills every core on hotbox
+    /// for longer than a room waits for the film, so the track it adds is rarely there in time to
+    /// be picked.
+    /// </summary>
+    public bool DialogueBoost { get; set; }
 }

@@ -77,7 +77,7 @@ public static class Program
         var force = false;
         var dryRun = false;
         var thumbnailsOnly = false;
-        var dialogueBoost = true;
+        var dialogueBoost = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -121,8 +121,8 @@ public static class Program
                 case "--thumbnails":
                     thumbnailsOnly = true;
                     break;
-                case "--no-dialogue-boost":
-                    dialogueBoost = false;
+                case "--dialogue-boost":
+                    dialogueBoost = true;
                     break;
                 default:
                     if (arg.StartsWith('-'))
@@ -176,9 +176,6 @@ public static class Program
         that a viewer whose connection dips can fall back to. A source no wider than a step-down
         does without it.
 
-        Once the film is transcoded, each feature track gains a second mix with the dialogue
-        raised over the music and effects, listed as "<track> — Dialogue boost".
-
         Options:
           -o, --out <dir>        Output root. Default: ./media
               --id <slug>        Output directory and manifest id. Default: derived from the title
@@ -190,7 +187,8 @@ public static class Program
               --force            Replace an existing output directory
               --dry-run          Probe and print the manifest, transcode nothing
               --thumbnails       Rebuild the scrub previews for a title already ingested
-              --no-dialogue-boost  Skip the second, dialogue-boosted mix of each feature track
+              --dialogue-boost   Once the film is transcoded, add a second mix of each feature
+                                 track with the dialogue raised, as "<track> — Dialogue boost"
           -h, --help             Show this help
 
         Requires ffmpeg and ffprobe on PATH, with h264_nvenc for encoding and, for HDR sources,

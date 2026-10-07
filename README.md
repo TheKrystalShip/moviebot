@@ -16,8 +16,8 @@ Playback starts seconds after a film is requested, while it is still being trans
   never shared.
 - **Usable track menus.** Subtitle and audio tracks are labelled from the container's own title
   tags, and commentary tracks are grouped separately.
-- **Dialogue boost.** Every feature audio track gets a second mix that lifts dialogue over music and
-  effects.
+- **Dialogue boost.** Optionally (`Handoff.DialogueBoost`), every feature audio track gets a second
+  mix that lifts dialogue over music and effects.
 - **Discord-native.** Slash commands find, fetch and launch films, and an optional voice mode lets a
   room pause, resume and seek by speaking, with anything else answered by a small local language
   model.
@@ -142,7 +142,7 @@ dotnet run --project src/MovieBot.Ingest -c Release -- "/path/to/film.mkv" --out
 
 `--help` lists every option. The most common are `--bitrate` (default `9M`), `--segment` (default
 2 seconds), `--tonemap auto|on|off`, `--force` to replace existing output, and
-`--no-dialogue-boost` to skip the dialogue mix.
+`--dialogue-boost` to add the dialogue mix.
 
 Output for one film:
 
@@ -153,7 +153,7 @@ media/<id>/
   s3.vtt s4.vtt …    one WebVTT file per text subtitle track, named by source stream index
   v0/index.m3u8      video: H.264 High, fMP4 segments
   a0/index.m3u8      primary audio: AAC stereo
-  a1/index.m3u8 …    further audio tracks, then a dialogue-boost mix of each feature track
+  a1/index.m3u8 …    further audio tracks, then any dialogue-boost mix of each feature track
 ```
 
 Bitmap subtitles (PGS, VobSub) cannot become WebVTT without OCR. They appear in the manifest as
