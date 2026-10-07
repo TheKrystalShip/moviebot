@@ -151,7 +151,11 @@ public sealed class SubtitleFetcher(
         if (target.MovieHash is { Length: > 0 } hash)
             Collect(await index.SearchByHashAsync(hash, language, ct));
 
-        if (target.ImdbId is { Length: > 0 } imdbId)
+        // An episode is asked for by its show and its place: the show's own id names every episode
+        // and special the show has.
+        if (manifest.Episode is { } episode && target.ImdbId is { Length: > 0 } showId)
+            Collect(await index.SearchByEpisodeAsync(showId, episode.Season, episode.Number, language, ct));
+        else if (target.ImdbId is { Length: > 0 } imdbId)
             Collect(await index.SearchByImdbAsync(imdbId, language, ct));
         else
             Collect(await index.SearchByTitleAsync(manifest.Title, YearOf(manifest), language, ct));

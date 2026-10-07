@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.30.1] - 2026-10-07
+
+### Fixed
+
+- **An episode's OpenSubtitles results are that episode's.** The search asked by the show's IMDb id
+  alone, which the index answers with subtitles from anywhere in the show, so an episode was offered
+  another's, a special among them. It now asks by the show, the season and the episode. Api 2.14.1,
+  moviebot-acquire 0.35.0.
+
 ## [2.30.0] - 2026-10-07
 
 ### Changed
