@@ -1,6 +1,7 @@
 import { environment } from './environment';
 import type {
-  EpisodeNeighbours, Manifest, Participant, Person, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary, ViewerPreferences
+  EpisodeNeighbours, Manifest, Participant, Person, ShowSeasons, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary,
+  ViewerPreferences
 } from './types';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -45,6 +46,9 @@ export const api = {
   /** The episodes either side of one, which previous and next move the room to. */
   neighbours: (id: string) =>
     getJson<EpisodeNeighbours>(`/api/titles/${encodeURIComponent(id)}/neighbours`),
+
+  /** A show's seasons and their episodes, each joined with the library: what the episode menu lists. */
+  show: (imdbId: string) => getJson<ShowSeasons>(`/api/shows/${encodeURIComponent(imdbId)}`),
 
   /** What a request for this film's bytes carries instead of who is asking. */
   mediaTicket: (id: string) =>

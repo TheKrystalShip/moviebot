@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.26.0] - 2026-10-07
+
+### Added
+
+- **The player has an Episodes menu beside Subtitles and Audio** for an episode in a room: every
+  episode of its season, the one playing marked, each with its length and where the viewer got to.
+  Picking one the library holds puts it on for the whole room; one it does not hold is fetched into
+  the room as next fetches it, for a viewer who may download; one not yet aired is not offered. It is
+  read from `/api/shows/{imdbId}` each time it opens, and the tiny frame lists it in its overflow.
+
+### Fixed
+
+- **Reloading a room keeps it on the film it is showing.** The address kept the film the page was
+  opened with, and a launch naming another film than the room's moves the room, so after a few
+  nexts a reload sent everybody back to the first episode. The address now follows the room
+  (`?title=` the film it shows, `at` dropped), in the Activity as well, and a room emptied under a
+  viewer is given back the film they held rather than the one first launched. Site 0.46.0.
+
 ## [2.25.1] - 2026-10-07
 
 ### Fixed

@@ -1,5 +1,7 @@
 import React from "react";
 import { Icon } from "@thekrystalship/krystal-ui";
+import { api } from "./engine/api.ts";
+import { environment } from "./engine/environment.ts";
 import { formatTime } from "./engine/format.ts";
 import { SubtitleStyleEditor } from "./SubtitleStyleEditor.jsx";
 import { Drawer } from "../components/Drawer.jsx";
@@ -44,12 +46,31 @@ export function qualityValue(view) {
 /** Whether there is anything to choose between. One rung is no choice at all. */
 export const hasQualityChoice = (view) => view.qualityLevels.length > 1;
 
-export const MenuTitles = { subs: "Subtitles", audio: "Audio track", quality: "Quality", chapters: "Chapters" };
+export const MenuTitles = { subs: "Subtitles", audio: "Audio track", quality: "Quality", chapters: "Chapters", episodes: "Episodes" };
+
+/** Whether the film has a season to move around in: an episode, in a room. */
+export const hasEpisodes = (view) => Boolean(view.manifest && view.manifest.episode && view.manifest.film && view.manifest.film.imdbId && !view.solo);
+
+/** What the episode menu's button says: the episode playing. */
+export const episodeValue = (view) => `S${view.manifest.episode.season} · E${view.manifest.episode.number}`;
+
+/**
+ * Fetches an episode the library does not hold into the room, at the quality of the one playing,
+ * read from its picture as the server reads it; the room shows it arriving.
+ */
+export function fetchEpisode(manifest, season, number) {
+  return api.watchNow({
+    imdbId: manifest.film.imdbId,
+    episodes: [{ season, episode: number }],
+    room: environment().sessionId(),
+    quality: manifest.video && manifest.video.width >= 1800 ? "1080p" : "720p",
+  });
+}
 
 /**
  * One menu over the film: a popover above the control bar where the frame is wide, a sheet from
- * the bottom edge where it is not. Every menu but one holds this viewer's own choice; the chapters
- * move the whole room, like the scrub bar.
+ * the bottom edge where it is not. Every menu but two holds this viewer's own choice; the chapters
+ * and the episodes move the whole room, like the scrub bar.
  */
 export function Menu({ kind, view, room, sheet, position, styling, onStyling, onClose }) {
   const editing = kind === "subs" && styling;
@@ -57,7 +78,8 @@ export function Menu({ kind, view, room, sheet, position, styling, onStyling, on
     : kind === "subs" ? <SubtitleOptions view={view} room={room} onStyle={() => onStyling(true)} />
       : kind === "audio" ? <AudioOptions view={view} room={room} onClose={onClose} />
         : kind === "chapters" ? <ChapterOptions view={view} room={room} position={position} onClose={onClose} />
-          : <QualityOptions view={view} room={room} onClose={onClose} />;
+          : kind === "episodes" ? <EpisodeOptions view={view} room={room} onClose={onClose} />
+            : <QualityOptions view={view} room={room} onClose={onClose} />;
   const title = editing ? "Subtitle style" : MenuTitles[kind];
   const back = editing ? { label: "Back to subtitles", onClick: () => onStyling(false) } : null;
   if (sheet) {
@@ -68,7 +90,7 @@ export function Menu({ kind, view, room, sheet, position, styling, onStyling, on
     );
   }
   return (
-    <div className={"mp-popover" + (kind === "subs" ? " mp-popover--wide" : "") + " mp-menu"} role="menu" aria-label={title}>
+    <div className={"mp-popover" + (kind === "subs" || kind === "episodes" ? " mp-popover--wide" : "") + " mp-menu"} role="menu" aria-label={title}>
       <div className="mp-menu__head">
         {back && (
           <button type="button" className="mp-menu__back" aria-label={back.label} onClick={back.onClick}>
@@ -93,6 +115,100 @@ function ChapterOptions({ view, room, position, onClose }) {
         <Option key={i} on={i === current} label={c.title || `Chapter ${i + 1}`} sub={formatTime(c.startSeconds)}
           onPick={() => { room.seek(c.startSeconds); onClose(); }} />
       ))}
+    </div>
+  );
+}
+
+/** Each show's seasons as last read, so the menu draws at once while it is read again. */
+const seasonsRead = new Map();
+
+/** Today as an air date is written, in the viewer's own day. */
+const today = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
+
+/** Where the viewer is in an episode, in a few words, or its length when they have not started it. */
+function episodeSub(episode) {
+  const length = episode.durationSeconds ? formatTime(episode.durationSeconds)
+    : episode.runtimeMinutes ? `${episode.runtimeMinutes}m` : null;
+  const progress = episode.progress;
+  const where = !progress ? null : progress.finished ? "Watched"
+    : episode.durationSeconds ? `${formatTime(Math.max(0, episode.durationSeconds - progress.positionSeconds))} left` : "Started";
+  return [length, where].filter(Boolean).join(" · ");
+}
+
+/**
+ * Every episode of the season playing, the one playing marked. Picking one the library holds puts
+ * it on for the whole room, as next does; one it does not hold is fetched into the room when the
+ * viewer may download, and the room shows it arriving. One not yet aired is listed and not offered.
+ * The season is read again whenever the menu opens, so what the library gained since is offered.
+ */
+function EpisodeOptions({ view, room, onClose }) {
+  const manifest = view.manifest;
+  const imdbId = manifest.film.imdbId;
+  const seasonNumber = manifest.episode.season;
+  const [show, setShow] = React.useState(() => seasonsRead.get(imdbId) || null);
+  const [failure, setFailure] = React.useState(null);
+  const [fetching, setFetching] = React.useState(null);
+  const list = React.useRef(null);
+
+  React.useEffect(() => {
+    let live = true;
+    api.show(imdbId).then((read) => {
+      seasonsRead.set(imdbId, read);
+      if (live) setShow(read);
+    }).catch(() => { if (live && !seasonsRead.has(imdbId)) setFailure("The season could not be read."); });
+    return () => { live = false; };
+  }, [imdbId]);
+
+  const season = show && show.seasons.find((s) => s.number === seasonNumber);
+  const episodes = season ? season.episodes : [];
+  const playing = (e) => e.titleId === manifest.id || (e.season === manifest.episode.season && e.number === manifest.episode.number);
+
+  // The list opens on the episode playing, however far down the season it is.
+  const drawn = episodes.length > 0;
+  React.useLayoutEffect(() => {
+    const on = drawn && list.current && list.current.querySelector(".mp-option.is-on");
+    if (on) on.scrollIntoView({ block: "center" });
+  }, [drawn]);
+
+  const mayFetch = environment().holds("cinema:download");
+  const aired = today();
+  const take = async (episode) => {
+    setFetching(episode.number);
+    setFailure(null);
+    try {
+      await fetchEpisode(manifest, episode.season, episode.number);
+      onClose();
+    } catch {
+      setFailure("That episode could not be fetched.");
+    } finally {
+      setFetching(null);
+    }
+  };
+
+  return (
+    <div className="mp-menu__list" ref={list}>
+      {failure && <div className="mp-menu__message">{failure}</div>}
+      {!failure && show === null && <div className="mp-menu__message"><Icon name="loader-circle" size={14} className="mp-spin" />Looking</div>}
+      {episodes.map((e) => {
+        const label = `${e.number} · ${e.name || `Episode ${e.number}`}`;
+        if (playing(e)) return <Option key={e.number} on label={label} sub={episodeSub(e)} onPick={onClose} />;
+        if (e.titleId) {
+          return <Option key={e.number} on={false} label={label} sub={episodeSub(e)}
+            onPick={() => { room.pickTitle(e.titleId); onClose(); }} />;
+        }
+        const upcoming = Boolean(e.airDate && e.airDate > aired);
+        return (
+          <Option key={e.number} on={false} label={label} disabled={upcoming || !mayFetch || fetching !== null}
+            sub={upcoming ? `Airs ${e.airDate}` : "Not here"} onPick={() => void take(e)}>
+            {!upcoming && mayFetch && (fetching === e.number
+              ? <span className="mp-option__state is-loading"><Icon name="loader-circle" size={15} className="mp-spin" /></span>
+              : <span className="mp-option__state"><Icon name="download" size={15} /></span>)}
+          </Option>
+        );
+      })}
     </div>
   );
 }

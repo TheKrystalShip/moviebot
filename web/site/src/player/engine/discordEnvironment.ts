@@ -1,4 +1,5 @@
 import { Common, DiscordSDK } from '@discord/embedded-app-sdk';
+import { addressShowing } from './environment';
 import type { Environment, Identity, Presence } from './environment';
 
 /**
@@ -194,6 +195,11 @@ export async function createDiscordEnvironment(
     // An Activity is launched by Discord from a URL the site never writes, so there is nowhere for a
     // position to ride.
     startAt: () => null,
+    // The Activity reloads at the address it was launched at, so the launch is rewritten there.
+    showing: (title) => {
+      const address = addressShowing(title);
+      if (address !== null) window.history.replaceState(window.history.state, '', address);
+    },
     identity: async () => identity,
     // The page's own origin is Discord's proxy, which opens nowhere outside the Activity. The
     // public address is the site, where the same room is open to anyone signed in.

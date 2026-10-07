@@ -115,6 +115,12 @@ export class PlayerRoom {
   /** Undefined until the room has said, so the first state is always acted on. Starting at null
    *  makes an empty room indistinguishable from one nothing has been heard about yet. */
   private loadedTitleId: string | null | undefined;
+  /**
+   * The film the launch named, which is the only thing that knows what an empty room should hold,
+   * until the room holds a film. From then on the room is the authority on what it shows, and the
+   * film this viewer last held is what an emptied room is given back.
+   */
+  private launched: string | null = null;
   private previous: SessionState | null = null;
   private noticeIds = 0;
   private readonly subscribers = new Set<() => void>();
@@ -241,8 +247,8 @@ export class PlayerRoom {
       this.notice('Your playback settings could not be read, so this film starts on its own defaults.', 'error');
     }
 
-    /** The film the launch named, which is the only thing that knows what an empty room should hold. */
     const launched = env.titleId();
+    this.launched = launched;
     const sessionId = env.sessionId();
 
     const hub = new SessionHub(sessionId, {
@@ -272,7 +278,7 @@ export class PlayerRoom {
       }
     });
     this.hub = hub;
-    this.controller = this.controllerFor(hub, identity, launched);
+    this.controller = this.controllerFor(hub, identity);
 
     try {
       this.set({ titles: await api.titles() });
@@ -303,7 +309,9 @@ export class PlayerRoom {
 
     // A launch link names the film. The room is told once, by whoever arrives while it is showing
     // something else; a viewer joining a room that already holds the title says nothing, because
-    // loading it again would send everyone back to the beginning.
+    // loading it again would send everyone back to the beginning. The front door keeps what the
+    // room shows where the launch is read from (`Environment.showing`), so reloading the page names
+    // the room's own film and tells it nothing.
     if (launched !== null && (joined.state.titleId ?? null) !== null && joined.state.titleId !== launched) {
       await hub.loadTitle(launched);
     }
@@ -354,7 +362,7 @@ export class PlayerRoom {
       { userId: identity.userId, displayName: identity.displayName },
       (push) => this.controller?.applyPush(push));
     this.hub = timeline;
-    this.controller = this.controllerFor(timeline, identity, titleId);
+    this.controller = this.controllerFor(timeline, identity);
 
     // Where the person has got to is written down as they watch, and whenever they stop, skip or
     // reach the end, so it is there for the API whenever a connection comes back.
@@ -367,13 +375,13 @@ export class PlayerRoom {
   }
 
   /** The controller that applies a timeline to the element, whichever timeline it is. */
-  private controllerFor(timeline: Timeline, identity: Identity, launched: string | null): SyncController {
+  private controllerFor(timeline: Timeline, identity: Identity): SyncController {
     return new SyncController(this.video, timeline.clock, {
       play: (at) => void timeline.play(at),
       pause: (at) => void timeline.pause(at),
       seek: (to) => void timeline.seek(to)
     }, {
-      onState: (state) => this.onState(state, identity, launched),
+      onState: (state) => this.onState(state, identity),
       onPlaybackBlocked: () => this.set({ gate: true }),
       onInitialSeekChanged: (seeking) => this.set({ catchingUp: seeking }),
       holdsFilm: () => this.stream.holdsFilm
@@ -401,7 +409,7 @@ export class PlayerRoom {
 
   // ── What the room says ───────────────────────────────────────────────────────────────────
 
-  private onState(state: SessionState, identity: Identity, launched: string | null): void {
+  private onState(state: SessionState, identity: Identity): void {
     // Said on screen to everyone in the room, the person who did it included, so what one person
     // sees happen is what everybody sees. Only a state that moved the room on from the last one
     // counts; the first state is the room being joined, and a resync hands back a state already
@@ -435,9 +443,14 @@ export class PlayerRoom {
       // where there is one; inside the Activity there is only an invite, which names nothing, so
       // what this viewer already has open is the answer. Only the empty case, because a room
       // showing something else was told by somebody. A start rides only with the launched film.
+      const launched = this.launched;
       const restore = launched ?? held;
       if (restore !== null && titleId === null) {
         void this.hub?.loadTitle(restore, restore === launched ? environment().startAt() : null);
+      }
+      if (titleId !== null) {
+        this.launched = null;
+        if (!this.view.solo) environment().showing(titleId);
       }
       return;
     }

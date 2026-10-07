@@ -43,7 +43,7 @@ const viewer = {
 export function SiteRoom({ room, title, offline = false, onBack, onEmpty }) {
   const online = useOnline();
   const [ready] = React.useState(() => {
-    setEnvironment(createSiteEnvironment(room, title, viewer, onTv, offline));
+    setEnvironment(createSiteEnvironment(room, title, viewer, (address) => navigate(address, { replace: true }), onTv, offline));
     return true;
   });
   // What was watched alone goes to the API as soon as the film is left, when there is a connection

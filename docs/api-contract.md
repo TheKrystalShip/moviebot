@@ -54,7 +54,8 @@ given another film, or somebody leaves it, each person who was watching is credi
 to; a film a room is playing right now is answered from the room itself. A paused room left open
 records nothing. Opening a film
 at `/r/{room}?title={id}&at={seconds}` into an empty room starts it there; a room already holding a
-film ignores `at`.
+film ignores `at`. The site keeps that address naming whatever the room is showing, without `at`,
+so reopening it rejoins the room where it is.
 
 ```jsonc
 // ViewerPreferences: the defaults a film starts with, for a person wherever they sign in

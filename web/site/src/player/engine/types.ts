@@ -139,6 +139,27 @@ export interface EpisodeNeighbours {
   fetchableName?: string;
 }
 
+/** One episode of a show as its description lists it, joined with the library and the viewer's progress. */
+export interface ShowEpisode {
+  season: number;
+  number: number;
+  name?: string;
+  airDate?: string;
+  runtimeMinutes?: number;
+  /** The library's title for the episode; absent when the library does not hold it. */
+  titleId?: string;
+  status?: TitleStatus;
+  durationSeconds?: number;
+  progress?: { positionSeconds: number; finished: boolean };
+}
+
+/** A show's seasons, each with every episode the film database or the library knows of. */
+export interface ShowSeasons {
+  imdbId: string;
+  title: string;
+  seasons: { number: number; name?: string; episodes: ShowEpisode[] }[];
+}
+
 /** One point in the film with a name, as the container already records it. */
 export interface Chapter {
   startSeconds: number;

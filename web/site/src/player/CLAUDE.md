@@ -10,7 +10,8 @@ sync controller, the stream, the room) and the components draw what `engine/room
 
 Everything that differs between the site and the Activity is behind `Environment`
 (`engine/environment.ts`): where the API is, how a manifest-relative media path becomes a URL, which
-room this is, which film the launch named and where in it to start, whether it is a television, who the viewer is, a good access token
+room this is, which film the launch named and where in it to start, keeping what the room shows where
+the launch is read from (`showing`), whether it is a television, who the viewer is, a good access token
 (`freshToken`) and which Cinema actions it holds (`holds`), the link that hands the room to someone
 else, where their presence is shown, how the film is held sideways on a phone, and what the device
 keeps for the viewer (`solo`, `deviceCopy`, `keptPreferences`, `online`, `resumeAt`,
@@ -45,6 +46,12 @@ connection's token rather than from anything the page sends.
 - **The spinner waits before it appears.** A stall shorter than a moment is a stutter. The same grace
   decides when this viewer is reported to the room as waiting, which is the mark on their avatar.
 
+- **The room is the authority on what it shows; the launch only fills an empty one.** A launch that
+  names a film puts it into a room showing nothing, and moves a room showing something else once, on
+  arrival. From the first film the room holds, the address names whatever the room is showing and
+  carries no `at` (`Environment.showing`): the room moves on by anybody's next, menu or Watch now,
+  and a reload, on any viewer's page, rejoins on the room's film instead of sending everyone back to
+  the one the page was opened with. A room emptied under a viewer is given back the film they held.
 - **A room waiting on a Watch now shows what it waits on, from the room.** The room's state carries
   `preparing`, so every viewer sees the same three steps (finding, downloading, starting) and the film
   starts on its own when the server loads it; a film that will not arrive says why. Leaving does not
@@ -56,10 +63,15 @@ connection's token rather than from anything the page sends.
   space bar pauses the film for everybody. That is the premise, which is why nothing is bound that a
   hand resting on a keyboard could trigger, and why a drag on the scrub bar says where letting go takes
   everybody before it is let go.
-- **Every menu holds this viewer's own choice, except Chapters.** Volume, subtitles, audio and
-  quality are never shared with the room. Volume, subtitles and audio never leave the browser; a
-  viewer's quality is reported up to the server alone (below). Chapters moves the room like the scrub bar; a chapter's start is also
-  a mark on the bar, and pointing names the chapter. No menu explains itself: its header is its name.
+- **Every menu holds this viewer's own choice, except Chapters and Episodes.** Volume, subtitles,
+  audio and quality are never shared with the room. Volume, subtitles and audio never leave the
+  browser; a viewer's quality is reported up to the server alone (below). Chapters moves the room
+  like the scrub bar; a chapter's start is also a mark on the bar, and pointing names the chapter.
+  Episodes moves the room like next. No menu explains itself: its header is its name.
+- **An episode's menu is its season** (`/api/shows/{imdbId}`, read again each time it opens). Every
+  episode the film database or the library lists, the one playing marked and the list opened on it.
+  One the library holds puts it on for the whole room; one it does not is fetched into the room as
+  next fetches it, for a viewer holding `cinema:download`; one not yet aired is listed and not offered.
 - **Moving between episodes is a button, never automatic.** An episode has previous and next
   controls the whole time it plays, from `/api/titles/{id}/neighbours` (the episodes either side among
   those the library holds), and from its closing stretch — the last chapter when that is the credits,

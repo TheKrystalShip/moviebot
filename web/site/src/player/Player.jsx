@@ -16,7 +16,7 @@ import { Volume } from "./Volume.jsx";
 import { ago } from "../time.js";
 import { Drawer } from "../components/Drawer.jsx";
 import {
-  Menu, MenuTitles, audioValue, hasQualityChoice, qualityValue, subtitleValue,
+  Menu, MenuTitles, audioValue, episodeValue, fetchEpisode, hasEpisodes, hasQualityChoice, qualityValue, subtitleValue,
 } from "./Menus.jsx";
 
 const SkipSeconds = 10;
@@ -118,13 +118,7 @@ function nextOf(around, manifest) {
   if (around.fetchable && environment().holds("cinema:download")) {
     return {
       words: [episodeCode(around.fetchable), around.fetchableName].filter(Boolean).join(" · "),
-      go: (room) => api.watchNow({
-        imdbId: manifest.film.imdbId,
-        episodes: [{ season: around.fetchable.season, episode: around.fetchable.number }],
-        room: environment().sessionId(),
-        // The quality of the episode being watched, read from its picture as the server reads it.
-        quality: manifest.video && manifest.video.width >= 1800 ? "1080p" : "720p",
-      }),
+      go: () => fetchEpisode(manifest, around.fetchable.season, around.fetchable.number),
     };
   }
   if (around.next) return { words: episodeWords(around.next, around.nextName), go: (room) => room.pickTitle(around.next.id) };
@@ -693,6 +687,10 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
                 <MenuButton kind="chapters" icon="list" value={(chapterAt(manifest.chapters, clock.position) || {}).title || "Chapters"}
                   open={menu === "chapters"} compact={compact} onClick={() => openMenu("chapters")} />
               )}
+              {hasEpisodes(view) && (
+                <MenuButton kind="episodes" icon="list-video" value={episodeValue(view)}
+                  open={menu === "episodes"} compact={compact} onClick={() => openMenu("episodes")} />
+              )}
               <MenuButton kind="subs" icon="captions" value={subtitleValue(view)} open={menu === "subs"} compact={compact} onClick={() => openMenu("subs")} />
               {manifest.audio.length > 1 && <MenuButton kind="audio" icon="audio-lines" value={audioValue(view)} open={menu === "audio"} compact={compact} onClick={() => openMenu("audio")} />}
               {hasQualityChoice(view) && <MenuButton kind="quality" icon="gauge" value={qualityValue(view)} open={menu === "quality"} compact={compact} onClick={() => openMenu("quality")} />}
@@ -760,6 +758,7 @@ function TinyControls({ room, view, clock, duration, onHold, swipe, onMore }) {
 function Overflow({ view, volume, onVolume, onNudge, onPick, onClose }) {
   const link = environment().roomUrl();
   const entries = [
+    hasEpisodes(view) ? ["episodes", "list-video", episodeValue(view)] : null,
     ["subs", "captions", subtitleValue(view)],
     view.manifest.audio.length > 1 ? ["audio", "audio-lines", audioValue(view)] : null,
     hasQualityChoice(view) ? ["quality", "gauge", qualityValue(view)] : null,

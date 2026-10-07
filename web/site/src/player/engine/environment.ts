@@ -67,6 +67,12 @@ export interface Environment {
    */
   startAt(): number | null;
   /**
+   * The room holds this title. The front door keeps it where `titleId` reads the launch from and
+   * drops the launch's `startAt`, so a reload names the film the room is on and the room is not
+   * sent back to the one the page was opened with.
+   */
+  showing(titleId: string): void;
+  /**
    * The viewer's access token, the one the identity provider minted for them, while it is good, or
    * null when there is nothing to present. Every closed route refuses a request without one.
    */
@@ -143,17 +149,31 @@ export interface SiteViewer {
   recordProgress(titleId: string, positionSeconds: number): void;
 }
 
+/**
+ * The page's own address with `title` naming the film and no `at`, or null when it already says so.
+ * Everything else the address carries stays.
+ */
+export function addressShowing(titleId: string): string | null {
+  const query = new URLSearchParams(window.location.search);
+  if (query.get('title') === titleId && !query.has('at')) return null;
+  query.set('title', titleId);
+  query.delete('at');
+  return `${window.location.pathname}?${query.toString()}`;
+}
+
 /** A television holds nothing sideways: the screen already is. */
 const noLandscape: Landscape = { enter: () => {}, release: () => {} };
 
 /**
  * The player on Krystal Cinema. The room and the film are the address, and the viewer is whoever
  * signed in to the site: their token is the proof, and the name it carries is what the room calls them.
- * `tv` is the site's own judgement of whether it is on a television, and `solo` that the address
- * plays the film from the device alone.
+ * `replaceAddress` puts the page at another address without a history entry, through the site's
+ * router so its pages follow. `tv` is the site's own judgement of whether it is on a television, and
+ * `solo` that the address plays the film from the device alone.
  */
 export function createSiteEnvironment(
-  sessionId: string, titleId: string | null, viewer: SiteViewer, tv = false, solo = false
+  sessionId: string, titleId: string | null, viewer: SiteViewer, replaceAddress: (address: string) => void,
+  tv = false, solo = false
 ): Environment {
   const origin = window.location.origin;
   return {
@@ -167,6 +187,10 @@ export function createSiteEnvironment(
     startAt: () => {
       const seconds = Number(new URLSearchParams(window.location.search).get('at'));
       return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+    },
+    showing: (title) => {
+      const address = addressShowing(title);
+      if (address !== null) replaceAddress(address);
     },
     authToken: () => viewer.token(),
     freshToken: () => viewer.freshToken(),
