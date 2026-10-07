@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Api.Auth;
@@ -447,16 +448,63 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
     }
 
     [Fact]
+    public async Task A_download_not_in_the_library_is_estimated_from_its_runtime_and_what_the_library_takes()
+    {
+        var client = fixture.CreatePersonClient("o16");
+        using var described = await client.GetAsync("/api/films/tt0113277");
+        described.EnsureSuccessStatusCode();
+        var estimates = fixture.Services.GetRequiredService<OfflineEstimates>();
+
+        var before = (await client.GetFromJsonAsync<OfflineEstimate>("/api/offline/estimate?imdbId=tt0113277", Json))!;
+        Assert.Equal("en", before.OriginalLanguage);
+        Assert.Equal([1080, 720, 480], before.Sizes.Select(s => s.Height));
+
+        estimates.Measure(shortest: 1);
+        var after = (await client.GetFromJsonAsync<OfflineEstimate>("/api/offline/estimate?imdbId=tt0113277", Json))!;
+        // The saved film's 1920 rung stands for 1080p and its 1280 rung for 720p and 480p, with its
+        // default audio, a second of it scaled to Heat's 170 minutes.
+        var indexes = fixture.Services.GetRequiredService<TrackIndexes>();
+        var directory = Path.Combine(fixture.MediaRoot, Film);
+        long Track(string uri) => indexes.Of(directory, uri)!.Length;
+        long Expected(string rung) => (long)((Track(rung) + Track("a0/index.m3u8")) / 4.504 * 170 * 60);
+        Assert.Equal(Expected("v0/index.m3u8"), after.Sizes[0].Bytes);
+        Assert.Equal(Expected("v1/index.m3u8"), after.Sizes[1].Bytes);
+        Assert.Equal(Expected("v1/index.m3u8"), after.Sizes[2].Bytes);
+
+        using var bad = await client.GetAsync("/api/offline/estimate?imdbId=tt0113277&season=1&episodes=x");
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_save_asked_with_a_subtitle_language_takes_the_title_s_subtitles_in_it()
+    {
+        var client = fixture.CreatePersonClient("o17");
+        using var saved = await client.PostAsJsonAsync("/api/me/offline",
+            new { titleId = Film, rung = "v1", audio = new[] { "a0" }, subtitles = Array.Empty<string>(), device = "Pixel", subtitleLanguage = "en" });
+        saved.EnsureSuccessStatusCode();
+        var package = (await saved.Content.ReadFromJsonAsync<OfflinePackage>(Json))!;
+        Assert.Equal(["s3"], package.Subtitles.Select(s => s.Id));
+        Assert.Equal("en", package.Save.SubtitleLanguage);
+
+        using var bad = await client.PostAsJsonAsync("/api/me/offline",
+            new { titleId = Film, rung = "v1", audio = new[] { "a0" }, device = "Pixel", subtitleLanguage = "en; drop" });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+    }
+
+    [Fact]
     public async Task A_want_carries_the_name_of_the_film_as_described_here()
     {
         var client = fixture.CreatePersonClient("o15");
         using var described = await client.GetAsync("/api/films/tt0113277");
         described.EnsureSuccessStatusCode();
 
-        using var asked = await client.PostAsJsonAsync("/api/me/offline/wants", new { imdbId = "tt0113277", device = "Pixel" });
+        using var asked = await client.PostAsJsonAsync("/api/me/offline/wants",
+            new { imdbId = "tt0113277", device = "Pixel", audioLanguage = "es", subtitleLanguage = "en" });
         asked.EnsureSuccessStatusCode();
         var want = Assert.Single((await asked.Content.ReadFromJsonAsync<List<OfflineWant>>(Json))!);
         Assert.Equal("Heat", want.Name);
+        Assert.Equal("es", want.AudioLanguage);
+        Assert.Equal("en", want.SubtitleLanguage);
 
         using var gone = await client.DeleteAsync($"/api/me/offline/wants/{want.Id}");
         Assert.Equal(HttpStatusCode.NoContent, gone.StatusCode);
@@ -492,16 +540,18 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
         var made = DateTimeOffset.UtcNow;
         var season = new List<EpisodePick> { new(1, 1), new(1, 2) };
 
-        var wants = saves.Want("p", "tt0903747", season, "Pixel", null, made);
+        var wants = saves.Want("p", "tt0903747", season, "Pixel", new WantPick(null, null, "en"), made);
         Assert.Equal(2, wants.Count);
         saves.Fetched("p", wants[0].Id, null, WantStages.NotOffered);
         saves.Fetched("p", wants[1].Id, "abc");
 
-        var again = saves.Want("p", "tt0903747", season, "Pixel", 480, made.AddHours(1));
+        var again = saves.Want("p", "tt0903747", season, "Pixel", new WantPick(480, "es", "en"), made.AddHours(1));
         Assert.Equal(wants.Select(w => w.Id), again.Select(w => w.Id));
         Assert.Null(again[0].Problem);
         Assert.Equal("abc", again[1].Hash);
         Assert.All(again, w => Assert.Equal(480, w.Height));
+        Assert.All(again, w => Assert.Equal("es", w.AudioLanguage));
+        Assert.All(again, w => Assert.Equal("en", w.SubtitleLanguage));
 
         var reread = new OfflineSaves(path, new Monitor(new OfflineOptions { WantDays = 14 }), NullLogger<OfflineSaves>.Instance);
         Assert.Equal(2, reread.WantsOf("p", made.AddDays(13)).Count);

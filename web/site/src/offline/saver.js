@@ -148,9 +148,11 @@ function workerOf() {
 /**
  * Saves a title onto this device: room is asked for and checked first, the package is asked for, and
  * the save joins the queue. `rung` is one of the offer's rungs, `audio` and `subtitles` its audio and
- * subtitle entries picked. Throws `NoRoom` before anything is fetched when the device cannot hold it.
+ * subtitle entries picked; with `subtitleLanguage` the save also takes every text subtitle in that
+ * language the title carries whenever its package is asked for, and the server looks for one outside
+ * the title when it has none. Throws `NoRoom` before anything is fetched when the device cannot hold it.
  */
-export async function startSave({ titleId, rung, audio, subtitles }) {
+export async function startSave({ titleId, rung, audio, subtitles, subtitleLanguage = null }) {
   const sub = currentSub();
   if (!sub) throw new Error("Sign in to download films.");
   // Asked first, while the press that asked for the save is still the page's to show a prompt for.
@@ -162,6 +164,7 @@ export async function startSave({ titleId, rung, audio, subtitles }) {
 
   const pkg = await api.saveOffline({
     titleId, rung: rung.rendition, audio: audio.map((a) => a.rendition), subtitles: subtitles.map((s) => s.id), device: deviceName(),
+    subtitleLanguage,
   });
   setPaused(sub, titleId, false);
   const meta = metaOf(sub, pkg);
@@ -174,7 +177,10 @@ export async function startSave({ titleId, rung, audio, subtitles }) {
 async function repost(job) {
   const save = job.meta ? job.meta.package.save : (await readSave(job.sub, job.titleId))?.meta.package.save;
   if (!save) throw new Error("This download is not on the device.");
-  const pkg = await api.saveOffline({ titleId: job.titleId, rung: save.rung, audio: save.audio, subtitles: save.subtitles, device: deviceName() });
+  const pkg = await api.saveOffline({
+    titleId: job.titleId, rung: save.rung, audio: save.audio, subtitles: save.subtitles, device: deviceName(),
+    subtitleLanguage: save.subtitleLanguage || null,
+  });
   return metaOf(job.sub, pkg);
 }
 

@@ -33,9 +33,9 @@ public static class OfflineEndpoints
                 : Results.NotFound();
         }).RequireAction(CinemaActions.Offline);
 
-        app.MapPost("/api/me/offline", (OfflineSaveRequest body, HttpContext context, TitleLibrary library,
-            TrackIndexes indexes, SubtitleStore subtitles, OfflineSaves saves, FilmStore films, ShowStore shows,
-            TimeProvider clock) =>
+        app.MapPost("/api/me/offline", async (OfflineSaveRequest body, HttpContext context, TitleLibrary library,
+            TrackIndexes indexes, SubtitleStore subtitles, SubtitleFetcher fetcher, OfflineSaves saves, FilmStore films,
+            ShowStore shows, TimeProvider clock, CancellationToken ct) =>
         {
             if (CinemaPerson.Of(context) is not { } person) return NoPerson();
             if (string.IsNullOrEmpty(body.TitleId)) return Bad("Name the title to save.");
@@ -47,6 +47,32 @@ public static class OfflineEndpoints
 
             var device = body.Device?.Trim() ?? "";
             if (device.Length is 0 or > 100) return Bad("Name the device, in 1 to 100 characters.");
+            if (!LanguageTag(body.SubtitleLanguage)) return Bad("That is not a language.");
+
+            // A subtitle language the title does not carry is looked for outside it once, when the
+            // source it would be judged against is known: at once for a title that has it, and on a
+            // later stretch for one still being made.
+            var language = Blank(body.SubtitleLanguage);
+            var held = saves.For(person.UserId).FirstOrDefault(s => s.TitleId == id && s.Device == device);
+            var sought = held is { SubtitleSought: true } && Languages.Same(held.SubtitleLanguage, language);
+            if (language is not null && !sought && Fingerprinted(manifest))
+            {
+                if (!SubtitleFetcher.Carries(manifest, language))
+                {
+                    using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    limit.CancelAfter(SubtitleSeekLimit);
+                    try
+                    {
+                        await fetcher.EnsureAsync(id, language, person.Actor.DisplayName, limit.Token);
+                    }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                    {
+                        // The index was too slow to wait on; the download goes ahead without it.
+                    }
+                    manifest = library.Get(id) ?? manifest;
+                }
+                sought = true;
+            }
 
             var offer = Offer(id, manifest, directory, indexes, subtitles);
             if (offer.Rungs.FirstOrDefault(r => r.Rendition == body.Rung) is not { } rung)
@@ -58,8 +84,10 @@ public static class OfflineEndpoints
             if (audio.Any(a => a is null)) return Bad("The title has no such audio track.");
 
             var subtitleIds = (body.Subtitles ?? []).Distinct(StringComparer.Ordinal).ToList();
-            var picked = subtitleIds.Select(s => offer.Subtitles.FirstOrDefault(o => o.Id == s)).ToList();
-            if (picked.Any(s => s is null)) return Bad("The title has no such subtitle.");
+            if (subtitleIds.Any(s => !offer.Subtitles.Any(o => o.Id == s))) return Bad("The title has no such subtitle.");
+            if (language is not null)
+                subtitleIds = [.. subtitleIds.Union(offer.Subtitles.Where(s => Languages.Same(s.Language, language)).Select(s => s.Id), StringComparer.Ordinal)];
+            var picked = subtitleIds.Select(s => offer.Subtitles.First(o => o.Id == s)).ToList();
 
             var tracks = new List<OfflineTrack>();
             foreach (var (kind, rendition, uri) in audio.Select(a => ("audio", a!.Rendition, a.Uri)).Prepend(("video", rung.Rendition, rung.Uri)))
@@ -69,9 +97,9 @@ public static class OfflineEndpoints
                     track.ETag, track.InitBytes, track.Seconds, track.SegmentBytes));
             }
 
-            var subtitleViews = picked.Select(s => s! with { Url = $"/media/{id}/{SubtitleUri(manifest, s.Id)}" }).ToList();
+            var subtitleViews = picked.Select(s => s with { Url = $"/media/{id}/{SubtitleUri(manifest, s.Id)}" }).ToList();
             var now = clock.GetUtcNow();
-            var stored = saves.Save(person.UserId, id, rung.Rendition, audioIds, subtitleIds, device, now);
+            var stored = saves.Save(person.UserId, id, rung.Rendition, audioIds, subtitleIds, device, now, language, sought);
             // The device has what it waited on, if it asked for this before the library held it.
             saves.Fulfilled(person.UserId, device, manifest.Film?.ImdbId,
                 manifest.Episode is { } place ? new EpisodePick(place.Season, place.Number) : null);
@@ -105,8 +133,28 @@ public static class OfflineEndpoints
             if (body.Episodes is { Count: > MaxWantedEpisodes }) return Bad($"Ask for at most {MaxWantedEpisodes} episodes at once.");
             if (body.Episodes?.Any(e => e.Season < 0 || e.Episode < 1) == true) return Bad("That is not an episode.");
             if (body.Height is <= 0 or > 4320) return Bad("That is not a picture height.");
+            if (!LanguageTag(body.AudioLanguage) || !LanguageTag(body.SubtitleLanguage)) return Bad("That is not a language.");
 
-            return Results.Ok(await wanting.AskAsync(person.Actor, imdbId, body.Episodes, device, body.Height, ct));
+            var pick = new WantPick(body.Height, Blank(body.AudioLanguage), Blank(body.SubtitleLanguage));
+            return Results.Ok(await wanting.AskAsync(person.Actor, imdbId, body.Episodes, device, pick, ct));
+        }).RequireAction(CinemaActions.Offline);
+
+        // What a download of something the library does not hold would come to, for the sheet that asks for one.
+        app.MapGet("/api/offline/estimate", (string? imdbId, int? season, string? episodes, OfflineEstimates estimates) =>
+        {
+            if (imdbId is null || !ImdbId.IsValid(imdbId)) return Bad("That is not an IMDb id.");
+            List<int>? numbers = null;
+            if (season is not null)
+            {
+                numbers = [];
+                foreach (var part in (episodes ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (!int.TryParse(part, out var n) || n < 1) return Bad("That is not an episode.");
+                    numbers.Add(n);
+                }
+                if (numbers.Count is 0 or > MaxWantedEpisodes) return Bad($"Name 1 to {MaxWantedEpisodes} episodes.");
+            }
+            return Results.Ok(estimates.For(imdbId, season, numbers));
         }).RequireAction(CinemaActions.Offline);
 
         app.MapGet("/api/me/offline/wants", async (HttpContext context, OfflineWanting wanting, CancellationToken ct) =>
@@ -243,7 +291,7 @@ public static class OfflineEndpoints
 
     private static OfflineSave View(StoredSave save, OfflineSaves saves, DateTimeOffset now) =>
         new(save.Id, save.TitleId, save.Rung, save.Audio, save.Subtitles, save.Device, save.CreatedAt, save.CompletedAt,
-            saves.HoldsUntil(save, now));
+            saves.HoldsUntil(save, now), save.SubtitleLanguage);
 
     private static OfflineEpisode? EpisodeOf(Manifest manifest, ShowStore shows)
     {
@@ -296,6 +344,23 @@ public static class OfflineEndpoints
         var path = Path.GetFullPath(Path.Combine(directory, uri));
         return path.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.Ordinal) ? path : null;
     }
+
+    /// <summary>How long a save waits on the subtitle index for a subtitle in the language asked for.</summary>
+    private static readonly TimeSpan SubtitleSeekLimit = TimeSpan.FromSeconds(20);
+
+    /// <summary>
+    /// Whether the title's source is known well enough to judge a subtitle against: it is whole, or its
+    /// fingerprint has been taken, which happens once the source has arrived.
+    /// </summary>
+    private static bool Fingerprinted(Manifest manifest) =>
+        manifest.Status == TitleStatus.Ready || manifest.Source?.MovieHash is { Length: > 0 };
+
+    /// <summary>Whether a language asked for is absent or a tag: letters, then a region after a dash.</summary>
+    private static bool LanguageTag(string? language) =>
+        string.IsNullOrWhiteSpace(language)
+        || (language.Trim().Length <= 12 && language.Trim().All(c => char.IsAsciiLetter(c) || c == '-') && char.IsAsciiLetter(language.Trim()[0]));
+
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static IResult Bad(string why) =>
         Results.Json(new ErrorReply(why), ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status400BadRequest);

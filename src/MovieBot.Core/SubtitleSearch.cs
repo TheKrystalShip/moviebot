@@ -32,7 +32,8 @@ public sealed record SubtitleSearchView
     public string? Explanation { get; init; }
 }
 
-public sealed record AddSubtitleRequest(long FileId);
+/// <summary>A candidate to fetch, and the language it was searched in, English when absent.</summary>
+public sealed record AddSubtitleRequest(long FileId, string? Language = null);
 
 /// <summary>
 /// What adding a subtitle answers. A track somebody has already confirmed comes back as it stands,

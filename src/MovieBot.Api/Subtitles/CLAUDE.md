@@ -2,6 +2,10 @@
 
 ## Fetching
 
+- **A subtitle is fetched by a person picking it, or for a download asked with a language the title
+  lacks.** `SubtitleFetcher` is both: the player's menu searches and fetches through it, and a save
+  asking for a language has it fetch the best candidate nothing marks as wrong for the film, once.
+  A fetched subtitle carries the language it was searched in.
 - **One person fetches, the whole room gets it.** A fetched subtitle is stored against the film, not
   the viewer, and appears in everyone's menu. Which track each viewer selects stays their own choice.
 - **They live outside the media root.** Everything under that root is regenerable from the source

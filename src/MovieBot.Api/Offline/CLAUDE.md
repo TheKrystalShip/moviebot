@@ -49,8 +49,12 @@ offline"; these are the rules it rests on.
   actions, so a device can still learn its saves are gone from an account that may no longer save.
   Forgetting a save that is not there is the same end state and answers `204`.
 - **A title the library does not hold is wanted, then saved** (`OfflineWanting`). A want names a
-  film, or an episode by its show and place, a device and a height, and sits beside the saves in
-  `offline.json`. Asking records it and answers at once; the release is picked and the download
+  film, or an episode by its show and place, a device, a height and the audio and subtitle languages
+  asked for, and sits beside the saves in `offline.json`. A release says nothing of its audio but
+  its name, and one made from the original carries the original's language unsaid, so an audio
+  language that is not the title's own prefers a release whose name carries it
+  (`Acquisition/ReleaseLanguages`), and the device picks the track in it where the title has one.
+  The library copy is everybody's, so that preference decides what everyone later watches too. Asking records it and answers at once; the release is picked and the download
   started after the answer, as Watch now does, a film's at 1080p and a season's episodes out of its
   pack at 720p, one download per release, and a film already arriving is waited on rather than
   fetched again. Fetching spends the disk and the tracker, so asking takes `cinema:download` as well
@@ -60,6 +64,17 @@ offline"; these are the rules it rests on.
   which lets the device's wants for it go; a want also goes when the person lets it go, and is not
   waited on past `Offline:WantDays`. A want holds nothing: the download is the library's like any
   other.
+- **A save can take a subtitle language as well as subtitle ids.** Its text subtitles in that
+  language are added each time the package is asked for, so one that appears later (a growing
+  title's are extracted once its source is whole) rides on a later stretch. A title carrying none
+  has one fetched from the subtitle index (`Subtitles/SubtitleFetcher`) once its source is known,
+  the package waiting on the index at most 20 seconds; it is looked for once per save and language,
+  since each fetch spends the day's allowance.
+- **Before a title exists, its size is estimated, and said so** (`OfflineEstimates`). The estimate
+  is the runtime times the median bytes a second the library's finished titles take at each height,
+  over the rung a device takes at that height and the default audio, measured from a sample of
+  titles in the background a minute after start and every six hours, since measuring stats every
+  segment. It is the only size here that is not bytes on disk, and a page shows it as roughly.
 - **Progress from a device is recorded where it is newer** (`WatchRecord.RecordIfNewer`): the
   person's entry and the film's last play each move only forward, a `watchedAt` ahead of the server's
   clock is taken as now, and a title the library no longer holds is skipped, as a room's stretch is.

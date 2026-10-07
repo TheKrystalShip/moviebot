@@ -200,11 +200,12 @@ the device saves it once the library holds it.
 | Route | Returns |
 |---|---|
 | `GET /api/titles/{id}/offline` | `OfflineOffer` — what the title can be saved as, each track with its exact size on disk, so far for one `growing`. `404` for a title the library does not hold, `409` for one that failed. `cinema:offline` |
-| `POST /api/me/offline` | `OfflinePackage` for `{titleId, rung, audio, subtitles, device}` — records the save and answers everything the device fetches. `rung` is one video rendition's `rendition`, `audio` one or more audio `rendition`s, `subtitles` zero or more subtitle ids, `device` the name the device goes by, 1 to 100 characters. A save of the same title on the same device replaces that one, keeping its `id`, and the device's wants for the title go. `400` for a rendition or subtitle the title does not have, no audio, or a bad device; `404` and `409` as above. `cinema:offline` |
+| `POST /api/me/offline` | `OfflinePackage` for `{titleId, rung, audio, subtitles, device, subtitleLanguage?}` — records the save and answers everything the device fetches. `rung` is one video rendition's `rendition`, `audio` one or more audio `rendition`s, `subtitles` zero or more subtitle ids, `device` the name the device goes by, 1 to 100 characters. With `subtitleLanguage` the save also takes every text subtitle in that language the title carries when the package is asked for, and once the title's source is known (it is ready, or its fingerprint is taken) one is fetched from the subtitle index for a title carrying none, waiting on the index at most 20 seconds, once per save and language. A save of the same title on the same device replaces that one, keeping its `id`, and the device's wants for the title go. `400` for a rendition or subtitle the title does not have, no audio, a bad device or language; `404` and `409` as above. `cinema:offline` |
+| `GET /api/offline/estimate?imdbId=&season=&episodes=` | `OfflineEstimate` — what downloading a film, or with `season` and `episodes` (comma-separated numbers, at most 100) those episodes of a show, would come to before the library holds it: the language it was made in, and roughly how many bytes it takes at 1080, 720 and 480, from its runtime and the median the library's finished titles take a second at each height. A size is absent while the runtime or the measure is unknown. `400` for an id that is not an IMDb id or a bad episode. `cinema:offline` |
 | `GET /api/me/offline` | `OfflineSave[]` — every save the token's person has, on every device, newest first. `cinema:profile.read` |
 | `POST /api/me/offline/{id}/complete` | `OfflineSave` — the device holds every byte, which ends the save's hold on the title. `404` for a save that is not this person's. `cinema:profile.write` |
 | `DELETE /api/me/offline/{id}` | `204` — forgets the save, and its hold with it; also when there was none. `cinema:profile.write` |
-| `POST /api/me/offline/wants` | `OfflineWant[]` for `{imdbId, episodes?, height?, device}` — a film, or with `episodes` (`[{season, episode}]`, at most 100) those of a show, wanted on the device, one want each, as each stands now. What the library neither holds nor is fetching is fetched in the background: a film's best release at 1080p from a digital source up, an episode out of its season's pack at 720p where there is one, as Watch now picks, nobody told it can be watched. Asking again for one the device wants keeps it with the `height` asked now; one that failed is asked for afresh. `height` is the picture height the device saves it at, 1 to 4320, absent for the device's own. `400` for an id that is not an IMDb id, a bad device, height or episode; `403` for somebody not holding `cinema:download` as well, since fetching spends the disk and the tracker. `cinema:offline` |
+| `POST /api/me/offline/wants` | `OfflineWant[]` for `{imdbId, episodes?, height?, audioLanguage?, subtitleLanguage?, device}` — a film, or with `episodes` (`[{season, episode}]`, at most 100) those of a show, wanted on the device, one want each, as each stands now. What the library neither holds nor is fetching is fetched in the background: a film's best release at 1080p from a digital source up, an episode out of its season's pack at 720p where there is one, as Watch now picks, nobody told it can be watched. With an `audioLanguage` that is not the title's own, a release whose name carries it (a token naming the language, else `MULTI` or `DUAL`) comes first, at that quality and then at any. Asking again for one the device wants keeps it with the `height` and languages asked now; one that failed is asked for afresh. `height` is the picture height the device saves it at, 1 to 4320, absent for the device's own; `audioLanguage` absent for the title's own and `subtitleLanguage` absent for none, each a language tag. `400` for an id that is not an IMDb id, a bad device, height, language or episode; `403` for somebody not holding `cinema:download` as well, since fetching spends the disk and the tracker. `cinema:offline` |
 | `GET /api/me/offline/wants` | `OfflineWant[]` — every want the token's person has, on every device, the oldest first, each as it stands now. A want is waited on for `Offline:WantDays`. `cinema:profile.read` |
 | `DELETE /api/me/offline/wants/{id}` | `204` — lets the want go, also when there was none; its download stays the library's. `cinema:profile.write` |
 | `GET,HEAD /media/{id}/{rendition}/track.mp4` | one track whole: the rendition's init segment and every segment after it, joined, as `video/mp4`; of a title still being made, every segment its playlist lists so far. Ranged (`206`, `416`), with an exact `Content-Length` and a strong `ETag`; a growing track's `Content-Range` gives its length as `*`. `If-Range` resumes with that `ETag`, or with one this track answered earlier while it was shorter, and with any other answers the whole track. Served `no-store`. The bearer token of somebody holding `cinema:offline` who has a save of the title, never a ticket: `409` for a person with no save of it or a title that failed, `404` for a rendition the title does not have, `429` with `Retry-After` past the transfers allowed at once |
@@ -269,6 +270,8 @@ the device saves it once the library holds it.
   "episode": { "season": 2, "episode": 4 },   // absent for a film
   "device": "Pixel 8",
   "height": 480,                         // absent for the device's own pick
+  "audioLanguage": "es",                 // absent for the title's own
+  "subtitleLanguage": "en",              // absent for none
   "createdAt": "2026-10-07T08:00:00+00:00",
   "stage": "downloading",                // finding | downloading | preparing | ready | failed
   "progress": 0.34,                      // how much of it has arrived on the server, while downloading
@@ -285,12 +288,25 @@ the device saves it once the library holds it.
   "device": "Pixel 8",
   "createdAt": "2026-10-06T19:00:00+00:00",
   "completedAt": "2026-10-06T19:12:40+00:00",   // absent until the device says it holds every byte
-  "holdsUntil": "2026-10-08T19:00:00+00:00"     // absent once complete or past it
+  "holdsUntil": "2026-10-08T19:00:00+00:00",    // absent once complete or past it
+  "subtitleLanguage": "en"                      // absent for none; its text subtitles ride along
+}
+
+// OfflineEstimate: GET /api/offline/estimate
+{
+  "originalLanguage": "en",              // absent when the title is not described here
+  "sizes": [
+    { "height": 1080, "bytes": 3400000000 },
+    { "height": 720,  "bytes": 1400000000 },
+    { "height": 480,  "bytes": null }    // null while the runtime or the measure is unknown
+  ]
 }
 ```
 
-- **Sizes are bytes on disk, never an estimate.** A rung's bitrate is a cap under constant quality,
-  so two films at one rung differ by a factor of two and more; every `bytes` is the files' own.
+- **An offer's and a package's sizes are bytes on disk, never an estimate.** A rung's bitrate is a
+  cap under constant quality, so two films at one rung differ by a factor of two and more; every
+  `bytes` there is the files' own. `OfflineEstimate` is the one estimate, for a title with no files
+  yet, and a page shows it as one ("~1.4GB").
 - **A track is the files already on disk, joined.** The API runs no ffmpeg for it. A segment's
   offset in the track is `initBytes` plus the lengths before it, so the playlists a device plays from
   are built from `segmentSeconds` and `segmentBytes` as byte ranges of the one file.

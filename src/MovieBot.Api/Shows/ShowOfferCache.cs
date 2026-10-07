@@ -35,12 +35,22 @@ public sealed class ShowOfferCache(IShowSearch search, OfferedReleases offered, 
     /// <summary>
     /// The release one episode is fetched from at a quality: the season's pack at it, picking the
     /// one file; else a release of the episode alone at it; else either at whatever quality the
-    /// tracker has. Null when nothing offered holds the episode.
+    /// tracker has. Null when nothing offered holds the episode. With a <paramref name="language"/> to
+    /// prefer, a pack and then a release of the episode whose name carries it come first, at the
+    /// quality and then at any (<see cref="ReleaseLanguages"/>).
     /// </summary>
-    public static Release? Pick(ShowReleases releases, EpisodeNumber episode, Resolution quality)
+    public static Release? Pick(ShowReleases releases, EpisodeNumber episode, Resolution quality, string? language = null)
     {
         if (releases.Seasons.FirstOrDefault(s => s.Season == episode.Season) is not { } season) return null;
-        return season.PackAt(quality)
+        var own = season.Episodes.FirstOrDefault(e => e.Episode == episode.Episode)?.Releases ?? [];
+        var dubbed = language is null
+            ? null
+            : ReleaseLanguages.Preferring(season.Packs.Where(p => p.Resolution == quality), language)
+                ?? ReleaseLanguages.Preferring(own.Where(r => r.Resolution == quality), language)
+                ?? ReleaseLanguages.Preferring(season.Packs, language)
+                ?? ReleaseLanguages.Preferring(own, language);
+        return dubbed
+            ?? season.PackAt(quality)
             ?? season.EpisodeAt(episode.Episode, quality)
             ?? season.Packs.FirstOrDefault()
             ?? season.Episodes.FirstOrDefault(e => e.Episode == episode.Episode)?.Releases.FirstOrDefault();

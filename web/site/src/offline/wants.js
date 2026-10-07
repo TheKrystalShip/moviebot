@@ -80,10 +80,12 @@ export function wantOf(list, imdbId, season = null, number = null) {
 
 /**
  * Asks for a film, or the episodes of a show named in `episodes` (`[{ season, episode }]`), to be
- * downloaded here, at the picture `height` (null for this device's own pick).
+ * downloaded here, at the picture `height` (null for this device's own pick), with audio in
+ * `audioLanguage` where it has it (null for the title's own) and subtitles in `subtitleLanguage`
+ * (null for none).
  */
-export async function askDownload({ imdbId, episodes = null, height = null }) {
-  const answered = await api.wantOffline({ imdbId, episodes, height, device: deviceName() });
+export async function askDownload({ imdbId, episodes = null, height = null, audioLanguage = null, subtitleLanguage = null }) {
+  const answered = await api.wantOffline({ imdbId, episodes, height, audioLanguage, subtitleLanguage, device: deviceName() });
   const ids = new Set(answered.map((w) => w.id));
   wanted.setState((s) => ({
     sub: currentSub(),
@@ -108,11 +110,13 @@ function forget(id) {
 }
 
 /**
- * Downloads a title the library holds at the picture `height`, or this device's own pick, with the
- * audio and subtitles Download picks by default. Throws `NoRoom` when the device cannot hold what
- * there is of it.
+ * Downloads a title the library holds at the picture `height`, or this device's own pick, with audio
+ * in `audioLanguage` where the title has it, else the title's own, and the subtitles in
+ * `subtitleLanguage` (none for null) with the forced ones of the audio, as Download picks them. The
+ * server adds the subtitles in that language the title gains later (`startSave`). Throws `NoRoom`
+ * when the device cannot hold what there is of it.
  */
-export async function downloadAt(titleId, height) {
+export async function downloadAt(titleId, height, { audioLanguage = null, subtitleLanguage = null } = {}) {
   const sub = currentSub();
   const [offer, preferences] = await Promise.all([
     api.offlineOffer(titleId),
@@ -120,10 +124,11 @@ export async function downloadAt(titleId, height) {
   ]);
   const rung = height ? rungFor(offer.rungs, height) : defaultRung(offer.rungs, preferences);
   if (!rung) throw new Error("Nothing of this title can be downloaded yet.");
-  const audioIds = defaultAudio(offer.audio, preferences);
+  const asked = { ...preferences, audioLanguage, subtitleLanguage };
+  const audioIds = defaultAudio(offer.audio, asked);
   const audio = offer.audio.filter((a) => audioIds.includes(a.rendition));
-  const subtitleIds = defaultSubtitles(offer.subtitles, audio, preferences);
-  await startSave({ titleId, rung, audio, subtitles: offer.subtitles.filter((s) => subtitleIds.includes(s.id)) });
+  const subtitleIds = defaultSubtitles(offer.subtitles, audio, asked);
+  await startSave({ titleId, rung, audio, subtitles: offer.subtitles.filter((s) => subtitleIds.includes(s.id)), subtitleLanguage });
 }
 
 /**
@@ -157,7 +162,7 @@ async function tend() {
     try {
       // A title already here is not downloaded twice; the want is let go of.
       if (await readSave(sub, want.titleId)) await api.unwant(want.id);
-      else await downloadAt(want.titleId, want.height);
+      else await downloadAt(want.titleId, want.height, { audioLanguage: want.audioLanguage, subtitleLanguage: want.subtitleLanguage });
       forget(want.id);
     } catch (error) {
       if (error instanceof NoRoom) refuse(want.id, "noRoom", error.message);

@@ -241,13 +241,18 @@ public sealed class WatchNow(
 
     /// <summary>
     /// The best release of a film at <paramref name="wanted"/>, else the best at any resolution, from a
-    /// digital source up; null when the tracker offers none.
+    /// digital source up; null when the tracker offers none. With a <paramref name="language"/> to
+    /// prefer (<see cref="ReleaseLanguages.WorthPreferring"/>), a release whose name carries it comes
+    /// first, at that resolution and then at any.
     /// </summary>
-    internal async Task<Release?> BestReleaseAsync(string imdbId, Resolution wanted, CancellationToken ct)
+    internal async Task<Release?> BestReleaseAsync(string imdbId, Resolution wanted, CancellationToken ct, string? language = null)
     {
         var ranked = await search.ByImdbAsync(imdbId, ct);
         var digital = ranked.Candidates.Where(r => r.Source >= notify.Value.MinimumSource).ToList();
-        return digital.FirstOrDefault(r => r.Resolution == wanted) ?? digital.FirstOrDefault();
+        var dubbed = language is null
+            ? null
+            : ReleaseLanguages.Preferring(digital.Where(r => r.Resolution == wanted), language) ?? ReleaseLanguages.Preferring(digital, language);
+        return dubbed ?? digital.FirstOrDefault(r => r.Resolution == wanted) ?? digital.FirstOrDefault();
     }
 
     private Task PrepareAsync(string room, RoomPreparing preparing, CancellationToken ct) =>

@@ -108,9 +108,14 @@ among the title's rungs, and Audio and Subtitles, any number, each row with its 
 their languages and the picked audio's fold under "N more languages". Its foot is a `Meter` of the
 device's space with the download's share and what is free, and Download with the download's size; a
 device without room is told how much the download needs, and cannot start it. Before a download of
-anything else it holds Quality alone, 1080p, 720p or 480p, the person's Download quality picked, else
-480p on a phone or a tablet and 720p elsewhere; the audio and subtitles are picked by default once the
-server has the title. Preparing, the sheet shows how much has arrived on the server and what it is
+anything else, whose tracks are not known until the server has it, it holds Quality, 1080p, 720p or
+480p, each with roughly what it takes (~1.4GB) where that can be estimated, the person's Download
+quality picked, else 480p on a phone or a tablet and 720p elsewhere; Audio, a language, the title's
+own first ("English (original)") and the person's audio language picked; and Subtitles, a language
+or Off, the person's picked. The server prefers a release carrying the audio asked for, the device
+takes the tracks in those languages where the title has them, and a subtitle language the title
+lacks is fetched for it. The device's space and Download carry the estimate too, and a device the
+estimate does not fit cannot start it. Preparing, the sheet shows how much has arrived on the server and what it is
 doing (Finding a release, Arriving on the server, Being prepared), and Cancel; one that could not be
 fetched says why, with Remove and Try again. Under way, the sheet
 shows the percent and the bytes, a meter, a row each for the picture, the sound and the subtitles

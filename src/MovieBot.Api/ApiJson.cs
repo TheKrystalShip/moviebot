@@ -92,6 +92,7 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 [JsonSerializable(typeof(List<Offline.OfflineProgress>))]
 [JsonSerializable(typeof(Offline.OfflineWantRequest))]
 [JsonSerializable(typeof(Offline.OfflineWant))]
+[JsonSerializable(typeof(Offline.OfflineEstimate))]
 [JsonSerializable(typeof(List<Offline.OfflineWant>))]
 [JsonSerializable(typeof(List<Participant>))]
 [JsonSerializable(typeof(List<RoomSummary>))]

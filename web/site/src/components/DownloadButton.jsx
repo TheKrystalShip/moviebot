@@ -1,8 +1,9 @@
 import React from "react";
-import { Button, Dialog, Icon, Meter, Notice, OptionList, toast } from "@thekrystalship/krystal-ui";
+import { Button, Dialog, Icon, Meter, Notice, OptionList, Select, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
+import { languageName, languageOptions } from "../languages.js";
 import { keptPreferences } from "../offline/preferences.js";
 import { defaultAudio, defaultRung, defaultSubtitles, evictedUnvisited, handheld, sameLanguage } from "../offline/choose.js";
 import { useSave, useSaves, useSpace } from "../offline/hooks.js";
@@ -27,9 +28,11 @@ import "./download.css";
 // Pause and Resume while under way, and Play and Remove once it is here. The sheet is the drawer on a
 // phone and a dialog on a wide screen. "Save" is the lists' word; this one is always Download.
 //
-// A title the library does not hold whole yet (one the tracker offers, or one still being made) is
-// asked for by its quality alone: the server fetches and prepares it, and this device downloads it
-// as it is made, with the audio and subtitles picked by default (`offline/wants.js`). Until the
+// A title the library does not hold whole yet (one the tracker offers, or one still being made) has
+// no tracks to pick from, so it is asked for by what is known before the server holds it: a quality
+// with its estimated size ("~1.4GB"), an audio language and a subtitle language. The server fetches
+// and prepares it, preferring a release carrying that audio, and this device downloads it as it is
+// made, with the tracks in those languages where the title has them (`offline/wants.js`). Until the
 // device's download begins the control says the title is being prepared.
 
 let playable = null;
@@ -318,8 +321,10 @@ function defaultHeight(preferences) {
 }
 
 /**
- * Before a download of a title the library does not hold whole: its quality, the one thing there is
- * to pick before the server has it. The audio and subtitles are picked by default once it does.
+ * Before a download of a title the library does not hold whole: its quality with roughly what each
+ * takes (`GET /api/offline/estimate`), checked against the device's room where the estimate is known,
+ * and the audio and subtitle languages, the person's by default. The title's own language is the
+ * first audio choice and the one asked for by default when the person's is the same.
  */
 function WantSheet({ head, target, eyebrow = "Download", onClose }) {
   const session = useSession();
@@ -327,19 +332,39 @@ function WantSheet({ head, target, eyebrow = "Download", onClose }) {
   const online = useOnline();
   const narrow = useNarrow();
   const preferences = useLoad(() => api.preferences().catch(() => keptPreferences(sub)), [sub]);
+  const season = target.episodes ? target.episodes[0].season : null;
+  const numbers = target.episodes ? target.episodes.map((e) => e.episode) : null;
+  const estimate = useLoad(() => api.offlineEstimate(target.imdbId, season, numbers).catch(() => null),
+    [target.imdbId, season, numbers && numbers.join()]);
   const room = useSpace();
-  const [height, setHeight] = React.useState(null);
+  const [picked, setPicked] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
 
+  const original = estimate.data && estimate.data.originalLanguage;
   React.useEffect(() => {
-    if (height == null && !preferences.loading) setHeight(defaultHeight(preferences.data));
-  }, [height, preferences.loading, preferences.data]);
+    if (picked || preferences.loading || estimate.loading) return;
+    const p = preferences.data || {};
+    // The title's own language is what every release carries, so asking for it is asking for nothing.
+    const audio = p.audioLanguage && !sameLanguage(p.audioLanguage, original) ? p.audioLanguage : "";
+    setPicked({ height: defaultHeight(p), audio, subtitles: p.subtitleLanguage || "" });
+  }, [picked, preferences.loading, preferences.data, estimate.loading, original]);
+
+  const bytesAt = (h) => {
+    const found = estimate.data && estimate.data.sizes.find((s) => s.height === h);
+    return found ? found.bytes : null;
+  };
+  const need = picked ? bytesAt(picked.height) : null;
+  const free = room.data ? room.data.free : null;
+  const fits = need == null || free == null || need <= free;
 
   const download = async () => {
     setBusy(true);
     askToNotify();
     try {
-      await askDownload({ imdbId: target.imdbId, episodes: target.episodes, height });
+      await askDownload({
+        imdbId: target.imdbId, episodes: target.episodes, height: picked.height,
+        audioLanguage: picked.audio || null, subtitleLanguage: picked.subtitles || null,
+      });
       onClose();
     } catch (error) {
       setBusy(false);
@@ -349,28 +374,50 @@ function WantSheet({ head, target, eyebrow = "Download", onClose }) {
 
   const foot = (
     <>
-      <DeviceSpace space={room.data} need={0} />
+      <DeviceSpace space={room.data} need={need || 0} />
       {!narrow && <Button variant="outline" size="lg" disabled={busy} onClick={onClose}>Cancel</Button>}
       <Button variant="primary" size="lg" icon="hard-drive-download" busy={busy} className="kc-dl-start"
-        disabled={!online || height == null} onClick={download}>
-        Download
+        disabled={!online || !picked || !fits} onClick={download}>
+        {need ? `Download · ${roughly(need)}` : "Download"}
       </Button>
     </>
   );
 
+  const set = (key) => (value) => setPicked((p) => ({ ...p, [key]: value }));
   return (
     <Sheet head={head} eyebrow={eyebrow} sub={joined(head.context, head.runtime)} onClose={onClose} canClose={!busy}
       className="kc-dl-pick" foot={foot}>
-      {height != null && (
-        <Section label="Quality">
-          <OptionList label="Quality" value={height} variant={narrow ? "list" : "segmented"}
-            options={HEIGHTS.map((h) => ({ value: h, label: `${h}p` }))}
-            onChange={(value) => setHeight(value)} />
-        </Section>
+      {picked && (
+        <>
+          <Section label="Quality">
+            <OptionList label="Quality" value={picked.height} variant={narrow ? "list" : "segmented"}
+              options={HEIGHTS.map((h) => ({ value: h, label: `${h}p`, aside: bytesAt(h) ? roughly(bytesAt(h)) : null }))}
+              onChange={set("height")} />
+          </Section>
+          <div className="kc-dl-pair">
+            <Section label="Audio">
+              <Select aria-label="Audio language" value={picked.audio} onChange={(e) => set("audio")(e.target.value)}
+                options={languageOptions(picked.audio, original ? `${languageName(original)} (original)` : "Original")
+                  .filter((o) => !o.value || !sameLanguage(o.value, original))} />
+            </Section>
+            <Section label="Subtitles">
+              <Select aria-label="Subtitle language" value={picked.subtitles} onChange={(e) => set("subtitles")(e.target.value)}
+                options={languageOptions(picked.subtitles, "Off")} />
+            </Section>
+          </div>
+          {!fits && (
+            <Notice tone="danger" icon="hard-drive">
+              Needs {roughly(need)}; this device has {size(free)} free.
+            </Notice>
+          )}
+        </>
       )}
     </Sheet>
   );
 }
+
+/** An estimated size, short: "~1.4GB". */
+const roughly = (bytes) => "~" + size(bytes).replace(" ", "");
 
 /**
  * What the server is preparing for this device: how far it has got, and Cancel; or why it could not,
@@ -390,7 +437,10 @@ function PreparingSheet({ head, standing, onClose }) {
     }
   };
   const stop = act(() => letGo(want));
-  const again = act(() => askDownload({ imdbId: want.imdbId, episodes: want.episode ? [want.episode] : null, height: want.height }));
+  const again = act(() => askDownload({
+    imdbId: want.imdbId, episodes: want.episode ? [want.episode] : null, height: want.height,
+    audioLanguage: want.audioLanguage, subtitleLanguage: want.subtitleLanguage,
+  }));
   const quality = want.height ? `${want.height}p` : null;
 
   return (

@@ -23,12 +23,12 @@ public sealed record OfflineOffer(
 
 /// <summary>What a device asks to save.</summary>
 public sealed record OfflineSaveRequest(
-    string? TitleId, string? Rung, List<string>? Audio, List<string>? Subtitles, string? Device);
+    string? TitleId, string? Rung, List<string>? Audio, List<string>? Subtitles, string? Device, string? SubtitleLanguage = null);
 
 /// <summary>A save as the person reads it back.</summary>
 public sealed record OfflineSave(
     string Id, string TitleId, string Rung, List<string> Audio, List<string> Subtitles, string Device,
-    DateTimeOffset CreatedAt, DateTimeOffset? CompletedAt, DateTimeOffset? HoldsUntil);
+    DateTimeOffset CreatedAt, DateTimeOffset? CompletedAt, DateTimeOffset? HoldsUntil, string? SubtitleLanguage = null);
 
 /// <summary>
 /// One track of a package: the file a device fetches whole, and where each segment lies in it, which
@@ -54,19 +54,35 @@ public sealed record OfflinePackage(
 
 /// <summary>
 /// What a device asks to download before the library holds it: a film by its IMDb id, or a show's
-/// episodes by the show's. <c>Height</c> is the picture height to download at, absent for the device's own.
+/// episodes by the show's. <c>Height</c> is the picture height to download at, absent for the device's own;
+/// <c>AudioLanguage</c> the audio language, absent for the title's own; <c>SubtitleLanguage</c> the
+/// subtitle language, absent for none.
 /// </summary>
-public sealed record OfflineWantRequest(string? ImdbId, List<EpisodePick>? Episodes, int? Height, string? Device);
+public sealed record OfflineWantRequest(
+    string? ImdbId, List<EpisodePick>? Episodes, int? Height, string? Device, string? AudioLanguage = null, string? SubtitleLanguage = null);
 
 /// <summary>
 /// A want as the person reads it back, with where it stands (<see cref="WantStages"/>): <c>Progress</c>
 /// is how much of it the server has, from 0 to 1, while it is downloading there; <c>TitleId</c> is the
 /// library's title once the device can download it. <c>Name</c> is the film's, or the episode's show's,
-/// as the film database's description kept here has it, absent when none is kept.
+/// as the film database's description kept here has it, absent when none is kept. <c>AudioLanguage</c>
+/// and <c>SubtitleLanguage</c> are as asked.
 /// </summary>
 public sealed record OfflineWant(
-    string Id, string ImdbId, string? Name, EpisodePick? Episode, string Device, int? Height, DateTimeOffset CreatedAt,
+    string Id, string ImdbId, string? Name, EpisodePick? Episode, string Device, int? Height,
+    string? AudioLanguage, string? SubtitleLanguage, DateTimeOffset CreatedAt,
     string Stage, double? Progress, string? Problem, string? Refusal, string? TitleId);
+
+/// <summary>
+/// What downloading a title the library does not hold would come to, before it is asked for: the
+/// language it was made in, and roughly how many bytes it would take at each height, from the
+/// runtime and what the library's titles take at that height. A size is absent when the runtime or
+/// the measure is unknown.
+/// </summary>
+public sealed record OfflineEstimate(string? OriginalLanguage, List<OfflineEstimateSize> Sizes);
+
+/// <summary>Roughly how many bytes a download at a picture height takes.</summary>
+public sealed record OfflineEstimateSize(int Height, long? Bytes);
 
 /// <summary>Where a want stands, and why one that failed did.</summary>
 public static class WantStages

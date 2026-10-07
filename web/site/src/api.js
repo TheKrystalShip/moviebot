@@ -127,6 +127,8 @@ export const api = {
   // Download of what the library does not hold yet: fetched onto the server, then downloaded here
   // (`offline/wants.js`).
   wantOffline: (request) => call("POST", "/api/me/offline/wants", request),
+  offlineEstimate: (imdbId, season = null, episodes = null) => call("GET", `/api/offline/estimate?imdbId=${enc(imdbId)}`
+    + (season != null ? `&season=${season}&episodes=${episodes.join(",")}` : "")),
   offlineWants: () => call("GET", "/api/me/offline/wants"),
   unwant: (id) => call("DELETE", `/api/me/offline/wants/${enc(id)}`),
 

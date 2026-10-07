@@ -244,9 +244,15 @@ const picker = await page.evaluate(() => ({
   options: [...document.querySelectorAll(".kc-dl-pick .k-optlist__row input")].map((i) => i.value),
   chosen: [...document.querySelectorAll(".kc-dl-pick .k-optlist__row input")].find((i) => i.checked)?.value,
   start: document.querySelector(".kc-dl-pick .kc-dl-start")?.textContent,
+  languages: [...document.querySelectorAll(".kc-dl-pick select")].map((s) => s.getAttribute("aria-label")),
+  original: document.querySelector('.kc-dl-pick select[aria-label="Audio language"] option[value=""]')?.textContent,
 }));
-check(picker.lists === 1 && picker.options.join() === "1080,720,480" && picker.chosen === "720" && picker.start === "Download",
-  `the sheet asks for its quality alone, 720p on a desktop (${picker.options.join(", ")}; ${picker.chosen}; ${picker.start})`);
+check(picker.lists === 1 && picker.options.join() === "1080,720,480" && picker.chosen === "720" && /^Download( · ~[\d.]+[KMGT]?B)?$/.test(picker.start),
+  `the sheet asks for its quality, 720p on a desktop (${picker.options.join(", ")}; ${picker.chosen}; ${picker.start})`);
+check(picker.languages.join() === "Audio language,Subtitle language" && picker.original === "Original",
+  `and an audio and a subtitle language, the original first (${picker.languages.join(", ")}; ${picker.original})`);
+// Subtitles in Spanish: the save takes the title's Spanish subtitles as the server lists them.
+await page.locator('.kc-dl-pick select[aria-label="Subtitle language"]').selectOption("es");
 await page.screenshot({ path: join(shots, "want-sheet.png") });
 await sheet.locator(".kc-dl-start").click();
 await sheet.waitFor({ state: "detached", timeout: 15000 });
@@ -263,6 +269,10 @@ const percent = Number((/· (\d+)%/.exec(label) || [])[1]);
 check(/^Downloading · \d+%$/.test(label) && percent > 0 && percent < 100,
   `the button counts what is made of the whole film (${label})`);
 check(((await call("GET", "/api/me/offline/wants")).body || []).length === 0, "the want went when the device saved the film");
+const spanish = manifest.subtitles.filter((s) => s.available && s.language === "spa").map((s) => s.id);
+const kept = first ? first.meta.files.filter((f) => f.role === "subtitle").map((f) => f.id) : [];
+check(spanish.length > 0 && spanish.every((id) => kept.includes(id)),
+  `the download takes the Spanish subtitles asked for (${kept.join(", ") || "none"})`);
 check(first && first.meta.quality.height === manifest.video.renditions.find((r) => r.uri.startsWith(first.meta.quality.rendition)).height,
   `the rung is the one 720p picks (${first && first.meta.quality.label})`);
 await page.screenshot({ path: join(shots, "growing.png") });

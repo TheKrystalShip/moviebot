@@ -18,6 +18,18 @@ public sealed record StoredSave
     public required List<string> Audio { get; init; }
     public required List<string> Subtitles { get; init; }
 
+    /// <summary>
+    /// A language whose text subtitles the save takes besides <see cref="Subtitles"/>, whichever the title
+    /// carries when the package is asked for; absent for none.
+    /// </summary>
+    public string? SubtitleLanguage { get; init; }
+
+    /// <summary>
+    /// Whether a subtitle in <see cref="SubtitleLanguage"/> was looked for outside the title, found or
+    /// not; it is looked for once.
+    /// </summary>
+    public bool SubtitleSought { get; init; }
+
     /// <summary>The name the device goes by, as it gave it.</summary>
     public required string Device { get; init; }
 
@@ -47,6 +59,12 @@ public sealed record StoredWant
     /// <summary>The picture height the device downloads it at; absent for the device's own pick.</summary>
     public int? Height { get; init; }
 
+    /// <summary>The audio language asked for; absent for the title's own.</summary>
+    public string? AudioLanguage { get; init; }
+
+    /// <summary>The subtitle language asked for; absent for none.</summary>
+    public string? SubtitleLanguage { get; init; }
+
     public required DateTimeOffset CreatedAt { get; init; }
 
     /// <summary>The download fetching it, once one was started or found.</summary>
@@ -62,6 +80,12 @@ public sealed record StoredWant
     public bool Is(string? imdbId, EpisodePick? episode) =>
         string.Equals(ImdbId, imdbId, StringComparison.OrdinalIgnoreCase) && Episode == episode;
 }
+
+/// <summary>
+/// How a want is to be downloaded: the picture height (absent for the device's own pick), the audio
+/// language (absent for the title's own) and the subtitle language (absent for none).
+/// </summary>
+public sealed record WantPick(int? Height, string? AudioLanguage = null, string? SubtitleLanguage = null);
 
 /// <summary>Everything the saves keep: each person's saves and wants, by account.</summary>
 public sealed record OfflineData
@@ -133,7 +157,7 @@ public sealed class OfflineSaves : ISaveHolds
     /// id, starts its hold over and is no longer complete.
     /// </summary>
     public StoredSave Save(string userId, string titleId, string rung, List<string> audio, List<string> subtitles,
-        string device, DateTimeOffset now)
+        string device, DateTimeOffset now, string? subtitleLanguage = null, bool subtitleSought = false)
     {
         lock (_gate)
         {
@@ -146,6 +170,8 @@ public sealed class OfflineSaves : ISaveHolds
                 Rung = rung,
                 Audio = audio,
                 Subtitles = subtitles,
+                SubtitleLanguage = subtitleLanguage,
+                SubtitleSought = subtitleSought,
                 Device = device,
                 CreatedAt = now,
             };
@@ -209,11 +235,11 @@ public sealed class OfflineSaves : ISaveHolds
 
     /// <summary>
     /// Records a want for each of <paramref name="episodes"/> of a show, or for the film when there are
-    /// none. Asking again for one the device already wants keeps it, with the height asked now; one that
-    /// could not be fetched is asked for afresh. Answers the wants, in the order asked.
+    /// none. Asking again for one the device already wants keeps it, with the height and languages asked
+    /// now; one that could not be fetched is asked for afresh. Answers the wants, in the order asked.
     /// </summary>
     public List<StoredWant> Want(string userId, string imdbId, IReadOnlyList<EpisodePick>? episodes, string device,
-        int? height, DateTimeOffset now)
+        WantPick pick, DateTimeOffset now)
     {
         lock (_gate)
         {
@@ -227,11 +253,11 @@ public sealed class OfflineSaves : ISaveHolds
             {
                 var existing = mine.FirstOrDefault(w => w.Device == device && w.Is(imdbId, episode));
                 var want = existing is { Problem: null }
-                    ? existing with { Height = height }
+                    ? existing with { Height = pick.Height, AudioLanguage = pick.AudioLanguage, SubtitleLanguage = pick.SubtitleLanguage }
                     : new StoredWant
                     {
-                        Id = existing?.Id ?? NewId(), ImdbId = imdbId, Episode = episode, Device = device, Height = height,
-                        CreatedAt = now,
+                        Id = existing?.Id ?? NewId(), ImdbId = imdbId, Episode = episode, Device = device, Height = pick.Height,
+                        AudioLanguage = pick.AudioLanguage, SubtitleLanguage = pick.SubtitleLanguage, CreatedAt = now,
                     };
                 mine = [.. mine.Where(w => w.Id != want.Id), want];
                 asked.Add(want);

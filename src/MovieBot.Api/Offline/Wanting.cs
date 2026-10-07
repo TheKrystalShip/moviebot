@@ -36,9 +36,9 @@ public sealed class OfflineWanting(
     /// library neither holds nor is fetching already. Answers each want as it stands.
     /// </summary>
     public async Task<List<OfflineWant>> AskAsync(Actor asker, string imdbId, IReadOnlyList<EpisodePick>? episodes,
-        string device, int? height, CancellationToken ct)
+        string device, WantPick pick, CancellationToken ct)
     {
-        var wants = saves.Want(asker.UserId, imdbId, episodes, device, height, clock.GetUtcNow());
+        var wants = saves.Want(asker.UserId, imdbId, episodes, device, pick, clock.GetUtcNow());
         var owed = wants.Where(w => w.Hash is null && w.Problem is null && Playable(w) is null).ToList();
         if (owed.Count > 0) _ = Task.Run(() => FetchAsync(asker, imdbId, owed));
         return await ViewsAsync(wants, ct);
@@ -89,7 +89,8 @@ public sealed class OfflineWanting(
             return;
         }
 
-        if (await watch.BestReleaseAsync(imdbId, Resolution.Hd1080, ct) is not { } release)
+        var language = ReleaseLanguages.WorthPreferring(want.AudioLanguage, films.Held(imdbId)?.Details?.OriginalLanguage);
+        if (await watch.BestReleaseAsync(imdbId, Resolution.Hd1080, ct, language) is not { } release)
         {
             saves.Fetched(asker.UserId, want.Id, null, WantStages.NotOffered);
             return;
@@ -105,11 +106,13 @@ public sealed class OfflineWanting(
     private async Task FetchEpisodesAsync(Actor asker, string imdbId, List<StoredWant> wants, CancellationToken ct)
     {
         var offers = await showOffers.GetAsync(imdbId, ct);
+        var original = shows.Held(imdbId)?.Details?.OriginalLanguage;
         var picked = new List<(StoredWant Want, Release Release)>();
         foreach (var want in wants)
         {
             var e = want.Episode!;
-            if (ShowOfferCache.Pick(offers, new EpisodeNumber(e.Season, e.Episode), Resolution.Hd720) is { } release)
+            var language = ReleaseLanguages.WorthPreferring(want.AudioLanguage, original);
+            if (ShowOfferCache.Pick(offers, new EpisodeNumber(e.Season, e.Episode), Resolution.Hd720, language) is { } release)
                 picked.Add((want, release));
             else
                 saves.Fetched(asker.UserId, want.Id, null, WantStages.NotOffered);
@@ -169,7 +172,8 @@ public sealed class OfflineWanting(
     {
         var name = want.Episode is null ? films.Held(want.ImdbId)?.Details?.Title : shows.Held(want.ImdbId)?.Details?.Title;
         OfflineWant View(string stage, double? progress = null, string? problem = null, string? refusal = null, string? titleId = null) =>
-            new(want.Id, want.ImdbId, name, want.Episode, want.Device, want.Height, want.CreatedAt, stage, progress, problem, refusal, titleId);
+            new(want.Id, want.ImdbId, name, want.Episode, want.Device, want.Height, want.AudioLanguage, want.SubtitleLanguage,
+                want.CreatedAt, stage, progress, problem, refusal, titleId);
 
         if (Playable(want) is { } titleId) return View(WantStages.Ready, titleId: titleId);
         if (want.Problem is { } problem) return View(WantStages.Failed, problem: problem, refusal: want.Refusal);

@@ -140,6 +140,8 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<SessionKeeper>());
 builder.Services.AddOptions<OpenSubtitlesOptions>()
     .Bind(builder.Configuration.GetSection(OpenSubtitlesOptions.Section));
 builder.Services.AddHttpClient<OpenSubtitlesClient>();
+// Transient as the typed client it holds is.
+builder.Services.AddTransient<SubtitleFetcher>();
 builder.Services.AddOptions<RoomOptions>().Bind(builder.Configuration.GetSection(RoomOptions.Section));
 
 // Cinema signs nobody in. Every person arrives with an access token the identity provider minted,
@@ -233,6 +235,8 @@ builder.Services.AddSingleton(sp => new OfflineSaves(
     sp.GetRequiredService<ILogger<OfflineSaves>>()));
 builder.Services.AddSingleton<ISaveHolds>(sp => sp.GetRequiredService<OfflineSaves>());
 builder.Services.AddSingleton<OfflineWanting>();
+builder.Services.AddSingleton<OfflineEstimates>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<OfflineEstimates>());
 builder.Services.AddSingleton<TrackIndexes>();
 builder.Services.AddSingleton<Transfers>();
 

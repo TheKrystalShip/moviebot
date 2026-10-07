@@ -4,6 +4,36 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.24.0] - 2026-10-07
+
+### Added
+
+- **Download of a title the library does not hold asks for a size, an audio and a subtitle language,
+  not only a quality.** The sheet shows roughly what each quality takes (`~1.4GB`), from the film's
+  or the episodes' runtime and the median the library's finished titles take a second at each
+  height (`GET /api/offline/estimate`, measured in the background every six hours), checks it
+  against the device's room, and puts it on the Download button. Audio is a language, the title's
+  own first and the person's audio language picked; Subtitles is a language or Off, the person's
+  picked. `POST /api/me/offline/wants` takes `audioLanguage` and `subtitleLanguage` and lists them
+  back.
+- **An audio language that is not the title's own prefers a release carrying it.** A film's
+  release, and a season's pack, whose name names the language (`Castellano`, `TRUEFRENCH`, ...)
+  comes first, then one marked `MULTI` or `DUAL`, at the quality and then at any; otherwise the pick
+  is as before. The device then downloads the audio track in that language where the title has one.
+- **A save can take a subtitle language** (`subtitleLanguage` on `POST /api/me/offline`, kept on the
+  save): every text subtitle in it the title carries is added each time the package is asked for, so
+  a growing title's subtitles, extracted once its source is whole, ride on a later stretch, and a
+  title carrying none has the best candidate fetched from the subtitle index once its source is
+  known, once per save and language, waiting at most 20 seconds.
+
+### Changed
+
+- **Fetching a subtitle is one service** (`SubtitleFetcher`) shared by the player's menu and
+  Download, and a fetched subtitle carries the language it was searched in
+  (`AddSubtitleRequest.language`, English when absent) rather than always English.
+- **Language tags are matched through one table in Core** (`Languages`), which the ingest's subtitle
+  filter now reads. Api 2.11.0, Core 4.1.0, Ingest 1.16.1, site 0.45.0.
+
 ## [2.23.0] - 2026-10-07
 
 ### Added

@@ -188,13 +188,17 @@ save and never another's.
 
 ## Asking for what the library does not hold (`wants.js`)
 
-A film or episode the library does not hold whole is asked for at a quality alone
-(`askDownload({ imdbId, episodes, height })`, `POST /api/me/offline/wants`), and the server fetches
-and prepares it. This side keeps this device's wants as the API last listed them (`useWants`,
-`wantOf`, those whose `device` is `deviceName()`), asks again every `TEND_MS` while any is waiting,
-and starts the download of each one `ready` with `downloadAt(titleId, height)`: the widest rung no
-wider than the height at 16:9 (`rungFor`), or the default rung for none, with the default audio and
-subtitles. Saving the title lets the want go at the API; a title already saved here lets it go
+A film or episode the library does not hold whole is asked for at a quality and an audio and a
+subtitle language (`askDownload({ imdbId, episodes, height, audioLanguage, subtitleLanguage })`,
+`POST /api/me/offline/wants`), and the server fetches and prepares it. This side keeps this
+device's wants as the API last listed them (`useWants`, `wantOf`, those whose `device` is
+`deviceName()`), asks again every `TEND_MS` while any is waiting, and starts the download of each
+one `ready` with `downloadAt(titleId, height, languages)`: the widest rung no wider than the height
+at 16:9 (`rungFor`), or the default rung for none, the audio in the language asked for where the
+title has it and the title's own otherwise, and the subtitles in the language asked for with the
+forced ones of that audio, picked as `choose.js` picks them. The save is asked with the
+`subtitleLanguage` too, and its record keeps it, so every later stretch of a growing title adds the
+subtitles in it that have appeared since (`startSave`, and `repost` from the record). Saving the title lets the want go at the API; a title already saved here lets it go
 outright. A want this device could not start (no room, the title gone) is kept with why
 (`useRefused`) until it is asked for again. `tendWants` runs from `sync.js` and after every ask;
 `letGo(want)` stops waiting on one.

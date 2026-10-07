@@ -3,6 +3,7 @@ import { Button, Icon, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTa
 import { KIND } from "../notifications.js";
 import { api, episodeCode, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
+import { languageOptions } from "../languages.js";
 import { accountUrl, can, useCan, useSession } from "../session.js";
 import { leave } from "../leave.js";
 import { PROFILE_TAB_FACES } from "../nav.js";
@@ -352,23 +353,12 @@ function Notifications() {
   );
 }
 
-// The languages a film is commonly offered in. A stored language outside this list is added to it,
-// so a choice made elsewhere is never shown as something else.
-const LANGUAGES = ["en", "es", "fr", "de", "it", "pt", "ca", "nl", "pl", "ru", "ja", "ko", "zh", "ar", "tr"];
 const QUALITIES = [{ value: "", label: "Auto" }, { value: "1080", label: "1080p" }, { value: "720", label: "720p" }];
 // What Download picks by default; a title downloads the widest rung no wider than the height's 16:9
 // width (`offline/choose.js`).
 const OFFLINE_QUALITIES = [...QUALITIES, { value: "480", label: "480p" }];
 
-const languageName = (code) => {
-  try { return new Intl.DisplayNames(undefined, { type: "language" }).of(code) || code; } catch { return code; }
-};
-
-/** A language picker's options: `none` first, then the common languages and whatever is stored. */
-const languages = (current, none) => [
-  { value: "", label: none },
-  ...[...new Set([...LANGUAGES, ...(current ? [current] : [])])].map((code) => ({ value: code, label: languageName(code) })),
-];
+const languages = languageOptions;
 const orNull = (value) => value || null;
 
 /**
