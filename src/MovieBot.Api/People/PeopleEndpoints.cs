@@ -1,6 +1,7 @@
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Sessions;
+using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.People;
@@ -29,22 +30,15 @@ public static class PeopleEndpoints
                 : NoPerson())
             .RequireAction(CinemaActions.ProfileWrite);
 
-        // Films this person started and did not finish, newest first. A film the library no longer
-        // holds is left out: there is nothing to continue and no name to show for it.
-        app.MapGet("/api/me/progress", (HttpContext context, WatchRecord record, TitleLibrary library, SessionStore sessions, TimeProvider clock) =>
+        // What this person can carry on with, newest first: each film they started and did not
+        // finish, and for each show one episode, the latest they watched while they have not finished
+        // it, else the one after it. A title the library no longer holds is left out: there is
+        // nothing to continue and no name to show for it.
+        app.MapGet("/api/me/progress", (HttpContext context, WatchRecord record, TitleLibrary library, ShowStore shows,
+            SessionStore sessions, TimeProvider clock) =>
         {
             if (Person(context) is not { } person) return NoPerson();
-
-            var entries = new List<ProgressEntry>();
-            foreach (var (titleId, entry) in EntriesOf(person.UserId, record, sessions, library, clock))
-            {
-                if (entry.Finished || library.Get(titleId) is not { } manifest) continue;
-                entries.Add(new ProgressEntry(titleId, NameOf(manifest), entry.PositionSeconds, entry.DurationSeconds,
-                    Math.Max(0, entry.DurationSeconds - entry.PositionSeconds), entry.LastWatchedAt,
-                    manifest.Episode, manifest.Episode is null ? null : manifest.Film?.ImdbId));
-            }
-
-            return Results.Ok(entries);
+            return Results.Ok(ContinueWatching(EntriesOf(person.UserId, record, sessions, library, clock), library, shows));
         }).RequireAction(CinemaActions.ProfileRead);
 
         // Where a device that watched with no connection got to. Each entry is recorded the way a
@@ -142,6 +136,76 @@ public static class PeopleEndpoints
 
         return entries.OrderByDescending(e => e.Value.LastWatchedAt).Select(e => (e.Key, e.Value));
     }
+
+    /// <summary>
+    /// What a person can carry on with, from their entries newest first. A film is listed while it is
+    /// unfinished. A show is listed once, by the episode they watched most recently, wherever in the
+    /// show that is: that episode while it is unfinished, and once it is finished the episode after
+    /// it, from where they got to in it if they started it before, or from the beginning. The episode
+    /// after is the next of the season, else the first of the next season, as the film database lists
+    /// the show, or as the library holds it for a show the database has not described; it is listed
+    /// only when the library holds it and its preparation has not failed. A show whose last episode is finished is
+    /// not listed. An episode after takes the time its predecessor was finished, so the show keeps its
+    /// place in the list.
+    /// </summary>
+    public static List<ProgressEntry> ContinueWatching(
+        IEnumerable<(string TitleId, WatchEntry Entry)> newestFirst, TitleLibrary library, ShowStore shows)
+    {
+        var entries = newestFirst.ToList();
+        var byTitle = entries.ToDictionary(e => e.TitleId, e => e.Entry, StringComparer.Ordinal);
+        var seenShows = new HashSet<string>(StringComparer.Ordinal);
+        var listed = new List<ProgressEntry>();
+
+        foreach (var (titleId, entry) in entries)
+        {
+            if (library.Get(titleId) is not { } manifest) continue;
+            var show = manifest.Episode is null ? null : manifest.Film?.ImdbId;
+
+            if (show is null)
+            {
+                if (!entry.Finished) listed.Add(Progress(titleId, manifest, entry.PositionSeconds, entry.DurationSeconds, entry.LastWatchedAt));
+                continue;
+            }
+
+            if (!seenShows.Add(show)) continue;
+            if (!entry.Finished)
+            {
+                listed.Add(Progress(titleId, manifest, entry.PositionSeconds, entry.DurationSeconds, entry.LastWatchedAt));
+                continue;
+            }
+
+            if (EpisodeAfter(library, shows, show, manifest.Episode!) is not { } next) continue;
+            var started = byTitle.GetValueOrDefault(next.Id) is { Finished: false } begun ? begun.PositionSeconds : 0;
+            listed.Add(Progress(next.Id, next.Manifest, started, next.Manifest.DurationSeconds, entry.LastWatchedAt));
+        }
+
+        return listed;
+    }
+
+    /// <summary>The library's title for the episode after one, or null when it holds none to play.</summary>
+    private static (string Id, Manifest Manifest)? EpisodeAfter(TitleLibrary library, ShowStore shows, string show, EpisodeIdentity episode)
+    {
+        var held = library.EpisodesOf(show).Where(e => e.Manifest.Status != TitleStatus.Failed).ToList();
+        if (shows.EpisodeAfter(show, episode) is { } after)
+        {
+            foreach (var e in held)
+            {
+                if (e.Manifest.Episode!.Season == after.Season && e.Manifest.Episode.Number == after.Number) return e;
+            }
+            return null;
+        }
+
+        foreach (var e in held)
+        {
+            var at = e.Manifest.Episode!;
+            if (at.Season > episode.Season || (at.Season == episode.Season && at.Number > episode.Number)) return e;
+        }
+        return null;
+    }
+
+    private static ProgressEntry Progress(string titleId, Manifest manifest, double position, double duration, DateTimeOffset at) =>
+        new(titleId, NameOf(manifest), position, duration, Math.Max(0, duration - position), at,
+            manifest.Episode, manifest.Episode is null ? null : manifest.Film?.ImdbId);
 
     /// <summary>Where a room playing the film to this person is now, or null when none is.</summary>
     private static WatchEntry? Live(string userId, IReadOnlyList<ViewingRoom> viewing, string titleId, double duration, DateTimeOffset now)

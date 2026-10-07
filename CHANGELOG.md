@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.28.0] - 2026-10-07
+
+### Changed
+
+- **Continue watching keeps a show in it until the show is watched through.** `GET /api/me/progress`
+  lists each show once, by the episode the person watched last, wherever in the show they started:
+  that episode while it is unfinished, and once it is finished the episode after it, the first of
+  the next season after a season's last, from the start or from where they left it. It keeps the
+  finished episode's place in the list, and the show leaves the list once its last episode is
+  finished. The episode after is listed while the library holds it, which the fetch of the next
+  episode during watching normally sees to. Films are listed as before. Api 2.12.0.
+
 ## [2.27.0] - 2026-10-07
 
 ### Changed

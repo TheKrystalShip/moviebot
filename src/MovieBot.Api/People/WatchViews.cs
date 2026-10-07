@@ -1,8 +1,9 @@
 namespace TheKrystalShip.MovieBot.Api.People;
 
 /// <summary>
-/// A film or an episode somebody started and did not finish, and how much of it is left. For an
-/// episode, <see cref="Name"/> is the show's and <see cref="Episode"/> says which.
+/// A film or an episode somebody can carry on with, and how much of it is left: one they started and
+/// did not finish, or the episode after one they finished. For an episode, <see cref="Name"/> is the
+/// show's and <see cref="Episode"/> says which.
 /// </summary>
 public sealed record ProgressEntry(
     string TitleId,
