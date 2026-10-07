@@ -6,9 +6,10 @@ import { useLoad } from "../data.js";
 import { keptPreferences } from "../offline/preferences.js";
 import { defaultAudio, defaultRung, defaultSubtitles, evictedUnvisited, handheld, sameLanguage } from "../offline/choose.js";
 import { useSave, useSaves, useSpace } from "../offline/hooks.js";
-import { NoRoom, pauseSave, removeFromDevice, restingState, resumeSave, startSave, useSaving, useSavingAll } from "../offline/saver.js";
+import { askToNotify } from "../offline/notice.js";
+import { NoRoom, pauseSave, percentOf, removeFromDevice, restingState, resumeSave, startSave, useSaving, useSavingAll } from "../offline/saver.js";
 import { offlineSupported } from "../offline/store.js";
-import { askDownload, letGo, useRefused, useWants, wantOf } from "../offline/wants.js";
+import { askDownload, letGo, stageWords, useRefused, useWants, wantOf } from "../offline/wants.js";
 import { episodeRelease } from "../watchNow.js";
 import { size } from "../pages/Offline.jsx";
 import { playSavedPath } from "../paths.js";
@@ -65,14 +66,6 @@ const STATES = {
   preparing: { icon: "hourglass", label: "Preparing" },
 };
 
-/** What each stage of a want on the server is, under the sheet's figures. */
-const STAGES = {
-  finding: "Finding a release",
-  downloading: "Arriving on the server",
-  preparing: "Being prepared",
-  ready: "Starting",
-};
-
 /**
  * Where a title's download stands on this device: `{ kind: "none" }`, `{ kind: "done", save }`,
  * `{ kind: "underway", state, received, bytes, message, save }`, from the store and the saver together,
@@ -124,21 +117,8 @@ function standingOf(titleId, held, live, online, loading = false) {
   return { kind: loading ? "loading" : "none" };
 }
 
-/**
- * How much of a title the server has made, for a save of one it is still making: the shortest of its
- * tracks' seconds against the film's length. 1 for a title already whole.
- */
-function made(save) {
-  const meta = save && save.meta;
-  if (!meta || !meta.growing || !meta.durationSeconds) return 1;
-  const tracks = (meta.package && meta.package.tracks) || [];
-  if (!tracks.length) return 0;
-  const seconds = Math.min(...tracks.map((t) => (t.segmentSeconds || []).reduce((n, s) => n + s, 0)));
-  return Math.max(0, Math.min(1, seconds / meta.durationSeconds));
-}
-
-/** How far a download under way has got: what is here of what there is, scaled by how much of it there is yet. */
-const percent = (s) => (s.bytes > 0 ? Math.floor((100 * made(s.save) * Math.min(s.received, s.bytes)) / s.bytes) : 0);
+/** How far a download under way has got. */
+const percent = (s) => percentOf(s.save && s.save.meta, s.received, s.bytes);
 
 /**
  * Every download of the signed-in account on this device, by title id: `{ kind, state, percent, save }`,
@@ -357,6 +337,7 @@ function WantSheet({ head, target, eyebrow = "Download", onClose }) {
 
   const download = async () => {
     setBusy(true);
+    askToNotify();
     try {
       await askDownload({ imdbId: target.imdbId, episodes: target.episodes, height });
       onClose();
@@ -427,7 +408,7 @@ function PreparingSheet({ head, standing, onClose }) {
           <div className="kc-dl-progress">
             <span className="kc-dl-progress__figures">
               <span className="kc-dl-progress__percent">{standing.percent != null ? `${standing.percent}%` : "—"}</span>
-              <span className="kc-dl-progress__bytes">{STAGES[want.stage] || STAGES.finding}</span>
+              <span className="kc-dl-progress__bytes">{stageWords(want)}</span>
             </span>
             <Meter label="Prepared" max={100} value={standing.percent || 0} />
           </div>
@@ -532,6 +513,7 @@ function PickSheet({ titleId, head, onClose }) {
 
   const download = async () => {
     setBusy(true);
+    askToNotify();
     try {
       await startSave({ titleId, rung, audio, subtitles });
       onClose();

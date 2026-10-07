@@ -70,6 +70,27 @@ export function useSavingAll() {
   return useStore(saving);
 }
 
+/** What every save under way is doing, as it stands now, by title id. */
+export const savingNow = () => saving.getState();
+
+/** Calls `fn` whenever what a save under way is doing changes; answers the call that stops it. */
+export const onSaving = (fn) => saving.subscribe(fn);
+
+/**
+ * How much of a title the server has made, for a save of one it is still making: the shortest of its
+ * tracks' seconds against the film's length. 1 for a title already whole.
+ */
+export function madeOf(meta) {
+  if (!meta || !meta.growing || !meta.durationSeconds) return 1;
+  const tracks = (meta.package && meta.package.tracks) || [];
+  if (!tracks.length) return 0;
+  const seconds = Math.min(...tracks.map((t) => (t.segmentSeconds || []).reduce((n, s) => n + s, 0)));
+  return Math.max(0, Math.min(1, seconds / meta.durationSeconds));
+}
+
+/** How far a save has got, in whole percent: what is here of what there is, scaled by how much of it there is yet. */
+export const percentOf = (meta, received, bytes) => (bytes > 0 ? Math.floor((100 * madeOf(meta) * Math.min(received, bytes)) / bytes) : 0);
+
 /**
  * What a save under way that no tab is writing is doing: paused by the person, else waiting its turn,
  * or waiting for a connection when there is none.
@@ -345,7 +366,8 @@ function stopGrowing(titleId) {
   growing.delete(titleId);
 }
 
-const saveTitle = (meta) => (meta.episode && meta.show ? `${meta.show.name} S${meta.episode.season} · E${meta.episode.number}` : meta.name);
+/** What a save is called: a film's name, or an episode's show and place. */
+export const saveTitle = (meta) => (meta.episode && meta.show ? `${meta.show.name} S${meta.episode.season} · E${meta.episode.number}` : meta.name);
 
 /** Pauses a save; it stays paused across reloads until the person resumes it. */
 export function pauseSave(titleId) {

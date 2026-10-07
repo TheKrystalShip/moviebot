@@ -1,6 +1,7 @@
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Api.Acquisition;
+using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Core;
@@ -25,6 +26,8 @@ public sealed class OfflineWanting(
     AcquisitionService acquisition,
     ShowOfferCache showOffers,
     OfferedReleases offered,
+    FilmStore films,
+    ShowStore shows,
     TimeProvider clock,
     ILogger<OfflineWanting> logger)
 {
@@ -164,8 +167,9 @@ public sealed class OfflineWanting(
         Dictionary<string, IReadOnlyList<(string Path, double Progress, IReadOnlyCollection<EpisodeNumber> Episodes)>> files,
         CancellationToken ct)
     {
+        var name = want.Episode is null ? films.Held(want.ImdbId)?.Details?.Title : shows.Held(want.ImdbId)?.Details?.Title;
         OfflineWant View(string stage, double? progress = null, string? problem = null, string? refusal = null, string? titleId = null) =>
-            new(want.Id, want.ImdbId, want.Episode, want.Device, want.Height, want.CreatedAt, stage, progress, problem, refusal, titleId);
+            new(want.Id, want.ImdbId, name, want.Episode, want.Device, want.Height, want.CreatedAt, stage, progress, problem, refusal, titleId);
 
         if (Playable(want) is { } titleId) return View(WantStages.Ready, titleId: titleId);
         if (want.Problem is { } problem) return View(WantStages.Failed, problem: problem, refusal: want.Refusal);

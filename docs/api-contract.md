@@ -265,6 +265,7 @@ the device saves it once the library holds it.
 {
   "id": "9a41c07be2d35f60",
   "imdbId": "tt7472896",                 // the film's, or an episode's show's
+  "name": "Dune: Part Two",              // the film's, or the show's, as described here; absent when not described yet
   "episode": { "season": 2, "episode": 4 },   // absent for a film
   "device": "Pixel 8",
   "height": 480,                         // absent for the device's own pick

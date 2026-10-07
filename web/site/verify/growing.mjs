@@ -3,7 +3,8 @@
 // once, the device downloads what has been made, waits, and carries on from what it holds once the
 // film is whole (by `Range`, with `If-Range` naming the validator its bytes arrived under); every
 // track ends byte for byte the server's, the API is told the save is complete, and the want is gone.
-// The show page offers Download season.
+// With the page out of view a notification says how far the download has got, another says it is
+// downloaded, and the first closes once the page is in view again. The show page offers Download season.
 //
 //   node verify/growing.mjs
 //
@@ -197,11 +198,23 @@ const hashOnDevice = (page, file) => page.evaluate(async ({ account, title, file
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", data))].map((b) => b.toString(16).padStart(2, "0")).join("");
 }, { account: name(VIEWER.id), title: name(TITLE), file });
 
+/** Puts the page out of view, or back in it, as far as the page can tell. */
+const hide = (page, hidden) => page.evaluate((h) => {
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => (h ? "hidden" : "visible") });
+  Object.defineProperty(document, "hidden", { configurable: true, get: () => h });
+  document.dispatchEvent(new Event("visibilitychange"));
+}, hidden);
+
+/** The site's notifications showing. */
+const notes = (page) => page.evaluate(async () =>
+  (await (await navigator.serviceWorker.ready).getNotifications()).map((n) => ({ tag: n.tag, title: n.title, body: n.body })));
+
 const tracksHeld = (state) => !!state && state.meta.files.filter((f) => f.role === "video" || f.role === "audio")
   .every((f) => state.sizes[f.name] === f.bytes);
 
 const browser = await chromium.launch({ executablePath: chromePath() });
 const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+await context.grantPermissions(["notifications"], { origin: base });
 for (const record of (await call("GET", "/api/me/offline")).body || []) await call("DELETE", `/api/me/offline/${record.id}`);
 for (const want of (await call("GET", "/api/me/offline/wants")).body || []) await call("DELETE", `/api/me/offline/wants/${want.id}`);
 {
@@ -254,6 +267,12 @@ check(first && first.meta.quality.height === manifest.video.renditions.find((r) 
   `the rung is the one 720p picks (${first && first.meta.quality.label})`);
 await page.screenshot({ path: join(shots, "growing.png") });
 
+// The page out of view: a notification says what is downloading and how far it has got.
+await hide(page, true);
+const progress = await waitFor(async () => (await notes(page)).find((n) => n.tag === "kc-downloads") || null, 10000);
+check(!!progress && progress.title === "Growing Clip" && /^Downloading · \d+%$/.test(progress.body),
+  `a hidden page's download is in a notification (${progress ? `${progress.title}: ${progress.body}` : "none"})`);
+
 // The film is finished; the next stretch carries on from what the device holds.
 const before = transfers.length;
 finish();
@@ -280,6 +299,16 @@ const told = await waitFor(async () => {
 check(!!told, "the API was told the save is complete");
 const face = await waitFor(async () => ((await control.textContent()) === "Downloaded" ? "Downloaded" : null), 10000);
 check(!!face, "the film's page says it is downloaded");
+const finished = await waitFor(async () => (await notes(page)).find((n) => n.tag === `kc-downloaded-${TITLE}`) || null, 10000);
+check(!!finished && finished.title === "Growing Clip" && finished.body === "Downloaded",
+  `finishing while hidden is a notification of its own (${finished ? `${finished.title}: ${finished.body}` : "none"})`);
+await hide(page, false);
+const left = await waitFor(async () => {
+  const now = await notes(page);
+  return now.some((n) => n.tag === "kc-downloads") ? null : now;
+}, 10000);
+check(!!left && left.some((n) => n.tag === `kc-downloaded-${TITLE}`),
+  `the page in view closes the progress and leaves Downloaded (${left ? left.map((n) => n.tag).join(", ") : "progress still shown"})`);
 await page.screenshot({ path: join(shots, "downloaded.png") });
 
 // A show's season offers Download season.

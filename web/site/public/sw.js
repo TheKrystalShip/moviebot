@@ -2,7 +2,8 @@
 //
 // It does three things: satisfies the browser's installability criteria with a functional `fetch`
 // handler, holds the whole build so the installed app opens and gets around with no connection, and
-// shows the API's pushes, opening the page each names.
+// shows the API's pushes. A tap on any notification of the site's, a push or one the page drew through
+// this worker (Download's progress, `src/offline/notice.js`), opens the page it names.
 //
 // The build writes `BUILD` below: its version and every file it put in dist/, the index as `/`. A
 // worker installing fetches all of them into a cache named by that version, and installs only when

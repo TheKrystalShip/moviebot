@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.0] - 2026-10-07
+
+### Added
+
+- **Download's progress is in a notification while the site is out of view.** With the page hidden
+  (another app in front, the screen off), one notification says what is downloading and how far it
+  has got (Downloading · 42% · 2 more, Queued, Waiting for a connection, or Preparing · 12% while
+  the server prepares it), replaced silently in place at most every two seconds and closed when the
+  page is in view again; a download that finishes meanwhile gets a Downloaded notification of its
+  own. Tapping either opens the library. The first Download on a device asks the browser for leave
+  to notify, once. A download still moves only while the browser runs the page, which a phone stops
+  before long once it is hidden; the notification says how far it got. `OfflineWant` carries the
+  film's or show's `name`, as the server has it described, for the notification to say. API 2.10.0,
+  site 0.44.0.
+
 ## [2.22.0] - 2026-10-07
 
 ### Added

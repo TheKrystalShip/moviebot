@@ -122,6 +122,13 @@ Downloaded pill on its poster and one under way with Downloading and its percent
 poster's foot, and a show's card with how many of its episodes are downloaded; its Filters popover
 narrows to what is downloaded. Save is the lists' word, and Download is this one's.
 
+A download moves only while the site is open: a phone slows a hidden page and stops it before long,
+and with the screen locked it stops sooner. While the page is hidden a notification says what is
+downloading and how far it has got (Downloading · 42% · 2 more, or Preparing · 12% while the
+server prepares it), and one says Downloaded when a download finishes then; tapped, they open the
+library. They need the browser's leave to notify, which the first Download on a device asks for
+(`src/offline/notice.js`).
+
 Wide screens get around by the sidebar, which has Discover and Saved under Home. A phone has
 krystal-ui's `TabBar` along its bottom edge instead, and no drawer: Home (lit on `/`),
 Library (lit under `/movies` and `/tv`), Discover (lit under `/discover`), Assistant,

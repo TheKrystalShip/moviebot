@@ -61,10 +61,11 @@ public sealed record OfflineWantRequest(string? ImdbId, List<EpisodePick>? Episo
 /// <summary>
 /// A want as the person reads it back, with where it stands (<see cref="WantStages"/>): <c>Progress</c>
 /// is how much of it the server has, from 0 to 1, while it is downloading there; <c>TitleId</c> is the
-/// library's title once the device can download it.
+/// library's title once the device can download it. <c>Name</c> is the film's, or the episode's show's,
+/// as the film database's description kept here has it, absent when none is kept.
 /// </summary>
 public sealed record OfflineWant(
-    string Id, string ImdbId, EpisodePick? Episode, string Device, int? Height, DateTimeOffset CreatedAt,
+    string Id, string ImdbId, string? Name, EpisodePick? Episode, string Device, int? Height, DateTimeOffset CreatedAt,
     string Stage, double? Progress, string? Problem, string? Refusal, string? TitleId);
 
 /// <summary>Where a want stands, and why one that failed did.</summary>

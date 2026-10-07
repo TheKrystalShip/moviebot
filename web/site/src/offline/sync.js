@@ -11,6 +11,7 @@ import { onReconnect, useOnline } from "../connectivity.js";
 import { can, useSession } from "../session.js";
 import { forgotten, listSaves, offlineSupported, pendingForgets } from "./store.js";
 import { removeAllFromDevice, removeFromDevice, resumeUnfinished, stopAccount } from "./saver.js";
+import { watchDownloads } from "./notice.js";
 import { keepMissingShows } from "./shows.js";
 import { stopWants, tendWants } from "./wants.js";
 
@@ -55,7 +56,8 @@ async function forgetPending(sub) {
 /**
  * Keeps the signed-in account's saves on this device in step with the API, for as long as the page
  * is open: on loading, on the connection coming back, and when somebody else signs in, whose saves
- * are theirs, the last account's transfers stopping.
+ * are theirs, the last account's transfers stopping. Meanwhile Download's progress is in a
+ * notification whenever the page is hidden (`notice.js`).
  */
 export function useOfflineSync(enabled) {
   const session = useSession();
@@ -70,8 +72,10 @@ export function useOfflineSync(enabled) {
     if (!sub) return undefined;
     if (online) void reconcile(held.current);
     const stop = onReconnect(() => { if (held.current) void reconcile(held.current); });
+    const unwatch = watchDownloads();
     return () => {
       stop();
+      unwatch();
       stopAccount(sub);
       stopWants();
     };

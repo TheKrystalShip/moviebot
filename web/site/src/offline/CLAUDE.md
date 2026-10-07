@@ -199,6 +199,21 @@ outright. A want this device could not start (no room, the title gone) is kept w
 (`useRefused`) until it is asked for again. `tendWants` runs from `sync.js` and after every ask;
 `letGo(want)` stops waiting on one.
 
+## Progress with the page out of view (`notice.js`)
+
+A browser keeps writing a save only while it runs the page, and a phone slows a hidden page and
+sooner or later stops it; nothing writes a save with no page. While the page is hidden, one
+notification (tag `kc-downloads`) says what this device is doing: the save being written, else the
+first waiting its turn or for a connection, else the first want the server is preparing, as
+"Downloading · 42% · 2 more", "Queued", "Waiting for a connection" or "Preparing · 12%", titled with
+`saveTitle` or `wantTitle`. It is drawn again, silently and in place, at most every `EVERY_MS`, and
+closed when the page is in view again or nothing is left; a page opening closes one a page before it
+left behind. A save that finishes while the page is hidden gets a notification of its own,
+"Downloaded" (tag `kc-downloaded-<titleId>`). Each opens the library. They are drawn through the
+service worker's registration, so a build without one shows none, and only once the browser lets the
+site notify: `askToNotify()` asks once per device (`cinema.offline.notifyAsked`), from the press of a
+Download. `useOfflineSync` runs `watchDownloads` for the signed-in account.
+
 ## Keeping in step with the API (`sync.js`)
 
 `useOfflineSync` (in `App.jsx`) runs `reconcile` when a page loads with a connection and whenever the

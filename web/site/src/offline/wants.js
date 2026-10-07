@@ -41,6 +41,31 @@ export function useWants() {
 }
 const NONE = [];
 
+/** This device's wants as they stand now, and what it could not start: `{ list, refused }`. */
+export function wantsNow() {
+  const s = wanted.getState();
+  return { list: (s.sub === currentSub() && s.list) || NONE, refused: s.refused };
+}
+
+/** Calls `fn` whenever this device's wants change; answers the call that stops it. */
+export const onWants = (fn) => wanted.subscribe(fn);
+
+const STAGE_WORDS = {
+  finding: "Finding a release",
+  downloading: "Arriving on the server",
+  preparing: "Being prepared",
+  ready: "Starting",
+};
+
+/** What a want's stage on the server is, in words. */
+export const stageWords = (want) => STAGE_WORDS[want.stage] || STAGE_WORDS.finding;
+
+/** What a want is called: the film's name, or the episode's show and place; null when the server has no name for it. */
+export function wantTitle(want) {
+  if (!want.name) return null;
+  return want.episode ? `${want.name} S${want.episode.season} · E${want.episode.episode}` : want.name;
+}
+
 /** What this device could not start, by want id. */
 export function useRefused() {
   return useStore(wanted, (s) => s.refused);

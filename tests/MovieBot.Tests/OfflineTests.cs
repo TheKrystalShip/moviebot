@@ -447,6 +447,22 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
     }
 
     [Fact]
+    public async Task A_want_carries_the_name_of_the_film_as_described_here()
+    {
+        var client = fixture.CreatePersonClient("o15");
+        using var described = await client.GetAsync("/api/films/tt0113277");
+        described.EnsureSuccessStatusCode();
+
+        using var asked = await client.PostAsJsonAsync("/api/me/offline/wants", new { imdbId = "tt0113277", device = "Pixel" });
+        asked.EnsureSuccessStatusCode();
+        var want = Assert.Single((await asked.Content.ReadFromJsonAsync<List<OfflineWant>>(Json))!);
+        Assert.Equal("Heat", want.Name);
+
+        using var gone = await client.DeleteAsync($"/api/me/offline/wants/{want.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, gone.StatusCode);
+    }
+
+    [Fact]
     public async Task A_want_takes_downloading_and_is_the_person_s_own_to_let_go()
     {
         fixture.Growing("growing-c", "tt9000003");
