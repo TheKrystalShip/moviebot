@@ -6,6 +6,7 @@ import { useSave } from "../offline/hooks.js";
 import { moviePath, playSavedPath, roomPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, timeLeft } from "../time.js";
+import { watchNow } from "../watchNow.js";
 
 /**
  * Where a film is watched: a room of its own for whoever opens it, or the room somebody is already
@@ -57,6 +58,39 @@ export function ContinueCard({ title, progress, remainingSeconds, room }) {
       <span className="kc-poster__name">{filmName(title)}</span>
       <span className="kc-poster__note">{timeLeft(remainingSeconds)}</span>
     </a>
+  );
+}
+
+/**
+ * The episode after one somebody finished, when the library does not hold it (`GET /api/me/progress`
+ * with no `titleId`): its still, else the show's backdrop, the show's name and its place in it.
+ * Choosing it is Watch now, which fetches it into a room and goes there.
+ */
+export function NextEpisodeCard({ progress, show }) {
+  const [starting, setStarting] = React.useState(false);
+  const online = useOnline();
+  const details = show && show.details;
+  const art = progress.stillUrl || (details && (details.backdropUrl || details.posterUrl));
+  const name = `${progress.name} · ${episodeCode(progress.episode)}`;
+  const start = async () => {
+    if (starting) return;
+    setStarting(true);
+    const started = await watchNow({
+      imdbId: progress.showImdbId, episodes: [{ season: progress.episode.season, episode: progress.episode.number }],
+    });
+    if (!started) setStarting(false);
+  };
+  return (
+    <button type="button" className="kc-continue" disabled={starting || !online} onClick={start}>
+      <div className="kc-poster-art kc-poster-art--wide">
+        {art ? <img src={art} alt="" loading="lazy" /> : <span className="kc-poster-art__name">{name}</span>}
+        <span className="kc-continue__play"><Icon name="play" size={16} /></span>
+      </div>
+      <span className="kc-poster__name">{name}</span>
+      <span className="kc-poster__note">
+        {starting ? "Starting…" : progress.remainingSeconds > 0 ? timeLeft(progress.remainingSeconds) : progress.episodeName}
+      </span>
+    </button>
   );
 }
 

@@ -1,14 +1,15 @@
 import React from "react";
 import { Button, TvCard, TvRow, TvSpotlight, TvTile } from "@thekrystalship/krystal-ui";
-import { api, posterUrl } from "../../api.js";
+import { api, episodeCode, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { discoverFilmPath, libraryPath, listPath, moviePath, showPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { since, timeLeft } from "../../time.js";
 import { Empty, Failed, watchLink } from "../../components/Film.jsx";
 import { SaveButton } from "../../components/SaveButton.jsx";
-import { dealt, newest } from "../../pages/Home.jsx";
+import { continueKey, dealt, newest } from "../../pages/Home.jsx";
 import { SpotFacts, SpotStage, entrySpot, showSpot, titleSpot, useSpotlight } from "../spot.jsx";
+import { watchNow } from "../../watchNow.js";
 
 const RECENT_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -35,7 +36,8 @@ export function TvHome() {
   const shows = showList.data || [];
   const films = library.filter((t) => t.kind !== "show");
   const watching = (rooms.data || []).filter((r) => r.titleId && r.participants > 0 && byId.has(r.titleId));
-  const continuing = (progress.data || []).filter((p) => byId.has(p.titleId));
+  // An episode the library does not hold yet comes with no title, and is fetched when chosen.
+  const continuing = (progress.data || []).filter((p) => (p.titleId ? byId.has(p.titleId) : p.episode && p.showImdbId));
   const saved = (later.data && later.data.entries) || [];
   const isRecent = (at) => at && Date.now() - Date.parse(at) <= RECENT_DAYS * DAY_MS;
   const recent = [
@@ -61,6 +63,16 @@ export function TvHome() {
     rows.push(
       <TvRow key="continue" icon="history" title="Continue watching" count={continuing.length}>
         {continuing.map((p) => {
+          if (!p.titleId) {
+            const show = shows.find((s) => s.imdbId === p.showImdbId);
+            const name = `${p.name} · ${episodeCode(p.episode)}`;
+            const s = {
+              ...(show ? showSpot(show, "Continue watching") : { eyebrow: "Continue watching", facts: {} }),
+              key: "next:" + continueKey(p), title: name, overview: p.episodeName || (show && show.details && show.details.overview),
+            };
+            if (p.stillUrl) s.art = p.stillUrl;
+            return <TvNextEpisode key={continueKey(p)} progress={p} art={s.art} label={name} focus={card(row, s)} />;
+          }
           const t = byId.get(p.titleId);
           const room = watching.find((r) => r.titleId === p.titleId);
           const fraction = p.durationSeconds > 0 ? Math.min(1, p.positionSeconds / p.durationSeconds) : 0;
@@ -165,4 +177,24 @@ export function TvHome() {
 }
 
 const showKey = (s) => s.imdbId || s.firstTitleId;
+
+/**
+ * The episode after one somebody finished, when the library does not hold it: OK is Watch now, which
+ * fetches it into a room and goes there. The card is a link to the show, which is where it leads when
+ * it is opened any other way.
+ */
+function TvNextEpisode({ progress, art, label, focus }) {
+  const starting = React.useRef(false);
+  const start = async (e) => {
+    e.preventDefault();
+    if (starting.current) return;
+    starting.current = true;
+    const started = await watchNow({
+      imdbId: progress.showImdbId, episodes: [{ season: progress.episode.season, episode: progress.episode.number }],
+    });
+    if (!started) starting.current = false;
+  };
+  return <TvCard shape="wide" art={art} label={label} progress={0} {...linkProps(showPath(progress.showImdbId))} onClick={start} {...focus} />;
+}
+
 const count = (n, word) => `${n} ${n === 1 ? word : word + "s"}`;

@@ -9,7 +9,7 @@ import { useOnline } from "../connectivity.js";
 import { useDeviceLibrary } from "../offline/hooks.js";
 import { Off } from "./Offline.jsx";
 import { useDownloadMarks } from "../components/DownloadButton.jsx";
-import { ContinueCard, Empty, Failed, FilmCard, PosterArt, ShowCard, WatchButton, watchLink } from "../components/Film.jsx";
+import { ContinueCard, Empty, Failed, FilmCard, NextEpisodeCard, PosterArt, ShowCard, WatchButton, watchLink } from "../components/Film.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
 import { MoreTile } from "../components/TitleCards.jsx";
 import { BellButton } from "../components/Bell.jsx";
@@ -97,7 +97,9 @@ function ServerHome() {
   const shows = showList.data || [];
   // Watching now means somebody is there: an empty room is kept a while after the last person leaves.
   const watching = (rooms.data || []).filter((r) => r.titleId && r.participants > 0 && byId.has(r.titleId));
-  const continuing = (progress.data || []).filter((p) => byId.has(p.titleId));
+  // An episode the library does not hold yet comes with no title, and is fetched when chosen.
+  const continuing = (progress.data || []).filter((p) => (p.titleId ? byId.has(p.titleId) : p.episode && p.showImdbId));
+  const showOf = new Map(shows.filter((s) => s.imdbId).map((s) => [s.imdbId, s]));
   const isRecent = (at) => at && Date.now() - Date.parse(at) <= RECENT_DAYS * DAY_MS;
   const films = library.filter((t) => t.kind !== "show");
   const recent = [
@@ -132,8 +134,8 @@ function ServerHome() {
       {continuing.length > 0 && (
         <Rail
           variant="wide" icon="history" title="Continue watching" count={continuing.length}
-          items={continuing} itemKey={(p) => p.titleId}
-          renderItem={(p) => (
+          items={continuing} itemKey={continueKey}
+          renderItem={(p) => !p.titleId ? <NextEpisodeCard progress={p} show={showOf.get(p.showImdbId)} /> : (
             <ContinueCard
               title={byId.get(p.titleId)}
               progress={p}
@@ -237,6 +239,9 @@ function Featured({ title, room, eyebrow }) {
 const MORE = { more: true };
 
 const showKey = (s) => s.imdbId || s.firstTitleId;
+
+/** A Continue watching entry's key: its title, or for an episode not here yet the show and the episode. */
+export const continueKey = (p) => p.titleId || `${p.showImdbId}:${p.episode.season}:${p.episode.number}`;
 
 /**
  * `items` in an order fixed by `deal`: each is ranked by a hash of the deal and its key, so one deal

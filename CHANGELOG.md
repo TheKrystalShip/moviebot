@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.29.0] - 2026-10-07
+
+### Changed
+
+- **The next episode is in Continue watching whether or not the library holds it.** When the
+  episode after a finished one is not here, `GET /api/me/progress` lists it from the show's
+  description with no `titleId`, once it has aired and to somebody who may download: its name
+  (`episodeName`), still (`stillUrl`) and runtime. Its card on the site and on a television looks
+  like the others, and choosing it is Watch now, which fetches it into a room. Every episode entry
+  now carries `episodeName` and `stillUrl`. Api 2.13.0, Site 0.48.0.
+
 ## [2.28.0] - 2026-10-07
 
 ### Changed

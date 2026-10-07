@@ -41,7 +41,7 @@ public sealed class ContinueWatchingTests(SessionFixture fixture) : IClassFixtur
         var show = Show("cw-next");
         var listed = await Watch(fixture.CreatePersonClient("cw1"), ($"{show}-s01e02", Finished, 5));
 
-        var entry = Assert.Single(listed, e => e.TitleId.StartsWith(show));
+        var entry = Assert.Single(listed, e => e.ShowImdbId == $"tt-{show}");
         Assert.Equal($"{show}-s01e03", entry.TitleId);
         Assert.Equal(0, entry.PositionSeconds);
     }
@@ -52,7 +52,7 @@ public sealed class ContinueWatchingTests(SessionFixture fixture) : IClassFixtur
         var show = Show("cw-season");
         var listed = await Watch(fixture.CreatePersonClient("cw2"), ($"{show}-s01e03", Finished, 5));
 
-        Assert.Equal($"{show}-s02e01", Assert.Single(listed, e => e.TitleId.StartsWith(show)).TitleId);
+        Assert.Equal($"{show}-s02e01", Assert.Single(listed, e => e.ShowImdbId == $"tt-{show}").TitleId);
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class ContinueWatchingTests(SessionFixture fixture) : IClassFixtur
             ($"{show}-s01e01", 600, 60),
             ($"{show}-s01e03", 1200, 5));
 
-        var entry = Assert.Single(listed, e => e.TitleId.StartsWith(show));
+        var entry = Assert.Single(listed, e => e.ShowImdbId == $"tt-{show}");
         Assert.Equal($"{show}-s01e03", entry.TitleId);
         Assert.Equal(1200, entry.PositionSeconds);
     }
@@ -76,9 +76,77 @@ public sealed class ContinueWatchingTests(SessionFixture fixture) : IClassFixtur
             ($"{show}-s01e03", 900, 60),
             ($"{show}-s01e02", Finished, 5));
 
-        var entry = Assert.Single(listed, e => e.TitleId.StartsWith(show));
+        var entry = Assert.Single(listed, e => e.ShowImdbId == $"tt-{show}");
         Assert.Equal($"{show}-s01e03", entry.TitleId);
         Assert.Equal(900, entry.PositionSeconds);
+    }
+
+    /// <summary>
+    /// A show the film database has described: S1E1 and S1E2 in the library, S1E3 aired and not here,
+    /// S1E4 airing in a month.
+    /// </summary>
+    private string Described(string imdbId, string name)
+    {
+        fixture.AddEpisode($"{name}-s01e01", imdbId, name, 1, 1);
+        fixture.AddEpisode($"{name}-s01e02", imdbId, name, 1, 2);
+        var today = DateTime.UtcNow.Date;
+        var show = new Api.Shows.StoredShow
+        {
+            FetchedAt = DateTimeOffset.UtcNow,
+            Seasons =
+            [
+                new Acquire.Tmdb.SeasonDetails
+                {
+                    Number = 1,
+                    Episodes =
+                    [
+                        new() { Season = 1, Number = 1, AirDate = today.AddDays(-30).ToString("yyyy-MM-dd") },
+                        new() { Season = 1, Number = 2, AirDate = today.AddDays(-23).ToString("yyyy-MM-dd") },
+                        new() { Season = 1, Number = 3, Name = "Gone Fishing", RuntimeMinutes = 44, AirDate = today.AddDays(-16).ToString("yyyy-MM-dd") },
+                        new() { Season = 1, Number = 4, AirDate = today.AddDays(30).ToString("yyyy-MM-dd") },
+                    ],
+                },
+            ],
+        };
+        var directory = Path.Combine(fixture.StateRoot, "shows", imdbId);
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, "show.json"),
+            JsonSerializer.Serialize(show, Api.Shows.StoredShowJson.Default.StoredShow));
+        return name;
+    }
+
+    [Fact]
+    public async Task An_aired_next_episode_the_library_lacks_is_listed_to_fetch()
+    {
+        var show = Described("tt7700001", "cw-fetch");
+        var listed = await Watch(fixture.CreatePersonClient("cw6"), ($"{show}-s01e02", Finished, 5));
+
+        var entry = Assert.Single(listed, e => e.ShowImdbId == "tt7700001");
+        Assert.Null(entry.TitleId);
+        Assert.Equal(new Core.EpisodeIdentity { Season = 1, Number = 3 }, entry.Episode);
+        Assert.Equal("Gone Fishing", entry.EpisodeName);
+        Assert.Equal(44 * 60, entry.DurationSeconds);
+        Assert.Equal(0, entry.PositionSeconds);
+    }
+
+    [Fact]
+    public async Task A_next_episode_the_library_lacks_is_not_listed_to_somebody_who_may_not_fetch()
+    {
+        var show = Described("tt7700002", "cw-nofetch");
+        var listed = await Watch(fixture.CreatePersonClient("cw7", actions: ["cinema:watch", "cinema:profile.read", "cinema:profile.write"]),
+            ($"{show}-s01e02", Finished, 5));
+
+        Assert.DoesNotContain(listed, e => e.ShowImdbId == "tt7700002");
+    }
+
+    [Fact]
+    public async Task A_next_episode_that_has_not_aired_is_not_listed()
+    {
+        var show = Described("tt7700003", "cw-unaired");
+        fixture.AddEpisode($"{show}-s01e03", "tt7700003", show, 1, 3);
+        var listed = await Watch(fixture.CreatePersonClient("cw8"), ($"{show}-s01e03", Finished, 5));
+
+        Assert.DoesNotContain(listed, e => e.ShowImdbId == "tt7700003");
     }
 
     [Fact]
@@ -87,6 +155,6 @@ public sealed class ContinueWatchingTests(SessionFixture fixture) : IClassFixtur
         var show = Show("cw-done");
         var listed = await Watch(fixture.CreatePersonClient("cw5"), ($"{show}-s02e01", Finished, 5));
 
-        Assert.DoesNotContain(listed, e => e.TitleId.StartsWith(show));
+        Assert.DoesNotContain(listed, e => e.ShowImdbId == $"tt-{show}");
     }
 }
