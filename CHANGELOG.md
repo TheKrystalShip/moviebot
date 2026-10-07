@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.0] - 2026-10-07
+
+### Added
+
+- **The ingress records how every request travelled.** hotrod's nginx writes one JSON line per request
+  for `movies.thekrystalship.com` to `/var/log/nginx/moviebot-delivery.log`: the kernel's round-trip
+  time and its variance on the viewer's connection, the time the answer took and hotbox's share of it,
+  bytes sent and the cache's answer. The address is kept as its /24 or /48. A slow evening for one
+  viewer can be read back afterwards as slow on the route or slow on the server.
+- **The player reports playback with every request it makes** (CMCD, CTA-5004), in `CMCD-*` request
+  headers the delivery log records: buffer left, measured throughput, the rung playing, stalls, and a
+  session id random per playback. Site 0.50.0.
+
 ## [2.31.0] - 2026-10-07
 
 ### Fixed

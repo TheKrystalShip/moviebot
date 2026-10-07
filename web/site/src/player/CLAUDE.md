@@ -175,6 +175,10 @@ connection's token rather than from anything the page sends.
 - **Everything except the poster needs the token or the film's ticket, including anything CSS
   fetches.** A background image is fetched by the browser and carries no header of ours, so the preview
   sheet is fetched in code and drawn from a blob.
+- **Every request hls.js makes says how playback is going** (CMCD, CTA-5004): the buffer left, the
+  throughput measured, the rung playing, a stall, and a session id random per playback. It travels in
+  `CMCD-*` request headers, which the ingress writes to its delivery log (`deploy/CLAUDE.md`), never in
+  the query string, where it would split a segment's cache entry per viewer. It names no person.
 - **Only the chosen subtitle is fetched.** A rip carries dozens; loading them all to show one is a
   megabyte of nothing. It is attached hidden and the page draws its cues itself, sized against the
   frame: a cue the browser draws takes the operating system's caption settings and nothing this page

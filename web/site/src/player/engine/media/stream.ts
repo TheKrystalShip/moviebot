@@ -236,7 +236,13 @@ export class FilmStream {
           if (hasTicket(titleId)) return;
           const token = environment().authToken();
           if (token !== null) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        }
+        },
+        // Each request carries the player's own account of playback (CTA-5004): buffer left,
+        // measured throughput, the rung playing, a stall. The ingress logs it beside the route's
+        // round trip for the same request. Headers, not the query string: a segment's URL is its
+        // cache key, and a query that differs per viewer would give every viewer their own copy.
+        // The session id is hls.js's own, random per playback.
+        cmcd: { useHeaders: true, contentId: titleId }
       });
       this.hls = hls;
       hls.on(Hls.Events.ERROR, (_event, data) => this.onHlsError(data));

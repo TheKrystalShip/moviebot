@@ -141,6 +141,22 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
   the cache key, so a response kept from a request carrying one would be handed to the next request
   for that URL whether or not it proved anything. Segments have their own location because caching
   needs buffering on and a growing playlist needs it off.
+- **The ingress keeps a delivery log, `/var/log/nginx/moviebot-delivery.log` on hotrod**, one JSON
+  line per request: the kernel's round-trip time and its variance on the viewer's connection, the
+  time the whole answer took and how much of it was hotbox's, bytes sent, the cache's answer, and the
+  player's `CMCD-*` headers. Because hotrod faces the internet, the round trip is a measurement of the
+  route to the viewer, taken all the time, so a complaint about a slow evening can be checked against
+  that evening. The address is kept as its /24 or /48 and nothing else about the viewer is. A viewing
+  is one `sid` in `cmcd_session`:
+
+  ```bash
+  jq -c 'select(.cmcd_session | contains("<sid>"))
+         | {time, uri, request_time, upstream_response, rtt_us, rttvar_us, cmcd_status, cmcd_request}' \
+     /var/log/nginx/moviebot-delivery.log
+  ```
+
+  A slow request with a long `request_time` and a short `upstream_response` was slow on the route; a
+  long `upstream_response` was slow on hotbox. `bs` in `cmcd_status` marks the request after a stall.
 - **A 502 in the second after an nginx reload is usually the old worker.** A reload lets the workers
   already running drain rather than killing them, so both configurations answer for a moment. The
   error log names the upstream it tried, which is what tells a stale worker apart from a real
