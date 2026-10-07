@@ -685,7 +685,11 @@ id), absent when nobody has; `byName` is absent when that person's name was neve
 
 `resume` is the latest episode the person watched if they did not finish it, else the one after it
 when the library holds it; absent otherwise. Seasons are the database's numbered ones and any the
-library holds that it does not list; specials are left out.
+library holds that it does not list; specials are left out. Episodes are numbered as the show's
+releases number them, which is how the library, the tracker and every route that takes a season and
+an episode number them too: where the film database numbers a season differently, its names, stills,
+dates and airing episodes are put into the releases' numbering, and an episode it lists that no
+release counts is a special.
 
 A cast member's `personId` and the ids in `personIds` are the film database's own for those people,
 what `/api/catalogue/people/{personId}` takes. A kept description whose cast carries no id is asked of

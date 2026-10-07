@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.0] - 2026-10-07
+
+### Fixed
+
+- **A show's episodes are named as their releases number them.** The film database sometimes numbers
+  a season differently from every release of it: Superstore's second season opens there with a
+  promotion, Olympics, which releases count as a special, so every name, still, score and date in that
+  season was one episode off, a show page's row played the episode after the one it named, and the
+  season ended one episode late. The API now matches the episode names release and file names carry
+  against the database's, season by season, and serves every description in the releases' numbering;
+  an episode only the database counts is a special. Api 2.15.0.
+
 ## [2.30.1] - 2026-10-07
 
 ### Fixed

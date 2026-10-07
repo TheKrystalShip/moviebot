@@ -60,6 +60,16 @@ film onto a device is `Offline/CLAUDE.md`.
   A show is kept the same way by `Shows/ShowStore` under `shows/`, its description and every season's
   episodes asked for together with their stills, and served at `/shows/{imdbId}/…`; the warmer keeps
   every show the library holds described. An episode's show is never asked of the film side.
+- **An episode is numbered as its release numbers it, everywhere** (`Shows/EpisodeNumbering`). The
+  tracker, the torrent's files, the library and the subtitle index agree on it; the film database
+  sometimes does not, most often by counting a special or a promotion as a season's first episode.
+  `ShowStore` hands out every description already put into the releases' numbering, so no reader
+  translates. The evidence is the episode names release and file names carry after their marker,
+  from the library and from the show's torrents in the client (`EpisodeNumberingWarmer`, every ten
+  minutes): each name matching the database's episode of the same name in that season anchors the
+  two, and the offset holds until the next anchor. A database episode before the first release
+  episode is a special and leaves the season. A still is asked for by the release's numbering and
+  resolved to the database's file. A season with no names to match keeps the database's numbering.
   `Films/PopularNow` keeps the week's trending films and shows under `popular/`, the list and one
   poster per entry and nothing more, asked for every six hours and served at `/api/popular` and
   `/popular/{imdbId}.jpg`; an entry's page asks for the rest of it when it is opened.

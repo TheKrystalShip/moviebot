@@ -37,6 +37,7 @@ public sealed class ShowStore(
     string root,
     IOptions<FilmStoreOptions> options,
     IServiceScopeFactory scopes,
+    EpisodeNumbering numbering,
     TimeProvider clock,
     ILogger<ShowStore> logger)
 {
@@ -54,8 +55,14 @@ public sealed class ShowStore(
     public static string Still(int season, int episode) =>
         string.Create(System.Globalization.CultureInfo.InvariantCulture, $"s{season:00}e{episode:00}.jpg");
 
-    /// <summary>What is kept for a show, without asking: what a listing shows. Null when nothing is kept.</summary>
-    public StoredShow? Held(string imdbId)
+    /// <summary>
+    /// What is kept for a show, without asking: what a listing shows, its episodes numbered as the
+    /// show's releases number them (<see cref="EpisodeNumbering"/>). Null when nothing is kept.
+    /// </summary>
+    public StoredShow? Held(string imdbId) => Kept(imdbId) is { } kept ? numbering.Apply(imdbId, kept) : null;
+
+    /// <summary>What is kept for a show, as the film database numbers it.</summary>
+    private StoredShow? Kept(string imdbId)
     {
         if (!FilmStore.IsImdbId(imdbId)) return null;
         if (_held.TryGetValue(imdbId, out var held)) return held;
@@ -72,13 +79,14 @@ public sealed class ShowStore(
     public async Task<StoredShow?> GetAsync(string imdbId, CancellationToken ct, TimeSpan? maxAge = null)
     {
         if (!FilmStore.IsImdbId(imdbId)) return null;
-        var held = Held(imdbId);
-        if (held is not null && !(maxAge is { } age ? clock.GetUtcNow() - held.FetchedAt > age : IsDue(held))) return held;
+        var held = Kept(imdbId);
+        if (held is not null && !(maxAge is { } age ? clock.GetUtcNow() - held.FetchedAt > age : IsDue(held)))
+            return numbering.Apply(imdbId, held);
 
         var asking = _asking.GetOrAdd(imdbId, id => FetchAsync(id, held));
         try
         {
-            return await asking.WaitAsync(ct);
+            return await asking.WaitAsync(ct) is { } got ? numbering.Apply(imdbId, got) : null;
         }
         finally
         {
@@ -94,15 +102,19 @@ public sealed class ShowStore(
         clock.GetUtcNow() - show.FetchedAt > TimeSpan.FromDays(Math.Max(1, options.Value.RefreshDays))
         || show.Details is { Cast: [{ TmdbId: null }, ..] };
 
-    /// <summary>The kept image a request names, or null for anything that is not one.</summary>
+    /// <summary>
+    /// The kept image a request names, or null for anything that is not one. A still is named by the
+    /// episode as its release numbers it, and is the film database's still for that episode.
+    /// </summary>
     public string? ImageFile(string imdbId, string file)
     {
         if (!FilmStore.IsImdbId(imdbId) || !IsImageName(file)) return null;
-        var path = Path.Combine(root, imdbId, file);
+        var path = Path.Combine(root, imdbId, numbering.StillFile(imdbId, Kept(imdbId), file));
         return File.Exists(path) ? path : null;
     }
 
-    public bool HasImage(string imdbId, string file) => File.Exists(Path.Combine(root, imdbId, file));
+    public bool HasImage(string imdbId, string file) =>
+        File.Exists(Path.Combine(root, imdbId, numbering.StillFile(imdbId, Kept(imdbId), file)));
 
     private async Task<StoredShow?> FetchAsync(string imdbId, StoredShow? held)
     {

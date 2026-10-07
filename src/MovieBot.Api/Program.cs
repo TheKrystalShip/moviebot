@@ -106,10 +106,13 @@ builder.Services.AddSingleton(sp => new FilmStore(
     sp.GetRequiredService<IServiceScopeFactory>(),
     TimeProvider.System,
     sp.GetRequiredService<ILogger<FilmStore>>()));
+builder.Services.AddSingleton<EpisodeNumbering>();
+builder.Services.AddHostedService<EpisodeNumberingWarmer>();
 builder.Services.AddSingleton(sp => new ShowStore(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.ShowsDirectory, "shows"),
     sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<EpisodeNumbering>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<ShowStore>>()));
 builder.Services.AddSingleton(sp => new TitleGlances(

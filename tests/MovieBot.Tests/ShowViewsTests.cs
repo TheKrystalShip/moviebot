@@ -63,7 +63,7 @@ public sealed class ShowViewsTests(SessionFixture fixture) : IClassFixture<Sessi
     public void A_shelf_lists_a_show_once_however_many_episodes_it_holds()
     {
         var store = new ShowStore(Path.Combine(Path.GetTempPath(), "moviebot-shows-" + Guid.NewGuid().ToString("n")),
-            Microsoft.Extensions.Options.Options.Create(new Api.Films.FilmStoreOptions()), null!, TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new Api.Films.FilmStoreOptions()), null!, new EpisodeNumbering(), TimeProvider.System,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<ShowStore>.Instance);
 
         var shows = store.Summaries([Episode(2, 1), Episode(1, 2), Episode(1, 1), Episode(1, 1, show: "tt5875444") with { Id = "slow-horses-s01e01" }]);
@@ -79,7 +79,7 @@ public sealed class ShowViewsTests(SessionFixture fixture) : IClassFixture<Sessi
     public void A_page_holds_every_season_the_library_has_even_one_the_database_does_not_list()
     {
         var store = new ShowStore(Path.Combine(Path.GetTempPath(), "moviebot-shows-" + Guid.NewGuid().ToString("n")),
-            Microsoft.Extensions.Options.Options.Create(new Api.Films.FilmStoreOptions()), null!, TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(new Api.Films.FilmStoreOptions()), null!, new EpisodeNumbering(), TimeProvider.System,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<ShowStore>.Instance);
         var stored = new StoredShow
         {
