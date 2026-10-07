@@ -23,6 +23,16 @@ door and miss the other.
   as the wanted rung heights per room (`WantedHeights`, `WantedByRoom`). A viewer who has said
   nothing wants the tallest rung of the room's film. It is dropped when the connection leaves, and no
   state, push or broadcast carries it.
+- **A room is held only while every player in it is waiting for the film** (`SessionStore.Hold`).
+  One slow connection never stops the film for the others. A room nobody can play would otherwise
+  run on for nobody, and each player, once it has the film again, would be told the room is somewhere
+  it has not fetched, seek there, and stall again. Each player reports where its playhead stopped
+  (`Buffering`), and the room is held at the furthest behind of them, never ahead of where it had got
+  to: a player put back seeks into what it already holds. The held state is playing with `Waiting`
+  set, so its position does not advance, and names no actor. It is let go, from the same place, when
+  one player plays, somebody arrives, or the waiting are left alone by somebody leaving; a change
+  somebody makes to a held room leaves it held from wherever that put it. `RoomControls.HoldAsync` is
+  the push, and the log says when a room was held and let go.
 - **`SeekClamped` reaches the caller alone.** Broadcasting it would show the whole room an error
   nobody else triggered. Down the hub that is a message to the caller; over HTTP it rides in the
   response body, because the caller that asked is the one thing a broadcast cannot reach.

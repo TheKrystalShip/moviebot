@@ -135,14 +135,94 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
         await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
 
         var sawWaiting = Next<List<Participant>>(alice, "ParticipantsChanged");
-        await bob.InvokeAsync("Buffering", true);
+        await bob.InvokeAsync("Buffering", true, 0.0);
         var waiting = await sawWaiting;
         Assert.True(waiting.Single(p => p.DisplayName == "Bob").Buffering);
         Assert.False(waiting.Single(p => p.DisplayName == "Alice").Buffering);
 
         var sawPlaying = Next<List<Participant>>(alice, "ParticipantsChanged");
-        await bob.InvokeAsync("Buffering", false);
+        await bob.InvokeAsync("Buffering", false, 0.0);
         Assert.All(await sawPlaying, p => Assert.False(p.Buffering));
+    }
+
+    [Fact]
+    public async Task One_viewer_waiting_does_not_hold_the_others()
+    {
+        var session = NewSession();
+        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
+        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
+        await alice.InvokeAsync<SessionStatePush>("Play", 100.0);
+
+        await bob.InvokeAsync("Buffering", true, 95.0);
+        var state = (await alice.InvokeAsync<SessionStatePush>("Join", session)).State;
+
+        Assert.False(state.Waiting);
+        Assert.False(state.Paused);
+    }
+
+    [Fact]
+    public async Task A_room_whose_every_player_waits_is_held_where_it_stopped_and_let_go_when_one_plays()
+    {
+        var session = NewSession();
+        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
+        var playing = (await alice.InvokeAsync<SessionStatePush>("Play", 100.0)).State;
+
+        var sawHold = NextPush(alice, "StateChanged");
+        await alice.InvokeAsync("Buffering", true, 99.5);
+        var held = (await sawHold).State;
+
+        Assert.True(held.Waiting);
+        Assert.False(held.Paused);
+        Assert.Null(held.UpdatedBy);
+        Assert.True(held.Revision > playing.Revision);
+        // Where the player stopped, which is behind where the room had got to.
+        Assert.Equal(99.5, held.PositionSeconds, 3);
+        Assert.Equal(99.5, held.PositionAt(held.AnchorUtc.AddMinutes(5)), 3);
+
+        var sawGo = NextPush(alice, "StateChanged");
+        await alice.InvokeAsync("Buffering", false, 99.5);
+        var going = (await sawGo).State;
+
+        Assert.False(going.Waiting);
+        Assert.False(going.Paused);
+        Assert.Equal(99.5, going.PositionSeconds, 3);
+        Assert.Equal(109.5, going.PositionAt(going.AnchorUtc.AddSeconds(10)), 3);
+    }
+
+    [Fact]
+    public async Task A_held_room_is_let_go_when_somebody_arrives_who_is_not_waiting()
+    {
+        var session = NewSession();
+        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
+        await alice.InvokeAsync<SessionStatePush>("Play", 100.0);
+        var sawHold = NextPush(alice, "StateChanged");
+        await alice.InvokeAsync("Buffering", true, 100.0);
+        Assert.True((await sawHold).State.Waiting);
+
+        var sawGo = NextPush(alice, "StateChanged");
+        await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
+
+        Assert.False((await sawGo).State.Waiting);
+    }
+
+    [Fact]
+    public async Task A_held_room_stays_held_through_a_seek_while_its_players_still_wait()
+    {
+        var session = NewSession();
+        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
+        await alice.InvokeAsync<SessionStatePush>("Play", 100.0);
+        var sawHold = NextPush(alice, "StateChanged");
+        await alice.InvokeAsync("Buffering", true, 100.0);
+        await sawHold;
+
+        var sought = (await alice.InvokeAsync<SessionStatePush>("Seek", 200.0)).State;
+
+        Assert.True(sought.Waiting);
+        Assert.Equal(200.0, sought.PositionAt(sought.AnchorUtc.AddSeconds(30)), 3);
     }
 
     [Fact]

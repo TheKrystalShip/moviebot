@@ -233,6 +233,8 @@ export interface SessionState {
   audioHead?: number;
   /** The film the room waits on while it is fetched for a Watch now. Absent once it is in the room. */
   preparing?: RoomPreparing;
+  /** Every player in the room is waiting for the film: playing, held where it is, its clock still. */
+  waiting?: boolean;
 }
 
 /** One rung's reach, by the height the master playlist advertises it at. */

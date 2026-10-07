@@ -44,7 +44,13 @@ connection's token rather than from anything the page sends.
   film takes a round trip, and "nothing playing" said while it is in the air tells everybody arriving
   to a film that there isn't one.
 - **The spinner waits before it appears.** A stall shorter than a moment is a stutter. The same grace
-  decides when this viewer is reported to the room as waiting, which is the mark on their avatar.
+  decides when this viewer is reported to the room as waiting, with where the playhead stopped, which
+  is the mark on their avatar.
+- **A room every player is waiting in is held where they stopped** (`waiting` in the room's state).
+  The server holds it, its clock still, at the furthest-behind playhead reported, and lets it go when
+  one plays again, so a stall ends where it began, on what this player has already fetched. A player handed a held room while it is itself
+  playing says so again, since the room stays held for as long as that goes unsaid. One viewer
+  waiting among others who are playing holds nobody.
 
 - **The room holds one thing, and the player draws what the room's state says it is.** That is a
   title, or something arriving (`preparing`, an episode by its season and number), never both: the
@@ -144,11 +150,15 @@ connection's token rather than from anything the page sends.
   Discord's iframe it is not given to an Activity, and the player already fills the frame there.
 - **Quality is offered only where there is a choice.** A film with one rung has nothing to choose
   between, and where the browser plays HLS itself it chooses for itself and says nothing about it.
+- **A chosen quality is the best the film may play at, never a rung it is held on.** hls.js chooses
+  for the connection beneath it, so a connection that cannot carry the chosen rung steps down rather
+  than stopping the film; the menu names the choice and, while playback is beneath it, the rung
+  playing. Auto is no ceiling at all. Only a film played from the device is held on one rung.
 
 ## Quality while a film is still being written (`engine/media/heads.ts`, `stream.ts`)
 
 - **The player stays on rungs written past the playhead.** While a title transcodes, its manifest
-  gives each rung's head. hls.js is capped, for its own choice and for a rung the viewer holds, to the
+  gives each rung's head. hls.js is capped, for its own choice and for the rung a saved film holds, to the
   rungs whose head is at least `CapMarginSeconds` past the playhead, and the cap rises as a rung
   catches up. A rung the playhead has outrun is left for one that covers it before the buffer runs
   dry: switching to a rung behind the playhead stalls the film until that rung arrives. When no rung
@@ -158,8 +168,8 @@ connection's token rather than from anything the page sends.
   broadcast. The player tells the server which rung it plays and which rung it wants, when either
   changes and on a slow heartbeat, over the hub connection it already holds (`ReportQuality`). In Auto
   the wanted rung is the one hls.js's own choice would pick with nothing holding it back (its bandwidth
-  estimate against the advertised bitrates); a viewer who holds a rung wants no more than it, so it is
-  the lower of that rung and the connection's pick.
+  estimate against the advertised bitrates); a viewer who chose a quality wants no more than it, so it
+  is the lower of that rung and the connection's pick.
   The server keeps it per connection, in memory, for its own planning. A browser that plays HLS itself
   reports nothing and is taken to want the tallest rung. Segment requests cannot say this: a shared
   cache answers a whole room from one fetch.

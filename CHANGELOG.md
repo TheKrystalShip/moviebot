@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.0] - 2026-10-07
+
+### Changed
+
+- **A room in which every player is waiting for the film is held where they stopped.** A viewer
+  alone on a slow connection stalled, the room's clock ran on without them, and when the film
+  arrived the player caught up by seeking ahead into what it had not fetched, stalling again: the
+  film skipped forward after every stall and buffered more for it. Each player now says where its
+  playhead stopped, and the server holds the room there, still playing with its clock stopped, while
+  every player in it waits, letting it go from the same place when one plays again. One viewer
+  waiting among others who are playing still holds nobody. The room's state carries `waiting`, and
+  the hub's `Buffering` takes the playhead's position. Api 2.16.0, Core 4.3.0.
+- **A chosen quality is the best a film may play at rather than the rung it is held on.** A viewer
+  with 720p saved was held at 720p however little the connection carried; the player now chooses
+  for the connection beneath the chosen rung, and the quality menu names the rung playing while it is
+  beneath the choice. Site 0.51.0.
+
 ## [2.32.0] - 2026-10-07
 
 ### Added

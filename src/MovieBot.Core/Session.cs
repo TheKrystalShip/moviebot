@@ -77,12 +77,20 @@ public sealed record SessionState
     public RoomPreparing? Preparing { get; init; }
 
     /// <summary>
+    /// Every player in the room is waiting for the film, so the room is held where the furthest
+    /// behind of them stopped: playing, with a clock that does not run. Nobody watching is left
+    /// behind by a timeline nobody can see, and the first player to have the film again starts it
+    /// for the room. The server sets and clears it; no person does.
+    /// </summary>
+    public bool Waiting { get; init; }
+
+    /// <summary>
     /// Where the film is now. Derived from the anchor rather than transmitted, so a client that
     /// missed a push for ten seconds still computes the right answer.
     /// </summary>
     public double PositionAt(DateTimeOffset now)
     {
-        if (Paused) return PositionSeconds;
+        if (Paused || Waiting) return PositionSeconds;
         var elapsed = (now - AnchorUtc).TotalSeconds * Rate;
         return Math.Max(0, PositionSeconds + elapsed);
     }

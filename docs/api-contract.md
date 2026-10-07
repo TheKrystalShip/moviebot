@@ -62,7 +62,7 @@ so reopening it rejoins the room wherever it is.
 {
   "subtitleLanguage": "es",   // the subtitle language to start on when the film carries it; absent for none
   "audioLanguage": "en",      // the audio language to start on when the film carries it; absent for the film's own
-  "qualityHeight": 720,       // the rung to hold the film at; absent to let the connection decide
+  "qualityHeight": 720,       // the best rung the film may play at, the connection deciding beneath it; absent for no ceiling
   "offlineQualityHeight": 480, // the rung Save offline picks: the widest no wider than this height at 16:9; absent for the device's own pick
   "skipIntros": true,         // skip an intro or recap on its own when this person is alone in the room; false when never set
   "subtitleStyle": {          // how subtitles are drawn; absent, like any field of it, for the player's own look
@@ -724,7 +724,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `Pause` | `(atSeconds) → SessionStatePush` | |
 | `Seek` | `(toSeconds) → SessionStatePush` | may be clamped |
 | `ServerTime` | `() → DateTimeOffset` | for clock-offset estimation |
-| `Buffering` | `(waiting: bool)` | this viewer's player has been waiting for the film past a stutter, or is playing again. Moves nothing; the roster carries it |
+| `Buffering` | `(waiting: bool, atSeconds: double)` | this viewer's player has been waiting for the film past a stutter, stopped at `atSeconds`, or is playing again. The roster carries it; when every player in the room is waiting the room is held (`waiting` in the state) where the furthest behind of them stopped, and let go when one plays, somebody arrives, or a waiting one leaves |
 | `ReportQuality` | `(playingHeight: int?, wantedHeight: int?)` | the rung height this viewer plays, and the one its own adaptive choice would pick with nothing holding it back; on change and about every 30 s. Answers nothing and is sent to nobody: the server keeps it per connection for its transcode planner and drops it when the connection leaves. A player that cannot say (native HLS) sends nothing, and is taken to want the tallest rung |
 
 **Receive:**
@@ -754,7 +754,8 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
       { "height": 1080, "seconds": 300.0 },
       { "height": 720, "seconds": 900.0 }
     ],
-    "audioHead": 1000.0            // absent unless the manifest tracks audio apart
+    "audioHead": 1000.0,           // absent unless the manifest tracks audio apart
+    "waiting": false               // every player in the room is waiting for the film: held, its clock still; set by the server, with no updatedBy
   },
   "serverTime": "2026-09-01T18:22:07.456+00:00"
 }
@@ -772,7 +773,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
    A state handed back by `Join` is an answer to "where is the room", not a broadcast that might
    have overtaken another, so apply it whatever revision it carries.
 2. **Derive the position, never read a ticking number.**
-   `paused ? positionSeconds : positionSeconds + (serverNow - anchorUtc) * rate`, where
+   `paused || waiting ? positionSeconds : positionSeconds + (serverNow - anchorUtc) * rate`, where
    `serverNow` is local time corrected by the offset learned from `serverTime`. A client that
    missed ten seconds of pushes still computes the right answer.
 3. **Suppress echoes by comparison, not by counting.** Applying remote state moves the playhead
@@ -796,8 +797,12 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 7. **Clamp a derived position to the film.** A room left playing derives a position that keeps
    growing; the film does not, and a seek past the end of a media element never completes — which
    blocks every seek after it.
-8. **A buffering viewer must not pause the room.** A stalled client falls behind and resyncs
-   itself. "Wait for me" is a button a person presses, never automatic.
+8. **A buffering viewer never holds anybody else.** A stalled client falls behind and resyncs
+   itself; one person's slow connection does not stop the film for the room. Only a room in which
+   every player is waiting is held, by the server, at the playhead the furthest behind reported,
+   since a timeline nobody can follow only sends each player, once it has the film again, to a
+   place it has not fetched. Report where the playhead stopped, and say so again if a held room
+   reaches a player that is playing.
 
 ## Shared versus local
 

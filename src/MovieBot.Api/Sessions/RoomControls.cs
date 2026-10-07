@@ -75,6 +75,22 @@ public sealed class RoomControls(
         await hub.Clients.Group(sessionId).SendAsync("StateChanged",
             new SessionStatePush { State = result.State, ServerTime = DateTimeOffset.UtcNow }, ct);
     }
+
+    /// <summary>
+    /// Holds the room or lets it go after who is in it, or who of them is waiting, changed
+    /// (<see cref="SessionStore.Hold"/>), and pushes that to everybody in it. Nobody asked for this
+    /// either; it is logged so a room that stopped on its own can be told apart from one somebody
+    /// paused.
+    /// </summary>
+    public async Task HoldAsync(string sessionId, CancellationToken ct = default)
+    {
+        if (sessions.Hold(sessionId) is not { } state) return;
+        logger.LogInformation(
+            "Session {SessionId} {Held} at {Position:0.00}s -> revision {Revision}",
+            sessionId, state.Waiting ? "held for its players" : "let go", state.PositionSeconds, state.Revision);
+        await hub.Clients.Group(sessionId).SendAsync("StateChanged",
+            new SessionStatePush { State = state, ServerTime = DateTimeOffset.UtcNow }, ct);
+    }
 }
 
 /// <summary>

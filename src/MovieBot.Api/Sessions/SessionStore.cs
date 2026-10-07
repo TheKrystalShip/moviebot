@@ -61,6 +61,9 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         public SessionState State = null!;
         public readonly ConcurrentDictionary<string, Participant> Participants = new();
 
+        /// <summary>Where each waiting connection's playhead stopped, by connection.</summary>
+        public readonly ConcurrentDictionary<string, double> WaitingAt = new();
+
         /// <summary>When somebody last did something here. Opening the room to look does not count.</summary>
         public DateTimeOffset LastActivityUtc;
     }
@@ -317,6 +320,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     public IReadOnlyList<Participant> Leave(string sessionId, string connectionId)
     {
         if (!_sessions.TryGetValue(sessionId, out var entry)) return new List<Participant>();
+        entry.WaitingAt.TryRemove(connectionId, out _);
         if (entry.Participants.TryRemove(connectionId, out var leaving))
             lock (entry.Gate) EndSpan(entry, [leaving]);
         // The clock on an empty room starts when the last person leaves it.
@@ -327,16 +331,72 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     }
 
     /// <summary>
-    /// Records whether one connection's player is waiting for the film. Answers the roster when that
-    /// changed anything, and null when it did not, so a player repeating itself is not broadcast.
+    /// Records whether one connection's player is waiting for the film, and where its playhead
+    /// stopped. Answers the roster when that changed anything, and null when it did not, so a player
+    /// repeating itself is not broadcast.
     /// </summary>
-    public IReadOnlyList<Participant>? SetBuffering(string sessionId, string connectionId, bool buffering)
+    public IReadOnlyList<Participant>? SetBuffering(string sessionId, string connectionId, bool buffering, double atSeconds)
     {
         if (!_sessions.TryGetValue(sessionId, out var entry)) return null;
-        if (!entry.Participants.TryGetValue(connectionId, out var participant) || participant.Buffering == buffering) return null;
+        if (!entry.Participants.TryGetValue(connectionId, out var participant)) return null;
+        if (buffering) entry.WaitingAt[connectionId] = atSeconds;
+        else entry.WaitingAt.TryRemove(connectionId, out _);
+        if (participant.Buffering == buffering) return null;
         entry.Participants[connectionId] = participant with { Buffering = buffering };
         return entry.Participants.Values.ToList();
     }
+
+    /// <summary>
+    /// Holds a playing room while every player in it is waiting for the film, and lets it go the
+    /// moment one is not. Answers the new state when that changed the room, and null when it did not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Only when every player waits.</b> One viewer on a slow connection never stops the film for
+    /// the rest of the room; they fall behind and catch up. A room in which nobody can play is a
+    /// different thing: its timeline runs on for nobody, and the moment a player has the film again
+    /// it is told the room is somewhere it has not fetched, seeks there, and stalls again.
+    /// </para>
+    /// <para>
+    /// <b>Held where the furthest-behind player stopped</b>, never ahead of where the room is. A
+    /// player put back a few seconds seeks into what it already holds; one put forward seeks into
+    /// what it has not fetched, which is the stall the hold exists to end.
+    /// </para>
+    /// <para>
+    /// Nobody did this, so the state names no actor and no player announces it, and the revision
+    /// moves so every player applies it.
+    /// </para>
+    /// </remarks>
+    public SessionState? Hold(string sessionId)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return null;
+        lock (entry.Gate)
+        {
+            var waiting = EveryoneWaiting(entry);
+            if (entry.State.Waiting == waiting) return null;
+
+            var now = clock.GetUtcNow();
+            var at = entry.State.PositionAt(now);
+            if (waiting && !entry.WaitingAt.IsEmpty) at = Math.Min(at, Math.Max(0, entry.WaitingAt.Values.Min()));
+
+            EndSpan(entry, Viewers(entry));
+            entry.LastActivityUtc = now;
+            Changed?.Invoke();
+            entry.State = entry.State with
+            {
+                Revision = entry.State.Revision + 1,
+                UpdatedBy = null,
+                Waiting = waiting,
+                PositionSeconds = at,
+                AnchorUtc = now
+            };
+            return WithCurrentHead(entry.State);
+        }
+    }
+
+    /// <summary>Somebody is in the room and every one of their players is waiting for the film.</summary>
+    private static bool EveryoneWaiting(SessionEntry entry) =>
+        !entry.Participants.IsEmpty && entry.Participants.Values.All(p => p.Buffering);
 
     public IReadOnlyList<Participant> Participants(string sessionId) =>
         _sessions.TryGetValue(sessionId, out var entry) ? entry.Participants.Values.ToList() : new List<Participant>();
@@ -354,7 +414,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     private void EndSpan(SessionEntry entry, IReadOnlyList<Participant> viewers)
     {
         var state = entry.State;
-        if (state.Paused || state.TitleId is not { } titleId || viewers.Count == 0) return;
+        if (state.Paused || state.Waiting || state.TitleId is not { } titleId || viewers.Count == 0) return;
         var now = clock.GetUtcNow();
         Watched?.Invoke(new WatchedSpan(titleId, state.PositionAt(now), viewers, now));
     }
@@ -365,14 +425,22 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         return _sessions[sessionId];
     }
 
-    /// <summary>Stamps the next revision and who caused it. Every mutation goes through here.</summary>
+    /// <summary>
+    /// Stamps the next revision and who caused it. Every mutation goes through here. A room whose
+    /// players are all waiting stays held through whatever somebody does to it, from wherever that
+    /// put it (<see cref="Hold"/>).
+    /// </summary>
     private SessionState Advance(SessionState state, Actor actor)
     {
+        var waiting = false;
         if (_sessions.TryGetValue(state.SessionId, out var entry))
+        {
             entry.LastActivityUtc = clock.GetUtcNow();
+            waiting = EveryoneWaiting(entry);
+        }
 
         Changed?.Invoke();
-        return state with { Revision = state.Revision + 1, UpdatedBy = actor };
+        return state with { Revision = state.Revision + 1, UpdatedBy = actor, Waiting = waiting };
     }
 
     /// <summary>How busy each room with somebody in it is. No names: this is read by open routes.</summary>

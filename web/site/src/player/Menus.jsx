@@ -41,7 +41,11 @@ export function subtitleValue(view) {
 }
 
 export function qualityValue(view) {
-  if (view.quality !== null) return `${view.quality}p`;
+  if (view.quality !== null) {
+    return view.playingHeight !== null && view.playingHeight < view.quality
+      ? `Up to ${view.quality}p · ${view.playingHeight}p`
+      : `${view.quality}p`;
+  }
   return view.playingHeight !== null ? `Auto · ${view.playingHeight}p` : "Auto";
 }
 

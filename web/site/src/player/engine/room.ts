@@ -187,7 +187,7 @@ export class PlayerRoom {
       },
       onStall: (waiting) => {
         this.set({ stalled: waiting });
-        void this.hub?.buffering(waiting);
+        void this.hub?.buffering(waiting, video.currentTime);
       },
       onThumbnails: (strip, url) => this.set({ thumbnails: strip !== null && url !== null ? { strip, url } : null }),
       onSubtitleTrack: (track) => this.set({ subtitleTrack: track }),
@@ -430,6 +430,12 @@ export class PlayerRoom {
     this.set({ state, actor: describeChange(state, previous) });
     void this.showPresence();
 
+    // A room held for its players while this one is playing has not heard it say so, and would
+    // stay held for as long as it went unsaid.
+    if (state.waiting === true && this.view.ready && !this.view.stalled) {
+      void this.hub?.buffering(false, this.video.currentTime);
+    }
+
     // Normalised first: a room holding no film leaves the field out of the state altogether, so
     // what arrives is undefined and never the null it is compared against.
     const titleId = state.titleId ?? null;
@@ -566,7 +572,8 @@ export class PlayerRoom {
       titleId: manifest.id,
       filmName: manifest.film?.name ?? manifest.title,
       durationSeconds: manifest.durationSeconds,
-      paused: state.paused,
+      // A room held for its players has a clock that does not run, and the bar is that clock.
+      paused: state.paused || state.waiting === true,
       positionSeconds: this.roomPosition(),
       others: Math.max(0, participants.filter((p) => p.userId !== identity.userId).length),
       poster: manifest.poster ?? null

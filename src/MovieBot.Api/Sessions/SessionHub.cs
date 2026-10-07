@@ -51,6 +51,8 @@ public sealed class SessionHub(
             "{DisplayName} joined session {SessionId} (connection {Connection}, {Count} in the room)",
             actor.DisplayName, sessionId, Context.ConnectionId[..6], participants.Count);
 
+        // Somebody arriving is somebody not waiting, so a room held for its players goes on.
+        await controls.HoldAsync(sessionId);
         return Push(sessions.GetOrCreate(sessionId));
     }
 
@@ -95,13 +97,15 @@ public sealed class SessionHub(
         Mutate("seek", actor => sessions.Seek(SessionId(), toSeconds, actor));
 
     /// <summary>
-    /// Says whether this viewer's player is waiting for the film. It moves nothing: the room is told
-    /// who it is waiting on, and the timeline stays the server's.
+    /// Says whether this viewer's player is waiting for the film, and where its playhead stopped.
+    /// The room is told who it is waiting on, and the timeline moves only when every player in the
+    /// room is waiting, which holds it (<see cref="SessionStore.Hold"/>).
     /// </summary>
-    public async Task Buffering(bool waiting)
+    public async Task Buffering(bool waiting, double atSeconds)
     {
-        if (sessions.SetBuffering(SessionId(), Context.ConnectionId, waiting) is { } participants)
+        if (sessions.SetBuffering(SessionId(), Context.ConnectionId, waiting, atSeconds) is { } participants)
             await Clients.Group(SessionId()).SendAsync("ParticipantsChanged", participants);
+        await controls.HoldAsync(SessionId());
     }
 
     /// <summary>
@@ -134,6 +138,7 @@ public sealed class SessionHub(
                 exception is null ? "" : $": {exception.Message}");
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, sessionId);
             await Clients.Group(sessionId).SendAsync("ParticipantsChanged", participants);
+            await controls.HoldAsync(sessionId);
         }
 
         await base.OnDisconnectedAsync(exception);

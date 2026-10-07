@@ -5,10 +5,11 @@ import { ServerClock } from './clock';
 
 /**
  * Where the room is now, derived from the anchor rather than read as a ticking number. A client
- * that missed ten seconds of pushes still computes the right answer.
+ * that missed ten seconds of pushes still computes the right answer. A room held for its players
+ * stays where it was held.
  */
 export function derivePosition(state: SessionState, serverNowMs: number): number {
-  if (state.paused) return state.positionSeconds;
+  if (state.paused || state.waiting === true) return state.positionSeconds;
   const elapsed = ((serverNowMs - Date.parse(state.anchorUtc)) / 1000) * state.rate;
   return Math.max(0, state.positionSeconds + elapsed);
 }
@@ -37,7 +38,7 @@ export interface Timeline {
   play(atSeconds: number): Promise<SessionStatePush>;
   pause(atSeconds: number): Promise<SessionStatePush>;
   seek(toSeconds: number): Promise<SessionStatePush>;
-  buffering(waiting: boolean): Promise<void>;
+  buffering(waiting: boolean, atSeconds: number): Promise<void>;
   reportQuality(playingHeight: number | null, wantedHeight: number | null): Promise<void>;
   stop(): Promise<void>;
 }
@@ -134,11 +135,14 @@ export class SessionHub implements Timeline {
     return this.connection.invoke<SessionStatePush>('Seek', toSeconds);
   }
 
-  /** Tells the room whether this viewer is waiting for the film. Moves nothing, and a lost one costs only the mark. */
-  async buffering(waiting: boolean): Promise<void> {
+  /**
+   * Tells the room whether this viewer is waiting for the film, and where its playhead stopped. A
+   * room whose every player waits is held there until one plays again.
+   */
+  async buffering(waiting: boolean, atSeconds: number): Promise<void> {
     if (!this.connected) return;
     try {
-      await this.connection.invoke('Buffering', waiting);
+      await this.connection.invoke('Buffering', waiting, atSeconds);
     } catch {
       /* The next change says it again. */
     }

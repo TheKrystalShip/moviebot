@@ -328,27 +328,27 @@ export class FilmStream {
   }
 
   /**
-   * Holds the film at one rung, by its height, or lets hls.js choose for the connection when null.
-   * Taken from the next segment rather than at once: the buffer already fetched still plays, so the
-   * change costs no stall. A height the film has no rung at is the tallest rung below it, or the
-   * shortest rung when every one is taller.
+   * Sets the best rung the film may play at, by its height, or none when null. hls.js chooses for
+   * the connection beneath it, so a connection that cannot carry the chosen rung steps down rather
+   * than stopping the film. Taken from the next segment rather than at once: the buffer already
+   * fetched still plays, so the change costs no stall. A height the film has no rung at is the
+   * tallest rung below it, or the shortest rung when every one is taller.
    */
   selectQuality(height: number | null): void {
     this.quality = height;
     const hls = this.hls;
     if (hls === null || hls.levels.length === 0) return;
-    const index = this.chosenLevel();
-    hls.nextLevel = index;
+    hls.nextLevel = this.heldLevel();
     this.stepDown = false;
     this.limitLevels();
     this.reportQuality();
   }
 
   /**
-   * The level the viewer's choice names, or -1 to let the connection decide. A film the device holds
+   * The best level the viewer's choice allows, or -1 when it allows any. A film the device holds
    * stays on the saved rung, which is the one that costs no connection.
    */
-  private chosenLevel(): number {
+  private ceilingLevel(): number {
     const hls = this.hls;
     const held = this.heldLevel();
     if (held >= 0) return held;
@@ -368,11 +368,12 @@ export class FilmStream {
   }
 
   /**
-   * Keeps hls.js, whether it is choosing or holding the viewer's rung, on rungs written far enough
-   * past the playhead. A rung behind it stalls the film until the transcode catches up, so the cap
-   * rises as rungs do, and a rung the playhead has outrun is left for one that covers it before
-   * the buffer runs dry. Nothing is capped for a ready title or a manifest that records one head,
-   * and nothing is capped where the browser plays the stream itself.
+   * Caps hls.js at the viewer's chosen rung, and keeps it, whether it is choosing or holding the
+   * saved rung, on rungs written far enough past the playhead. A rung behind it stalls the film
+   * until the transcode catches up, so the cap rises as rungs do, and a rung the playhead has
+   * outrun is left for one that covers it before the buffer runs dry. Nothing is held back by the
+   * transcode for a ready title or a manifest that records one head, and nothing is capped where
+   * the browser plays the stream itself.
    */
   private limitLevels(): void {
     const hls = this.hls;
@@ -381,10 +382,11 @@ export class FilmStream {
 
     const reach = rungReach(manifest);
     if (reach === null) {
-      if (hls.autoLevelCapping !== -1) hls.autoLevelCapping = -1;
+      const cap = this.ceilingLevel();
+      if (hls.autoLevelCapping !== cap) hls.autoLevelCapping = cap;
       if (this.stepDown) {
         this.stepDown = false;
-        hls.nextLevel = this.chosenLevel();
+        hls.nextLevel = this.heldLevel();
       }
       return;
     }
@@ -403,16 +405,18 @@ export class FilmStream {
     }, { index: 0, seconds: -1 }).index;
     const allowed = covered.length > 0 ? covered : [furthest];
     const ceiling = Math.max(...allowed);
-    hls.autoLevelCapping = ceiling;
 
     // The nearest allowed rung at or below the one in question, else the lowest above it.
     const nearest = (index: number) =>
       [...allowed].filter((level) => level <= index).sort((a, b) => b - a)[0] ?? Math.min(...allowed);
 
-    const chosen = this.chosenLevel();
-    if (chosen >= 0) {
-      const target = nearest(chosen);
-      this.stepDown = target !== chosen;
+    const chosen = this.ceilingLevel();
+    hls.autoLevelCapping = chosen >= 0 ? nearest(chosen) : ceiling;
+
+    const held = this.heldLevel();
+    if (held >= 0) {
+      const target = nearest(held);
+      this.stepDown = target !== held;
       if (hls.manualLevel !== target) hls.nextLevel = target;
       return;
     }
@@ -447,7 +451,7 @@ export class FilmStream {
     // plays and all it wants: it asks the server for none of the picture.
     const current = hls.currentLevel;
     const playing = current >= 0 ? hls.levels[current]?.height ?? null : null;
-    const chosen = this.chosenLevel();
+    const chosen = this.ceilingLevel();
     const wanted = wantedHeight(
       hls.levels.map((level) => ({ height: level.height, bitrate: level.bitrate })),
       hls.bandwidthEstimate,
