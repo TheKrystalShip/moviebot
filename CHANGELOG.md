@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.0] - 2026-10-09
+
+### Changed
+
+- **The assistant runs on hotrod's shared model server**, gemma4 12B, the one the KGSM assistant
+  uses, reached as `http://hotrod.home:8081` with a key of its own (`Llm__LlamaCpp__ApiKey` in the
+  environment file). It answers Krystal Cinema's chat; the bot relays nothing said in a room to it
+  and listens for no voice commands (`Assistant.Enabled` and `Voice.Enabled` off on hotbox), so
+  `moviebot-llm` and `moviebot-speech` are stopped. Their code and units stay, and the two switches
+  bring them back. Assistant 2.5.0.
+- **The assistant warms the model for the turns that come**: a room's where the bot relays rooms to
+  it, a person's otherwise. On a shared model server a request no turn repeats only takes a slot
+  another assistant was keeping warm.
+
 ## [2.33.0] - 2026-10-07
 
 ### Changed

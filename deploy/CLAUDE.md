@@ -1,9 +1,11 @@
 # Deploying MovieBot
 
-Six units run on **hotbox**, under `heisen`, out of `/opt/moviebot`: `moviebot-api`,
-`moviebot-bot`, `moviebot-handoff` and `moviebot-assistant`, which are this repository's .NET
-services, and `moviebot-speech` and `moviebot-llm`, which hold whisper and the language model on the
-card. All of it is built on hotrod, which is the machine holding the checkouts, the .NET SDK, `clang`
+Four units run on **hotbox**, under `heisen`, out of `/opt/moviebot`: `moviebot-api`,
+`moviebot-bot`, `moviebot-handoff` and `moviebot-assistant`, this repository's .NET services. The
+assistant's model is hotrod's shared model server (`Llm` in `hotbox.settings.json`, its key in the
+environment file). `moviebot-speech` and `moviebot-llm`, which hold whisper and a language model on
+hotbox's own card for voice commands and room turns, are installed and stopped, because the bot
+relays neither (`Voice.Enabled` and `Assistant.Enabled` off); they start again with those switches. All of it is built on hotrod, which is the machine holding the checkouts, the .NET SDK, `clang`
 and node; hotbox carries the .NET runtime and nothing else of the toolchain. So a deploy of the
 services is a publish here, an rsync there, and a restart:
 
@@ -119,7 +121,7 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
   cards still standing, and the assistant `/var/lib/moviebot-assistant`,
   holding in `assistant.db` the conversations, what people asked it to remember, and its own
   notification key pair with the browsers registered against it, and beside that the warm-up request
-  `moviebot-llm` replays when it starts.
+  `moviebot-llm` replays when it is running and starts.
 - **The cold disk is named in the settings file and proved by a marker file.** `Media.ColdRoot` and
   `Handoff.ColdRoot` point at the volume finished films are kept on, and it is used only while a
   `.moviebot-cold` file sits at its root. That file is made once per host, as the owning user, on the

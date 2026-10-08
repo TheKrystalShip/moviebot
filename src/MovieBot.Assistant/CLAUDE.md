@@ -1,7 +1,9 @@
 # moviebot-assistant
 
 What people say or type to MovieBot is a turn here: the agent loop from `TheKrystalShip.Llm`, against
-moviebot-llm, with the harness from `TheKrystalShip.Agent`. The bot relays what is said in a voice
+the model server `Llm.Endpoint` names — moviebot-llm on the same machine, or a model server shared
+with other assistants, reached with the key in `Llm__LlamaCpp__ApiKey` — with the harness from
+`TheKrystalShip.Agent`. The bot relays what is said in a voice
 channel; the Cinema site sends what is typed. Every act a tool takes is the API's
 (`docs/api-contract.md`), reached through `MovieBot.Client` with the access token of the person the
 turn is for.
@@ -151,5 +153,7 @@ sentence, so a client words its message from facts rather than parsing text.
   conversation with up to three waiting, every surface of the conversation can attach to it, the
   request going away ends nothing, and a stop does. A relayed turn answered whole runs through the
   engine like any other, so a room's turns wait their turn.
-- **The warm-up sends what a room's turn sends**, and leaves the same request in
-  `llm-warmup.json` beside the conversations for moviebot-llm to replay when it starts.
+- **The warm-up sends what the turns that come send**: a room's where the bot relays rooms here
+  (`Assistant.Enabled`), a person's otherwise, since on a model server shared with other assistants a
+  request no turn repeats takes a slot another assistant was keeping warm. It leaves the same request
+  in `llm-warmup.json` beside the conversations for moviebot-llm to replay when it starts.

@@ -5,6 +5,14 @@ public sealed class AssistantOptions
 {
     public const string Section = "Assistant";
 
+    /// <summary>
+    /// Whether the bot relays what is said in a room here — the setting the bot reads, from the same
+    /// file. The warm-up warms a room's turn when it does and a person's turn when it does not, since
+    /// only the turns that come can use a warmed prefix, and on a model server shared with other
+    /// assistants a request nobody repeats takes a slot one of them was using.
+    /// </summary>
+    public bool Enabled { get; set; }
+
     /// <summary>Where the service listens. Loopback: the bot reaches it there and nginx proxies the site to it.</summary>
     public string Listen { get; set; } = "http://127.0.0.1:8191";
 

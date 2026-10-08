@@ -9,8 +9,8 @@ using TheKrystalShip.Llm.Models;
 namespace TheKrystalShip.MovieBot.Assistant;
 
 /// <summary>
-/// Puts the room's instructions and the catalog through the model once the service starts, and leaves
-/// the same request on disk for the model's own unit to replay when it starts.
+/// Puts the instructions and the catalog of the turns that come through the model once the service
+/// starts, and leaves the same request on disk for a model unit of its own to replay when it starts.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -18,8 +18,10 @@ namespace TheKrystalShip.MovieBot.Assistant;
 /// graph runs, and the server keeps the computed prefix of the last request. Measured on hotbox: a
 /// repeat of the warm-up's own request took 241 ms, and a first request carrying a different prompt
 /// and catalog took 1,093 ms. So what warms the model has to be what this service sends, and this
-/// service is the only thing that knows it. It warms a room's turn, because a room is somebody
-/// standing in a voice channel waiting for the film to move.
+/// service is the only thing that knows it. It warms a room's turn where the bot relays rooms here,
+/// because a room is somebody standing in a voice channel waiting for the film to move, and a
+/// person's turn everywhere else: on a model server shared with other assistants, a shape no turn
+/// repeats only takes a slot another assistant was keeping warm.
 /// </para>
 /// <para>
 /// <b>Both halves, because either can restart alone.</b> This service restarting leaves the model's
@@ -39,22 +41,25 @@ public sealed class AssistantWarmup(
     {
         try
         {
-            var prompt = services.GetRequiredService<PromptPack>().Read(PromptPack.RoomFile);
+            // The turns that come: a room's when the bot relays rooms here, a person's otherwise.
+            var rooms = options.Value.Enabled;
+            var prompt = services.GetRequiredService<PromptPack>().Read(rooms ? PromptPack.RoomFile : PromptPack.SiteFile);
             var catalog = services.GetRequiredService<ToolCatalog>();
+            var tools = rooms ? catalog.Room : catalog.Site;
             var messages = Request(prompt);
 
-            await WriteReplayAsync(messages, catalog.Room, stoppingToken);
+            await WriteReplayAsync(messages, tools, stoppingToken);
 
             var model = services.GetRequiredService<ILlmClient>();
             var started = Stopwatch.GetTimestamp();
-            var result = await model.ChatAsync(messages, catalog.Room, think: false, stoppingToken);
+            var result = await model.ChatAsync(messages, tools, think: false, stoppingToken);
 
             if (result.IsFailure)
                 logger.LogWarning("Assistant: the model did not answer the warm-up: {Error}", result.Error);
             else
                 logger.LogInformation(
-                    "Assistant: warmed the model with {Tools} tools in {Elapsed:0}ms",
-                    catalog.Room.Count, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    "Assistant: warmed the model for {Shape} turns with {Tools} tools in {Elapsed:0}ms",
+                    rooms ? "room" : "person", tools.Count, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
