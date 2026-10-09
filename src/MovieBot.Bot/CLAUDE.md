@@ -2,7 +2,7 @@
 
 `README.md` here is the authority for the Discord surface; the `CLAUDE.md` files in each
 subdirectory hold the rules its parts rest on (`Watch/`, `Download/`, `Notify/`, `Launch/`,
-`Presence/`, `Voice/`, `Assistant/`).
+`Presence/`, `Voice/`).
 
 - **Discord.Net types are written `global::Discord.X`.** The voice pipeline is
   `TheKrystalShip.Discord.Voice` (shared with kgsm-bot, published from tks-assistant), and inside any

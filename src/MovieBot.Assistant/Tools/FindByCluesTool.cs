@@ -1,19 +1,35 @@
-using System.Net;
+using System.ComponentModel;
 using System.Text;
 using TheKrystalShip.Agent.Plugin;
 using TheKrystalShip.MovieBot.Assistant.Api;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
-/// <summary>
-/// A film or show found from what somebody half remembers. The model only extracts the clues; this tool
-/// resolves the people, reads their dated credits, runs discover on the look and the plot words, merges
-/// what each found, checks the best candidates against the database's own page for them, and ranks by
-/// how many clues each fits, saying which it fits and which it does not.
-/// </summary>
-internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger<FindByCluesTool> logger) : CinemaTool(api, logger)
+// The model only extracts the clues; this tool resolves the people, reads their dated credits, runs
+// discover on the look and the plot words, merges what each found, checks the best candidates against
+// the database's own page for them, and ranks by how many clues each fits, saying which it fits and
+// which it does not.
+[AssistantTool("find_by_clues", ToolClass.Read, ResultLimit = 12000, Order = 5)]
+[Description("""
+    Find a film or show someone half remembers from the clues they give, and rank what fits.
+    - Give every clue you can pull out of what they said; at least one. The tool does the searching and the matching.
+    - people: names of actors or film-makers. from, to: release years. released: released, upcoming, announced or any.
+    - look: how it looks or what kind it is, such as "black and white", "animated". about: plot words, such as "lighthouse", "time loop".
+    - Returns up to 8 candidates, best fit first, each with the clues it matches and the ones it does not.
+    - Use for a film someone half remembers, then confirm the best with title_details.
+    - web_search is for clues the database cannot hold, like a trailer or news.
+    """)]
+internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock) : AssistantTool<FindByCluesTool.Args, Caller>
 {
-    public override string Name => "find_by_clues";
+    public sealed record Args(
+        [property: Description("Names of people in it or who made it.")] IReadOnlyList<string>? People = null,
+        [property: Description("First release year.")] int? From = null,
+        [property: Description("Last release year.")] int? To = null,
+        [property: Description("Whether it is out yet. Default any.")] ReleaseState? Released = null,
+        [property: Description("How it looks or what kind it is.")] IReadOnlyList<string>? Look = null,
+        [property: Description("Words from the plot.")] IReadOnlyList<string>? About = null,
+        [property: Description("Default film.")] TitleKind? Kind = null,
+        [property: Description("Original language, such as Korean.")] string? Language = null);
 
     private const int Shown = 8;
     private const int Verified = 12;
@@ -28,21 +44,24 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
     private const string NotTaggedBlackAndWhite =
         "the database does not tag it black and white; that does not say it is in colour";
 
-    protected override async ValueTask<PluginToolResult> RunAsync(ToolCall call)
+    protected override async ValueTask<ToolResult> RunAsync(Args args, ToolCall<Caller> call)
     {
-        IReadOnlyList<string> people = call.List("people");
-        IReadOnlyList<string> look = call.List("look");
-        IReadOnlyList<string> about = call.List("about");
-        int? from = call.Number("from");
-        int? to = call.Number("to");
-        string? released = call.OneOf("released", "released", "upcoming", "announced", "any");
+        var database = api.As(call.Principal.AccessToken);
+        CancellationToken ct = call.CancellationToken;
+
+        IReadOnlyList<string> people = args.People ?? [];
+        IReadOnlyList<string> look = args.Look ?? [];
+        IReadOnlyList<string> about = args.About ?? [];
+        int? from = args.From;
+        int? to = args.To;
+        string? released = args.Released.Wire();
         if (released == "any") released = null;
-        string? kind = call.OneOf("kind", "film", "show");
-        string? language = call.Text("language");
+        string? kind = args.Kind.Wire();
+        string? language = args.Language;
 
         if (people.Count == 0 && look.Count == 0 && about.Count == 0 && from is null && to is null
             && released is null && language is null)
-            return PluginToolResult.Error(
+            return ToolResult.Error(
                 "Give at least one clue: people, from and to, released, look, about or language.");
 
         var notes = new List<string>();
@@ -56,7 +75,7 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
         var weights = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var clues = new List<string>();
         var resolved = new List<string>();
-        foreach (Person person in await Task.WhenAll(people.Select(n => ReadPersonAsync(call, n, kind, from, to))))
+        foreach (Person person in await Task.WhenAll(people.Select(n => ReadPersonAsync(database, n, kind, from, to, ct))))
         {
             if (person.Note is not null) notes.Add(person.Note);
             if (person.Credits is null) continue;
@@ -93,33 +112,33 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
         var searches = new List<Task<Found>>();
         if (look.Count > 0 || language is not null)
         {
-            searches.Add(DiscoverAsync(call, new DiscoverQuery
+            searches.Add(DiscoverAsync(database, new DiscoverQuery
             {
                 Kind = discoverKind, Genre = genres, About = keywords, With = with, From = from, To = to,
                 Language = language, GoodOnly = false,
-            }, with, look, []));
+            }, with, look, [], ct));
             if (with.Count > 0)
-                searches.Add(DiscoverAsync(call, new DiscoverQuery
+                searches.Add(DiscoverAsync(database, new DiscoverQuery
                 {
                     Kind = discoverKind, Genre = genres, About = keywords, From = from, To = to, Language = language, GoodOnly = false,
-                }, [], look, []));
+                }, [], look, [], ct));
         }
 
         foreach (string word in about)
-            searches.Add(DiscoverAsync(call, new DiscoverQuery
+            searches.Add(DiscoverAsync(database, new DiscoverQuery
             {
                 Kind = discoverKind, About = [word], With = with, From = from, To = to, Language = language, GoodOnly = false,
-            }, with, [], [word]));
+            }, with, [], [word], ct));
 
         if (searches.Count == 0 && resolved.Count == 0)
         {
             if (released is "upcoming" or "announced")
-                searches.Add(ListAsync(call, discoverKind, today));
+                searches.Add(ListAsync(database, discoverKind, ct));
             else
-                searches.Add(DiscoverAsync(call, new DiscoverQuery
+                searches.Add(DiscoverAsync(database, new DiscoverQuery
                 {
                     Kind = discoverKind, From = from, To = to, Language = language, GoodOnly = true,
-                }, [], [], []));
+                }, [], [], [], ct));
         }
 
         foreach (Found found in await Task.WhenAll(searches))
@@ -139,11 +158,11 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
 
         // The best candidates are read as the database's own page for them, which holds the keywords.
         Candidate[] ranked = [.. Rank(pool.Values, weights)];
-        await Task.WhenAll(ranked.Take(Verified).Where(c => c.ImdbId is not null).Select(c => ReadAsync(call, c, look, about)));
+        await Task.WhenAll(ranked.Take(Verified).Where(c => c.ImdbId is not null).Select(c => ReadAsync(database, c, look, about, ct)));
         ranked = [.. Rank(pool.Values, weights).Take(Shown)];
 
         if (ranked.Length == 0)
-            return PluginToolResult.Ok(
+            return ToolResult.Ok(
                 $"Nothing in the database fits any of these clues: {string.Join("; ", clues)}. {string.Join(' ', notes)} "
                 + "A clue the database cannot hold, like a trailer, a scene or news, is for web_search.".Trim());
 
@@ -154,7 +173,7 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
         Candidate[] fits = [.. ranked.Where(c => c.Fits(clues))];
         Candidate[] open = [.. ranked.Where(c => !c.Fits(clues) && c.Contradicted(clues) == 0)];
         if (fits.Length > 0)
-            text.Append($"Fits every clue: {string.Join("; ", fits.Select(c => Say.Named(c.Title, c.Year)))}.\n");
+            text.Append($"Fits every clue: {string.Join("; ", fits.Select(c => TitleText.Named(c.Title, c.Year)))}.\n");
         else
         {
             Candidate? closest = ranked.FirstOrDefault(c => c.ImdbId is not null && c.Unchecked(clues) == 0);
@@ -171,7 +190,7 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
         }
         if (open.Length > 0)
             text.Append("Nothing contradicts these, but a clue was not checked: ")
-                .Append(string.Join("; ", open.Select(c => Say.Named(c.Title, c.Year)))).Append(".\n");
+                .Append(string.Join("; ", open.Select(c => TitleText.Named(c.Title, c.Year)))).Append(".\n");
 
         foreach (Candidate c in ranked) text.Append(c.Write(clues)).Append('\n');
         text.Append("A clue the database cannot hold, like a trailer, a scene or news, is for web_search. Confirm a candidate with title_details before naming it.");
@@ -186,7 +205,7 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
         text.Append("\nEnd your answer with one sentence inviting more clues: \"If this is not what you had in mind, tell me more: ")
             .Append(string.Join(", ", more.Take(more.Count - 1))).Append(", or ").Append(more[^1]).Append(".\"");
 
-        return PluginToolResult.Ok(text.ToString(), TitleCards.Of(
+        return ToolResult.Ok(text.ToString(), TitleCards.Of(
             ranked.Where(c => c.ImdbId is not null)
                 .Select(c => new TitleCard(c.ImdbId!, c.Kind, c.Title, c.Year, c.PosterUrl, c.InLibrary, c.Watched))));
     }
@@ -222,70 +241,63 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
         }
     }
 
-    private async Task ReadAsync(ToolCall call, Candidate c, IReadOnlyList<string> look, IReadOnlyList<string> about)
+    private static async Task ReadAsync(
+        CinemaApi.PersonApi database, Candidate c, IReadOnlyList<string> look, IReadOnlyList<string> about, CancellationToken ct)
     {
         try
         {
             if (c.Kind == "show")
             {
-                ShowDetails s = await call.Api.ShowAsync(c.ImdbId!, call.Cancellation);
+                ShowDetails s = await database.ShowAsync(c.ImdbId!, ct);
                 c.Read(s.Keywords, s.Genres, s.Overview, s.BlackAndWhite, look, about);
             }
             else
             {
-                FilmDetails f = await call.Api.FilmAsync(c.ImdbId!, call.Cancellation);
+                FilmDetails f = await database.FilmAsync(c.ImdbId!, ct);
                 c.Read(f.Keywords, f.Genres, f.Overview, f.BlackAndWhite, look, about);
             }
         }
-        catch (ApiRefusal)
+        catch (ToolRefusal)
         {
             // A page that cannot be read leaves the clues it would have settled unchecked.
         }
     }
 
-    private static async Task<Person> ReadPersonAsync(ToolCall call, string name, string? kind, int? from, int? to)
+    private static async Task<Person> ReadPersonAsync(
+        CinemaApi.PersonApi database, string name, string? kind, int? from, int? to, CancellationToken ct)
     {
         try
         {
-            PeopleResult found = await call.Api.PeopleAsync(name, call.Cancellation);
+            PeopleResult found = await database.PeopleAsync(name, ct);
             if (found.People.Count == 0)
                 return new Person(null, $"The database has nobody named '{name}'.");
 
             (PersonMatch match, string? note) = PersonCreditsTool.Pick(found.People, name, null, null);
-            PersonCredits credits = await call.Api.CreditsAsync(match.PersonId, from, to, null, kind, call.Cancellation);
+            PersonCredits credits = await database.CreditsAsync(match.PersonId, from, to, null, kind, ct);
             return new Person(credits, note);
         }
-        catch (ApiRefusal refusal)
+        catch (ToolRefusal refusal)
         {
             return new Person(null, $"{name} could not be read: {refusal.Message}");
         }
     }
 
     private static async Task<Found> DiscoverAsync(
-        ToolCall call, DiscoverQuery query, IReadOnlyList<string> people, IReadOnlyList<string> look, IReadOnlyList<string> about)
+        CinemaApi.PersonApi database, DiscoverQuery query, IReadOnlyList<string> people, IReadOnlyList<string> look,
+        IReadOnlyList<string> about, CancellationToken ct)
     {
-        try
-        {
-            DiscoverResult result = await call.Api.DiscoverAsync(query, call.Cancellation);
-            return new Found(result.Titles, people, look, about, null);
-        }
-        catch (ApiRefusal refusal) when (refusal.Status is HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
-        {
-            return new Found([], people, look, about, refusal.Message);
-        }
+        var answer = await database.TryDiscoverAsync(query, ct);
+        return answer.Value is { } result
+            ? new Found(result.Titles, people, look, about, null)
+            : new Found([], people, look, about, answer.Why);
     }
 
-    private async Task<Found> ListAsync(ToolCall call, string kind, DateOnly today)
+    private static async Task<Found> ListAsync(CinemaApi.PersonApi database, string kind, CancellationToken ct)
     {
-        try
-        {
-            TitleList list = await call.Api.UpcomingAsync(kind, call.Cancellation);
-            return new Found(list.Titles, [], [], [], null);
-        }
-        catch (ApiRefusal refusal) when (refusal.Status is HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
-        {
-            return new Found([], [], [], [], refusal.Message);
-        }
+        var answer = await database.TryUpcomingAsync(kind, ct);
+        return answer.Value is { } list
+            ? new Found(list.Titles, [], [], [], null)
+            : new Found([], [], [], [], answer.Why);
     }
 
     private sealed record Person(PersonCredits? Credits, string? Note);
@@ -386,7 +398,7 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
             string fits = string.Join(", ", clues.Where(c => _verdicts.TryGetValue(c, out Verdict v) && v.Ok));
             string misses = string.Join("; ", clues.Where(c => _verdicts.TryGetValue(c, out Verdict v) && !v.Ok)
                 .Select(c => _verdicts[c].Why is { } why ? $"{c} ({why})" : c));
-            return $"{Say.Named(Title, Year)}, which fits {(fits.Length == 0 ? "none of them" : fits)}"
+            return $"{TitleText.Named(Title, Year)}, which fits {(fits.Length == 0 ? "none of them" : fits)}"
                    + (misses.Length == 0 ? "." : $" but not {misses}.");
         }
 
@@ -396,7 +408,7 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
 
         public string Write(IReadOnlyList<string> clues)
         {
-            var text = new StringBuilder("- ").Append(Say.Named(Title, Year)).Append(", ").Append(Say.KindWord(Kind)).Append(". ");
+            var text = new StringBuilder("- ").Append(TitleText.Named(Title, Year)).Append(", ").Append(TitleText.KindWord(Kind)).Append(". ");
             text.Append(Status switch
             {
                 "upcoming" => "Upcoming",
@@ -407,7 +419,7 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
             text.Append('.');
             if (Role is { Length: > 0 } role) text.Append(" Role: ").Append(role).Append('.');
             if (Genres.Count > 0) text.Append(' ').Append(string.Join(", ", Genres)).Append('.');
-            if (Rating is not null) text.Append(' ').Append(Say.Rating(Rating, Votes));
+            if (Rating is not null) text.Append(' ').Append(TitleText.Rating(Rating, Votes));
             text.Append(ImdbId is { Length: > 0 } id ? $" id {id}." : " No IMDb id: it has no page here.");
             if (Plot is { Length: > 0 } plot) text.Append("\n  ").Append(plot);
 

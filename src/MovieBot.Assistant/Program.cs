@@ -9,63 +9,43 @@ namespace TheKrystalShip.MovieBot.Assistant;
 /// <summary>
 /// moviebot-assistant: the plugin that helps the people of Krystal Cinema find films and shows. The
 /// assistant harness runs the model, the conversations and the memory; this service brings the domain,
-/// which is a prompt, six read-only tools over the film database through the API, and five skills.
+/// which is a prompt, seven read-only tools over the film database through the API, and five skills.
 /// </summary>
 public partial class Program
 {
     public static void Main(string[] args) => Build(args).Run();
 
-    public static WebApplication Build(string[] args, Action<WebApplicationBuilder>? configure = null)
+    public static WebApplication Build(string[] args, Action<AssistantPluginApplicationBuilder>? configure = null)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        var builder = AssistantPlugin.CreateBuilder(args, PluginIdentity.Id);
         builder.Configuration.AddMovieBotSettings();
-
-        // One line per entry, with the priority journald files it under.
-        builder.Logging.ClearProviders();
-        builder.Logging.AddSystemdConsole();
 
         // Every MovieBot program reads one settings file, and its Kestrel section is the API's
         // address. This service listens where its own section says.
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["Kestrel:Endpoints:Http:Url"] = builder.Configuration[$"{AssistantOptions.Section}:Listen"]
-                                             ?? new AssistantOptions().Listen,
-        });
+        if (builder.Configuration["Assistant:Listen"] is { Length: > 0 } listen)
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Kestrel:Endpoints:Http:Url"] = listen });
 
-        builder.Services.AddOptions<AssistantOptions>().BindConfiguration(AssistantOptions.Section);
-        AssistantOptions assistant = builder.Configuration.GetSection(AssistantOptions.Section).Get<AssistantOptions>()
-                                     ?? new AssistantOptions();
+        // No tool proposes anything and nothing is announced to a phone, so the plugin keeps no state of
+        // its own.
+        builder.Services.Configure<AssistantPluginOptions>(options =>
+        {
+            options.DataDirectory = "";
+            options.Push.Enabled = false;
+        });
 
         // The API, asked as the person whose turn it is: the token goes on each call, never on the client.
-        string api = builder.Configuration["Api:BaseUrl"] ?? "http://127.0.0.1:8099";
-        IHttpClientBuilder client = builder.Services.AddHttpClient<CinemaApi>(http =>
-        {
-            http.BaseAddress = new Uri(api);
-            http.Timeout = TimeSpan.FromSeconds(60);
-        });
-        if (assistant.RecordApiTo.Length > 0)
-            client.AddHttpMessageHandler(() => new RecordingHandler(assistant.RecordApiTo));
-
-        builder.Services.AddAssistantPlugin(options =>
+        builder.Services.AddHttpClient<CinemaApi>(http =>
             {
-                options.PluginId = PluginIdentity.Id;
-                options.Version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "";
-                options.HarnessAddress = new Uri(assistant.HarnessAddress);
-                options.PluginKey = assistant.PluginKey;
-                options.Directory = Path.Combine(AppContext.BaseDirectory, "profile");
-
-                // No tool proposes anything and nothing is announced to a phone, so the plugin keeps no
-                // state of its own.
-                options.DataDirectory = "";
-                options.Push.Enabled = false;
+                http.BaseAddress = new Uri(builder.Configuration["Api:BaseUrl"] ?? "http://127.0.0.1:8099");
+                http.Timeout = TimeSpan.FromSeconds(60);
             })
-            .AddTool<SearchTitlesTool>()
-            .AddTool<TitleDetailsTool>()
-            .AddTool<PersonCreditsTool>()
-            .AddTool<DiscoverTool>()
-            .AddTool<FindByCluesTool>()
-            .AddTool<WhatsNewTool>()
-            .AddTool<MyTasteTool>()
+            .RecordTo(builder.Configuration["Assistant:RecordApiTo"] ?? "");
+
+        builder.Plugin
+            .AddGeneratedTools()
+            .Guard(CinemaGuards.Declare)
+            .Speech(speech => speech.Vocabulary("Krystal Cinema"))
+            .Cards(CardJson.Default)
             .AddPeople<CinemaPeople>()
             .AddTurnContext<CinemaTurnContext>();
 
@@ -78,19 +58,9 @@ public partial class Program
 
         var app = builder.Build();
         app.Logger.LogInformation("Settings: {Settings}", MovieBotSettings.Describe());
-        if (string.IsNullOrEmpty(assistant.PluginKey))
-            app.Logger.LogError("Assistant:PluginKey is not set: the harness will refuse this plugin and the assistant is unavailable.");
 
         app.UseAuthentication();
-
-        // Alive, and whether the harness holds this plugin's profile. A plugin the harness has not
-        // accepted is running and of no use, so the deploy waits for registered.
-        app.MapGet("/health", (PluginRegistration registration) =>
-            Results.Json(new HealthBody("ok", registration.Hash is not null, registration.Hash)));
-
-        app.MapAssistant();
+        app.MapAssistantPlugin();
         return app;
     }
-
-    private sealed record HealthBody(string Status, bool Registered, string? Profile);
 }

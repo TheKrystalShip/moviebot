@@ -8,10 +8,10 @@ film. `../README.md` is the authority for the surface; these are the rules it re
   watching together never pause for the bot. `RoomVerbCompleteness` tells the pipeline a request is
   whole as soon as two readings agree it is a room verb, so "pause" stops the film while the room keeps
   talking. Commands are cut at seven seconds, under the speech daemon's eight-second command window.
-- **The gate comes before the model.** What is heard goes to the speech daemon for words and the words go
+- **The gate reads every request.** What is heard goes to the speech daemon for words and the words go
   to `RoomVerbs`, a gate that knows a handful of verbs. A component that moves the room for everyone in
   it should read the same words the same way every time, so the common verbs never depend on a model's
-  judgement. Only what the gate does not read goes to the assistant (`../Assistant/CLAUDE.md`).
+  judgement. What the gate does not read is heard and left alone.
 - **The gate matches the whole request and has three answers.** "Should we pause?" contains the word
   and is not the verb. A phrasing that looks like a verb and cannot be read safely — no amount, a vague
   one, two acts, or digits joined by punctuation that flattening would fuse — is ambiguous and not

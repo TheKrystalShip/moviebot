@@ -4,6 +4,32 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.38.0] - 2026-10-09
+
+### Changed
+
+- **The assistant plugin is written on the plugin framework.** Each of the seven tools is one type: its
+  name, class, description and argument record are declared once in C#, and the package's generator
+  writes the schema and the reader of the model's arguments. The profile the harness holds is the same
+  to the byte (a test holds it to the profile first registered), and a turn measures the same: nine of
+  nine cases on the live harness, the same fixed prefix. An argument the model writes wrongly is
+  answered with the argument and what it takes; a refusal of the API reaches the model in the API's own
+  words, and any failure nobody foresaw is logged and answered as "could not finish". Guards and the
+  speech vocabulary are declared on the plugin builder, the host is the package's, and the plugin's
+  cards are a typed record serialized through a source-generated context.
+- **The assistant's behavioural suite is a project of its own,** `tests/MovieBot.Assistant.Suite`, which
+  runs `cases.json` through the package's runner against the deployed plugin as a signed-in person and
+  reports pass rate, tool choice, turn time and prompt tokens.
+
+### Removed
+
+- **The Discord bot no longer puts speech to the assistant.** What the room verbs do not read is heard
+  and left alone: the relay of a spoken request to the assistant, its proposals and their buttons, the
+  spoken yes or no and the `Assistant` settings the bot read are gone, with the wire types only the
+  relay used. The assistant answers in Krystal Cinema's chat alone.
+- **The plugin's tool catalog, guard and speech files, its tool base, argument reader, result writer
+  and API recorder** are replaced by the package's.
+
 ## [2.37.1] - 2026-10-09
 
 ### Fixed

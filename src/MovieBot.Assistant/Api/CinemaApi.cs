@@ -2,17 +2,9 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using TheKrystalShip.Agent.Plugin;
 
 namespace TheKrystalShip.MovieBot.Assistant.Api;
-
-/// <summary>
-/// The API said no, or could not be asked. <see cref="Message"/> is the sentence a tool hands the model:
-/// it says what happened and, where the API named it, why.
-/// </summary>
-public sealed class ApiRefusal(HttpStatusCode status, string message) : Exception(message)
-{
-    public HttpStatusCode Status { get; } = status;
-}
 
 /// <summary>
 /// Krystal Cinema's API, asked as the person whose token a turn carries. This service holds no state of
@@ -39,7 +31,14 @@ public sealed class CinemaApi(HttpClient http)
             GetAsync<PersonCredits>($"api/catalogue/people/{personId}/credits",
                 [("from", from), ("to", to), ("role", role), ("kind", kind)], ct);
 
-        public Task<DiscoverResult> DiscoverAsync(DiscoverQuery query, CancellationToken ct)
+        public Task<DiscoverResult> DiscoverAsync(DiscoverQuery query, CancellationToken ct) =>
+            GetAsync<DiscoverResult>("api/catalogue/discover", DiscoverParameters(query), ct);
+
+        /// <summary>A discovery the API may decline as unanswerable (not found, bad request): the answer, or why there is none.</summary>
+        public Task<Answer<DiscoverResult>> TryDiscoverAsync(DiscoverQuery query, CancellationToken ct) =>
+            TryAsync<DiscoverResult>("api/catalogue/discover", DiscoverParameters(query), ct);
+
+        private static List<(string, object?)> DiscoverParameters(DiscoverQuery query)
         {
             var parameters = new List<(string, object?)> { ("kind", query.Kind) };
             parameters.AddRange(query.Genre.Select(g => ("genre", (object?)g)));
@@ -51,7 +50,7 @@ public sealed class CinemaApi(HttpClient http)
             parameters.Add(("like", query.Like));
             parameters.Add(("goodOnly", query.GoodOnly ? "true" : "false"));
             parameters.Add(("sort", query.Sort));
-            return GetAsync<DiscoverResult>("api/catalogue/discover", parameters, ct);
+            return parameters;
         }
 
         public Task<TitleList> ReleasedAsync(string kind, CancellationToken ct) =>
@@ -60,6 +59,10 @@ public sealed class CinemaApi(HttpClient http)
         public Task<TitleList> UpcomingAsync(string kind, CancellationToken ct) =>
             GetAsync<TitleList>("api/catalogue/upcoming", [("kind", kind)], ct);
 
+        /// <summary>The upcoming list, or why the API declined to give it (not found, bad request).</summary>
+        public Task<Answer<TitleList>> TryUpcomingAsync(string kind, CancellationToken ct) =>
+            TryAsync<TitleList>("api/catalogue/upcoming", [("kind", kind)], ct);
+
         public Task<LibraryAdditions> AddedAsync(string? kind, int limit, CancellationToken ct) =>
             GetAsync<LibraryAdditions>("api/catalogue/added", [("kind", kind), ("limit", limit)], ct);
 
@@ -67,6 +70,14 @@ public sealed class CinemaApi(HttpClient http)
 
         public Task<FilmDetails> FilmAsync(string imdbId, CancellationToken ct) =>
             GetAsync<FilmDetails>($"api/films/{Uri.EscapeDataString(imdbId)}", [], ct);
+
+        /// <summary>The film's page, or null when the database holds no film under the id.</summary>
+        public async Task<FilmDetails?> FilmOrNullAsync(string imdbId, CancellationToken ct)
+        {
+            Reply<FilmDetails> reply = await SendAsync<FilmDetails>($"api/films/{Uri.EscapeDataString(imdbId)}", [], ct);
+            if (reply.Value is not null) return reply.Value;
+            return reply.Status == HttpStatusCode.NotFound ? null : throw new ToolRefusal(reply.Message);
+        }
 
         public Task<ShowDetails> ShowAsync(string imdbId, CancellationToken ct) =>
             GetAsync<ShowDetails>($"api/shows/{Uri.EscapeDataString(imdbId)}", [], ct);
@@ -84,6 +95,24 @@ public sealed class CinemaApi(HttpClient http)
             GetAsync<List<Follow>>("api/me/follows", [], ct);
 
         private async Task<T> GetAsync<T>(string path, IEnumerable<(string Name, object? Value)> query, CancellationToken ct)
+            where T : class
+        {
+            Reply<T> reply = await SendAsync<T>(path, query, ct);
+            return reply.Value ?? throw new ToolRefusal(reply.Message);
+        }
+
+        private async Task<Answer<T>> TryAsync<T>(string path, IEnumerable<(string Name, object? Value)> query, CancellationToken ct)
+            where T : class
+        {
+            Reply<T> reply = await SendAsync<T>(path, query, ct);
+            if (reply.Value is not null) return new Answer<T>(reply.Value, null);
+            return reply.Status is HttpStatusCode.NotFound or HttpStatusCode.BadRequest
+                ? new Answer<T>(null, reply.Message)
+                : throw new ToolRefusal(reply.Message);
+        }
+
+        private async Task<Reply<T>> SendAsync<T>(string path, IEnumerable<(string Name, object? Value)> query, CancellationToken ct)
+            where T : class
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, path + Query(query));
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -91,19 +120,25 @@ public sealed class CinemaApi(HttpClient http)
             {
                 using var response = await http.SendAsync(request, ct);
                 if (!response.IsSuccessStatusCode)
-                    throw await Refusal(response, ct);
+                    return await Refusal<T>(response, ct);
 
-                return await response.Content.ReadFromJsonAsync<T>(Json, ct)
-                    ?? throw new ApiRefusal(HttpStatusCode.BadGateway, "Krystal Cinema answered with nothing.");
+                return await response.Content.ReadFromJsonAsync<T>(Json, ct) is { } value
+                    ? new Reply<T>(value, response.StatusCode, "")
+                    : new Reply<T>(null, HttpStatusCode.BadGateway, "Krystal Cinema answered with nothing.");
             }
             catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
                                        && !ct.IsCancellationRequested)
             {
-                throw new ApiRefusal(HttpStatusCode.ServiceUnavailable,
+                return new Reply<T>(null, HttpStatusCode.ServiceUnavailable,
                     "Krystal Cinema could not be reached, so nothing is known about this.");
             }
         }
     }
+
+    /// <summary>A read that the API may have declined: the answer, or the sentence that says why there is none.</summary>
+    public readonly record struct Answer<T>(T? Value, string? Why) where T : class;
+
+    private readonly record struct Reply<T>(T? Value, HttpStatusCode Status, string Message) where T : class;
 
     /// <summary>The query string for the parameters that have a value.</summary>
     internal static string Query(IEnumerable<(string Name, object? Value)> parameters)
@@ -119,7 +154,8 @@ public sealed class CinemaApi(HttpClient http)
         return text.ToString();
     }
 
-    private static async Task<ApiRefusal> Refusal(HttpResponseMessage response, CancellationToken ct)
+    private static async Task<Reply<T>> Refusal<T>(HttpResponseMessage response, CancellationToken ct)
+        where T : class
     {
         string? said = null;
         try
@@ -133,7 +169,7 @@ public sealed class CinemaApi(HttpClient http)
         {
         }
 
-        return new ApiRefusal(response.StatusCode, response.StatusCode switch
+        return new Reply<T>(null, response.StatusCode, response.StatusCode switch
         {
             HttpStatusCode.Unauthorized => "Krystal Cinema did not accept this sign-in. The person has to sign in again.",
             HttpStatusCode.Forbidden => "This account does not let the person do that in Krystal Cinema.",

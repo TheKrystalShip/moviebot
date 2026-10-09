@@ -1,4 +1,4 @@
-using TheKrystalShip.Agent.Plugin;
+using TheKrystalShip.Agent.Plugin.Testing;
 using TheKrystalShip.MovieBot.Assistant.Api;
 using Xunit;
 
@@ -14,7 +14,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task Horror_of_the_early_2000s_asks_for_well_rated_titles_and_reports_what_the_words_became()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.Discover, new { genre = new[] { "horror" }, from = 2000, to = 2005 });
+        ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { genre = new[] { "horror" }, from = 2000, to = 2005 });
 
         Assert.False(result.IsError);
         Assert.Equal(["GET /api/catalogue/discover?from=2000&genre=horror&goodonly=true&kind=film&to=2005"], _rig.World.Asked);
@@ -28,7 +28,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task A_title_the_person_watched_is_marked_so_a_recommendation_can_leave_it_out()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.Discover, new { genre = new[] { "horror" }, from = 2000, to = 2005 });
+        ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { genre = new[] { "horror" }, from = 2000, to = 2005 });
 
         string[] lines = result.Text.Split('\n');
         Assert.Contains("The person has watched it.", lines.Single(l => l.Contains("Hollow House")));
@@ -47,7 +47,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task A_black_and_white_film_with_a_person_is_a_keyword_and_a_name()
     {
-        PluginToolResult result = await _rig.RunAsync(
+        ToolOutcome result = await _rig.RunAsync(
             _rig.Discover, new { about = new[] { "black and white" }, with = new[] { "Julian Rook" }, good_only = false });
 
         Assert.Contains("Matched: people Julian Rook; keywords black and white.", result.Text);
@@ -57,7 +57,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task Like_names_the_title_it_is_similar_to()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.Discover, new { like = "Night Harbor (1995)" });
+        ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { like = "Night Harbor (1995)" });
 
         Assert.Contains("similar to Night Harbor (1995)", result.Text);
         Assert.Contains("The Quiet Room (2003)", result.Text);
@@ -74,7 +74,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task Nothing_that_fits_says_the_database_has_none_and_what_was_searched()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.Discover, new { genre = new[] { "Horror" }, language = "Korean" });
+        ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { genre = new[] { "Horror" }, language = "Korean" });
 
         Assert.False(result.IsError);
         Assert.StartsWith("The film database has no film that fits all of that. Matched: genres Horror; original language ko;", result.Text);
@@ -91,7 +91,7 @@ public sealed class DiscoveryToolTests
             new DiscoverResult { Resolved = new DiscoverResolved { Genres = ["Horror"], Keywords = ["ghost story"], Sort = "popular" } });
         var rig = new ToolRig(world);
 
-        PluginToolResult result = await rig.RunAsync(rig.Discover, new { genre = new[] { "Horror" }, about = new[] { "ghost story" } });
+        ToolOutcome result = await rig.RunAsync(rig.Discover, new { genre = new[] { "Horror" }, about = new[] { "ghost story" } });
 
         Assert.Contains("a keyword the most: call discover again without about (ghost story).", result.Text);
     }
@@ -99,7 +99,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task A_genre_the_database_does_not_have_is_refused_with_the_genres_it_does()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.Discover, new { genre = new[] { "Spooky" } });
+        ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { genre = new[] { "Spooky" } });
 
         Assert.True(result.IsError);
         Assert.Contains("Its genres: Action, Comedy, Drama, Horror.", result.Text);
@@ -108,7 +108,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task Shows_cannot_be_filtered_by_people_and_the_request_is_not_sent()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.Discover, new { kind = "show", with = new[] { "Nell Aldous" } });
+        ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { kind = "show", with = new[] { "Nell Aldous" } });
 
         Assert.True(result.IsError);
         Assert.Contains("person_credits", result.Text);
@@ -118,7 +118,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task Shows_are_discovered_with_the_shows_kind_and_a_show_card()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.Discover, new { kind = "show", genre = new[] { "Drama" } });
+        ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { kind = "show", genre = new[] { "Drama" } });
 
         Assert.Contains("1 show,", result.Text);
         Assert.Equal("show", result.Card!.Value.GetProperty("titles")[0].GetProperty("kind").GetString());
@@ -129,7 +129,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task Trending_lists_films_and_shows_with_their_ids()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.WhatsNew, new { which = "trending" });
+        ToolOutcome result = await _rig.RunAsync(_rig.WhatsNew, new { which = "trending" });
 
         Assert.Contains("Trending this week, most watched first (as of 2026-10-09):", result.Text);
         Assert.Contains("Films:\n- Rain Check (2026). Rated 7.0 on 9,000 votes. id tt1000060.", result.Text);
@@ -140,7 +140,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task Trending_for_one_kind_leaves_the_other_out()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.WhatsNew, new { which = "trending", kind = "show" });
+        ToolOutcome result = await _rig.RunAsync(_rig.WhatsNew, new { which = "trending", kind = "show" });
 
         Assert.DoesNotContain("Rain Check", result.Text);
         Assert.Contains("Doorbell", result.Text);
@@ -152,7 +152,7 @@ public sealed class DiscoveryToolTests
         var world = CinemaWorld.Build().Answer("/api/popular", new Popular());
         var rig = new ToolRig(world);
 
-        PluginToolResult result = await rig.RunAsync(rig.WhatsNew, new { which = "trending" });
+        ToolOutcome result = await rig.RunAsync(rig.WhatsNew, new { which = "trending" });
 
         Assert.Contains("has not been asked for this week's trending titles yet, so there is no list.", result.Text);
         Assert.Null(result.Card);
@@ -161,7 +161,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task Released_asks_for_films_and_shows_and_gives_the_dates()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.WhatsNew, new { which = "released" });
+        ToolOutcome result = await _rig.RunAsync(_rig.WhatsNew, new { which = "released" });
 
         Assert.Contains("Films released from 2026-08-25 to 2026-10-09, newest first, the most looked at:", result.Text);
         Assert.Contains("Late Bloom (2026), film. Release date 2026-03-05.", result.Text);
@@ -173,7 +173,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task Upcoming_for_films_asks_only_for_films_and_soonest_first()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.WhatsNew, new { which = "upcoming", kind = "film" });
+        ToolOutcome result = await _rig.RunAsync(_rig.WhatsNew, new { which = "upcoming", kind = "film" });
 
         Assert.Equal(["GET /api/catalogue/upcoming?kind=film"], _rig.World.Asked);
         Assert.Contains("Films with a release date from 2026-10-09 to 2027-04-07, soonest first, the most looked at:", result.Text);
@@ -182,7 +182,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task The_library_lists_what_arrived_newest_first()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.WhatsNew, new { which = "library" });
+        ToolOutcome result = await _rig.RunAsync(_rig.WhatsNew, new { which = "library" });
 
         Assert.Contains("Newest in the library, newest first:", result.Text);
         Assert.Contains("- Coastal Hours (2021), film. Added 2026-10-08. Drama. Rated 6.9. The person has watched it. id tt1000004.", result.Text);
@@ -201,7 +201,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task Taste_reads_what_the_person_watched_saved_and_follows()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.Taste, new { });
+        ToolOutcome result = await _rig.RunAsync(_rig.Taste, new { });
 
         Assert.False(result.IsError);
         Assert.Contains("Watched (newest first, 3 of 3):", result.Text);
@@ -219,7 +219,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task Taste_limits_each_part_to_the_number_asked_for()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.Taste, new { limit = 1 });
+        ToolOutcome result = await _rig.RunAsync(_rig.Taste, new { limit = 1 });
 
         Assert.Contains("Watched (newest first, 1 of 3):", result.Text);
         Assert.DoesNotContain("Coastal Hours", result.Text);
@@ -231,7 +231,7 @@ public sealed class DiscoveryToolTests
         var world = CinemaWorld.Build().Answer("/api/me/lists", "{}", 403);
         var rig = new ToolRig(world);
 
-        PluginToolResult result = await rig.RunAsync(rig.Taste, new { });
+        ToolOutcome result = await rig.RunAsync(rig.Taste, new { });
 
         Assert.False(result.IsError);
         Assert.Contains("Lists: could not be read (This account does not let the person do that in Krystal Cinema.).", result.Text);
@@ -245,7 +245,7 @@ public sealed class DiscoveryToolTests
         var world = new CinemaWorld_Empty().World;
         var rig = new ToolRig(world);
 
-        PluginToolResult result = await rig.RunAsync(rig.Taste, new { });
+        ToolOutcome result = await rig.RunAsync(rig.Taste, new { });
 
         Assert.Contains("Watched: nothing recorded.", result.Text);
         Assert.Contains("Following: nothing recorded.", result.Text);
@@ -257,7 +257,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task A_database_that_cannot_be_asked_is_said_so_with_its_own_reason()
     {
-        PluginToolResult result = await _rig.RunAsync(_rig.Search, new { query = "down" });
+        ToolOutcome result = await _rig.RunAsync(_rig.Search, new { query = "down" });
 
         Assert.True(result.IsError);
         Assert.Equal("The film database could not be asked just now (The film database could not be asked.), and nothing is kept for this.", result.Text);
@@ -269,7 +269,7 @@ public sealed class DiscoveryToolTests
         var world = CinemaWorld.Build().Answer("/api/catalogue/search?q=night harbor", "{}", 401);
         var rig = new ToolRig(world);
 
-        PluginToolResult result = await rig.RunAsync(rig.Search, new { query = "Night Harbor" });
+        ToolOutcome result = await rig.RunAsync(rig.Search, new { query = "Night Harbor" });
 
         Assert.True(result.IsError);
         Assert.Contains("did not accept this sign-in", result.Text);
@@ -279,10 +279,9 @@ public sealed class DiscoveryToolTests
     public async Task An_unreachable_api_is_not_an_empty_answer()
     {
         var api = new CinemaApi(new HttpClient(new Unreachable()) { BaseAddress = new Uri("http://api.test/") });
-        var tool = new TheKrystalShip.MovieBot.Assistant.Tools.SearchTitlesTool(
-            api, Microsoft.Extensions.Logging.Abstractions.NullLogger<TheKrystalShip.MovieBot.Assistant.Tools.SearchTitlesTool>.Instance);
+        var tool = new TheKrystalShip.MovieBot.Assistant.Tools.SearchTitlesTool(api);
 
-        PluginToolResult result = await _rig.RunAsync(tool, new { query = "anything" });
+        ToolOutcome result = await _rig.RunAsync(tool, new { query = "anything" });
 
         Assert.True(result.IsError);
         Assert.Contains("could not be reached, so nothing is known about this", result.Text);
@@ -291,8 +290,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task A_turn_with_nobody_signed_in_reads_nothing()
     {
-        PluginToolResult result = await _rig.Search.ExecuteAsync(
-            System.Text.Json.JsonSerializer.SerializeToElement(new { query = "x" }), PluginToolContext.ForTesting(tool: "search_titles"));
+        ToolOutcome result = await _rig.RunSignedOutAsync(_rig.Search, new { query = "x" });
 
         Assert.True(result.IsError);
         Assert.Empty(_rig.World.Asked);

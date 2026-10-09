@@ -1,51 +1,73 @@
-using System.Net;
+using System.ComponentModel;
 using System.Text;
 using TheKrystalShip.Agent.Plugin;
 using TheKrystalShip.MovieBot.Assistant.Api;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
-/// <summary>Films or shows found by what they are like rather than by name.</summary>
-internal sealed class DiscoverTool(CinemaApi api, ILogger<DiscoverTool> logger) : CinemaTool(api, logger)
+[AssistantTool("discover", ToolClass.Read, ResultLimit = 12000, Order = 4)]
+[Description("""
+    Find films or shows by what they are like rather than by name. Every filter is optional and they combine.
+    - genre: one or more, such as horror or "science fiction".
+    - from, to: release years.
+    - with: people who are in it or made it.
+    - about: keywords such as "black and white", "time loop", "heist", "based on a true story".
+    - language: original language.
+    - good_only: well rated with enough votes to mean it. Default true.
+    - sort: popular (default), rating, newest, oldest.
+    - Returns up to 20, each with year, genres, rating, a one-line plot and whether the library has it.
+    - like: a title; returns films the database counts as similar, and the other filters narrow them.
+    """)]
+internal sealed partial class DiscoverTool(CinemaApi api) : AssistantTool<DiscoverTool.Args, Caller>
 {
-    public override string Name => "discover";
+    public sealed record Args(
+        [property: Description("Default film.")] TitleKind? Kind = null,
+        [property: Description("Genres.")] IReadOnlyList<string>? Genre = null,
+        [property: Description("Release years.")] int? From = null,
+        [property: Description("Release years.")] int? To = null,
+        [property: Description("People's names.")] IReadOnlyList<string>? With = null,
+        [property: Description("Keywords.")] IReadOnlyList<string>? About = null,
+        [property: Description("Original language, such as Korean.")] string? Language = null,
+        [property: Description("A title to find similar ones to.")] string? Like = null,
+        [property: Description("Default true.")] bool? GoodOnly = null,
+        [property: Description("Default popular.")] DiscoverSort? Sort = null);
 
-    protected override async ValueTask<PluginToolResult> RunAsync(ToolCall call)
+    protected override async ValueTask<ToolResult> RunAsync(Args args, ToolCall<Caller> call)
     {
-        string kind = call.OneOf("kind", "film", "show") ?? "film";
-        IReadOnlyList<string> with = call.List("with");
+        string kind = args.Kind.Wire() ?? "film";
+        IReadOnlyList<string> with = args.With ?? [];
 
         // The database cannot filter shows by people, so the request is not sent to be refused.
         if (kind == "show" && with.Count > 0)
-            throw new ApiRefusal(HttpStatusCode.BadRequest,
+            throw new ToolRefusal(
                 "Shows cannot be filtered by people here. Call person_credits for each person with kind show, "
                 + "or discover without with.");
 
         var query = new DiscoverQuery
         {
             Kind = kind,
-            Genre = call.List("genre"),
-            From = call.Number("from"),
-            To = call.Number("to"),
+            Genre = args.Genre ?? [],
+            From = args.From,
+            To = args.To,
             With = with,
-            About = call.List("about"),
-            Language = call.Text("language"),
-            Like = call.Text("like"),
-            GoodOnly = call.Flag("good_only", true),
-            Sort = call.OneOf("sort", "popular", "rating", "newest", "oldest"),
+            About = args.About ?? [],
+            Language = args.Language,
+            Like = args.Like,
+            GoodOnly = args.GoodOnly ?? true,
+            Sort = args.Sort.Wire(),
         };
 
-        DiscoverResult found = await call.Api.DiscoverAsync(query, call.Cancellation);
+        DiscoverResult found = await api.As(call.Principal.AccessToken).DiscoverAsync(query, call.CancellationToken);
         string matched = Matched(found.Resolved);
 
         if (found.Titles.Count == 0)
-            return PluginToolResult.Ok(
+            return ToolResult.Ok(
                 $"The film database has no {kind} that fits all of that. {matched} {Loosen(query)} "
                 + "A title no tool returned is not to be named.");
 
-        return PluginToolResult.Ok(
+        return ToolResult.Ok(
             $"{found.Titles.Count} {kind}{(found.Titles.Count == 1 ? "" : "s")}, in the database's {found.Resolved.Sort} order. {matched}\n"
-            + Say.Lines(found.Titles),
+            + TitleText.Lines(found.Titles),
             TitleCards.Of(found.Titles));
     }
 
@@ -79,9 +101,9 @@ internal sealed class DiscoverTool(CinemaApi api, ILogger<DiscoverTool> logger) 
         if (r.Like is { Length: > 0 } like) parts.Add("similar to " + like);
         if (r.MinRating is { } rating)
             parts.Add($"rated at least {rating.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}"
-                + (r.MinVotes is { } votes ? $" on at least {Say.Count(votes)} votes" : ""));
+                + (r.MinVotes is { } votes ? $" on at least {TitleText.Count(votes)} votes" : ""));
         else if (r.MinVotes is { } onlyVotes)
-            parts.Add($"at least {Say.Count(onlyVotes)} votes");
+            parts.Add($"at least {TitleText.Count(onlyVotes)} votes");
 
         return parts.Count == 0 ? "Matched: no filter." : "Matched: " + string.Join("; ", parts) + ".";
     }

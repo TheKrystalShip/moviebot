@@ -1,4 +1,4 @@
-using System.Net;
+using System.ComponentModel;
 using System.Text;
 using System.Text.RegularExpressions;
 using TheKrystalShip.Agent.Plugin;
@@ -6,10 +6,17 @@ using TheKrystalShip.MovieBot.Assistant.Api;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
-/// <summary>Everything the film database knows about one film or show.</summary>
-internal sealed partial class TitleDetailsTool(CinemaApi api, ILogger<TitleDetailsTool> logger) : CinemaTool(api, logger)
+[AssistantTool("title_details", ToolClass.Read, ResultLimit = 8000, Order = 2)]
+[Description("""
+    Everything the film database knows about one film or show.
+    - Year and release date, runtime, genres, rating and vote count, plot, director and writers, main cast with their parts, original language, whether it is tagged black and white, keywords, and for a show its seasons.
+    - Whether the library has it, and whether the person has watched it.
+    - Use to confirm a candidate against what the person remembers before naming it.
+    """)]
+internal sealed partial class TitleDetailsTool(CinemaApi api) : AssistantTool<TitleDetailsTool.Args, Caller>
 {
-    public override string Name => "title_details";
+    public sealed record Args(
+        [property: Description("The title with its year, or an id a tool returned.")] string Title);
 
     private const int CastShown = 10;
     private const int CandidatesShown = 6;
@@ -20,26 +27,24 @@ internal sealed partial class TitleDetailsTool(CinemaApi api, ILogger<TitleDetai
     [GeneratedRegex(@"^(?<name>.*?)\s*\((?<year>\d{4})\)\s*$")]
     private static partial Regex NameWithYear();
 
-    protected override async ValueTask<PluginToolResult> RunAsync(ToolCall call)
+    protected override async ValueTask<ToolResult> RunAsync(Args args, ToolCall<Caller> call)
     {
-        if (call.Text("title") is not { } said)
-            return PluginToolResult.Error("title is required: the title with its year, or an id a tool returned.");
+        var person = api.As(call.Principal.AccessToken);
+        CancellationToken ct = call.CancellationToken;
 
-        (string imdbId, string? kind, string? note) = await ResolveAsync(call, said);
+        (string imdbId, string? kind, string? note) = await ResolveAsync(person, args.Title, ct);
 
         if (kind != "show")
         {
-            try
-            {
-                return Film(await call.Api.FilmAsync(imdbId, call.Cancellation), note);
-            }
-            catch (ApiRefusal refusal) when (kind is null && refusal.Status == HttpStatusCode.NotFound)
-            {
-                // An id the model was given with no kind may name a show.
-            }
+            // An id the model was given with no kind may name a show.
+            FilmDetails? film = kind is null
+                ? await person.FilmOrNullAsync(imdbId, ct)
+                : await person.FilmAsync(imdbId, ct);
+            if (film is not null)
+                return Film(film, note);
         }
 
-        return Show(await call.Api.ShowAsync(imdbId, call.Cancellation), note);
+        return Show(await person.ShowAsync(imdbId, ct), note);
     }
 
     /// <summary>
@@ -47,7 +52,8 @@ internal sealed partial class TitleDetailsTool(CinemaApi api, ILogger<TitleDetai
     /// search first; an id is used as it is. What cannot be told apart is returned to the model as the
     /// candidates, with their ids, rather than guessed at.
     /// </summary>
-    private static async Task<(string Id, string? Kind, string? Note)> ResolveAsync(ToolCall call, string said)
+    private static async Task<(string Id, string? Kind, string? Note)> ResolveAsync(
+        CinemaApi.PersonApi person, string said, CancellationToken ct)
     {
         if (ImdbId().IsMatch(said))
             return (said.ToLowerInvariant(), null, null);
@@ -60,9 +66,9 @@ internal sealed partial class TitleDetailsTool(CinemaApi api, ILogger<TitleDetai
             year = int.Parse(m.Groups["year"].Value);
         }
 
-        SearchResult found = await call.Api.SearchAsync(name, null, year, call.Cancellation);
+        SearchResult found = await person.SearchAsync(name, null, year, ct);
         TitleHit[] pages = [.. found.Titles.Where(t => t.ImdbId is { Length: > 0 })];
-        TitleHit[] named = [.. pages.Where(t => Say.Normal(t.Title) == Say.Normal(name))];
+        TitleHit[] named = [.. pages.Where(t => TitleText.Normal(t.Title) == TitleText.Normal(name))];
         TitleHit[] sameYear = year is null ? named : [.. named.Where(t => t.Year == year)];
 
         if (sameYear.Length == 1)
@@ -79,22 +85,22 @@ internal sealed partial class TitleDetailsTool(CinemaApi api, ILogger<TitleDetai
                 ? $"More than one title is named '{said}'."
                 : $"No title is named exactly '{said}'.")
               + " Call title_details again with the id of the one meant:\n"
-              + Say.Lines(candidates.Take(CandidatesShown));
-        throw new ApiRefusal(HttpStatusCode.NotFound, why);
+              + TitleText.Lines(candidates.Take(CandidatesShown));
+        throw new ToolRefusal(why);
     }
 
-    private static PluginToolResult Film(FilmDetails f, string? note)
+    private static ToolResult Film(FilmDetails f, string? note)
     {
         var text = new StringBuilder();
         if (note is not null) text.Append(note).Append('\n');
-        text.Append(Say.Named(f.Title, f.Year)).Append(", film. id ").Append(f.ImdbId).Append(".\n");
+        text.Append(TitleText.Named(f.Title, f.Year)).Append(", film. id ").Append(f.ImdbId).Append(".\n");
         if (f.OriginalTitle is { Length: > 0 } original && original != f.Title)
             text.Append("Original title: ").Append(original).Append(".\n");
         Line(text, "Release date", f.ReleaseDate);
         if (f.RuntimeMinutes is { } runtime) text.Append("Runtime: ").Append(runtime).Append(" minutes.\n");
         Line(text, "Certification", f.Certification);
         Line(text, "Genres", Join(f.Genres));
-        if (f.Rating is not null) text.Append(Say.Rating(f.Rating, f.Votes)).Append('\n');
+        if (f.Rating is not null) text.Append(TitleText.Rating(f.Rating, f.Votes)).Append('\n');
         Line(text, "Tagline", f.Tagline);
         Line(text, "Plot", f.Overview);
         Line(text, "Directed by", Join(f.Directors));
@@ -104,24 +110,24 @@ internal sealed partial class TitleDetailsTool(CinemaApi api, ILogger<TitleDetai
         Line(text, "Countries", Join(f.Countries));
         text.Append(Colour(f.BlackAndWhite, f.Keywords)).Append('\n');
         Line(text, "Keywords", Join(f.Keywords));
-        text.Append(Say.Library(f.LibraryId is not null, f.Watched, "film"));
+        text.Append(TitleText.Library(f.LibraryId is not null, f.Watched, "film"));
 
-        return PluginToolResult.Ok(text.ToString(), TitleCards.Of([
+        return ToolResult.Ok(text.ToString(), TitleCards.Of([
             new TitleCard(f.ImdbId, "film", f.Title, f.Year, f.PosterUrl, f.LibraryId is not null, f.Watched)]));
     }
 
-    private static PluginToolResult Show(ShowDetails s, string? note)
+    private static ToolResult Show(ShowDetails s, string? note)
     {
         int? year = s.FirstYear;
         var text = new StringBuilder();
         if (note is not null) text.Append(note).Append('\n');
-        text.Append(Say.Named(s.Title, year)).Append(", show. id ").Append(s.ImdbId).Append(".\n");
+        text.Append(TitleText.Named(s.Title, year)).Append(", show. id ").Append(s.ImdbId).Append(".\n");
         if (s.FirstYear is { } first)
             text.Append("Ran from ").Append(first).Append(s.LastYear is { } last && last != first ? $" to {last}" : "").Append(".\n");
         Line(text, "Status", s.Status);
         Line(text, "Certification", s.Certification);
         Line(text, "Genres", Join(s.Genres));
-        if (s.Rating is not null) text.Append(Say.Rating(s.Rating, s.Votes)).Append('\n');
+        if (s.Rating is not null) text.Append(TitleText.Rating(s.Rating, s.Votes)).Append('\n');
         Line(text, "Tagline", s.Tagline);
         Line(text, "Plot", s.Overview);
         Line(text, "Created by", Join(s.Creators));
@@ -145,9 +151,9 @@ internal sealed partial class TitleDetailsTool(CinemaApi api, ILogger<TitleDetai
             text.Append("The person follows it, since ").Append(follow.Since.ToString("yyyy-MM-dd")).Append(".\n");
 
         bool held = s.Seasons.Any(se => se.Episodes.Any(e => e.TitleId is not null));
-        text.Append(Say.Library(held, false, "show"));
+        text.Append(TitleText.Library(held, false, "show"));
 
-        return PluginToolResult.Ok(text.ToString(), TitleCards.Of([
+        return ToolResult.Ok(text.ToString(), TitleCards.Of([
             new TitleCard(s.ImdbId, "show", s.Title, year, s.PosterUrl, held, false)]));
     }
 

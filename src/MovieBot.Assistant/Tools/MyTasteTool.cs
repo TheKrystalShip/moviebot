@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Text;
 using TheKrystalShip.Agent.Plugin;
@@ -5,23 +7,30 @@ using TheKrystalShip.MovieBot.Assistant.Api;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
-/// <summary>What the asking person has watched, saved and follows, newest first.</summary>
-internal sealed class MyTasteTool(CinemaApi api, ILogger<MyTasteTool> logger) : CinemaTool(api, logger)
+[AssistantTool("my_taste", ToolClass.Read, ResultLimit = 12000, Order = 7)]
+[Description("""
+    What the asking person has watched, rated and saved: their history, their lists and the shows they follow, newest first.
+    - Use to tailor a recommendation and to leave out what they have already seen.
+    - Not for answering "what did I watch": the site shows that.
+    """)]
+internal sealed partial class MyTasteTool(CinemaApi api) : AssistantTool<MyTasteTool.Args, Caller>
 {
-    public override string Name => "my_taste";
+    public sealed record Args(
+        [property: Description("How many of each, default 30.")] [property: Range(1, 100)] int? Limit = null);
 
     private const int DefaultLimit = 30;
-    private const int MostLimit = 100;
     private const int ListsRead = 6;
 
-    protected override async ValueTask<PluginToolResult> RunAsync(ToolCall call)
+    protected override async ValueTask<ToolResult> RunAsync(Args args, ToolCall<Caller> call)
     {
-        int limit = Math.Clamp(call.Number("limit") ?? DefaultLimit, 1, MostLimit);
+        var database = api.As(call.Principal.AccessToken);
+        CancellationToken ct = call.CancellationToken;
+        int limit = args.Limit ?? DefaultLimit;
 
         // Each part is read on its own: an account that may not read one of them still has the others.
-        Task<Attempt<List<HistoryEntry>>> history = Attempt.OfAsync(call.Api.HistoryAsync(call.Cancellation));
-        Task<Attempt<List<ListSummary>>> lists = Attempt.OfAsync(call.Api.ListsAsync(call.Cancellation));
-        Task<Attempt<List<Follow>>> follows = Attempt.OfAsync(call.Api.FollowsAsync(call.Cancellation));
+        Task<Attempt<List<HistoryEntry>>> history = Attempt.OfAsync(database.HistoryAsync(ct));
+        Task<Attempt<List<ListSummary>>> lists = Attempt.OfAsync(database.ListsAsync(ct));
+        Task<Attempt<List<Follow>>> follows = Attempt.OfAsync(database.FollowsAsync(ct));
         await Task.WhenAll(history, lists, follows);
 
         var text = new StringBuilder();
@@ -31,7 +40,7 @@ internal sealed class MyTasteTool(CinemaApi api, ILogger<MyTasteTool> logger) : 
         if ((await lists).Value is { } summaries)
         {
             ListSummary[] read = [.. summaries.Take(ListsRead)];
-            var contents = await Task.WhenAll(read.Select(l => Attempt.OfAsync(call.Api.ListAsync(l.Id, call.Cancellation))));
+            var contents = await Task.WhenAll(read.Select(l => Attempt.OfAsync(database.ListAsync(l.Id, ct))));
             for (int i = 0; i < read.Length; i++)
             {
                 text.Append('\n');
@@ -64,7 +73,7 @@ internal sealed class MyTasteTool(CinemaApi api, ILogger<MyTasteTool> logger) : 
         if ((await follows).Value is { } followed)
             cards.AddRange(followed.Take(limit).Select(f => new TitleCard(f.ImdbId, "show", f.Title, null, null, false, false)));
 
-        return PluginToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(cards));
+        return ToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(cards));
     }
 
     private static void Section<T>(StringBuilder text, string heading, Attempt<List<T>> attempt, int limit, Func<T, string> write)
@@ -95,7 +104,7 @@ internal sealed class MyTasteTool(CinemaApi api, ILogger<MyTasteTool> logger) : 
 
     private static string Saved(ListEntry e)
     {
-        var text = new StringBuilder("- ").Append(Say.Named(e.Title, e.Year)).Append(", ").Append(Say.KindWord(e.Kind)).Append('.');
+        var text = new StringBuilder("- ").Append(TitleText.Named(e.Title, e.Year)).Append(", ").Append(TitleText.KindWord(e.Kind)).Append('.');
         if (e.Genres.Count > 0) text.Append(' ').Append(string.Join(", ", e.Genres)).Append('.');
         if (e.Rating is { } r) text.Append(" Rated ").Append(r.ToString("0.0", CultureInfo.InvariantCulture)).Append('.');
         if (e.Watched && e.Kind != "show") text.Append(" The person has watched it.");
@@ -124,7 +133,7 @@ internal sealed class MyTasteTool(CinemaApi api, ILogger<MyTasteTool> logger) : 
             {
                 return new Attempt<T>(await read, null);
             }
-            catch (ApiRefusal refusal)
+            catch (ToolRefusal refusal)
             {
                 return new Attempt<T>(null, refusal.Message);
             }

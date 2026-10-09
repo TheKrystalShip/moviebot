@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
-using Microsoft.Extensions.Logging.Abstractions;
 using TheKrystalShip.Agent.Plugin;
+using TheKrystalShip.Agent.Plugin.Testing;
 using TheKrystalShip.MovieBot.Assistant;
 using TheKrystalShip.MovieBot.Assistant.Api;
 using TheKrystalShip.MovieBot.Assistant.Tools;
@@ -345,30 +345,45 @@ internal sealed class ToolRig
     public string Token { get; }
     public CinemaApi Api { get; }
 
-    public SearchTitlesTool Search => new(Api, NullLogger<SearchTitlesTool>.Instance);
-    public TitleDetailsTool Details => new(Api, NullLogger<TitleDetailsTool>.Instance);
-    public PersonCreditsTool Credits => new(Api, NullLogger<PersonCreditsTool>.Instance);
-    public DiscoverTool Discover => new(Api, NullLogger<DiscoverTool>.Instance);
-    public WhatsNewTool WhatsNew => new(Api, NullLogger<WhatsNewTool>.Instance);
-    public MyTasteTool Taste => new(Api, NullLogger<MyTasteTool>.Instance);
+    public SearchTitlesTool Search => new(Api);
+    public TitleDetailsTool Details => new(Api);
+    public PersonCreditsTool Credits => new(Api);
+    public DiscoverTool Discover => new(Api);
+    public WhatsNewTool WhatsNew => new(Api);
+    public MyTasteTool Taste => new(Api);
 
     /// <summary>The day the world is read on; the statuses of its credits are as of it.</summary>
     public static readonly DateTimeOffset Now = new(2026, 10, 9, 12, 0, 0, TimeSpan.Zero);
 
-    public FindByCluesTool Clues =>
-        new(Api, new Microsoft.Extensions.Time.Testing.FakeTimeProvider(Now), NullLogger<FindByCluesTool>.Instance);
+    public FindByCluesTool Clues => new(Api, new Microsoft.Extensions.Time.Testing.FakeTimeProvider(Now));
 
-    public PluginPerson Person => new("u-sam", "Sam", new Caller("u-sam", "Sam", Token, null, new HashSet<string> { "cinema:watch" }));
+    public Caller Caller => new("u-sam", "Sam", Token, null, new HashSet<string> { "cinema:watch" });
+
+    private static readonly ToolTestOptions Options = new()
+    {
+        Subject = "u-sam", DisplayName = "Sam", Cards = [CardJson.Default],
+    };
 
     /// <summary>Runs <paramref name="tool"/> with <paramref name="arguments"/> as the person.</summary>
-    public async Task<PluginToolResult> RunAsync(IPluginTool tool, object arguments) =>
-        await tool.ExecuteAsync(
-            JsonSerializer.SerializeToElement(arguments),
-            PluginToolContext.ForTesting(Person, tool.Name));
+    public Task<ToolOutcome> RunAsync(IPluginTool tool, object arguments) =>
+        ToolTest.RunAsync(tool, JsonSerializer.Serialize(arguments), Caller, Options);
+
+    /// <summary>Runs <paramref name="tool"/> for a turn with nobody signed in.</summary>
+    public Task<ToolOutcome> RunSignedOutAsync(IPluginTool tool, object arguments) =>
+        ToolTest.RunAsync(tool, JsonSerializer.Serialize(arguments), null, Options);
 
     /// <summary>The titles a result's card offers, as their ids; empty when the result has no card.</summary>
-    public static string[] CardIds(PluginToolResult result) =>
+    public static string[] CardIds(ToolOutcome result) =>
         result.Card is { } card
             ? [.. card.GetProperty("titles").EnumerateArray().Select(t => t.GetProperty("imdbId").GetString()!)]
             : [];
+}
+
+internal static class ReplayHandlerExtensions
+{
+    private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
+
+    /// <summary>Answers <paramref name="target"/> (path and query) with <paramref name="body"/> as the API writes JSON.</summary>
+    public static ReplayHandler Answer(this ReplayHandler world, string target, object body, int status = 200) =>
+        world.Answer(target, JsonSerializer.Serialize(body, Web), status);
 }

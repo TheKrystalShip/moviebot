@@ -13,7 +13,7 @@ public sealed class BotOidcOptions
 {
     public const string Section = "Oidc";
 
-    /// <summary>The provider's issuer, the one the API and the assistant check tokens against.</summary>
+    /// <summary>The provider's issuer, the one the API checks tokens against.</summary>
     public string Issuer { get; set; } = "";
 
     /// <summary>
@@ -49,7 +49,7 @@ public sealed class AccountRefusedException(string? accountStatus)
 /// <remarks>
 /// <para>
 /// <b>Everything done inside a command is done as the person who ran it.</b> A command opens
-/// <see cref="Person"/> for the Discord user who ran it, and every call to the API and to the assistant
+/// <see cref="Person"/> for the Discord user who ran it, and every call to the API
 /// made inside it, however deep, carries that person's token (<see cref="PersonAuthorization"/>). A
 /// call made outside any — the presence line, a download's progress, loading a finished download into
 /// the room that asked for it — is machine work that names nobody, made on the service key.

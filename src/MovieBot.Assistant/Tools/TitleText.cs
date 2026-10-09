@@ -5,11 +5,10 @@ using TheKrystalShip.MovieBot.Assistant.Api;
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
 /// <summary>
-/// How the tools write what the API said, for the model to read: one title to a line, every figure as
-/// the API gave it and nothing it did not. A value the API left out is not written, so the model has no
-/// blank to fill.
+/// How the tools write a title for the model to read: one title to a line, every figure as the API gave
+/// it and nothing it did not. A value the API left out is not written, so the model has no blank to fill.
 /// </summary>
-internal static class Say
+internal static class TitleText
 {
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 

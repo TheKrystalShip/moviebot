@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+
+    <RootNamespace>TheKrystalShip.MovieBot.Assistant.Suite</RootNamespace>
+    <AssemblyName>moviebot-assistant-suite</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TheKrystalShip.Agent.Plugin.Testing" Version="1.0.0-dev.11" />
+  </ItemGroup>
+
+  <!-- The cases, beside the binary where the runner looks for them. -->
+  <ItemGroup>
+    <Content Include="cases.json" Link="cases/cases.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

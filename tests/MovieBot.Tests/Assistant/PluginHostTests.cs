@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.Agent.Contracts;
 using TheKrystalShip.Agent.Plugin;
+using TheKrystalShip.Agent.Plugin.Testing;
 using TheKrystalShip.MovieBot.Assistant;
 using TheKrystalShip.MovieBot.Assistant.Api;
 using Xunit;
@@ -40,7 +41,7 @@ public sealed class PluginHostTests : IAsyncLifetime
             ],
             builder =>
             {
-                builder.WebHost.UseTestServer();
+                builder.Host.WebHost.UseTestServer();
                 builder.Services.Configure<JwtBearerOptions>(
                     JwtBearerDefaults.AuthenticationScheme, o => o.BackchannelHttpHandler = new Switchable(_issuer.Handler(), () => _providerDown));
                 builder.Services.AddHttpClient<HarnessClient>().ConfigurePrimaryHttpMessageHandler(() => _harness);

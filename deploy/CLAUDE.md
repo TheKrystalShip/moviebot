@@ -23,8 +23,8 @@ rsync deploy/hotbox.settings.json hotbox:.config/moviebot/moviebot.settings.json
 ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff moviebot-assistant'
 ```
 
-`moviebot-assistant` is reached by the bot on loopback and by the site at `/assistant/` on the vhost,
-which strips the prefix (`nginx-moviebot.conf`).
+`moviebot-assistant` is reached by the site at `/assistant/` on the vhost, which strips the prefix
+(`nginx-moviebot.conf`).
 
 The television app (`tv/README.md`) is built here and handed to hotbox on its own, into the API's
 state directory, where `/tv.apk` serves it and no deploy of the services touches it:

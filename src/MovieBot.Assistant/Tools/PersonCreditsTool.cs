@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text;
 using System.Text.RegularExpressions;
 using TheKrystalShip.Agent.Plugin;
@@ -5,10 +6,22 @@ using TheKrystalShip.MovieBot.Assistant.Api;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
-/// <summary>An actor's or film-maker's work, oldest first, with what is out, coming and only announced.</summary>
-internal sealed partial class PersonCreditsTool(CinemaApi api, ILogger<PersonCreditsTool> logger) : CinemaTool(api, logger)
+[AssistantTool("person_credits", ToolClass.Read, ResultLimit = 16000, Order = 3)]
+[Description("""
+    An actor's or film-maker's work, in date order, oldest first.
+    - Each credit has its release date, kind, the part played or the job, and whether it is released, upcoming or only announced.
+    - from and to are years; give both as the same year for one year.
+    - role: acting, directing, writing, or any (default).
+    - Several people with the name: returns them, each with what they are known for; ask, or pick the one the question makes obvious.
+    """)]
+internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<PersonCreditsTool.Args, Caller>
 {
-    public override string Name => "person_credits";
+    public sealed record Args(
+        [property: Description("The person's name.")] string Person,
+        [property: Description("First year to include.")] int? From = null,
+        [property: Description("Last year to include.")] int? To = null,
+        [property: Description("Which credits. Default any.")] CreditRole? Role = null,
+        [property: Description("Limit to films or shows.")] TitleKind? Kind = null);
 
     /// <summary>The department the database files a person under, by the role asked for.</summary>
     private static readonly Dictionary<string, string> Departments = new()
@@ -19,15 +32,16 @@ internal sealed partial class PersonCreditsTool(CinemaApi api, ILogger<PersonCre
     [GeneratedRegex(@"^(?<name>.*?)\s*\((?<known>.+)\)\s*$")]
     private static partial Regex NameWithKnownTitle();
 
-    protected override async ValueTask<PluginToolResult> RunAsync(ToolCall call)
+    protected override async ValueTask<ToolResult> RunAsync(Args args, ToolCall<Caller> call)
     {
-        if (call.Text("person") is not { } said)
-            return PluginToolResult.Error("person is required: the person's name.");
+        var database = api.As(call.Principal.AccessToken);
+        CancellationToken ct = call.CancellationToken;
 
-        string? role = call.OneOf("role", "acting", "directing", "writing", "any");
-        string? kind = call.OneOf("kind", "film", "show");
-        int? from = call.Number("from");
-        int? to = call.Number("to");
+        string said = args.Person;
+        string? role = args.Role.Wire();
+        string? kind = args.Kind.Wire();
+        int? from = args.From;
+        int? to = args.To;
 
         string name = said;
         string? known = null;
@@ -37,12 +51,12 @@ internal sealed partial class PersonCreditsTool(CinemaApi api, ILogger<PersonCre
             known = m.Groups["known"].Value;
         }
 
-        PeopleResult found = await call.Api.PeopleAsync(name, call.Cancellation);
+        PeopleResult found = await database.PeopleAsync(name, ct);
         if (found.People.Count == 0)
-            return PluginToolResult.Ok($"The film database has nobody named '{name}'.");
+            return ToolResult.Ok($"The film database has nobody named '{name}'.");
 
         (PersonMatch person, string? note) = Pick(found.People, name, known, role);
-        PersonCredits credits = await call.Api.CreditsAsync(person.PersonId, from, to, role, kind, call.Cancellation);
+        PersonCredits credits = await database.CreditsAsync(person.PersonId, from, to, role, kind, ct);
 
         var text = new StringBuilder();
         if (note is not null) text.Append(note).Append("\n\n");
@@ -53,7 +67,7 @@ internal sealed partial class PersonCreditsTool(CinemaApi api, ILogger<PersonCre
         if (credits.Credits.Count == 0)
         {
             text.Append("None.");
-            return PluginToolResult.Ok(text.ToString());
+            return ToolResult.Ok(text.ToString());
         }
 
         text.Append(credits.Credits.Count).Append(credits.Credits.Count == 1 ? " credit" : " credits").Append(", oldest first.");
@@ -64,7 +78,7 @@ internal sealed partial class PersonCreditsTool(CinemaApi api, ILogger<PersonCre
         foreach (Credit credit in credits.Credits)
             text.Append(Write(credit)).Append('\n');
 
-        return PluginToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(credits.Credits));
+        return ToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(credits.Credits));
     }
 
     /// <summary>
@@ -75,7 +89,7 @@ internal sealed partial class PersonCreditsTool(CinemaApi api, ILogger<PersonCre
     /// </summary>
     internal static (PersonMatch Person, string? Note) Pick(List<PersonMatch> people, string name, string? known, string? role)
     {
-        PersonMatch[] exact = [.. people.Where(p => Say.Normal(p.Name) == Say.Normal(name))];
+        PersonMatch[] exact = [.. people.Where(p => TitleText.Normal(p.Name) == TitleText.Normal(name))];
         if (exact.Length == 0)
         {
             return (people[0], people.Count == 1
@@ -120,10 +134,10 @@ internal sealed partial class PersonCreditsTool(CinemaApi api, ILogger<PersonCre
     private static string Write(Credit credit)
     {
         var text = new StringBuilder("- ");
-        text.Append(credit.ReleaseDate is { Length: > 0 } date ? date : "no date").Append(" | ").Append(Say.Status(credit.Status))
-            .Append(" | ").Append(Say.Named(credit.Title, credit.Year)).Append(", ").Append(Say.KindWord(credit.Kind)).Append('.');
+        text.Append(credit.ReleaseDate is { Length: > 0 } date ? date : "no date").Append(" | ").Append(TitleText.Status(credit.Status))
+            .Append(" | ").Append(TitleText.Named(credit.Title, credit.Year)).Append(", ").Append(TitleText.KindWord(credit.Kind)).Append('.');
         if (credit.Role is { Length: > 0 } role) text.Append(" Role: ").Append(role).Append('.');
-        if (credit.Rating is not null) text.Append(' ').Append(Say.Rating(credit.Rating, credit.Votes));
+        if (credit.Rating is not null) text.Append(' ').Append(TitleText.Rating(credit.Rating, credit.Votes));
         if (credit.Watched && credit.Kind != "show") text.Append(" The person has watched it.");
         text.Append(credit.ImdbId is { Length: > 0 } id ? $" id {id}." : " No IMDb id: it has no page here.");
         return text.ToString();

@@ -7,7 +7,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Bot.Api;
-using TheKrystalShip.MovieBot.Bot.Assistant;
 using TheKrystalShip.MovieBot.Bot.Configuration;
 using TheKrystalShip.MovieBot.Bot.Discord;
 using TheKrystalShip.MovieBot.Bot.Download;
@@ -120,11 +119,6 @@ builder.Services.AddSingleton<RoomVoiceCommandHandler>();
 builder.Services.AddSingleton<IVoiceCommandHandler>(sp => sp.GetRequiredService<RoomVoiceCommandHandler>());
 builder.Services.AddSingleton<IVoiceCommandCompleteness, RoomVerbCompleteness>();
 builder.Services.AddDiscordVoice();
-
-// The assistant: what somebody says that is not a room verb goes to moviebot-llm, with the room and
-// the library in front of it and the room's tools in its hands, and the answer goes to the voice
-// channel's chat. Off unless the host switches it on; off, those requests are answered by nothing.
-builder.Services.AddRoomAssistant(builder.Configuration);
 
 // The Activity is the front door; the link is what answers when it cannot be opened — no
 // application id, a channel the bot cannot see, or a missing Create Instant Invite. Registering

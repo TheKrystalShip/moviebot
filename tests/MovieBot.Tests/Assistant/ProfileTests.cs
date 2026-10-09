@@ -12,8 +12,6 @@ namespace TheKrystalShip.MovieBot.Tests.Assistant;
 /// <summary>The profile the service ships: its prompt, tools, skills and guard data, read the way the harness is given them.</summary>
 public sealed partial class ProfileTests
 {
-    private static readonly string Directory = Path.Combine(AppContext.BaseDirectory, "profile");
-
     private static readonly string[] Tools =
         ["search_titles", "title_details", "person_credits", "discover", "find_by_clues", "whats_new", "my_taste"];
 
@@ -24,7 +22,7 @@ public sealed partial class ProfileTests
     private static readonly string[] Reserved =
         ["use_skill", "remember", "recall", "forget", "fetch_url", "web_search", "ask_question", "tool_search", "tool_describe", "question"];
 
-    private static PluginProfile Load() => PluginProfileLoader.Load(Directory, PluginIdentity.Id, "test");
+    private static PluginProfile Load() => ComposedProfile.Load();
 
     [Fact]
     public void The_profile_has_the_seven_tools_in_the_order_the_model_is_offered_them()
@@ -323,17 +321,29 @@ public sealed partial class ProfileTests
     }
 
     [Fact]
-    public void The_tool_classes_the_service_registers_are_the_catalogs_tools()
+    public void The_profile_is_the_one_the_harness_first_registered()
     {
-        string[] registered =
-        [
-            .. typeof(CinemaTool).Assembly.GetTypes()
-                .Where(t => !t.IsAbstract && t.IsSubclassOf(typeof(CinemaTool)))
-                .Select(t => t.Name),
-        ];
+        PluginProfile baseline = PluginProfile.FromJson(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "baseline", "profile.json")))!;
+        PluginProfile composed = Load();
 
-        Assert.Equal(
-            ["DiscoverTool", "FindByCluesTool", "MyTasteTool", "PersonCreditsTool", "SearchTitlesTool", "TitleDetailsTool", "WhatsNewTool"],
-            registered.Order());
+        // The version is the assembly's, so the baseline is compared at the version the service reports now.
+        baseline.Version = composed.Version;
+
+        using JsonDocument was = JsonDocument.Parse(baseline.ToJson());
+        using JsonDocument now = JsonDocument.Parse(composed.ToJson());
+
+        foreach (string part in new[] { "id", "version", "promptAppendix", "skills", "guards", "speech" })
+            Assert.Equal(CanonicalJson.Write(was.RootElement.GetProperty(part)), CanonicalJson.Write(now.RootElement.GetProperty(part)));
+
+        JsonElement wasTools = was.RootElement.GetProperty("tools");
+        JsonElement nowTools = now.RootElement.GetProperty("tools");
+        Assert.Equal(wasTools.GetArrayLength(), nowTools.GetArrayLength());
+        for (int i = 0; i < wasTools.GetArrayLength(); i++)
+        {
+            Assert.Equal(wasTools[i].GetProperty("name").GetString(), nowTools[i].GetProperty("name").GetString());
+            Assert.Equal(CanonicalJson.Write(wasTools[i]), CanonicalJson.Write(nowTools[i]));
+        }
+
+        Assert.Equal(baseline.ContentHash(), composed.ContentHash());
     }
 }

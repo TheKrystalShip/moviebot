@@ -100,8 +100,7 @@ public sealed class NotifyCommand(MovieBotApiClient api, ILogger<NotifyCommand> 
     }
 
     /// <summary>
-    /// What the API's answer to a wish is told as in a channel, whoever asked for it: <c>/notify</c>,
-    /// or the assistant once somebody agreed.
+    /// What the API's answer to a wish is told as in a channel.
     /// </summary>
     public static NotifyResult Describe(AddWishReply reply)
     {

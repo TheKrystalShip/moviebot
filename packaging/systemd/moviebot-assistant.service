@@ -1,5 +1,5 @@
 [Unit]
-Description=MovieBot assistant: what people say to MovieBot, answered with a language model
+Description=MovieBot assistant: the plugin that helps people find films, to the assistant harness
 After=network-online.target moviebot-api.service
 Wants=network-online.target
 

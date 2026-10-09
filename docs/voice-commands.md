@@ -25,12 +25,12 @@ friends goes quiet first — and everything from the word before it is taken as 
 
 ```
 "Hey, okay computer, pause."
-"Okay computer, put on Heat."
+"Okay computer, skip forward a minute."
 ```
 
-## Room verbs — acted on instantly, no model involved
+## Room verbs — acted on instantly
 
-A closed set of playback commands is read by a plain phrase matcher, not the assistant, so they
+A closed set of playback commands is read by a plain phrase matcher, so they
 land the moment they are heard and are worded identically every time. They need a room already
 holding a film; said to an empty room, they do nothing.
 
@@ -75,80 +75,6 @@ a time written with punctuation ("back 1:30") is heard as *shaped like* a verb b
 out — a missed verb just costs a slower answer, where a misread one would move the film for
 everyone. A question or a remark that merely contains the word — "should we pause?", "don't
 pause it" — is not read as the verb at all.
-
-## Talking to the assistant
-
-Anything the room verbs do not read is a turn of the assistant, which answers in the channel's
-chat rather than out loud (the film's sound already plays in every viewer's browser). It can
-call on the bot's own commands, so the same things `/watch`, `/show` and `/notify` do
-from a text channel can be asked for by voice, alongside questions about what is happening.
-
-**Watching a film**
-
-```
-"okay computer, put on Heat"
-"okay computer, let's watch The Matrix"
-"okay computer, watch the second Pirates of the Caribbean"
-```
-
-If the library already has it, it plays. If not, the assistant searches the tracker and proposes
-the best release; confirming starts the download and the film plays here as soon as it is
-watchable. A film with no release yet gets offered as something to wait on instead (see "waiting
-on a film" below).
-
-**Downloading a specific release**
-
-```
-"okay computer, get the other one instead, the smaller file"
-```
-
-(spoken after `watch_film` has already listed releases to choose from — a torrent id it did not
-just offer is refused).
-
-**Asking about a film**
-
-```
-"okay computer, how long is this?"
-"okay computer, does Heat have Spanish subtitles?"
-"okay computer, who's in this movie?"
-```
-
-**Checking on things**
-
-```
-"okay computer, how's the download going?"
-"okay computer, what's everyone else watching?"
-"okay computer, what are we waiting on?"
-"okay computer, why did it stop?"
-```
-
-**Subtitles**
-
-```
-"okay computer, get subtitles for this"
-```
-
-**Waiting on a film that is not out yet**
-
-```
-"okay computer, let me know when Dune Part Three comes out"
-```
-
-## Confirming
-
-Watching a film that has to be downloaded, downloading a specific release, fetching subtitles and
-waiting on a film are all proposed
-rather than acted on straight away. Each proposal is a message with two buttons under it in the text channel, and answering out
-loud works the same:
-
-```
-"okay computer, yes"
-"okay computer, no"
-```
-
-Anything else said in the confirmation window is read as unrelated to the proposal — a remark
-about the film, say — and spends the window without touching it. A proposal otherwise expires on
-its own after `Assistant__OfferMinutes`.
 
 ## What is not a voice command
 

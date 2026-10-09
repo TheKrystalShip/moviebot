@@ -10,5 +10,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MovieBot.Tests/MovieBot.Tests.csproj" />
+    <Project Path="tests/MovieBot.Assistant.Suite/MovieBot.Assistant.Suite.csproj" />
   </Folder>
 </Solution>

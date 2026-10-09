@@ -47,9 +47,9 @@ public sealed record DownloadResult(
 /// Asks the API to turn a picked release into a running download, and says how that went in the
 /// words a Discord channel is told.
 ///
-/// The API starts every download, so a release picked from /watch, from /show or by the
-/// assistant is the same act with the same notes on the torrent. What stays here is the sentence,
-/// and the one note that is the bot's own: which message shows the download's progress.
+/// The API starts every download, so a release picked from /watch or from /show is the same act
+/// with the same notes on the torrent. What stays here is the sentence, and the one note that is
+/// the bot's own: which message shows the download's progress.
 /// </summary>
 public sealed class DownloadCommand(
     MovieBotApiClient api,
@@ -134,8 +134,7 @@ public sealed class DownloadCommand(
     public const string NotAllowed = "Your account does not let you download in Krystal Cinema.";
 
     /// <summary>
-    /// What the API's answer to a download is told as in a channel, whoever asked for it: a slash
-    /// command, or the assistant once somebody agreed.
+    /// What the API's answer to a download is told as in a channel.
     /// </summary>
     /// <param name="intoRoom">Whether the film starts in the voice channel once it can be watched.</param>
     public static DownloadResult Describe(StartDownloadReply reply, bool intoRoom) => reply.Outcome switch

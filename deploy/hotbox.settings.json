@@ -53,12 +53,5 @@
   // Voice commands are off, and no speech source is configured; the code that hears them is kept.
   "Voice": {
     "Enabled": false
-  },
-
-  // The bot relays nothing said in a room to moviebot-assistant: the assistant answers Krystal
-  // Cinema's chat alone. The harness it is a plugin to is on hotrod; its address and the plugin's key
-  // are in /etc/moviebot/assistant.env.
-  "Assistant": {
-    "Enabled": false
   }
 }

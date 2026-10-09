@@ -5,8 +5,7 @@ room a launch — and when the film is not here, searches the tracker, starts th
 the room the launch the moment the film can be watched. `/show` fetches episodes of a show, a
 season at a time. `/notify` watches for a film that
 cannot be downloaded yet and says so when it can. `/voice join` brings the bot into a voice channel
-to listen, so the film can be paused, resumed and skipped by saying so, and anything else said to it
-is put to the assistant, which answers in the channel's chat.
+to listen, so the film can be paused, resumed and skipped by saying so.
 
 ## It holds almost no state
 
@@ -73,9 +72,6 @@ setting as the environment variable that overrides it; in the file, `Voice__Trig
 | `Voice__CommandQuietMs` | no | How long somebody has to stop sounding after the trigger before a request that is not a room verb counts as finished. Defaults to 600. A room verb does not wait for it: "pause" is acted on as soon as two readings agree on it, while the room keeps talking. |
 | `Voice__ScanWindowMs`, `Voice__ScanStrideMs` | no | How much of each person's latest speech is looked through for the trigger, and how often: 3000 and 500 by default. The window must stay under the speech daemon's four-second scan window. |
 | `Voice__LogTranscripts` | no | Whether what was heard is written to the log: requests at information level, and everything scanned for the trigger at debug. Off by default: a voice channel is full of things nobody said to the bot. |
-| `Assistant__Enabled` | no | Whether a spoken request that is not a room verb is put to moviebot-assistant. Off by default; off, those requests are answered by nothing. |
-| `Assistant__BaseUrl` | no | Where moviebot-assistant answers. Defaults to `http://127.0.0.1:8191`. Each request carries the token the bot exchanged for the person who spoke. |
-| `Assistant__ConfirmWindowSeconds` | no | How long the bot listens for a spoken yes or no to a proposal without the trigger. Defaults to 20; 0 leaves the buttons as the only way to agree. |
 | `Speech__SocketPath` | no | The unix socket of the speech daemon the bot hears through. Blank by default, which means there is none and nothing is heard. |
 
 The two credentials are read under their own names. They sit above the settings files and
@@ -163,8 +159,7 @@ A show is fetched a season at a time. The menu searches the catalogue for shows 
 and the tracker is asked once a show is picked, for every season it offers under the show's id.
 
 - **The plan is shared.** `ShowPlan` in `MovieBot.Client` decides which releases fetch the picked
-  episodes, the same decision the assistant's `download_show` makes: a
-  season's pack at the asked quality first, fetching only the picked files out of it; single
+  episodes: a season's pack at the asked quality first, fetching only the picked files out of it; single
   episodes where there is no pack; another quality only where the asked one is not offered, said so
   in a follow-up.
 - **720p unless 1080p is asked for.** A season is many hours, and 720p takes a third of the space.
@@ -177,7 +172,7 @@ and the tracker is asked once a show is picked, for every season it offers under
 
 `/voice join` brings the bot into the voice channel the person running it is in. From then on,
 "okay computer, pause" stops the film for the room. What is heard goes to the speech daemon for words,
-and the words go first to a gate that knows a handful of verbs, with no model involved.
+and the words go first to a gate that knows a handful of verbs.
 `../../docs/voice-commands.md` is a showcase of what can be said, with examples.
 
 - **The trigger is heard while people keep talking.** Nobody watching a film with friends goes
@@ -208,8 +203,7 @@ and the words go first to a gate that knows a handful of verbs, with no model in
 - **The room is told, or the bot does not stay.** Joining posts a notice in the channel the command
   ran in, because it is the only way anyone but the person who ran it learns they are being
   listened to. If that notice cannot be posted, the bot leaves again.
-- **Everything else goes to the assistant**, described below, or is heard and left alone on a host
-  that runs none.
+- **Everything else is heard and left alone.**
 - **libdave's own messages are routed through the bot's logging**, under `Discord.LibDave`. Only its
   warnings and errors reach the journal; `Logging__LogLevel__Discord.LibDave=Debug` brings back its
   per-interval decrypt statistics, which is the first thing to turn on when a voice connection
@@ -217,87 +211,6 @@ and the words go first to a gate that knows a handful of verbs, with no model in
 - **The log says how long it took.** Every act is logged with the milliseconds from the moment the
   speaker stopped talking to the moment the room changed. For a request that is not a verb, the quiet
   that ends it is inside that number, because the person waited through it.
-
-## Asking the assistant
-
-What the gate does not read goes to moviebot-assistant as a turn in this room, asked by the person
-who said it. The assistant answers with moviebot-llm, a small model on hotbox's card, and holds the
-room's conversation, its tools and what it proposed (`src/MovieBot.Assistant/CLAUDE.md`). Every act
-its tools take is the API's, so loading a film, a download and a wish are the same acts as
-`/watch`, the tracker pick and `/notify`, and a confirmed one is posted in the same words
-and embeds. The bot has no engine of its own: when the assistant cannot be reached, the request is
-answered with one sentence saying so, and everything else the bot does goes on as before.
-
-- **It answers in writing, in the voice channel's chat.** The film's sound plays in every browser,
-  so anything said out loud would be said over the film for everybody. What was heard is posted
-  first, because a recogniser mishears and an answer about the wrong film is otherwise
-  inexplicable.
-- **The room and the library are in front of every turn.** They are read fresh and sent after the
-  conversation and before the request, never in the instructions: the instructions come ahead of
-  the tool catalog, and a byte that changes there makes the model read the catalog and the whole
-  conversation again. A paused room is described as "waiting to be played", because measured on
-  this model "carry on" against a room described only as paused came back as a pause or a question.
-- **Moving the room happens at once; spending something waits.** Play, pause, seek and loading a
-  film act immediately, as the person who asked. A download, a fetched subtitle and a wish are
-  posted as a proposal with two buttons, and a spoken yes or no within
-  `Assistant:ConfirmWindowSeconds` is the same answer. One token backs both, so whichever comes
-  first acts and the other finds it spent. The window takes the next thing its speaker says, and
-  anything that is neither a yes nor a no spends it without a word: in a room watching a film that
-  is a remark about the film, and asking again would open a window that takes the next remark too.
-  Anyone may agree, and the act is done as whoever agrees: they are the one spending it, so the
-  download pings them, the wish is theirs, and the API decides whether they may. The assistant holds the proposal in memory, and it expires.
-- **Asking for a film always ends in something to act on.** Watching, playing, finding and
-  downloading a film are one tool. When the library has the film it goes on; when it does not, the
-  best release the tracker offers is proposed, and when the tracker has none the model is given what
-  a wish takes. A film named by its place in a series, "the second one" or "part two", is counted by
-  the bot in the order the films came out.
-- **A film is asked for to be watched.** A film that has to be fetched is proposed into the room,
-  and goes on there once enough of it can be watched; nothing is fetched to wait in the library.
-- **A show is `download_show`**: a season, all of it or the episodes named, planned like `/show` and
-  proposed for somebody to agree to. It never takes the room either; an episode is watched by asking
-  for it like a film.
-- **A download is always of a release the model was shown.** A torrent id it writes without the
-  tool having offered it is refused, and a release of a film the library already holds is refused
-  too.
-- **When the model writes nothing, what the tools said is the answer.** This model ends its turn
-  straight after a tool result more often than not, so an act comes back as "Moved to 29:51." — the
-  tool's own words, written for the room — rather than as silence. A turn that only proposed
-  something answers with the line saying it waits for confirmation.
-- **A written reply is held to what the turn did.** A reply claiming to have acted — "I have loaded
-  Heat" — on a turn that moved no room, launched nothing and proposed nothing, and a figure of four
-  or more digits that nothing the turn was given contains, each send the model back once with what
-  is wrong; a second failure is posted with a correction under it. A reply that leaves a proposal
-  unmentioned gets a line saying it waits for confirmation. The checks are
-  `TheKrystalShip.Agent`'s, and the verbs a claim is recognised by are the room's
-  (`RoomActionClaim`).
-- **A reply asking for an IMDb or torrent id is sent back.** Nobody in a voice channel has one, and
-  the tools find every id from a film's name. The room's conversation is what produces the ask: once
-  a turn has answered "I need the IMDb ID", the model repeats it for the same request in that
-  conversation, where a fresh one searches. `RoomIdRequest` re-prompts the turn to call the tools.
-  `system.md` also tells the model to find things out with the tools rather than asking, which on
-  its own fixed the same measured failure.
-- **The room verbs are in the same conversation.** A pause the gate carried out is written in as the
-  tool call it stands for, so a question about it later is answered by something that knows it
-  happened.
-- **One conversation per room**, each line attributed to whoever said it. It is compacted into a
-  summary once a turn reports most of the context window used.
-- **Answering does not hold up the room verbs.** A turn takes a second or more and every spoken
-  command goes through one queue, so turns run beside it; turns in one room still run one at a time.
-- **The instructions are short on purpose.** The assistant's `prompts/system.md` is a few sentences.
-  A longer one listing rules and naming tools made this model write its tool calls out as text, and
-  routing failed across the board; the rules that matter live in each tool's description and in
-  what each tool returns. `system.md` is read again every turn, `tools.json` once at startup, and the
-  assistant refuses to start when `tools.json` and the tools it implements disagree.
-- **Warmed on startup.** The assistant sends its real instructions and catalog through the model as
-  it starts, and writes the same request for the model's unit to replay when that restarts.
-
-`AssistantRoutingTests` checks which tool the shipped instructions and catalog lead the real model
-to, and runs only when `MOVIEBOT_LIVE_LLM` names an endpoint:
-
-```bash
-ssh -N -L 18190:127.0.0.1:8190 hotbox &
-MOVIEBOT_LIVE_LLM=http://127.0.0.1:18190 dotnet test --filter AssistantRoutingTests
-```
 
 ## A card says when it is over
 

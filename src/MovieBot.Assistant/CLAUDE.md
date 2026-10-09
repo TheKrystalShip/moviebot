@@ -12,21 +12,25 @@ service says otherwise.
 
 ## Shape
 
-- **`profile/`** is what the harness is given, and the canon for what the model reads: `prompt.md` (the
-  appendix, placed inside `<plugin name="moviebot">`), `tools.json` (every tool's exact description and JSON
-  schema), `guards.json`, `speech.json`, and `skills/<name>/SKILL.md` with `references/`. The package reads
-  the directory and registers it, again after a harness restart. Editing a file there is a redeploy.
-- **`Tools/`** one class per tool over `CinemaTool`, which runs for a signed-in person, as that person, and
-  turns a refusal or an unforeseen failure into a result the model can read. `ToolCall` carries the
-  arguments and the API as that person. `Say` writes what the API said, one title to a line, and
-  `TitleCards` the structured result beside it.
-- **`Api/`** the API as the asking person: `CinemaApi` (the routes the tools read), the DTOs (only the
-  fields a tool reads), and `Recording`, the recording of the API's answers and the handlers that write
-  and replay it.
+- **`profile/`** is the prose the harness is given: `prompt.md` (the appendix, placed inside
+  `<plugin name="moviebot">`) and `skills/<name>/SKILL.md` with `references/`. The package reads the
+  directory and registers it, again after a harness restart. Editing a file there is a redeploy; with
+  `Assistant:TuneFrom` set to this directory on a development run it is read as it changes.
+- **`Tools/`** one partial type per tool, declared with `[AssistantTool]` and a `[Description]` that
+  is exactly what the model reads, over an `Args` record that is its schema. A tool runs for a signed-in
+  person, as that person; `ToolRefusal` is what it throws for a reason the model should read, and any
+  other failure is answered as "could not finish". `TitleText` writes what the API said, one title to a
+  line; `TitleCards` the structured result beside it, serialized through `CardJson`.
+- **`CinemaGuards.cs`** the reply guards, and the speech vocabulary in `Program.cs`: code, declared on
+  the plugin builder.
+- **`Api/`** the API as the asking person: `CinemaApi` (the routes the tools read, every refusal
+  worded for the model as a `ToolRefusal`) and the DTOs (only the fields a tool reads).
 - **`Callers.cs`** sign-in: the access token on the request, validated as the API validates it. No token
   or a foreign one is `401`; the provider's token without `cinema:watch` is `403`; a provider whose keys
   cannot be fetched is `502`.
 - **`CinemaTurnContext.cs`** the live block sent with each turn.
+- **`Program.cs`** the domain registrations; the host, `/health` and the relayed routes are the
+  package's (`tks-assistant/docs/writing-a-plugin.md`).
 
 ## The tools
 
@@ -64,10 +68,17 @@ room has the player.
 `Assistant:PluginKey` (the key issued for `moviebot` at the harness, set only in the environment as
 `Assistant__PluginKey`), `Assistant:RecordApiTo` (a file every API answer is appended to, as a recording a
 test replays; it holds whatever the API said to the person who asked, so it is not committed),
-`Api:BaseUrl` and `Oidc:*` as the other programs read them.
+`Assistant:TuneFrom` (development), `Api:BaseUrl` and `Oidc:*` as the other programs read them.
 
 ## Tests
 
-`tests/MovieBot.Tests/Assistant/` runs the real tools over `CinemaWorld`, an invented film database and
-library behind the same HTTP client the service uses (`ReplayHandler`). A recording of the live API replays
-the same way. `PluginHostTests` boots the service in process against a fake harness and a fake provider.
+`tests/MovieBot.Tests/Assistant/` runs the real tools through `ToolTest` over `CinemaWorld`, an invented
+film database and library behind the same HTTP client the service uses (`ReplayHandler`). A recording
+of the live API replays the same way. `ProfileTests` holds the composed profile to
+`tests/baseline/profile.json`, the profile registered with the harness, so a tool, a guard or a speech
+setting cannot change what the model reads without that test saying so. `PluginHostTests` boots the service in
+process against a fake harness and a fake provider.
+
+`tests/MovieBot.Assistant.Suite` runs `cases.json` (a prompt, the tools expected, what the reply must and
+must not say) through the plugin package's suite runner against a live harness and this plugin, as a
+signed-in person. Its `README.md` says how the Cinema access token is supplied.

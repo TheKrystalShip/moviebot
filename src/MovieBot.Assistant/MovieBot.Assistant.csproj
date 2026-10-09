@@ -21,17 +21,12 @@
     <!-- The shared settings file, shipped beside the binary as the defaults. -->
     <Content Include="../moviebot.settings.json" Link="moviebot.settings.json" CopyToOutputDirectory="PreserveNewest" />
 
-    <!-- The profile the harness is given: the prompt appendix, the tool catalog, the skills and the
-         guard data. It ships beside the binary and is read from there. The web SDK already counts
-         the JSON among its content, so the directory is taken back and listed once. -->
-    <Content Remove="profile/**" />
-    <Content Include="profile/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- The plugin to the assistant harness: the harness client, profile registration, the tool host
          and the routes this service relays to the people of Krystal Cinema. -->
-    <PackageReference Include="TheKrystalShip.Agent.Plugin" Version="1.0.0-dev.10" />
+    <PackageReference Include="TheKrystalShip.Agent.Plugin" Version="1.0.0-dev.11" />
 
     <!-- Checks the identity provider's access tokens, as the API does. -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
