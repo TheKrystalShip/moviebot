@@ -480,11 +480,13 @@ it defaults to the scratch site and takes a deployed origin as readily.
 
 ## The assistant
 
-The dock holds krystal-ui's `Chat`, talking to moviebot-assistant at `/assistant` as the signed-in
-person. A film the assistant puts on or finds comes back as the tool's card and is drawn with a way
-to watch it; a proposal (watching a film that has to be fetched, a wish, subtitles) is confirmed in
-the chat by the person who asked for it, and a confirmed Watch takes them to the room it opened, as
-Watch on the film's page does.
+The dock holds krystal-ui's `Chat`, talking at `/assistant` to the plugin of the assistant harness as
+the signed-in person, over the assistant wire contract (`tks-assistant/docs/wire-contract.md`). Replies
+stream; the microphone sends a voice note to the plugin's `/speech/transcribe` and the transcript returns
+to the composer. A `question` frame is drawn as a form of choices and the answers go as the next turn,
+which is how the taste survey runs. A `titles` result is drawn under the reply that names it, one card
+for each title the reply names: poster, name, year, and *In library* and *Watched* where they hold,
+leading to the title's page. The dock holds no room controls and no buttons for what a title's page does.
 
 ## Rules
 

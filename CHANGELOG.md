@@ -22,6 +22,11 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`Assistant:RecordApiTo`** appends every answer the API gives the plugin to a file, as a recording a
   test replays through the same tools.
 
+- **Krystal Cinema's chat dock speaks to the plugin.** Replies stream, a question the assistant asks is
+  a form of choices answered as the next message (the taste survey), the microphone transcribes through
+  the plugin, and a title a reply names is a card with its poster, year and whether it is in the library
+  or watched, leading to its page. The dock is krystal-ui 0.20.1's chat. Site 0.52.0.
+
 ### Removed
 
 - **The assistant's own model, conversations and tools.** The language model, the conversation store,

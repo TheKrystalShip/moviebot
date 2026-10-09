@@ -440,13 +440,21 @@ a.kc-row__title:hover { color: var(--krystal-teal-hover); }
 .kc-signin__card h1 { margin: 0; font-size: 24px; }
 .kc-signin__card p { margin: 0 0 6px; font-size: 14px; color: var(--fg-2); line-height: 1.5; }
 
-/* ── The assistant's film cards ──────────────────────────────────────────────────────── */
+/* ── The assistant's title cards ─────────────────────────────────────────────────────── */
 .kc-chat-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .kc-chat-card {
-  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-sm);
-  border: 1px solid var(--border-subtle); background: var(--surface-1); color: var(--fg-3);
+  display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: var(--r-sm); min-width: 0;
+  border: 1px solid var(--border-subtle); background: var(--surface-1); color: inherit; text-decoration: none; cursor: pointer;
 }
-.kc-chat-card__name { flex: 1; min-width: 0; font-weight: 600; color: var(--fg-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kc-chat-card:hover { border-color: var(--border-strong); }
+.kc-chat-card__art {
+  flex: none; width: 40px; aspect-ratio: 2 / 3; border-radius: 4px; overflow: hidden; color: var(--fg-3);
+  display: flex; align-items: center; justify-content: center; background: var(--surface-2);
+}
+.kc-chat-card__art img { width: 100%; height: 100%; object-fit: cover; }
+.kc-chat-card__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.kc-chat-card__name { font-weight: 600; color: var(--fg-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kc-chat-card__note { font-size: 12px; color: var(--fg-3); }
 
 /* Every tab of the profile is one column at the page's width, its sections spaced as the page's are. */
 .kc-profile__panel { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
