@@ -26,7 +26,7 @@
   "claims": [
     {
       "name": "titles",
-      "pattern": "(?:(?:^|\\n)[\\s*_>\\-\\d.]*|(?<=[a-z,:;)] ))(?<title>[\\p{Lu}\\d][\\w'’:&.\\-]*(?:\\s+(?:(?:of|the|a|an|and|in|on|to|for|at|vs|with|la|le|de)\\s+)*[\\p{Lu}\\d][\\w'’:&.\\-]*)*)[*_]* \\((?<year>\\d{4})\\)",
+      "pattern": "(?:(?:^|\\n)[ \\t*_>\\-\\d.]*|(?<=[a-z,:;).!?] ))(?<title>(?!\\d+s\\b)[\\p{Lu}\\d][\\w'’&\\-]*(?::?[ ]+(?:(?:of|the|a|an|and|in|on|to|for|at|vs|with|la|le|de)[ ]+)*[\\p{Lu}\\d][\\w'’&\\-]*)*)[*_]* \\((?<year>\\d{4})\\)",
       "group": "title",
       "against": "toolResults",
       "caseInsensitive": false,

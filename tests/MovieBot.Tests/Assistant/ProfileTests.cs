@@ -288,8 +288,13 @@ public sealed partial class ProfileTests
         // Bold hides the first word from the lookbehind; the rest of the title is still found in the result.
         Assert.Equal(["Lighthouse"], Claimed("It sounds like you're thinking of **The Lighthouse (2019)**."));
         Assert.Equal(["A Tale of Two Sisters"], Claimed("Is the film you're thinking of A Tale of Two Sisters (2003)?"));
+        Assert.Equal(["Witches of Eastwick"], Claimed("Is it possible you're thinking of *The Witches of Eastwick* (1987), which stars Jack Nicholson?"));
         Assert.Equal(["Mad Max: Fury Road"], Claimed("Yes, Mad Max: Fury Road (2015) is a good one."));
         Assert.Equal(["Lee Cronin's The Mummy"], Claimed("Lee Cronin's The Mummy (2026) - a mystery"));
+
+        // A title is one line of words, and a decade or a sentence before it is not part of it.
+        Assert.Equal(["The Others", "Saw"], Claimed("Here are films from the early 2000s:\nThe Others (2001)\nA survival horror film in a post-outbreak Britain. Saw (2004)"));
+        Assert.Equal(["The Others"], Claimed("Films from the early 2000s: The Others (2001) is one."));
 
         // Not a title: a year in brackets after a lowercase phrase, or a sentence with none.
         Assert.Empty(Claimed("She was born in 1950 (aged 12)\nAnne Hathaway appeared in the following movies this year:"));
