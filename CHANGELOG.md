@@ -4,6 +4,34 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.37.0] - 2026-10-09
+
+### Added
+
+- **The assistant is a plugin to the assistant harness, written for finding films.** Six read-only tools
+  over the film database and the person's own records, through the API as that person: `search_titles`,
+  `title_details`, `person_credits` (a person's work oldest first, each credit released, upcoming or
+  announced), `discover` (by genre, years, people, keywords, language, rating and similarity, saying
+  what each word matched and what to loosen when nothing fits), `whats_new` and `my_taste`. Five skills:
+  `find-a-forgotten-film`, `filmography`, `recommend`, `whats-on` and `taste-survey`. Every tool that
+  names titles returns a `titles` card for the site to draw. The taste a survey asks for is kept in the
+  harness's shared memory under `taste`, and every recommendation reads it. Assistant 3.0.0.
+- **`Assistant:RecordApiTo`** appends every answer the API gives the plugin to a file, as a recording a
+  test replays through the same tools.
+
+### Removed
+
+- **The assistant's own model, conversations and tools.** The language model, the conversation store,
+  the room controls, the proposals for downloads and wishes, the notifications and the reply checks are
+  the harness's or the site's now. Settings `Llm`, `LlmAgent`, `Assistant:OfferMinutes`,
+  `Assistant:LibraryInContext` and `Assistant:IdleResetMinutes` are gone, with the tests and evals that
+  measured the old assistant.
+
+### Changed
+
+- **`Assistant:HarnessAddress` and `Assistant:PluginKey`** say where the harness is and the key the plugin
+  presents there; the key is set only in the environment.
+
 ## [2.36.0] - 2026-10-09
 
 ### Added

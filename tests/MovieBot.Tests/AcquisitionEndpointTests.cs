@@ -8,7 +8,7 @@ namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
 /// Fetching films over HTTP, as the site, the bot and the assistant reach it: the tracker and the title
-/// index answer from the test (<see cref="AssistantHost.OneRelease"/>), and the torrent client is not there.
+/// index answer from the test (<see cref="ReleaseStubs.OneRelease"/>), and the torrent client is not there.
 /// </summary>
 public sealed class AcquisitionEndpointTests(SessionFixture fixture) : IClassFixture<SessionFixture>
 {

@@ -126,8 +126,8 @@ public class SessionFixture : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IReleaseSearch>();
-            services.AddSingleton<IReleaseSearch>(new AssistantHost.OneRelease());
-            services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new AssistantHost.CatalogueStub());
+            services.AddSingleton<IReleaseSearch>(new ReleaseStubs.OneRelease());
+            services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new ReleaseStubs.CatalogueStub());
             services.AddHttpClient<TmdbClient>().ConfigurePrimaryHttpMessageHandler(() => FilmDatabase);
             services.AddHttpClient<WebPushSender>().ConfigurePrimaryHttpMessageHandler(() => PushService);
 

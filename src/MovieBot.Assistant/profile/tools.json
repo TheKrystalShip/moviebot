@@ -1,0 +1,97 @@
+[
+  // Six read-only tools, all always loaded. Nothing here acts: watching, getting a film, notify me,
+  // watch later and follows are buttons on a title's page, and every title a tool returns comes back
+  // as a card that opens it.
+  {
+    "name": "search_titles",
+    "class": "read",
+    "resultLimit": 8000,
+    "description": "Find films and shows by name, or by words from a name.\n- Returns up to 10 matches, best first, each with year, kind (film or show), director or creator, two lead actors, and whether the library has it.\n- year narrows to titles released that year, or one either side.\n- Use when the person gives a name, part of one, or a title in another language.\n- Not for finding by actor, genre or era: use person_credits or discover.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": { "type": "string", "description": "The name or words from it." },
+        "kind": { "type": "string", "enum": ["film", "show"], "description": "Limit to films or shows." },
+        "year": { "type": "integer", "description": "Roughly when it came out." }
+      },
+      "required": ["query"]
+    }
+  },
+  {
+    "name": "title_details",
+    "class": "read",
+    "resultLimit": 8000,
+    "description": "Everything the film database knows about one film or show.\n- Year and release date, runtime, genres, rating and vote count, plot, director and writers, main cast with their parts, original language, whether it is tagged black and white, keywords, and for a show its seasons.\n- Whether the library has it, and whether the person has watched it.\n- Use to confirm a candidate against what the person remembers before naming it.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The title with its year, or an id a tool returned." }
+      },
+      "required": ["title"]
+    }
+  },
+  {
+    "name": "person_credits",
+    "class": "read",
+    "resultLimit": 16000,
+    "description": "An actor's or film-maker's work, in date order, oldest first.\n- Each credit has its release date, kind, the part played or the job, and whether it is released, upcoming or only announced.\n- from and to are years; give both as the same year for one year.\n- role: acting, directing, writing, or any (default).\n- Several people with the name: returns them, each with what they are known for; ask, or pick the one the question makes obvious.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "person": { "type": "string", "description": "The person's name." },
+        "from": { "type": "integer", "description": "First year to include." },
+        "to": { "type": "integer", "description": "Last year to include." },
+        "role": { "type": "string", "enum": ["acting", "directing", "writing", "any"], "description": "Which credits. Default any." },
+        "kind": { "type": "string", "enum": ["film", "show"], "description": "Limit to films or shows." }
+      },
+      "required": ["person"]
+    }
+  },
+  {
+    "name": "discover",
+    "class": "read",
+    "resultLimit": 12000,
+    "description": "Find films or shows by what they are like rather than by name. Every filter is optional and they combine.\n- genre: one or more, such as horror or \"science fiction\".\n- from, to: release years.\n- with: people who are in it or made it.\n- about: keywords such as \"black and white\", \"time loop\", \"heist\", \"based on a true story\".\n- language: original language.\n- good_only: well rated with enough votes to mean it. Default true.\n- sort: popular (default), rating, newest, oldest.\n- Returns up to 20, each with year, genres, rating, a one-line plot and whether the library has it.\n- like: a title; returns films the database counts as similar, and the other filters narrow them.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string", "enum": ["film", "show"], "description": "Default film." },
+        "genre": { "type": "array", "items": { "type": "string" }, "description": "Genres." },
+        "from": { "type": "integer", "description": "Release years." },
+        "to": { "type": "integer", "description": "Release years." },
+        "with": { "type": "array", "items": { "type": "string" }, "description": "People's names." },
+        "about": { "type": "array", "items": { "type": "string" }, "description": "Keywords." },
+        "language": { "type": "string", "description": "Original language, such as Korean." },
+        "like": { "type": "string", "description": "A title to find similar ones to." },
+        "good_only": { "type": "boolean", "description": "Default true." },
+        "sort": { "type": "string", "enum": ["popular", "rating", "newest", "oldest"], "description": "Default popular." }
+      }
+    }
+  },
+  {
+    "name": "whats_new",
+    "class": "read",
+    "resultLimit": 14000,
+    "description": "What is current: trending this week, out recently, or coming soon.\n- trending: the most watched films and shows this week.\n- released: films out in the last few weeks.\n- upcoming: films with a release date in the coming months.\n- Also the newest additions to the library.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "which": { "type": "string", "enum": ["trending", "released", "upcoming", "library"], "description": "What to list." },
+        "kind": { "type": "string", "enum": ["film", "show"], "description": "Default both." }
+      },
+      "required": ["which"]
+    }
+  },
+  {
+    "name": "my_taste",
+    "class": "read",
+    "resultLimit": 12000,
+    "description": "What the asking person has watched, rated and saved: their history, their lists and the shows they follow, newest first.\n- Use to tailor a recommendation and to leave out what they have already seen.\n- Not for answering \"what did I watch\": the site shows that.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "limit": { "type": "integer", "minimum": 1, "maximum": 100, "description": "How many of each, default 30." }
+      }
+    }
+  }
+]

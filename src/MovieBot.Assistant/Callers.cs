@@ -2,24 +2,16 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using TheKrystalShip.Agent.Plugin;
 
 namespace TheKrystalShip.MovieBot.Assistant;
 
 /// <summary>Who is asking: a person, by the access token the identity provider minted for Cinema.</summary>
 /// <param name="AccessToken">The token itself, which every call the tools make to the API carries.</param>
-/// <param name="Via">
-/// The client calling on the person's behalf (the token's <c>act</c>), when one is: the bot, relaying
-/// what the person said in a voice channel. Only such a client names a room.
-/// </param>
-/// <param name="Actions">The Cinema actions the token lists, which is what a command is offered and refused by.</param>
+/// <param name="Via">The client calling on the person's behalf (the token's <c>act</c>), when one is.</param>
+/// <param name="Actions">The Cinema actions the token lists.</param>
 public sealed record Caller(string UserId, string DisplayName, string AccessToken, string? Via, IReadOnlySet<string> Actions)
 {
-    /// <summary>The conversations and streams this caller may see: their own.</summary>
-    public string Scope => AssistantTurn.PersonScope(UserId);
-
-    /// <summary>Whether a client is relaying the person, which is what may name a room.</summary>
-    public bool Relayed => Via is not null;
-
     /// <summary>The record's printed form, without the token.</summary>
     public override string ToString() => $"Caller {{ UserId = {UserId}, DisplayName = {DisplayName}, Via = {Via} }}";
 }
@@ -40,16 +32,11 @@ public sealed class AssistantOidcOptions
 /// Reads the caller off a request. Nobody is signed in here.
 /// </summary>
 /// <remarks>
-/// <para>
 /// <b>A person carries an access token the identity provider minted for Cinema's audience</b>, checked
-/// against the provider's keys exactly as the API checks it, whether the site sends it or the bot
-/// relays it. This service mints nothing and keeps no sessions, and it forwards the token on every
-/// call its tools make, so the API is the one place that decides what the person may do.
-/// </para>
-/// <para>
-/// <b>Talking to the assistant takes watching.</b> A person who may not watch has no access to Krystal
-/// Cinema, and the assistant is part of it.
-/// </para>
+/// against the provider's keys exactly as the API checks it. This service mints nothing and keeps no
+/// sessions, and it forwards the token on every call its tools make, so the API is the one place that
+/// decides what the person may see. Talking to the assistant takes <see cref="Watch"/>: a person who
+/// may not watch has no access to Krystal Cinema, and the assistant is part of it.
 /// </remarks>
 public sealed class Callers(IOptions<AssistantOidcOptions> options)
 {
@@ -93,12 +80,21 @@ public sealed class Callers(IOptions<AssistantOidcOptions> options)
     }
 }
 
+/// <summary>The plugin's sign-in: the person the access token on the request names.</summary>
+public sealed class CinemaPeople(Callers callers) : IPluginPeople
+{
+    public ValueTask<PluginPerson?> ResolveAsync(HttpContext http) =>
+        ValueTask.FromResult(callers.Resolve(http.Request) is { } caller
+            ? new PluginPerson(caller.UserId, caller.DisplayName, caller)
+            : null);
+}
+
 public static class CallerAuthentication
 {
     /// <summary>
     /// Validates the provider's access tokens: issuer and discovery from <c>Oidc:Issuer</c>, audience
     /// <c>Oidc:Audience</c>, ES256, typed <c>at+jwt</c>. A request without one is simply nobody; the
-    /// endpoints answer that themselves.
+    /// plugin's routes answer that themselves.
     /// </summary>
     public static IServiceCollection AddCallerAuthentication(this IServiceCollection services)
     {

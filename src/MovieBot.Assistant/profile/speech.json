@@ -1,0 +1,4 @@
+{
+  // Words people say to the assistant that a recogniser would otherwise spell as ordinary words.
+  "vocabulary": ["Krystal Cinema"]
+}

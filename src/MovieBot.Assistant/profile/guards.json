@@ -1,0 +1,28 @@
+{
+  // A reply is held to the figures the turn's tools returned: a rating, a year, a runtime or a vote
+  // count nothing the turn read contains is sent back.
+  "fabricatedFigures": true,
+
+  // The words an act is claimed in. Nothing here acts: watching, getting a film, notify me, watch later
+  // and follows are buttons on a title's page. A reply that says one was done is sent back once and then
+  // corrected. "I can add that" is an offer, never a claim.
+  "actionClaims": {
+    "completedVerbs": [
+      "added", "saved", "downloaded", "fetched", "queued", "started", "played", "put on", "followed",
+      "unfollowed", "removed", "set up", "reminded", "scheduled", "subscribed", "paused", "resumed"
+    ],
+    "offeredVerbs": [
+      "add", "save", "download", "fetch", "queue", "start", "play", "put on", "follow", "unfollow",
+      "remove", "remind", "schedule", "subscribe", "pause", "resume"
+    ],
+    "correction": "\n\nCorrection: nothing was changed. I only find films and shows; I did not add, save, fetch, play or follow anything. The card for the title opens its page, where that is one click.",
+    "retryNotice": "\n\n(Correction: I described something I did not do. I only find films and shows. Answering again.)\n\n"
+  },
+
+  // Calls of a class one user message may make. The reads are unlimited; a hunt for one film makes
+  // several. The harness's web search and page fetch are bounded.
+  "perMessageLimits": {
+    "search": 5,
+    "fetch": 4
+  }
+}

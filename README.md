@@ -58,10 +58,12 @@ Playback starts seconds after a film is requested, while it is still being trans
    from the library once it has gone its time without a play. Which films are on disk is the server's
    business alone: nothing anybody sees says whether a film is here or has to be fetched, and a film
    that has left is fetched again like any other.
-6. **The assistant** answers what people say or type to MovieBot with a small local language
-   model, acting through the API: it can move a room, put a film on, and propose a download or a wish
-   for somebody to agree to. It speaks the same chat protocol as the KGSM assistant, so one
-   chat client serves both.
+6. **The assistant** helps people find films and shows: one they half remember, one by someone they
+   like, one that fits a mood. It is a plugin to the organization's assistant harness, which runs the
+   model, the conversations and the memory; the plugin reads the film database and each person's
+   history, lists and follows through the API, as that person, and answers with cards that open a
+   title's page. It acts on nothing: watching, getting a film and following are buttons on the page.
+   It speaks the same chat protocol as the KGSM assistant, so one chat client serves both.
 7. **Krystal Cinema** is the site: the library in a browser, for the people the identity provider
    lets watch. It searches,
    fetches and waits on films through the API as the person signed in, carries the assistant
@@ -89,7 +91,7 @@ src/MovieBot.Core/      manifest and session contracts, and their serializer
 src/MovieBot.Client/    the API client the bot and the assistant share
 src/MovieBot.Ingest/    the ingest CLI: probe, extract, transcode, manifest
 src/MovieBot.Api/       library, media serving, sessions, SignalR hub, downloads and wishes
-src/MovieBot.Assistant/ the assistant: turns, proposals and conversations over the chat protocol
+src/MovieBot.Assistant/ the assistant: the plugin that finds films, over the harness's chat protocol
 src/MovieBot.Bot/       the Discord bot
 src/MovieBot.Handoff/   moves finished downloads into the library
 web/site/               Krystal Cinema, the site, and its player, which is also the Discord Activity

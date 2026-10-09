@@ -259,31 +259,20 @@
     "MaxCommandSeconds": 7
   },
 
-  // The assistant: moviebot-assistant answers what people say to MovieBot, with the language model
-  // below, and listens on Listen; the bot reaches it at BaseUrl. Enabled is whether the bot puts a
-  // spoken request the room verbs do not cover to it, and so which turns the assistant warms the
-  // model for, a room's or a person's; off unless enabled.
+  // The assistant: moviebot-assistant is the plugin that helps people find films, and it listens on
+  // Listen. The assistant harness runs the model and holds the conversations; HarnessAddress is where
+  // the plugin reaches it, and its key there, PluginKey, is set only in the environment as
+  // Assistant__PluginKey. RecordApiTo, when set, is a file the plugin appends every answer it gets from
+  // the API to, for a test to replay. The bot reaches the assistant at BaseUrl; Enabled is whether the
+  // bot puts a spoken request the room verbs do not cover to it.
   "Assistant": {
     "Enabled": false,
     "Listen": "http://127.0.0.1:8191",
     "BaseUrl": "http://127.0.0.1:8191",
     "ConfirmWindowSeconds": 20,
-    "OfferMinutes": 10,
-    "LibraryInContext": 60,
-    "IdleResetMinutes": 15
-  },
-
-  "Llm": {
-    "Provider": "LlamaCpp",
-    "Endpoint": "http://127.0.0.1:8190",
-    "Model": "gemma-4-E2B-it-qat",
-    "ContextWindow": 8192,
-    "Temperature": 0,
-    "TimeoutSeconds": 60
-  },
-
-  "LlmAgent": {
-    "MaxIterations": 6
+    "HarnessAddress": "http://127.0.0.1:8082",
+    "PluginKey": "",
+    "RecordApiTo": ""
   },
 
   // Speech recognition for voice commands: the unix socket of the speech daemon the bot hears
