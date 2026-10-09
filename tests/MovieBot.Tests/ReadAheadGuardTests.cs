@@ -116,6 +116,39 @@ public class ReadAheadGuardTests : IDisposable
         process.Kill();
     }
 
+    [Fact]
+    public async Task Holds_the_reader_while_the_source_cannot_be_asked_and_does_not_fail()
+    {
+        // A torrent client that resets a connection says nothing about the file. Failing the
+        // transcode on it is what left a film half-made, so the reader is held and the question
+        // asked again until it is answered.
+        var availability = new StubAvailability { Readable = long.MaxValue, Complete = false, Unanswered = true };
+
+        // tail holds the file open itself. A shell redirect would not: the shell forks and the
+        // child holds the descriptor, so the process being watched would have none.
+        using var process = Process.Start(new ProcessStartInfo("tail", ["-f", _file])
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+        })!;
+
+        var guard = new ReadAheadGuard(availability, _file, marginBytes: 1 << 20);
+        using var cancellation = new CancellationTokenSource();
+        var watching = guard.WatchAsync(process, cancellation.Token);
+
+        await WaitUntil(() => StateOf(process.Id) == 'T', TimeSpan.FromSeconds(5));
+        Assert.Equal('T', StateOf(process.Id));
+        Assert.False(watching.IsFaulted);
+
+        // The client answers again and reports the download whole: the watch ends on its own.
+        availability.Unanswered = false;
+        availability.Complete = true;
+
+        await watching.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.NotEqual('T', StateOf(process.Id));
+        process.Kill();
+    }
+
     private static async Task WaitUntil(Func<bool> condition, TimeSpan within)
     {
         var deadline = DateTimeOffset.UtcNow + within;
@@ -131,7 +164,15 @@ public class ReadAheadGuardTests : IDisposable
         public long Readable { get; set; }
         public bool Complete { get; set; }
 
-        public Task<long> ReadableBytesAsync(CancellationToken ct) => Task.FromResult(Readable);
-        public Task<bool> IsCompleteAsync(CancellationToken ct) => Task.FromResult(Complete);
+        /// <summary>When set, every question fails the way a torrent client that cannot be reached does.</summary>
+        public bool Unanswered { get; set; }
+
+        public Task<long> ReadableBytesAsync(CancellationToken ct) => Answer(Readable);
+        public Task<bool> IsCompleteAsync(CancellationToken ct) => Answer(Complete);
+
+        private Task<T> Answer<T>(T value) =>
+            Unanswered
+                ? Task.FromException<T>(new InvalidOperationException("The torrent client could not be reached."))
+                : Task.FromResult(value);
     }
 }

@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.37.1] - 2026-10-09
+
+### Fixed
+
+- **A film still arriving is not abandoned when the torrent client drops a connection.** The read-ahead
+  guard asks the client whether the download is whole and how far it has got, and a refused connection
+  there failed the guard, which killed the transcode after the film had been announced as watchable. The
+  transcode now pauses and asks again on the next tick, and the guard ends normally once the client
+  answers.
+
 ## [2.37.0] - 2026-10-09
 
 ### Added

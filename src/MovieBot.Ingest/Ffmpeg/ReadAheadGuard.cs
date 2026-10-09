@@ -37,6 +37,7 @@ public sealed class ReadAheadGuard(
     private static readonly TimeSpan Interval = TimeSpan.FromMilliseconds(500);
 
     private bool _paused;
+    private bool _sourceUnanswered;
     private int _pauses;
 
     /// <summary>How many times the transcode had to wait for the download to get ahead.</summary>
@@ -61,7 +62,7 @@ public sealed class ReadAheadGuard(
     {
         try
         {
-            if (await availability.IsCompleteAsync(ct)) return;
+            if (await AskSourceAsync(() => availability.IsCompleteAsync(ct), ct) == true) return;
 
             if (!await WaitForOpenAsync(process, ct))
             {
@@ -74,19 +75,20 @@ public sealed class ReadAheadGuard(
 
             while (!ct.IsCancellationRequested && !process.HasExited)
             {
-                if (await availability.IsCompleteAsync(ct))
+                if (await AskSourceAsync(() => availability.IsCompleteAsync(ct), ct) == true)
                 {
                     Resume(process);
                     return;
                 }
 
-                var readable = await availability.ReadableBytesAsync(ct);
+                var readable = await AskSourceAsync(() => availability.ReadableBytesAsync(ct), ct);
                 var position = ReadPosition(process.Id);
 
                 // A position that cannot be read pauses rather than continues. It was readable
                 // once, so this is a transient — and the safe answer to not knowing where the
-                // reader is, is to stop it.
-                if (position < 0 || position + marginBytes >= readable) Pause(process);
+                // reader is, is to stop it. The same holds for an arrived length that could not
+                // be asked for: the reader is held until the question can be answered.
+                if (readable is null || position < 0 || position + marginBytes >= readable) Pause(process);
                 else Resume(process);
 
                 await Task.Delay(Interval, ct);
@@ -119,6 +121,30 @@ public sealed class ReadAheadGuard(
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Asks the source a question, and answers null when it cannot be asked. A failed question
+    /// says nothing about the file, so it is never a verdict: the caller holds the reader and asks
+    /// again on the next tick. The log says so once per outage rather than on every tick.
+    /// </summary>
+    private async Task<T?> AskSourceAsync<T>(Func<Task<T>> ask, CancellationToken ct)
+        where T : struct
+    {
+        try
+        {
+            var answer = await ask();
+            _sourceUnanswered = false;
+            return answer;
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            if (!_sourceUnanswered)
+                log?.Invoke($"  the download could not be asked ({ex.Message}); holding the transcode until it answers");
+
+            _sourceUnanswered = true;
+            return null;
+        }
     }
 
     private void Pause(Process process)

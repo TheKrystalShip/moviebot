@@ -210,7 +210,9 @@ CLI changes.
   per rendition and the furthest is its position.
 - **The guard fails closed.** If it cannot find the descriptor, it refuses rather than running on: a
   position it cannot read pauses, and one it never found at all aborts the transcode. Running unguarded
-  produces corruption that looks like success, which is worse than a failure that says so.
+  produces corruption that looks like success, which is worse than a failure that says so. A question
+  the source cannot answer, such as the torrent client refusing a connection, pauses the reader and is
+  asked again on the next tick; it is not a verdict on the file, so it never aborts the transcode.
 - **A guard that cannot do its job kills its process, and with it the pass.** It is awaited after the
   process so its message replaces ffmpeg's, which would only report that it was killed, and the
   other units are ended like any failed unit's siblings.
