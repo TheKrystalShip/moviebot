@@ -31,17 +31,10 @@
   <ItemGroup>
     <!-- The plugin to the assistant harness: the harness client, profile registration, the tool host
          and the routes this service relays to the people of Krystal Cinema. -->
-    <PackageReference Include="TheKrystalShip.Agent.Plugin" Version="1.0.0-dev.4" />
+    <PackageReference Include="TheKrystalShip.Agent.Plugin" Version="1.0.0-dev.6" />
 
     <!-- Checks the identity provider's access tokens, as the API does. -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
-  </ItemGroup>
-
-  <!-- GHSA-2m69-gcr7-jv3q is on the native SQLite the plugin package pulls in for its push store, and
-       no build of it fixes the advisory. This service keeps no state, so it never opens a database.
-       Scoped to that advisory alone. -->
-  <ItemGroup>
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
   </ItemGroup>
 
   <ItemGroup>

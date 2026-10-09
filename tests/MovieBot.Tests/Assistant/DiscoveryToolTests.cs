@@ -292,7 +292,7 @@ public sealed class DiscoveryToolTests
     public async Task A_turn_with_nobody_signed_in_reads_nothing()
     {
         PluginToolResult result = await _rig.Search.ExecuteAsync(
-            System.Text.Json.JsonSerializer.SerializeToElement(new { query = "x" }), ToolContexts.Nobody("search_titles"));
+            System.Text.Json.JsonSerializer.SerializeToElement(new { query = "x" }), PluginToolContext.ForTesting(tool: "search_titles"));
 
         Assert.True(result.IsError);
         Assert.Empty(_rig.World.Asked);

@@ -321,7 +321,7 @@ internal sealed class ToolRig
     public async Task<PluginToolResult> RunAsync(IPluginTool tool, object arguments) =>
         await tool.ExecuteAsync(
             JsonSerializer.SerializeToElement(arguments),
-            ToolContexts.For(Person, tool.Name));
+            PluginToolContext.ForTesting(Person, tool.Name));
 
     /// <summary>The titles a result's card offers, as their ids; empty when the result has no card.</summary>
     public static string[] CardIds(PluginToolResult result) =>

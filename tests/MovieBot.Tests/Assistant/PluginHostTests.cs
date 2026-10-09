@@ -27,6 +27,7 @@ public sealed class PluginHostTests : IAsyncLifetime
     private readonly ReplayHandler _world = CinemaWorld.Build();
     private WebApplication _app = null!;
     private HttpClient _client = null!;
+    private bool _providerDown;
 
     public async Task InitializeAsync()
     {
@@ -41,7 +42,7 @@ public sealed class PluginHostTests : IAsyncLifetime
             {
                 builder.WebHost.UseTestServer();
                 builder.Services.Configure<JwtBearerOptions>(
-                    JwtBearerDefaults.AuthenticationScheme, o => o.BackchannelHttpHandler = _issuer.Handler());
+                    JwtBearerDefaults.AuthenticationScheme, o => o.BackchannelHttpHandler = new Switchable(_issuer.Handler(), () => _providerDown));
                 builder.Services.AddHttpClient<HarnessClient>().ConfigurePrimaryHttpMessageHandler(() => _harness);
                 builder.Services.AddHttpClient<CinemaApi>().ConfigurePrimaryHttpMessageHandler(() => _world);
             });
@@ -108,12 +109,24 @@ public sealed class PluginHostTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task A_token_that_cannot_watch_is_nobody()
+    public async Task A_token_that_cannot_watch_is_refused_not_unknown()
     {
         using HttpResponseMessage response = await _client.SendAsync(
             As("/tools", _issuer.Mint("u", "Sam", TestIssuer.SelfOnly)));
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Contains("does not let the person watch", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task A_provider_that_cannot_be_asked_is_a_bad_gateway_not_a_bad_token()
+    {
+        string token = _issuer.Mint("u", "Sam");
+        _providerDown = true;
+
+        using HttpResponseMessage response = await _client.SendAsync(As("/tools", token));
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
     }
 
     [Fact]
@@ -182,6 +195,13 @@ public sealed class PluginHostTests : IAsyncLifetime
     {
         Assert.Null(Record.Exception(() => _app.Services.GetRequiredService<PluginRegistration>().RequireAgreement()));
         await Task.CompletedTask;
+    }
+
+    /// <summary>The provider's backchannel, which can be made to fail.</summary>
+    private sealed class Switchable(HttpMessageHandler inner, Func<bool> down) : DelegatingHandler(inner)
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+            down() ? Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)) : base.SendAsync(request, ct);
     }
 
     /// <summary>The harness as far as a plugin starting up meets it: it takes a profile and answers with a hash.</summary>

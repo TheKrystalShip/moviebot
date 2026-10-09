@@ -23,7 +23,9 @@ service says otherwise.
 - **`Api/`** the API as the asking person: `CinemaApi` (the routes the tools read), the DTOs (only the
   fields a tool reads), and `Recording`, the recording of the API's answers and the handlers that write
   and replay it.
-- **`Callers.cs`** sign-in: the access token on the request, validated as the API validates it.
+- **`Callers.cs`** sign-in: the access token on the request, validated as the API validates it. No token
+  or a foreign one is `401`; the provider's token without `cinema:watch` is `403`; a provider whose keys
+  cannot be fetched is `502`.
 - **`CinemaTurnContext.cs`** the live block sent with each turn.
 
 ## The tools
@@ -65,5 +67,4 @@ test replays; it holds whatever the API said to the person who asked, so it is n
 
 `tests/MovieBot.Tests/Assistant/` runs the real tools over `CinemaWorld`, an invented film database and
 library behind the same HTTP client the service uses (`ReplayHandler`). A recording of the live API replays
-the same way. `ToolContexts` reaches the plugin package's tool context by reflection, and is the one place
-the suite depends on the package's internals.
+the same way. `PluginHostTests` boots the service in process against a fake harness and a fake provider.

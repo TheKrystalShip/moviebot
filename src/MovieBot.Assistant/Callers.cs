@@ -60,6 +60,11 @@ public sealed class Callers(IOptions<AssistantOidcOptions> options)
         return new Caller(sub, name, token, ActorOf(identity.FindFirst("act")?.Value), actions);
     }
 
+    /// <summary>Whether the request carries a token the provider minted for Cinema, whatever it lets the person do.</summary>
+    public bool IsSignedIn(HttpRequest request) =>
+        request.HttpContext.User.Identities.Any(i => i.IsAuthenticated
+            && i.AuthenticationType == JwtBearerDefaults.AuthenticationScheme && i.FindFirst("sub") is not null);
+
     /// <summary>The acting client's id out of an <c>act</c> claim, an object carried as JSON.</summary>
     private static string? ActorOf(string? act)
     {
@@ -81,16 +86,33 @@ public sealed class Callers(IOptions<AssistantOidcOptions> options)
 }
 
 /// <summary>The plugin's sign-in: the person the access token on the request names.</summary>
+/// <remarks>
+/// No token, or one that is not the provider's, is nobody (<c>401</c>). A token that is the provider's and
+/// holds no <see cref="Callers.Watch"/> is somebody who may not use the assistant (<c>403</c>). A provider
+/// whose keys cannot be fetched cannot vouch for anyone (<c>502</c>).
+/// </remarks>
 public sealed class CinemaPeople(Callers callers) : IPluginPeople
 {
-    public ValueTask<PluginPerson?> ResolveAsync(HttpContext http) =>
-        ValueTask.FromResult(callers.Resolve(http.Request) is { } caller
-            ? new PluginPerson(caller.UserId, caller.DisplayName, caller)
-            : null);
+    public ValueTask<PluginPerson?> ResolveAsync(HttpContext http)
+    {
+        if (callers.Resolve(http.Request) is { } caller)
+            return ValueTask.FromResult<PluginPerson?>(new PluginPerson(caller.UserId, caller.DisplayName, caller));
+
+        if (http.Items.ContainsKey(CallerAuthentication.ProviderUnreachable))
+            throw PluginSignInException.UpstreamUnavailable("Sign-in is unavailable right now. Try again in a moment.");
+
+        if (callers.IsSignedIn(http.Request))
+            throw PluginSignInException.Forbidden("This account does not let the person watch in Krystal Cinema, so the assistant is not available to it.");
+
+        return ValueTask.FromResult<PluginPerson?>(null);
+    }
 }
 
 public static class CallerAuthentication
 {
+    /// <summary>Set on the request when the provider's keys could not be fetched to check its token.</summary>
+    public const string ProviderUnreachable = "cinema.provider-unreachable";
+
     /// <summary>
     /// Validates the provider's access tokens: issuer and discovery from <c>Oidc:Issuer</c>, audience
     /// <c>Oidc:Audience</c>, ES256, typed <c>at+jwt</c>. A request without one is simply nobody; the
@@ -123,6 +145,20 @@ public static class CallerAuthentication
                     ClockSkew = TimeSpan.FromSeconds(30),
                     NameClaimType = "name",
                     AuthenticationType = JwtBearerDefaults.AuthenticationScheme,
+                };
+                jwt.Events = new JwtBearerEvents
+                {
+                    // A token that cannot be checked because the provider cannot be asked is not a bad token.
+                    OnAuthenticationFailed = context =>
+                    {
+                        // IDX10500 is the library saying it holds no keys at all, which is what a provider
+                        // whose key set could not be fetched leaves it with.
+                        if (context.Exception is InvalidOperationException or HttpRequestException
+                            || context.Exception.InnerException is HttpRequestException or IOException
+                            || context.Exception.Message.StartsWith("IDX10500", StringComparison.Ordinal))
+                            context.HttpContext.Items[ProviderUnreachable] = true;
+                        return Task.CompletedTask;
+                    },
                 };
             });
         services.AddSingleton<Callers>();

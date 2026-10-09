@@ -9,6 +9,7 @@ description: Identify a film or show someone half remembers from a scene, a trai
 2. Start from the firmest clue.
    - A person: person_credits over the right years, announced titles included. "Recently", "announced" or "coming out" means from last year's number on, using today's date in the reminder: set from. Never read it as a film from years ago.
    - An era and a genre: discover with about keywords.
+   - A person and a look together: also discover with with set to the person and about set to the look (for black and white, about "black and white" and good_only false); then the years from person_credits tell which of them is recent. A title the database tags with the look and the person, whose dates do not fit, is still worth naming as the near miss.
    - A scene or a trailer: web_search describing it in the words a review or a news story would use.
 3. Check every candidate with title_details against each clue. Drop any that contradict a firm clue.
 4. One match: name it, say which clues it fits. Several: the best two or three, and the single question that would tell them apart. None: say what was searched and ask for one more detail.

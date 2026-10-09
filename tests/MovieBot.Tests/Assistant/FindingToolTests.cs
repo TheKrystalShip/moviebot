@@ -77,7 +77,7 @@ public sealed class FindingToolTests
     {
         PluginToolResult result = await _rig.RunAsync(_rig.Search, new { query = "nothing like it", year = (int?)null });
 
-        Assert.Contains("The film database has no film or show matching 'nothing like it'.", result.Text);
+        Assert.StartsWith("The film database has no film or show matching 'nothing like it'. Do not name another film from memory.", result.Text);
         Assert.Null(result.Card);
     }
 
