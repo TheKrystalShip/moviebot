@@ -59,7 +59,7 @@
     },
     {
       "name": "person_credits",
-      "description": "An actor's or film-maker's work, in date order, oldest first.\n- Each credit has its release date, kind, the part played or the job, and whether it is released, upcoming or only announced.\n- from and to are years; give both as the same year for one year.\n- role: acting, directing, writing, or any (default).\n- Several people with the name: returns them, each with what they are known for; ask, or pick the one the question makes obvious.",
+      "description": "An actor's or film-maker's work, in date order, oldest first.\n- Each credit has its release date, kind, the part played or the job, and whether it is released, upcoming or only announced.\n- from and to are years; give both as the same year for one year.\n- role: acting, directing, writing, or any (default).\n- A long list is trimmed to the best-known credits with a count of the rest; all true lists every credit.\n- Several people with the name: returns them, each with what they are known for; ask, or pick the one the question makes obvious.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -92,6 +92,10 @@
               "show"
             ],
             "description": "Limit to films or shows."
+          },
+          "all": {
+            "type": "boolean",
+            "description": "List every credit. Default false."
           }
         },
         "required": [

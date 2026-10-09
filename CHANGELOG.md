@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.40.0] - 2026-10-09
+
+### Changed
+
+- **`person_credits` lists the credits worth reading and counts the rest.** A person with more than
+  twenty-five credits is listed as every upcoming or announced credit with a named part or job, and the
+  twenty released ones with a named part or job that the most people have voted on, still oldest first
+  and with their exact dates. Credits with no named part, a part as oneself or an uncredited one, and
+  the less known are counted in the result's header, and `all` lists every credit. A shorter list, such
+  as a question about a few years, is listed whole. Karen Gillan's seventy-six credits came to a
+  result of about a third of the size.
+
 ## [2.39.0] - 2026-10-09
 
 ### Changed

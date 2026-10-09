@@ -12,6 +12,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
     - Each credit has its release date, kind, the part played or the job, and whether it is released, upcoming or only announced.
     - from and to are years; give both as the same year for one year.
     - role: acting, directing, writing, or any (default).
+    - A long list is trimmed to the best-known credits with a count of the rest; all true lists every credit.
     - Several people with the name: returns them, each with what they are known for; ask, or pick the one the question makes obvious.
     """)]
 internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<PersonCreditsTool.Args, Caller>
@@ -21,7 +22,14 @@ internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<P
         [property: Description("First year to include.")] int? From = null,
         [property: Description("Last year to include.")] int? To = null,
         [property: Description("Which credits. Default any.")] CreditRole? Role = null,
-        [property: Description("Limit to films or shows.")] TitleKind? Kind = null);
+        [property: Description("Limit to films or shows.")] TitleKind? Kind = null,
+        [property: Description("List every credit. Default false.")] bool? All = null);
+
+    /// <summary>The most released credits listed when a person has more; fewer are never trimmed.</summary>
+    internal const int Prominent = 20;
+
+    /// <summary>A list this long or shorter is listed whole.</summary>
+    internal const int Whole = 25;
 
     /// <summary>The department the database files a person under, by the role asked for.</summary>
     private static readonly Dictionary<string, string> Departments = new()
@@ -70,16 +78,56 @@ internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<P
             return ToolResult.Ok(text.ToString());
         }
 
+        (List<Credit> listed, int minor, int lesser) = args.All == true ? (credits.Credits, 0, 0) : Trim(credits.Credits);
         text.Append(credits.Credits.Count).Append(credits.Credits.Count == 1 ? " credit" : " credits").Append(", oldest first.");
         if (credits.Total > credits.Credits.Count)
             text.Append($" The database holds {credits.Total}; these are the newest {credits.Credits.Count}.");
+        if (listed.Count < credits.Credits.Count)
+            text.Append($" Listed: the {listed.Count} best known with a named part or job, upcoming and announced ones included.")
+                .Append($" Not listed: {Not(minor, lesser)}. Call person_credits again with all true to list every credit.");
         text.Append('\n');
 
-        foreach (Credit credit in credits.Credits)
+        foreach (Credit credit in listed)
             text.Append(Write(credit)).Append('\n');
 
-        return ToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(credits.Credits));
+        return ToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(listed));
     }
+
+    /// <summary>
+    /// The credits worth listing from a long list, still oldest first. Every upcoming and announced credit
+    /// with a part or a job stays, and so do the <see cref="Prominent"/> released ones with a part or a job
+    /// that most votes stand behind. What is left out is counted: credits with no named part (a part as
+    /// oneself, an uncredited or archive appearance) and the less known. A list of <see cref="Whole"/> or
+    /// fewer is returned whole, so a question about a few years is answered with every dated credit.
+    /// </summary>
+    internal static (List<Credit> Listed, int Minor, int Lesser) Trim(List<Credit> credits)
+    {
+        if (credits.Count <= Whole) return (credits, 0, 0);
+
+        List<Credit> named = [.. credits.Where(c => !Minor(c))];
+        HashSet<Credit> kept = [.. named.Where(c => c.Status != "released")];
+        foreach (Credit credit in named.Where(c => c.Status == "released")
+                     .OrderByDescending(c => c.Votes).ThenByDescending(c => c.ReleaseDate, StringComparer.Ordinal).Take(Prominent))
+            kept.Add(credit);
+
+        List<Credit> listed = [.. credits.Where(kept.Contains)];
+        int minor = credits.Count(Minor);
+        return (listed, minor, credits.Count - listed.Count - minor);
+    }
+
+    [GeneratedRegex(@"^(self|himself|herself|themselves|archive footage)\b|\buncredited\b", RegexOptions.IgnoreCase)]
+    private static partial Regex AsOneself();
+
+    /// <summary>A credit with no named part or job, or only a part as oneself or an uncredited one.</summary>
+    private static bool Minor(Credit credit) =>
+        credit.Role is not { Length: > 0 } role
+        || role.Split(" · ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).All(part => AsOneself().IsMatch(part));
+
+    private static string Not(int minor, int lesser) => string.Join(" and ", new[]
+    {
+        minor > 0 ? $"{minor} with no named part, as oneself or uncredited" : null,
+        lesser > 0 ? $"{lesser} less known" : null,
+    }.Where(p => p is not null));
 
     /// <summary>
     /// The person a name means. One exact match is the person. Where several share the name, the one the

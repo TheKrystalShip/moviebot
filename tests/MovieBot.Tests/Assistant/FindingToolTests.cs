@@ -1,4 +1,5 @@
 using TheKrystalShip.Agent.Plugin.Testing;
+using TheKrystalShip.MovieBot.Assistant.Api;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests.Assistant;
@@ -238,6 +239,62 @@ public sealed class FindingToolTests
         Assert.StartsWith("- 2026-12-18 | upcoming (dated in the future) | Winter Street (2026)", lines[3]);
         Assert.StartsWith("- no date | announced (no release date, or only planned) | Salt Marsh, film.", lines[4]);
         Assert.Contains("- no date | announced (no release date, or only planned) | Fear Not, show.", lines[6]);
+    }
+
+    /// <summary>A person with many credits: thirty released parts of rising renown, four minor ones that are the most voted, and two dated ahead.</summary>
+    private ToolRig LongFilmography()
+    {
+        ReplayHandler world = CinemaWorld.Build();
+        List<Credit> credits = [];
+        for (int n = 1; n <= 30; n++)
+            credits.Add(CinemaWorld.Credit($"tt20000{n:00}", $"Part {n:00}", $"{1990 + n}-06-{n:00}", "released", role: $"Role {n}") with { Votes = 100 * n });
+        credits.Add(CinemaWorld.Credit("tt2000101", "Late Night Chat", "2015-01-01", "released", kind: "show", role: "Self") with { Votes = 99000 });
+        credits.Add(CinemaWorld.Credit("tt2000102", "Morning Show", "2016-01-01", "released", kind: "show") with { Votes = 50000 });
+        credits.Add(CinemaWorld.Credit("tt2000103", "Big Picture", "2017-01-01", "released", role: "Waiter (uncredited)") with { Votes = 80000 });
+        credits.Add(CinemaWorld.Credit("tt2000104", "Old Reel", "2018-01-01", "released", role: "Archive footage") with { Votes = 70000 });
+        credits.Add(CinemaWorld.Credit("tt2000105", "Next Part", "2027-02-02", "upcoming", role: "Lead"));
+        credits.Add(CinemaWorld.Credit(null, "Untitled", null, "announced"));
+        credits = [.. credits.OrderBy(c => c.ReleaseDate is null).ThenBy(c => c.ReleaseDate, StringComparer.Ordinal)];
+
+        world.Answer("/api/catalogue/people?q=mara vance", new PeopleResult
+        {
+            People = [new() { PersonId = 701, Name = "Mara Vance", KnownFor = "Acting", KnownForTitles = [] }],
+        });
+        world.Answer("/api/catalogue/people/701/credits", new PersonCredits
+        {
+            PersonId = 701, Name = "Mara Vance", KnownFor = "Acting", AsOf = CinemaWorld.Today, Total = credits.Count, Credits = credits,
+        });
+        return new ToolRig(world);
+    }
+
+    [Fact]
+    public async Task A_long_filmography_lists_the_best_known_named_parts_with_exact_dates_and_counts_the_rest()
+    {
+        ToolRig rig = LongFilmography();
+        ToolOutcome result = await rig.RunAsync(rig.Credits, new { person = "Mara Vance" });
+
+        string[] lines = [.. result.Text.Split('\n').Where(l => l.StartsWith("- ", StringComparison.Ordinal))];
+        Assert.Equal(21, lines.Length);
+        Assert.Contains("36 credits, oldest first. Listed: the 21 best known with a named part or job, upcoming and announced ones included.", result.Text);
+        Assert.Contains("Not listed: 5 with no named part, as oneself or uncredited and 10 less known. Call person_credits again with all true", result.Text);
+        Assert.StartsWith("- 2001-06-11 | released | Part 11 (2001), film. Role: Role 11.", lines[0]);
+        Assert.StartsWith("- 2020-06-30 | released | Part 30 (2020), film. Role: Role 30.", lines[19]);
+        Assert.StartsWith("- 2027-02-02 | upcoming (dated in the future) | Next Part (2027)", lines[20]);
+        Assert.DoesNotContain("Late Night Chat", result.Text);
+        Assert.DoesNotContain("Waiter", result.Text);
+        Assert.DoesNotContain("Part 10 ", result.Text);
+        Assert.Equal(21, ToolRig.CardIds(result).Length);
+    }
+
+    [Fact]
+    public async Task All_lists_every_credit_of_a_long_filmography()
+    {
+        ToolRig rig = LongFilmography();
+        ToolOutcome result = await rig.RunAsync(rig.Credits, new { person = "Mara Vance", all = true });
+
+        Assert.Equal(36, result.Text.Split('\n').Count(l => l.StartsWith("- ", StringComparison.Ordinal)));
+        Assert.DoesNotContain("Not listed", result.Text);
+        Assert.Contains("Late Night Chat (2015), show.", result.Text);
     }
 
     [Fact]
