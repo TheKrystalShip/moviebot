@@ -1,6 +1,6 @@
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { environment } from '../environment';
-import type { Manifest, Participant, SeekClamped, SessionState, SessionStatePush } from '../types';
+import type { JoinReply, Manifest, Participant, RoomDoor, SeekClamped, SessionState, SessionStatePush } from '../types';
 import { ServerClock } from './clock';
 
 /**
@@ -24,6 +24,12 @@ export interface HubHandlers {
   /** The manifest of a title this room holds changed on the server: head, sheet, subtitles, status. */
   onTitle(manifest: Manifest): void;
   onStatus(status: ConnectionStatus): void;
+  /** Who may come into the room, as it stands: on joining, and whenever it changes. */
+  onDoor(door: RoomDoor): void;
+  /** This page asked to be let in, and somebody in the room answered. */
+  onKnockAnswered(admitted: boolean): void;
+  /** Coming back into the room was refused: it is a different room now, private to this viewer. */
+  onShutOut(): void;
 }
 
 /**
@@ -32,7 +38,6 @@ export interface HubHandlers {
  */
 export interface Timeline {
   readonly clock: ServerClock;
-  start(): Promise<SessionStatePush>;
   resync(): Promise<void>;
   loadTitle(titleId: string, startSeconds?: number | null): Promise<SessionStatePush>;
   play(atSeconds: number): Promise<SessionStatePush>;
@@ -51,6 +56,10 @@ export class SessionHub implements Timeline {
   private connection: HubConnection;
   private probeTimer: number | null = null;
   private lastQuality: [number | null, number | null] | null = null;
+  /** The room let this page in. Until it does, the page is at the door, asking or not. */
+  private inside = false;
+  /** This page is asking to be let in, which a reconnect has to say again: the server forgot it. */
+  private asking = false;
 
   constructor(
     private readonly sessionId: string,
@@ -71,6 +80,11 @@ export class SessionHub implements Timeline {
     this.connection.on('SeekClamped', (clamp: SeekClamped) => this.handlers.onSeekClamped(clamp));
     this.connection.on('ParticipantsChanged', (list: Participant[]) => this.handlers.onParticipants(list));
     this.connection.on('TitleChanged', (manifest: Manifest) => this.handlers.onTitle(manifest));
+    this.connection.on('DoorChanged', (door: RoomDoor) => this.handlers.onDoor(door));
+    this.connection.on('KnockAnswered', (admitted: boolean) => {
+      this.asking = false;
+      this.handlers.onKnockAnswered(admitted);
+    });
 
     this.connection.onreconnecting(() => this.handlers.onStatus('reconnecting'));
     this.connection.onclose(() => this.handlers.onStatus('disconnected'));
@@ -79,20 +93,23 @@ export class SessionHub implements Timeline {
     // what puts the viewer back in the participant list and hands back the state it missed.
     // What comes back settles the room's position rather than joining the queue of broadcasts:
     // a client that has been away has no standing to judge it against the last thing it heard.
+    // A page still at the door asks again, since its asking went with the connection.
     this.connection.onreconnected(async () => {
       this.handlers.onStatus('connected');
-      this.handlers.onState(await this.join(), true);
+      if (this.inside) await this.rejoin();
+      else if (this.asking && await this.knock()) this.handlers.onKnockAnswered(true);
       if (this.lastQuality !== null) void this.reportQuality(...this.lastQuality);
     });
   }
 
   /** Asks the room where it is, and takes the answer as the authority. */
   async resync(): Promise<void> {
-    if (!this.connected) return;
-    this.handlers.onState(await this.join(), true);
+    if (!this.connected || !this.inside) return;
+    await this.rejoin();
   }
 
-  async start(): Promise<SessionStatePush> {
+  /** Connects and enters the room, which answers with where it is, or that it is private to this viewer. */
+  async start(): Promise<JoinReply> {
     this.handlers.onStatus('connecting');
     await this.connection.start();
     this.handlers.onStatus('connected');
@@ -100,7 +117,36 @@ export class SessionHub implements Timeline {
     await this.probe();
     this.probeTimer = window.setInterval(() => void this.probe(), ProbeIntervalMs);
 
-    return this.join();
+    return this.enter();
+  }
+
+  /** Enters the room on a connection already open: the first time, or once this page was let in. */
+  async enter(): Promise<JoinReply> {
+    const reply = await this.join();
+    this.inside = reply.admitted;
+    if (reply.door) this.handlers.onDoor(reply.door);
+    return reply;
+  }
+
+  /**
+   * Asks to be let into a room private to this viewer. True when it need not ask and can enter now;
+   * otherwise the room's answer arrives as `onKnockAnswered`.
+   */
+  async knock(): Promise<boolean> {
+    this.asking = true;
+    const now = await this.connection.invoke<boolean>('Knock', this.sessionId);
+    if (now) this.asking = false;
+    return now;
+  }
+
+  /** Opens the room to anybody who may watch, or closes it to anybody not already let in. */
+  setOpen(open: boolean): Promise<void> {
+    return this.connection.invoke('SetOpen', open);
+  }
+
+  /** Lets somebody asking into the room, or tells them they are not let in. */
+  answer(userId: string, admit: boolean): Promise<void> {
+    return this.connection.invoke('Answer', userId, admit);
   }
 
   /** Puts a film on for the room, from the beginning or from `startSeconds`. */
@@ -174,8 +220,15 @@ export class SessionHub implements Timeline {
   }
 
   /** Who joins is whoever the connection's token names; the room is the only thing said. */
-  private join(): Promise<SessionStatePush> {
-    return this.connection.invoke<SessionStatePush>('Join', this.sessionId);
+  private join(): Promise<JoinReply> {
+    return this.connection.invoke<JoinReply>('Join', this.sessionId);
+  }
+
+  /** Comes back into the room this page was in, taking where it is as the authority. */
+  private async rejoin(): Promise<void> {
+    const reply = await this.enter();
+    if (reply.push) this.handlers.onState(reply.push, true);
+    else this.handlers.onShutOut();
   }
 
   private async probe(): Promise<void> {

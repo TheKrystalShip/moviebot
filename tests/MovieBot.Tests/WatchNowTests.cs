@@ -411,6 +411,7 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
     public async Task A_room_holds_what_it_was_last_given_and_stops_waiting_on_what_it_held_before()
     {
         var sessions = fixture.Services.GetRequiredService<SessionStore>();
+        sessions.Enter("one-thing", "6001");
         sessions.LoadTitle("one-thing", SessionFixture.Heat, new Actor("6001", "Sam"));
 
         // Asking for an episode that is not here puts it in the room at once, in place of the film.
@@ -452,6 +453,7 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
     {
         fixture.AddEpisode("show-s01e02", WatchNowFixture.Show, "Show", 1, 2);
         var sessions = fixture.Services.GetRequiredService<SessionStore>();
+        sessions.Enter("show-watching", "6002");
         sessions.Join("show-watching", "conn-1", new Participant { UserId = "6002", DisplayName = "Jo" });
         sessions.LoadTitle("show-watching", "show-s01e02", new Actor("6002", "Jo"));
         var ahead = fixture.Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>().OfType<Api.Shows.NextEpisodes>().Single();
@@ -463,7 +465,7 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
         Assert.DoesNotContain(tags, t => t.StartsWith(TorrentTags.RequesterPrefix, StringComparison.Ordinal) && t.EndsWith("6002", StringComparison.Ordinal));
 
         // The room names the next as one to fetch rather than one here, to somebody who may fetch it.
-        var around = await Member().GetFromJsonAsync<System.Text.Json.Nodes.JsonObject>("/api/sessions/show-watching/around");
+        var around = await Member("6002", "Jo").GetFromJsonAsync<System.Text.Json.Nodes.JsonObject>("/api/sessions/show-watching/around");
         Assert.Equal(3, (int)around!["next"]!["number"]!);
         Assert.Null(around["next"]!["titleId"]);
     }

@@ -11,9 +11,10 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// pastes <c>/r/&lt;room&gt;</c>.
 ///
 /// Whatever unfurls the link fetches it without a token, so everything here is public to anyone
-/// holding the link. It therefore says what the room is watching and how far in, and never who is in
-/// the room or how many: the people in a room are the room's business. The tags are written by the
-/// server into the page itself, because a crawler does not run the page's script.
+/// holding the link. It therefore says what an open room is watching and how far in, and never who is
+/// in the room or how many: the people in a room are the room's business. A private room says nothing
+/// at all, not even its film. The tags are written by the server into the page itself, because a
+/// crawler does not run the page's script.
 /// </summary>
 public static class RoomPreview
 {
@@ -35,7 +36,7 @@ public static class RoomPreview
         FilmStore films, string baseUrl, string pageUrl)
     {
         var summary = sessions.Summaries().FirstOrDefault(r => r.SessionId == room);
-        var titleId = summary?.TitleId ?? linkTitle;
+        var titleId = summary is { Open: false } ? null : summary?.TitleId ?? linkTitle;
         var manifest = titleId is not null && TitleLibrary.IsSafeId(titleId) ? library.Get(titleId) : null;
 
         var tags = new List<(string Property, string Content)>

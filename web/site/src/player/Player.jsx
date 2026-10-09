@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Icon, Toggle } from "@thekrystalship/krystal-ui";
 import { PlayerRoom } from "./engine/room.ts";
 import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";
@@ -587,7 +587,7 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
             <div className="mp-top__room">
               <div className="mp-avatars">{everyone.map((p) => <Avatar key={p.userId} person={p} />)}</div>
               {size === "wide" && <span className="mp-top__count">{everyone.length > 1 ? `${everyone.length} watching` : "Just you"}</span>}
-              {size !== "tiny" && !tv && <InviteButton embed={embed} compact={compact} open={invite} manifest={manifest}
+              {size !== "tiny" && !tv && <InviteButton open={invite}
                 onToggle={() => { setMenu(null); setOverflow(false); setInvite((o) => !o); }} />}
             </div>
           )}
@@ -621,6 +621,12 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
       {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} focused={tv} solo={solo} onJoin={() => { takeScreen(); room.joinPlayback(); }} />}
       {view.unplayable && <Message icon="circle-alert" title="This cannot play here" text={view.unplayable} />}
       {view.fatal && <Message icon="circle-alert" title={view.fatal} action={!embed && onBack ? { label: "Back", go: onBack } : null} />}
+      {!view.fatal && view.entry !== null && view.entry !== "in" && (
+        <AtTheDoor entry={view.entry} onAsk={() => room.askToJoin()} onBack={!embed ? onBack : null} />
+      )}
+      {view.entry === "in" && view.door && view.door.knocking.length > 0 && (
+        <Knocking knocks={view.door.knocking} onAnswer={(userId, admit) => room.answerKnock(userId, admit)} />
+      )}
       {/* What the room holds while it arrives. */}
       {!view.fatal && view.state && view.state.preparing && view.state.preparing.stage !== "failed" && (
         <Fetching preparing={view.state.preparing} onBack={!embed ? onBack : null} />
@@ -712,7 +718,7 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
         <Overflow view={view} volume={volume} onVolume={changeVolume} onNudge={nudgeVolume} embed={embed}
           onPick={(kind) => { setOverflow(false); setMenu(kind); }} onClose={() => setOverflow(false)} />
       )}
-      {invite && !compact && <InvitePanel everyone={everyone} />}
+      {invite && <InvitePanel view={view} room={room} everyone={everyone} compact={compact} />}
     </div>
   );
 }
@@ -742,9 +748,17 @@ function TinyControls({ room, view, clock, duration, onHold, swipe, onMore }) {
   );
 }
 
+/**
+ * The link that hands the room to somebody, which an open room has and a private one does not: the
+ * way into a private room is being let in, and a link to it would lead anybody given it to a door.
+ */
+function roomLink(view) {
+  return view.door && view.door.open ? environment().roomUrl() : null;
+}
+
 /** Everything a tiny frame folds away: the menus, the volume, and the way to hand the room on. */
 function Overflow({ view, volume, onVolume, onNudge, onPick, onClose }) {
-  const link = environment().roomUrl();
+  const link = roomLink(view);
   const entries = [
     hasEpisodes(view) ? ["episodes", "list-video", episodeValue(view)] : null,
     ["subs", "captions", subtitleValue(view)],
@@ -787,52 +801,25 @@ function CopyLink({ link, className, label = "Copy room link" }) {
   );
 }
 
-/**
- * Handing the room to somebody else. On a phone that is the phone's own share sheet; in a wide
- * frame it is a panel with the link; in the Activity, where Discord does the inviting, it is the
- * link alone, copied.
- */
-function InviteButton({ embed, compact, open, manifest, onToggle }) {
-  const link = environment().roomUrl();
-  const [copied, setCopied] = React.useState(false);
-  React.useEffect(() => {
-    if (!copied) return undefined;
-    const timer = window.setTimeout(() => setCopied(false), 1600);
-    return () => window.clearTimeout(timer);
-  }, [copied]);
-  if (!link) return null;
-
-  const copy = () => navigator.clipboard.writeText(link).then(() => setCopied(true), () => {});
-  if (embed) {
-    return (
-      <button type="button" className="mp-round mp-round--small" aria-label={copied ? "Copied" : "Copy room link"} title="Copy room link" onClick={copy}>
-        <Icon name={copied ? "check" : "link"} size={15} />
-      </button>
-    );
-  }
-  const share = () => {
-    if (compact && navigator.share) {
-      navigator.share({ title: `Watch ${filmName(manifest)}`, url: link }).catch(() => {});
-    } else if (compact) {
-      void copy();
-    } else {
-      onToggle();
-    }
-  };
+/** Opens the panel that hands the room to somebody else and says who may come in. */
+function InviteButton({ open, onToggle }) {
   return (
-    <button type="button" className={"mp-invite" + (open ? " is-open" : "")} aria-expanded={!compact ? open : undefined} onClick={share}>
-      <Icon name={copied ? "check" : "user-plus"} size={17} />{compact && copied ? "Copied" : "Invite"}
+    <button type="button" className={"mp-invite" + (open ? " is-open" : "")} aria-expanded={open} onClick={onToggle}>
+      <Icon name="user-plus" size={17} />Invite
     </button>
   );
 }
 
 /**
- * The room's link, and everybody who can be asked in. An invite is a push to their devices, or a
- * Discord message where no push reaches them, and the row says which went out; it says nothing about
+ * Who may come into the room, and everybody who can be asked in. The room is private until somebody
+ * opens it, and only an open room has a link to hand out: on a phone it goes to the phone's own
+ * share sheet, elsewhere it is copied. An invite lets the person in, and is a push to their devices,
+ * or a Discord message where no push reaches them; the row says which went out and nothing about
  * whether they saw it. Somebody already in the room is marked as watching.
  */
-function InvitePanel({ everyone }) {
-  const link = environment().roomUrl();
+function InvitePanel({ view, room, everyone, compact }) {
+  const link = roomLink(view);
+  const open = Boolean(view.door && view.door.open);
   const [copied, setCopied] = React.useState(false);
   const [people, setPeople] = React.useState(null);
   const [sent, setSent] = React.useState({});
@@ -865,6 +852,11 @@ function InvitePanel({ everyone }) {
     if (state === "failed") return "Could not be invited";
     return person.lastSeenAt ? `Active ${ago(person.lastSeenAt)}` : "Not seen on the site";
   };
+  const share = compact && navigator.share;
+  const handOn = () => {
+    if (share) navigator.share({ title: `Watch ${filmName(view.manifest)}`, url: link }).catch(() => {});
+    else navigator.clipboard.writeText(link).then(() => setCopied(true), () => {});
+  };
 
   return (
     <div className="mp-invite-panel">
@@ -872,15 +864,22 @@ function InvitePanel({ everyone }) {
         <span className="mp-invite-panel__title">Watch together</span>
         <span className="mp-invite-panel__text">Everyone in the room shares play, pause and position. Volume, audio, subtitles and quality stay your own.</span>
       </div>
-      <div className="mp-invite-panel__link">
-        <span className="mp-menu__section">Room link</span>
-        <div className="mp-invite-panel__row">
-          <span className="mp-invite-panel__url">{link}</span>
-          <button type="button" className="mp-copy" onClick={() => navigator.clipboard.writeText(link).then(() => setCopied(true), () => {})}>
-            <Icon name={copied ? "check" : "copy"} size={14} />{copied ? "Copied" : "Copy"}
-          </button>
-        </div>
+      <div className="mp-invite-panel__door">
+        <Icon name={open ? "lock-open" : "lock"} size={16} />
+        <span className="mp-invite-panel__door-name">{open ? "Open room" : "Private room"}</span>
+        <Toggle on={open} label="Open room" onChange={(on) => room.setOpen(on)} />
       </div>
+      {link && (
+        <div className="mp-invite-panel__link">
+          <span className="mp-menu__section">Room link</span>
+          <div className="mp-invite-panel__row">
+            <span className="mp-invite-panel__url">{link}</span>
+            <button type="button" className="mp-copy" onClick={handOn}>
+              <Icon name={share ? "share-2" : copied ? "check" : "copy"} size={14} />{share ? "Share" : copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </div>
+      )}
       {people && people.length > 0 && (
         <div className="mp-invite__people">
           <span className="mp-invite__label">Invite people</span>
@@ -1023,6 +1022,38 @@ function fetchProblem(preparing) {
     case "notWatchable": return "It arrived, but it could not be made watchable.";
     default: return "The tracker or the torrent client is not answering. Try again in a minute.";
   }
+}
+
+/** A room private to this viewer: asking the people in it to be let in, and what they answered. */
+function AtTheDoor({ entry, onAsk, onBack }) {
+  const asking = entry === "asking";
+  const title = asking ? "Waiting for someone to let you in" : entry === "refused" ? "You were not let in" : "This room is private";
+  return (
+    <div className="mp-message" role="status">
+      <Icon name={asking ? "loader-circle" : "lock"} size={24} className={asking ? "mp-spin" : undefined} />
+      <span className="mp-message__title">{title}</span>
+      {!asking && (
+        <button type="button" className="mp-message__action" onClick={onAsk}>{entry === "refused" ? "Ask again" : "Ask to join"}</button>
+      )}
+      {onBack && <button type="button" className="mp-message__back" onClick={onBack}>Back</button>}
+    </div>
+  );
+}
+
+/** Who is asking to be let into the room, for anybody in it to answer. */
+function Knocking({ knocks, onAnswer }) {
+  return (
+    <div className="mp-knocks" role="status">
+      {knocks.map((knock) => (
+        <div key={knock.userId} className="mp-knock">
+          <Avatar person={knock} className="mp-avatar--small" />
+          <span className="mp-knock__text">{knock.displayName} wants to join</span>
+          <button type="button" className="mp-knock__no" onClick={() => onAnswer(knock.userId, false)}>Not now</button>
+          <button type="button" className="mp-knock__yes" onClick={() => onAnswer(knock.userId, true)}>Let in</button>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function Message({ icon, title, text, action }) {

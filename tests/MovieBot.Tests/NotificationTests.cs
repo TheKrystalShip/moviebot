@@ -107,7 +107,7 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
     public async Task Without_a_push_an_invite_waits_in_the_bell()
     {
         var jo = As("8121", "Jo");
-        using var sent = await As("8122", "Alex").PostAsJsonAsync("/api/rooms/movie-night/invite", new InviteRequest { UserId = "8121" });
+        using var sent = await As("8122", "Alex").PostAsJsonAsync("/api/rooms/quiet-night/invite", new InviteRequest { UserId = "8121" });
         Assert.Equal("bell", (await sent.Content.ReadFromJsonAsync<InviteReply>())!.Delivery);
 
         var bell = await Bell(jo);
@@ -169,7 +169,7 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
     [Fact]
     public async Task Nobody_unknown_is_invited()
     {
-        using var response = await As("8181").PostAsJsonAsync("/api/rooms/r/invite", new InviteRequest { UserId = "999999" });
+        using var response = await As("8181").PostAsJsonAsync("/api/rooms/r-8181/invite", new InviteRequest { UserId = "999999" });
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }

@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.41.0] - 2026-10-09
+
+### Added
+
+- **Private rooms.** A room is private from the moment it is made: only whoever made it may enter,
+  until somebody in it lets somebody else in, invites them, or opens the room from the invite panel.
+  Closing an open room again lets in nobody new and shuts out nobody who has been in. Somebody
+  holding a private room's link is shown that it is private and can ask to join; everybody in the
+  room sees who is asking and anybody there can let them in or say no. Who was let in is kept with
+  the room across a restart.
+- Hub: `Knock`, `SetOpen` and `Answer`, and the events `DoorChanged` and `KnockAnswered`.
+  `RoomSummary` carries `open`.
+
+### Changed
+
+- **`Join` answers `JoinReply`** (`{admitted, push?, door?}`) in place of `SessionStatePush`.
+- **A private room says nothing about itself to anybody it does not admit.** Every
+  `/api/sessions/{id}` route and Watch now naming the room are a `403`, a person's
+  `GET /api/sessions` lists only the rooms they may enter (so Home's watching-now row and a film's
+  "join the room" show nobody else's private room), and its `/r/` link unfurls as the site.
+- **Inviting somebody lets them into the room**, and only somebody the room admits can invite.
+- **The player hands out a room's link only while the room is open.** The invite button opens the
+  panel on every frame size, and on a phone the open room's link goes to the share sheet. The
+  Discord Activity's copy-link button is gone.
+- **A Discord room is private to whoever started it**, like any other room: somebody else in the
+  voice channel is at its door.
+
 ## [2.40.0] - 2026-10-09
 
 ### Changed

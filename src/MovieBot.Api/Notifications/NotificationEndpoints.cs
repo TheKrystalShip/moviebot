@@ -88,15 +88,20 @@ public static class NotificationEndpoints
                 .ToList());
         }).RequireAction(CinemaActions.Watch);
 
-        // Asks one person into a room. An invite is addressed on purpose, so it is pushed whatever
-        // they chose for everything else, and waits in their bell when no push reaches them.
+        // Asks one person into a room, and lets them in: an invite is the room's own answer before they
+        // ask. Only somebody the room admits invites anybody into it. An invite is addressed on
+        // purpose, so it is pushed whatever they chose for everything else, and waits in their bell
+        // when no push reaches them.
         app.MapPost("/api/rooms/{room}/invite", async (string room, InviteRequest body, HttpContext context,
-            PersonDirectory people, SessionStore sessions, TitleLibrary library, Notifier notifier, CancellationToken ct) =>
+            PersonDirectory people, SessionStore sessions, RoomDoors doors, TitleLibrary library, Notifier notifier,
+            CancellationToken ct) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             if (people.NameOf(body.UserId) is null || body.UserId == person.UserId)
                 return Results.Json(new ErrorReply("Nobody by that id can be invited."),
                     ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
+
+            await doors.AdmitAsync(room, body.UserId, person.Actor, ct);
 
             var titleId = sessions.Get(room)?.TitleId;
             var manifest = titleId is null ? null : library.Get(titleId);
@@ -112,7 +117,7 @@ public static class NotificationEndpoints
             }, ct);
 
             return Results.Ok(new InviteReply(delivery is { Pushed: > 0 } ? "push" : "bell"));
-        }).RequireAction(CinemaActions.Watch);
+        }).RequireAction(CinemaActions.Watch).RequireRoomEntry("room");
     }
 
     private static IResult NoPerson() =>

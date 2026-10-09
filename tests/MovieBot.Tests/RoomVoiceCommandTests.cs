@@ -40,7 +40,7 @@ public sealed class RoomVoiceCommandTests(SessionFixture fixture) : IClassFixtur
         var channel = NewChannel();
         await StartFilmAsync(api, channel);
         await handler.HandleAsync(Said(channel, "pause"));
-        await fixture.CreatePersonClient("77", "Bea").PostAsync(
+        await fixture.CreatePersonClient("4242", "Haru").PostAsync(
             $"/api/sessions/{RoomSession.IdFor(channel)}/seek",
             System.Net.Http.Json.JsonContent.Create(new { toSeconds = 600.0 }));
 
@@ -114,7 +114,8 @@ public sealed class RoomVoiceCommandTests(SessionFixture fixture) : IClassFixtur
     /// <summary>Bea puts a film on in the room and starts it, through the bot.</summary>
     private static async Task StartFilmAsync(MovieBotApiClient api, ulong channel)
     {
-        using var acting = ActingFor.Person(77);
+        // The speaker starts the film: a room is private to whoever made it.
+        using var acting = ActingFor.Person(4242);
         var session = RoomSession.IdFor(channel);
         await api.SetSessionTitleAsync(session, SessionFixture.ReadyTitle, CancellationToken.None);
         await api.PlayAsync(session, CancellationToken.None);

@@ -174,7 +174,8 @@ public sealed record Participant
 /// <summary>
 /// One room as it stands, for whatever tells people about rooms from outside them: the bot's
 /// status line, a voice channel's. It says what the room is watching and how many are in it, and
-/// never who, because the people in a room are the room's business.
+/// never who, because the people in a room are the room's business. A person is listed only the
+/// rooms they may enter.
 /// </summary>
 public sealed record RoomSummary
 {
@@ -193,4 +194,7 @@ public sealed record RoomSummary
     public double PositionSeconds { get; init; }
 
     public int Participants { get; init; }
+
+    /// <summary>Anybody who may watch can come in (<see cref="RoomDoor.Open"/>).</summary>
+    public bool Open { get; init; }
 }

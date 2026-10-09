@@ -66,28 +66,100 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
 
         /// <summary>When somebody last did something here. Opening the room to look does not count.</summary>
         public DateTimeOffset LastActivityUtc;
+
+        /// <summary>Who may come in, and who is asking to. Guarded by <see cref="Gate"/>.</summary>
+        public RoomAdmission Admission = null!;
     }
 
+    /// <summary>
+    /// The room, made private and holding nothing when there is none. A room made here has nobody let
+    /// in: machine work makes rooms this way, and a person makes one by entering it (<see cref="Enter"/>).
+    /// </summary>
     public SessionState GetOrCreate(string sessionId)
     {
-        var entry = _sessions.GetOrAdd(sessionId, id => new SessionEntry
-        {
-            State = new SessionState
-            {
-                SessionId = id,
-                Paused = true,
-                PositionSeconds = 0,
-                AnchorUtc = clock.GetUtcNow(),
-                Revision = 0,
-                // Minted with the room, carried by every state it ever produces, and different
-                // from the one the room before it carried.
-                Epoch = Guid.NewGuid().ToString("n")
-            },
-            LastActivityUtc = clock.GetUtcNow()
-        });
-
+        var entry = _sessions.GetOrAdd(sessionId, id => NewRoom(id, []));
         lock (entry.Gate)
             return WithCurrentHead(entry.State);
+    }
+
+    private SessionEntry NewRoom(string sessionId, IEnumerable<string> admitted) => new()
+    {
+        State = new SessionState
+        {
+            SessionId = sessionId,
+            Paused = true,
+            PositionSeconds = 0,
+            AnchorUtc = clock.GetUtcNow(),
+            Revision = 0,
+            // Minted with the room, carried by every state it ever produces, and different
+            // from the one the room before it carried.
+            Epoch = Guid.NewGuid().ToString("n")
+        },
+        LastActivityUtc = clock.GetUtcNow(),
+        Admission = new RoomAdmission(open: false, admitted)
+    };
+
+    // ---- Who may come in -------------------------------------------------------------
+
+    /// <summary>
+    /// Lets a person into the room when it admits them, and keeps them let in; false when it is
+    /// private to them. A room there is none of is made, private, with them let in: whoever makes a
+    /// room is the first person it admits. Every door a person comes through asks this.
+    /// </summary>
+    public bool Enter(string sessionId, string userId)
+    {
+        var entry = _sessions.GetOrAdd(sessionId, id => NewRoom(id, [userId]));
+        lock (entry.Gate)
+            if (!entry.Admission.Enter(userId)) return false;
+
+        Changed?.Invoke();
+        return true;
+    }
+
+    /// <summary>Who may come into the room, or null when there is no such room.</summary>
+    public RoomDoor? Door(string sessionId)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return null;
+        lock (entry.Gate) return entry.Admission.Door;
+    }
+
+    /// <summary>Opens or closes the room. Null when there is no such room, or it already stood so.</summary>
+    public DoorChange? SetOpen(string sessionId, bool open) =>
+        AtDoor(sessionId, admission => admission.SetOpen(open));
+
+    /// <summary>Lets one person into the room. Null when there is no such room.</summary>
+    public DoorChange? Admit(string sessionId, string userId) =>
+        AtDoor(sessionId, admission => admission.Admit(userId));
+
+    /// <summary>Answers one person asking to come in that they are not let in. Null when there is no such room.</summary>
+    public DoorChange? TurnAway(string sessionId, string userId) =>
+        AtDoor(sessionId, admission => admission.TurnAway(userId));
+
+    /// <summary>
+    /// Records a page asking to be let into the room. Null when it need not ask: the room admits the
+    /// person, or there is no such room, which entering would make for them.
+    /// </summary>
+    public RoomDoor? Knock(string sessionId, string connectionId, Knock knock)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return null;
+        lock (entry.Gate)
+            return entry.Admission.Admits(knock.UserId) ? null : entry.Admission.Knock(connectionId, knock);
+    }
+
+    /// <summary>Stops a page asking to be let in. Null when it was not asking.</summary>
+    public RoomDoor? Withdraw(string sessionId, string connectionId)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return null;
+        lock (entry.Gate) return entry.Admission.Withdraw(connectionId);
+    }
+
+    private DoorChange? AtDoor(string sessionId, Func<RoomAdmission, DoorChange?> act)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return null;
+        DoorChange? change;
+        lock (entry.Gate) change = act(entry.Admission);
+        if (change is not null) Changed?.Invoke();
+        return change;
     }
 
     public SessionState? Get(string sessionId) =>
@@ -450,10 +522,12 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
             .Select(s => (s.Key, s.Value.Participants.Count))];
 
     /// <summary>
-    /// Every room with what it is watching and how many are in it. Names are left out: this is
-    /// what tells the rest of the server about rooms, and who is in one stays inside it.
+    /// Every room with what it is watching and how many are in it, or only the rooms that admit
+    /// <paramref name="visibleTo"/> when it names a person: a private room is nobody else's to know
+    /// of. Names are left out: this is what tells the rest of the server about rooms, and who is in
+    /// one stays inside it.
     /// </summary>
-    public IReadOnlyList<RoomSummary> Summaries()
+    public IReadOnlyList<RoomSummary> Summaries(string? visibleTo = null)
     {
         var now = clock.GetUtcNow();
         var rooms = new List<RoomSummary>();
@@ -461,7 +535,13 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         foreach (var (id, entry) in _sessions)
         {
             SessionState state;
-            lock (entry.Gate) state = entry.State;
+            bool open;
+            lock (entry.Gate)
+            {
+                if (visibleTo is not null && !entry.Admission.Admits(visibleTo)) continue;
+                state = entry.State;
+                open = entry.Admission.Open;
+            }
 
             var manifest = state.TitleId is { } titleId ? library.Get(titleId) : null;
             rooms.Add(new RoomSummary
@@ -472,7 +552,8 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
                 DurationSeconds = manifest?.DurationSeconds,
                 Paused = state.Paused,
                 PositionSeconds = state.PositionAt(now),
-                Participants = entry.Participants.Count
+                Participants = entry.Participants.Count,
+                Open = open
             });
         }
 
@@ -490,7 +571,9 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
                 rooms.Add(new PersistedSession
                 {
                     State = entry.State,
-                    LastActivityUtc = entry.LastActivityUtc
+                    LastActivityUtc = entry.LastActivityUtc,
+                    Open = entry.Admission.Open,
+                    Admitted = [.. entry.Admission.Admitted]
                 });
         }
 
@@ -502,7 +585,8 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     ///
     /// A restored room keeps its revision and its epoch, so it is the same run of the same room
     /// rather than a new one wearing its name: a client that was connected across the restart
-    /// finds the room it already had, and its revision gate never notices.
+    /// finds the room it already had, and its revision gate never notices. It keeps who may come in:
+    /// a restart that opened every private room would be the worst way for one to stop being private.
     ///
     /// Participants are not restored. Membership is a live connection, and every one of them was
     /// dropped when the server stopped; they come back by rejoining, which is what puts the room's
@@ -520,7 +604,8 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
                 State = room.State.Preparing is { Stage: PreparingStages.Finding } finding
                     ? room.State with { Preparing = finding with { Stage = PreparingStages.Failed, Problem = "unavailable" } }
                     : room.State,
-                LastActivityUtc = room.LastActivityUtc
+                LastActivityUtc = room.LastActivityUtc,
+                Admission = new RoomAdmission(room.Open, room.Admitted)
             };
         }
     }

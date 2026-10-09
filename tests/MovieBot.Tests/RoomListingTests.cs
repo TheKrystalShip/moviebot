@@ -29,7 +29,7 @@ public sealed class RoomListingTests : IClassFixture<SessionFixture>
             })
             .Build();
         await connection.StartAsync();
-        await connection.InvokeAsync<SessionStatePush>("Join", room);
+        await connection.InvokeAsync<JoinReply>("Join", room);
         await connection.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
         await connection.InvokeAsync<SessionStatePush>("Play", 120.0);
 

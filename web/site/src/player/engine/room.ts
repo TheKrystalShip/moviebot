@@ -11,8 +11,8 @@ import { SessionHub, type ConnectionStatus, type Timeline } from './session/hub'
 import { LocalTimeline } from './session/local';
 import { SyncController } from './session/sync';
 import type {
-  Actor, Manifest, Participant, SeekClamped, SessionState, SubtitleSearch, SubtitleStyle, SubtitleTrack, ThumbnailStrip,
-  TitleSummary, ViewerPreferences
+  Actor, Manifest, Participant, RoomDoor, SeekClamped, SessionState, SessionStatePush, SubtitleSearch, SubtitleStyle,
+  SubtitleTrack, ThumbnailStrip, TitleSummary, ViewerPreferences
 } from './types';
 
 /**
@@ -44,6 +44,14 @@ export interface RoomView {
   identity: Identity | null;
   sessionId: string;
   connection: ConnectionStatus;
+  /**
+   * Where this viewer stands: in the room, or at its door because it is private to them — until they
+   * ask (`private`), while they wait for an answer (`asking`), and once somebody in it said no
+   * (`refused`). Null until the room has answered.
+   */
+  entry: 'in' | 'private' | 'asking' | 'refused' | null;
+  /** Who may come into the room, for a viewer in it. */
+  door: RoomDoor | null;
   titles: TitleSummary[];
   /** The film this viewer is holding, or null for a room showing nothing. */
   manifest: Manifest | null;
@@ -147,6 +155,8 @@ export class PlayerRoom {
       identity: null,
       sessionId: environment().sessionId(),
       connection: 'connecting',
+      entry: null,
+      door: null,
       titles: [],
       manifest: null,
       state: null,
@@ -248,8 +258,7 @@ export class PlayerRoom {
       this.notice('Your playback settings could not be read, so this film starts on its own defaults.', 'error');
     }
 
-    const launched = env.titleId();
-    this.launched = launched;
+    this.launched = env.titleId();
     const sessionId = env.sessionId();
 
     const hub = new SessionHub(sessionId, {
@@ -260,6 +269,16 @@ export class PlayerRoom {
         void this.showPresence();
       },
       onTitle: (fresh) => this.followTitle(fresh),
+      onDoor: (door) => this.set({ door }),
+      onKnockAnswered: (admitted) => {
+        if (admitted) void this.comeIn();
+        else this.set({ entry: 'refused' });
+      },
+      // The room this page was in was forgotten and made again by somebody else, private to them.
+      onShutOut: () => {
+        this.video.pause();
+        this.set({ entry: 'private', door: null });
+      },
       onStatus: (status) => {
         this.set({ connection: status });
         // Nothing is derived forward from a room that cannot be heard from. Its anchor runs
@@ -297,9 +316,17 @@ export class PlayerRoom {
     }
     if (this.disposed) return;
 
+    if (joined.push) await this.entered(hub, joined.push);
+    else this.set({ entry: 'private' });
+  }
+
+  /** Everything that follows from being in the room, whether this viewer walked in or was let in. */
+  private async entered(hub: SessionHub, joined: SessionStatePush): Promise<void> {
+    if (this.controller === null) return;
+    this.set({ entry: 'in' });
     this.controller.applyPush(joined, true);
     try {
-      this.set({ participants: await api.participants(sessionId) });
+      this.set({ participants: await api.participants(this.view.sessionId) });
     } catch {
       /* The hub's next list carries them. */
     }
@@ -313,9 +340,45 @@ export class PlayerRoom {
     // something else; a viewer joining a room that already holds the title says nothing, because
     // loading it again would send everyone back to the beginning. Once the room holds anything the
     // front door forgets the launch (`Environment.forgetLaunch`), so a reload tells the room nothing.
+    const launched = this.launched;
     if (launched !== null && (joined.state.titleId ?? null) !== null && joined.state.titleId !== launched) {
       await hub.loadTitle(launched);
     }
+  }
+
+  // ── The room's door ──────────────────────────────────────────────────────────────────────
+
+  /** Asks the people in a room private to this viewer to let them in. */
+  async askToJoin(): Promise<void> {
+    const hub = this.roomHub;
+    if (hub === null) return;
+    this.set({ entry: 'asking' });
+    try {
+      if (await hub.knock()) await this.comeIn();
+    } catch {
+      this.set({ entry: 'private' });
+      this.notice('Asking to join did not reach the room. Try again in a moment.', 'error');
+    }
+  }
+
+  /** Opens the room to anybody who may watch, or closes it to anybody not already let in. */
+  setOpen(open: boolean): void {
+    void this.roomHub?.setOpen(open).catch(() => this.notice('The room could not be changed.', 'error'));
+  }
+
+  /** Lets somebody asking into the room, or tells them they are not let in. */
+  answerKnock(userId: string, admit: boolean): void {
+    void this.roomHub?.answer(userId, admit).catch(() => this.notice('The answer did not reach the room.', 'error'));
+  }
+
+  /** Enters the room once this page was let in. */
+  private async comeIn(): Promise<void> {
+    const hub = this.roomHub;
+    if (hub === null || this.disposed) return;
+    const reply = await hub.enter().catch(() => null);
+    if (this.disposed) return;
+    if (reply?.push) await this.entered(hub, reply.push);
+    else this.set({ entry: 'private' });
   }
 
   /**

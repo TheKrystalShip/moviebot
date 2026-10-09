@@ -75,7 +75,7 @@ public sealed class RungHeadsTests(SessionFixture fixture) : IClassFixture<Sessi
     {
         var title = WriteTitle(overall: 100, rungs: [(1080, 100), (720, 900)], audio: 1000);
         var room = Room();
-        await using var alice = await fixture.ConnectAsync(room, "u1", "Alice");
+        await using var alice = await fixture.ConnectOpenAsync(room, "u1", "Alice");
         await using var bob = await fixture.ConnectAsync(room, "u2", "Bob");
 
         // Everything a room says to Bob is counted, from before the film goes in until it settles.
@@ -98,8 +98,8 @@ public sealed class RungHeadsTests(SessionFixture fixture) : IClassFixture<Sessi
 
         // The room's own state, as a viewer joining now is handed it, carries none of it.
         await using var carol = await fixture.ConnectAsync(room, "u3", "Carol");
-        var joined = await carol.InvokeAsync<SessionStatePush>("Join", room);
-        var wire = System.Text.Json.JsonSerializer.Serialize(joined.State, ManifestJsonContext.Default.SessionState);
+        var joined = await carol.InvokeAsync<JoinReply>("Join", room);
+        var wire = System.Text.Json.JsonSerializer.Serialize(joined, ManifestJsonContext.Default.JoinReply);
         Assert.DoesNotContain("480", wire);
         Assert.DoesNotContain("uality", wire);
     }
@@ -109,7 +109,7 @@ public sealed class RungHeadsTests(SessionFixture fixture) : IClassFixture<Sessi
     {
         var title = WriteTitle(overall: 100, rungs: [(1080, 100), (720, 900)], audio: 1000);
         var room = Room();
-        await using var bob = await fixture.ConnectAsync(room, "u2", "Bob");
+        await using var bob = await fixture.ConnectOpenAsync(room, "u2", "Bob");
         var alice = await fixture.ConnectAsync(room, "u1", "Alice");
         await alice.InvokeAsync<SessionStatePush>("LoadTitle", title, null);
         await alice.InvokeAsync("ReportQuality", 720, 720);

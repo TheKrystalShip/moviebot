@@ -120,6 +120,8 @@ public sealed class WatchNow(
     {
         var room = request.Room is { Length: > 0 } named ? named : NewRoom();
         if (!TorrentTags.IsRoomId(room)) return new WatchNowReply { Outcome = "badRoom" };
+        // The asker comes into the room the film is played in, and a room made for them is theirs.
+        if (!sessions.Enter(room, asker.UserId)) return new WatchNowReply { Outcome = "private" };
 
         if (request.Episodes is null && InLibrary(request.ImdbId) is { } title)
         {

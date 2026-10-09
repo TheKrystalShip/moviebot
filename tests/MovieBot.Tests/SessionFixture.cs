@@ -249,8 +249,30 @@ public class SessionFixture : WebApplicationFactory<Program>
         ManifestJson.WriteAtomic(Path.Combine(root, id, "manifest.json"), manifest);
     }
 
-    /// <summary>A hub connection routed through the in-process test server.</summary>
+    /// <summary>
+    /// A hub connection routed through the in-process test server, in the room. A room is private to
+    /// everybody but whoever made it, so a second person comes in only once it is open
+    /// (<see cref="ConnectOpenAsync"/>) or they were let in.
+    /// </summary>
     public async Task<HubConnection> ConnectAsync(string sessionId, string userId, string displayName)
+    {
+        var connection = await ConnectOutsideAsync(userId, displayName);
+        var reply = await connection.InvokeAsync<JoinReply>("Join", sessionId);
+        if (!reply.Admitted)
+            throw new InvalidOperationException($"{displayName} was not let into {sessionId}.");
+        return connection;
+    }
+
+    /// <summary>The first person in a room, who opens it to anybody who may watch.</summary>
+    public async Task<HubConnection> ConnectOpenAsync(string sessionId, string userId, string displayName)
+    {
+        var connection = await ConnectAsync(sessionId, userId, displayName);
+        await connection.InvokeAsync("SetOpen", true);
+        return connection;
+    }
+
+    /// <summary>A hub connection in no room yet: somebody at a room's door.</summary>
+    public async Task<HubConnection> ConnectOutsideAsync(string userId, string displayName)
     {
         var connection = new HubConnectionBuilder()
             .WithUrl(new Uri(Server.BaseAddress, "/hub/session"), o =>
@@ -265,7 +287,6 @@ public class SessionFixture : WebApplicationFactory<Program>
             .Build();
 
         await connection.StartAsync();
-        await connection.InvokeAsync<SessionStatePush>("Join", sessionId);
         return connection;
     }
 }

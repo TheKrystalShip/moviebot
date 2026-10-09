@@ -37,6 +37,35 @@ door and miss the other.
   nobody else triggered. Down the hub that is a message to the caller; over HTTP it rides in the
   response body, because the caller that asked is the one thing a broadcast cannot reach.
 
+## Who may come in
+
+A room is private from the moment it is made, and letting somebody in is something a person in it
+does. The rules live in `RoomAdmission`, one per room under the room's lock; `SessionStore.Enter` is
+the one question every door asks, and `RoomDoors` is the one place a change at the door is made and
+told.
+
+- **Whoever makes a room is let in by making it.** `Enter` on a room there is none of makes it with
+  that person let in, whichever door they came through: the hub's `Join`, a room route
+  (`RoomEntry.RequireRoomEntry`), Watch now. A room made by machine work (`GetOrCreate`) lets nobody
+  in.
+- **Entering is what lets somebody in for good.** Anybody who comes in while a room is open stays let
+  in, so closing it shuts out nobody who has been in and lets in nobody new. Closing a room is
+  locking its door, not emptying it; a page reloaded is a person leaving and coming back.
+- **Somebody outside is let in by somebody inside**: answering them at the door (`Knock`, `Answer`),
+  inviting them, or opening the room, which lets in everybody asking. Anybody in the room may do any
+  of it, as anybody in it may move the film: there is no host.
+- **Asking belongs to a page.** A knock is kept by connection and ends with it; the room sees each
+  person asking once. It is never written down, since a restart has dropped every page anyway.
+- **A room private to somebody tells them nothing about itself.** `Join` answers that it is private
+  and nothing else, a route is a `403`, the listing leaves it out, and its link unfurls as the site.
+  The door goes to the room's group and the answer to the asking page alone, so somebody outside
+  never learns who else is asking or who is in.
+- **Who was let in is kept with the room.** A restart that opened every private room would be the
+  worst way for one to stop being private, and one that forgot who was let in would shut everybody
+  out of their own room.
+- **Machine work is let into every room.** The service key names nobody; what it does to a room is
+  the room's own business arriving, and the listing it reads is every room, with whether each is open.
+
 ## Keeping a room
 
 A room is the only thing in the system that exists nowhere else. The films are on disk and the
@@ -63,13 +92,15 @@ alone, and restarting the API would take the film out from under everybody in it
 - **`/health` says how many rooms are occupied and by how many people, and no names.** It is what
   makes restarting something that can be looked at first rather than found out about afterwards.
 - **The room listing carries what each room is watching and how many are in it, and no names**: who
-  is in a room is the room's business. The bot's presence surfaces read it on every pass.
+  is in a room is the room's business. A person is listed only the rooms they may enter. The bot's
+  presence surfaces read it on every pass.
 - **A room is the record of what is being watched.** Every change ends the stretch of playing before
   it, and the store says so (`Watched`) with who was in the room and where the film got to; somebody
   leaving ends it for them, and the server stopping ends it for everyone. Nothing else keeps its own
   idea of a film's position.
-- **A room's link unfurls with the film, never with the people** (`RoomPreview`). `/r/<room>` is
+- **An open room's link unfurls with the film, never with the people** (`RoomPreview`). `/r/<room>` is
   answered with Open Graph tags in the page itself, since a crawler runs no script: the film's name,
   its year, how far in the room is, and its backdrop or poster at an absolute public address. Whatever
   unfurls the link fetches it without a token, so nothing there is private, and it is stricter than the
-  listing: no names and no count either. A room nobody has opened yet shows the film its link names.
+  listing: no names and no count either. A private room unfurls as the site and names not even its film. A room
+  nobody has opened yet shows the film its link names.

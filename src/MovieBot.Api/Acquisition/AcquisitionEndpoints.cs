@@ -65,9 +65,12 @@ public static class AcquisitionEndpoints
             if (CinemaPerson.Of(context) is not { } person) return NoPerson();
 
             var reply = await watch.StartAsync(request, person.Actor, ct);
-            return reply.Outcome == "full"
-                ? Results.Json(reply, ManifestJsonContext.Default.WatchNowReply, statusCode: StatusCodes.Status409Conflict)
-                : Results.Ok(reply);
+            return reply.Outcome switch
+            {
+                "full" => Results.Json(reply, ManifestJsonContext.Default.WatchNowReply, statusCode: StatusCodes.Status409Conflict),
+                "private" => Sessions.RoomEntry.Private,
+                _ => Results.Ok(reply),
+            };
         }).RequireAction(CinemaActions.Download);
 
         // The releases the tracker holds for a film, named in words or by IMDb id, best first.

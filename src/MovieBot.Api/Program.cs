@@ -62,6 +62,7 @@ builder.Services.AddSingleton<ViewerQuality>();
 // Every change to a room, whichever door it arrived by: the hub for a player in the room, HTTP for
 // the bot and for a spoken command.
 builder.Services.AddSingleton<RoomControls>();
+builder.Services.AddSingleton<RoomDoors>();
 
 // What a room is watching and where it has got to exists nowhere but in memory, so a restart used
 // to take the film out from under everybody in it. The journal is the only copy.
@@ -408,8 +409,10 @@ app.MapNotifications();
 app.MapOffline();
 
 // Every room, for the bot as much as the site: it holds no state of its own, so what to say about
-// rooms it reads from here each time it is about to say it.
-app.MapGet("/api/sessions", (SessionStore sessions) => Results.Ok(sessions.Summaries()))
+// rooms it reads from here each time it is about to say it. A person is listed the rooms they may
+// enter, so a private room is not in anybody else's list.
+app.MapGet("/api/sessions", (HttpContext context, SessionStore sessions) =>
+    Results.Ok(sessions.Summaries(visibleTo: CinemaPerson.Of(context)?.UserId)))
     .RequireActionOrService(CinemaActions.Watch);
 
 app.MapGet("/api/sessions/{sessionId}", (string sessionId, SessionStore sessions) =>
@@ -418,17 +421,20 @@ app.MapGet("/api/sessions/{sessionId}", (string sessionId, SessionStore sessions
         State = sessions.GetOrCreate(sessionId),
         ServerTime = DateTimeOffset.UtcNow
     }))
-    .RequireActionOrService(CinemaActions.Watch);
+    .RequireActionOrService(CinemaActions.Watch)
+    .RequireRoomEntry();
 
 app.MapGet("/api/sessions/{sessionId}/participants", (string sessionId, SessionStore sessions) =>
     Results.Ok(sessions.Participants(sessionId)))
-    .RequireAction(CinemaActions.Watch);
+    .RequireAction(CinemaActions.Watch)
+    .RequireRoomEntry();
 
 // The episodes either side of what the room holds, which a player's previous and next name; an
 // episode the library lacks is offered only to somebody who may fetch it.
 app.MapGet("/api/sessions/{sessionId}/around", (string sessionId, HttpContext context, RoomEpisodes episodes) =>
     Results.Ok(episodes.Around(sessionId, CinemaPerson.Of(context)?.Holds(CinemaActions.Download) == true)))
-    .RequireAction(CinemaActions.Watch);
+    .RequireAction(CinemaActions.Watch)
+    .RequireRoomEntry();
 
 app.MapRooms();
 app.MapActivitySignIn();

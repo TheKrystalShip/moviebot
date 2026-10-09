@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;
@@ -27,6 +28,16 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
             _host = fixture.WithWebHostBuilder(b => b.UseEnvironment("Production").UseWebRoot(_root));
         }
         return _host.CreateClient();
+    }
+
+    /// <summary>The rooms of the host <see cref="Client"/> reaches.</summary>
+    private Api.Sessions.SessionStore Rooms
+    {
+        get
+        {
+            Client();
+            return _host!.Services.GetRequiredService<Api.Sessions.SessionStore>();
+        }
     }
 
     [Theory]
@@ -63,6 +74,7 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
         (await client.GetAsync("/api/films/tt0113277")).EnsureSuccessStatusCode();
         (await client.PostAsJsonAsync($"/api/sessions/{room}/title",
             new TheKrystalShip.MovieBot.Core.SetTitleRequest(SessionFixture.Heat))).EnsureSuccessStatusCode();
+        Rooms.SetOpen(room, true);
 
         // As a crawler asks: no token, no service key.
         var page = await Client().GetStringAsync($"/r/{room}");
@@ -81,6 +93,23 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
         var page = await Client().GetStringAsync($"/r/fresh-{Guid.NewGuid():N}?title={SessionFixture.Heat}");
 
         Assert.Contains("Watch Heat on Krystal Cinema", page);
+    }
+
+    /// <summary>A private room's link says nothing of it, not even its film, wherever it is pasted.</summary>
+    [Fact]
+    public async Task A_private_room_unfurls_as_the_site()
+    {
+        var client = Client();
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", TestIssuer.Token("u-alice", "Alice"));
+        var room = "private-" + Guid.NewGuid().ToString("N")[..8];
+        (await client.PostAsJsonAsync($"/api/sessions/{room}/title",
+            new TheKrystalShip.MovieBot.Core.SetTitleRequest(SessionFixture.Heat))).EnsureSuccessStatusCode();
+
+        var page = await Client().GetStringAsync($"/r/{room}?title={SessionFixture.Heat}");
+
+        Assert.Contains("<meta property=\"og:title\" content=\"Krystal Cinema\" />", page);
+        Assert.DoesNotContain("Heat", page);
     }
 
     [Fact]

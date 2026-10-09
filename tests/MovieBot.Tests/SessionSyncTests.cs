@@ -18,7 +18,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task A_play_by_one_client_reaches_the_other()
     {
         var session = NewSession();
-        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var alice = await fixture.ConnectOpenAsync(session, "u1", "Alice");
         await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
 
         var bobSaw = NextPush(bob, "StateChanged");
@@ -38,7 +38,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task Either_client_can_drive_and_revisions_only_increase()
     {
         var session = NewSession();
-        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var alice = await fixture.ConnectOpenAsync(session, "u1", "Alice");
         await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
 
         await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
@@ -61,7 +61,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task Seeking_past_the_transcode_head_is_refused_with_a_reason()
     {
         var session = NewSession();
-        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var alice = await fixture.ConnectOpenAsync(session, "u1", "Alice");
         await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
 
         await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.TranscodingTitle, null);
@@ -87,7 +87,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task Seeking_within_the_head_is_granted_untouched()
     {
         var session = NewSession();
-        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var alice = await fixture.ConnectOpenAsync(session, "u1", "Alice");
 
         await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.TranscodingTitle, null);
         var result = await alice.InvokeAsync<SessionStatePush>("Seek", 120.0);
@@ -100,7 +100,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task A_finished_title_is_seekable_anywhere()
     {
         var session = NewSession();
-        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var alice = await fixture.ConnectOpenAsync(session, "u1", "Alice");
 
         await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
         var result = await alice.InvokeAsync<SessionStatePush>("Seek", 5000.0);
@@ -113,7 +113,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task Joining_and_leaving_is_broadcast()
     {
         var session = NewSession();
-        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var alice = await fixture.ConnectOpenAsync(session, "u1", "Alice");
 
         var sawBob = Next<List<Participant>>(alice, "ParticipantsChanged");
         var bob = await fixture.ConnectAsync(session, "u2", "Bob");
@@ -131,7 +131,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task A_viewer_waiting_for_the_film_is_marked_on_the_roster()
     {
         var session = NewSession();
-        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var alice = await fixture.ConnectOpenAsync(session, "u1", "Alice");
         await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
 
         var sawWaiting = Next<List<Participant>>(alice, "ParticipantsChanged");
@@ -149,13 +149,13 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task One_viewer_waiting_does_not_hold_the_others()
     {
         var session = NewSession();
-        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var alice = await fixture.ConnectOpenAsync(session, "u1", "Alice");
         await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
         await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
         await alice.InvokeAsync<SessionStatePush>("Play", 100.0);
 
         await bob.InvokeAsync("Buffering", true, 95.0);
-        var state = (await alice.InvokeAsync<SessionStatePush>("Join", session)).State;
+        var state = (await alice.InvokeAsync<JoinReply>("Join", session)).Push!.State;
 
         Assert.False(state.Waiting);
         Assert.False(state.Paused);
@@ -165,7 +165,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task A_room_whose_every_player_waits_is_held_where_it_stopped_and_let_go_when_one_plays()
     {
         var session = NewSession();
-        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var alice = await fixture.ConnectOpenAsync(session, "u1", "Alice");
         await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
         var playing = (await alice.InvokeAsync<SessionStatePush>("Play", 100.0)).State;
 
@@ -195,7 +195,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task A_held_room_is_let_go_when_somebody_arrives_who_is_not_waiting()
     {
         var session = NewSession();
-        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var alice = await fixture.ConnectOpenAsync(session, "u1", "Alice");
         await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
         await alice.InvokeAsync<SessionStatePush>("Play", 100.0);
         var sawHold = NextPush(alice, "StateChanged");
@@ -212,7 +212,7 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     public async Task A_held_room_stays_held_through_a_seek_while_its_players_still_wait()
     {
         var session = NewSession();
-        await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
+        await using var alice = await fixture.ConnectOpenAsync(session, "u1", "Alice");
         await alice.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
         await alice.InvokeAsync<SessionStatePush>("Play", 100.0);
         var sawHold = NextPush(alice, "StateChanged");

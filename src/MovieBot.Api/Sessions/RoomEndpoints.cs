@@ -26,6 +26,9 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// the caller alone, and an HTTP caller is the one thing a broadcast cannot reach, so it rides in
 /// the response body where that caller already looks.
 /// </para>
+/// <para>
+/// <b>A person reaches only a room they may enter</b> (<see cref="RoomEntry"/>), as over the hub.
+/// </para>
 /// </remarks>
 public static class RoomEndpoints
 {
@@ -54,35 +57,39 @@ public static class RoomEndpoints
                 actor => sessions.LoadTitle(sessionId, request.TitleId, actor, request.StartSeconds), ct: ct);
 
             return Results.Ok(change.Push);
-        }).RequireActionOrService(CinemaActions.Watch);
+        }).RequireActionOrService(CinemaActions.Watch).RequireRoomEntry();
 
         app.MapPost("/api/sessions/{sessionId}/play", (
             string sessionId, RoomPlaybackRequest request, HttpContext context,
             SessionStore sessions, RoomControls controls, CancellationToken ct) =>
             Apply(sessionId, "play", context, controls,
                 actor => sessions.Play(sessionId, request.AtSeconds, actor), ct))
-            .RequireAction(CinemaActions.Watch);
+            .RequireAction(CinemaActions.Watch)
+            .RequireRoomEntry();
 
         app.MapPost("/api/sessions/{sessionId}/pause", (
             string sessionId, RoomPlaybackRequest request, HttpContext context,
             SessionStore sessions, RoomControls controls, CancellationToken ct) =>
             Apply(sessionId, "pause", context, controls,
                 actor => sessions.Pause(sessionId, request.AtSeconds, actor), ct))
-            .RequireAction(CinemaActions.Watch);
+            .RequireAction(CinemaActions.Watch)
+            .RequireRoomEntry();
 
         app.MapPost("/api/sessions/{sessionId}/seek", (
             string sessionId, RoomSeekRequest request, HttpContext context,
             SessionStore sessions, RoomControls controls, CancellationToken ct) =>
             Apply(sessionId, "seek", context, controls,
                 actor => sessions.Seek(sessionId, request.ToSeconds, actor), ct))
-            .RequireAction(CinemaActions.Watch);
+            .RequireAction(CinemaActions.Watch)
+            .RequireRoomEntry();
 
         app.MapPost("/api/sessions/{sessionId}/seek-relative", (
             string sessionId, RoomNudgeRequest request, HttpContext context,
             SessionStore sessions, RoomControls controls, CancellationToken ct) =>
             Apply(sessionId, "nudge", context, controls,
                 actor => sessions.SeekRelative(sessionId, request.DeltaSeconds, actor), ct))
-            .RequireAction(CinemaActions.Watch);
+            .RequireAction(CinemaActions.Watch)
+            .RequireRoomEntry();
     }
 
     private static async Task<IResult> Apply(

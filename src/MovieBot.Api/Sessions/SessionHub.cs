@@ -13,28 +13,37 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// reordering, duplication and skewed client clocks all harmless.
 ///
 /// Who is in the room is whoever the connection's token names: the connection is admitted on it when
-/// it opens, and nothing a client sends says who it is.
+/// it opens, and nothing a client sends says who it is. Whether they may come in is the room's
+/// (<see cref="SessionStore.Enter"/>), and a page the room is private to may ask to be let in.
 /// </summary>
 public sealed class SessionHub(
-    SessionStore sessions, RoomControls controls, RoomEpisodes episodes, ViewerQuality quality, IOptions<OidcOptions> oidc,
-    ILogger<SessionHub> logger) : Hub
+    SessionStore sessions, RoomControls controls, RoomDoors doors, RoomEpisodes episodes, ViewerQuality quality,
+    IOptions<OidcOptions> oidc, ILogger<SessionHub> logger) : Hub
 {
     private const string SessionIdKey = "sessionId";
     private const string ActorKey = "actor";
+    private const string KnockingKey = "knocking";
 
     /// <summary>The tallest picture a quality report may name: 8K.</summary>
     private const int MaxHeight = 4320;
 
     /// <summary>
-    /// Enters a session and receives its current state. A late joiner needs nothing else: the
-    /// position is derived from the anchor, so it computes where the room is without being told.
+    /// Enters a session and receives its current state and its door. A late joiner needs nothing
+    /// else: the position is derived from the anchor, so it computes where the room is without being
+    /// told. A room private to this person answers that and nothing else.
     /// </summary>
-    public async Task<SessionStatePush> Join(string sessionId)
+    public async Task<JoinReply> Join(string sessionId)
     {
-        var person = Context.User?.Identities.FirstOrDefault(i => i.AuthenticationType == CinemaSchemes.Bearer) is { } identity
-            ? CinemaPerson.From(identity, oidc.Value.ActionsClaim)
-            : null;
-        if (person is null) throw new HubException("Sign in to join a room.");
+        var person = Person("Sign in to join a room.");
+        if (!sessions.Enter(sessionId, person.UserId))
+        {
+            logger.LogInformation("{DisplayName} was not let into private room {SessionId}", person.DisplayName, sessionId);
+            return new JoinReply { Admitted = false };
+        }
+
+        // A page that was asking at the door and has come in is asking no longer.
+        if (Context.Items.Remove(KnockingKey, out var knocked) && knocked is string knockedAt)
+            await doors.WithdrawAsync(knockedAt, Context.ConnectionId);
 
         var actor = person.Actor;
         Context.Items[SessionIdKey] = sessionId;
@@ -53,8 +62,29 @@ public sealed class SessionHub(
 
         // Somebody arriving is somebody not waiting, so a room held for its players goes on.
         await controls.HoldAsync(sessionId);
-        return Push(sessions.GetOrCreate(sessionId));
+        return new JoinReply { Admitted = true, Push = Push(sessions.GetOrCreate(sessionId)), Door = sessions.Door(sessionId) };
     }
+
+    /// <summary>
+    /// Asks to be let into a room that is private to this person. True when there is no need to ask
+    /// and the room can be joined now; otherwise the page is answered with <c>KnockAnswered</c> once
+    /// somebody in the room decides, and stops asking when it closes.
+    /// </summary>
+    public async Task<bool> Knock(string sessionId)
+    {
+        var person = Person("Sign in to ask to join a room.");
+        var knock = new Knock { UserId = person.UserId, DisplayName = person.DisplayName };
+        if (await doors.KnockAsync(sessionId, Context.ConnectionId, knock)) return true;
+        Context.Items[KnockingKey] = sessionId;
+        return false;
+    }
+
+    /// <summary>Opens the room to anybody who may watch, or closes it to anybody not already let in.</summary>
+    public Task SetOpen(bool open) => doors.SetOpenAsync(SessionId(), open, CurrentActor());
+
+    /// <summary>Answers somebody asking to be let in.</summary>
+    public Task Answer(string userId, bool admit) =>
+        admit ? doors.AdmitAsync(SessionId(), userId, CurrentActor()) : doors.TurnAwayAsync(SessionId(), userId, CurrentActor());
 
     /// <summary>
     /// Puts a film on for the room, from <paramref name="startSeconds"/> or from the beginning when it
@@ -128,6 +158,9 @@ public sealed class SessionHub(
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        if (Context.Items.TryGetValue(KnockingKey, out var knocked) && knocked is string knockedAt)
+            await doors.WithdrawAsync(knockedAt, Context.ConnectionId);
+
         if (Context.Items.TryGetValue(SessionIdKey, out var value) && value is string sessionId)
         {
             quality.Leave(sessionId, Context.ConnectionId);
@@ -166,11 +199,11 @@ public sealed class SessionHub(
             ? sessionId
             : throw new HubException("Join a session first.");
 
-    private CinemaPerson Person() =>
+    private CinemaPerson Person(string refusal = "Sign in to change the room.") =>
         Context.User?.Identities.FirstOrDefault(i => i.AuthenticationType == CinemaSchemes.Bearer) is { } identity
         && CinemaPerson.From(identity, oidc.Value.ActionsClaim) is { } person
             ? person
-            : throw new HubException("Sign in to change the room.");
+            : throw new HubException(refusal);
 
     private Actor CurrentActor() =>
         Context.Items.TryGetValue(ActorKey, out var value) && value is Actor actor

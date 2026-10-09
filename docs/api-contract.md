@@ -18,8 +18,8 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET /api/titles` | `TitleSummary[]`. The library as listed at most ten seconds ago, as are the episodes `/api/shows` and `/api/shows/{imdbId}` group; a person's progress and last plays on it are current |
 | `GET /api/titles/{id}` | `Manifest`, or 404 |
 | `GET /api/titles/{id}/ticket` | `{ticket, expiresAt}` — what a request for this film's bytes carries, or 404 |
-| `GET /api/sessions` | `RoomSummary[]` — every room, what it is watching, how many are in it |
-| `GET /api/sessions/{id}` | `SessionStatePush` — creates the session if new |
+| `GET /api/sessions` | `RoomSummary[]` — every room the person may enter, what it is watching, how many are in it; every room on the service key. A private room is in nobody else's list |
+| `GET /api/sessions/{id}` | `SessionStatePush` — creates the session if new. This and every `/api/sessions/{id}/…` route lets the person into the room when it admits them, makes it for them when there is none, and is a `403` when it is private to them (Who may come in, under Hub) |
 | `GET /api/sessions/{id}/participants` | `Participant[]` |
 | `GET /api/sessions/{id}/around` | `{current?, previous?, next?}` — the episode the room holds, by its title or as it arrives, and the episodes either side, each `{season, number, name?, titleId?}`: the next of its season else the first of the next, as the film database lists the show, or as the library holds it for a show it has not described, and previous the other way. `titleId` is absent for one the library does not hold, which is named only to somebody holding `cinema:download`. All absent for a film |
 | `POST /api/sessions/{id}/title` | `SessionStatePush` — puts a film in the room, or 404 if the library has no such title. The body is `{titleId, startSeconds?}`; `startSeconds` puts the room there instead of at the beginning, held to the transcode head like a seek. Recorded as the token's person, or as MovieBot on the service key |
@@ -429,7 +429,8 @@ A film that is not here is fetched and played in a room the moment it can be ope
 /api/watch` answers at once: `inLibrary` (the film is here, and is loaded into `room`), `preparing`
 (the room waits on it), `full` (a `409`: `streams` films are already being watched while they arrive,
 the `Watch:MaxStreams` setting, and the person is offered Download instead) or `badRoom`. Without a
-`room` a new one is made; a room id is 1 to 64 letters, digits, `-` or `_`. A film already arriving
+`room` a new one is made, private to the person asking; a room id is 1 to 64 letters, digits, `-` or
+`_`, and a room named that is private to them is a `403`. A film already arriving
 has the room added to its download. Otherwise the release is `torrentId`, one the API offered, or the
 best at `quality` (`1080p` unless `720p` is asked) from a digital source up; `episodes` fetches only
 those out of a show's release and is how a show is watched.
@@ -533,7 +534,7 @@ names. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 | `POST /api/me/push` | 204 for a browser's `PushSubscription.toJSON()`, `{endpoint, keys: {p256dh, auth}}`; a browser registered again replaces its own row, and belongs to whoever registered it last. An endpoint that is not `https` is a `400` |
 | `DELETE /api/me/push?endpoint=` | 204, or 404 for a browser that is not this person's |
 | `GET /api/people` | `PersonView[]` — everybody the server has a name for but the person asking, `{userId, name, lastSeenAt?}`, most recently seen first |
-| `POST /api/rooms/{room}/invite` | `InviteReply` for `{userId}` — `{delivery}`, `push` when a push service took it for at least one of their devices and `bell` when it waits in their bell alone. 404 for somebody unknown |
+| `POST /api/rooms/{room}/invite` | `InviteReply` for `{userId}` — lets them into the room and tells them: `{delivery}`, `push` when a push service took it for at least one of their devices and `bell` when it waits in their bell alone. 404 for somebody unknown, 403 for a room private to the person inviting |
 
 - **Kinds.** `available`: a film somebody waits on can be downloaded. `ready`: a download they started
   can be watched, or could not be made watchable. `episode`: a new episode of a show they follow is
@@ -727,9 +728,9 @@ database files as only planned or rumoured). `role` is the parts played and jobs
 Everything here is TMDB's, and a surface showing it credits TMDB, as its terms ask.
 
 `RoomSummary` is `{sessionId, titleId?, name?, durationSeconds?, paused, positionSeconds,
-participants}`. `name` is what the film is called, `positionSeconds` is where the room was when
-the listing was taken, and `participants` is a count: the people in a room are listed by the room
-itself, never here.
+participants, open}`. `name` is what the film is called, `positionSeconds` is where the room was when
+the listing was taken, `participants` is a count: the people in a room are listed by the room
+itself, never here, and `open` says anybody who may watch can come in.
 
 ## Hub
 
@@ -739,7 +740,10 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 
 | Method | Signature | Notes |
 |---|---|---|
-| `Join` | `(sessionId) → SessionStatePush` | call first; everything else throws until you do. The viewer is the connection's token: its `sub` and `name` |
+| `Join` | `(sessionId) → JoinReply` | call first; everything else but `Knock` throws until you are in. The viewer is the connection's token: its `sub` and `name`. `{admitted: true, push, door}` puts them in the room, and a room there is none of is made, private, with them let in; `{admitted: false}` is a room private to them, and says nothing else about it (Who may come in, below) |
+| `Knock` | `(sessionId) → bool` | asks to be let into a room private to this viewer. `true` is no need to ask, so `Join` now; otherwise the room is told who is asking and this connection is answered with `KnockAnswered`. The asking ends with the connection |
+| `SetOpen` | `(open: bool)` | opens the room to anybody holding `cinema:watch`, or closes it to anybody not already let in |
+| `Answer` | `(userId, admit: bool)` | lets somebody asking in, or tells them they are not |
 | `Next` | `()` | the episode after what the room holds, put on, or fetched into the room at the quality of the one playing for somebody holding `cinema:download`; a `HubException` when there is none to put on |
 | `Previous` | `()` | the episode before, the same way |
 | `PlayEpisode` | `(season, number)` | an episode of the show the room holds, the same way |
@@ -759,6 +763,19 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `SeekClamped` | `{requestedSeconds, grantedSeconds, headSeconds}` — sent to the caller only; `headSeconds` is the best rung's head held back to the audio, which is at least `transcodeHead` |
 | `ParticipantsChanged` | `Participant[]` = `{userId, displayName, buffering}[]` — sent when somebody joins, leaves, or starts or stops waiting for the film |
 | `TitleChanged` | `Manifest` — the manifest of the title this room holds changed: head, preview sheet, subtitles, status. Sent to every room holding the title, within a couple of seconds of the write |
+| `DoorChanged` | `RoomDoor` = `{open, knocking: [{userId, displayName}]}` — sent to the room when it is opened or closed and when somebody starts or stops asking; `knocking` holds each person once, in the order they asked |
+| `KnockAnswered` | `bool` — sent to a connection that asked to be let in: `true` when somebody let them in or opened the room, `false` when somebody said no |
+
+### Who may come in
+
+A room is private from the moment it is made. Whoever makes it is let in by making it — by `Join`,
+by any room route below, or by Watch now — and nobody else is, until somebody in it lets them in, invites
+them (`POST /api/rooms/{room}/invite`), or opens it. Entering an open room lets that person in for good,
+so closing it again shuts out nobody who has been in, a reload included, and lets in nobody new. Who was
+let in is kept with the room across a restart. What a room private to a person tells them is that it
+is private and nothing more: `Join` answers `{admitted: false}`, every room route a `403` with
+`{"error": "This room is private."}`, Watch now naming the room the same `403`, and the listing leaves
+it out. The service key is let into every room.
 
 ```jsonc
 // SessionStatePush

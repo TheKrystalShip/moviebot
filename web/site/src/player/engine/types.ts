@@ -280,6 +280,29 @@ export interface SessionStatePush {
   serverTime: string;
 }
 
+/** Somebody asking to be let into a room. */
+export interface Knock {
+  userId: string;
+  displayName: string;
+}
+
+/**
+ * Who may come into a room. It is private to the people let in until somebody in it opens it; closing
+ * it again lets in nobody new.
+ */
+export interface RoomDoor {
+  open: boolean;
+  /** Who is asking to be let in, each person once, in the order they asked. */
+  knocking: Knock[];
+}
+
+/** What entering a room is answered: the room and its door, or only that it is private. */
+export interface JoinReply {
+  admitted: boolean;
+  push?: SessionStatePush;
+  door?: RoomDoor;
+}
+
 export interface SeekClamped {
   requestedSeconds: number;
   grantedSeconds: number;

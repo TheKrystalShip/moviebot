@@ -16,6 +16,12 @@ public sealed record PersistedSession
     /// supposed to have stopped working.
     /// </summary>
     public required DateTimeOffset LastActivityUtc { get; init; }
+
+    /// <summary>Anybody who may watch can come in.</summary>
+    public required bool Open { get; init; }
+
+    /// <summary>Everybody let in, by account. Who is asking to come in is a live page and is not kept.</summary>
+    public required IReadOnlyList<string> Admitted { get; init; }
 }
 
 [JsonSourceGenerationOptions(

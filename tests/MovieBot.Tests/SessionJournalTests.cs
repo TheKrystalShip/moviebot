@@ -60,6 +60,32 @@ public sealed class SessionJournalTests : IDisposable
     }
 
     /// <summary>
+    /// A restart that opened every private room is the worst way for one to stop being private, and
+    /// one that forgot who was let in would shut everybody out of their own room.
+    /// </summary>
+    [Fact]
+    public async Task A_room_comes_back_with_the_same_people_let_in()
+    {
+        var before = NewStore();
+        before.Enter("private", "maker");
+        before.Admit("private", "guest");
+        before.Enter("open", "maker");
+        before.SetOpen("open", true);
+
+        await Journal().WriteAsync(before.Snapshot(), CancellationToken.None);
+
+        var after = NewStore();
+        after.Restore(Journal().Read(_clock.GetUtcNow(), TimeSpan.FromMinutes(30)));
+
+        Assert.False(after.Door("private")!.Open);
+        Assert.True(after.Enter("private", "maker"));
+        Assert.True(after.Enter("private", "guest"));
+        Assert.False(after.Enter("private", "stranger"));
+        Assert.True(after.Door("open")!.Open);
+        Assert.True(after.Enter("open", "stranger"));
+    }
+
+    /// <summary>
     /// Position is held as a place at an instant rather than as a number that ticks, so a room
     /// that was playing when the server stopped is at the right place when it starts again —
     /// however long that took.

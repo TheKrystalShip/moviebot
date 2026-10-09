@@ -23,6 +23,7 @@ public sealed class RoomEpisodesTests(SessionFixture fixture) : IClassFixture<Se
     {
         foreach (var (season, number) in new[] { (1, 1), (1, 2), (2, 1) })
             fixture.AddEpisode($"room-show-s{season:00}e{number:00}", Show, "Room Show", season, number);
+        Sessions.Enter(name, Watcher.UserId);
         Sessions.LoadTitle(name, "room-show-s01e02", Watcher.Actor);
         return name;
     }
@@ -31,7 +32,7 @@ public sealed class RoomEpisodesTests(SessionFixture fixture) : IClassFixture<Se
     public async Task The_room_says_what_it_holds_and_what_is_either_side()
     {
         var room = Room("re-around");
-        var around = await fixture.CreatePersonClient("re2").GetFromJsonAsync<RoomAround>(
+        var around = await fixture.CreatePersonClient(Watcher.UserId).GetFromJsonAsync<RoomAround>(
             $"/api/sessions/{room}/around", new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
         Assert.Equal((1, 2), (around!.Current!.Season, around.Current.Number));

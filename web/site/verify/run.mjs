@@ -101,9 +101,22 @@ async function roomChecks(browser) {
   check('a link naming a film loads it', (await ada.textContent('.mp-top__name')).length > 0, await ada.textContent('.mp-top__name'));
   check('and the room was told', (await sent(ada)).includes('"LoadTitle"'));
 
+  // A room is private to whoever made it: Bob, holding the link, is at the door until Ada lets him in.
+  await press(ada, '.mp-invite');
+  await ada.waitForSelector('.mp-invite-panel', { timeout: 5000 }).catch(() => null);
+  check('a private room hands out no link', (await ada.$('.mp-invite-panel')) !== null && (await ada.$('.mp-invite-panel__url')) === null);
+  await press(ada, '.mp-invite');
+
   const bob = await viewer(browser, 'v2', 'Bob', { width: 640, height: 360 });
   await bob.goto(`${BASE}/r/${room}?title=${TITLE}`);
+  await bob.waitForSelector('.mp-message__action', { timeout: 15000 }).catch(() => null);
+  check('somebody else is told the room is private', /private/.test(await bob.textContent('.mp-message').catch(() => '')));
+  await bob.click('.mp-message__action');
+  await ada.waitForSelector('.mp-knock', { timeout: 5000 }).catch(() => null);
+  check('the room is shown who is asking', /Bob wants to join/.test(await ada.textContent('.mp-knock').catch(() => '')));
+  await ada.click('.mp-knock__yes');
   await holds(bob);
+  check('and letting them in brings them into the room', (await ada.$('.mp-knock')) === null);
   await wait(800);
   check('a later arrival on the same link does not load it again', !(await sent(bob)).includes('"LoadTitle"'));
 
@@ -134,6 +147,13 @@ async function roomChecks(browser) {
   await bob.evaluate(() => document.querySelector('video').dispatchEvent(new Event('playing')));
   await ada.waitForFunction(() => !document.querySelector('.mp-top .mp-avatar.is-buffering'), null, { timeout: 4000 }).catch(() => null);
   check('and unmarked once it plays again', (await ada.$('.mp-top .mp-avatar.is-buffering')) === null);
+
+  // Opened, the room hands out its link and anybody holding it walks in.
+  await press(ada, '.mp-invite');
+  await ada.click('.mp-invite-panel .k-toggle');
+  await ada.waitForSelector('.mp-invite-panel__url', { timeout: 5000 }).catch(() => null);
+  check('an open room hands out its link', /\/r\//.test(await ada.textContent('.mp-invite-panel__url').catch(() => '')));
+  await press(ada, '.mp-invite');
 
   // A browser that wants a gesture before it plays sound. Headless Chromium's own policy is not
   // something a check can count on, so the refusal is made explicit: play() is refused, as a browser
