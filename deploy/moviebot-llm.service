@@ -23,9 +23,7 @@ ExecStart=/opt/moviebot/llm/bin/llama-server \
 ExecStartPost=/opt/moviebot/llm/bin/warm-llm.sh 8190
 TimeoutStartSec=300
 
-# Resident, and deliberately so. kgsm-speech on hotrod exits when idle because it shares a host
-# with a game-server fleet that wants the memory back. hotbox runs MovieBot and nothing else, so
-# the 1.4 GB of video memory this holds has nothing better to be spent on, and giving it back
+# Resident, and deliberately so. hotbox runs MovieBot and nothing else, so the 1.4 GB of video memory this holds has nothing better to be spent on, and giving it back
 # would only mean paying the load and the pipeline compile again in front of a room.
 
 # The driver caches compiled shaders on disk, and ProtectHome below makes the default location
