@@ -69,6 +69,25 @@
     }
   },
   {
+    "name": "find_by_clues",
+    "class": "read",
+    "resultLimit": 12000,
+    "description": "Find a film or show someone half remembers from the clues they give, and rank what fits.\n- Give every clue you can pull out of what they said; at least one. The tool does the searching and the matching.\n- people: names of actors or film-makers. from, to: release years. released: released, upcoming, announced or any.\n- look: how it looks or what kind it is, such as \"black and white\", \"animated\". about: plot words, such as \"lighthouse\", \"time loop\".\n- Returns up to 8 candidates, best fit first, each with the clues it matches and the ones it does not.\n- Use for a film someone half remembers, then confirm the best with title_details.\n- web_search is for clues the database cannot hold, like a trailer or news.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "people": { "type": "array", "items": { "type": "string" }, "description": "Names of people in it or who made it." },
+        "from": { "type": "integer", "description": "First release year." },
+        "to": { "type": "integer", "description": "Last release year." },
+        "released": { "type": "string", "enum": ["released", "upcoming", "announced", "any"], "description": "Whether it is out yet. Default any." },
+        "look": { "type": "array", "items": { "type": "string" }, "description": "How it looks or what kind it is." },
+        "about": { "type": "array", "items": { "type": "string" }, "description": "Words from the plot." },
+        "kind": { "type": "string", "enum": ["film", "show"], "description": "Default film." },
+        "language": { "type": "string", "description": "Original language, such as Korean." }
+      }
+    }
+  },
+  {
     "name": "whats_new",
     "class": "read",
     "resultLimit": 14000,

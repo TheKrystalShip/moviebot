@@ -72,7 +72,7 @@ public sealed class PluginHostTests : IAsyncLifetime
         PluginProfile sent = _harness.Registered!;
         Assert.Equal("moviebot", sent.Id);
         Assert.Equal(
-            ["search_titles", "title_details", "person_credits", "discover", "whats_new", "my_taste"], sent.Tools.Select(t => t.Name));
+            ["search_titles", "title_details", "person_credits", "discover", "find_by_clues", "whats_new", "my_taste"], sent.Tools.Select(t => t.Name));
         Assert.Equal(5, sent.Skills.Count);
         Assert.Equal(_app.Services.GetRequiredService<PluginRegistration>().Profile.ContentHash(), sent.ContentHash());
 
@@ -130,13 +130,13 @@ public sealed class PluginHostTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task A_person_who_may_watch_is_told_the_six_tools()
+    public async Task A_person_who_may_watch_is_told_the_seven_tools()
     {
         using HttpResponseMessage response = await _client.SendAsync(As("/tools", _issuer.Mint("u", "Sam")));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         string text = await response.Content.ReadAsStringAsync();
-        foreach (string tool in new[] { "search_titles", "title_details", "person_credits", "discover", "whats_new", "my_taste" })
+        foreach (string tool in new[] { "search_titles", "title_details", "person_credits", "discover", "find_by_clues", "whats_new", "my_taste" })
             Assert.Contains(tool, text);
     }
 

@@ -63,6 +63,7 @@ public partial class Program
             .AddTool<TitleDetailsTool>()
             .AddTool<PersonCreditsTool>()
             .AddTool<DiscoverTool>()
+            .AddTool<FindByCluesTool>()
             .AddTool<WhatsNewTool>()
             .AddTool<MyTasteTool>()
             .AddPeople<CinemaPeople>()

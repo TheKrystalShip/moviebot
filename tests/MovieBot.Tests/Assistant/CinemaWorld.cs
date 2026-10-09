@@ -231,6 +231,43 @@ internal static class CinemaWorld
             Kind = "show", Resolved = new DiscoverResolved { Genres = ["Drama"], Sort = "popular" }, Titles = [NightHarborShow],
         });
 
+        // find_by_clues: the look alone, the plot word alone, a person's work from 2024, and the pages that settle the clues.
+        world.Answer("/api/catalogue/discover?kind=film&about=black and white&goodOnly=false", new DiscoverResult
+        {
+            Resolved = new DiscoverResolved { Keywords = ["black and white"], Sort = "popular" },
+            Titles = [LanternKeeper, Hit("tt1000060", "Moth Light", 2008, rating: 6.1, votes: 150, plot: "A projectionist chases a moth.")],
+        });
+        world.Answer("/api/catalogue/discover?kind=film&about=lighthouse&goodOnly=false", new DiscoverResult
+        {
+            Resolved = new DiscoverResolved { Keywords = ["lighthouse"], Sort = "popular" }, Titles = [LanternKeeper],
+        });
+        world.Answer("/api/catalogue/discover?kind=film&about=zzz&goodOnly=false", "{\"error\":\"The database has no keyword 'zzz'.\"}", 404);
+        world.Answer("/api/catalogue/people/601/credits?from=2024", new PersonCredits
+        {
+            PersonId = 601, Name = "Julian Rook", KnownFor = "Acting", AsOf = Today, Total = 3,
+            Credits =
+            [
+                Credit("tt1000050", "The Last Ferry", "2024-03-01", "released", role: "Owen"),
+                Credit("tt1000051", "Winter Quarters", null, "announced"),
+                Credit("tt1000052", "Cinder", "2027-02-12", "upcoming", role: "Pell"),
+            ],
+        });
+        world.Answer("/api/films/tt1000050", new FilmDetails
+        {
+            ImdbId = "tt1000050", Title = "The Last Ferry", Year = 2024, Genres = ["Drama"], Overview = "A ferry crosses the last night of winter.",
+            Keywords = ["ferry", "winter"], Votes = 900,
+        });
+        world.Answer("/api/films/tt1000052", new FilmDetails
+        {
+            ImdbId = "tt1000052", Title = "Cinder", Year = 2027, Genres = ["Thriller"], Overview = "A fire watcher on a lighthouse island.",
+            Keywords = ["fire"], Votes = 0,
+        });
+        world.Answer("/api/films/tt1000060", new FilmDetails
+        {
+            ImdbId = "tt1000060", Title = "Moth Light", Year = 2008, Genres = ["Drama"], Overview = "A projectionist chases a moth.",
+            Keywords = ["black and white", "silent film"], BlackAndWhite = true, Votes = 150,
+        });
+
         world.Answer("/api/popular", new Popular
         {
             FetchedAt = new DateTimeOffset(2026, 10, 9, 6, 0, 0, TimeSpan.Zero),
@@ -314,6 +351,12 @@ internal sealed class ToolRig
     public DiscoverTool Discover => new(Api, NullLogger<DiscoverTool>.Instance);
     public WhatsNewTool WhatsNew => new(Api, NullLogger<WhatsNewTool>.Instance);
     public MyTasteTool Taste => new(Api, NullLogger<MyTasteTool>.Instance);
+
+    /// <summary>The day the world is read on; the statuses of its credits are as of it.</summary>
+    public static readonly DateTimeOffset Now = new(2026, 10, 9, 12, 0, 0, TimeSpan.Zero);
+
+    public FindByCluesTool Clues =>
+        new(Api, new Microsoft.Extensions.Time.Testing.FakeTimeProvider(Now), NullLogger<FindByCluesTool>.Instance);
 
     public PluginPerson Person => new("u-sam", "Sam", new Caller("u-sam", "Sam", Token, null, new HashSet<string> { "cinema:watch" }));
 

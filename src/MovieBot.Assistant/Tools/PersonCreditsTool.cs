@@ -73,7 +73,7 @@ internal sealed partial class PersonCreditsTool(CinemaApi api, ILogger<PersonCre
     /// asks for, else the database's best match; the others are named in a note so the model can say so
     /// or ask again.
     /// </summary>
-    private static (PersonMatch Person, string? Note) Pick(List<PersonMatch> people, string name, string? known, string? role)
+    internal static (PersonMatch Person, string? Note) Pick(List<PersonMatch> people, string name, string? known, string? role)
     {
         PersonMatch[] exact = [.. people.Where(p => Say.Normal(p.Name) == Say.Normal(name))];
         if (exact.Length == 0)

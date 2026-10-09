@@ -8,11 +8,14 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **The assistant is a plugin to the assistant harness, written for finding films.** Six read-only tools
+- **The assistant is a plugin to the assistant harness, written for finding films.** Seven read-only tools
   over the film database and the person's own records, through the API as that person: `search_titles`,
   `title_details`, `person_credits` (a person's work oldest first, each credit released, upcoming or
   announced), `discover` (by genre, years, people, keywords, language, rating and similarity, saying
-  what each word matched and what to loosen when nothing fits), `whats_new` and `my_taste`. Five skills:
+  what each word matched and what to loosen when nothing fits), `find_by_clues` (a film someone half
+  remembers: the model extracts the people, years, release status, look and plot words, and the tool
+  searches, checks the best candidates against the database's page for them and ranks by how many clues
+  each fits, saying which it fits and which it does not), `whats_new` and `my_taste`. Five skills:
   `find-a-forgotten-film`, `filmography`, `recommend`, `whats-on` and `taste-survey`. Every tool that
   names titles returns a `titles` card for the site to draw. The taste a survey asks for is kept in the
   harness's shared memory under `taste`, and every recommendation reads it. Assistant 3.0.0.

@@ -15,7 +15,7 @@ public sealed partial class ProfileTests
     private static readonly string Directory = Path.Combine(AppContext.BaseDirectory, "profile");
 
     private static readonly string[] Tools =
-        ["search_titles", "title_details", "person_credits", "discover", "whats_new", "my_taste"];
+        ["search_titles", "title_details", "person_credits", "discover", "find_by_clues", "whats_new", "my_taste"];
 
     private static readonly string[] Skills =
         ["filmography", "find-a-forgotten-film", "recommend", "taste-survey", "whats-on"];
@@ -27,7 +27,7 @@ public sealed partial class ProfileTests
     private static PluginProfile Load() => PluginProfileLoader.Load(Directory, PluginIdentity.Id, "test");
 
     [Fact]
-    public void The_profile_has_the_six_tools_in_the_order_the_model_is_offered_them()
+    public void The_profile_has_the_seven_tools_in_the_order_the_model_is_offered_them()
     {
         Assert.Equal(Tools, Load().Tools.Select(t => t.Name));
     }
@@ -286,7 +286,7 @@ public sealed partial class ProfileTests
         ];
 
         Assert.Equal(
-            ["DiscoverTool", "MyTasteTool", "PersonCreditsTool", "SearchTitlesTool", "TitleDetailsTool", "WhatsNewTool"],
+            ["DiscoverTool", "FindByCluesTool", "MyTasteTool", "PersonCreditsTool", "SearchTitlesTool", "TitleDetailsTool", "WhatsNewTool"],
             registered.Order());
     }
 }

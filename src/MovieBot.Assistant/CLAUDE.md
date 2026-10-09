@@ -2,7 +2,7 @@
 
 The plugin that helps the people of Krystal Cinema find films and shows. The organization's assistant
 harness (`tks-assistant`) is the assistant: the turn loop, the model, the conversations, the memory, the
-skills and the reply guards. This service brings the domain: a prompt appendix, six read-only tools over
+skills and the reply guards. This service brings the domain: a prompt appendix, seven read-only tools over
 the film database through MovieBot's API, five skills, the person's name, and the sign-in. It is built on
 `TheKrystalShip.Agent.Plugin`; the wire it relays is that package's (`tks-assistant/docs/wire-contract.md`).
 
@@ -30,9 +30,12 @@ service says otherwise.
 
 ## The tools
 
-`search_titles`, `title_details`, `person_credits`, `discover`, `whats_new`, `my_taste`: all `read`, all
+`search_titles`, `title_details`, `person_credits`, `discover`, `find_by_clues`, `whats_new`, `my_taste`: all `read`, all
 always loaded. Nothing acts. Watching, getting a film, notify me, watch later and follows are buttons on a
-title's page; the assistant answers with cards that open it. There are no room controls: whoever is in a
+title's page; the assistant answers with cards that open it. `find_by_clues` is where a half-remembered
+film is found: the model extracts the clues and the tool resolves the people, reads their dated credits,
+runs `discover` on the look and the plot words, reads the best candidates' database pages, and ranks by how
+many clues each fits, with the clues it fits, the ones it does not, and the ones it could not check. There are no room controls: whoever is in a
 room has the player.
 
 ## Invariants
