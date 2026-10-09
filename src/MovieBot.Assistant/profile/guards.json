@@ -19,6 +19,19 @@
     "retryNotice": "\n\n(Correction: I described something I did not do. I only find films and shows. Answering again.)\n\n"
   },
 
+  // A title named in a reply, as "Title (Year)" at the start of a line or after a list marker, has to be in
+  // a result a tool returned this turn, or in what the person or the conversation already said.
+  "claims": [
+    {
+      "name": "titles",
+      "pattern": "(?:^|\\n)[\\s*_>\\-\\d.]*(?<title>[^\\n*_(]{1,120}?)[*_]* \\((?<year>\\d{4})\\)",
+      "group": "title",
+      "against": "toolResults",
+      "caseInsensitive": true,
+      "advice": "Name only titles a tool returned, or say you could not find it."
+    }
+  ],
+
   // Calls of a class one user message may make. The reads are unlimited; a hunt for one film makes
   // several. The harness's web search and page fetch are bounded.
   "perMessageLimits": {

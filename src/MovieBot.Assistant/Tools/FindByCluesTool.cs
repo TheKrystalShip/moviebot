@@ -50,6 +50,10 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
         DateOnly today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
 
         // The people: who they are, and everything they are credited on in the years asked for.
+        // Clues are soft: none excludes a candidate. How strongly a fit counts: a person, the look, the plot
+        // and the language say more about a half-remembered film than the year or whether it is out yet,
+        // which people misremember most.
+        var weights = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var clues = new List<string>();
         var resolved = new List<string>();
         foreach (Person person in await Task.WhenAll(people.Select(n => ReadPersonAsync(call, n, kind, from, to))))
@@ -59,6 +63,7 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
 
             resolved.Add(person.Credits.Name);
             clues.Add(person.Credits.Name);
+            weights[person.Credits.Name] = 3;
             foreach (Credit credit in person.Credits.Credits)
             {
                 Candidate c = Get(pool, credit.ImdbId ?? $"tmdb:{credit.TmdbId}");
@@ -74,7 +79,11 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
         clues.AddRange(look);
         clues.AddRange(about.Select(Quoted));
         if (language is not null) clues.Add($"original language {language}");
-
+        if (years is not null) weights[years] = 1;
+        if (released is not null) weights[released] = 1;
+        foreach (string word in look) weights[word] = 3;
+        foreach (string word in about) weights[Quoted(word)] = 2;
+        if (language is not null) weights[$"original language {language}"] = 2;
         // What the database finds by the look and the plot words, with the people when it can.
         string discoverKind = kind ?? "film";
         IReadOnlyList<string> with = discoverKind == "film" ? resolved : [];
@@ -129,9 +138,9 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
         Judge(pool.Values, resolved, years, from, to, released);
 
         // The best candidates are read as the database's own page for them, which holds the keywords.
-        Candidate[] ranked = [.. Rank(pool.Values)];
+        Candidate[] ranked = [.. Rank(pool.Values, weights)];
         await Task.WhenAll(ranked.Take(Verified).Where(c => c.ImdbId is not null).Select(c => ReadAsync(call, c, look, about)));
-        ranked = [.. Rank(pool.Values).Take(Shown)];
+        ranked = [.. Rank(pool.Values, weights).Take(Shown)];
 
         if (ranked.Length == 0)
             return PluginToolResult.Ok(
@@ -171,8 +180,8 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
     private static Candidate Get(Dictionary<string, Candidate> pool, string key) =>
         pool.TryGetValue(key, out Candidate? existing) ? existing : pool[key] = new Candidate();
 
-    private static IEnumerable<Candidate> Rank(IEnumerable<Candidate> candidates) =>
-        candidates.OrderByDescending(c => c.Matches).ThenBy(c => c.Misses).ThenByDescending(c => c.Votes);
+    private static IEnumerable<Candidate> Rank(IEnumerable<Candidate> candidates, Dictionary<string, int> weights) =>
+        candidates.OrderByDescending(c => c.Weight(weights, true)).ThenBy(c => c.Weight(weights, false)).ThenByDescending(c => c.Votes);
 
     /// <summary>The years and release status of every candidate, and the people whose credits it is not among.</summary>
     private static void Judge(
@@ -190,7 +199,7 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
             }
 
             if (released is not null)
-                c.Set(released, c.Status == released, $"it is {c.Status}");
+                c.Set(released, c.Status == released, c.Year is { } year ? $"it is {c.Status}, {year}" : $"it is {c.Status}");
 
             foreach (string person in people)
                 c.Set(person, false, "not among their credits in those years", onlyIfUnsettled: true);
@@ -289,8 +298,9 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
         public string? PosterUrl { get; private set; }
         public List<string> Genres { get; } = [];
 
-        public int Matches => _verdicts.Values.Count(v => v.Ok);
-        public int Misses => _verdicts.Values.Count(v => !v.Ok);
+        /// <summary>The summed weight of the clues the candidate fits, or of the ones it does not.</summary>
+        public int Weight(Dictionary<string, int> weights, bool fits) =>
+            _verdicts.Where(v => v.Value.Ok == fits).Sum(v => weights.GetValueOrDefault(v.Key, 1));
 
         /// <summary>
         /// Records whether the candidate fits a clue. A fit is never replaced by a miss, and with

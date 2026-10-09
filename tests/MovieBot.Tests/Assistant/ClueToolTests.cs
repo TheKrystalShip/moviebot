@@ -22,12 +22,25 @@ public sealed class ClueToolTests
     }
 
     [Fact]
+    public async Task A_wrong_clue_does_not_exclude_and_a_person_and_a_look_outweigh_recent()
+    {
+        PluginToolResult result = await _rig.RunAsync(
+            _rig.Clues, new { people = new[] { "Julian Rook" }, look = new[] { "black and white" }, released = "announced" });
+
+        string[] lines = [.. result.Text.Split('\n').Where(l => l.StartsWith("- ", StringComparison.Ordinal))];
+        Assert.StartsWith("- The Lantern Keeper (2019)", lines[0]);
+        Assert.Contains("Matches: Julian Rook; black and white. Does not match: announced (it is released, 2019).", result.Text);
+        // Winter Quarters is announced and has the person, but not the look it was never checked for.
+        Assert.True(Array.FindIndex(lines, l => l.StartsWith("- Winter Quarters", StringComparison.Ordinal)) > 0);
+    }
+
+    [Fact]
     public async Task The_verdict_comes_before_the_candidates()
     {
         PluginToolResult none = await _rig.RunAsync(
             _rig.Clues, new { people = new[] { "Julian Rook" }, look = new[] { "black and white" }, released = "announced" });
         Assert.Contains(
-            "No candidate fits every clue. Closest: The Lantern Keeper (2019), which fits Julian Rook, black and white but not announced (it is released).\n",
+            "No candidate fits every clue. Closest: The Lantern Keeper (2019), which fits Julian Rook, black and white but not announced (it is released, 2019).\n",
             none.Text);
 
         PluginToolResult fit = await _rig.RunAsync(_rig.Clues, new { people = new[] { "Julian Rook" }, look = new[] { "black and white" } });
@@ -76,8 +89,8 @@ public sealed class ClueToolTests
         string[] lines = [.. result.Text.Split('\n').Where(l => l.StartsWith("- ", StringComparison.Ordinal))];
         Assert.StartsWith("- Winter Quarters, film. Announced, no release date.", lines[0]);
         Assert.Contains("Matches: Julian Rook; released from 2024; announced.", result.Text);
-        Assert.Contains("Does not match: announced (it is upcoming)", result.Text);
-        Assert.Contains("Does not match: announced (it is released)", result.Text);
+        Assert.Contains("Does not match: announced (it is upcoming, 2027)", result.Text);
+        Assert.Contains("Does not match: announced (it is released, 2024)", result.Text);
         Assert.Equal(["GET /api/catalogue/people?q=julian rook", "GET /api/catalogue/people/601/credits?from=2024"], _rig.World.Asked.Take(2));
     }
 

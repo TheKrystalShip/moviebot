@@ -267,6 +267,33 @@ public sealed partial class ProfileTests
     }
 
     [Fact]
+    public void The_titles_claim_captures_each_title_a_reply_names_and_nothing_before_it()
+    {
+        ClaimPattern claim = Assert.Single(Load().Guards.Claims!);
+        var regex = new Regex(claim.Pattern, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(250));
+
+        string reply = "Here are some picks for tonight:\n- The Others (2001) - a ghost story\n2. **28 Days Later** (2002)\nHeat (1995), 15 December, released\nShe was born in 1950 (aged 12)\nAnne Hathaway appeared in the following movies this year:";
+        string[] titles = [.. regex.Matches(reply).Select(m => m.Groups[claim.Group].Value.Trim())];
+
+        Assert.Equal("titles", claim.Name);
+        // A leading number is taken for a list number, so a title that starts with one loses it; what is left is
+        // still a part of the title and is found in the result the title came from.
+        Assert.Equal(["The Others", "Days Later", "Heat"], titles);
+    }
+
+    [Fact]
+    public void The_forgotten_film_answer_ends_by_inviting_more_clues_and_names_the_clue_that_did_not_fit()
+    {
+        PluginProfile profile = Load();
+        string skill = profile.Skills.Single(s => s.Name == "find-a-forgotten-film").Body;
+
+        Assert.Contains("say plainly which clue it does not fit", skill);
+        Assert.Contains("other actors in it, a scene you remember, or whether it is recent", skill);
+        Assert.Contains("not a question to ask with ask_question", skill);
+        Assert.Contains("invite more clues", profile.PromptAppendix);
+    }
+
+    [Fact]
     public void The_profile_is_valid_and_hashes_the_same_each_time_it_is_read()
     {
         PluginProfile first = Load();
