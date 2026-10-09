@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.38.1] - 2026-10-09
+
+### Changed
+
+- **A character is traced to its actor with a search, never from memory.** When a person names a
+  character rather than an actor, the assistant's first call is `web_search` for who played it, and no
+  guessed name reaches `person_credits`. The rule is in the prompt, where every turn reads it, and in the
+  find-a-forgotten-film skill. The suite case for a character traced to an actress and then to a film
+  expects the search, holds the reply and caps the number of calls.
+
 ## [2.38.0] - 2026-10-09
 
 ### Changed

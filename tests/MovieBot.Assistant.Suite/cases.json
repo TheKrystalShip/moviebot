@@ -112,13 +112,15 @@
     {
       "id": "character-to-actress-to-film",
       "group": "person_credits",
-      "title": "A character is traced to the actress and then to the film",
+      "title": "A character is traced to the actress with a search and then to the film",
       "turns": [
         { "say": "The actress that played Amy Pond in Doctor Who also plays in a horror movie with a mirror. Can you tell me the name of said movie?" }
       ],
       "expect": {
-        "calls": [ { "tool": "person_credits", "args": { "person": "~gillan" } } ],
+        "calls": [ { "tool": "web_search" } ],
         "match": [ "Oculus" ],
+        "notMatch": [ "Billie Piper" ],
+        "maxCalls": 4,
         "noQuestion": true
       }
     }
