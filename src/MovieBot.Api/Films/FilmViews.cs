@@ -1,3 +1,5 @@
+using TheKrystalShip.MovieBot.Acquire.Tmdb;
+
 namespace TheKrystalShip.MovieBot.Api.Films;
 
 /// <summary>
@@ -17,6 +19,16 @@ public sealed record FilmView
     public required List<string> Genres { get; init; }
     public string? Overview { get; init; }
     public string? Tagline { get; init; }
+
+    /// <summary>The database's keywords for the film (<c>time loop</c>, <c>heist</c>); empty while the description is being asked for them.</summary>
+    public required List<string> Keywords { get; init; }
+
+    /// <summary>
+    /// True when the database tags the film black and white. The database has no tag for colour, so a
+    /// film not tagged is not known to be in colour, and this is false for it.
+    /// </summary>
+    public bool BlackAndWhite { get; init; }
+
     public double? Rating { get; init; }
     public int Votes { get; init; }
     public required List<string> Directors { get; init; }
@@ -31,6 +43,12 @@ public sealed record FilmView
     public required List<string> Countries { get; init; }
     public string? PosterUrl { get; init; }
     public string? BackdropUrl { get; init; }
+
+    /// <summary>The title that plays the film when the library holds it.</summary>
+    public string? LibraryId { get; init; }
+
+    /// <summary>Whether the asking person watched the film through; false for the service key.</summary>
+    public bool Watched { get; init; }
 }
 
 public sealed record CastView
@@ -65,7 +83,7 @@ public static class FilmViews
     /// <summary>Where a kept image is served from. Artwork is not the film, so it needs no token.</summary>
     public static string ImageUrl(string imdbId, string file) => $"/films/{imdbId}/{file}";
 
-    public static FilmView? View(this FilmStore store, StoredFilm stored)
+    public static FilmView? View(this FilmStore store, StoredFilm stored, string? libraryId = null, bool watched = false)
     {
         if (stored.Details is not { } d) return null;
         string? Image(string file) => store.HasImage(d.ImdbId, file) ? ImageUrl(d.ImdbId, file) : null;
@@ -83,6 +101,8 @@ public static class FilmViews
             Genres = [.. d.Genres],
             Overview = d.Overview,
             Tagline = d.Tagline,
+            Keywords = [.. d.Keywords ?? []],
+            BlackAndWhite = KeywordNames.MarksBlackAndWhite(d.Keywords),
             Rating = d.Rating,
             Votes = d.Votes,
             Directors = [.. d.Directors],
@@ -100,6 +120,8 @@ public static class FilmViews
             Countries = [.. d.Countries],
             PosterUrl = Image(FilmStore.Poster),
             BackdropUrl = Image(FilmStore.Backdrop),
+            LibraryId = libraryId,
+            Watched = watched,
         };
     }
 

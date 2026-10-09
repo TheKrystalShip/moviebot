@@ -113,7 +113,7 @@ public sealed class ListPresenter(
 
     public ListView View(StoredList list, string viewerId)
     {
-        var shelf = Shelf.Of(library.Titles(), record, viewerId);
+        var shelf = LibraryShelf.Of(library.Titles(), record, viewerId);
         return new ListView
         {
             List = Summary(list, viewerId),
@@ -122,9 +122,9 @@ public sealed class ListPresenter(
     }
 
     public ListEntryView Entry(StoredEntry entry, string viewerId) =>
-        Entry(entry, Shelf.Of(library.Titles(), record, viewerId));
+        Entry(entry, LibraryShelf.Of(library.Titles(), record, viewerId));
 
-    private ListEntryView Entry(StoredEntry entry, Shelf shelf)
+    private ListEntryView Entry(StoredEntry entry, LibraryShelf shelf)
     {
         var view = new ListEntryView
         {
@@ -160,35 +160,4 @@ public sealed class ListPresenter(
         : films.HasImage(entry.ImdbId, FilmStore.Poster) ? FilmViews.ImageUrl(entry.ImdbId, FilmStore.Poster) : null;
 
     private ListPerson Person(string userId) => new(userId, people.NameOf(userId));
-
-    /// <summary>
-    /// What the library holds, by IMDb id: the title that plays each film, the shows with an episode
-    /// here, and the films the viewer watched through.
-    /// </summary>
-    private sealed record Shelf(Dictionary<string, string> Films, HashSet<string> Shows, HashSet<string> Watched)
-    {
-        public static Shelf Of(IReadOnlyList<TitleSummary> titles, WatchRecord record, string viewerId)
-        {
-            var films = new Dictionary<string, string>(StringComparer.Ordinal);
-            var shows = new HashSet<string>(StringComparer.Ordinal);
-            var filmOf = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (var title in titles)
-            {
-                if (title.Film?.ImdbId is not { } imdbId) continue;
-                if (title.Kind == TitleKind.Show)
-                {
-                    shows.Add(imdbId);
-                    continue;
-                }
-                films.TryAdd(imdbId, title.Id);
-                filmOf[title.Id] = imdbId;
-            }
-
-            var watched = record.Entries(viewerId)
-                .Where(e => e.Entry.Finished && filmOf.ContainsKey(e.TitleId))
-                .Select(e => filmOf[e.TitleId])
-                .ToHashSet(StringComparer.Ordinal);
-            return new Shelf(films, shows, watched);
-        }
-    }
 }

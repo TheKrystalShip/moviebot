@@ -1,4 +1,6 @@
 using TheKrystalShip.MovieBot.Api.Auth;
+using TheKrystalShip.MovieBot.Api.Library;
+using TheKrystalShip.MovieBot.Api.People;
 
 namespace TheKrystalShip.MovieBot.Api.Films;
 
@@ -8,7 +10,8 @@ public static class FilmEndpoints
     {
         // A film by its IMDb id, in the library or not: a page about a film somebody is waiting on
         // shows it as fully as one on the shelf.
-        app.MapGet("/api/films/{imdbId}", async (string imdbId, FilmStore store, CancellationToken ct) =>
+        app.MapGet("/api/films/{imdbId}", async (string imdbId, HttpContext context, FilmStore store, LibraryListing library,
+            WatchRecord record, CancellationToken ct) =>
         {
             if (!FilmStore.IsImdbId(imdbId))
                 return Results.Json(new ErrorReply("That is not an IMDb id."), ApiJsonContext.Default.ErrorReply,
@@ -19,7 +22,8 @@ public static class FilmEndpoints
                 return Results.Json(new ErrorReply("The film database could not be asked about this film."),
                     ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status503ServiceUnavailable);
 
-            return store.View(stored) is { } view
+            var shelf = LibraryShelf.Of(library.Titles(), record, PeopleEndpoints.Person(context)?.UserId);
+            return store.View(stored, shelf.LibraryIdOf("film", imdbId), shelf.Saw("film", imdbId)) is { } view
                 ? Results.Ok(view)
                 : Results.Json(new ErrorReply("The film database has no film under that id."),
                     ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);

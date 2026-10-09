@@ -108,11 +108,13 @@ public sealed class FilmStore(
 
     /// <summary>
     /// Whether a kept description is asked for again: once it is old, and at once when its cast names
-    /// nobody by the database's id, which is what leads from a cast member to their other work.
+    /// nobody by the database's id, which is what leads from a cast member to their other work, or
+    /// when the database was never asked for its keywords.
     /// </summary>
     public bool IsDue(StoredFilm film) =>
         clock.GetUtcNow() - film.FetchedAt > TimeSpan.FromDays(Math.Max(1, options.Value.RefreshDays))
-        || film.Details is { Cast: [{ TmdbId: null }, ..] };
+        || film.Details is { Cast: [{ TmdbId: null }, ..] }
+        || film.Details is { Keywords: null };
 
     /// <summary>The kept image a request names, or null for anything that is not one.</summary>
     public string? ImageFile(string imdbId, string file)

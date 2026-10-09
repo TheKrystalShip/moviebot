@@ -96,11 +96,12 @@ public sealed class ShowStore(
 
     /// <summary>
     /// Whether a kept description is asked for again: once it is old, and at once when its cast names
-    /// nobody by the database's id, as for a film.
+    /// nobody by the database's id or the database was never asked for its keywords, as for a film.
     /// </summary>
     public bool IsDue(StoredShow show) =>
         clock.GetUtcNow() - show.FetchedAt > TimeSpan.FromDays(Math.Max(1, options.Value.RefreshDays))
-        || show.Details is { Cast: [{ TmdbId: null }, ..] };
+        || show.Details is { Cast: [{ TmdbId: null }, ..] }
+        || show.Details is { Keywords: null };
 
     /// <summary>
     /// The kept image a request names, or null for anything that is not one. A still is named by the

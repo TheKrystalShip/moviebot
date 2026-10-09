@@ -122,12 +122,16 @@ builder.Services.AddSingleton(sp => new TitleGlances(
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<TitleGlances>>()));
-builder.Services.AddSingleton(sp => new Catalogue(
+builder.Services.AddSingleton(sp => new AnswerKeeper(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.CatalogueDirectory, "catalogue"),
-    sp.GetRequiredService<TitleGlances>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<TimeProvider>(),
-    sp.GetRequiredService<ILogger<Catalogue>>()));
+    sp.GetRequiredService<ILogger<AnswerKeeper>>()));
+builder.Services.AddSingleton(sp => new Catalogue(
+    sp.GetRequiredService<AnswerKeeper>().Root,
+    sp.GetRequiredService<AnswerKeeper>(),
+    sp.GetRequiredService<TitleGlances>()));
+builder.Services.AddSingleton<CatalogueSearch>();
 builder.Services.AddSingleton<TitleSearch>();
 builder.Services.AddHostedService<FilmWarmer>();
 builder.Services.AddSingleton(sp => new PopularNow(
@@ -396,6 +400,7 @@ app.MapAcquisition();
 app.MapTranscode();
 app.MapPeople();
 app.MapFilms();
+app.MapCatalogueSearch();
 app.MapShows();
 app.MapFollows();
 app.MapLists();

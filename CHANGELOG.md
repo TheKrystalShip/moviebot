@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.0] - 2026-10-09
+
+### Added
+
+- **The API searches the film database.** `/api/catalogue/search` finds films and shows by name, with
+  who made each and who stars in it; `/api/catalogue/people` finds a person by name and
+  `/api/catalogue/people/{personId}/credits` lists every credit they have, cast and crew, films and
+  shows, oldest first, each released, upcoming or announced, by year range, role and kind;
+  `/api/catalogue/discover` finds titles by genre, years, people, keywords, language, a rating and
+  vote floor and similarity to another title, naming what each word matched; `/api/catalogue/released`
+  and `/api/catalogue/upcoming` list what is out and what is coming; `/api/catalogue/added` lists the
+  library's newest arrivals. Every result says whether the library holds it and whether the asking
+  person watched it. Answers are kept for a day or six hours (`Films/AnswerKeeper`), and what names a
+  title is asked once and kept a week. Api 2.17.0.
+- **A film and a show carry their keywords** and whether the database tags them black and white. A
+  film also says which library title plays it and whether the asking person watched it. A description
+  kept before the database was asked for keywords is asked for again at once.
+
 ## [2.35.0] - 2026-10-09
 
 ### Removed

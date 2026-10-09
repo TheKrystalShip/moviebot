@@ -84,6 +84,20 @@ film onto a device is `Offline/CLAUDE.md`.
   the same way; a person's portrait is kept with their credits. A description whose cast carries no
   person id is due at once, since that id is what leads from a cast member to their work.
   `Acquisition/TitleSearch` holds the title index's answer for a name in memory for an hour.
+- **Finding is `Films/CatalogueSearch`, and every answer is kept by `Films/AnswerKeeper`.** A search by
+  name, a person by name and every dated credit they have, a discovery by genre, years, people,
+  keywords, language, a rating floor and similarity to another title, and the lists of what is out and
+  what is coming are asked of the film database once and kept under `catalogue/` (a question somebody
+  typed under `queries/`, trimmed after thirty days unasked), for a day or for six hours, and a database
+  that cannot be reached costs freshness and nothing else. What names a title (its IMDb id, makers and
+  top-billed actors) is one call kept a week, so a title in many answers is asked about once. Every word
+  that names a genre, a person, a keyword or a language is resolved to the database's and reported in
+  `resolved`; a word the database does not know is refused (`404`) rather than dropped, because a
+  discovery that ignores a filter answers a question nobody asked. The library join (`LibraryShelf`) and
+  whether the asking person watched are made when an answer is read and are never kept with it. A title
+  the database holds no IMDb id for is listed by its own id with no page and no poster. The database
+  has no tag for colour: `blackAndWhite` is true only for the tag it has, and false is not a claim of
+  colour.
 - **The shelf is listed from memory.** `Library/LibraryListing` rebuilds the library's list every
   ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/shows/{imdbId}` and a title's
   neighbours read that list. Building it asks the filesystem about every title, and on hotbox, short
