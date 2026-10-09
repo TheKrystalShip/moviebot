@@ -38,6 +38,7 @@ import { TvSignIn } from "./tv/TvSignIn.jsx";
 // The player carries hls.js, the hub client and Discord's SDK; only a room pays for them.
 const EmbedRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.EmbedRoom })));
 const SiteRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.SiteRoom })));
+const GuestRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.GuestRoom })));
 
 const UNANSWERED = "The sign-in service is not answering. Try again in a moment.";
 const ENDED = "Your session ended.";
@@ -92,7 +93,9 @@ const NEEDS_SERVER = new Set(["discover", "saved", "notify", "assistant"]);
 export function App() {
   const session = useSession();
   const route = useRoute();
-  const embedded = route.view === "embed";
+  // The Activity and a guest link answer to no site session: the one proves who is watching through
+  // Discord, the other needs nobody to be anybody.
+  const embedded = route.view === "embed" || route.view === "guest";
   const restored = useRestored(!embedded && route.view !== "signin");
   const online = useOnline();
 
@@ -124,7 +127,7 @@ export function App() {
     else beginSignIn(route.href).catch(() => setWaiting({ note: UNANSWERED }));
   }, [restored, session, route.view, route.href, embedded, online]);
 
-  // The Activity proves who is watching through Discord, so it answers to no site session.
+  if (route.view === "guest") return <React.Suspense fallback={<Dark />}><GuestRoom code={route.arg} /></React.Suspense>;
   if (embedded) return <React.Suspense fallback={<Dark />}><EmbedRoom /></React.Suspense>;
   if (route.view === "signin") return <SignInReturn query={route.query} />;
   const covered = onTv && restored && !session && sessionEnded() && held.current && route.view !== "room";

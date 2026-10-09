@@ -294,13 +294,36 @@ export interface RoomDoor {
   open: boolean;
   /** Who is asking to be let in, each person once, in the order they asked. */
   knocking: Knock[];
+  /** The room's guest link, while it has one: until when it lets anybody holding it watch. */
+  guests?: { expiresAt: string };
 }
 
-/** What entering a room is answered: the room and its door, or only that it is private. */
+/** Why a guest was not let in, or was sent away. */
+export type GuestRefusal = 'unattended' | 'full' | 'ended';
+
+/**
+ * What entering a room is answered: the room and its door, or only that it is private. A guest is
+ * answered the room and who the room has them as, or why they were not let in.
+ */
 export interface JoinReply {
   admitted: boolean;
   push?: SessionStatePush;
   door?: RoomDoor;
+  refused?: GuestRefusal;
+  you?: Participant;
+}
+
+/** A room's guest link, for somebody in the room who may hand it out: the site's path for it. */
+export interface GuestLink {
+  path: string;
+  expiresAt: string;
+}
+
+/** What a guest link opens: the room, and the film it holds. */
+export interface GuestInvitation {
+  sessionId: string;
+  name?: string;
+  expiresAt: string;
 }
 
 export interface SeekClamped {
@@ -345,6 +368,8 @@ export interface Participant {
   displayName: string;
   /** Their player has been waiting for the film for longer than a stutter. */
   buffering?: boolean;
+  /** Watching on the room's guest link, with no account: their id is their connection's. */
+  guest?: boolean;
 }
 
 /** Somebody who can be asked into a room. */

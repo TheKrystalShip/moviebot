@@ -66,6 +66,40 @@ told.
 - **Machine work is let into every room.** The service key names nobody; what it does to a room is
   the room's own business arriving, and the listing it reads is every room, with whether each is open.
 
+## Guests
+
+A room's guest link lets somebody with no account watch it. A guest is nobody: a connection with a
+name it gave itself, holding the link, and no record anywhere is keyed by one.
+
+- **The link is a capability, not an account.** `GuestPass` is one per room, kept with the room in
+  `RoomAdmission` and journalled with it, and the link's code is its id signed with a key derived
+  from `Auth:MediaTicketKey` (`GuestCodes`), so nothing secret is written down and everybody in the
+  room who asks is handed the same link. Somebody in the room holding `cinema:guests` gives it and
+  takes it away; it runs out after `Rooms:GuestPassLifetime`, and goes with the room when the reaper
+  forgets it. A guest comes in on it and never through the door, so it is no change to who is let in.
+- **A guest can change nothing about the room, and that holds by construction, three times over.**
+  A guest's credential is authenticated only by the routes whose policy names the guest scheme
+  (`RequireActionOrGuest`, `RequireActionServiceOrGuest`), which are the hub and the film the room
+  holds, its manifest and its ticket (`GuestReach`); everywhere else it is no credential at all, and
+  the fallback policy admits nobody, so a route added without opening it to guests is closed to them.
+  On the hub, `GuestGate` refuses a guest every method not marked `[GuestAllowed]` (`JoinAsGuest`,
+  `ReportQuality`, `ServerTime`), so a method added to the hub is closed to them too. And every method
+  that moves the room needs the person a token names or the actor `Join` records for one, which a
+  guest's connection never has, so each refuses a guest on its own as well. The tests walk every route
+  and every hub method rather than a list of them.
+- **A guest watches, and nothing they do reaches the room.** They are in the room's group for its
+  state, its film and who is in it, and not in the members' group the door goes to
+  (`RoomGroups`), since the door names who is asking. They hold nobody (`Hold` counts only people with
+  an account), are never a viewer anything is recorded for (`Viewers`), and their quality report is
+  planning like anybody's.
+- **Guests stay only while somebody with an account is in the room.** The room keeps when the last of
+  them left (`MembersGoneSince`, set too when it is made or put back); past `Rooms:GuestGrace` its
+  guests are told why (`GuestAccessEnded`) and their connections closed by `GuestKeeper`, which also
+  sends away the guests of a link that ran out or is no longer the room's. A grace rather than at once,
+  because a reload or a restart is somebody leaving and coming back. A link left running with nobody
+  in the room would be the library streamed to whoever holds it. A room takes `Rooms:GuestsPerRoom`
+  guests at once.
+
 ## Keeping a room
 
 A room is the only thing in the system that exists nowhere else. The films are on disk and the
@@ -103,4 +137,5 @@ alone, and restarting the API would take the film out from under everybody in it
   its year, how far in the room is, and its backdrop or poster at an absolute public address. Whatever
   unfurls the link fetches it without a token, so nothing there is private, and it is stricter than the
   listing: no names and no count either. A private room unfurls as the site and names not even its film. A room
-  nobody has opened yet shows the film its link names.
+  nobody has opened yet shows the film its link names. A good guest link (`/g/<code>`) unfurls with its
+  room's film, open or not: whoever holds it was invited to watch it.

@@ -19,7 +19,9 @@ keeps for the viewer (`solo`, `deviceCopy`, `keptPreferences`, `online`, `resume
 Activity's room is the voice channel and its viewer whoever the token the API exchanged for its Discord
 sign-in names, so `engine/discordEnvironment.ts` is the other implementation and nothing more. The
 viewer's id and name are the token's `sub` and `name` on both, and the hub takes them from the
-connection's token rather than from anything the page sends.
+connection's token rather than from anything the page sends. A room's guest link is the third
+(`engine/guestEnvironment.ts`, `Environment.guest`): the room is the one the link opens, the viewer is
+nobody, the link stands where the token would, and the room gives the guest their id when they join.
 
 ## Starting playback
 
@@ -76,6 +78,35 @@ connection's token rather than from anything the page sends.
   to the phone's share sheet.
 - **Somebody asking is shown to everybody in the room**, below the announcements, and anybody in it
   may let them in or say no, as anybody may move the film.
+- **A room's guest link is in the invite panel, private room or open**, for somebody holding
+  `cinema:guests`: asked for, it is shown, and copied or shared where the browser still allows it
+  after the round trip; the row says how many guests are in and until when the link lasts, and Stop
+  guest access takes it away. Somebody in the room who may not hand it out is not shown the link. A
+  guest's mark is hollow.
+
+## A guest
+
+A guest on the room's link watches it (`view.viewOnly`). The API holds them to that whatever the page
+does (`src/MovieBot.Api/Sessions/CLAUDE.md`, Guests); the page draws nothing that would be refused,
+and does nothing that would be.
+
+- **Nothing that moves the room is drawn**: no play, skip or episode buttons, no next-up or skip-intro
+  offer, no episodes menu, no invite, no way back. The scrub bar shows where the film is and previews
+  what it points at, and moves nothing; Chapters lists the chapters, the playing one marked, and picks
+  none. Volume, subtitles and their style, audio, quality, full screen and brightness are the guest's
+  own, as they are anybody's, and kept by this browser. A room somebody paused says Paused over the
+  film, since a guest has no play button to say it.
+- **Nothing that moves the room is answered.** A click or a tap on the film shows or hides the
+  controls, sideways sweeps and double taps do nothing, and the room's own acts (`togglePlay`, `seek`,
+  the episodes, the door) are no-ops in `engine/room.ts`. The player sends the room nothing but
+  `JoinAsGuest`, its quality and the clock probe: not even that it is waiting, which would hold nobody.
+- **The element is put back, never published** (`SyncController`'s `viewOnly`). A play or pause the
+  page did not apply itself (the browser's own controls, a headset's button, the system's media keys)
+  is answered by applying the room's state again, at most once a second so a hand on those controls
+  is never fought press for press.
+- **Being sent away ends the player.** The server says why (`GuestAccessEnded`) before it closes the
+  connection, and the hub stops itself so it does not reconnect into a room that refused it. The
+  link ended is final; nobody in the room, or the room full, offers to try again.
 
 ## The controls
 

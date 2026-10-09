@@ -28,15 +28,24 @@ public static class RoomPreview
         return room.Length is > 0 and <= 200 && !room.Contains('/') ? room : null;
     }
 
+    /// <summary>The code a guest link's page path carries, or null for a path that is not one.</summary>
+    public static string? GuestCodeOf(PathString path) =>
+        path.StartsWithSegments("/g", out var rest) && rest.Value is { Length: > 1 } value
+                                                     && value[1..].TrimEnd('/') is { Length: > 0 } code && !code.Contains('/')
+            ? code
+            : null;
+
     /// <summary>
     /// The tags for a room. The film is the one the room holds; a room nobody has opened yet holds
     /// nothing, and the link that names a film (<c>?title=</c>) is what it will hold, so that is shown.
+    /// A private room shows its film only on its guest link (<paramref name="invited"/>), whose holder
+    /// was invited to watch it.
     /// </summary>
     public static string Tags(string room, string? linkTitle, SessionStore sessions, TitleLibrary library,
-        FilmStore films, string baseUrl, string pageUrl)
+        FilmStore films, string baseUrl, string pageUrl, bool invited = false)
     {
         var summary = sessions.Summaries().FirstOrDefault(r => r.SessionId == room);
-        var titleId = summary is { Open: false } ? null : summary?.TitleId ?? linkTitle;
+        var titleId = summary is { Open: false } && !invited ? null : summary?.TitleId ?? linkTitle;
         var manifest = titleId is not null && TitleLibrary.IsSafeId(titleId) ? library.Get(titleId) : null;
 
         var tags = new List<(string Property, string Content)>

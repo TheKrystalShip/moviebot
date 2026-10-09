@@ -64,6 +64,12 @@ builder.Services.AddSingleton<ViewerQuality>();
 builder.Services.AddSingleton<RoomControls>();
 builder.Services.AddSingleton<RoomDoors>();
 
+// The guests watching each room on its link, and the pass that sends them away once the link has run
+// out or nobody with an account is left in the room with them.
+builder.Services.AddSingleton<RoomGuests>();
+builder.Services.AddSingleton<GuestKeeper>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<GuestKeeper>());
+
 // What a room is watching and where it has got to exists nowhere but in memory, so a restart used
 // to take the film out from under everybody in it. The journal is the only copy.
 builder.Services.AddSingleton(sp => new SessionJournal(
@@ -265,7 +271,8 @@ builder.Services.AddHttpClient<TokenExchangeClient>(http => http.Timeout = TimeS
 // Every type that crosses the wire is named in a serializer context, and the two contexts are the
 // only resolver the hub and the endpoints have: nothing is reached by reflection, so a type left
 // out fails in the JIT build the tests run exactly as it would in the native one.
-builder.Services.AddSignalR()
+// A guest's connection may call only the hub methods marked for one.
+builder.Services.AddSignalR(o => o.AddFilter<GuestGate>())
     .AddJsonProtocol(o =>
     {
         o.PayloadSerializerOptions.TypeInfoResolver = ApiJson.Resolver;
@@ -380,12 +387,14 @@ app.MapGet("/api/titles", (HttpContext context, LibraryListing library, FilmStor
         .ToList());
 }).RequireActionOrService(CinemaActions.Watch);
 
+// A guest reads the film their room holds, and no other.
 app.MapGet("/api/titles/{id}", (string id, TitleLibrary library) =>
     library.Get(id) is { } manifest ? Results.Ok(manifest) : Results.NotFound())
-    .RequireActionOrService(CinemaActions.Watch);
+    .RequireActionServiceOrGuest(GuestReach.RoomTitle, CinemaActions.Watch);
 
 // What a player then carries on the film's own bytes, in place of who it is. Minted per request
-// rather than written into the manifest: the manifest is a file on disk that outlives any key.
+// rather than written into the manifest: the manifest is a file on disk that outlives any key. A
+// guest is handed the ticket of the film their room holds.
 app.MapGet("/api/titles/{id}/ticket", (
     string id, TitleLibrary library, IOptions<AuthOptions> auth, TimeProvider clock) =>
 {
@@ -394,7 +403,7 @@ app.MapGet("/api/titles/{id}/ticket", (
     var now = clock.GetUtcNow();
     return Results.Ok(new MediaTicketReply(
         MediaTicket.Issue(id, auth.Value, now), MediaTicket.ExpiresAt(now)));
-}).RequireAction(CinemaActions.Watch);
+}).RequireActionOrGuest(GuestReach.RoomTitle, CinemaActions.Watch);
 
 app.MapSubtitles();
 app.MapAcquisition();
@@ -437,12 +446,14 @@ app.MapGet("/api/sessions/{sessionId}/around", (string sessionId, HttpContext co
     .RequireRoomEntry();
 
 app.MapRooms();
+app.MapGuests();
 app.MapActivitySignIn();
 
 app.MapMedia();
 
-// A room's connection is admitted when it opens, on the token it carries then.
-app.MapHub<SessionHub>("/hub/session").RequireAction(CinemaActions.Watch);
+// A room's connection is admitted when it opens, on the token it carries then, or on a room's guest
+// link, which the hub holds to watching.
+app.MapHub<SessionHub>("/hub/session").RequireActionOrGuest(GuestReach.Hub, CinemaActions.Watch);
 
 // The site names its pages by path, so a film's page and a room can be linked to and reloaded. A GET
 // for a path that names no file, anywhere but under the API's, the media's and the hub's prefixes,
@@ -450,7 +461,7 @@ app.MapHub<SessionHub>("/hub/session").RequireAction(CinemaActions.Watch);
 // matched ahead of the static files means they never see the request. Anything under the API's own
 // prefixes that matched nothing stays a 404.
 app.MapFallback(async (HttpContext context, IWebHostEnvironment environment, IConfiguration configuration,
-    SessionStore sessions, TitleLibrary library, FilmStore films) =>
+    SessionStore sessions, TitleLibrary library, FilmStore films, GuestCodes codes) =>
 {
     var request = context.Request;
     if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method)) return Results.NotFound();
@@ -466,14 +477,18 @@ app.MapFallback(async (HttpContext context, IWebHostEnvironment environment, ICo
 
     // A room's page carries the tags a chat client unfurls a link with, written here because a
     // crawler does not run the page's script. The image has to be an absolute address on the public
-    // one, which is where whatever unfurls the link fetches it from.
-    if (RoomPreview.RoomOf(request.Path) is { } room)
+    // one, which is where whatever unfurls the link fetches it from. A good guest link unfurls with
+    // its room's film whether or not the room is open.
+    var guestRoom = RoomPreview.GuestCodeOf(request.Path) is { } code && codes.PassIdOf(code) is { } passId
+        ? sessions.RoomOfGuests(passId)
+        : null;
+    if ((RoomPreview.RoomOf(request.Path) ?? guestRoom) is { } room)
     {
         var baseUrl = configuration["Api:PublicBaseUrl"] is { Length: > 0 } configured
             ? configured.TrimEnd('/')
             : $"{request.Scheme}://{request.Host}";
         var tags = RoomPreview.Tags(room, request.Query["title"].FirstOrDefault(), sessions, library, films,
-            baseUrl, baseUrl + request.Path + request.QueryString);
+            baseUrl, baseUrl + request.Path + request.QueryString, invited: guestRoom is not null);
         var page = await File.ReadAllTextAsync(index.PhysicalPath);
         var at = page.IndexOf("</head>", StringComparison.OrdinalIgnoreCase);
         return Results.Content(at < 0 ? page : page.Insert(at, tags), "text/html; charset=utf-8");

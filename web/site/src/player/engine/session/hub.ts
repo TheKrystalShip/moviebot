@@ -1,6 +1,8 @@
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { environment } from '../environment';
-import type { JoinReply, Manifest, Participant, RoomDoor, SeekClamped, SessionState, SessionStatePush } from '../types';
+import type {
+  GuestRefusal, JoinReply, Manifest, Participant, RoomDoor, SeekClamped, SessionState, SessionStatePush
+} from '../types';
 import { ServerClock } from './clock';
 
 /**
@@ -30,6 +32,8 @@ export interface HubHandlers {
   onKnockAnswered(admitted: boolean): void;
   /** Coming back into the room was refused: it is a different room now, private to this viewer. */
   onShutOut(): void;
+  /** This guest was sent away, or not let back in, and why. The connection is closed by then. */
+  onGuestEnded(reason: GuestRefusal): void;
 }
 
 /**
@@ -85,6 +89,9 @@ export class SessionHub implements Timeline {
       this.asking = false;
       this.handlers.onKnockAnswered(admitted);
     });
+    // The server closes a guest's connection right after saying this; stopping it here first keeps the
+    // client from reconnecting to a room that has just sent it away.
+    this.connection.on('GuestAccessEnded', (reason: GuestRefusal) => this.endGuest(reason));
 
     this.connection.onreconnecting(() => this.handlers.onStatus('reconnecting'));
     this.connection.onclose(() => this.handlers.onStatus('disconnected'));
@@ -186,7 +193,8 @@ export class SessionHub implements Timeline {
    * room whose every player waits is held there until one plays again.
    */
   async buffering(waiting: boolean, atSeconds: number): Promise<void> {
-    if (!this.connected) return;
+    // A guest's player holds nothing: the room is not told about it.
+    if (!this.connected || environment().guest !== null) return;
     try {
       await this.connection.invoke('Buffering', waiting, atSeconds);
     } catch {
@@ -219,16 +227,29 @@ export class SessionHub implements Timeline {
     await this.connection.stop();
   }
 
-  /** Who joins is whoever the connection's token names; the room is the only thing said. */
+  /**
+   * Who joins is whoever the connection's token names; the room is the only thing said. A guest's link
+   * names the room, and the guest says what to call them.
+   */
   private join(): Promise<JoinReply> {
-    return this.connection.invoke<JoinReply>('Join', this.sessionId);
+    const guest = environment().guest;
+    return guest === null
+      ? this.connection.invoke<JoinReply>('Join', this.sessionId)
+      : this.connection.invoke<JoinReply>('JoinAsGuest', guest.name);
   }
 
   /** Comes back into the room this page was in, taking where it is as the authority. */
   private async rejoin(): Promise<void> {
     const reply = await this.enter();
     if (reply.push) this.handlers.onState(reply.push, true);
+    else if (reply.refused) this.endGuest(reply.refused);
     else this.handlers.onShutOut();
+  }
+
+  private endGuest(reason: GuestRefusal): void {
+    this.inside = false;
+    void this.stop();
+    this.handlers.onGuestEnded(reason);
   }
 
   private async probe(): Promise<void> {

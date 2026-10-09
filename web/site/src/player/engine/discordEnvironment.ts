@@ -218,6 +218,7 @@ export async function createDiscordEnvironment(
     keptPreferences: () => null,
     online: () => navigator.onLine,
     resumeAt: () => Promise.resolve(null),
-    recordProgress: () => {}
+    recordProgress: () => {},
+    guest: null
   };
 }

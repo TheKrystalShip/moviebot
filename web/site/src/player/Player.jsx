@@ -49,10 +49,10 @@ function tintFor(userId) {
 
 export function Avatar({ person, className = "" }) {
   const initial = (person.displayName || "?").trim().charAt(0).toUpperCase() || "?";
-  const waiting = person.buffering ? " is-buffering" : "";
+  const marks = (person.buffering ? " is-buffering" : "") + (person.guest ? " is-guest" : "");
+  const title = [person.displayName, person.guest ? "guest" : null, person.buffering ? "buffering" : null].filter(Boolean).join(" · ");
   return (
-    <span className={`mp-avatar mp-avatar--${tintFor(person.userId)}${waiting} ${className}`}
-      title={person.buffering ? `${person.displayName} · buffering` : person.displayName}>{initial}</span>
+    <span className={`mp-avatar mp-avatar--${tintFor(person.userId)}${marks} ${className}`} title={title}>{initial}</span>
   );
 }
 
@@ -125,7 +125,7 @@ function heldKey(state) {
  * none: the controls it feeds are an addition to the player.
  */
 function useAround(view) {
-  const key = view.solo ? null : heldKey(view.state);
+  const key = view.solo || view.viewOnly ? null : heldKey(view.state);
   const [around, setAround] = React.useState(null);
   React.useEffect(() => {
     setAround(null);
@@ -278,6 +278,8 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
   const video = videoRef.current;
   const manifest = view.manifest;
   const solo = view.solo;
+  // A guest watches: nothing that moves the room is drawn or answered, and there is no way out of the player.
+  const viewOnly = view.viewOnly;
   const lost = useRoomLost(view, online);
   const compact = size !== "wide";
   const [menu, setMenu] = React.useState(null);
@@ -519,6 +521,7 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
     volume: volume.muted ? 0 : volume.position,
     volumeSettable: settable,
     brightness,
+    seekable: !viewOnly,
     onTogglePlay: () => room.togglePlay(),
     onToggleControls: toggleControls,
     onSeek: (s) => room.seek(s),
@@ -533,7 +536,7 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
   const pressStage = (e) => {
     if (e.target !== e.currentTarget) return;
     if (menu !== null || overflow || invite) { closeAll(); return; }
-    if (e.pointerType === "mouse") { room.togglePlay(); wake(); return; }
+    if (e.pointerType === "mouse") { if (!viewOnly) room.togglePlay(); wake(); return; }
     if (view.ready) gestures.onPointerDown(e);
     else toggleControls();
   };
@@ -557,10 +560,22 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
     && ((titleHeld && !manifest) || view.catchingUp || view.stalled);
   const sheet = compact;
   const swipe = remoteScrub ?? (gestures.hud && gestures.hud.kind === "seek" ? gestures.hud.at : null);
+  // The room stopped by somebody in it, which a guest has no button to say.
+  const roomPaused = viewOnly && view.ready && !view.gate && Boolean(view.state && view.state.paused);
 
   const backdrop = solo ? view.artwork : posterOf(manifest);
   const frameStyle = { "--mp-poster": backdrop ? `url("${backdrop}")` : "none" };
   const carryOn = lost && view.saved && manifest && onCarryOn ? () => onCarryOn(manifest.id, clock.position) : null;
+
+  if (view.guestEnded) {
+    return (
+      <div className="mp-stage is-shown" style={frameStyle}>
+        <div className="mp-backdrop" aria-hidden="true" />
+        <div className="mp-shade" aria-hidden="true" />
+        <GuestEnded reason={view.guestEnded} />
+      </div>
+    );
+  }
 
   return (
     <div className={"mp-stage" + (shown ? " is-shown" : " is-idle") + (view.ready ? " is-playing-film" : "")} style={frameStyle}
@@ -576,7 +591,7 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
       {/* ── Top bar ── */}
       {manifest && (
         <div className="mp-top">
-          {!embed && onBack && size !== "tiny" && (
+          {!embed && !viewOnly && onBack && size !== "tiny" && (
             <button type="button" className="mp-round" aria-label="Back" title="Back" onClick={onBack}><Icon name="arrow-left" size={18} /></button>
           )}
           <div className="mp-top__title">
@@ -587,7 +602,7 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
             <div className="mp-top__room">
               <div className="mp-avatars">{everyone.map((p) => <Avatar key={p.userId} person={p} />)}</div>
               {size === "wide" && <span className="mp-top__count">{everyone.length > 1 ? `${everyone.length} watching` : "Just you"}</span>}
-              {size !== "tiny" && !tv && <InviteButton open={invite}
+              {size !== "tiny" && !tv && !viewOnly && <InviteButton open={invite}
                 onToggle={() => { setMenu(null); setOverflow(false); setInvite((o) => !o); }} />}
             </div>
           )}
@@ -617,6 +632,7 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
 
       {/* ── What stands in the middle of the frame ── */}
       {waiting && <div className="mp-spinner" role="status" aria-label="Waiting for the film"><Icon name="loader-circle" size={36} className="mp-spin" /></div>}
+      {roomPaused && !waiting && <div className="mp-paused" role="status"><Icon name="pause" size={18} />Paused</div>}
       {preparing && <Preparing manifest={manifest} head={view.transcodeHead} />}
       {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} focused={tv} solo={solo} onJoin={() => { takeScreen(); room.joinPlayback(); }} />}
       {view.unplayable && <Message icon="circle-alert" title="This cannot play here" text={view.unplayable} />}
@@ -648,18 +664,23 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
         : (
           <div className="mp-bottom">
             <ScrubBar duration={duration} position={clock.position} ready={view.transcodeHead} buffered={clock.buffered}
-              thumbnails={view.thumbnails} chapters={manifest.chapters} onSeek={(s) => room.seek(s)} onHold={hold} swipe={swipe} />
+              thumbnails={view.thumbnails} chapters={manifest.chapters} onSeek={(s) => room.seek(s)} onHold={hold} swipe={swipe}
+              readOnly={viewOnly} />
             <div className="mp-controls">
-              <button ref={playRef} type="button" className="mp-play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => room.togglePlay()}>
-                <Icon name={clock.paused ? "play" : "pause"} size={compact ? 18 : 20} />
-              </button>
-              <button type="button" className="mp-icon" aria-label={`Back ${SkipSeconds} seconds`} title={`Back ${SkipSeconds} seconds (j)`} onClick={() => room.seekBy(-SkipSeconds)}>
-                <Icon name="rotate-ccw" size={19} />
-              </button>
-              <button type="button" className="mp-icon" aria-label={`Forward ${SkipSeconds} seconds`} title={`Forward ${SkipSeconds} seconds (l)`} onClick={() => room.seekBy(SkipSeconds)}>
-                <Icon name="rotate-cw" size={19} />
-              </button>
-              {manifest.episode && (
+              {!viewOnly && (
+                <>
+                  <button ref={playRef} type="button" className="mp-play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => room.togglePlay()}>
+                    <Icon name={clock.paused ? "play" : "pause"} size={compact ? 18 : 20} />
+                  </button>
+                  <button type="button" className="mp-icon" aria-label={`Back ${SkipSeconds} seconds`} title={`Back ${SkipSeconds} seconds (j)`} onClick={() => room.seekBy(-SkipSeconds)}>
+                    <Icon name="rotate-ccw" size={19} />
+                  </button>
+                  <button type="button" className="mp-icon" aria-label={`Forward ${SkipSeconds} seconds`} title={`Forward ${SkipSeconds} seconds (l)`} onClick={() => room.seekBy(SkipSeconds)}>
+                    <Icon name="rotate-cw" size={19} />
+                  </button>
+                </>
+              )}
+              {manifest.episode && !viewOnly && (
                 <>
                   <button type="button" className="mp-icon" disabled={!(around && around.previous)}
                     aria-label={around && around.previous ? `Previous episode: ${episodeWords(around.previous)}` : "No previous episode here"}
@@ -705,7 +726,7 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
         </button>
       )}
 
-      {skipOffer && !(view.state && view.state.preparing) && size !== "tiny" && (
+      {skipOffer && !viewOnly && !(view.state && view.state.preparing) && size !== "tiny" && (
         <button type="button" className="mp-nextup mp-skip" onClick={skipOffer.skip}>
           <span className="mp-nextup__name">{SkipLabels[skipOffer.marker.kind]}</span>
           <Icon name="skip-forward" size={18} />
@@ -737,11 +758,13 @@ function MenuButton({ kind, icon, value, open, compact, onClick }) {
 function TinyControls({ room, view, clock, duration, onHold, swipe, onMore }) {
   return (
     <div className="mp-tiny">
-      <button type="button" className="mp-play mp-play--small" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => room.togglePlay()}>
-        <Icon name={clock.paused ? "play" : "pause"} size={16} />
-      </button>
+      {!view.viewOnly && (
+        <button type="button" className="mp-play mp-play--small" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => room.togglePlay()}>
+          <Icon name={clock.paused ? "play" : "pause"} size={16} />
+        </button>
+      )}
       <ScrubBar thin duration={duration} position={clock.position} ready={view.transcodeHead} buffered={clock.buffered}
-        thumbnails={null} onSeek={(s) => room.seek(s)} onHold={onHold} swipe={swipe} />
+        thumbnails={null} onSeek={(s) => room.seek(s)} onHold={onHold} swipe={swipe} readOnly={view.viewOnly} />
       <span className="mp-tiny__left">-{formatTime(Math.max(0, duration - clock.position))}</span>
       <button type="button" className="mp-icon" aria-label="More" onClick={onMore}><Icon name="ellipsis" size={18} /></button>
     </div>
@@ -880,6 +903,7 @@ function InvitePanel({ view, room, everyone, compact }) {
           </div>
         </div>
       )}
+      <GuestAccess view={view} everyone={everyone} share={share} />
       {people && people.length > 0 && (
         <div className="mp-invite__people">
           <span className="mp-invite__label">Invite people</span>
@@ -902,6 +926,81 @@ function InvitePanel({ view, room, everyone, compact }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The room's guest link, for somebody who may hand it out: anybody holding it watches without an
+ * account and changes nothing about the room. The room has one link, so asking for it again hands out
+ * the same one; it is shown once asked for, and copied or shared at once where the browser allows.
+ * Somebody in the room who may not hand it out sees only that guests can come in.
+ */
+function GuestAccess({ view, everyone, share }) {
+  const may = environment().holds("cinema:guests");
+  const active = Boolean(view.door && view.door.guests);
+  const [link, setLink] = React.useState(null);
+  const [state, setState] = React.useState(null);
+  React.useEffect(() => { if (!active) setLink(null); }, [active]);
+  React.useEffect(() => {
+    if (state !== "copied") return undefined;
+    const timer = window.setTimeout(() => setState(null), 1600);
+    return () => window.clearTimeout(timer);
+  }, [state]);
+  if (!may && !active) return null;
+
+  const guests = everyone.filter((p) => p.guest).length;
+  const until = active ? new Date(view.door.guests.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
+  const handOn = (url) => {
+    if (share) navigator.share({ title: `Watch ${filmName(view.manifest)}`, url }).catch(() => {});
+    else navigator.clipboard.writeText(url).then(() => setState("copied"), () => {});
+  };
+  const ask = async () => {
+    setState("asking");
+    try {
+      const made = await api.guestLink(environment().sessionId());
+      const url = window.location.origin + made.path;
+      setLink(url);
+      setState(null);
+      handOn(url);
+    } catch {
+      setState("failed");
+    }
+  };
+  const end = async () => {
+    setState("ending");
+    try {
+      await api.endGuests(environment().sessionId());
+      setState(null);
+    } catch {
+      setState("failed");
+    }
+  };
+
+  return (
+    <div className="mp-invite-panel__link mp-invite-panel__guests">
+      <span className="mp-menu__section">Guests</span>
+      {link ? (
+        <div className="mp-invite-panel__row">
+          <span className="mp-invite-panel__url">{link}</span>
+          <button type="button" className="mp-copy" onClick={() => handOn(link)}>
+            <Icon name={share ? "share-2" : state === "copied" ? "check" : "copy"} size={14} />{share ? "Share" : state === "copied" ? "Copied" : "Copy"}
+          </button>
+        </div>
+      ) : may && (
+        <div className="mp-invite-panel__row">
+          <button type="button" className="mp-invite__send" disabled={state === "asking"} onClick={ask}>
+            <Icon name="ticket" size={14} />{active ? "Guest link" : "Invite guest"}
+          </button>
+        </div>
+      )}
+      {active && (
+        <div className="mp-invite-panel__row">
+          <span className="mp-invite__status">{guests === 1 ? "1 guest" : `${guests} guests`} · until {until}</span>
+          {may && <button type="button" className="mp-invite__send" disabled={state === "ending"} onClick={end}>Stop guest access</button>}
+        </div>
+      )}
+      {state === "failed" && <span className="mp-invite__status">That did not reach the room.</span>}
     </div>
   );
 }
@@ -931,7 +1030,7 @@ function JoinGate({ view, others, position, focused, solo, onJoin }) {
         <Icon name={solo ? "play" : "users"} size={18} />{solo ? "Play" : "Join"}
       </button>
       {view.identity && (
-        <span className="mp-gate__me">Signed in as {view.identity.displayName}{brings.length > 0 ? ` · ${brings.join(", ")} from your settings` : ""}</span>
+        <span className="mp-gate__me">{view.viewOnly ? "Watching as" : "Signed in as"} {view.identity.displayName}{brings.length > 0 ? ` · ${brings.join(", ")} from your settings` : ""}</span>
       )}
     </div>
   );
@@ -1037,6 +1136,20 @@ function AtTheDoor({ entry, onAsk, onBack }) {
       )}
       {onBack && <button type="button" className="mp-message__back" onClick={onBack}>Back</button>}
     </div>
+  );
+}
+
+/**
+ * A guest who is not watching, and why: the link ended, nobody with an account is in the room, or the
+ * room has as many guests as it takes. The last two can change, so they offer to try again.
+ */
+function GuestEnded({ reason }) {
+  const said = reason === "full" ? { icon: "users", title: "This room is full" }
+    : reason === "unattended" ? { icon: "door-closed", title: "Nobody is in this room right now" }
+      : { icon: "link-2-off", title: "This invite has ended" };
+  return (
+    <Message icon={said.icon} title={said.title}
+      action={reason === "ended" ? null : { label: "Try again", go: () => window.location.reload() }} />
   );
 }
 

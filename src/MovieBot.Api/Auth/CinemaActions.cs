@@ -41,6 +41,9 @@ public static class CinemaActions
     /// <summary>Wait on a film that cannot be fetched yet.</summary>
     public const string Wish = "cinema:wish";
 
+    /// <summary>Hand out a room's guest link, which lets anybody watch along without an account.</summary>
+    public const string Guests = "cinema:guests";
+
     /// <summary>Read your own history, progress, preferences, lists, follows and notifications.</summary>
     public const string ProfileRead = "cinema:profile.read";
 
@@ -50,6 +53,7 @@ public static class CinemaActions
     public static readonly IReadOnlyList<CinemaAction> All =
     [
         new(Download, "Download films and shows", "execute"),
+        new(Guests, "Invite guests without an account to watch in a room", "execute"),
         new(Offline, "Save films onto a device to watch without a connection", "execute"),
         new(ProfileRead, "Read your own history, preferences and notifications", "read", Self: true),
         new(ProfileWrite, "Change your own preferences, history, lists and notifications", "write", Self: true),

@@ -169,6 +169,12 @@ public sealed record Participant
     /// player reports of itself, so the room can see who the rest are waiting on.
     /// </summary>
     public bool Buffering { get; init; }
+
+    /// <summary>
+    /// Somebody watching on a guest link: no account, a name they gave themselves, and nothing they
+    /// can change about the room. Their id is the connection's own, never an account's.
+    /// </summary>
+    public bool Guest { get; init; }
 }
 
 /// <summary>

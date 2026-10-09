@@ -43,8 +43,11 @@ function frameStyle(strip, url, at, width) {
  * letting go of it takes everybody exactly as it says it for its own.
  *
  * The thin variant is the bar alone, for a frame too small to carry anything beside it.
+ *
+ * A read-only bar is a guest's: it shows where the film is and previews what it is pointed at, and
+ * moves nothing.
  */
-export function ScrubBar({ duration, position, ready, buffered, thumbnails, chapters, onSeek, onHold, swipe = null, thin = false }) {
+export function ScrubBar({ duration, position, ready, buffered, thumbnails, chapters, onSeek, onHold, swipe = null, thin = false, readOnly = false }) {
   const barRef = React.useRef(null);
   const [hover, setHover] = React.useState(null);
   const [held, setDrag] = React.useState(null);
@@ -58,7 +61,7 @@ export function ScrubBar({ duration, position, ready, buffered, thumbnails, chap
   };
 
   const down = (e) => {
-    if (duration <= 0 || (e.pointerType === "mouse" && e.button !== 0)) return;
+    if (readOnly || duration <= 0 || (e.pointerType === "mouse" && e.button !== 0)) return;
     barRef.current.setPointerCapture(e.pointerId);
     setDrag(at(e.clientX));
     onHold(true);
@@ -82,6 +85,7 @@ export function ScrubBar({ duration, position, ready, buffered, thumbnails, chap
   };
 
   const key = (e) => {
+    if (readOnly) return;
     const to = e.key === "ArrowRight" ? position + KeyboardStepSeconds
       : e.key === "ArrowLeft" ? position - KeyboardStepSeconds
         : e.key === "Home" ? 0 : e.key === "End" ? duration : null;
@@ -103,8 +107,9 @@ export function ScrubBar({ duration, position, ready, buffered, thumbnails, chap
   };
 
   const bar = (
-    <div ref={barRef} className={"mp-scrub" + (pointed !== null ? " is-pointed" : "") + (drag !== null ? " is-dragging" : "")}
-      role="slider" tabIndex={0} aria-label="Seek" aria-valuemin={0} aria-valuemax={Math.round(duration)}
+    <div ref={barRef} className={"mp-scrub" + (pointed !== null ? " is-pointed" : "") + (drag !== null ? " is-dragging" : "") + (readOnly ? " is-readonly" : "")}
+      role="slider" tabIndex={readOnly ? -1 : 0} aria-readonly={readOnly || undefined}
+      aria-label={readOnly ? "Position" : "Seek"} aria-valuemin={0} aria-valuemax={Math.round(duration)}
       aria-valuenow={Math.round(shown)} aria-valuetext={`${formatTime(shown)} of ${formatTime(duration)}`}
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel}
       onPointerLeave={() => setHover(null)} onKeyDown={key}>

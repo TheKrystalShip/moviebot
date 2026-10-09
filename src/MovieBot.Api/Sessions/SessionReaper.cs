@@ -16,6 +16,23 @@ public sealed class RoomOptions
 
     /// <summary>How often to look. Finer than this buys nothing; a room is not urgent to forget.</summary>
     public TimeSpan SweepInterval { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// How long a room's guest link lets anybody holding it watch, from when it was made. It is a
+    /// link handed to people without an account, and one copied into a chat should not outlive the
+    /// evening it was made for.
+    /// </summary>
+    public TimeSpan GuestPassLifetime { get; set; } = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// How long guests stay in a room nobody with an account is in. Long enough for somebody to reload
+    /// their page or the server to restart; past it, a link left running would be the library streamed
+    /// to whoever holds it.
+    /// </summary>
+    public TimeSpan GuestGrace { get; set; } = TimeSpan.FromMinutes(2);
+
+    /// <summary>How many guests one room takes at once.</summary>
+    public int GuestsPerRoom { get; set; } = 10;
 }
 
 /// <summary>Forgets rooms that nobody is watching.</summary>

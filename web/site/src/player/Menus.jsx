@@ -54,8 +54,9 @@ export const hasQualityChoice = (view) => view.qualityLevels.length > 1;
 
 export const MenuTitles = { subs: "Subtitles", audio: "Audio track", quality: "Quality", chapters: "Chapters", episodes: "Episodes" };
 
-/** Whether the film has a season to move around in: an episode, in a room. */
-export const hasEpisodes = (view) => Boolean(view.manifest && view.manifest.episode && view.manifest.film && view.manifest.film.imdbId && !view.solo);
+/** Whether the film has a season to move around in: an episode, in a room, for somebody who may move it. */
+export const hasEpisodes = (view) => Boolean(view.manifest && view.manifest.episode && view.manifest.film
+  && view.manifest.film.imdbId && !view.solo && !view.viewOnly);
 
 /** What the episode menu's button says: the episode playing. */
 export const episodeValue = (view) => `S${view.manifest.episode.season} · E${view.manifest.episode.number}`;
@@ -97,7 +98,10 @@ export function Menu({ kind, view, room, sheet, position, styling, onStyling, on
   );
 }
 
-/** The film's chapters, the one playing marked; picking one takes the whole room there. */
+/**
+ * The film's chapters, the one playing marked; picking one takes the whole room there. A guest reads
+ * them and picks nothing.
+ */
 function ChapterOptions({ view, room, position, onClose }) {
   const chapters = view.manifest.chapters || [];
   let current = -1;
@@ -106,7 +110,7 @@ function ChapterOptions({ view, room, position, onClose }) {
     <div className="mp-menu__list">
       {chapters.map((c, i) => (
         <Option key={i} on={i === current} label={c.title || `Chapter ${i + 1}`} sub={formatTime(c.startSeconds)}
-          onPick={() => { room.seek(c.startSeconds); onClose(); }} />
+          readOnly={view.viewOnly} onPick={() => { room.seek(c.startSeconds); onClose(); }} />
       ))}
     </div>
   );
@@ -173,16 +177,25 @@ function EpisodeOptions({ view, room, onClose }) {
   );
 }
 
-function Option({ on, label, sub, disabled, onPick, children }) {
-  return (
-    <button type="button" role="menuitemradio" aria-checked={on} disabled={disabled} title={label}
-      className={"mp-option" + (on ? " is-on" : "")} onClick={onPick}>
+/** One row of a menu. A read-only row says what is there and is no button. */
+function Option({ on, label, sub, disabled, readOnly = false, onPick, children }) {
+  const body = (
+    <>
       <span className="mp-option__check">{on && <Icon name="check" size={15} />}</span>
       <span className="mp-option__text">
         <span className="mp-option__label">{label}</span>
         {sub && <span className="mp-option__sub">{sub}</span>}
       </span>
       {children}
+    </>
+  );
+  if (readOnly) {
+    return <div role="listitem" aria-current={on || undefined} title={label} className={"mp-option is-static" + (on ? " is-on" : "")}>{body}</div>;
+  }
+  return (
+    <button type="button" role="menuitemradio" aria-checked={on} disabled={disabled} title={label}
+      className={"mp-option" + (on ? " is-on" : "")} onClick={onPick}>
+      {body}
     </button>
   );
 }
@@ -245,8 +258,9 @@ function SubtitleOptions({ view, room, onStyle }) {
   const [fetching, setFetching] = React.useState(null);
   const film = manifest.id;
 
-  // A film played alone has the subtitles saved with it; fetching more is the room's.
-  const alone = view.solo;
+  // A film played alone has the subtitles saved with it, and a guest the ones the room has; fetching
+  // more is for somebody in the room with an account.
+  const alone = view.solo || view.viewOnly;
   React.useEffect(() => {
     if (alone) return undefined;
     let live = true;

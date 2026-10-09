@@ -41,6 +41,9 @@ function signed(seconds) {
  * one, and at the left how bright the picture is drawn; both are this viewer's own and move nobody
  * else.
  *
+ * Where the film is not this viewer's to move (`seekable` false, a guest's), a tap anywhere only
+ * shows or hides the controls, and only the sweeps up and down are read.
+ *
  * Every handler here is a touch on the bare film; the page decides that before it calls them.
  */
 export function useStageGestures(props) {
@@ -80,6 +83,10 @@ export function useStageGestures(props) {
     };
 
     const tap = (zone) => {
+      if (latest.current.seekable === false) {
+        latest.current.onToggleControls();
+        return;
+      }
       const now = performance.now();
       if (run.current) {
         if (zone === run.current.side) { addSkip(); return; }
@@ -130,7 +137,7 @@ export function useStageGestures(props) {
       if (t.axis === null) {
         if (Math.hypot(dx, dy) < SwipeSlopPx) return;
         if (Math.abs(dx) > Math.abs(dy)) {
-          t.axis = p.duration > 0 ? "seek" : "none";
+          t.axis = p.duration > 0 && p.seekable !== false ? "seek" : "none";
           t.from = p.position;
           if (t.axis === "seek") p.onHold(true);
         } else if (t.zone === "right" && p.volumeSettable) {

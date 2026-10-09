@@ -80,7 +80,7 @@ public sealed class TitleChanges(
             _announced[titleId] = written.Value;
 
             foreach (var sessionId in rooms)
-                await hub.Clients.Group(sessionId).SendAsync("TitleChanged", manifest, ct);
+                await hub.Clients.Group(RoomGroups.Everyone(sessionId)).SendAsync("TitleChanged", manifest, ct);
 
             logger.LogDebug("Told {Rooms} room(s) that {TitleId} changed ({Status}, head {Head})",
                 rooms.Count, titleId, manifest.Status, manifest.HeadSeconds);

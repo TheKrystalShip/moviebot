@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.42.0] - 2026-10-10
+
+### Added
+
+- **Guest viewing.** Somebody in a room holding the new action `cinema:guests` hands out its guest
+  link from the invite panel, private room or open, and anybody holding the link watches without an
+  account: `/g/<code>` asks their name and opens the player with nothing that moves the room (no play,
+  pause, seek, skip, episodes, chapters to jump to, invite or way back to the site) and their own
+  volume, subtitles and their style, audio and quality, kept by their browser. The room sees each guest
+  with a hollow mark. A room has one link, lasting `Rooms:GuestPassLifetime` (a day), until somebody
+  stops guest access; guests are sent away once nobody with an account has been in the room for
+  `Rooms:GuestGrace` (two minutes), and a room takes `Rooms:GuestsPerRoom` (ten) at once. A good guest
+  link unfurls with its room's film.
+- `POST` and `DELETE /api/rooms/{room}/guests`, `GET /api/guest/{code}`; the hub's `JoinAsGuest` and
+  `GuestAccessEnded`; `RoomDoor.guests`, `Participant.guest`, `JoinReply.refused` and `JoinReply.you`.
+
+### Changed
+
+- **The door reaches only the people with an account in a room.** `DoorChanged` goes to a members'
+  group a guest is never in.
+
 ## [2.41.1] - 2026-10-10
 
 ### Changed

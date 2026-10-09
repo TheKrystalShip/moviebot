@@ -76,9 +76,14 @@
     "Root": "/var/lib/moviebot/subtitles"
   },
 
+  // A room's guest link lasts GuestPassLifetime from when it is made; its guests are sent away once
+  // nobody with an account has been in the room for GuestGrace, and it takes GuestsPerRoom at once.
   "Rooms": {
     "IdleTimeout": "00:30:00",
-    "SweepInterval": "00:01:00"
+    "SweepInterval": "00:01:00",
+    "GuestPassLifetime": "1.00:00:00",
+    "GuestGrace": "00:02:00",
+    "GuestsPerRoom": 10
   },
 
   // The hand-off writes films into MediaRoot, which must be the API's Media.Root. Films share the

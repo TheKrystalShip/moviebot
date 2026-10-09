@@ -108,6 +108,20 @@ export interface Environment {
   resumeAt(titleId: string, durationSeconds: number): Promise<number | null>;
   /** Where this viewer has got to in a film played alone, kept on the device until the API has it. */
   recordProgress(titleId: string, positionSeconds: number): void;
+  /**
+   * The guest this viewer is, on a room's guest link, or null for a person with an account. A guest
+   * watches the room and changes nothing about it, and how they watch is kept by this browser alone.
+   */
+  readonly guest: GuestViewer | null;
+}
+
+/** Somebody watching on a room's guest link, with no account. */
+export interface GuestViewer {
+  /** What they asked to be called; the room has the last word on it. */
+  readonly name: string;
+  /** How they watch, as this browser keeps it. */
+  preferences(): ViewerPreferences;
+  keepPreferences(preferences: ViewerPreferences): void;
 }
 
 type LockableOrientation = ScreenOrientation & { lock?(orientation: string): Promise<void> };
@@ -118,7 +132,7 @@ type LockableOrientation = ScreenOrientation & { lock?(orientation: string): Pro
  * that grants neither, which is every browser on an iPhone, leaves the turning to the person.
  * Leaving full screen lets go of the orientation with it, and the next press takes both back.
  */
-function browserLandscape(frame: HTMLElement): Landscape {
+export function browserLandscape(frame: HTMLElement): Landscape {
   const phone = window.matchMedia('(pointer: coarse)').matches;
   return {
     enter: () => {
@@ -208,7 +222,8 @@ export function createSiteEnvironment(
     keptPreferences: () => viewer.keptPreferences(),
     online: () => viewer.online(),
     resumeAt: (title, duration) => viewer.resumeAt(title, duration),
-    recordProgress: (title, seconds) => viewer.recordProgress(title, seconds)
+    recordProgress: (title, seconds) => viewer.recordProgress(title, seconds),
+    guest: null
   };
 }
 

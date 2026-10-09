@@ -59,7 +59,7 @@ public sealed class RoomControls(
             result.State.Paused ? "paused" : "playing", result.State.PositionSeconds,
             sessions.Participants(sessionId).Count, actor.Via is { } client ? $"{via ?? "http"} from {client}" : via ?? "http");
 
-        await hub.Clients.Group(sessionId).SendAsync("StateChanged", push, ct);
+        await hub.Clients.Group(RoomGroups.Everyone(sessionId)).SendAsync("StateChanged", push, ct);
 
         return new RoomChange(push, result.Clamped);
     }
@@ -72,7 +72,7 @@ public sealed class RoomControls(
     public async Task ReportAsync(string sessionId, RoomPreparing? preparing, CancellationToken ct = default)
     {
         if (sessions.SetPreparing(sessionId, preparing) is not { } result) return;
-        await hub.Clients.Group(sessionId).SendAsync("StateChanged",
+        await hub.Clients.Group(RoomGroups.Everyone(sessionId)).SendAsync("StateChanged",
             new SessionStatePush { State = result.State, ServerTime = DateTimeOffset.UtcNow }, ct);
     }
 
@@ -88,7 +88,7 @@ public sealed class RoomControls(
         logger.LogInformation(
             "Session {SessionId} {Held} at {Position:0.00}s -> revision {Revision}",
             sessionId, state.Waiting ? "held for its players" : "let go", state.PositionSeconds, state.Revision);
-        await hub.Clients.Group(sessionId).SendAsync("StateChanged",
+        await hub.Clients.Group(RoomGroups.Everyone(sessionId)).SendAsync("StateChanged",
             new SessionStatePush { State = state, ServerTime = DateTimeOffset.UtcNow }, ct);
     }
 }

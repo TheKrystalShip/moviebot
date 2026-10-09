@@ -113,6 +113,25 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
     }
 
     [Fact]
+    public async Task A_private_room_s_guest_link_unfurls_with_its_film()
+    {
+        var client = Client();
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", TestIssuer.Token("u-alice", "Alice"));
+        var room = "guests-" + Guid.NewGuid().ToString("N")[..8];
+        (await client.PostAsJsonAsync($"/api/sessions/{room}/title",
+            new TheKrystalShip.MovieBot.Core.SetTitleRequest(SessionFixture.Heat))).EnsureSuccessStatusCode();
+        using var issued = await client.PostAsync($"/api/rooms/{room}/guests", null);
+        var link = (await issued.Content.ReadFromJsonAsync<TheKrystalShip.MovieBot.Core.GuestLink>())!;
+
+        var page = await Client().GetStringAsync(link.Path);
+        var gone = await Client().GetStringAsync("/g/not-a-link");
+
+        Assert.Contains("<meta property=\"og:title\" content=\"Watch Heat on Krystal Cinema\" />", page);
+        Assert.DoesNotContain("og:title", gone);
+    }
+
+    [Fact]
     public async Task A_room_holding_nothing_unfurls_as_the_site()
     {
         var page = await Client().GetStringAsync($"/r/empty-{Guid.NewGuid():N}");

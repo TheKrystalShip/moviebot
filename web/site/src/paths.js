@@ -55,6 +55,9 @@ export const profilePath = (tab) => (tab && tab !== PROFILE_TABS[0] ? "/profile/
 /** A room. */
 export const roomPath = (room) => "/r/" + seg(room);
 
+/** A room's guest link, which the API names by its code. */
+export const guestPath = (code) => "/g/" + seg(code);
+
 /** The query flag that plays a room's title from this device, alone, rather than in the room. */
 export const OFFLINE_FLAG = "offline";
 

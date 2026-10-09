@@ -39,7 +39,8 @@ Discord Activity and the bot are confidential clients that exchange a Discord id
 for the person's token, and every service — the API, the assistant — validates that token and checks
 the action a route needs. Who somebody is, whether they may in and what they may do are the
 provider's; a record here is keyed by the provider's `sub` and nothing else. The service key is
-machine work that names nobody, never a person.
+machine work that names nobody, never a person. A room's guest link names nobody too: it lets
+whoever holds it watch that one room and change nothing, and no record is keyed by a guest.
 
 **The Krystal Cinema design is the UI, and the API is the authority for its data.** What the design
 shows, the API serves: a feature the design draws that the API lacks is added to the API, never drawn

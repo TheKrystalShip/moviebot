@@ -318,9 +318,98 @@ async function headChecks(browser) {
   }
 }
 
+// ── A guest ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Somebody with no account on a room's guest link: they watch, change nothing, are held to the room
+ * when they reach past the page's controls to the element's own, and are sent away when the link is.
+ */
+async function guestChecks(browser) {
+  const check = suite('A guest');
+  const room = roomName('guest');
+
+  const ada = await viewer(browser, 'v9', 'Ada');
+  await ada.goto(`${BASE}/r/${room}?title=${TITLE}`);
+  await holds(ada);
+  await press(ada, '.mp-invite');
+  await ada.waitForSelector('.mp-invite-panel__guests .mp-invite__send', { timeout: 5000 }).catch(() => null);
+  await ada.click('.mp-invite-panel__guests .mp-invite__send');
+  await ada.waitForSelector('.mp-invite-panel__guests .mp-invite-panel__url', { timeout: 5000 }).catch(() => null);
+  const link = (await ada.textContent('.mp-invite-panel__guests .mp-invite-panel__url').catch(() => '')).trim();
+  check('somebody in the room hands out a guest link', /\/g\/[\w-]+$/.test(link), link);
+  await press(ada, '.mp-invite');
+
+  // Nobody signed in: a context of its own, with nothing planted.
+  const context = await browser.newContext({ viewport: { width: 1440, height: 810 } });
+  await context.addInitScript(() => {
+    window.__sent = [];
+    const send = WebSocket.prototype.send;
+    WebSocket.prototype.send = function (data) {
+      try { window.__sent.push(String(data)); } catch { /* binary */ }
+      return send.call(this, data);
+    };
+  });
+  const sam = await context.newPage();
+  sam.on('pageerror', (e) => console.log(`    [Sam] page error: ${e.message}`));
+  await sam.goto(link);
+  await sam.waitForSelector('.mp-arrive input', { timeout: 15000 }).catch(() => null);
+  check('the link asks for a name and signs nobody in', (await sam.$('.mp-arrive input')) !== null && !sam.url().includes('signin'));
+  await sam.fill('.mp-arrive input', 'Sam');
+  await sam.click('.mp-arrive button[type=submit]');
+  await holds(sam);
+  check('the guest watches the room', (await sam.textContent('.mp-top__name').catch(() => '')).length > 0);
+
+  await press(sam, '.mp-scrub');
+  const absent = await sam.evaluate(() => ['.mp-play', '.mp-invite', '.mp-round', '.mp-nextup']
+    .filter((s) => document.querySelector(s) !== null));
+  check('no play, skip, invite or way back is drawn', absent.length === 0 && (await sam.$('[aria-label^="Back 10"]')) === null, absent.join(', '));
+  check('the bar shows the film and moves nothing', (await sam.$('.mp-scrub.is-readonly')) !== null);
+  check('subtitles are theirs to choose', (await sam.$('.mp-menu-button[aria-label^="Subtitles"]')) !== null);
+  await ada.waitForSelector('.mp-avatar.is-guest', { timeout: 5000 }).catch(() => null);
+  check('the room sees the guest as a guest', (await ada.$('.mp-avatar.is-guest')) !== null);
+
+  // The room moves the guest.
+  if (!(await playhead(ada)).paused) await press(ada, '.mp-play');
+  await wait(1500);
+  check('a pause in the room pauses the guest', (await playhead(sam)).paused);
+  check('and the guest is told the room is paused', (await sam.$('.mp-paused')) !== null);
+
+  // Everything the guest can reach: the film, the keys, and the element itself.
+  const { width, height } = sam.viewportSize();
+  await sam.mouse.click(width / 2, height / 2);
+  await sam.keyboard.press(' ');
+  await sam.keyboard.press('l');
+  await sam.evaluate(() => document.querySelector('video').play().catch(() => {}));
+  await wait(2500);
+  check('a play on the guest\'s own element is put back', (await playhead(sam)).paused);
+  check('and the room stayed where it was', (await playhead(ada)).paused);
+  check('the guest sent nothing that moves the room', !/"(Play|Pause|Seek|LoadTitle|Buffering|Next|SetOpen)"/.test(await sent(sam)));
+
+  await press(ada, '.mp-play');
+  await wait(1500);
+  await sam.evaluate(() => document.querySelector('video').pause());
+  await wait(2500);
+  check('a pause on the guest\'s own element is put back', !(await playhead(sam)).paused);
+  check('and the room plays on', !(await playhead(ada)).paused);
+
+  // Taking the link away sends the guest away.
+  await press(ada, '.mp-invite');
+  await ada.waitForSelector('.mp-invite-panel__guests', { timeout: 5000 }).catch(() => null);
+  await ada.click('.mp-invite-panel__guests button:has-text("Stop guest access")');
+  await sam.waitForFunction(() => /invite has ended/.test(document.querySelector('.mp-message')?.textContent ?? ''), null, { timeout: 10000 }).catch(() => null);
+  check('stopping guest access sends the guest away', /invite has ended/.test(await sam.textContent('.mp-message').catch(() => '')));
+  await sam.reload();
+  await sam.waitForSelector('.mp-page--message', { timeout: 10000 }).catch(() => null);
+  check('and the link opens nothing after', /invite has ended/.test(await sam.textContent('.mp-page').catch(() => '')));
+
+  await context.close();
+  await ada.context().close();
+}
+
 console.log(`Krystal Cinema player checks against ${BASE} (API ${API}, film ${TITLE})`);
 const browser = await launch();
 try {
+  await guestChecks(browser);
   await roomChecks(browser);
   await menuChecks(browser);
   await layoutChecks(browser);

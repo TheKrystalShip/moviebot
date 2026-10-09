@@ -24,10 +24,15 @@ public sealed record DoorChange(RoomDoor Door, IReadOnlyList<string> Answered);
 /// from.
 /// </para>
 /// <para>
+/// <b>A guest comes in on the room's link, never through its door.</b> The link is one pass per room,
+/// made by somebody in it, and holding it lets anybody watch; it admits no account and lets nobody
+/// in for good, so it is not the door's to open or close.
+/// </para>
+/// <para>
 /// Not safe on its own: the room's lock guards it, as it guards the rest of the room.
 /// </para>
 /// </remarks>
-public sealed class RoomAdmission(bool open, IEnumerable<string> admitted)
+public sealed class RoomAdmission(bool open, IEnumerable<string> admitted, GuestPass? guests = null)
 {
     private readonly HashSet<string> _admitted = new(admitted, StringComparer.Ordinal);
     private readonly List<(string Connection, Knock Knock)> _knocks = [];
@@ -37,11 +42,31 @@ public sealed class RoomAdmission(bool open, IEnumerable<string> admitted)
     /// <summary>Everybody let in, by account.</summary>
     public IReadOnlyCollection<string> Admitted => _admitted;
 
+    /// <summary>The room's guest link, while it has one.</summary>
+    public GuestPass? Guests { get; private set; } = guests;
+
     public RoomDoor Door => new()
     {
         Open = Open,
         Knocking = [.. _knocks.Select(k => k.Knock).DistinctBy(k => k.UserId)],
+        Guests = Guests is { } pass ? new GuestAccess { ExpiresAt = pass.ExpiresAt } : null,
     };
+
+    /// <summary>Gives the room a guest link, or keeps the one it has while it is still good.</summary>
+    public (GuestPass Pass, DoorChange? Change) IssueGuests(Func<GuestPass> mint, DateTimeOffset now)
+    {
+        if (Guests is { } held && held.LiveAt(now)) return (held, null);
+        Guests = mint();
+        return (Guests, new DoorChange(Door, []));
+    }
+
+    /// <summary>Takes the guest link away. Null when there was none.</summary>
+    public (GuestPass Pass, DoorChange Change)? RevokeGuests()
+    {
+        if (Guests is not { } held) return null;
+        Guests = null;
+        return (held, new DoorChange(Door, []));
+    }
 
     public bool Admits(string userId) => Open || _admitted.Contains(userId);
 

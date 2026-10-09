@@ -23,6 +23,8 @@ namespace TheKrystalShip.MovieBot.Core;
 [JsonSerializable(typeof(SessionStatePush))]
 [JsonSerializable(typeof(JoinReply))]
 [JsonSerializable(typeof(RoomDoor))]
+[JsonSerializable(typeof(GuestLink))]
+[JsonSerializable(typeof(GuestInvitation))]
 [JsonSerializable(typeof(SeekClamped))]
 [JsonSerializable(typeof(SetTitleRequest))]
 [JsonSerializable(typeof(RoomPlaybackRequest))]

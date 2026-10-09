@@ -22,6 +22,9 @@ public sealed record PersistedSession
 
     /// <summary>Everybody let in, by account. Who is asking to come in is a live page and is not kept.</summary>
     public required IReadOnlyList<string> Admitted { get; init; }
+
+    /// <summary>The room's guest link, while it has one. Its guests are live connections and are not kept.</summary>
+    public GuestPass? Guests { get; init; }
 }
 
 [JsonSourceGenerationOptions(

@@ -1,8 +1,10 @@
 import React from "react";
+import { Button, Input } from "@thekrystalship/krystal-ui";
 import "./player.css";
 import { Player } from "./Player.jsx";
 import { createSiteEnvironment, setEnvironment } from "./engine/environment.ts";
 import { createDiscordEnvironment } from "./engine/discordEnvironment.ts";
+import { createGuestEnvironment, keptGuestName } from "./engine/guestEnvironment.ts";
 import { can, currentToken, freshToken, sessionStore } from "../session.js";
 import { isOnline, useOnline } from "../connectivity.js";
 import { offlineSupported } from "../offline/store.js";
@@ -80,6 +82,52 @@ export function EmbedRoom() {
   if (state.error) return <Page message><span>{state.error}</span></Page>;
   if (!state.ready) return <Page />;
   return <Page><Player embed /></Page>;
+}
+
+/**
+ * A room's guest link, at `/g/<code>`. Nobody signs in: the link is the proof. The page says what the
+ * room is watching and asks the name to watch it as, and the press that enters is also the one the
+ * browser wants before it plays anything. Once in, the player is all there is, with no way back to
+ * the site and nothing that moves the room.
+ */
+export function GuestRoom({ code }) {
+  const online = useOnline();
+  // Undefined while asked, null for a link that is no longer good, false when the server did not answer.
+  const [invitation, setInvitation] = React.useState(undefined);
+  const [name, setName] = React.useState(keptGuestName);
+  const [entered, setEntered] = React.useState(false);
+
+  React.useEffect(() => {
+    let live = true;
+    fetch(`/api/guest/${encodeURIComponent(code)}`, { headers: { accept: "application/json" } })
+      .then((response) => (response.ok ? response.json() : response.status === 404 ? null : false))
+      .then((found) => { if (live) setInvitation(found); }, () => { if (live) setInvitation(false); });
+    return () => { live = false; };
+  }, [code]);
+
+  if (entered) return <Page><Player online={online} /></Page>;
+  if (invitation === undefined) return <Page />;
+  if (invitation === null) return <Page message><span>This invite has ended.</span></Page>;
+  if (invitation === false) return <Page message><span>The room can't be reached. Try again in a moment.</span></Page>;
+
+  const enter = (e) => {
+    e.preventDefault();
+    setEnvironment(createGuestEnvironment(code, invitation, name.trim(), isOnline));
+    setEntered(true);
+  };
+  return (
+    <Page>
+      <form className="mp-arrive" onSubmit={enter}>
+        <span className="mp-arrive__eyebrow">Invited to watch</span>
+        <span className="mp-arrive__name">{invitation.name || "Krystal Cinema"}</span>
+        <div className="mp-arrive__form">
+          <Input size="lg" wide autoFocus value={name} maxLength={32} onChange={(e) => setName(e.target.value)}
+            placeholder="Your name" aria-label="Your name" />
+          <Button type="submit" variant="primary" size="xl" icon="play" wide>Watch</Button>
+        </div>
+      </form>
+    </Page>
+  );
 }
 
 /** A film is watched in the dark, whatever the site's theme is. */

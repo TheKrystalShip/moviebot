@@ -14,6 +14,9 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// never runs.
 /// </para>
 /// <para>
+/// <b>A guest is refused</b>, on a route that would ever authenticate one.
+/// </para>
+/// <para>
 /// <b>Machine work passes.</b> The service key names nobody, and what it does to a room — loading a
 /// download that somebody in it asked for — is that room's own business arriving.
 /// </para>
@@ -25,6 +28,8 @@ public static class RoomEntry
         builder.AddEndpointFilter(async (context, next) =>
         {
             var http = context.HttpContext;
+            // A guest enters no room by a route: their link opens one room, to watch, over the hub.
+            if (CinemaPerson.Of(http) is null && GuestViewer.Of(http.User) is not null) return Private;
             if (CinemaPerson.Of(http) is { } person
                 && http.GetRouteValue(roomParameter) is string room
                 && !http.RequestServices.GetRequiredService<SessionStore>().Enter(room, person.UserId))

@@ -46,6 +46,7 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glanc
 | `/signin` | Where the identity provider sends the browser back with its code; opened on its own, it goes to the provider |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from. A room waiting on a Watch now shows the film being found, arriving and starting, and plays it on its own |
 | `/embed/` | The Discord Activity: the same player with no site around it |
+| `/g/<code>` | A room's guest link: the film it holds and a name to watch it as, then the player with nothing that moves the room and no way back to the site. Nobody signs in |
 
 A page is a path, so it can be linked to and reloaded: the API answers any path that is not its own
 with this site's index. Paths are hierarchical, each beginning with the path of the page it belongs
@@ -211,6 +212,16 @@ parameters is the Activity's, so the index rewrites its address to `/embed/` bef
 and the player signs the viewer in through the Embedded App SDK and the API rather than the site's
 session.
 
+Somebody without an account watches on a room's guest link, which a person in the room holding
+`cinema:guests` hands out from the invite panel's Guests row, alongside how many guests are in and
+until when the link lasts, and Stop guest access, which sends them away. The link opens `/g/<code>`,
+which answers to no site session: it asks the API what the link opens (`/api/guest/{code}`), asks for
+a name, and the press that enters is the gesture the browser wants before playing. The player then has
+the guest's own environment (`engine/guestEnvironment.ts`): the link is the credential, how they watch
+is this browser's, and everything that moves the room is neither drawn nor answered
+(`src/player/CLAUDE.md`). Why a guest is not watching (the link ended, nobody with an account is in
+the room, the room is full) is said in place of the film.
+
 A film saved whole on the device plays from it. Alone, at `/r/<room>?title=<id>&offline=1`, it is
 the room's player on a timeline of its own, with no hub, no ticket and no request to the server for
 the film, so it plays with no connection; where it got to is written down on the device and sent to
@@ -249,7 +260,9 @@ about ten times a second and fetches the film's opening each time.
 
 ### Verifying
 
-`npm run verify` drives a real browser against a running API and this dev server: two and three
+`npm run verify` drives a real browser against a running API and this dev server: a guest on a room's
+link, with no sign-in, held to watching through the page, the keys and the media element's own play
+and pause, and sent away when the link is; two and three
 viewers in a room through play, pause, seek and the waiting mark, the join gate, the menus, a person's
 preferences reaching a fresh player, each frame size, and a film still transcoding (its manifest is
 edited in place and put back). It needs Chrome or Chromium **with H.264 and AAC** (`CHROME_PATH`, or

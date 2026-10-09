@@ -69,7 +69,16 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
 
         /// <summary>Who may come in, and who is asking to. Guarded by <see cref="Gate"/>.</summary>
         public RoomAdmission Admission = null!;
+
+        /// <summary>
+        /// Since when nobody with an account has been in the room: from when the room was made or put
+        /// back, and from when the last of them left. Null while one is here. Guarded by <see cref="Gate"/>.
+        /// </summary>
+        public DateTimeOffset? MembersGoneSince;
     }
+
+    /// <summary>Every live guest link's room, by the pass's id.</summary>
+    private readonly ConcurrentDictionary<string, string> _passes = new(StringComparer.Ordinal);
 
     /// <summary>
     /// The room, made private and holding nothing when there is none. A room made here has nobody let
@@ -96,7 +105,8 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
             Epoch = Guid.NewGuid().ToString("n")
         },
         LastActivityUtc = clock.GetUtcNow(),
-        Admission = new RoomAdmission(open: false, admitted)
+        Admission = new RoomAdmission(open: false, admitted),
+        MembersGoneSince = clock.GetUtcNow()
     };
 
     // ---- Who may come in -------------------------------------------------------------
@@ -161,6 +171,118 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         if (change is not null) Changed?.Invoke();
         return change;
     }
+
+    // ---- Guests ---------------------------------------------------------------------
+
+    /// <summary>
+    /// Gives the room a guest link lasting <paramref name="lifetime"/>, or answers the one it has while
+    /// that is still good, so everybody in the room who asks is handed the same link. The change is
+    /// null when the room already had it. Null when there is no such room.
+    /// </summary>
+    public (GuestPass Pass, DoorChange? Change)? IssueGuests(string sessionId, string createdBy, TimeSpan lifetime)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return null;
+        var now = clock.GetUtcNow();
+        GuestPass? before;
+        (GuestPass Pass, DoorChange? Change) issued;
+        lock (entry.Gate)
+        {
+            before = entry.Admission.Guests;
+            issued = entry.Admission.IssueGuests(() => new GuestPass
+            {
+                Id = GuestCodes.NewPassId(), CreatedBy = createdBy, CreatedAt = now, ExpiresAt = now + lifetime,
+            }, now);
+        }
+
+        if (issued.Change is null) return issued;
+        if (before is not null) _passes.TryRemove(before.Id, out _);
+        _passes[issued.Pass.Id] = sessionId;
+        Changed?.Invoke();
+        return issued;
+    }
+
+    /// <summary>Takes the room's guest link away. Null when it had none, or there is no such room.</summary>
+    public (GuestPass Pass, DoorChange Change)? RevokeGuests(string sessionId)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return null;
+        (GuestPass Pass, DoorChange Change)? revoked;
+        lock (entry.Gate) revoked = entry.Admission.RevokeGuests();
+        if (revoked is not { } done) return null;
+        _passes.TryRemove(done.Pass.Id, out _);
+        Changed?.Invoke();
+        return revoked;
+    }
+
+    /// <summary>The room's guest link while it is good, or null.</summary>
+    public GuestPass? GuestsOf(string sessionId)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return null;
+        lock (entry.Gate)
+            return entry.Admission.Guests is { } pass && pass.LiveAt(clock.GetUtcNow()) ? pass : null;
+    }
+
+    /// <summary>The room a guest link opens while it is good, or null.</summary>
+    public string? RoomOfGuests(string passId) =>
+        _passes.TryGetValue(passId, out var room) && GuestsOf(room)?.Id == passId ? room : null;
+
+    /// <summary>
+    /// Lets a guest in on the room's link, as the participant given. Null when they are in; otherwise
+    /// why not (<see cref="GuestRefusals"/>): the link is no longer the room's, nobody with an account
+    /// has been in the room for longer than <paramref name="grace"/>, or it already holds
+    /// <paramref name="most"/> guests.
+    /// </summary>
+    public string? AdmitGuest(string sessionId, string passId, string connectionId, Participant guest, int most, TimeSpan grace)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return GuestRefusals.Ended;
+        var now = clock.GetUtcNow();
+        lock (entry.Gate)
+        {
+            if (entry.Admission.Guests is not { } pass || pass.Id != passId || !pass.LiveAt(now))
+                return GuestRefusals.Ended;
+            if (!Attended(entry, now, grace)) return GuestRefusals.Unattended;
+            // A page coming back in on the connection it holds is already counted.
+            if (entry.Participants.Count(p => p.Value.Guest && p.Key != connectionId) >= most) return GuestRefusals.Full;
+            entry.Participants[connectionId] = guest with { Guest = true };
+        }
+
+        entry.LastActivityUtc = now;
+        Changed?.Invoke();
+        return null;
+    }
+
+    /// <summary>The rooms whose guest link has run out.</summary>
+    public IReadOnlyList<string> ExpiredGuests()
+    {
+        var now = clock.GetUtcNow();
+        var rooms = new List<string>();
+        foreach (var (id, entry) in _sessions)
+        {
+            lock (entry.Gate)
+                if (entry.Admission.Guests is { } pass && !pass.LiveAt(now)) rooms.Add(id);
+        }
+        return rooms;
+    }
+
+    /// <summary>
+    /// The rooms with guests in them that nobody with an account has been in for longer than
+    /// <paramref name="grace"/>: the guests have nobody watching with them, and are sent away.
+    /// </summary>
+    public IReadOnlyList<string> Unattended(TimeSpan grace)
+    {
+        var now = clock.GetUtcNow();
+        var rooms = new List<string>();
+        foreach (var (id, entry) in _sessions)
+        {
+            lock (entry.Gate)
+                if (entry.Participants.Values.Any(p => p.Guest) && !Attended(entry, now, grace)) rooms.Add(id);
+        }
+        return rooms;
+    }
+
+    /// <summary>Somebody with an account is in the room, or the last of them left within the grace.</summary>
+    private static bool Attended(SessionEntry entry, DateTimeOffset now, TimeSpan grace) =>
+        entry.Participants.Values.Any(p => !p.Guest)
+        || (entry.MembersGoneSince is { } gone && now - gone < grace);
 
     public SessionState? Get(string sessionId) =>
         _sessions.TryGetValue(sessionId, out var entry) ? WithCurrentHead(entry.State) : null;
@@ -377,10 +499,15 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
 
     // ---- Participants ---------------------------------------------------------------
 
+    /// <summary>Puts somebody with an account into the room. A guest comes in by <see cref="AdmitGuest"/>.</summary>
     public IReadOnlyList<Participant> Join(string sessionId, string connectionId, Participant participant)
     {
         var entry = Entry(sessionId);
-        entry.Participants[connectionId] = participant;
+        lock (entry.Gate)
+        {
+            entry.Participants[connectionId] = participant with { Guest = false };
+            entry.MembersGoneSince = null;
+        }
         entry.LastActivityUtc = clock.GetUtcNow();
 
         // Somebody arriving puts the room's idle clock back, which is worth keeping: a room being
@@ -393,10 +520,15 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     {
         if (!_sessions.TryGetValue(sessionId, out var entry)) return new List<Participant>();
         entry.WaitingAt.TryRemove(connectionId, out _);
-        if (entry.Participants.TryRemove(connectionId, out var leaving))
-            lock (entry.Gate) EndSpan(entry, [leaving]);
+        var now = clock.GetUtcNow();
+        if (entry.Participants.TryRemove(connectionId, out var leaving) && !leaving.Guest)
+            lock (entry.Gate)
+            {
+                EndSpan(entry, [leaving]);
+                if (!entry.Participants.Values.Any(p => !p.Guest)) entry.MembersGoneSince = now;
+            }
         // The clock on an empty room starts when the last person leaves it.
-        entry.LastActivityUtc = clock.GetUtcNow();
+        entry.LastActivityUtc = now;
 
         Changed?.Invoke();
         return entry.Participants.Values.ToList();
@@ -410,7 +542,8 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     public IReadOnlyList<Participant>? SetBuffering(string sessionId, string connectionId, bool buffering, double atSeconds)
     {
         if (!_sessions.TryGetValue(sessionId, out var entry)) return null;
-        if (!entry.Participants.TryGetValue(connectionId, out var participant)) return null;
+        // A guest's player says nothing to the room, so where it stopped can never hold it.
+        if (!entry.Participants.TryGetValue(connectionId, out var participant) || participant.Guest) return null;
         if (buffering) entry.WaitingAt[connectionId] = atSeconds;
         else entry.WaitingAt.TryRemove(connectionId, out _);
         if (participant.Buffering == buffering) return null;
@@ -466,18 +599,27 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         }
     }
 
-    /// <summary>Somebody is in the room and every one of their players is waiting for the film.</summary>
-    private static bool EveryoneWaiting(SessionEntry entry) =>
-        !entry.Participants.IsEmpty && entry.Participants.Values.All(p => p.Buffering);
+    /// <summary>
+    /// Somebody with an account is in the room and every one of their players is waiting for the film.
+    /// A guest holds nothing: what a guest's player does never moves the room.
+    /// </summary>
+    private static bool EveryoneWaiting(SessionEntry entry)
+    {
+        var members = entry.Participants.Values.Where(p => !p.Guest).ToList();
+        return members.Count > 0 && members.All(p => p.Buffering);
+    }
 
     public IReadOnlyList<Participant> Participants(string sessionId) =>
         _sessions.TryGetValue(sessionId, out var entry) ? entry.Participants.Values.ToList() : new List<Participant>();
 
     // ---- Internals ------------------------------------------------------------------
 
-    /// <summary>Each person in the room once: one person on two devices is one person watching.</summary>
+    /// <summary>
+    /// Each person in the room once: one person on two devices is one person watching. A guest is
+    /// nobody, and is never a viewer anything is recorded for.
+    /// </summary>
     private static List<Participant> Viewers(SessionEntry entry) =>
-        [.. entry.Participants.Values.GroupBy(p => p.UserId).Select(g => g.First())];
+        [.. entry.Participants.Values.Where(p => !p.Guest).GroupBy(p => p.UserId).Select(g => g.First())];
 
     /// <summary>
     /// Says where a playing film got to, for whoever was watching it, as the state it was playing
@@ -573,7 +715,8 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
                     State = entry.State,
                     LastActivityUtc = entry.LastActivityUtc,
                     Open = entry.Admission.Open,
-                    Admitted = [.. entry.Admission.Admitted]
+                    Admitted = [.. entry.Admission.Admitted],
+                    Guests = entry.Admission.Guests
                 });
         }
 
@@ -590,12 +733,15 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     ///
     /// Participants are not restored. Membership is a live connection, and every one of them was
     /// dropped when the server stopped; they come back by rejoining, which is what puts the room's
-    /// idle clock back where it belongs.
+    /// idle clock back where it belongs. A room's guest link is restored with it, and its guests
+    /// coming back within the grace find it attended while its people come back too.
     /// </summary>
     public void Restore(IReadOnlyList<PersistedSession> rooms)
     {
+        var now = clock.GetUtcNow();
         foreach (var room in rooms)
         {
+            if (room.Guests is { } guests && guests.LiveAt(now)) _passes[guests.Id] = room.State.SessionId;
             _sessions[room.State.SessionId] = new SessionEntry
             {
                 // What a room holds while it arrives is kept, and its download's tag carries it on.
@@ -605,7 +751,9 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
                     ? room.State with { Preparing = finding with { Stage = PreparingStages.Failed, Problem = "unavailable" } }
                     : room.State,
                 LastActivityUtc = room.LastActivityUtc,
-                Admission = new RoomAdmission(room.Open, room.Admitted)
+                Admission = new RoomAdmission(room.Open, room.Admitted,
+                    room.Guests is { } kept && kept.LiveAt(now) ? kept : null),
+                MembersGoneSince = now
             };
         }
     }
@@ -629,7 +777,10 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         {
             if (!entry.Participants.IsEmpty) continue;
             if (entry.LastActivityUtc > cutoff) continue;
-            if (_sessions.TryRemove(id, out _)) dropped.Add(id);
+            if (!_sessions.TryRemove(id, out _)) continue;
+            dropped.Add(id);
+            lock (entry.Gate)
+                if (entry.Admission.Guests is { } guests) _passes.TryRemove(guests.Id, out _);
         }
 
         if (dropped.Count > 0) Changed?.Invoke();

@@ -11,8 +11,8 @@ import { SessionHub, type ConnectionStatus, type Timeline } from './session/hub'
 import { LocalTimeline } from './session/local';
 import { SyncController } from './session/sync';
 import type {
-  Actor, Manifest, Participant, RoomDoor, SeekClamped, SessionState, SessionStatePush, SubtitleSearch, SubtitleStyle,
-  SubtitleTrack, ThumbnailStrip, TitleSummary, ViewerPreferences
+  Actor, GuestRefusal, Manifest, Participant, RoomDoor, SeekClamped, SessionState, SessionStatePush, SubtitleSearch,
+  SubtitleStyle, SubtitleTrack, ThumbnailStrip, TitleSummary, ViewerPreferences
 } from './types';
 
 /**
@@ -92,6 +92,13 @@ export interface RoomView {
   saved: boolean;
   /** The poster saved on the device, as an address the page can draw, when the film plays alone. */
   artwork: string | null;
+  /**
+   * A guest on the room's link: they watch the room and change nothing about it. Every act that would
+   * move the room is a no-op, and the page draws none of them.
+   */
+  viewOnly: boolean;
+  /** Why this guest is not watching: never let in, or sent away. Null while they are. */
+  guestEnded: GuestRefusal | null;
 }
 
 /** How often a film played alone writes down where it has got to, while it plays. */
@@ -180,7 +187,9 @@ export class PlayerRoom {
       playingHeight: null,
       solo: environment().solo,
       saved: false,
-      artwork: null
+      artwork: null,
+      viewOnly: environment().guest !== null,
+      guestEnded: null
     };
 
     this.stream = new FilmStream(video, {
@@ -250,12 +259,19 @@ export class PlayerRoom {
     this.set({ identity });
 
     // Before the room is joined, so the first film loads with this person's own defaults. Without
-    // them the film still plays, on the film's own tracks and the connection's choice of quality.
-    try {
-      const preferences = await api.preferences();
+    // them the film still plays, on the film's own tracks and the connection's choice of quality. A
+    // guest's are this browser's.
+    const guest = env.guest;
+    if (guest !== null) {
+      const preferences = guest.preferences();
       this.set({ preferences, quality: preferences.qualityHeight ?? null });
-    } catch {
-      this.notice('Your playback settings could not be read, so this film starts on its own defaults.', 'error');
+    } else {
+      try {
+        const preferences = await api.preferences();
+        this.set({ preferences, quality: preferences.qualityHeight ?? null });
+      } catch {
+        this.notice('Your playback settings could not be read, so this film starts on its own defaults.', 'error');
+      }
     }
 
     this.launched = env.titleId();
@@ -279,6 +295,7 @@ export class PlayerRoom {
         this.video.pause();
         this.set({ entry: 'private', door: null });
       },
+      onGuestEnded: (reason) => this.endGuest(reason),
       onStatus: (status) => {
         this.set({ connection: status });
         // Nothing is derived forward from a room that cannot be heard from. Its anchor runs
@@ -301,10 +318,13 @@ export class PlayerRoom {
     this.roomHub = hub;
     this.controller = this.controllerFor(hub, identity);
 
-    try {
-      this.set({ titles: await api.titles() });
-    } catch {
-      this.notice('The library could not be read.', 'error');
+    // A guest has the room's film and no library.
+    if (guest === null) {
+      try {
+        this.set({ titles: await api.titles() });
+      } catch {
+        this.notice('The library could not be read.', 'error');
+      }
     }
 
     let joined;
@@ -316,8 +336,18 @@ export class PlayerRoom {
     }
     if (this.disposed) return;
 
+    if (joined.you) this.set({ identity: { userId: joined.you.userId, displayName: joined.you.displayName } });
     if (joined.push) await this.entered(hub, joined.push);
+    else if (joined.refused) this.endGuest(joined.refused);
     else this.set({ entry: 'private' });
+  }
+
+  /** This guest is not watching: never let in, or sent away. Nothing more is applied to the element. */
+  private endGuest(reason: GuestRefusal): void {
+    this.controller?.setPlayerReady(false);
+    this.controller?.setLive(false);
+    this.video.pause();
+    this.set({ guestEnded: reason });
   }
 
   /** Everything that follows from being in the room, whether this viewer walked in or was let in. */
@@ -325,10 +355,13 @@ export class PlayerRoom {
     if (this.controller === null) return;
     this.set({ entry: 'in' });
     this.controller.applyPush(joined, true);
-    try {
-      this.set({ participants: await api.participants(this.view.sessionId) });
-    } catch {
-      /* The hub's next list carries them. */
+    // A guest is told who is in the room by the hub alone, which says so as they arrive.
+    if (!this.view.viewOnly) {
+      try {
+        this.set({ participants: await api.participants(this.view.sessionId) });
+      } catch {
+        /* The hub's next list carries them. */
+      }
     }
     void this.showPresence();
 
@@ -351,7 +384,7 @@ export class PlayerRoom {
   /** Asks the people in a room private to this viewer to let them in. */
   async askToJoin(): Promise<void> {
     const hub = this.roomHub;
-    if (hub === null) return;
+    if (hub === null || this.view.viewOnly) return;
     this.set({ entry: 'asking' });
     try {
       if (await hub.knock()) await this.comeIn();
@@ -363,11 +396,13 @@ export class PlayerRoom {
 
   /** Opens the room to anybody who may watch, or closes it to anybody not already let in. */
   setOpen(open: boolean): void {
+    if (this.view.viewOnly) return;
     void this.roomHub?.setOpen(open).catch(() => this.notice('The room could not be changed.', 'error'));
   }
 
   /** Lets somebody asking into the room, or tells them they are not let in. */
   answerKnock(userId: string, admit: boolean): void {
+    if (this.view.viewOnly) return;
     void this.roomHub?.answer(userId, admit).catch(() => this.notice('The answer did not reach the room.', 'error'));
   }
 
@@ -449,7 +484,7 @@ export class PlayerRoom {
       onPlaybackBlocked: () => this.set({ gate: true }),
       onInitialSeekChanged: (seeking) => this.set({ catchingUp: seeking }),
       holdsFilm: () => this.stream.holdsFilm
-    });
+    }, this.view.viewOnly);
   }
 
   dispose(): void {
@@ -462,7 +497,7 @@ export class PlayerRoom {
     if (this.styleSave !== null) {
       clearTimeout(this.styleSave);
       this.styleSave = null;
-      void api.setPreferences(this.view.preferences).catch(() => {});
+      void this.savePreferences(this.view.preferences).catch(() => {});
     }
     document.removeEventListener('visibilitychange', this.onVisible);
     this.controller?.dispose();
@@ -670,6 +705,7 @@ export class PlayerRoom {
 
   /** Puts a film on, for everybody in the room. */
   pickTitle(titleId: string): void {
+    if (this.view.viewOnly) return;
     void this.hub?.loadTitle(titleId);
   }
 
@@ -678,15 +714,15 @@ export class PlayerRoom {
    * The server decides what that is and how it gets there; a refusal is said over the film.
    */
   nextEpisode(): void {
-    this.ask(this.roomHub?.next());
+    if (!this.view.viewOnly) this.ask(this.roomHub?.next());
   }
 
   previousEpisode(): void {
-    this.ask(this.roomHub?.previous());
+    if (!this.view.viewOnly) this.ask(this.roomHub?.previous());
   }
 
   playEpisode(season: number, number: number): void {
-    this.ask(this.roomHub?.playEpisode(season, number));
+    if (!this.view.viewOnly) this.ask(this.roomHub?.playEpisode(season, number));
   }
 
   private ask(asked: Promise<void> | undefined): void {
@@ -704,13 +740,14 @@ export class PlayerRoom {
    * element and tells the room, so driving the element is what drives the film.
    */
   togglePlay(): void {
-    if (!this.stream.holdsFilm || this.view.catchingUp) return;
+    if (!this.stream.holdsFilm || this.view.catchingUp || this.view.viewOnly) return;
     if (this.video.paused) void this.video.play().catch(() => {});
     else this.video.pause();
   }
 
   /** A seek is intent: the playhead moves when the room answers. */
   seek(seconds: number): void {
+    if (this.view.viewOnly) return;
     void this.hub?.seek(Math.max(0, seconds));
   }
 
@@ -721,6 +758,7 @@ export class PlayerRoom {
    * actually asked to move, so the page can say so.
    */
   seekBy(seconds: number): number {
+    if (this.view.viewOnly) return 0;
     const duration = this.view.manifest?.durationSeconds ?? 0;
     const from = this.stream.holdsFilm ? this.video.currentTime : this.roomPosition();
     const to = Math.min(duration, Math.max(0, from + seconds));
@@ -745,7 +783,14 @@ export class PlayerRoom {
     this.stream.selectQuality(height);
     const preferences = { ...this.view.preferences, qualityHeight: height };
     this.set({ quality: height, preferences });
-    void api.setPreferences(preferences).catch(() => this.notice('Your quality choice could not be saved.', 'error'));
+    void this.savePreferences(preferences).catch(() => this.notice('Your quality choice could not be saved.', 'error'));
+  }
+
+  /** Keeps how this viewer watches: with the API for a person, in this browser for a guest. */
+  private async savePreferences(preferences: ViewerPreferences): Promise<void> {
+    const guest = environment().guest;
+    if (guest !== null) guest.keepPreferences(preferences);
+    else await api.setPreferences(preferences);
   }
 
   /**
@@ -758,7 +803,7 @@ export class PlayerRoom {
     if (this.styleSave !== null) clearTimeout(this.styleSave);
     this.styleSave = setTimeout(() => {
       this.styleSave = null;
-      void api.setPreferences(this.view.preferences).catch(() => this.notice('Your subtitle style could not be saved.', 'error'));
+      void this.savePreferences(this.view.preferences).catch(() => this.notice('Your subtitle style could not be saved.', 'error'));
     }, 600);
   }
 

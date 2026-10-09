@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using TheKrystalShip.MovieBot.Api.People;
+using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Auth;
@@ -84,12 +85,18 @@ public static class CinemaSchemes
     /// <summary>A media ticket, which opens one film's bytes.</summary>
     public const string MediaTicket = "MediaTicket";
 
+    /// <summary>A room's guest link, which lets its holder watch that room and nothing else.</summary>
+    public const string Guest = "Guest";
+
     /// <summary>The header the service key is carried in.</summary>
     public const string ServiceHeader = "X-MovieBot-Service";
 }
 
-/// <summary>What a route needs: any one of its actions, or the service key, or a ticket for the film.</summary>
-public sealed record ActionRequirement(IReadOnlyList<string> AnyOf, bool Service = false, bool Ticket = false)
+/// <summary>
+/// What a route needs: any one of its actions, or the service key, or a ticket for the film, or a
+/// room's guest link.
+/// </summary>
+public sealed record ActionRequirement(IReadOnlyList<string> AnyOf, bool Service = false, bool Ticket = false, bool Guest = false)
     : IAuthorizationRequirement;
 
 /// <summary>
@@ -108,6 +115,7 @@ internal sealed class ActionRequirementHandler(IOptionsMonitor<OidcOptions> oidc
             {
                 CinemaSchemes.Service => requirement.Service,
                 CinemaSchemes.MediaTicket => requirement.Ticket,
+                CinemaSchemes.Guest => requirement.Guest,
                 CinemaSchemes.Bearer => requirement.AnyOf.Any(action => identity.HasClaim(claim, action)),
                 _ => false,
             };
@@ -175,6 +183,74 @@ internal sealed class MediaTicketHandler(
 }
 
 /// <summary>
+/// A room's guest link, carried where a person's access token would be: <c>Bearer guest.&lt;code&gt;</c>,
+/// or on the hub's query string as SignalR carries a token. It is checked against the room on every
+/// request, so a link taken away stops opening anything at once.
+/// </summary>
+internal sealed class GuestHandler(
+    IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder,
+    GuestCodes codes, SessionStore sessions)
+    : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        if (GuestCredential.Of(Request) is not { } code)
+            return Task.FromResult(AuthenticateResult.NoResult());
+
+        if (codes.PassIdOf(code) is not { } passId || sessions.RoomOfGuests(passId) is not { } room)
+            return Task.FromResult(AuthenticateResult.Fail("The guest link has ended."));
+
+        var identity = new ClaimsIdentity([new Claim(GuestViewer.PassClaim, passId), new Claim(GuestViewer.RoomClaim, room)], Scheme.Name);
+        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name)));
+    }
+}
+
+/// <summary>Where a guest's link is carried on a request.</summary>
+internal static class GuestCredential
+{
+    /// <summary>The code a request carries as a guest, or null when it carries none.</summary>
+    public static string? Of(HttpRequest request)
+    {
+        var offered = request.Headers.Authorization.ToString() is { } header
+                      && header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? header["Bearer ".Length..].Trim()
+            : request.Path.StartsWithSegments("/hub") && request.Query.TryGetValue("access_token", out var token)
+                ? token.ToString()
+                : null;
+        return offered is not null && offered.StartsWith(GuestCodes.CredentialPrefix, StringComparison.Ordinal)
+            ? offered[GuestCodes.CredentialPrefix.Length..]
+            : null;
+    }
+}
+
+/// <summary>A request made on a room's guest link: which link, and the room it opens.</summary>
+public sealed record GuestViewer(string PassId, string SessionId)
+{
+    internal const string PassClaim = "guest-pass";
+    internal const string RoomClaim = "room";
+
+    /// <summary>The guest a request or a connection is, or null when it is anybody else.</summary>
+    public static GuestViewer? Of(ClaimsPrincipal? user) =>
+        user?.Identities.FirstOrDefault(i => i.IsAuthenticated && i.AuthenticationType == CinemaSchemes.Guest) is { } identity
+        && identity.FindFirst(PassClaim)?.Value is { } pass && identity.FindFirst(RoomClaim)?.Value is { } room
+            ? new GuestViewer(pass, room)
+            : null;
+}
+
+/// <summary>What of a room a guest may reach on a route that admits one.</summary>
+public enum GuestReach
+{
+    /// <summary>The route names no room of its own: the hub, which decides for itself.</summary>
+    Hub,
+
+    /// <summary>The route's <c>{sessionId}</c> is the guest's room.</summary>
+    Room,
+
+    /// <summary>The route's <c>{id}</c> is the title the guest's room holds.</summary>
+    RoomTitle,
+}
+
+/// <summary>
 /// Answers a refused request with the reason as the API's one error shape: a 401 with
 /// <c>WWW-Authenticate: Bearer</c> for no usable token, a 403 for a person who may not do this.
 /// </summary>
@@ -212,7 +288,7 @@ internal sealed class RefusalWriter : IAuthorizationMiddlewareResultHandler
 }
 
 /// <summary>What a route asks of its caller, kept on the endpoint so it can be listed and checked.</summary>
-public sealed record RequiredAccess(IReadOnlyList<string> AnyOf, bool Service, bool Ticket);
+public sealed record RequiredAccess(IReadOnlyList<string> AnyOf, bool Service, bool Ticket, GuestReach? Guest = null);
 
 public static class CinemaAccess
 {
@@ -235,19 +311,60 @@ public static class CinemaAccess
     public static TBuilder RequireMediaAccess<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder => Require(builder, new ActionRequirement([CinemaActions.Watch], Ticket: true));
 
+    /// <summary>
+    /// As <see cref="RequireAction{TBuilder}"/>, and also a guest, reaching only what
+    /// <paramref name="reach"/> says of the room their link opens.
+    /// </summary>
+    public static TBuilder RequireActionOrGuest<TBuilder>(this TBuilder builder, GuestReach reach, params string[] anyOf)
+        where TBuilder : IEndpointConventionBuilder =>
+        Require(builder, new ActionRequirement(Declared(anyOf), Guest: true), reach);
+
+    /// <summary>As <see cref="RequireActionOrService{TBuilder}"/>, and also a guest, as <see cref="RequireActionOrGuest{TBuilder}"/>.</summary>
+    public static TBuilder RequireActionServiceOrGuest<TBuilder>(this TBuilder builder, GuestReach reach, params string[] anyOf)
+        where TBuilder : IEndpointConventionBuilder =>
+        Require(builder, new ActionRequirement(Declared(anyOf), Service: true, Guest: true), reach);
+
     /// <summary>What every route that names no requirement answers: nobody is admitted.</summary>
     internal static AuthorizationPolicy Nobody { get; } = Policy(new ActionRequirement([]));
 
-    private static TBuilder Require<TBuilder>(TBuilder builder, ActionRequirement requirement)
-        where TBuilder : IEndpointConventionBuilder =>
+    private static TBuilder Require<TBuilder>(TBuilder builder, ActionRequirement requirement, GuestReach? reach = null)
+        where TBuilder : IEndpointConventionBuilder
+    {
         builder.RequireAuthorization(Policy(requirement))
-            .WithMetadata(new RequiredAccess(requirement.AnyOf, requirement.Service, requirement.Ticket));
+            .WithMetadata(new RequiredAccess(requirement.AnyOf, requirement.Service, requirement.Ticket, reach));
+        if (reach is GuestReach.Room or GuestReach.RoomTitle) builder.AddEndpointFilter(GuestBound(reach.Value));
+        return builder;
+    }
+
+    /// <summary>
+    /// Holds a guest to the room their link opens: its own route, or the title it holds this moment.
+    /// Anybody else passes, having been admitted on their own terms.
+    /// </summary>
+    private static Func<EndpointFilterInvocationContext, EndpointFilterDelegate, ValueTask<object?>> GuestBound(GuestReach reach) =>
+        async (context, next) =>
+        {
+            var http = context.HttpContext;
+            if (CinemaPerson.Of(http) is null && GuestViewer.Of(http.User) is { } guest)
+            {
+                var within = reach == GuestReach.Room
+                    ? http.GetRouteValue("sessionId") as string == guest.SessionId
+                    : http.GetRouteValue("id") is string id
+                      && http.RequestServices.GetRequiredService<SessionStore>().Get(guest.SessionId)?.TitleId == id;
+                if (!within) return GuestOutOfReach;
+            }
+            return await next(context);
+        };
+
+    private static readonly IResult GuestOutOfReach = Results.Json(
+        new ErrorReply("A guest link opens its own room and nothing else."),
+        ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status403Forbidden);
 
     private static AuthorizationPolicy Policy(ActionRequirement requirement)
     {
         var schemes = new List<string> { CinemaSchemes.Bearer };
         if (requirement.Service) schemes.Add(CinemaSchemes.Service);
         if (requirement.Ticket) schemes.Add(CinemaSchemes.MediaTicket);
+        if (requirement.Guest) schemes.Add(CinemaSchemes.Guest);
         return new AuthorizationPolicyBuilder([.. schemes]).AddRequirements(requirement).Build();
     }
 
@@ -278,7 +395,9 @@ public static class CinemaAuthenticationExtensions
         services.AddAuthentication(CinemaSchemes.Bearer)
             .AddJwtBearer(CinemaSchemes.Bearer, _ => { })
             .AddScheme<AuthenticationSchemeOptions, ServiceKeyHandler>(CinemaSchemes.Service, null)
-            .AddScheme<AuthenticationSchemeOptions, MediaTicketHandler>(CinemaSchemes.MediaTicket, null);
+            .AddScheme<AuthenticationSchemeOptions, MediaTicketHandler>(CinemaSchemes.MediaTicket, null)
+            .AddScheme<AuthenticationSchemeOptions, GuestHandler>(CinemaSchemes.Guest, null);
+        services.AddSingleton<GuestCodes>();
 
         // Read when the options are first asked for, after every configuration source is in.
         services.AddOptions<JwtBearerOptions>(CinemaSchemes.Bearer)
@@ -315,6 +434,12 @@ public static class CinemaAuthenticationExtensions
             // the way the protocol expects, for the hub alone.
             OnMessageReceived = context =>
             {
+                // A guest's link is the guest scheme's, and is no token for this one to fail on.
+                if (GuestCredential.Of(context.Request) is not null)
+                {
+                    context.NoResult();
+                    return Task.CompletedTask;
+                }
                 if (context.Request.Path.StartsWithSegments("/hub")
                     && context.Request.Query.TryGetValue("access_token", out var token))
                     context.Token = token.ToString();

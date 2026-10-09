@@ -112,7 +112,8 @@ Each route names the action it needs, and a route that names none admits nobody.
 the answer is `401` with `WWW-Authenticate: Bearer`; with one that lacks the action, `403`. Both carry
 `{error}`. The actions are `cinema:watch` (the library, rooms, the hub, tickets and media, subtitles,
 the people a room can invite, what the film database says of a title, a person or a genre),
-`cinema:offline` (saving a film onto a device, below), `cinema:download` and `cinema:wish` (below), and the self
+`cinema:offline` (saving a film onto a device, below), `cinema:download` and `cinema:wish` (below),
+`cinema:guests` (handing out a room's guest link, below), and the self
 actions `cinema:profile.read` and `cinema:profile.write`, which every approved account holds, for a
 person's own records under `/api/me`, `/api/lists` and push. `/.well-known/tks-actions.json` serves the
 same declarations the checks name.
@@ -135,6 +136,15 @@ reached a `502`, and a host without the Discord or provider secrets a `503`. Ope
 
 The API records the issuer in `Oidc.IssuerRecord` the first time it starts and refuses to start against
 another until `Oidc.AdoptIssuer` names it.
+
+A **guest link** lets somebody with no account watch one room. Its code is carried where a token would
+be, as `Authorization: Bearer guest.<code>` or, on the hub, `access_token=guest.<code>`, and is checked
+against the room on every request, so a link taken away or run out opens nothing from that moment. It
+is evaluated only by the routes that name it: the hub, `GET /api/titles/{id}` and
+`GET /api/titles/{id}/ticket`, the last two for the title the guest's room holds this moment and a
+`403` for any other. Every other route answers a guest link as it answers no token, `401`. On the hub a
+guest calls `JoinAsGuest`, `ReportQuality` and `ServerTime` and nothing else: every other method throws
+a `HubException` (Who may come in, below). A guest's film bytes are opened by the ticket, as anybody's.
 
 ### Opening a film's bytes
 
@@ -535,6 +545,9 @@ names. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 | `DELETE /api/me/push?endpoint=` | 204, or 404 for a browser that is not this person's |
 | `GET /api/people` | `PersonView[]` — everybody the server has a name for but the person asking, `{userId, name, lastSeenAt?}`, most recently seen first |
 | `POST /api/rooms/{room}/invite` | `InviteReply` for `{userId}` — lets them into the room and tells them: `{delivery}`, `push` when a push service took it for at least one of their devices and `bell` when it waits in their bell alone. 404 for somebody unknown, 403 for a room private to the person inviting |
+| `POST /api/rooms/{room}/guests` | `GuestLink` = `{path, expiresAt}` — the room's guest link, `path` being the site's `/g/<code>`: the one the room has while it is good, or a new one lasting `Rooms.GuestPassLifetime`, so everybody in the room who asks is handed the same. `cinema:guests`, and 403 for a room private to the person asking |
+| `DELETE /api/rooms/{room}/guests` | 204 — takes the link away; every guest who came in on it is sent `GuestAccessEnded("ended")` and disconnected. `cinema:guests` |
+| `GET /api/guest/{code}` | `GuestInvitation` = `{sessionId, name?, expiresAt}` — the room a guest link opens and the film it holds, for the page the link lands on; a code this server did not sign, or a link no longer good, is a 404. Open |
 
 - **Kinds.** `available`: a film somebody waits on can be downloaded. `ready`: a download they started
   can be watched, or could not be made watchable. `episode`: a new episode of a show they follow is
@@ -741,6 +754,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | Method | Signature | Notes |
 |---|---|---|
 | `Join` | `(sessionId) → JoinReply` | call first; everything else but `Knock` throws until you are in. The viewer is the connection's token: its `sub` and `name`. `{admitted: true, push, door}` puts them in the room, and a room there is none of is made, private, with them let in; `{admitted: false}` is a room private to them, and says nothing else about it (Who may come in, below) |
+| `JoinAsGuest` | `(name: string?) → JoinReply` | a guest link's `Join`: the link names the room. `{admitted: true, push, you}` puts the guest in, `you` the `Participant` the room has them as (`guest: true`, an id of the connection's, `name` cleaned of control and formatting characters and held to 32, "Guest" when empty); calling it again on the same connection keeps them who they were. `{admitted: false, refused}` says why not: `ended` (the link is no longer the room's), `unattended` (nobody with an account is in the room, nor has been within `Rooms.GuestGrace`) or `full` (`Rooms.GuestsPerRoom`). A connection that is no guest is refused |
 | `Knock` | `(sessionId) → bool` | asks to be let into a room private to this viewer. `true` is no need to ask, so `Join` now; otherwise the room is told who is asking and this connection is answered with `KnockAnswered`. The asking ends with the connection |
 | `SetOpen` | `(open: bool)` | opens the room to anybody holding `cinema:watch`, or closes it to anybody not already let in |
 | `Answer` | `(userId, admit: bool)` | lets somebody asking in, or tells them they are not |
@@ -761,10 +775,11 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 |---|---|
 | `StateChanged` | `SessionStatePush` — sent to everyone including the caller |
 | `SeekClamped` | `{requestedSeconds, grantedSeconds, headSeconds}` — sent to the caller only; `headSeconds` is the best rung's head held back to the audio, which is at least `transcodeHead` |
-| `ParticipantsChanged` | `Participant[]` = `{userId, displayName, buffering}[]` — sent when somebody joins, leaves, or starts or stops waiting for the film |
+| `ParticipantsChanged` | `Participant[]` = `{userId, displayName, buffering, guest}[]` — sent when somebody joins, leaves, or starts or stops waiting for the film; `guest` marks somebody on the room's guest link |
 | `TitleChanged` | `Manifest` — the manifest of the title this room holds changed: head, preview sheet, subtitles, status. Sent to every room holding the title, within a couple of seconds of the write |
-| `DoorChanged` | `RoomDoor` = `{open, knocking: [{userId, displayName}]}` — sent to the room when it is opened or closed and when somebody starts or stops asking; `knocking` holds each person once, in the order they asked |
+| `DoorChanged` | `RoomDoor` = `{open, knocking: [{userId, displayName}], guests?: {expiresAt}}` — sent to the people with an account in the room, never to a guest, when it is opened or closed, when somebody starts or stops asking, and when its guest link is given, taken away or runs out; `knocking` holds each person once, in the order they asked, and `guests` is there while the room has a link, never the link itself |
 | `KnockAnswered` | `bool` — sent to a connection that asked to be let in: `true` when somebody let them in or opened the room, `false` when somebody said no |
+| `GuestAccessEnded` | `string` — sent to a guest as they are sent away, and their connection is closed after it: `ended` (the link was taken away or ran out) or `unattended` (nobody with an account has been in the room for `Rooms.GuestGrace`) |
 
 ### Who may come in
 
@@ -776,6 +791,20 @@ let in is kept with the room across a restart. What a room private to a person t
 is private and nothing more: `Join` answers `{admitted: false}`, every room route a `403` with
 `{"error": "This room is private."}`, Watch now naming the room the same `403`, and the listing leaves
 it out. The service key is let into every room.
+
+A **guest** comes in on the room's guest link and never through its door: the link admits no account,
+lets nobody in for good, and is the door's neither to open nor to close. Somebody in the room holding
+`cinema:guests` gets the link (`POST /api/rooms/{room}/guests`) and anybody holding it may take it away;
+the room keeps one link, journalled with the room, until it is taken away, runs out
+(`Rooms.GuestPassLifetime`), or the room is forgotten. A guest watches and nothing more. They hear
+`StateChanged`, `TitleChanged` and `ParticipantsChanged`, never the door; nothing their player does
+holds the room or is recorded as anybody watching; and every hub method but `JoinAsGuest`,
+`ReportQuality` and `ServerTime` refuses them twice over, once by the hub's filter and once by the
+method itself, which needs a person's token or the actor `Join` records for one. Guests stay only while
+somebody with an account is in the room: once nobody has been for `Rooms.GuestGrace`, each is sent
+`GuestAccessEnded("unattended")` and disconnected, and a guest arriving then is refused. A good guest
+link's page, `/g/<code>`, unfurls with its room's film whether or not the room is open, as a room's page
+does for an open one.
 
 ```jsonc
 // SessionStatePush

@@ -33,6 +33,8 @@ film onto a device is `Offline/CLAUDE.md`.
   by the provider's `sub`, and another provider's `sub` would be somebody else.
 - **The service key is machine work that names nobody.** The hand-off and the bot's background
   passes present it; a route that acts for a person never takes it.
+- **A room's guest link names nobody either** (`Sessions/CLAUDE.md`, Guests). It is a scheme of its
+  own, authenticated only by the routes that name it and checked against the room on every request.
 - **A film's bytes are opened by a media ticket.** The access token says who somebody is, which a
   segment has no use for; the ticket names one title and an hour, is signed with
   `Auth:MediaTicketKey`, is the same string for every viewer of that film, and so makes their

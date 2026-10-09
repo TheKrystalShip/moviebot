@@ -15,6 +15,9 @@ const CheckIntervalMs = 2000;
 /** A seek still running after this never took. Later seeks stop waiting for it rather than queue
  *  behind it forever. */
 const AbandonedSeekMs = 5000;
+/** A view-only player puts itself back where the room is at most this often, so it never fights a
+ *  hand on the element's own controls press for press. */
+const FollowGapMs = 1000;
 
 export interface SyncIntents {
   play(atSeconds: number): void;
@@ -60,12 +63,20 @@ export class SyncController {
   private startAfterSeek = false;
   private seekStartedMs = 0;
   private timer: number | null = null;
+  private followTimer: number | null = null;
+  private lastFollowMs = 0;
 
+  /**
+   * `viewOnly` is a guest's player: it speaks for nobody. A play or a pause it did not apply itself —
+   * the browser's own controls, a headset's button, the system's media keys — is put back to what the
+   * room is doing rather than published.
+   */
   constructor(
     private readonly video: HTMLVideoElement,
     private readonly clock: ServerClock,
     private readonly intents: SyncIntents,
-    private readonly hooks: SyncHooks
+    private readonly hooks: SyncHooks,
+    private readonly viewOnly = false
   ) {
     // Applying remote state moves the playhead, which raises exactly the events below. An event
     // is an echo when it tells the room what the room just told this client, and is dropped:
@@ -80,6 +91,10 @@ export class SyncController {
     this.video.addEventListener('play', () => {
       if (!this.hooks.holdsFilm()) return;
       if (this.assumedPaused === false) return;
+      if (this.viewOnly) {
+        this.follow();
+        return;
+      }
       this.assumedPaused = false;
       this.intents.play(this.video.currentTime);
     });
@@ -95,6 +110,10 @@ export class SyncController {
       // it stops the room every time one person's playhead moves.
       if (this.video.seeking) return;
 
+      if (this.viewOnly) {
+        this.follow();
+        return;
+      }
       this.assumedPaused = true;
       this.intents.pause(this.video.currentTime);
     });
@@ -211,6 +230,22 @@ export class SyncController {
   dispose(): void {
     if (this.timer !== null) window.clearInterval(this.timer);
     this.timer = null;
+    if (this.followTimer !== null) window.clearTimeout(this.followTimer);
+    this.followTimer = null;
+  }
+
+  /**
+   * Puts a view-only player back to what the room is doing, once the element has finished raising the
+   * event that moved it: at once, or as soon as the gap since the last time allows.
+   */
+  private follow(): void {
+    if (this.followTimer !== null) return;
+    const wait = Math.max(0, this.lastFollowMs + FollowGapMs - performance.now());
+    this.followTimer = window.setTimeout(() => {
+      this.followTimer = null;
+      this.lastFollowMs = performance.now();
+      if (this.live && this.playerReady && this.latest !== null) this.applyToPlayer(this.latest);
+    }, wait);
   }
 
   private applyToPlayer(state: SessionState): void {
@@ -250,8 +285,9 @@ export class SyncController {
     void this.video.play().catch((error: unknown) => {
       // The element is back to paused and is about to say so. That pause is this play failing,
       // not a person stopping the film, so the room is not told about it: setting the assumption
-      // back is what the pause handler reads to know the difference.
-      this.assumedPaused = true;
+      // back is what the pause handler reads to know the difference. A view-only player tells the
+      // room nothing either way, and keeps assuming what the room said.
+      if (!this.viewOnly) this.assumedPaused = true;
 
       // Only the browser wanting a gesture is worth asking somebody for one. A play this class
       // interrupted itself is not, and asking leaves them pressing a button that restarts the

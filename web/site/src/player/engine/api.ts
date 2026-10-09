@@ -1,6 +1,6 @@
 import { environment } from './environment';
 import type {
-  Manifest, Participant, Person, RoomAround, ShowSeasons, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary,
+  GuestLink, Manifest, Participant, Person, RoomAround, ShowSeasons, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary,
   ViewerPreferences
 } from './types';
 
@@ -73,6 +73,14 @@ export const api = {
   /** Asks one person into a room: a push to their devices, and their notifications on the site either way. */
   invite: (sessionId: string, userId: string) =>
     sendJson<{ delivery: 'push' | 'bell' }>(`/api/rooms/${encodeURIComponent(sessionId)}/invite`, 'POST', { userId }),
+
+  /** The room's guest link: the one it has, or a new one. Everybody in the room is handed the same. */
+  guestLink: (sessionId: string) =>
+    sendJson<GuestLink>(`/api/rooms/${encodeURIComponent(sessionId)}/guests`, 'POST'),
+
+  /** Takes the room's guest link away, which sends away every guest who came in on it. */
+  endGuests: (sessionId: string) =>
+    sendJson<void>(`/api/rooms/${encodeURIComponent(sessionId)}/guests`, 'DELETE'),
 
   /** How the signed-in person watches, wherever they signed in. */
   preferences: () => getJson<ViewerPreferences>('/api/me/preferences'),
