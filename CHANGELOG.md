@@ -25,7 +25,8 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Krystal Cinema's chat dock speaks to the plugin.** Replies stream, a question the assistant asks is
   a form of choices answered as the next message (the taste survey), the microphone transcribes through
   the plugin, and a title a reply names is a card with its poster, year and whether it is in the library
-  or watched, leading to its page. The dock is krystal-ui 0.20.1's chat. Site 0.52.0.
+  or watched, leading to its page. The dock is krystal-ui's chat, whose client sends a recording to
+  `/speech/transcribe`. Site 0.52.0.
 
 ### Removed
 
@@ -34,11 +35,14 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the harness's or the site's now. Settings `Llm`, `LlmAgent`, `Assistant:OfferMinutes`,
   `Assistant:LibraryInContext` and `Assistant:IdleResetMinutes` are gone, with the tests and evals that
   measured the old assistant.
+- **`moviebot-llm`**, the language model on hotbox's card for room turns, with `deploy/vulkan` that built it
+  and `moviebot-llm.service`. `moviebot-assistant` keeps no state directory.
 
 ### Changed
 
 - **`Assistant:HarnessAddress` and `Assistant:PluginKey`** say where the harness is and the key the plugin
   presents there; the key is set only in the environment.
+  The unit reads `/etc/moviebot/assistant.env` beside `moviebot.env`.
 
 ## [2.36.0] - 2026-10-09
 

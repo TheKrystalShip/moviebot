@@ -1,11 +1,9 @@
 # Deploying MovieBot
 
 Four units run on **hotbox**, under `heisen`, out of `/opt/moviebot`: `moviebot-api`,
-`moviebot-bot`, `moviebot-handoff` and `moviebot-assistant`, this repository's .NET services. The
-assistant's model is hotrod's shared model server (`Llm` in `hotbox.settings.json`, its key in the
-environment file). `moviebot-llm`, which holds a language model on hotbox's own card for room
-turns, is installed and stopped, because the bot relays none (`Assistant.Enabled` off); it starts
-again with that switch. All of it is built on hotrod, which is the machine holding the checkouts, the .NET SDK, `clang`
+`moviebot-bot`, `moviebot-handoff` and `moviebot-assistant`, this repository's .NET services.
+`moviebot-assistant` is a plugin to the organization's assistant harness on hotrod, which runs the
+model and holds the conversations; it presents the key issued for `moviebot` there. All of it is built on hotrod, which is the machine holding the checkouts, the .NET SDK, `clang`
 and node; hotbox carries the .NET runtime and nothing else of the toolchain. So a deploy of the
 services is a publish here, an rsync there, and a restart:
 
@@ -42,10 +40,10 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
   holds only what hotbox changes) overrides them key by key. That second file is `heisen`'s XDG
   configuration file, so writing it takes no privilege, and a service picks a change up on its next
   restart. Each service logs `Settings:` with both paths when it starts.
-- **The model is a native build of its own, made on hotrod for hotbox's CPU.**
-  `vulkan/build.sh` builds llama.cpp against Vulkan with every CPU feature hotbox lacks switched
-  off, and `vulkan/install.sh` puts it under `/opt/moviebot`; its README is the authority for why a
-  prebuilt runtime cannot be used there.
+- **The assistant reaches its harness with a key of its own.** `Assistant__HarnessAddress` and
+  `Assistant__PluginKey` are in `/etc/moviebot/assistant.env` (root-owned, group `heisen`, 0640), which
+  the unit reads beside `moviebot.env`. The harness's firewall admits hotbox alone, and the plugin
+  registers its profile again whenever the harness restarts.
 - **Listening needs three system libraries on hotbox**: `opus`, `libsodium`, and `libdave`, which is
   Discord's end-to-end voice encryption and is packaged in tks-assistant. Without libdave the bot runs
   and every voice connection is refused.
@@ -111,16 +109,14 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
   the film categories; without the show ones no show is offered. Any other configuration that is not a credential belongs in
   `deploy/hotbox.settings.json`, where it is in the repository and reviewable; the tracker's
   identity is kept out of the repository the same way the passkey is. A unit's own `Environment=`
-  lines are for the process, not for MovieBot: `PATH` and the driver's shader cache.
+  lines are for the process, not for MovieBot: `PATH`.
 - **The state directories are what no re-ingest can rebuild.** systemd hands the API
   `/var/lib/moviebot` — the rooms, the wish list, the subtitles fetched from outside, each of
   which cost one of a limited daily allowance, and `push-keys.json`, the key pair every browser's push
   subscription is bound to, which cannot be made again without every device subscribing again —
   the bot `/var/lib/moviebot-bot`, holding the launch
-  cards still standing, and the assistant `/var/lib/moviebot-assistant`,
-  holding in `assistant.db` the conversations, what people asked it to remember, and its own
-  notification key pair with the browsers registered against it, and beside that the warm-up request
-  `moviebot-llm` replays when it is running and starts.
+  cards still standing. The assistant keeps no state of its own: the conversations and what people
+  asked it to remember are the harness's.
 - **The cold disk is named in the settings file and proved by a marker file.** `Media.ColdRoot` and
   `Handoff.ColdRoot` point at the volume finished films are kept on, and it is used only while a
   `.moviebot-cold` file sits at its root. That file is made once per host, as the owning user, on the

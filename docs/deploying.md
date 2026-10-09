@@ -14,13 +14,13 @@ With everything under [Before you start](#before-you-start) ready, it takes abou
 | `moviebot-api` | Serves the player, your films, and the live connection that keeps everyone in a room at the same moment of the film |
 | `moviebot-bot` | The Discord bot: the `/watch`, `/show`, `/notify` and `/voice` commands |
 | `moviebot-handoff` | Watches for finished downloads and prepares them for playback on your GPU |
-| `moviebot-assistant` | Optional. Answers what people say or type to MovieBot, using a language model you run yourself |
+| `moviebot-assistant` | Optional. A plugin that helps people find films, to an assistant harness you run |
 | `moviebot-ingest` | A command for adding films you already have |
 
 The services run under their own user account, `moviebot`, and are managed by systemd.
-`moviebot-assistant` needs a [llama.cpp](https://github.com/ggml-org/llama.cpp) server at the
-address in the `Llm` section of the settings file. This release does not include one; without it,
-leave the assistant stopped and `Assistant.Enabled` off.
+`moviebot-assistant` needs the assistant harness it is a plugin to, at `Assistant__HarnessAddress`
+with the key the harness issued for `moviebot` in `Assistant__PluginKey` (both in the environment
+file). This release does not include a harness; without one, leave the assistant stopped.
 
 ## Before you start
 
@@ -260,7 +260,7 @@ Check that all three are running:
 systemctl status moviebot-api moviebot-bot moviebot-handoff --no-pager
 ```
 
-Each should say `active (running)`. If you run a language model for the assistant, start it too
+Each should say `active (running)`. If you run an assistant harness, start the plugin too
 with `sudo systemctl enable --now moviebot-assistant`.
 
 Then check the API from outside, in a browser or with curl:
@@ -370,5 +370,5 @@ journalctl -u moviebot-handoff -n 50 --no-pager
 | `/srv/moviebot/media` | Your film library |
 | `/srv/moviebot/downloads` | Downloads, which keep seeding for a week and are then removed; a film that has moved to the cold disk leaves your library after a week without a play and is fetched again when somebody asks for it, and one on a host with no cold disk never leaves |
 | `/srv/moviebot/incoming` | Films you add yourself, before `moviebot-ingest` prepares them |
-| `/var/lib/moviebot`, `/var/lib/moviebot-bot`, `/var/lib/moviebot-assistant` | Open rooms, fetched subtitles, the wish list and the television app (`tv.apk`); the bot's saved state; the assistant's conversations, what people asked it to remember, and the key its notifications are sent with, which cannot be made again without every browser subscribing again |
+| `/var/lib/moviebot`, `/var/lib/moviebot-bot` | Open rooms, fetched subtitles, the wish list and the television app (`tv.apk`); the bot's saved state |
 | `/etc/systemd/system/moviebot-*.service` | The service definitions |

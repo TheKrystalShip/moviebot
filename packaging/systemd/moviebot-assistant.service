@@ -11,9 +11,9 @@ WorkingDirectory=/opt/moviebot/assistant
 ExecStart=/opt/moviebot/assistant/moviebot-assistant
 
 # Settings come from ~moviebot/.config/moviebot/moviebot.settings.json; the secrets, and any
-# setting a host overrides without editing that file, from the environment file. It answers with the
-# llama.cpp server named by Llm.Endpoint, which this release does not include; without one it runs
-# and every request says the model could not be reached.
+# setting a host overrides without editing that file, from the environment file. The model and the
+# conversations are the assistant harness's: Assistant__HarnessAddress and Assistant__PluginKey name
+# it and the key it issued for this plugin, and without them the plugin cannot register.
 EnvironmentFile=/etc/moviebot/moviebot.env
 Environment=DOTNET_EnableDiagnostics=0
 
@@ -24,9 +24,6 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-# The conversations, what people asked to be remembered, and the notification key pair with the
-# browsers registered against it are kept in /var/lib/moviebot-assistant.
-StateDirectory=moviebot-assistant
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX

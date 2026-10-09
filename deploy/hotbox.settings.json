@@ -56,17 +56,9 @@
   },
 
   // The bot relays nothing said in a room to moviebot-assistant: the assistant answers Krystal
-  // Cinema's chat alone, and warms the model for a person's turns.
+  // Cinema's chat alone. The harness it is a plugin to is on hotrod; its address and the plugin's key
+  // are in /etc/moviebot/assistant.env.
   "Assistant": {
     "Enabled": false
-  },
-
-  // The organization's model server on hotrod, gemma4 12B, shared with the KGSM assistant. hotrod is
-  // named rather than numbered so a new DHCP lease does not move it. Its key, the one minted for
-  // this assistant, is Llm__LlamaCpp__ApiKey in /etc/moviebot/moviebot.env; the context window is
-  // read from the server.
-  "Llm": {
-    "Endpoint": "http://hotrod.home:8081",
-    "Model": "gemma4:12b"
   }
 }
