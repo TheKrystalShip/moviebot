@@ -70,7 +70,7 @@ connection's token rather than from anything the page sends.
   the door of a room private to them, which is drawn instead of the film with Ask to join; asking
   waits for an answer, and somebody saying no offers asking again. Once let in, the page enters
   the room exactly as one that walked in does.
-- **Only an open room has a link.** A private room's invite panel has the switch that opens it and
+- **Only an open room has a link.** A private room's invite panel has the button that opens it (Close room once it is open) and
   the people to invite, and no link anywhere in the player: a link to a private room would lead
   whoever is given it to a door. Inviting somebody lets them in. On a phone the open room's link goes
   to the phone's share sheet.

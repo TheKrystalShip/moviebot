@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, Toggle } from "@thekrystalship/krystal-ui";
+import { Icon } from "@thekrystalship/krystal-ui";
 import { PlayerRoom } from "./engine/room.ts";
 import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";
@@ -867,7 +867,7 @@ function InvitePanel({ view, room, everyone, compact }) {
       <div className="mp-invite-panel__door">
         <Icon name={open ? "lock-open" : "lock"} size={16} />
         <span className="mp-invite-panel__door-name">{open ? "Open room" : "Private room"}</span>
-        <Toggle on={open} label="Open room" onChange={(on) => room.setOpen(on)} />
+        <button type="button" className="mp-invite__send" onClick={() => room.setOpen(!open)}>{open ? "Close room" : "Open room"}</button>
       </div>
       {link && (
         <div className="mp-invite-panel__link">

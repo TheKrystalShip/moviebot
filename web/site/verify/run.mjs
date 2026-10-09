@@ -150,7 +150,7 @@ async function roomChecks(browser) {
 
   // Opened, the room hands out its link and anybody holding it walks in.
   await press(ada, '.mp-invite');
-  await ada.click('.mp-invite-panel .k-toggle');
+  await ada.click('.mp-invite-panel__door button');
   await ada.waitForSelector('.mp-invite-panel__url', { timeout: 5000 }).catch(() => null);
   check('an open room hands out its link', /\/r\//.test(await ada.textContent('.mp-invite-panel__url').catch(() => '')));
   await press(ada, '.mp-invite');
