@@ -201,6 +201,12 @@ internal static class CinemaWorld
             Resolved = new DiscoverResolved { Genres = ["Horror"], MinRating = 6.5, MinVotes = 200, Sort = "popular" },
             Titles = [HollowHouse, QuietRoom, AshRoad],
         });
+        world.Answer("/api/catalogue/discover?kind=film&genre=Horror&exclude=Crime&includeFamily=true&goodOnly=true", new DiscoverResult
+        {
+            Kind = "film",
+            Resolved = new DiscoverResolved { Genres = ["Horror"], Excluded = ["Crime"], MinRating = 6.5, MinVotes = 200, Sort = "popular" },
+            Titles = [HollowHouse],
+        });
         world.Answer("/api/catalogue/discover?kind=film&genre=Horror&genre=Mystery&goodOnly=false&sort=rating", new DiscoverResult
         {
             Resolved = new DiscoverResolved { Genres = ["Horror", "Mystery"], Sort = "rating" },

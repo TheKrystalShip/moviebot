@@ -42,6 +42,8 @@ public sealed class CinemaApi(HttpClient http)
         {
             var parameters = new List<(string, object?)> { ("kind", query.Kind) };
             parameters.AddRange(query.Genre.Select(g => ("genre", (object?)g)));
+            parameters.AddRange(query.Exclude.Select(g => ("exclude", (object?)g)));
+            if (query.IncludeFamily) parameters.Add(("includeFamily", "true"));
             parameters.Add(("from", query.From));
             parameters.Add(("to", query.To));
             parameters.AddRange(query.With.Select(w => ("with", (object?)w)));

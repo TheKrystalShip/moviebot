@@ -83,6 +83,7 @@ public sealed record ResolvedPerson(int PersonId, string Name, string? KnownFor)
 public sealed record DiscoverResolved
 {
     public List<string> Genres { get; init; } = [];
+    public List<string> Excluded { get; init; } = [];
     public List<ResolvedPerson> People { get; init; } = [];
     public List<string> Keywords { get; init; } = [];
     public string? Language { get; init; }
@@ -293,6 +294,8 @@ public sealed record DiscoverQuery
 {
     public string Kind { get; init; } = "film";
     public IReadOnlyList<string> Genre { get; init; } = [];
+    public IReadOnlyList<string> Exclude { get; init; } = [];
+    public bool IncludeFamily { get; init; }
     public int? From { get; init; }
     public int? To { get; init; }
     public IReadOnlyList<string> With { get; init; } = [];

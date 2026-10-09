@@ -363,6 +363,36 @@ public sealed class CatalogueSearchTests(SessionFixture fixture) : IClassFixture
     }
 
     [Fact]
+    public async Task A_genre_search_leaves_out_animation_and_family_unless_they_are_asked_for_and_says_so()
+    {
+        var (view, asked) = await Discover("?genre=horror&from=2000&to=2004");
+        Assert.Contains("without_genres=16|10751", asked.Single(a => a.StartsWith("/3/discover/movie")));
+        Assert.Equal(["Animation", "Family"], view!.Resolved.Excluded);
+
+        var (kept, askedKept) = await Discover("?genre=horror&includeFamily=true&from=2000&to=2006");
+        Assert.DoesNotContain("without_genres", askedKept.Single(a => a.StartsWith("/3/discover/movie")));
+        Assert.Empty(kept!.Resolved.Excluded);
+
+        var (cartoons, askedCartoons) = await Discover("?genre=horror&genre=animation&from=2000&to=2007");
+        Assert.DoesNotContain("without_genres", askedCartoons.Single(a => a.StartsWith("/3/discover/movie")));
+        Assert.Empty(cartoons!.Resolved.Excluded);
+
+        var (open, askedOpen) = await Discover("?from=2000&to=2008");
+        Assert.DoesNotContain("without_genres", askedOpen.Single(a => a.StartsWith("/3/discover/movie")));
+        Assert.Empty(open!.Resolved.Excluded);
+    }
+
+    [Fact]
+    public async Task Genres_named_to_leave_out_are_added_to_the_default_and_cannot_be_the_genre_asked_for()
+    {
+        var (view, asked) = await Discover("?genre=horror&exclude=crime&from=2000&to=2009");
+        Assert.Contains("without_genres=80|16|10751", asked.Single(a => a.StartsWith("/3/discover/movie")));
+        Assert.Equal(["Crime", "Animation", "Family"], view!.Resolved.Excluded);
+
+        Assert.Equal(HttpStatusCode.BadRequest, await StatusOf("/api/catalogue/discover?genre=horror&exclude=horror"));
+    }
+
+    [Fact]
     public async Task Good_only_off_asks_for_no_floor()
     {
         var (view, asked) = await Discover("?genre=horror&goodOnly=false&from=1990");
@@ -384,7 +414,7 @@ public sealed class CatalogueSearchTests(SessionFixture fixture) : IClassFixture
         Assert.Contains("vote_average.gte=7.0", floor);
         Assert.Contains("vote_count.gte=50", floor);
         var rating = rated.Single(a => a.StartsWith("/3/discover/movie"));
-        Assert.Contains("sort_by=vote_average.desc", rating);
+        Assert.Contains("sort_by=vote_count.desc", rating);
         Assert.Contains($"vote_count.gte={CatalogueSearch.RatedVotes}", rating);
     }
 

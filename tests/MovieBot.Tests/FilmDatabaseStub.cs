@@ -124,7 +124,7 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
                     { "id": 7, "media_type": "tv", "name": "A Talk Show", "genre_ids": [10767], "vote_count": 900, "character": "Self" } ] } }
                 """;
         if (path.EndsWith("/genre/movie/list"))
-            return "{ \"genres\": [ " + string.Join(", ", Genre(80, "Crime"), Genre(12, "Adventure"), Genre(27, "Horror")) + " ] }";
+            return "{ \"genres\": [ " + string.Join(", ", Genre(80, "Crime"), Genre(12, "Adventure"), Genre(27, "Horror"), Genre(16, "Animation"), Genre(10751, "Family")) + " ] }";
         if (path.EndsWith("/genre/tv/list"))
             return "{ \"genres\": [ " + string.Join(", ", Genre(10759, "Action & Adventure"), Genre(18, "Drama")) + " ] }";
 

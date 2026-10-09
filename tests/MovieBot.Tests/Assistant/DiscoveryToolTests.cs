@@ -26,6 +26,17 @@ public sealed class DiscoveryToolTests
     }
 
     [Fact]
+    public async Task Genres_to_leave_out_and_keeping_family_titles_are_passed_and_reported()
+    {
+        ToolOutcome result = await _rig.RunAsync(
+            _rig.Discover, new { genre = new[] { "horror" }, exclude = new[] { "crime" }, include_family = true });
+
+        Assert.False(result.IsError);
+        Assert.Equal(["GET /api/catalogue/discover?exclude=crime&genre=horror&goodonly=true&includefamily=true&kind=film"], _rig.World.Asked);
+        Assert.Contains("Matched: genres Horror; leaving out Crime; rated at least 6.5", result.Text);
+    }
+
+    [Fact]
     public async Task A_title_the_person_watched_is_marked_so_a_recommendation_can_leave_it_out()
     {
         ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { genre = new[] { "horror" }, from = 2000, to = 2005 });

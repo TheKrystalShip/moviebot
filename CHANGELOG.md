@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.39.0] - 2026-10-09
+
+### Changed
+
+- **A discovery sorted by rating leads with titles many people rated well.** The film database orders by
+  a plain average, which put a film rated 8.4 by 268 people, a children's cartoon and a TV special at the
+  top of "really good horror after 2000". The sort now reads the five pages of the most voted matches and
+  orders them by a rating weighted by votes. The API's answer and the assistant's `discover` carry the
+  same fields as before, and a rating-sorted list drawn from a title's similar ones is ordered the same way.
+- **A genre search leaves out animation and family titles it did not ask for.** `GET
+  /api/catalogue/discover` takes `exclude` (further genres to leave out) and `includeFamily` (keep them),
+  `resolved` gains `excluded`, and the assistant's `discover` tool passes `exclude` and `include_family`
+  and says what it left out.
+
 ## [2.38.1] - 2026-10-09
 
 ### Changed

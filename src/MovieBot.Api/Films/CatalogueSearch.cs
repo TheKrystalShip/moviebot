@@ -50,6 +50,13 @@ public sealed record DiscoverRequest
 {
     public string? Kind { get; init; }
     public IReadOnlyList<string> Genres { get; init; } = [];
+
+    /// <summary>Genres to leave out, besides the animation and family titles a genre search leaves out unless it asked for them.</summary>
+    public IReadOnlyList<string> Exclude { get; init; } = [];
+
+    /// <summary>Whether animation and family titles stay in a genre search that did not name them.</summary>
+    public bool IncludeFamily { get; init; }
+
     public int? From { get; init; }
     public int? To { get; init; }
     public IReadOnlyList<string> With { get; init; } = [];
@@ -100,6 +107,9 @@ public sealed partial class CatalogueSearch(
     /// <summary>The rating a title needs to count as well rated, and the votes that make the rating mean something.</summary>
     public const double GoodRating = 6.5;
     public const int GoodVotes = 200;
+
+    /// <summary>The genres a title for children is filed under, by the database's names for them.</summary>
+    private static readonly HashSet<string> ChildrensGenres = new(["Animation", "Family", "Kids"], StringComparer.OrdinalIgnoreCase);
 
     /// <summary>The votes a sort by rating needs behind a title, so one vote of ten is not the best film there is.</summary>
     public const int RatedVotes = 25;
@@ -248,6 +258,25 @@ public sealed partial class CatalogueSearch(
             }
         }
 
+        var excluded = new List<CatalogueGenre>();
+        if (request.Exclude.Any(g => !string.IsNullOrWhiteSpace(g)) || (request.Genres.Count > 0 && !request.IncludeFamily))
+        {
+            var all = await catalogue.GenresAsync(kind, ct);
+            if (all is null) return Unavailable<DiscoverAnswer>("The film database could not be asked about its genres.");
+            foreach (var name in request.Exclude.Where(g => !string.IsNullOrWhiteSpace(g)))
+            {
+                if (MatchGenre(all, name) is not { } genre)
+                    return NotFound<DiscoverAnswer>($"The film database has no {kind} genre called \"{name.Trim()}\"; its genres are {string.Join(", ", all.Select(g => g.Name))}.");
+                if (genres.Any(g => g.Id == genre.Id))
+                    return Invalid<DiscoverAnswer>($"{genre.Name} is both asked for and left out.");
+                if (excluded.All(g => g.Id != genre.Id)) excluded.Add(genre);
+            }
+
+            // A genre search is about its genre: children's titles are left out unless they were asked for.
+            if (!request.IncludeFamily && !genres.Any(g => ChildrensGenres.Contains(g.Name)))
+                excluded.AddRange(all.Where(g => ChildrensGenres.Contains(g.Name) && excluded.All(e => e.Id != g.Id)));
+        }
+
         var people = new List<PersonMatch>();
         foreach (var name in request.With.Where(w => !string.IsNullOrWhiteSpace(w)))
         {
@@ -286,6 +315,7 @@ public sealed partial class CatalogueSearch(
         {
             Kind = kind,
             GenreIds = [.. genres.Select(g => g.Id)],
+            WithoutGenreIds = [.. excluded.Select(g => g.Id)],
             From = request.From is { } from ? new DateOnly(from, 1, 1) : null,
             To = request.To is { } to ? new DateOnly(to, 12, 31) : sort == DiscoverSorts.Newest ? today : null,
             PersonIds = [.. people.Select(p => p.TmdbId)],
@@ -305,6 +335,7 @@ public sealed partial class CatalogueSearch(
         var resolved = new DiscoverResolved
         {
             Genres = [.. genres.Select(g => g.Name)],
+            Excluded = [.. excluded.Select(g => g.Name)],
             People = [.. people.Select(p => new ResolvedPerson(p.TmdbId, p.Name, p.KnownFor))],
             Keywords = [.. keywords.Select(k => k.Name)],
             Language = language?.Name,
@@ -514,6 +545,7 @@ public sealed partial class CatalogueSearch(
 
         var narrowed = (kept.Value ?? [])
             .Where(t => query.GenreIds.All(id => t.GenreIds.Contains(id)))
+            .Where(t => query.WithoutGenreIds.All(id => !t.GenreIds.Contains(id)))
             .Where(t => query.From is null || t.Released >= query.From)
             .Where(t => query.To is null || t.Released <= query.To)
             .Where(t => query.Language is null || string.Equals(t.OriginalLanguage, query.Language, StringComparison.OrdinalIgnoreCase))
@@ -524,7 +556,7 @@ public sealed partial class CatalogueSearch(
         IEnumerable<ListedTitle> ordered = sort switch
         {
             DiscoverSorts.Popular => narrowed.OrderByDescending(t => t.Popularity),
-            DiscoverSorts.Rating => narrowed.OrderByDescending(t => t.Rating ?? 0).ThenByDescending(t => t.Votes),
+            DiscoverSorts.Rating => WeightedRating.Order(narrowed),
             DiscoverSorts.Newest => narrowed.OrderBy(t => t.Released is null).ThenByDescending(t => t.Released),
             DiscoverSorts.Oldest => narrowed.OrderBy(t => t.Released is null).ThenBy(t => t.Released),
             _ => narrowed,
@@ -749,7 +781,7 @@ public sealed partial class CatalogueSearch(
 
     /// <summary>One question as one string, which is what its answer is kept under.</summary>
     private static string Canonical(DiscoverQuery q, int limit) => string.Join('|',
-        q.Kind, string.Join(',', q.GenreIds), q.From?.ToString("O"), q.To?.ToString("O"), string.Join(',', q.PersonIds),
+        q.Kind, string.Join(',', q.GenreIds), string.Join(',', q.WithoutGenreIds), q.From?.ToString("O"), q.To?.ToString("O"), string.Join(',', q.PersonIds),
         string.Join(',', q.KeywordIds), q.Language, q.MinRating?.ToString(CultureInfo.InvariantCulture),
         q.MinVotes?.ToString(CultureInfo.InvariantCulture), q.Sort, limit);
 

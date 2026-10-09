@@ -79,6 +79,19 @@
       }
     },
     {
+      "id": "discover-really-good-horror-after-2000",
+      "group": "discover",
+      "title": "A request for really good horror after 2000 leads with well-known horror, not children's titles or barely voted ones",
+      "turns": [ { "say": "Can you suggest really good horror movies from after 2000?" } ],
+      "expect": {
+        "calls": [ { "tool": "discover", "args": { "genre": "~horror" } } ],
+        "cards": [ "titles" ],
+        "match": [ "\\((200[1-9]|20[1-2][0-9])\\)" ],
+        "notMatch": [ "Succubus", "Chaneques", "Scooby" ],
+        "noQuestion": true
+      }
+    },
+    {
       "id": "whats-new",
       "group": "whats_new",
       "title": "What arrived recently",

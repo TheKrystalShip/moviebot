@@ -139,6 +139,10 @@ public sealed record PersonCreditsView
 public sealed record DiscoverResolved
 {
     public required List<string> Genres { get; init; }
+
+    /// <summary>The genres left out of the results, named or by default.</summary>
+    public List<string> Excluded { get; init; } = [];
+
     public required List<ResolvedPerson> People { get; init; }
     public required List<string> Keywords { get; init; }
     public string? Language { get; init; }

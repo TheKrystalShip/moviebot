@@ -9,6 +9,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
 [Description("""
     Find films or shows by what they are like rather than by name. Every filter is optional and they combine.
     - genre: one or more, such as horror or "science fiction".
+    - exclude: genres to leave out. A genre search already leaves out animation and family titles unless the person asked for them; include_family true keeps them.
     - from, to: release years.
     - with: people who are in it or made it.
     - about: keywords such as "black and white", "time loop", "heist", "based on a true story".
@@ -23,6 +24,8 @@ internal sealed partial class DiscoverTool(CinemaApi api) : AssistantTool<Discov
     public sealed record Args(
         [property: Description("Default film.")] TitleKind? Kind = null,
         [property: Description("Genres.")] IReadOnlyList<string>? Genre = null,
+        [property: Description("Genres to leave out.")] IReadOnlyList<string>? Exclude = null,
+        [property: Description("Keep animation and family titles. Default false.")] bool? IncludeFamily = null,
         [property: Description("Release years.")] int? From = null,
         [property: Description("Release years.")] int? To = null,
         [property: Description("People's names.")] IReadOnlyList<string>? With = null,
@@ -47,6 +50,8 @@ internal sealed partial class DiscoverTool(CinemaApi api) : AssistantTool<Discov
         {
             Kind = kind,
             Genre = args.Genre ?? [],
+            Exclude = args.Exclude ?? [],
+            IncludeFamily = args.IncludeFamily ?? false,
             From = args.From,
             To = args.To,
             With = with,
@@ -95,6 +100,7 @@ internal sealed partial class DiscoverTool(CinemaApi api) : AssistantTool<Discov
     {
         var parts = new List<string>();
         if (r.Genres.Count > 0) parts.Add("genres " + string.Join(", ", r.Genres));
+        if (r.Excluded.Count > 0) parts.Add("leaving out " + string.Join(", ", r.Excluded));
         if (r.People.Count > 0) parts.Add("people " + string.Join(", ", r.People.Select(p => p.Name)));
         if (r.Keywords.Count > 0) parts.Add("keywords " + string.Join(", ", r.Keywords));
         if (r.Language is { Length: > 0 } language) parts.Add("original language " + language);
