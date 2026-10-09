@@ -40,7 +40,7 @@ public sealed class ClueToolTests
         PluginToolResult none = await _rig.RunAsync(
             _rig.Clues, new { people = new[] { "Julian Rook" }, look = new[] { "black and white" }, released = "announced" });
         Assert.Contains(
-            "No candidate fits every clue. Closest: The Lantern Keeper (2019), which fits Julian Rook, black and white but not announced (it is released, 2019).\n",
+            "No candidate fits every clue. Closest: The Lantern Keeper (2019), which fits Julian Rook, black and white but not announced (it is released, 2019).",
             none.Text);
 
         PluginToolResult fit = await _rig.RunAsync(_rig.Clues, new { people = new[] { "Julian Rook" }, look = new[] { "black and white" } });
@@ -149,8 +149,30 @@ public sealed class ClueToolTests
     {
         PluginToolResult result = await _rig.RunAsync(_rig.Clues, new { look = new[] { "black and white" } });
 
-        Assert.EndsWith(
+        Assert.Contains(
             "A clue the database cannot hold, like a trailer, a scene or news, is for web_search. Confirm a candidate with title_details before naming it.",
             result.Text);
+    }
+
+    [Fact]
+    public async Task The_result_asks_for_an_answer_that_invites_the_kinds_of_clue_that_would_help()
+    {
+        PluginToolResult result = await _rig.RunAsync(_rig.Clues, new { people = new[] { "Julian Rook" }, look = new[] { "black and white" } });
+
+        Assert.EndsWith(
+            "End your answer with one sentence inviting more clues: \"If this is not what you had in mind, tell me more: other actors in it, a scene you remember, or whether it is recent (the last couple of years).\"",
+            result.Text);
+
+        PluginToolResult look = await _rig.RunAsync(_rig.Clues, new { about = new[] { "lighthouse" } });
+        Assert.Contains("tell me more: who is in it, a scene you remember, whether it is recent (the last couple of years), or how it looks.", look.Text);
+    }
+
+    [Fact]
+    public async Task The_closest_candidate_is_offered_as_the_answer_when_a_person_or_a_look_fits()
+    {
+        PluginToolResult result = await _rig.RunAsync(
+            _rig.Clues, new { people = new[] { "Julian Rook" }, look = new[] { "black and white" }, released = "announced" });
+
+        Assert.Contains("Offer it as the answer and say which clue it misses: what people remember is often a little off.", result.Text);
     }
 }

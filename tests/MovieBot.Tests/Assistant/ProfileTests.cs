@@ -270,15 +270,30 @@ public sealed partial class ProfileTests
     public void The_titles_claim_captures_each_title_a_reply_names_and_nothing_before_it()
     {
         ClaimPattern claim = Assert.Single(Load().Guards.Claims!);
-        var regex = new Regex(claim.Pattern, RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(250));
-
-        string reply = "Here are some picks for tonight:\n- The Others (2001) - a ghost story\n2. **28 Days Later** (2002)\nHeat (1995), 15 December, released\nShe was born in 1950 (aged 12)\nAnne Hathaway appeared in the following movies this year:";
-        string[] titles = [.. regex.Matches(reply).Select(m => m.Groups[claim.Group].Value.Trim())];
+        var regex = new Regex(
+            claim.Pattern, claim.CaseInsensitive ? RegexOptions.IgnoreCase : RegexOptions.None, TimeSpan.FromMilliseconds(250));
+        string[] Claimed(string reply) => [.. regex.Matches(reply).Select(m => m.Groups[claim.Group].Value.Trim())];
 
         Assert.Equal("titles", claim.Name);
+
+        // A list: one title a line, after a marker or a number.
+        Assert.Equal(["The Others", "Heat"], Claimed("Here are some picks:\n- The Others (2001) - a ghost story\nHeat (1995), 15 December, released"));
+
         // A leading number is taken for a list number, so a title that starts with one loses it; what is left is
         // still a part of the title and is found in the result the title came from.
-        Assert.Equal(["The Others", "Days Later", "Heat"], titles);
+        Assert.Equal(["Days Later"], Claimed("2. **28 Days Later** (2002)"));
+
+        // A sentence claims the title and not the words before it.
+        Assert.Equal(["The Lighthouse"], Claimed("You might be thinking of The Lighthouse (2019). It is a black and white film."));
+        // Bold hides the first word from the lookbehind; the rest of the title is still found in the result.
+        Assert.Equal(["Lighthouse"], Claimed("It sounds like you're thinking of **The Lighthouse (2019)**."));
+        Assert.Equal(["A Tale of Two Sisters"], Claimed("Is the film you're thinking of A Tale of Two Sisters (2003)?"));
+        Assert.Equal(["Mad Max: Fury Road"], Claimed("Yes, Mad Max: Fury Road (2015) is a good one."));
+        Assert.Equal(["Lee Cronin's The Mummy"], Claimed("Lee Cronin's The Mummy (2026) - a mystery"));
+
+        // Not a title: a year in brackets after a lowercase phrase, or a sentence with none.
+        Assert.Empty(Claimed("She was born in 1950 (aged 12)\nAnne Hathaway appeared in the following movies this year:"));
+        Assert.Empty(Claimed("it came out later (2019) than they said"));
     }
 
     [Fact]

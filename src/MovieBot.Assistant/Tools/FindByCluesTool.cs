@@ -160,7 +160,13 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
             Candidate? closest = ranked.FirstOrDefault(c => c.ImdbId is not null && c.Unchecked(clues) == 0);
             text.Append("No candidate fits every clue.");
             if (closest is not null)
+            {
                 text.Append($" Closest: {closest.Summary(clues)}");
+
+                // A person or a look that fits outweighs a year or a status, which people misremember most.
+                if (closest.Weight(weights, true) >= 3)
+                    text.Append(" Offer it as the answer and say which clue it misses: what people remember is often a little off.");
+            }
             text.Append('\n');
         }
         if (open.Length > 0)
@@ -169,6 +175,16 @@ internal sealed class FindByCluesTool(CinemaApi api, TimeProvider clock, ILogger
 
         foreach (Candidate c in ranked) text.Append(c.Write(clues)).Append('\n');
         text.Append("A clue the database cannot hold, like a trailer, a scene or news, is for web_search. Confirm a candidate with title_details before naming it.");
+
+        // The kinds of clue that would help most are the ones not given.
+        var more = new List<string>();
+        if (people.Count == 0) more.Add("who is in it");
+        else more.Add("other actors in it");
+        more.Add("a scene you remember");
+        more.Add("whether it is recent (the last couple of years)");
+        if (look.Count == 0) more.Add("how it looks");
+        text.Append("\nEnd your answer with one sentence inviting more clues: \"If this is not what you had in mind, tell me more: ")
+            .Append(string.Join(", ", more.Take(more.Count - 1))).Append(", or ").Append(more[^1]).Append(".\"");
 
         return PluginToolResult.Ok(text.ToString(), TitleCards.Of(
             ranked.Where(c => c.ImdbId is not null)
