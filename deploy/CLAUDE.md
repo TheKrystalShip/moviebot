@@ -3,9 +3,9 @@
 Four units run on **hotbox**, under `heisen`, out of `/opt/moviebot`: `moviebot-api`,
 `moviebot-bot`, `moviebot-handoff` and `moviebot-assistant`, this repository's .NET services. The
 assistant's model is hotrod's shared model server (`Llm` in `hotbox.settings.json`, its key in the
-environment file). `moviebot-speech` and `moviebot-llm`, which hold whisper and a language model on
-hotbox's own card for voice commands and room turns, are installed and stopped, because the bot
-relays neither (`Voice.Enabled` and `Assistant.Enabled` off); they start again with those switches. All of it is built on hotrod, which is the machine holding the checkouts, the .NET SDK, `clang`
+environment file). `moviebot-llm`, which holds a language model on hotbox's own card for room
+turns, is installed and stopped, because the bot relays none (`Assistant.Enabled` off); it starts
+again with that switch. All of it is built on hotrod, which is the machine holding the checkouts, the .NET SDK, `clang`
 and node; hotbox carries the .NET runtime and nothing else of the toolchain. So a deploy of the
 services is a publish here, an rsync there, and a restart:
 
@@ -42,11 +42,10 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
   holds only what hotbox changes) overrides them key by key. That second file is `heisen`'s XDG
   configuration file, so writing it takes no privilege, and a service picks a change up on its next
   restart. Each service logs `Settings:` with both paths when it starts.
-- **Speech and the model are native builds of their own, made on hotrod for hotbox's CPU.**
-  `vulkan/build.sh` builds whisper.cpp and llama.cpp against Vulkan with every CPU feature hotbox
-  lacks switched off, and `vulkan/install.sh` puts them under `/opt/moviebot`; its README is the
-  authority for why a prebuilt runtime cannot be used there. `moviebot-speech` is the .NET host over
-  that whisper build and publishes like the other services.
+- **The model is a native build of its own, made on hotrod for hotbox's CPU.**
+  `vulkan/build.sh` builds llama.cpp against Vulkan with every CPU feature hotbox lacks switched
+  off, and `vulkan/install.sh` puts it under `/opt/moviebot`; its README is the authority for why a
+  prebuilt runtime cannot be used there.
 - **Listening needs three system libraries on hotbox**: `opus`, `libsodium`, and `libdave`, which is
   Discord's end-to-end voice encryption and is packaged in tks-assistant. Without libdave the bot runs
   and every voice connection is refused.

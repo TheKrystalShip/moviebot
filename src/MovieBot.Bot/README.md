@@ -69,14 +69,14 @@ setting as the environment variable that overrides it; in the file, `Voice__Trig
 | `Launch__CardsPath` | no | Where the standing launch cards are written. Defaults to `launches.json` in the directory `STATE_DIRECTORY` names, and to the working directory when there is none. |
 | `Voice__Enabled` | no | Whether the bot may listen in a voice channel at all. Off by default, because everyone in a channel it joins is heard. On, it still joins only when somebody runs `/voice join`. |
 | `Voice__Triggers` | no | What addresses the bot, comma-separated. `moviebot.settings.json` carries `okay computer, ok computer, okay computers, ok computers`, because the recogniser writes "okay" both ways and sometimes adds an s. Two full words carry a trigger through a three-second scan window where a one-syllable "hey" does not: whisper reads "hey" as "A", "Pay" or "K" often enough that, across fourteen synthetic voices with room noise added, "okay computer" was found in every command and "hey moviebot" in ten of fourteen. Near-miss chat ("okay, come on", "my computer crashed, okay") does not trigger; naming the Radiohead album does. The recogniser is primed with the name "MovieBot" and never with a trigger: whisper answers noise with the sentence it was primed with, so a trigger in the priming makes a breath address the bot. |
-| `Voice__MaxCommandSeconds` | no | The longest a request may run before it is cut and taken as it stands. `moviebot.settings.json` carries 7, because moviebot-speech reads commands in an eight-second window and audio that fills it makes recognition run away. |
+| `Voice__MaxCommandSeconds` | no | The longest a request may run before it is cut and taken as it stands. `moviebot.settings.json` carries 7, because the speech daemon reads commands in an eight-second window and audio that fills it makes recognition run away. |
 | `Voice__CommandQuietMs` | no | How long somebody has to stop sounding after the trigger before a request that is not a room verb counts as finished. Defaults to 600. A room verb does not wait for it: "pause" is acted on as soon as two readings agree on it, while the room keeps talking. |
-| `Voice__ScanWindowMs`, `Voice__ScanStrideMs` | no | How much of each person's latest speech is looked through for the trigger, and how often: 3000 and 500 by default. The window must stay under moviebot-speech's four-second scan window. |
+| `Voice__ScanWindowMs`, `Voice__ScanStrideMs` | no | How much of each person's latest speech is looked through for the trigger, and how often: 3000 and 500 by default. The window must stay under the speech daemon's four-second scan window. |
 | `Voice__LogTranscripts` | no | Whether what was heard is written to the log: requests at information level, and everything scanned for the trigger at debug. Off by default: a voice channel is full of things nobody said to the bot. |
 | `Assistant__Enabled` | no | Whether a spoken request that is not a room verb is put to moviebot-assistant. Off by default; off, those requests are answered by nothing. |
 | `Assistant__BaseUrl` | no | Where moviebot-assistant answers. Defaults to `http://127.0.0.1:8191`. Each request carries the token the bot exchanged for the person who spoke. |
 | `Assistant__ConfirmWindowSeconds` | no | How long the bot listens for a spoken yes or no to a proposal without the trigger. Defaults to 20; 0 leaves the buttons as the only way to agree. |
-| `Speech__SocketPath` | no | Where moviebot-speech answers. Defaults to `/run/moviebot-speech/speech.sock`, the same key the speech host reads. |
+| `Speech__SocketPath` | no | The unix socket of the speech daemon the bot hears through. Blank by default, which means there is none and nothing is heard. |
 
 The two credentials are read under their own names. They sit above the settings files and
 underneath every other source, so `Discord:Token` and `Discord:ApplicationId` from user-secrets or
@@ -176,13 +176,13 @@ and the tracker is asked once a show is picked, for every season it offers under
 ## Listening in a voice channel
 
 `/voice join` brings the bot into the voice channel the person running it is in. From then on,
-"okay computer, pause" stops the film for the room. What is heard goes to moviebot-speech for words,
+"okay computer, pause" stops the film for the room. What is heard goes to the speech daemon for words,
 and the words go first to a gate that knows a handful of verbs, with no model involved.
 `../../docs/voice-commands.md` is a showcase of what can be said, with examples.
 
 - **The trigger is heard while people keep talking.** Nobody watching a film with friends goes
   quiet before addressing the bot, so each person's last three seconds are looked through for the
-  trigger every half second, on moviebot-speech's scan lane. Finding it plays the listening tone and
+  trigger every half second, on the speech daemon's scan lane. Finding it plays the listening tone and
   starts taking the request from the word before the trigger.
 - **A room verb is acted on as soon as it is said.** The request is read as it grows, and the moment
   two readings agree on something the gate calls a verb (`RoomVerbCompleteness`), the film moves —

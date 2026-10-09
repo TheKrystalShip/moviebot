@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.35.0] - 2026-10-09
+
+### Removed
+
+- **`moviebot-speech`**, MovieBot's own whisper daemon, with its project, unit, whisper.cpp build
+  and model. The organization has one speech path, tks-speech, and MovieBot's voice returns through
+  the assistant harness.
+
+### Changed
+
+- **The bot's speech source is configured, never assumed.** `Speech.SocketPath` is blank by default
+  and a blank path means no speech daemon: recognition and trigger scanning answer with an absence,
+  as they do on a host whose daemon is not running. Bot 2.3.0.
+
 ## [2.34.0] - 2026-10-09
 
 ### Changed

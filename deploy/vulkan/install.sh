@@ -18,7 +18,7 @@ STAGE="${STAGE:-$HERE/stage}"
 HOST="${1:-hotbox}"
 PREFIX="${PREFIX:-/opt/moviebot}"
 
-[[ -d "$STAGE/llm/bin" && -d "$STAGE/whisper/bin" ]] || {
+[[ -d "$STAGE/llm/bin" ]] || {
   echo "nothing staged — run ./build.sh first" >&2; exit 1; }
 
 echo "== installing to $HOST:$PREFIX"
@@ -35,12 +35,11 @@ echo "== installing to $HOST:$PREFIX"
 # Timestamps are not the way to check that this worked. -a implies -t, so a skipped file still has
 # the staging mtime written onto it in place: the metadata changes and the inode does not. The
 # property that matters is inode identity — compare stat against what /proc/<pid>/maps has open.
-for tree in llm whisper; do
-  ssh "$HOST" "mkdir -p '$PREFIX/$tree'"
-  rsync -a --checksum --delete --exclude 'models/***' \
-    "$STAGE/$tree/" "$HOST:$PREFIX/$tree/"
-  echo "  $tree: $(ssh "$HOST" "du -sh '$PREFIX/$tree' | cut -f1")"
-done
+tree=llm
+ssh "$HOST" "mkdir -p '$PREFIX/$tree'"
+rsync -a --checksum --delete --exclude 'models/***' \
+  "$STAGE/$tree/" "$HOST:$PREFIX/$tree/"
+echo "  $tree: $(ssh "$HOST" "du -sh '$PREFIX/$tree' | cut -f1")"
 
 # The fetch script travels with the trees so the far side can re-run it without this repo.
 rsync -a "$HERE/fetch-models.sh" "$HOST:$PREFIX/fetch-models.sh"
@@ -64,22 +63,21 @@ ssh "$HOST" "'$PREFIX/llm/bin/llama-server' --list-devices 2>&1 | tail -4"
 # learn to scroll past.
 echo
 echo "== services running on replaced files"
-for unit in moviebot-llm moviebot-speech; do
-  stale=$(ssh "$HOST" "
-    systemctl is-active --quiet $unit.service || exit 0
-    pid=\$(systemctl show -p MainPID --value $unit.service)
-    [ -n \"\$pid\" ] && [ \"\$pid\" != 0 ] || exit 0
-    if readlink /proc/\$pid/exe 2>/dev/null | grep -q '(deleted)' \
-       || grep -q '$PREFIX/.*(deleted)' /proc/\$pid/maps 2>/dev/null; then
-      echo stale
-    fi")
-  if [[ "$stale" == "stale" ]]; then
-    echo "  $unit is running code this deploy replaced — restart it:"
-    echo "      ssh $HOST sudo systemctl restart $unit.service"
-  else
-    echo "  $unit: current"
-  fi
-done
+unit=moviebot-llm
+stale=$(ssh "$HOST" "
+  systemctl is-active --quiet $unit.service || exit 0
+  pid=\$(systemctl show -p MainPID --value $unit.service)
+  [ -n \"\$pid\" ] && [ \"\$pid\" != 0 ] || exit 0
+  if readlink /proc/\$pid/exe 2>/dev/null | grep -q '(deleted)' \
+     || grep -q '$PREFIX/.*(deleted)' /proc/\$pid/maps 2>/dev/null; then
+    echo stale
+  fi")
+if [[ "$stale" == "stale" ]]; then
+  echo "  $unit is running code this deploy replaced — restart it:"
+  echo "      ssh $HOST sudo systemctl restart $unit.service"
+else
+  echo "  $unit: current"
+fi
 
 echo
 echo "next: install the unit files (needs root on $HOST)"

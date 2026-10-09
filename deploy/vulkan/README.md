@@ -1,11 +1,10 @@
-# The GPU services the voice surface runs on
+# The GPU service the assistant's model runs on
 
-Two pieces of inference stand behind a spoken command: whisper turns what somebody said into
-text, and gemma turns that text into a room command. Both run on hotbox's Quadro P2000 through
-Vulkan, and both are built here rather than installed from a repository.
+gemma turns text into a room command. It runs on hotbox's Quadro P2000 through Vulkan, and
+llama.cpp's server is built here rather than installed from a repository.
 
 ```
-./build.sh          # on hotrod: build both, assemble into stage/
+./build.sh          # on hotrod: build it, assemble into stage/
 ./install.sh        # rsync stage/ to hotbox:/opt/moviebot, fetch models there
 ```
 
@@ -15,8 +14,8 @@ need root, and is the one step that has to be asked for.
 
 ## Why these are built and not installed
 
-Arch ships both, and using the packages was the obvious first answer. Three things make a
-source build the cheaper one.
+Arch ships it, and using the package is the obvious answer. Three things make a source build the
+cheaper one.
 
 **hotbox cannot execute an AVX2 instruction.** Its Athlon X4 860K has AVX, FMA and F16C but
 neither AVX2 nor BMI2; hotrod's Ryzen has all of them. ggml's default is `GGML_NATIVE=ON`,
@@ -34,26 +33,18 @@ warning, forty times slower. Built from source the default is `OFF`: the Vulkan 
 `NEEDED` entry on the binary, so it either resolves at exec or the process does not start.
 It also means nothing has to be written under `/usr/lib`, so nothing here needs root.
 
-**The versions have to agree.** The distribution's whisper is built against one ggml release
+**The versions have to agree.** The distribution's llama.cpp is built against one ggml release
 and run against whatever is installed, which is an ABI coupling that holds until it doesn't.
-Each build here carries its own.
-
-whisper.cpp is pinned to the release Whisper.net binds against, because the speech daemon
-reaches whisper through P/Invoke rather than through `whisper-server`. The library ABI is the
-contract there, so a newer whisper is a worse match rather than a better one.
+The build here carries its own.
 
 ## The shape of an installed tree
 
 ```
-/opt/moviebot/llm/      bin/llama-server  bin/warm-llm.sh  warmup.json  lib/  models/
-/opt/moviebot/whisper/  bin/whisper-cli   bin/whisper-server           lib/  models/
+/opt/moviebot/llm/   bin/llama-server  bin/warm-llm.sh  warmup.json  lib/  models/
 ```
 
-Each tree is self-contained. Every binary carries an RPATH of `$ORIGIN/../lib`, so there is no
-`LD_LIBRARY_PATH` anywhere, no wrapper script, and a tree can be moved or run by hand.
-
-`whisper-cli` and `whisper-server` are there to verify the tree and to measure it. The speech
-daemon does not run either: it loads `lib/libwhisper.so` in its own process.
+The tree is self-contained. Every binary carries an RPATH of `$ORIGIN/../lib`, so there is no
+`LD_LIBRARY_PATH` anywhere, no wrapper script, and the tree can be moved or run by hand.
 
 ## Warming, and why a token request will not do
 
@@ -85,11 +76,5 @@ Quadro P2000, 5 GB, Vulkan, model resident at 1,397 MiB.
 
 | | |
 |---|---|
-| whisper, encode + decode, 1–3 s clips | 149–223 ms |
-| whisper encode alone, any clip length | ~108 ms |
 | tool call, warm | 242–276 ms |
 | model load to first token, from cold start | ~14 s |
-
-Whisper's encode is flat with utterance length because `-ac 200` caps the audio context at four
-seconds. Left at the default it pads every clip to thirty and the encode costs the same as a
-thirty-second one, which on this CPU is the difference between a fifth of a second and twenty.

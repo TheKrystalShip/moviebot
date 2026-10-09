@@ -286,16 +286,9 @@
     "MaxIterations": 6
   },
 
-  // Speech recognition for voice commands: the model the speech host loads, and the socket the bot
-  // reaches it on.
+  // Speech recognition for voice commands: the unix socket of the speech daemon the bot hears
+  // through. Empty means there is none, and nothing is heard.
   "Speech": {
-    "ModelPath": "/opt/moviebot/whisper/models/ggml-small.en.bin",
-    "SocketPath": "/run/moviebot-speech/speech.sock",
-    "UseGpu": true,
-    "NativeLibraryPath": "/opt/moviebot/whisper/lib/libwhisper.so",
-    "Accelerators": [
-      "vulkan"
-    ],
-    "AudioContextFrames": 400
+    "SocketPath": ""
   }
 }

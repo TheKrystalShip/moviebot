@@ -50,11 +50,11 @@ public sealed class MovieBotSpeechToText : ISpeechToText
 
     public async Task<string?> TranscribeAsync(VoiceUtterance utterance, CancellationToken ct = default)
     {
-        if (!IsAvailable) return null;
+        if (!IsAvailable || _speech.Client is not { } client) return null;
 
         var timer = Stopwatch.StartNew();
         (SpeechProtocol.Outcome outcome, string text) =
-            await _speech.Client.TranscribeAsync(utterance.Audio, Priming, ifIdle: false, ct);
+            await client.TranscribeAsync(utterance.Audio, Priming, ifIdle: false, ct);
         timer.Stop();
 
         if (outcome != SpeechProtocol.Outcome.Done) return null;
@@ -80,11 +80,11 @@ public sealed class MovieBotSpeechToText : ISpeechToText
 
     public async Task<VoiceScan> ScanAsync(VoiceUtterance window, CancellationToken ct = default)
     {
-        if (!IsAvailable) return VoiceScan.Failed;
+        if (!IsAvailable || _speech.Client is not { } client) return VoiceScan.Failed;
 
         // Unprimed, and so not echo-checked: a scan looks for the trigger in everything everybody says,
         // and a recogniser told the bot's name hears it in breath and hiss.
-        (SpeechProtocol.Outcome outcome, SpeechScan scan) = await _speech.Client.ScanAsync(window.Audio, ct);
+        (SpeechProtocol.Outcome outcome, SpeechScan scan) = await client.ScanAsync(window.Audio, ct);
 
         return outcome switch
         {

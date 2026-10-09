@@ -107,8 +107,8 @@ builder.Services.AddSingleton(new DiscordSocketClient(new DiscordSocketConfig
 
 // Listening. Off unless the host switches it on, because everyone in a channel the bot joins is
 // heard; and even on, the bot joins only when somebody runs /voice join. What the pipeline hears
-// goes to moviebot-speech for words, and the words go to the room-verb gate — there is no model
-// in this process.
+// goes to the configured speech source for words, and the words go to the room-verb gate — there
+// is no model in this process, and with no source configured nothing is heard.
 builder.Services.AddOptions<DiscordVoiceOptions>()
     .Bind(builder.Configuration.GetSection("Voice"));
 builder.Services.AddOptions<SpeechSocketOptions>()

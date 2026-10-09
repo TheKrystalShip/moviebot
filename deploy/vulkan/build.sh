@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #
-# Builds the two GPU services MovieBot's voice surface runs on — llama.cpp's server and
-# whisper.cpp's library — and assembles each into a self-contained tree that installs to
-# /opt/moviebot on hotbox.
+# Builds the GPU service MovieBot's assistant model runs on — llama.cpp's server — and
+# assembles it into a self-contained tree that installs to /opt/moviebot on hotbox.
 #
 # This runs on hotrod. hotbox carries no compiler, and the two machines are the same Arch
 # release with the same glibc and libstdc++, so a binary built here runs there.
@@ -17,11 +16,6 @@ STAGE="${STAGE:-$HERE/stage}"
 JOBS="${JOBS:-$(( $(nproc) / 2 ))}"
 
 # Pinned, because "whatever master was that day" is not a thing anyone can rebuild.
-#
-# whisper.cpp is pinned to the release Whisper.net 1.9.1 binds against. The speech daemon
-# reaches whisper through Whisper.net's P/Invoke rather than through whisper-server, so the
-# library ABI is the contract and a newer whisper is a worse match, not a better one.
-WHISPER_REF="v1.9.1"
 LLAMA_REF="97e4ca7"
 
 # hotbox is an Athlon X4 860K: AVX, FMA and F16C, and NO AVX2. hotrod's Ryzen has AVX2, so a
@@ -54,7 +48,7 @@ COMMON=(
 log() { printf '\n== %s\n' "$*"; }
 
 if [[ "${1:-}" == "--clean" ]]; then
-  rm -rf "$STAGE" "$SRC_ROOT/whisper.cpp/build-vulkan" "$SRC_ROOT/llama.cpp/build-vulkan"
+  rm -rf "$STAGE" "$SRC_ROOT/llama.cpp/build-vulkan"
 fi
 
 need() { command -v "$1" >/dev/null || { echo "missing build dependency: $1" >&2; exit 1; }; }
@@ -78,20 +72,6 @@ checkout() {  # repo url, directory, ref
     || git -C "$dir" fetch --tags origin
   git -C "$dir" checkout --quiet "$ref"
 }
-
-# --- whisper -----------------------------------------------------------------
-log "whisper.cpp $WHISPER_REF"
-checkout https://github.com/ggml-org/whisper.cpp.git "$SRC_ROOT/whisper.cpp" "$WHISPER_REF"
-
-# WHISPER_COMMON_FFMPEG stays off. Arch turns it on, which puts libavformat and about a
-# hundred transitive libraries into the NEEDED chain. The daemon hands whisper 16 kHz mono
-# s16le, which is its native input, so there is nothing for ffmpeg to decode.
-cmake -S "$SRC_ROOT/whisper.cpp" -B "$SRC_ROOT/whisper.cpp/build-vulkan" \
-  "${COMMON[@]}" \
-  -DWHISPER_BUILD_TESTS=OFF \
-  -DWHISPER_BUILD_EXAMPLES=ON \
-  -DWHISPER_COMMON_FFMPEG=OFF
-cmake --build "$SRC_ROOT/whisper.cpp/build-vulkan" -j "$JOBS"
 
 # --- llama -------------------------------------------------------------------
 log "llama.cpp $LLAMA_REF"
@@ -140,23 +120,6 @@ assemble() {  # name, build dir
 }
 
 log "assembling into $STAGE"
-assemble whisper "$SRC_ROOT/whisper.cpp/build-vulkan" whisper-cli whisper-server
-
-# Whisper.net finds a native by composing <base>/runtimes/<runtime>/<rid>/lib<name>.so, where <base>
-# is the DIRECTORY of the path it was configured with — it takes that path as a file and reads its
-# parent. So the layout it wants sits beside lib/libwhisper.so, and the speech host names that file.
-#
-# Only libwhisper.so has to be found: the loader checks for its own dependency names first
-# (libggml-base-whisper.so and friends), does not find them, and skips them — and then dlopen of
-# libwhisper.so pulls in the ggml libraries beside it through its own RPATH. The alternative, a
-# prebuilt runtime, loads on this machine and then dies with SIGILL on the first CPU kernel it
-# reaches, because every one of them is compiled for AVX2.
-WHISPER_NET_DIR="$STAGE/whisper/lib/runtimes/vulkan/linux-x64"
-mkdir -p "$WHISPER_NET_DIR"
-cp -a "$STAGE"/whisper/lib/*.so* "$WHISPER_NET_DIR/"
-echo "source: whisper.cpp $WHISPER_REF ($(git -C "$SRC_ROOT/whisper.cpp" rev-parse --short HEAD))" \
-  >> "$STAGE/whisper/BUILD-INFO"
-
 assemble llm "$SRC_ROOT/llama.cpp/build-vulkan" llama-server
 cp -a "$HERE/warm-llm.sh" "$STAGE/llm/bin/warm-llm.sh"
 # The body the warm-up sends. MovieBot.Assistant replaces this with its real prompt

@@ -50,8 +50,7 @@
     "BaseUrl": "http://127.0.0.1:8081"
   },
 
-  // Voice commands are off, so moviebot-speech stays stopped; the code that hears them is kept, and
-  // turning Enabled back on is all it takes along with starting that unit.
+  // Voice commands are off, and no speech source is configured; the code that hears them is kept.
   "Voice": {
     "Enabled": false
   },
