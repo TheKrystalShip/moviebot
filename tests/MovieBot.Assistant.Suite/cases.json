@@ -1,0 +1,126 @@
+// Behavioural cases for the MovieBot assistant plugin, written as data. Each case is one conversation
+// with a person who may watch (cinema:watch), run against the live harness through the plugin's POST
+// /turn. A runner reads the file, plays each turn's `say` (or `answers`, to a question the previous turn
+// asked) and checks the frames the turn produced.
+//
+//   id, group, title    naming the case and what it exercises
+//   turns[]             {say} or {answers: [{header?, question?, labels, text?}]}, each with an optional `expect`
+//   expect              what must hold; on the case it spans the conversation (calls over every turn, text of the last)
+//     calls             [{tool, args?, min?}]  tools that must be called; args is a subset, "~..." is a regular expression
+//     notCalled         tools that must not be called
+//     asks / noQuestion the turn must end on a question frame / must not
+//     cards             kinds of card the tool results must carry
+//     match / notMatch  regular expressions the reply must / must not match (case-insensitive)
+//     maxCalls          at most this many tool calls
+{
+  "cases": [
+    {
+      "id": "search-by-title",
+      "group": "search_titles",
+      "title": "A title named outright is searched for",
+      "turns": [ { "say": "Do you have the film Inception?" } ],
+      "expect": {
+        "calls": [ { "tool": "search_titles", "args": { "query": "~inception" } } ],
+        "cards": [ "titles" ],
+        "match": [ "Inception", "2010" ],
+        "noQuestion": true
+      }
+    },
+    {
+      "id": "filmography-exact-years",
+      "group": "person_credits",
+      "title": "A filmography is listed with the database's years",
+      "turns": [ { "say": "List Anne Hathaway's films from the 2010s with their years." } ],
+      "expect": {
+        "calls": [ { "tool": "person_credits", "args": { "person": "~hathaway" } } ],
+        "cards": [ "titles" ],
+        "match": [ "Interstellar", "2014", "Les Mis" ],
+        "notMatch": [ "\\((19[0-9]{2}|200[0-9])\\)" ],
+        "noQuestion": true
+      }
+    },
+    {
+      "id": "clues-black-and-white",
+      "group": "find_by_clues",
+      "title": "A half-remembered film is found from soft clues, and more clues are invited",
+      "turns": [
+        { "say": "There's a black and white movie with Robert Pattinson that I can't remember the name of." }
+      ],
+      "expect": {
+        "calls": [ { "tool": "find_by_clues" } ],
+        "match": [ "The Lighthouse", "2019", "(let me know|tell me|any other|any more|anything else|more (detail|clue))" ],
+        "noQuestion": true
+      }
+    },
+    {
+      "id": "clues-follow-up",
+      "group": "find_by_clues",
+      "title": "A second clue narrows the same film",
+      "turns": [
+        { "say": "There's a black and white movie with Robert Pattinson that I can't remember the name of." },
+        { "say": "It was set on an island and Willem Dafoe was in it too." }
+      ],
+      "expect": {
+        "calls": [ { "tool": "find_by_clues", "min": 1 } ],
+        "match": [ "The Lighthouse", "2019" ],
+        "noQuestion": true
+      }
+    },
+    {
+      "id": "discover-early-2000s-horror",
+      "group": "discover",
+      "title": "A request by genre and era is answered from discover",
+      "turns": [ { "say": "Can you suggest an early-2000s horror film?" } ],
+      "expect": {
+        "calls": [ { "tool": "discover" } ],
+        "cards": [ "titles" ],
+        "match": [ "\\(200[0-5]\\)" ],
+        "noQuestion": true
+      }
+    },
+    {
+      "id": "whats-new",
+      "group": "whats_new",
+      "title": "What arrived recently",
+      "turns": [ { "say": "What's new?" } ],
+      "expect": {
+        "calls": [ { "tool": "whats_new" } ],
+        "noQuestion": true
+      }
+    },
+    {
+      "id": "taste-survey-asks",
+      "group": "ask_question",
+      "title": "A request to learn the person's taste is asked as a question frame",
+      "turns": [ { "say": "Ask me a few questions about what I like so you can recommend something for tonight." } ],
+      "expect": {
+        "asks": true
+      }
+    },
+    {
+      "id": "nonexistent-film",
+      "group": "search_titles",
+      "title": "A film that does not exist is reported as not found, without an invented title",
+      "turns": [ { "say": "Do you have a film called The Zorblax Conspiracy of Venn?" } ],
+      "expect": {
+        "calls": [ { "tool": "search_titles" } ],
+        "match": [ "(could not|couldn't|can't|cannot|did not|didn't|no ).{0,40}(find|match|result|see)|not find|isn't|is not" ],
+        "notMatch": [ "Zorblax Conspiracy of Venn \\(\\d{4}\\)" ],
+        "noQuestion": true
+      }
+    },
+    {
+      "id": "character-to-actress-to-film",
+      "group": "person_credits",
+      "title": "A character is traced to the actress and then to the film",
+      "turns": [
+        { "say": "The actress that played Amy Pond in Doctor Who also plays in a horror movie with a mirror. Can you tell me the name of said movie?" }
+      ],
+      "expect": {
+        "calls": [ { "tool": "person_credits", "args": { "person": "~gillan" } } ],
+        "match": [ "Oculus" ],
+        "noQuestion": true
+      }
+    }
+  ]
+}

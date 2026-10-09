@@ -1,0 +1,399 @@
+{
+  "id": "moviebot",
+  "version": "3.0.0",
+  "promptAppendix": "On Krystal Cinema a group of friends watch films and shows together. You help them find films and shows: one they half remember, one by someone they like, one that fits what they are in the mood for.\n\nFinding\n- Facts about a film or show (cast, crew, dates, runtime, genre, rating, plot) come from title_details, person_credits, search_titles or discover. Never state one from your own memory: it is out of date and gets casts wrong.\n- Use web_search for what the film database cannot answer: a scene or trailer someone describes, a recent announcement, news. Then confirm what you found with title_details before naming it.\n- When a person half remembers a film, load find-a-forgotten-film. For \"what should I watch\" or \"good films like\", load recommend. When you know little of someone's taste and they want suggestions, load taste-survey.\n- Every recommendation starts from what you know of the person: their taste note (recall taste) and my_taste. Say how each suggestion fits it. For an actor's or director's work, load filmography.\n- \"This year\", \"recently\" and \"upcoming\" are relative to today's date in the reminder.\n\nAnswering\n- Name each title with its year. List several titles one per line, with a short reason or detail each.\n- Every title you name gets a card, which the tools attach. The person opens it to watch, get or follow it; you do not do those things.\n- When you cannot tell which film they mean, give the two or three best candidates and ask the one question that decides.\n- When you name a film someone half remembered, say which of their clues it does not fit, if any, and invite more clues: other actors, a scene, how recent it is.",
+  "tools": [
+    {
+      "name": "search_titles",
+      "description": "Find films and shows by name, or by words from a name.\n- Returns up to 10 matches, best first, each with year, kind (film or show), director or creator, two lead actors, and whether the library has it.\n- year narrows to titles released that year, or one either side.\n- Use when the person gives a name, part of one, or a title in another language.\n- Not for finding by actor, genre or era: use person_credits or discover.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The name or words from it."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "film",
+              "show"
+            ],
+            "description": "Limit to films or shows."
+          },
+          "year": {
+            "type": "integer",
+            "description": "Roughly when it came out."
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "class": "read",
+      "parallel": true,
+      "replay": true,
+      "resultLimit": 8000,
+      "deferred": false
+    },
+    {
+      "name": "title_details",
+      "description": "Everything the film database knows about one film or show.\n- Year and release date, runtime, genres, rating and vote count, plot, director and writers, main cast with their parts, original language, whether it is tagged black and white, keywords, and for a show its seasons.\n- Whether the library has it, and whether the person has watched it.\n- Use to confirm a candidate against what the person remembers before naming it.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The title with its year, or an id a tool returned."
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "class": "read",
+      "parallel": true,
+      "replay": true,
+      "resultLimit": 8000,
+      "deferred": false
+    },
+    {
+      "name": "person_credits",
+      "description": "An actor's or film-maker's work, in date order, oldest first.\n- Each credit has its release date, kind, the part played or the job, and whether it is released, upcoming or only announced.\n- from and to are years; give both as the same year for one year.\n- role: acting, directing, writing, or any (default).\n- Several people with the name: returns them, each with what they are known for; ask, or pick the one the question makes obvious.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "person": {
+            "type": "string",
+            "description": "The person's name."
+          },
+          "from": {
+            "type": "integer",
+            "description": "First year to include."
+          },
+          "to": {
+            "type": "integer",
+            "description": "Last year to include."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "acting",
+              "directing",
+              "writing",
+              "any"
+            ],
+            "description": "Which credits. Default any."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "film",
+              "show"
+            ],
+            "description": "Limit to films or shows."
+          }
+        },
+        "required": [
+          "person"
+        ]
+      },
+      "class": "read",
+      "parallel": true,
+      "replay": true,
+      "resultLimit": 16000,
+      "deferred": false
+    },
+    {
+      "name": "discover",
+      "description": "Find films or shows by what they are like rather than by name. Every filter is optional and they combine.\n- genre: one or more, such as horror or \"science fiction\".\n- from, to: release years.\n- with: people who are in it or made it.\n- about: keywords such as \"black and white\", \"time loop\", \"heist\", \"based on a true story\".\n- language: original language.\n- good_only: well rated with enough votes to mean it. Default true.\n- sort: popular (default), rating, newest, oldest.\n- Returns up to 20, each with year, genres, rating, a one-line plot and whether the library has it.\n- like: a title; returns films the database counts as similar, and the other filters narrow them.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "film",
+              "show"
+            ],
+            "description": "Default film."
+          },
+          "genre": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Genres."
+          },
+          "from": {
+            "type": "integer",
+            "description": "Release years."
+          },
+          "to": {
+            "type": "integer",
+            "description": "Release years."
+          },
+          "with": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "People's names."
+          },
+          "about": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keywords."
+          },
+          "language": {
+            "type": "string",
+            "description": "Original language, such as Korean."
+          },
+          "like": {
+            "type": "string",
+            "description": "A title to find similar ones to."
+          },
+          "good_only": {
+            "type": "boolean",
+            "description": "Default true."
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "popular",
+              "rating",
+              "newest",
+              "oldest"
+            ],
+            "description": "Default popular."
+          }
+        }
+      },
+      "class": "read",
+      "parallel": true,
+      "replay": true,
+      "resultLimit": 12000,
+      "deferred": false
+    },
+    {
+      "name": "find_by_clues",
+      "description": "Find a film or show someone half remembers from the clues they give, and rank what fits.\n- Give every clue you can pull out of what they said; at least one. The tool does the searching and the matching.\n- people: names of actors or film-makers. from, to: release years. released: released, upcoming, announced or any.\n- look: how it looks or what kind it is, such as \"black and white\", \"animated\". about: plot words, such as \"lighthouse\", \"time loop\".\n- Returns up to 8 candidates, best fit first, each with the clues it matches and the ones it does not.\n- Use for a film someone half remembers, then confirm the best with title_details.\n- web_search is for clues the database cannot hold, like a trailer or news.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Names of people in it or who made it."
+          },
+          "from": {
+            "type": "integer",
+            "description": "First release year."
+          },
+          "to": {
+            "type": "integer",
+            "description": "Last release year."
+          },
+          "released": {
+            "type": "string",
+            "enum": [
+              "released",
+              "upcoming",
+              "announced",
+              "any"
+            ],
+            "description": "Whether it is out yet. Default any."
+          },
+          "look": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "How it looks or what kind it is."
+          },
+          "about": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Words from the plot."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "film",
+              "show"
+            ],
+            "description": "Default film."
+          },
+          "language": {
+            "type": "string",
+            "description": "Original language, such as Korean."
+          }
+        }
+      },
+      "class": "read",
+      "parallel": true,
+      "replay": true,
+      "resultLimit": 12000,
+      "deferred": false
+    },
+    {
+      "name": "whats_new",
+      "description": "What is current: trending this week, out recently, or coming soon.\n- trending: the most watched films and shows this week.\n- released: films out in the last few weeks.\n- upcoming: films with a release date in the coming months.\n- Also the newest additions to the library.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "which": {
+            "type": "string",
+            "enum": [
+              "trending",
+              "released",
+              "upcoming",
+              "library"
+            ],
+            "description": "What to list."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "film",
+              "show"
+            ],
+            "description": "Default both."
+          }
+        },
+        "required": [
+          "which"
+        ]
+      },
+      "class": "read",
+      "parallel": true,
+      "replay": true,
+      "resultLimit": 14000,
+      "deferred": false
+    },
+    {
+      "name": "my_taste",
+      "description": "What the asking person has watched, rated and saved: their history, their lists and the shows they follow, newest first.\n- Use to tailor a recommendation and to leave out what they have already seen.\n- Not for answering \"what did I watch\": the site shows that.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "How many of each, default 30."
+          }
+        }
+      },
+      "class": "read",
+      "parallel": true,
+      "replay": true,
+      "resultLimit": 12000,
+      "deferred": false
+    }
+  ],
+  "skills": [
+    {
+      "name": "filmography",
+      "description": "Answer questions about an actor's or film-maker's work - what they were in, when, what is coming, who they worked with.",
+      "body": "# Filmography\n\n1. Settle which person. The famous one unless the question says otherwise; when person_credits lists other people with the name, say which one the list is of.\n2. Turn \"this year\", \"lately\", \"upcoming\" and \"early career\" into from and to, from today's date in the reminder. One year is both set to that year.\n3. person_credits with the right role: acting for an actor, directing or writing for a film-maker, any when it does not matter.\n4. List oldest to newest with dates, one per line, each written as \"Title (year), date, status\": for example \"Mother Tongue (2026), 16 April, released\". Mark each as released, upcoming or announced as the tool says. A credit with no date is announced; say it has none. Leave kind unset unless the question names films or shows, and list the announced credits too.\n5. For \"worked with\", discover with both names in with.",
+      "references": {}
+    },
+    {
+      "name": "find-a-forgotten-film",
+      "description": "Identify a film or show someone half remembers from a scene, a trailer, an actor, a plot detail or roughly when they saw it.",
+      "body": "# Find a forgotten film\n\n1. Extract the clues from what the person said, one by one: people, years, whether it is out yet, look (black and white, animated), plot words, language. Turn every clue about when into years from today's date in the reminder: \"recently announced\" is this year or the year before, with released set to upcoming or announced; \"last summer\" is last year. Do not add a clue they did not give.\n2. Call find_by_clues once with every clue. It searches the database and ranks the candidates by how many clues each fits, and says which it fits and which it does not.\n3. web_search only for a clue find_by_clues could not use: a scene, a trailer, a rumour, news. Search in the words a review or a news story would use, then look the title up with find_by_clues or search_titles.\n4. title_details on the top one or two candidates, to confirm them against the clues.\n5. Answer from the verdict lines at the top of the result. Clues people give are often a little wrong, so a candidate that matches the people and the look but misses the year is still the answer to offer. Name the best candidate with its year, say which clues it fits, and say plainly which clue it does not fit, such as \"it came out in 2019, so not recent\". Never claim a clue that is listed under \"Does not match\". If the tool found several close ones, give the best two or three and the single question that would tell them apart. None: say what was searched.\n6. End every answer to a half-remembered film by inviting more clues, in one sentence that names the kinds that would help most given what is missing: \"If this is not what you had in mind, tell me more: other actors in it, a scene you remember, or whether it is recent (the last couple of years).\" It is a sentence in the reply, not a question to ask with ask_question.\n\n## Reading what the database says\n\n- Black and white is a tag the database may or may not have given a title. A title that is not tagged is not known to be in colour, so an untagged candidate that fits every other clue stays a candidate; say that the tag is missing rather than that the film is in colour.\n- A credit that is announced or upcoming and has no IMDb id is named in words alone; it has no page, so title_details cannot read it. web_search is how to learn more about it.\n- A clue listed under \"Not checked\" was not tested against that candidate. It is neither a fit nor a miss.\n\nReferences: clue-words.md (how people describe looks and genres, and the database keywords they map to), search-phrasing.md (turning a remembered scene into a web query).",
+      "references": {
+        "references/clue-words.md": "# Clue words\n\nWhat people say, and what to ask the database for. Use the right-hand column as discover's genre,\nabout, language or sort, or as the years to give person_credits. discover reports what each word\nbecame on its Matched line.\n\n## Look\n\n| They say | Ask for |\n|---|---|\n| black and white, \"no colour\", old-looking | about \"black and white\" (a tag; an untagged title may still be black and white) |\n| silent | about \"silent film\" |\n| cartoon, animated | genre Animation; about \"anime\" for Japanese animation |\n| subtitled, foreign, \"not in English\" | language set to the one they name (Korean, French, Japanese, Spanish) |\n| stylish crime, shadowy | about \"film noir\" or \"neo-noir\" |\n| shaky camera, \"filmed like a home video\" | about \"found footage\" |\n\n## Genre and mood\n\n| They say | Ask for |\n|---|---|\n| scary, creepy | genre Horror; about \"supernatural\" or \"haunted house\" for ghosts |\n| gory | genre Horror; about \"slasher\" or \"splatter\" |\n| funny | genre Comedy; about \"parody\" or \"dark comedy\" for the darker kind |\n| sci-fi, \"in space\" | genre Science Fiction; about \"space travel\" |\n| end of the world | about \"post-apocalyptic future\" or \"dystopia\" |\n| zombies | about \"zombie\" |\n| heist, \"robbing a bank\" | about \"heist\" |\n| \"same day over and over\" | about \"time loop\" |\n| \"going back in time\" | about \"time travel\" |\n| twist ending | about \"twist ending\" |\n| true story | about \"based on true story\" |\n| from a book | about \"based on novel or book\" |\n| growing up | about \"coming of age\" |\n| road trip | about \"road trip\" |\n| martial arts | about \"martial arts\" |\n| superheroes | about \"superhero\" |\n\n## Era\n\n| They say | Give |\n|---|---|\n| \"in the 80s\" | from 1980 to 1989 |\n| \"early 2000s\" | from 2000 to 2005 |\n| \"a few years ago\" | from the year three before today's date to the year before it |\n| \"recently\", \"this year\" | from this year's number (today's date is in the reminder) |\n| \"when I was a kid\" | ask roughly when; do not guess an era |\n\nA person who remembers when they saw it gives the year they saw it, not the year it came out. A film\nseen in a cinema came out that year or the year before; one seen on television came out years earlier.\n\n## Fame\n\n\"A famous actor was in it\" is a person_credits question once they name the actor. Without a name, use\ndiscover with sort rating and good_only true to see the well-known films of the era and genre, and\nread the cast of the candidates with title_details.\n",
+        "references/search-phrasing.md": "# Turning a remembered scene into a web search\n\nweb_search finds pages written by reviewers, news sites and fans. Write the query as they would write\nthe page, not as the person said the memory.\n\n- **Name what happens and who it happens to.** \"a woman wakes up and finds everyone in town has vanished\", not \"that movie with the empty town\".\n- **Add the kind of thing it is.** \"film\", \"movie\", \"TV series\", \"horror film\", \"animated film\".\n- **Add the year or the decade when the person has it,** as a year range: \"2003 film\" or \"1990s thriller\". For anything recent, the year from today's date.\n- **For news, use the news words:** \"announced\", \"cast\", \"first look\", \"teaser\", \"trailer\", \"release date\", \"festival premiere\".\n- **Leave out names the person is unsure of.** A wrong name steers the search to the wrong film. Put a name in only when it is a firm clue.\n- **Try one rephrasing before giving up:** the same scene with the setting instead of the plot, or the cast instead of the scene.\n- **A search result is a lead, not a fact.** Take the title it suggests to title_details, and name the film only once the database agrees with the clues.\n"
+      }
+    },
+    {
+      "name": "recommend",
+      "description": "Suggest films or shows for a mood, a genre, an era, a company or \"something like X\".",
+      "body": "# Recommend\n\n1. Read the person first: call both recall taste, for the note the taste survey keeps, and my_taste, for what they watched, saved and follow. An empty note does not make my_taste unnecessary. With neither, offer the taste survey before suggesting, or suggest from the request alone if they decline. A request that already names a genre and an era is answered now, with the offer of the survey as its last line.\n2. Turn the request and the taste into discover filters: genres they love, eras they prefer, people they like, what they avoid as exclusions; like with a film they rated well. Era words become years: early 2000s is 2000 to 2005, the 90s is 1990 to 1999, a few years ago is the three years before this one. Keep to those years.\n3. Leave out everything they already watched, and anything their note says they avoid. discover marks a film the person has watched.\n4. Six to eight, mixing well known and lesser known, each with year and one line on why it fits them, naming the part of their taste it matches (\"you liked The Others\", \"slow-burn, as you prefer\").\n5. When they react (\"seen it\", \"too gory\", \"more like the second one\"), update the taste note with remember so the next recommendation knows.\n\n## Notes\n\n- A request with its own terms wins over the note: \"something light tonight\" outranks a love of horror. Say so when the note and the request pull apart.\n- Every filter narrows the others, and a keyword narrows the most. When discover finds nothing, call it again with one filter fewer, keywords first, then a genre. Name only films a tool returned in this turn; never fill a list from memory.\n- \"Well known and lesser known\": discover with sort popular finds the famous ones; sort rating, or a second call with fewer genres, finds the rest.\n- A list that comes back with fewer than six unwatched titles is shorter than six. Say how many fit, and ask whether to widen the years or the genres.\n- When the note changes, rewrite it under the same key with remember. Keep it short: what they love, what they avoid, the eras, and how dark or light.",
+      "references": {}
+    },
+    {
+      "name": "taste-survey",
+      "description": "Get to know what someone likes to watch, with a few quick questions, before recommending.",
+      "body": "# Taste survey\n\n1. Read my_taste and what memory already holds: recall taste. A later survey refines the note rather than starting over, so start from it and ask only what it does not say.\n2. Ask at most four questions with ask_question, in one call. Each has options to tap and room for the person's own words. Choose from:\n   - favourite films, so the options are a few well-known films across genres\n   - genres they love and avoid (a question where several may be picked)\n   - era\n   - subtitles or not\n   - how dark or light\n   - alone or with friends\n3. Write nothing after the call. The answers come as the person's next message, starting \"Answers:\".\n4. Turn the answers into a short taste note and save it with remember under taste, which every product the person uses sees. summary is one line of at most 200 characters (favourite films, loves, avoids, eras, dark or light); body holds the rest. When a note exists, write the merged note under the same key.\n5. Then go straight on to recommend, in the same turn as the remember call: load it and give six to eight suggestions from the note without asking what to look for first. It reads that note for every suggestion from then on, in this conversation and every later one.",
+      "references": {}
+    },
+    {
+      "name": "whats-on",
+      "description": "Answer what is new, popular or coming soon, in general or in a genre.",
+      "body": "# What is on\n\n1. whats_new for the lists: trending for what people are watching this week, released for what is out, upcoming for what has a date, library for what has just arrived here.\n2. discover with sort newest for a genre.\n3. web_search for news the database does not carry yet (festival buzz, a trailer released today), and confirm each title with title_details before naming it.\n4. When the person asks what is new for them, filter it by their taste note as recommend does.\n\nThe released and upcoming lists are the most looked at titles of the window, which can include obscure releases from anywhere; keep the ones that fit the question and skip the rest.",
+      "references": {}
+    }
+  ],
+  "guards": {
+    "fabricatedFigures": true,
+    "actionClaims": {
+      "completedVerbs": [
+        "added",
+        "saved",
+        "downloaded",
+        "fetched",
+        "queued",
+        "started",
+        "played",
+        "put on",
+        "followed",
+        "unfollowed",
+        "removed",
+        "set up",
+        "reminded",
+        "scheduled",
+        "subscribed",
+        "paused",
+        "resumed"
+      ],
+      "offeredVerbs": [
+        "add",
+        "save",
+        "download",
+        "fetch",
+        "queue",
+        "start",
+        "play",
+        "put on",
+        "follow",
+        "unfollow",
+        "remove",
+        "remind",
+        "schedule",
+        "subscribe",
+        "pause",
+        "resume"
+      ],
+      "correction": "\n\nCorrection: nothing was changed. I only find films and shows; I did not add, save, fetch, play or follow anything. The card for the title opens its page, where that is one click.",
+      "retryNotice": "\n\n(Correction: I described something I did not do. I only find films and shows. Answering again.)\n\n"
+    },
+    "claims": [
+      {
+        "name": "titles",
+        "pattern": "(?:(?:^|\\n)[ \\t*_>\\-\\d.]*|(?<=[a-z,:;).!?] ))(?<title>(?!\\d+s\\b)[\\p{Lu}\\d][\\w'’&\\-]*(?::?[ ]+(?:(?:of|the|a|an|and|in|on|to|for|at|vs|with|la|le|de)[ ]+)*[\\p{Lu}\\d][\\w'’&\\-]*)*)[*_]* \\((?<year>\\d{4})\\)",
+        "group": "title",
+        "against": "toolResults",
+        "caseInsensitive": false,
+        "advice": "Name only titles a tool returned, or say you could not find it."
+      }
+    ],
+    "perMessageLimits": {
+      "search": 5,
+      "fetch": 4
+    }
+  },
+  "speech": {
+    "vocabulary": [
+      "Krystal Cinema"
+    ]
+  }
+}
