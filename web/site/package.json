@@ -22,7 +22,7 @@
   "dependencies": {
     "@discord/embedded-app-sdk": "^2.5.0",
     "@microsoft/signalr": "^8.0.29",
-    "@thekrystalship/krystal-ui": "0.20.1",
+    "@thekrystalship/krystal-ui": "0.20.2",
     "hls.js": "^1.7.3",
     "lean-qr": "^2.7.4",
     "lucide-react": "^0.460.0",

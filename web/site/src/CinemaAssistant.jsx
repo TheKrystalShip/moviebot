@@ -6,31 +6,7 @@ import { linkProps } from "./router.js";
 // The assistant, behind /assistant on the same origin, spoken to as the signed-in person. One client
 // for the life of the page: the chat asks for it by the assistant's id on every render.
 const BASE = "/assistant";
-const base = createAssistantClient({ baseUrl: BASE, getToken: () => freshToken() });
-
-/** A call on the speech routes (`/speech/*`), as the person: the recording is the raw body. */
-async function speech(path, body) {
-  const token = await freshToken();
-  if (!token) throw Object.assign(new Error("Not signed in."), { code: 401, status: 401, userMessage: "Sign in to talk to the assistant." });
-  const res = await fetch(BASE + "/speech" + path, {
-    method: "POST",
-    headers: { Authorization: "Bearer " + token, Accept: "application/json", ...(body ? { "Content-Type": "application/octet-stream" } : {}) },
-    body,
-  });
-  let payload = null;
-  try { payload = await res.json(); } catch { payload = null; }
-  if (!res.ok) {
-    const message = payload && payload.error && (payload.error.message || payload.error);
-    throw Object.assign(new Error(message || "HTTP " + res.status), { code: res.status, status: res.status, userMessage: message || "The assistant returned an error." });
-  }
-  return payload;
-}
-
-const client = {
-  ...base,
-  transcribe: (pcm) => speech("/transcribe", pcm),
-  wakeSpeech: () => speech("/wake"),
-};
+const client = createAssistantClient({ baseUrl: BASE, getToken: () => freshToken() });
 const clientFor = () => client;
 
 const HOST = { id: "cinema", name: "the assistant", title: "the assistant" };
