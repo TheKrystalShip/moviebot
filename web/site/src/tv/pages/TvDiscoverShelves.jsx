@@ -1,60 +1,26 @@
 import React from "react";
-import { Button, CollectionTile, TvBackdrop, TvCard, TvRow, TvSpotlight } from "@thekrystalship/krystal-ui";
+import { Button, CollectionTile, TvCard, TvRow } from "@thekrystalship/krystal-ui";
 import { api } from "../../api.js";
 import { useLoad } from "../../data.js";
-import { discoverBrowsePath, discoverFilmPath, discoverShelfPath } from "../../paths.js";
-import { linkProps, navigate } from "../../router.js";
-import { Failed, watchHref } from "../../components/Film.jsx";
+import { discoverBrowsePath, discoverShelfPath } from "../../paths.js";
+import { linkProps } from "../../router.js";
+import { Failed } from "../../components/Film.jsx";
 import { foundPage } from "../../components/TitleCards.jsx";
 import { surprisePool, useSurprise } from "../../pages/DiscoverShelves.jsx";
-import { SpotFacts } from "../spot.jsx";
-import { startFilm } from "./TvFilm.jsx";
+import { useDiscoverSlides } from "../../heroes.js";
+import { TvHero } from "../hero.jsx";
 
 // Discover on a television: the spotlight over the page's artwork, then the page's rows, the moods,
 // the franchises and the browse categories as rows of tiles; a category's shelves as rows; and one
 // shelf's titles in rows that wrap. Every shelf comes from `/api/discover`, as on every surface.
 
-/** How many films the spotlight turns through. */
-const SPOTLIGHT_FILMS = 3;
-
-/** The spotlight: a film from the season's shelf, with Watch, More info and Surprise me. */
+/** The spotlight: the films on the season's shelf, as Home's top turns through its own, with Surprise me. */
 function TvDiscoverSpotlight({ index, where }) {
-  const shelf = useLoad(() => api.discoverShelf(index.spotlight).catch(() => null), [index.spotlight]);
+  const slides = useDiscoverSlides(index, where);
   const [busy, surprise] = useSurprise(where);
-  const [starting, setStarting] = React.useState(false);
-  const films = shelf.data ? shelf.data.titles.filter((t) => t.kind === "film" && !t.watched).slice(0, SPOTLIGHT_FILMS) : [];
-  const pick = films.length ? films[new Date().getDate() % films.length] : null;
-  const described = useLoad(() => (pick ? api.film(pick.imdbId).catch(() => null) : Promise.resolve(null)), [pick && pick.imdbId]);
-  if (!pick) return null;
-
-  const d = described.data && described.data.imdbId === pick.imdbId ? described.data : null;
-  const { here } = where(pick);
-  const page = here ? foundPage(pick, here) : discoverFilmPath(pick.imdbId);
-  const watch = async () => {
-    if (here) { navigate(watchHref(here.id)); return; }
-    setStarting(true);
-    if (!(await startFilm(pick.imdbId))) setStarting(false);
-  };
-  return (
-    <>
-      <TvBackdrop src={(d && d.backdropUrl) || pick.posterUrl} size="tall" />
-      <section className="kc-tvd__spot" data-tv-row="">
-        <TvSpotlight size="lg" eyebrow={shelf.data.title} title={pick.title}
-          meta={<SpotFacts facts={{
-            rating: pick.rating, year: pick.year, cert: d && d.certification,
-            length: d && d.runtimeMinutes ? `${Math.floor(d.runtimeMinutes / 60)}h ${String(d.runtimeMinutes % 60).padStart(2, "0")}m` : null,
-            genres: d ? d.genres : [],
-          }} />}>
-          {d && d.overview && <p className="tv-spot__overview">{d.overview}</p>}
-          <div className="tv-spot__actions">
-            <Button variant="primary" size="lg" icon="play" busy={starting} onClick={watch}>Watch</Button>
-            <Button size="lg" icon="info" {...linkProps(page)}>More info</Button>
-            <Button size="lg" icon="dices" busy={busy} onClick={() => surprise({ shelves: surprisePool(index) })}>Surprise me</Button>
-          </div>
-        </TvSpotlight>
-      </section>
-    </>
-  );
+  if (!slides || slides.length === 0) return null;
+  const more = <Button size="lg" icon="dices" busy={busy} onClick={() => surprise({ shelves: surprisePool(index) })}>Surprise me</Button>;
+  return <TvHero slides={slides} more={more} className="kc-tvd__spot" data-tv-row="" />;
 }
 
 /** A shelf's tile: a mood's posters fanned, a series' films in order with how far the person got. */

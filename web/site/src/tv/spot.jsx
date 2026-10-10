@@ -1,7 +1,5 @@
 import React from "react";
 import { Icon, TvBackdrop, TvSpotlight, createStore, useStore } from "@thekrystalship/krystal-ui";
-import { posterUrl } from "../api.js";
-import { clock } from "../time.js";
 
 /** How long focus rests on a card before the spotlight turns to it, so a held arrow loads nothing. */
 const SPOT_MS = 300;
@@ -80,72 +78,6 @@ export function SpotStage({ store, art, idleSize = "tall" }) {
       )}
     </>
   );
-}
-
-/**
- * What the spotlight says about one title: the artwork behind it, the line above its name, its name,
- * its facts, its overview and, for one somebody is part way through, how far. Built from whatever
- * the page holds for the title — a library title, a show, a saved entry — so the spotlight reads the
- * same whichever card was focused.
- */
-
-/** A film or an episode in the library. */
-export function titleSpot(t, eyebrow) {
-  const d = t.details;
-  const film = t.film || {};
-  return {
-    key: "title:" + t.id,
-    art: (d && d.backdropUrl) || posterUrl(t),
-    eyebrow,
-    title: film.name || t.title,
-    facts: {
-      rating: d && d.rating,
-      year: film.year,
-      cert: d && d.certification,
-      length: t.durationSeconds ? clock(t.durationSeconds) : null,
-      genres: d ? d.genres : [],
-    },
-    overview: d && d.overview,
-    credit: d && d.directors && d.directors.length > 0 ? { label: "Directed by", names: d.directors.join(", ") } : null,
-  };
-}
-
-/** A show in the library. */
-export function showSpot(s, eyebrow) {
-  const d = s.details;
-  const seasons = s.seasons.length;
-  return {
-    key: "show:" + (s.imdbId || s.firstTitleId),
-    art: d && (d.backdropUrl || d.posterUrl),
-    eyebrow,
-    title: s.title,
-    facts: {
-      rating: d && d.rating,
-      year: s.firstYear,
-      cert: d && d.certification,
-      length: seasons > 0 ? `${seasons} ${seasons === 1 ? "season" : "seasons"}` : null,
-      genres: d ? d.genres : [],
-    },
-    overview: d && d.overview,
-    credit: d && d.directors && d.directors.length > 0 ? { label: "Created by", names: d.directors.join(", ") } : null,
-  };
-}
-
-/** A saved entry, filled from the library's own title where the library holds it. */
-export function entrySpot(e, held, eyebrow) {
-  if (held) return { ...titleSpot(held, eyebrow), key: "entry:" + e.imdbId };
-  return {
-    key: "entry:" + e.imdbId,
-    art: e.posterUrl,
-    eyebrow,
-    title: e.title,
-    facts: {
-      rating: e.rating,
-      year: e.year,
-      length: e.runtimeMinutes ? clock(e.runtimeMinutes * 60) : null,
-      genres: e.genres || [],
-    },
-  };
 }
 
 /** A title's facts in one line: its rating, year, certificate, length and genres. */

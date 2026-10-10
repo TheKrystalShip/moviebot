@@ -4,7 +4,8 @@ import { useLoad } from "../../data.js";
 import { ANIME, discoverGenrePath, isAnime, moviePath, showPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { Empty, Failed } from "../../components/Film.jsx";
-import { SpotStage, showSpot, titleSpot, useSpot, useSpotlight } from "../spot.jsx";
+import { SpotStage, useSpot, useSpotlight } from "../spot.jsx";
+import { showSpot, titleSpot } from "../../spots.js";
 import { useBarAway } from "../TvFrame.jsx";
 
 /**

@@ -2,6 +2,7 @@ import React from "react";
 import { Button, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
+import { useLoad } from "../data.js";
 import { useCan } from "../session.js";
 import { wishWords } from "../pages/Discover.jsx";
 import { defaultOffer, watchNow } from "../watchNow.js";
@@ -98,4 +99,16 @@ export function FilmActions({ imdbId, film, state, compact = false, children }) 
       {!compact && a && a.notOut && <span className="kc-note">{waitingWords}</span>}
     </div>
   );
+}
+
+/**
+ * A film that has to be fetched, as its own page offers it: whether it can be is asked as soon as it is
+ * shown. `compact` and `children` are FilmActions'.
+ */
+export function FilmMatchActions({ found, compact, children }) {
+  const downloading = useCan("cinema:download");
+  const wishing = useCan("cinema:wish");
+  const state = useLoad(() => (downloading || wishing ? api.availability(found.imdbId) : Promise.resolve(null)), [found.imdbId, downloading, wishing]);
+  const film = { title: found.title, year: found.year, posterUrl: found.posterUrl, directors: [] };
+  return <FilmActions imdbId={found.imdbId} film={film} state={state} compact={compact}>{children}</FilmActions>;
 }

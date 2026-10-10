@@ -4,10 +4,12 @@ import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useOnline } from "../connectivity.js";
 import { useCan } from "../session.js";
-import { ANIME, discoverFilmPath, discoverPath } from "../paths.js";
+import { ANIME, discoverPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard, watchHref } from "../components/Film.jsx";
-import { FilmActions } from "../components/FilmActions.jsx";
+import { FilmMatchActions } from "../components/FilmActions.jsx";
+import { Spotlight } from "../components/Spotlight.jsx";
+import { useDiscoverSlides } from "../heroes.js";
 import { FilmScore, initials } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
@@ -111,7 +113,7 @@ export function Discover({ query }) {
       {!q && !browsing && !index.data && !index.error && <FrontSkeleton />}
       {!q && !browsing && index.data && (
         <>
-          <Spotlight key={index.data.spotlight} index={index.data} where={where} />
+          <DiscoverSpotlight key={index.data.spotlight} index={index.data} where={where} />
           <DiscoverRows index={index.data} where={where} />
         </>
       )}
@@ -138,69 +140,15 @@ export function Discover({ query }) {
   );
 }
 
-/** How many films the spotlight turns through. */
-const SPOTLIGHT_FILMS = 3;
-
 /**
- * The page's spotlight: a film from the season's shelf, or the week's trending films out of season,
- * drawn as Home draws its film, with its actions as its own page offers them, More info, and Surprise
- * me. It turns through the first few the person has not watched, a different one leading each day.
+ * The page's spotlight: the films on the season's shelf, or the week's popular films out of season,
+ * as the top of Home draws its slides, with Surprise me beside each one's actions.
  */
-function Spotlight({ index, where }) {
-  const shelf = useLoad(() => api.discoverShelf(index.spotlight).catch(() => null), [index.spotlight]);
-  const [turn, setTurn] = React.useState(() => new Date().getDate());
+function DiscoverSpotlight({ index, where }) {
+  const slides = useDiscoverSlides(index, where);
   const [busy, surprise] = useSurprise(where);
-  const films = shelf.data ? shelf.data.titles.filter((t) => t.kind === "film" && !t.watched).slice(0, SPOTLIGHT_FILMS) : [];
-  const pick = films.length ? films[turn % films.length] : null;
-  const described = useLoad(() => (pick ? api.film(pick.imdbId).catch(() => null) : Promise.resolve(null)), [pick && pick.imdbId]);
-  if (!pick) return shelf.data || shelf.error ? null : <Skeleton w="100%" h={380} r={6} />;
-
-  const d = described.data && described.data.imdbId === pick.imdbId ? described.data : null;
-  const { here } = where(pick);
-  const playable = here && here.status === "ready";
-  const page = here ? foundPage(pick, here) : discoverFilmPath(pick.imdbId);
-  const art = (d && d.backdropUrl) || pick.posterUrl;
-  const more = (
-    <>
-      <Button size="xl" icon="info" {...linkProps(page)}>More info</Button>
-      <Button size="xl" variant="ghost" icon="dices" busy={busy} onClick={() => surprise({ shelves: surprisePool(index) })}>Surprise me</Button>
-    </>
-  );
-  return (
-    <section className="kc-featured kc-spotlight">
-      {art && <div className="kc-featured__art" style={{ backgroundImage: `url("${art}")` }} />}
-      <div className="kc-featured__scrim" />
-      <div className="kc-featured__body">
-        <span className="kc-eyebrow kc-spotlight__eyebrow"><Icon name={shelf.data.icon} size={14} />{shelf.data.title}</span>
-        <h1>{pick.title}</h1>
-        <div className="kc-featured__meta">
-          {pick.rating != null && <FilmScore rating={pick.rating} votes={pick.votes} compact />}
-          {pick.year && <span>{pick.year}</span>}
-          {d && d.certification && <span className="kc-cert">{d.certification}</span>}
-          {d && d.runtimeMinutes && <span>{Math.floor(d.runtimeMinutes / 60)}h {String(d.runtimeMinutes % 60).padStart(2, "0")}m</span>}
-          {d && d.genres.length > 0 && <span>{d.genres.join(" · ")}</span>}
-        </div>
-        {d && d.overview && <p className="kc-featured__overview">{d.overview}</p>}
-        {d && d.directors.length > 0 && <span className="kc-featured__starring">Directed by <b>{d.directors.join(", ")}</b></span>}
-        {here
-          ? (
-            <div className="kc-actions">
-              {playable && <Button variant="primary" size="xl" icon="play" onClick={() => navigate(watchHref(here.id))}>Watch</Button>}
-              {more}
-            </div>
-          )
-          : <FilmMatchActions found={pick} compact>{more}</FilmMatchActions>}
-      </div>
-      {films.length > 1 && (
-        <div className="kc-spotlight__pager">
-          {films.map((f, i) => (
-            <button key={f.imdbId} type="button" aria-label={`Show ${f.title}`} aria-current={i === turn % films.length ? "true" : undefined}
-              onClick={() => setTurn(i)} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
+  const more = <Button size="xl" variant="ghost" icon="dices" busy={busy} onClick={() => surprise({ shelves: surprisePool(index) })}>Surprise me</Button>;
+  return <Spotlight slides={slides} more={more} where={where} />;
 }
 
 /** The department the film database knows somebody for, as a word for them. */
@@ -336,18 +284,6 @@ function BestMatch({ found, here, held, shelf }) {
       </div>
     </article>
   );
-}
-
-/**
- * A film that has to be fetched, as its own page offers it: whether it can be is asked as soon as it is
- * shown. `compact` and `children` are FilmActions'.
- */
-function FilmMatchActions({ found, compact, children }) {
-  const downloading = useCan("cinema:download");
-  const wishing = useCan("cinema:wish");
-  const state = useLoad(() => (downloading || wishing ? api.availability(found.imdbId) : Promise.resolve(null)), [found.imdbId, downloading, wishing]);
-  const film = { title: found.title, year: found.year, posterUrl: found.posterUrl, directors: [] };
-  return <FilmActions imdbId={found.imdbId} film={film} state={state} compact={compact}>{children}</FilmActions>;
 }
 
 /**

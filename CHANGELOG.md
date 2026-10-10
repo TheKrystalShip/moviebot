@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.0] - 2026-10-10
+
+### Changed
+
+- **Home opens on slides that turn by themselves**, as Discover's spotlight now does too, on a
+  computer, a phone and a television: the film people are watching together, the newest film, the
+  title most watched here lately, the film and the show most popular this week, and the film most
+  waited on here (or else the next one out), each with its artwork, facts and story and what its own
+  page offers. A slide turns every 8 seconds, the mark under it filling meanwhile; the slides hold
+  still under a mouse, under keyboard focus, on a hidden page and while focus is in a television's
+  rows, never turn by themselves under reduced motion, and turn by a swipe. The top keeps one height
+  as it turns, and the artwork fades from slide to slide. With no connection, Home turns through the
+  films downloaded last. The turning is krystal-ui's `useCarousel` and `CarouselPager` (0.22.0).
+  Site 0.60.0.
+
 ## [3.8.0] - 2026-10-10
 
 ### Changed

@@ -1,28 +1,33 @@
 import React from "react";
-import { Button, Icon, Rail } from "@thekrystalship/krystal-ui";
-import { api, filmName, posterUrl } from "../api.js";
+import { Icon, Rail } from "@thekrystalship/krystal-ui";
+import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
-import { ANIME, isAnime, libraryPath, listPath, moviePath } from "../paths.js";
-import { linkProps, navigate } from "../router.js";
-import { ago, clock, since } from "../time.js";
+import { ANIME, isAnime, libraryPath, listPath } from "../paths.js";
+import { navigate } from "../router.js";
+import { ago, clock } from "../time.js";
 import { useCan } from "../session.js";
 import { useOnline } from "../connectivity.js";
 import { useDeviceLibrary } from "../offline/hooks.js";
 import { Off } from "./Offline.jsx";
 import { useDownloadMarks } from "../components/DownloadButton.jsx";
-import { ContinueCard, Empty, Failed, FilmCard, NextEpisodeCard, PosterArt, ShowCard, WatchButton, watchLink } from "../components/Film.jsx";
-import { FilmScore } from "../components/FilmDetails.jsx";
+import { ContinueCard, Empty, Failed, FilmCard, NextEpisodeCard, PosterArt, ShowCard, watchLink } from "../components/Film.jsx";
 import { AnticipatedCard, MoreTile } from "../components/TitleCards.jsx";
+import { Spotlight } from "../components/Spotlight.jsx";
+import { useHomeSlides, useSlides } from "../heroes.js";
 import { BellButton } from "../components/Bell.jsx";
 import { SavedCard } from "./Saved.jsx";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 import { inActivity } from "../discord/launch.js";
 
 const RECENT_DAYS = 14;
+/** How many of the films downloaded last the top turns through when there is no connection. */
+const DOWNLOADED_SLIDES = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * The front page: a film to watch, where this person left off, the rooms watching something now,
+ * The front page: its top turning through what is worth watching now (`heroes.js`): the film people
+ * are watching together, the newest film, the title most watched here, the week's most popular film
+ * and show, and the film most waited on. Under it, where this person left off, the rooms watching something now,
  * their Watch later, what arrived lately, the films people are waiting on, and the shelf split into
  * films, shows and anime. Every row is something the API measured; a row with nothing in it is left
  * out rather than drawn empty.
@@ -33,13 +38,14 @@ export function Home({ fromDevice = false }) {
 }
 
 /**
- * The front page from the downloads on this device: the film downloaded last at the top, where this
+ * The front page from the downloads on this device: the films downloaded last turning at the top, where this
  * person left off in what is here, and the films, the shows and the anime here, each leading to the
  * library. A row that would list what is not here is not drawn.
  */
 function DeviceHome() {
   const device = useDeviceLibrary();
   const marks = useDownloadMarks();
+  const slides = useSlides(React.useMemo(() => device.data && downloadedSlides(device.data.films), [device.data]));
   if (!device.data) return <div className="kc-page"><PhoneHead /></div>;
   const { films, shows, titles, continuing } = device.data;
   if (films.length === 0 && shows.length === 0) {
@@ -51,7 +57,6 @@ function DeviceHome() {
     );
   }
   const latest = (a, b) => String(b.addedAt || "").localeCompare(String(a.addedAt || ""));
-  const featured = [...films].sort(latest)[0];
   const anime = [...films.filter(isAnime).map((t) => ({ film: t, at: t.addedAt })), ...shows.filter(isAnime).map((s) => ({ show: s, at: s.addedAt }))]
     .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
   const generalFilms = films.filter((t) => !isAnime(t));
@@ -59,7 +64,7 @@ function DeviceHome() {
   return (
     <div className="kc-page kc-home">
       <PhoneHead />
-      {featured && <Featured title={featured} eyebrow={`Downloaded ${ago(featured.savedAt)}`} />}
+      <Spotlight slides={slides} />
 
       {continuing.length > 0 && (
         <Rail
@@ -138,7 +143,9 @@ function ServerHome() {
   const generalShows = shows.filter((s) => !isAnime(s));
   const anime = [...films.filter(isAnime).map((t) => ({ film: t })), ...shows.filter(isAnime).map((s) => ({ show: s }))];
 
-  const featured = newest(films);
+  const slides = useHomeSlides({
+    library: titles.data ? library : null, shows: showList.data, rooms: rooms.data, waitedOn: anticipated.data,
+  });
 
   if (titles.error && !titles.data) return <div className="kc-page"><PhoneHead /><Failed error={titles.error} onRetry={titles.reload} /></div>;
   if (titles.loading && !titles.data) return <div className="kc-page"><PhoneHead /></div>;
@@ -154,7 +161,7 @@ function ServerHome() {
   return (
     <div className="kc-page kc-home">
       <PhoneHead />
-      {featured && <Featured title={featured} room={watching.find((r) => r.titleId === featured.id)} />}
+      <Spotlight slides={slides} />
 
       {continuing.length > 0 && (
         <Rail
@@ -236,43 +243,12 @@ function ServerHome() {
   );
 }
 
-/**
- * The film at the top: the newest on the shelf, with what the film database says about it. `eyebrow`
- * says why it is here where the shelf's own words do not.
- */
-function Featured({ title, room, eyebrow }) {
-  const d = title.details;
-  const art = (d && d.backdropUrl) || posterUrl(title);
-  const film = title.film || {};
-  return (
-    <section className="kc-featured">
-      {art && <div className="kc-featured__art" style={{ backgroundImage: `url("${art}")` }} />}
-      <div className="kc-featured__scrim" />
-      <div className="kc-featured__body">
-        <span className="kc-eyebrow">{room ? "Watching now" : eyebrow || (title.addedAt ? `Added ${since(title.addedAt).toLowerCase()}` : "From the library")}</span>
-        <h1>{film.name || title.title}</h1>
-        <div className="kc-featured__meta">
-          {d && d.rating && <FilmScore rating={d.rating} votes={d.votes} compact />}
-          {film.year && <span>{film.year}</span>}
-          {d && d.certification && <span className="kc-cert">{d.certification}</span>}
-          <span>{clock(title.durationSeconds)}</span>
-          {d && d.genres.length > 0 && <span>{d.genres.join(" · ")}</span>}
-        </div>
-        {d && d.overview && <p className="kc-featured__overview">{d.overview}</p>}
-        {d && d.directors.length > 0
-          ? <span className="kc-featured__starring">Directed by <b>{d.directors.join(", ")}</b></span>
-          : film.starring && <span className="kc-featured__starring">Starring <b>{film.starring}</b></span>}
-        <div className="kc-actions">
-          <WatchButton variant="primary" size="lg" icon={room ? "users" : "play"} titleId={title.id} sessionId={room && room.sessionId}>
-            {room ? "Join the room" : "Watch"}
-          </WatchButton>
-          <Button size="lg" icon="info" {...linkProps(moviePath(title.id, title.category))}>
-            More info
-          </Button>
-        </div>
-      </div>
-    </section>
-  );
+/** The films downloaded last, newest first, as the top's slides. */
+function downloadedSlides(films) {
+  return [...films]
+    .sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || "")))
+    .slice(0, DOWNLOADED_SLIDES)
+    .map((t) => ({ key: "saved:" + t.id, eyebrow: `Downloaded ${ago(t.savedAt)}`, icon: "download", kind: "film", imdbId: t.film && t.film.imdbId, title: t }));
 }
 
 /** The last place on a shelf of the library, held by the tile that leads past it. */
@@ -297,13 +273,6 @@ export function dealt(items, keyOf, deal) {
     return h >>> 0;
   };
   return items.map((item) => [rank(item), item]).sort((a, b) => a[0] - b[0]).map(([, item]) => item);
-}
-
-/** The newest ready film: what arrived last is what is worth putting at the top. */
-export function newest(library) {
-  const ready = library.filter((t) => t.status === "ready");
-  const pool = ready.length > 0 ? ready : library;
-  return pool.reduce((best, t) => (!best || (t.addedAt || "") > (best.addedAt || "") ? t : best), null);
 }
 
 /**

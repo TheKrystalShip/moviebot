@@ -343,3 +343,8 @@
 
 /* The provider's account page, as an address to open on a phone. */
 .kc-account-address { font-size: var(--text-lg); color: var(--fg-1); white-space: nowrap; }
+
+/* The top's slides on a television: each one's words rise in as it turns, and the marks under them say
+   which of them this is and how long until the next. */
+.kc-tv-hero { animation: k-rise 500ms var(--ease-out) both; }
+.kc-tv-hero__pager { margin-top: 22px; }

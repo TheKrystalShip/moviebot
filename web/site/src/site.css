@@ -244,7 +244,8 @@ button.kc-continue:disabled { cursor: progress; }
 .kc-featured__starring b { color: var(--fg-1); font-weight: 500; }
 @media (max-width: 720px) {
   .kc-featured { min-height: 320px; }
-  .kc-featured__art { width: 100%; opacity: 0.45; }
+  .kc-featured { --kc-featured-art: 0.45; }
+  .kc-featured__art { width: 100%; opacity: var(--kc-featured-art); }
   .kc-featured__body { padding: 22px; }
   .kc-featured__body h1 { font-size: 30px; }
 }
@@ -446,12 +447,21 @@ a.kc-row__title:hover { color: var(--krystal-teal-hover); }
   display: inline-flex; align-items: center; justify-content: center;
 }
 .kc-spotlight__eyebrow { display: inline-flex; align-items: center; gap: 7px; }
-.kc-spotlight__pager { position: absolute; right: 20px; bottom: 18px; display: flex; gap: 6px; }
-.kc-spotlight__pager button {
-  width: 8px; height: 4px; padding: 0; border: none; border-radius: 2px; cursor: pointer;
-  background: color-mix(in srgb, var(--fg-1) 30%, transparent); transition: width var(--d-base, 140ms) ease;
+/* Every slide is laid in one place, so the top is as tall as its tallest and nothing under it moves as
+   it turns; the shown one fades in over the last, artwork and words alike. */
+.kc-spotlight__slides { position: relative; display: grid; width: 100%; }
+.kc-spotlight__slides > .kc-featured__body {
+  grid-area: 1 / 1; align-self: end; visibility: hidden; opacity: 0;
+  transition: opacity 400ms var(--ease-out), visibility 0s linear 400ms;
 }
-.kc-spotlight__pager button[aria-current] { width: 22px; background: var(--fg-1); }
+.kc-spotlight__slides > .kc-featured__body.is-shown { visibility: visible; opacity: 1; transition: opacity 500ms var(--ease-out) 150ms; }
+.kc-spotlight .kc-featured__art { opacity: 0; transition: opacity 900ms var(--ease-out); }
+.kc-spotlight .kc-featured__art.is-shown { opacity: var(--kc-featured-art, 1); }
+.kc-spotlight__pager { position: absolute; right: 18px; bottom: 14px; z-index: 1; }
+@media (max-width: 720px) {
+  .kc-spotlight .kc-featured__body { padding-bottom: 44px; }
+  .kc-spotlight__pager { left: 19px; right: auto; bottom: 12px; }
+}
 @media (max-width: 600px) {
   .kc-discover-filters .toolbar-filter__trigger { width: 52px; padding: 0; justify-content: center; position: relative; }
   .kc-discover-filters .toolbar-filter__trigger > span:not(.toolbar-filter__badge) { display: none; }

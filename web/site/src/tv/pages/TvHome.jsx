@@ -1,23 +1,26 @@
 import React from "react";
-import { Button, TvCard, TvRow, TvSpotlight, TvTile } from "@thekrystalship/krystal-ui";
+import { TvCard, TvRow, TvTile } from "@thekrystalship/krystal-ui";
 import { api, episodeCode, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { ANIME, discoverFilmPath, isAnime, libraryPath, listPath, moviePath, showPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { since, timeLeft } from "../../time.js";
 import { Empty, Failed, watchLink } from "../../components/Film.jsx";
-import { SaveButton } from "../../components/SaveButton.jsx";
 import { waitersWords } from "../../components/TitleCards.jsx";
 import { useCan } from "../../session.js";
-import { continueKey, dealt, newest } from "../../pages/Home.jsx";
-import { SpotFacts, SpotStage, entrySpot, showSpot, titleSpot, useSpotlight } from "../spot.jsx";
+import { continueKey, dealt } from "../../pages/Home.jsx";
+import { useHomeSlides } from "../../heroes.js";
+import { TvHero } from "../hero.jsx";
+import { SpotStage, useSpotlight } from "../spot.jsx";
+import { entrySpot, showSpot, titleSpot } from "../../spots.js";
 import { watchNow } from "../../watchNow.js";
 
 const RECENT_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * The front page on a television. It opens on the newest film, large, with Watch focused. Down goes
+ * The front page on a television. It opens on the top's slides (`heroes.js`), large, turning through
+ * what is worth watching now, with the first one's first action focused. Down goes
  * into the rows: Continue watching, Watching now, Watch later, Recently added, Anticipated (the films
  * not out yet that people wait on, for a person who may wait on one), then the shelf as Movies, TV
  * Shows and Anime, each ending in the tile that leads to all of it. Once focus is in the rows the
@@ -49,7 +52,9 @@ export function TvHome() {
     ...films.filter((t) => isRecent(t.addedAt)).map((t) => ({ film: t, at: t.addedAt })),
     ...shows.filter((s) => isRecent(s.addedAt)).map((s) => ({ show: s, at: s.addedAt })),
   ].sort((a, b) => b.at.localeCompare(a.at));
-  const featured = newest(films);
+  const slides = useHomeSlides({
+    library: titles.data ? library : null, shows: showList.data, rooms: rooms.data, waitedOn: anticipated.data,
+  });
 
   if (titles.error && !titles.data) return <div className="kc-tv-page"><Failed error={titles.error} onRetry={titles.reload} /></div>;
   if (titles.loading && !titles.data) return <div className="kc-tv-page" />;
@@ -178,27 +183,11 @@ export function TvHome() {
     );
   }
 
-  const hero = featured && titleSpot(featured, featured.addedAt ? "Added " + since(featured.addedAt).toLowerCase() : "From the library");
-  const room = featured && watching.find((r) => r.titleId === featured.id);
-
   return (
     <div className="kc-tv-page kc-tvh" ref={pageRef}>
-      <SpotStage store={store} art={hero && hero.art} />
-
-      {hero && (
-        <section className="kc-tvh__hero" data-tv-top="">
-          <TvSpotlight size="lg" eyebrow={room ? "Watching now" : hero.eyebrow} title={hero.title} meta={<SpotFacts facts={hero.facts} />}>
-            {hero.overview && <p className="tv-spot__overview">{hero.overview}</p>}
-            <div className="tv-spot__actions">
-              <Button variant="primary" size="lg" icon={room ? "users" : "play"} data-tv-initial="" {...watchLink(featured.id, room && room.sessionId)}>
-                {room ? "Join the room" : "Watch"}
-              </Button>
-              <Button size="lg" icon="info" {...linkProps(moviePath(featured.id, featured.category))}>More info</Button>
-              {featured.film && featured.film.imdbId && <SaveButton imdbId={featured.film.imdbId} kind="film" title={hero.title} />}
-            </div>
-          </TvSpotlight>
-        </section>
-      )}
+      {slides && slides.length > 0
+        ? <TvHero slides={slides} store={store} initial className="kc-tvh__hero" data-tv-top="" />
+        : <SpotStage store={store} />}
 
       <div className="kc-tvh__rows" ref={regionRef}>
         {rows.map((r) => <div key={r.key} className="kc-tvh__row" data-spot-row="">{r}</div>)}
