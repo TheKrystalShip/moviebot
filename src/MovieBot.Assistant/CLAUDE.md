@@ -6,6 +6,10 @@ skills and the reply guards. This service brings the domain: a prompt appendix, 
 the film database through MovieBot's API, five skills, the person's name, and the sign-in. It is built on
 `TheKrystalShip.Agent.Plugin`; the wire it relays is that package's (`tks-assistant/docs/wire-contract.md`).
 
+Read before changing: `../../../kgsm-docs/systems/moviebot/assistant.md` (the assistant in Cinema),
+`../../../kgsm-docs/systems/assistant/plugins.md` (what a plugin is) and `docs/api-contract.md` (the routes
+the tools read).
+
 **The assistant has no name.** No prompt, label, reply or string names it; it is "the assistant", one
 interface and one memory across products. A test fails the build if the profile or a string in the
 service says otherwise.

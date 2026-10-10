@@ -5,65 +5,55 @@ Guidance for Claude Code working in this repository.
 ## What this is
 
 MovieBot plays films you already own to everyone in a Discord voice channel, on one shared timeline,
-inside a Discord Activity. It stands apart from the KGSM ecosystem it sits beside in this workspace,
-and follows its own conventions throughout.
+inside a Discord Activity; the same player is the site, Krystal Cinema. It stands apart from the KGSM
+ecosystem it sits beside in this workspace and follows its own conventions throughout. How it meets the
+shared systems (identity, assistant harness, speech, design system, build and publish):
+`../kgsm-docs/systems/moviebot/README.md`; its place in the workspace:
+`../kgsm-docs/components/moviebot.md`.
 
-**It builds against the checkout beside it.** `MovieBot.Api`, `MovieBot.Bot` and `MovieBot.Handoff`
-each take a `ProjectReference` on `../../../moviebot-acquire/src/MovieBot.Acquire`, so
-`moviebot-acquire` has to be checked out as a sibling directory for anything here to compile. The
-reference is by path, which cuts both ways: a change to a public type over there breaks the build here
-in the same pass, and a release of that repo is nothing this one is pinned to. `moviebot.slnx` lists
-this repository's own projects, and they compile against one it does not name.
+It runs as four services: `moviebot-api`, `moviebot-bot`, `moviebot-handoff` and `moviebot-assistant`.
 
-`moviebot-acquire` is the acquiring half of one pipeline: torrents, the tracker, the title index, the
-disk budget, retention and the tag vocabulary all live there and are called from here. This repository
-owns what happens to a file once it exists — probing it, transcoding it, serving it, and keeping a
-room in step.
+**It builds against the checkout beside it.** `MovieBot.Api`, `MovieBot.Bot`, `MovieBot.Handoff` and
+`MovieBot.Assistant` take a `ProjectReference` on `../../../moviebot-acquire/src/MovieBot.Acquire`, so
+`moviebot-acquire` has to be checked out as a sibling directory for anything here to compile, and a
+change to a public type over there breaks the build here in the same pass
+(`../kgsm-docs/systems/moviebot/build-and-deploy.md`). `moviebot-acquire` owns torrents, the tracker,
+the title index, the disk budget, retention and the tag vocabulary; this repository owns what happens to
+a file once it exists — probing it, transcoding it, serving it, and keeping a room in step.
 
-Three docs beside this one, each the authority for its own part: `docs/api-contract.md` for what
-`MovieBot.Api` serves on the wire, `web/site/README.md` for Krystal Cinema, the site, and its player,
-which is also the Discord Activity, and `src/MovieBot.Bot/README.md` for the Discord surface. **The
-rules each part rests on live in a `CLAUDE.md` beside its code**: `deploy/`, `src/MovieBot.Api/` (with
-`Sessions/`, `Subtitles/`, `Acquisition/`, `Transcode/` and `Offline/`), `src/MovieBot.Core/` (the
-two disks), `src/MovieBot.Ingest/`, `src/MovieBot.Handoff/`, `src/MovieBot.Assistant/` (the plugin that
-finds films, with its profile), `src/MovieBot.Bot/` (and each of its feature directories), `web/site/src/player/`, and
-`web/site/src/offline/` (the films saved on a device).
-`src/MovieBot.Client` is the API client the bot uses. `tv/` is the Android TV and
-Fire TV app around the site, Java built with the SDK's own tools, on a version clock of its own tagged
-`tv-v<version>`; `tv/README.md` is its authority.
+## Where the docs are
 
-**MovieBot signs nobody in.** Every person is an account at an OpenID Connect provider that mints
-access tokens for the audience `cinema` listing the Cinema actions they hold; tks-auth is the one
-shipped against, and nothing here is specific to it. The site is the provider's public client, the
-Discord Activity and the bot are confidential clients that exchange a Discord identity at the provider
-for the person's token, and every service — the API, the assistant — validates that token and checks
-the action a route needs. Who somebody is, whether they may in and what they may do are the
-provider's; a record here is keyed by the provider's `sub` and nothing else. The service key is
-machine work that names nobody, never a person. A room's guest link names nobody too: it lets
-whoever holds it watch that one room and change nothing, and no record is keyed by a guest.
+- `README.md`: what MovieBot is, how it works, requirements, configuration, authentication.
+- `docs/api-contract.md`: what `MovieBot.Api` serves on the wire.
+- `web/site/README.md`: Krystal Cinema, the site, and its player (which is also the Discord Activity).
+- `src/MovieBot.Bot/README.md`: the Discord surface. `docs/voice-commands.md`: what can be said.
+- `docs/deploying.md`: a newcomer's install. `tv/README.md`: the Android TV and Fire TV app, Java built
+  with the SDK's own tools, on a version clock of its own tagged `tv-v<version>`.
+- **The rules each part rests on live in a `CLAUDE.md` beside its code**: `deploy/`,
+  `src/MovieBot.Api/` (with `Sessions/`, `Subtitles/`, `Acquisition/`, `Transcode/`, `Offline/` and
+  `Notifications/`), `src/MovieBot.Core/` (the two disks), `src/MovieBot.Ingest/`,
+  `src/MovieBot.Handoff/`, `src/MovieBot.Assistant/`, `src/MovieBot.Bot/` (and each feature directory
+  under it), `web/site/src/player/` and `web/site/src/offline/`.
 
-**The Krystal Cinema design is the UI, and the API is the authority for its data.** What the design
-shows, the API serves: a feature the design draws that the API lacks is added to the API, never drawn
-from a fixture and never left out for want of it.
+Sign-in, the assistant and the design system are shared systems: read
+`../kgsm-docs/systems/moviebot/sign-in.md`, `../kgsm-docs/systems/moviebot/assistant.md` and
+`../kgsm-docs/systems/design-system/README.md` before changing where they meet this code.
 
-## The one idea everything follows from
+## Rules that hold everywhere
 
-**Everyone watches the same position in the same film.** That is not a feature, it is the premise,
-and most of the design falls out of it:
-
-- One transcode serves the whole room, because there is only ever one playhead. Plex and Jellyfin open
-  a session per viewer; this does not.
-- A single transcode head has to outrun a single playhead, and it outruns it tenfold — which is what
-  makes playback-while-transcoding practical rather than fiddly.
-- **Shared state is small**: title, paused, position at an anchor time, rate, who changed it,
-  revision, transcode heads (overall, per rung and audio). Volume, subtitle choice, how subtitles are
-  drawn, audio track and quality are per-viewer preferences and never go into shared state; a
-  viewer's quality is reported up to the server alone, for its transcode planning, and never
-  broadcast. Shared volume is a way for one person to deafen
-  everyone else, and one person needing subtitles, at the size they read at, should not put them on
-  five other screens.
-- **The server is authoritative and there is no host.** Clients send intent; the API decides. Every
-  control in the player moves the whole room.
+- **MovieBot signs nobody in.** It validates the provider's token and checks the action a route needs. A
+  record is keyed by the provider's `sub` and nothing else; the service key is machine work that names
+  nobody; a room's guest link names nobody and no record is keyed by a guest.
+- **The Krystal Cinema design is the UI, and the API is the authority for its data.** A feature the
+  design draws that the API lacks is added to the API, never drawn from a fixture and never left out for
+  want of it.
+- **Everyone watches the same position in the same film.** One transcode serves the whole room; the
+  server is authoritative and there is no host: clients send intent, the API decides, and every control
+  in the player moves the whole room.
+- **Shared state is small**: title, paused, position at an anchor time, rate, who changed it, revision,
+  transcode heads. Volume, subtitle choice and drawing, audio track and quality are per-viewer
+  preferences and never go into shared state; a viewer's quality is reported to the server alone, for its
+  transcode planning, and never broadcast.
 
 ## Commands
 
@@ -74,22 +64,20 @@ Media__Root=/absolute/path/to/media dotnet run --project src/MovieBot.Api -c Rel
 ```
 
 `media/` is generated and gitignored, and nothing under it is ever committed. It is a scratch library
-for working here: the running API serves hotbox's `/home/heisen/moviebot/media`, which is a different
-directory on a different machine, so an ingest run in this checkout changes nothing anybody is
-watching. Ingesting into the library people open means running it on hotbox, against that root.
+for working here, distinct from the library a deployed API serves, so an ingest run in this checkout
+changes nothing anybody is watching.
 
 ## Deploying
 
-Everything runs on **hotbox** and is built here; **read `deploy/CLAUDE.md` before any deploy.** The
-units are root-owned and hotbox has no polkit grant, so a deploy publishes and rsyncs unprivileged and
-ends by handing over the `sudo systemctl restart` command rather than working around the privilege.
+**Read `deploy/CLAUDE.md` before any deploy**; it holds the publish commands, the units and the host's
+settings.
 
 ## Releases
 
 A release is for somebody else's host. `packaging/` is the kit it carries (`install.sh`, generic
 units, the env file naming every setting, nginx and qBittorrent examples) and `docs/deploying.md` is
-the guide a newcomer follows; `deploy/` is hotbox's own configuration. **A change to what a service
-needs to start — a new required setting, a new path, a new device — lands in both**, and in the
+the guide a newcomer follows; `deploy/` is the maintainers' own host configuration. **A change to what a
+service needs to start — a new required setting, a new path, a new device — lands in both**, and in the
 guide. Pushing a tag `v<version>` that matches the newest CHANGELOG heading (`scripts/version.sh`)
 runs `.github/workflows/release.yml`, which builds on Ubuntu 22.04 because the native binaries take
 the build machine's glibc as their floor. `scripts/package-release.sh` builds the same archive here.
@@ -100,7 +88,6 @@ the build machine's glibc as their floor. `scripts/package-release.sh` builds th
   every MovieBot program, shipped beside each binary; a host's copy in its XDG configuration
   directory overrides it, and the environment overrides both. Secrets and the tracker's identity are
   never in it, only in the environment. `MovieBotSettings` in moviebot-acquire is the lookup.
-
 - C# namespaces are `TheKrystalShip.*`, matching the GitHub org this publishes to.
 - Present-tense canon in every doc and comment: describe how the thing works now. History belongs in
   the CHANGELOG and in commit messages, never in prose or code comments.

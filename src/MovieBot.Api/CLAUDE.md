@@ -20,26 +20,19 @@ film onto a device is `Offline/CLAUDE.md`.
   test host's media root, for one — and the service silently points somewhere else.
 - **Playlists for a transcoding title are `no-store`.** A cached growing playlist makes the film
   appear to end early, which looks exactly like a broken transcode.
-- **MovieBot signs nobody in; every route names the action it needs** (`Auth/`). A person's access
-  token is minted by the OpenID Connect provider `Oidc:Issuer` names and validated here against its key
-  set, its issuer, the audience `cinema`, ES256 and `at+jwt`, so a token minted for anything else is
-  refused. The actions it holds are the `tks_actions` claim, and `CinemaActions` declares them once:
+- **MovieBot signs nobody in; every route names the action it needs** (`Auth/`; the token rules, the
+  service key, the guest link, the media ticket and the issuer pin are `docs/api-contract.md`, "Signing
+  in", and `../../../kgsm-docs/systems/moviebot/sign-in.md`). `CinemaActions` declares the actions once:
   the checks name them and `/.well-known/tks-actions.json` is written from the same list. A route
   without `RequireAction`, `RequireActionOrService`, `RequireService` or `AllowAnonymous` admits
   nobody, because the fallback policy is that. The person is always the token's — a request body
-  never names who is asking — and an `act` claim, a client acting for them, is logged beside them.
-- **The issuer is pinned.** The first start records `Oidc:Issuer` in `Oidc:IssuerRecord`, and a later
-  start against another refuses until `Oidc:AdoptIssuer` names the new one: every record here is keyed
-  by the provider's `sub`, and another provider's `sub` would be somebody else.
-- **The service key is machine work that names nobody.** The hand-off and the bot's background
-  passes present it; a route that acts for a person never takes it.
-- **A room's guest link names nobody either** (`Sessions/CLAUDE.md`, Guests). It is a scheme of its
-  own, authenticated only by the routes that name it and checked against the room on every request.
-- **A film's bytes are opened by a media ticket.** The access token says who somebody is, which a
-  segment has no use for; the ticket names one title and an hour, is signed with
-  `Auth:MediaTicketKey`, is the same string for every viewer of that film, and so makes their
-  requests one cacheable URL. A client sends the ticket or the header and never both: a shared cache
-  refuses to store a response to a request carrying the header.
+  never names who is asking.
+- **The service key and a guest link name nobody.** A route that acts for a person never takes the
+  service key; a guest link is authenticated only by the routes that name it (`Sessions/CLAUDE.md`,
+  Guests).
+- **A film's bytes are opened by a media ticket, never by the header and the ticket together.** The
+  ticket is the same string for every viewer of a film, which makes their requests one cacheable URL; a
+  shared cache refuses to store a response to a request carrying `Authorization`.
 - **Media answers HEAD as well as GET.** Browsers probe a URL before fetching it, and a 405 there
   reads as the file being unavailable.
 - **Which disk a film is on changes no URL.** `/media/{id}/…` resolves the id per request (see
@@ -102,7 +95,7 @@ film onto a device is `Offline/CLAUDE.md`.
   colour.
 - **The shelf is listed from memory.** `Library/LibraryListing` rebuilds the library's list every
   ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/shows/{imdbId}` and a title's
-  neighbours read that list. Building it asks the filesystem about every title, and on hotbox, short
+  neighbours read that list. Building it asks the filesystem about every title, and on a host short
   of memory while a transcode runs, the kernel forgets those answers within seconds and the cold
   root is a spinning disk: built per request, a listing costs a second. A change on disk reaches the
   shelf within ten seconds. What must be exact reads `TitleLibrary` directly: a title's own
@@ -143,14 +136,10 @@ film onto a device is `Offline/CLAUDE.md`.
   their own entry and progress and leaves the film's last play. `PersonDirectory` is what turns an
   account into a name, learned from every token validated; a record never shows an id where a name
   belongs. When somebody was last seen is held in memory alone.
-- **The API publishes what a page needs to sign in on `/api/config`**: the issuer, the site's client
-  id and the television's, the actions claim, and its public address. The Activity's origin is Discord's proxy,
-  reachable only from inside the Activity, and the poster a viewer's presence shows is fetched by
-  Discord's servers, so the page builds the poster URL from that address.
-- **The Activity signs in through the API** (`Discord/ActivitySignIn.cs`). It has no browser to
-  redirect, so `/api/auth/discord/callback` redeems the code its SDK was given with Cinema's Discord
-  application and exchanges the Discord access token at the provider as the confidential client
-  `Oidc:ActivityClientId`; the provider decides who that Discord account is and whether it may in.
+- **The API publishes what a page needs to sign in on `/api/config`**, including its public address:
+  the Activity's origin is Discord's proxy, reachable only from inside the Activity, and the poster a
+  viewer's presence shows is fetched by Discord's servers, so the page builds the poster URL from that
+  address. The Activity signs in through `Discord/ActivitySignIn.cs` (`docs/api-contract.md`).
 
 ## What a film gains while people are watching it is pushed to them (`Library/TitleChanges.cs`)
 

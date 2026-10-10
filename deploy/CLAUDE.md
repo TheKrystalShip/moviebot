@@ -3,9 +3,10 @@
 Four units run on **hotbox**, under `heisen`, out of `/opt/moviebot`: `moviebot-api`,
 `moviebot-bot`, `moviebot-handoff` and `moviebot-assistant`, this repository's .NET services.
 `moviebot-assistant` is a plugin to the organization's assistant harness on hotrod, which runs the
-model and holds the conversations; it presents the key issued for `moviebot` there. All of it is built on hotrod, which is the machine holding the checkouts, the .NET SDK, `clang`
-and node; hotbox carries the .NET runtime and nothing else of the toolchain. So a deploy of the
-services is a publish here, an rsync there, and a restart:
+model and holds the conversations; it presents the key issued for `moviebot` there. All of it is built
+on hotrod, which holds the checkouts, the .NET SDK, `clang` and node; hotbox carries the .NET runtime
+and nothing else of the toolchain (`../../kgsm-docs/systems/moviebot/build-and-deploy.md`). A deploy of
+the services is a publish here, an rsync there, and a restart:
 
 ```bash
 ./scripts/build-player.sh                                    # site and player -> the API's wwwroot
@@ -36,7 +37,7 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
 
 - **Settings are two files and the environment.** Every service reads `moviebot.settings.json`
   twice: the copy of `src/moviebot.settings.json` published beside its binary holds the defaults,
-  and `/home/heisen/.config/moviebot/moviebot.settings.json` (`deploy/hotbox.settings.json`, which
+  and `~/.config/moviebot/moviebot.settings.json` (`deploy/hotbox.settings.json`, which
   holds only what hotbox changes) overrides them key by key. That second file is `heisen`'s XDG
   configuration file, so writing it takes no privilege, and a service picks a change up on its next
   restart. Each service logs `Settings:` with both paths when it starts.
@@ -50,17 +51,13 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
 - **Finding an episode's intro and recap needs `chromaprint`** (`fpcalc` in `/usr/bin`, on the
   hand-off unit's `PATH` after the card's ffmpeg). Without it an episode gets only the markers its
   chapters name.
-- **The API and the hand-off publish as native binaries.** `PublishAot` in each project, so the
-  publish above runs the ahead-of-time compiler, needs `clang`, and takes a minute or two longer than
-  a JIT publish. What lands is one executable beside `moviebot.settings.json` and, for the API, `wwwroot`,
-  with nothing left to compile at run time. `--delete` on the rsync is what keeps a native publish
-  from leaving old assemblies standing beside the new binary. The bot stays on the JIT, with tiering
-  off: Discord.Net is built on reflection.
+- **The API and the hand-off publish as native binaries** (`PublishAot`): the publish needs `clang`
+  and takes a minute or two longer than a JIT publish, and `--delete` on the rsync is what keeps it
+  from leaving old assemblies beside the new binary. The bot stays on the JIT, with tiering off:
+  Discord.Net is built on reflection.
 - **A binary says which commit it came from, and which `moviebot-acquire`.** The SDK stamps every
-  assembly's informational version with its repository's HEAD, so one native executable carries the
-  stamps of both checkouts that went into it. Since this repository compiles against the acquire
-  sibling by path and is pinned to no release of it, that is the only record of which acquire is
-  inside a given build:
+  assembly's informational version with its repository's HEAD, so a native executable carries the
+  stamps of both checkouts that went into it, the only record of which acquire is inside a build:
 
   ```bash
   strings -n 20 /opt/moviebot/api/moviebot-api | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\+[0-9a-f]{40}' | sort -u
@@ -80,17 +77,13 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
   it, so a change arrives only once the API is published after that script has run. One origin serves
   the site, the player, the API, the media and the hub, because a Discord Activity maps one URL;
   Discord launches the Activity at the root, and the site's index takes that load to `/embed/`.
-- **People sign in at tks-auth, which knows Cinema as an application.** The issuer is
-  `https://auth.thekrystalship.com` (`Oidc.Issuer` in `deploy/hotbox.settings.json`), and Cinema is
-  registered there with the id and audience `cinema` and its manifest at
-  `https://movies.thekrystalship.com/.well-known/tks-actions.json`; its four clients are the site
-  (`cinema-site`, public, redirect `https://movies.thekrystalship.com/signin`), a television
-  (`cinema-tv`, public, the device grant), the API's exchange for
-  the Activity (`cinema-activity`, confidential, presenting Cinema's Discord application) and the bot
-  (`cinema-bot`, confidential, acting for linked Discord users). The two client secrets are
-  `Oidc__ActivityClientSecret` and `Oidc__BotClientSecret` in the environment file. The API records
-  the issuer in `/var/lib/moviebot/issuer` the first time it starts and refuses another until
-  `Oidc.AdoptIssuer` names it.
+- **People sign in at tks-auth, which knows Cinema as an application** (the model:
+  `../../kgsm-docs/systems/moviebot/sign-in.md`). The issuer is `https://auth.thekrystalship.com`
+  (`Oidc.Issuer` in `deploy/hotbox.settings.json`); Cinema is registered there with the id and audience
+  `cinema` and its manifest at `https://movies.thekrystalship.com/.well-known/tks-actions.json`, and
+  its clients are `cinema-site`, `cinema-tv`, `cinema-activity` and `cinema-bot`. The two confidential
+  clients' secrets are `Oidc__ActivityClientSecret` and `Oidc__BotClientSecret` in the environment
+  file.
 - **The Activity's code is redeemed with Cinema's Discord application**, whose secret is
   `Discord__ClientSecret` in the environment file; an Activity never redirects, so the application
   needs no redirect registered for it.
