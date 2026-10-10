@@ -150,6 +150,8 @@ builder.Services.AddSingleton(sp => new PopularNow(
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<PopularNow>>()));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PopularNow>());
+builder.Services.AddSingleton<DiscoverShelves>();
+builder.Services.AddHostedService<DiscoverWarmer>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SessionKeeper>());
 
 // The subtitle index. Searching costs nothing and only a download spends the day's allowance, so
@@ -403,6 +405,7 @@ app.MapTranscode();
 app.MapPeople();
 app.MapFilms();
 app.MapCatalogueSearch();
+app.MapDiscover();
 app.MapShows();
 app.MapFollows();
 app.MapLists();

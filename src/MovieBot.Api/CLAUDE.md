@@ -112,7 +112,12 @@ film onto a device is `Offline/CLAUDE.md`.
   whether the asking person watched are made when an answer is read and are never kept with it. A title
   the database holds no IMDb id for is listed by its own id with no page and no poster. The database
   has no tag for colour: `blackAndWhite` is true only for the tag it has, and false is not a claim of
-  colour.
+  colour. The Discover page's shelves are `Films/DiscoverShelves`: each shelf the same for everybody
+  is a fixed question by the database's own ids (genres, keywords, companies, networks, collections,
+  people), answered and kept through `CatalogueSearch`, and `Films/DiscoverWarmer` asks every one of
+  them again every `Tmdb:ShelvesWarmMinutes`, which asks the database only for what is due, so a page
+  never waits on it. The shelves that follow from a person read the watch record and the library as
+  listed, and "Popular here" names nobody and no count.
 - **The shelf is listed from memory.** `Library/LibraryListing` rebuilds the library's list every
   ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/shows/{imdbId}` and a title's
   neighbours read that list. Building it asks the filesystem about every title, and on a host short

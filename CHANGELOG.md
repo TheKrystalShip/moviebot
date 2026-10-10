@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0] - 2026-10-10
+
+### Added
+
+- **Discover is where to go not knowing what to watch.** With nothing typed it holds about 150
+  shelves under nine tabs: For you (the season's shelf, Because you watched for the last two titles
+  finished, trending today and this week, Popular here, a director a day, in cinemas, new releases,
+  coming soon, Ready to watch), Moods (Sunday chill, Date night, Mind-benders, Epic weekend and
+  more), Movies (top rated, hidden gems, classics, each decade's best), TV Shows (binge-worthy,
+  miniseries, sitcoms, K-dramas, by network), Genres, Themes (heists, time travel, slashers,
+  cyberpunk and more), World cinema (Spanish and Catalan among them), Franchises in release order,
+  and Studios and directors. The moods are chips over the tabs; Surprise me opens a random title
+  nobody watched; Filter narrows by kind, genre, decade, length, rating, language and order; Ask the
+  assistant opens the dock; Hide watched is kept on the device. Each shelf is a rail of 20 asked for
+  as it nears the screen, with See all for up to 40. `/api/discover` and
+  `/api/discover/shelves/{id}` serve them, every shelf the same for everybody asked again each hour
+  ahead of anybody (`Tmdb.ShelvesWarmMinutes`), and `/api/catalogue/discover` takes `minRuntime` and
+  `maxRuntime`. API 3.4.0, site 0.58.0.
+
 ## [3.5.0] - 2026-10-10
 
 ### Changed

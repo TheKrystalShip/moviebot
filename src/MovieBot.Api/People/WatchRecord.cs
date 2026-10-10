@@ -109,6 +109,13 @@ public sealed class WatchRecord : IPlayHistory
             r => (r.GetString(0), Entry(r, 1)),
             ("$user", userId)));
 
+    /// <summary>Every entry somebody touched since <paramref name="since"/>: who, which title, and when.</summary>
+    public IReadOnlyList<(string UserId, string TitleId, DateTimeOffset At)> WatchedSince(DateTimeOffset since) =>
+        _database.Read(c => c.Query(
+            "SELECT user_id, title_id, last_watched_at FROM watch_progress WHERE last_watched_at >= $since",
+            r => (r.GetString(0), r.GetString(1), r.GetInstant(2)),
+            ("$since", since)));
+
     /// <summary>Everybody with an entry for any of the titles, which is who watched them.</summary>
     public IReadOnlyList<string> Watchers(IReadOnlyCollection<string> titleIds) =>
         _database.Read(c =>

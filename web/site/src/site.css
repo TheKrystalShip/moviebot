@@ -422,6 +422,26 @@ a.kc-row__title:hover { color: var(--krystal-teal-hover); }
   .kc-search--discover input { font-size: 16px; }
 }
 
+/* Discover's shelves: the moods as one row of chips that scrolls sideways, the page's actions, and a
+   rail's place held at its height until its shelf is asked for. */
+.kc-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.kc-chips::-webkit-scrollbar { display: none; }
+.kc-chips .kc-season-chip { flex: none; text-decoration: none; }
+.kc-discover-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kc-hide-watched { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--fg-2); cursor: pointer; }
+.kc-lazy-shelf { min-width: 0; }
+.kc-rail-skeleton { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.kc-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* Nine tabs: one line that scrolls sideways when the page is narrowed, by the dock or a small window. */
+.kc-discover .subtabs { overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+.kc-discover .subtabs::-webkit-scrollbar { display: none; }
+.kc-discover .subtab { flex: none; white-space: nowrap; }
+.kc-browse-head__text h2 .lucide { vertical-align: -2px; color: var(--fg-3); }
+@media (max-width: 430px) {
+  .kc-hide-watched { margin-left: 0; }
+  .kc-filters .k-select { flex: 1 1 calc(50% - 5px); }
+}
+
 /* Discover's heading over a person's work or a genre: who or what, and how many. */
 .kc-browse-head { display: flex; align-items: center; gap: 16px; min-width: 0; }
 .kc-browse-head__face { width: 72px; height: 72px; font-size: 20px; }

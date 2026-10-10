@@ -66,6 +66,12 @@ public sealed record DiscoverRequest
     public bool GoodOnly { get; init; } = true;
     public double? MinRating { get; init; }
     public int? MinVotes { get; init; }
+
+    /// <summary>The shortest a film runs, or a show's episode, in minutes.</summary>
+    public int? MinRuntime { get; init; }
+
+    /// <summary>The longest a film runs, or a show's episode, in minutes.</summary>
+    public int? MaxRuntime { get; init; }
     public string? Sort { get; init; }
     public int Limit { get; init; } = CatalogueSearch.ResultsListed;
 
@@ -76,6 +82,9 @@ public sealed record DiscoverRequest
 public sealed record DiscoverAnswer(string Kind, DiscoverResolved Resolved, List<TitleHit> Hits);
 
 public sealed record ListAnswer(string Kind, DateOnly From, DateOnly To, List<TitleHit> Hits);
+
+/// <summary>The films of one series, the first released first.</summary>
+public sealed record CollectionAnswer(string Name, List<TitleHit> Hits);
 
 /// <summary>
 /// The film database searched: films and shows by name, people by name and everything they are
@@ -105,6 +114,9 @@ public sealed partial class CatalogueSearch(
     /// <summary>The most titles a discovery or a list of the week lists.</summary>
     public const int ResultsListed = 20;
 
+    /// <summary>The most titles a shelf of the Discover page lists.</summary>
+    public const int ShelfListed = 40;
+
     /// <summary>The most credits a person's list holds; the newest are kept when there are more.</summary>
     public const int CreditsListed = 300;
 
@@ -127,6 +139,7 @@ public sealed partial class CatalogueSearch(
     internal static readonly TimeSpan ListKept = TimeSpan.FromHours(6);
     internal static readonly TimeSpan CardKept = TimeSpan.FromDays(7);
     internal static readonly TimeSpan VocabularyKept = TimeSpan.FromDays(30);
+    internal static readonly TimeSpan CollectionKept = TimeSpan.FromDays(7);
 
     /// <summary>How many titles are named at once.</summary>
     private const int CardsAtOnce = 8;
@@ -188,13 +201,7 @@ public sealed partial class CatalogueSearch(
         if (request.Kind is not null && !Catalogue.IsKind(request.Kind)) return Invalid<CreditsAnswer>("Kind is film or show.");
         if (request.From is { } from && request.To is { } to && from > to) return Invalid<CreditsAnswer>("From is after to.");
 
-        var kept = await keeper.KeptAsync($"credits/{personId}", AnswerJson.Default.Filmography, CreditsKept,
-            async (tmdb, token) =>
-            {
-                var person = await tmdb.FilmographyAsync(personId, token);
-                if (person is not null) await catalogue.FetchPortraitAsync(tmdb, person.TmdbId, person.ProfilePath, token);
-                return person;
-            }, null, ct);
+        var kept = await FilmographyAsync(personId, ct);
         if (kept is null) return Unavailable<CreditsAnswer>("The film database could not be asked about this person.");
         if (kept.Value is not { } person) return NotFound<CreditsAnswer>("The film database has nobody under that id.");
 
@@ -233,6 +240,9 @@ public sealed partial class CatalogueSearch(
         if (request.Kind is not null && !Catalogue.IsKind(request.Kind)) return Invalid<DiscoverAnswer>("Kind is film or show.");
         if (request.Sort is not null && !DiscoverSorts.IsSort(request.Sort)) return Invalid<DiscoverAnswer>("Sort is popular, rating, newest or oldest.");
         if (request.From > request.To) return Invalid<DiscoverAnswer>("From is after to.");
+        if (request.MinRuntime > request.MaxRuntime) return Invalid<DiscoverAnswer>("The shortest runtime is longer than the longest.");
+        if (!string.IsNullOrWhiteSpace(request.Like) && (request.MinRuntime is not null || request.MaxRuntime is not null))
+            return Invalid<DiscoverAnswer>("A discovery like another title cannot be narrowed by runtime; the titles it starts from carry none.");
         if (request.Category is not null)
         {
             if (TitleCategories.Parse(request.Category) != TitleCategory.Anime)
@@ -341,6 +351,8 @@ public sealed partial class CatalogueSearch(
             Language = language?.Code,
             MinRating = minRating,
             MinVotes = minVotes,
+            MinRuntime = request.MinRuntime,
+            MaxRuntime = request.MaxRuntime,
             Sort = sort ?? DiscoverSorts.Popular,
         };
 
@@ -363,6 +375,57 @@ public sealed partial class CatalogueSearch(
             Sort = sort ?? "similar",
         };
         return Outcome<DiscoverAnswer>.Ok(new DiscoverAnswer(kind, resolved, hits));
+    }
+
+    /// <summary>
+    /// The titles a question put by the site rather than a person finds, at most
+    /// <paramref name="limit"/>, each with its card: the question names the database's own ids, so
+    /// nothing in it needs resolving.
+    /// </summary>
+    public async Task<Outcome<List<TitleHit>>> ShelfAsync(DiscoverQuery query, int limit, CancellationToken ct)
+    {
+        var listed = await DiscoveredAsync(query, limit, ct);
+        if (listed.Value is not { } titles) return listed.Carry<List<TitleHit>>();
+        return Outcome<List<TitleHit>>.Ok(await HitsAsync(titles, limit, ct));
+    }
+
+    /// <summary>One of the database's own lists, at most <paramref name="limit"/>, kept as the lists of the week are.</summary>
+    public async Task<Outcome<List<TitleHit>>> ChartAsync(TitleChart chart, int limit, CancellationToken ct)
+    {
+        var kept = await keeper.KeptAsync($"charts/{chart}-{limit}", AnswerJson.Default.ListListedTitle, ListKept,
+            async (tmdb, token) => (await tmdb.ChartAsync(chart, limit, token)).ToList(), null, ct);
+        if (kept is null) return Unavailable<List<TitleHit>>("The film database could not be asked what is on.");
+        return Outcome<List<TitleHit>>.Ok(await HitsAsync(kept.Value ?? [], limit, ct));
+    }
+
+    /// <summary>The films of one series, the first released first, kept a week.</summary>
+    public async Task<Outcome<CollectionAnswer>> CollectionAsync(int collectionId, CancellationToken ct)
+    {
+        var kept = await keeper.KeptAsync($"collections/{collectionId}", AnswerJson.Default.TitleCollection, CollectionKept,
+            (tmdb, token) => tmdb.CollectionAsync(collectionId, token), null, ct);
+        if (kept is null) return Unavailable<CollectionAnswer>("The film database could not be asked about this series.");
+        if (kept.Value is not { } collection) return NotFound<CollectionAnswer>("The film database has no series under that id.");
+        var hits = await HitsAsync(collection.Films, ShelfListed, ct);
+        return Outcome<CollectionAnswer>.Ok(new CollectionAnswer(collection.Name, hits));
+    }
+
+    /// <summary>
+    /// The films a person directed that are out, the most voted on first, at most
+    /// <paramref name="limit"/>, read from the same kept credits as everything else they did.
+    /// </summary>
+    public async Task<Outcome<List<TitleHit>>> DirectedAsync(int personId, int limit, CancellationToken ct)
+    {
+        var kept = await FilmographyAsync(personId, ct);
+        if (kept is null) return Unavailable<List<TitleHit>>("The film database could not be asked about this person.");
+        if (kept.Value is not { } person) return NotFound<List<TitleHit>>("The film database has nobody under that id.");
+
+        var today = Today();
+        var directed = person.Credits
+            .Where(c => c.Kind == "film" && c.Directing && c.Released is { } day && day <= today)
+            .OrderByDescending(c => c.Votes)
+            .Select(c => c.AsListed())
+            .ToList();
+        return Outcome<List<TitleHit>>.Ok(await HitsAsync(directed, limit, ct));
     }
 
     /// <summary>
@@ -632,6 +695,16 @@ public sealed partial class CatalogueSearch(
         return Outcome<List<ListedTitle>>.Ok(matched);
     }
 
+    /// <summary>Everything a person is credited on, kept a day, their portrait kept with it.</summary>
+    private Task<KeptAnswer<Filmography>?> FilmographyAsync(int personId, CancellationToken ct) =>
+        keeper.KeptAsync($"credits/{personId}", AnswerJson.Default.Filmography, CreditsKept,
+            async (tmdb, token) =>
+            {
+                var person = await tmdb.FilmographyAsync(personId, token);
+                if (person is not null) await catalogue.FetchPortraitAsync(tmdb, person.TmdbId, person.ProfilePath, token);
+                return person;
+            }, null, ct);
+
     private async Task<Outcome<List<KeywordMatch>>> KeywordsAsync(string phrase, CancellationToken ct)
     {
         var wanted = phrase.Trim();
@@ -828,7 +901,11 @@ public sealed partial class CatalogueSearch(
     private static string Canonical(DiscoverQuery q, int limit) => string.Join('|',
         q.Kind, string.Join(',', q.GenreIds), string.Join(',', q.WithoutGenreIds), q.From?.ToString("O"), q.To?.ToString("O"), string.Join(',', q.PersonIds),
         string.Join(',', q.KeywordIds), q.Language, q.MinRating?.ToString(CultureInfo.InvariantCulture),
-        q.MinVotes?.ToString(CultureInfo.InvariantCulture), q.Sort, limit);
+        q.MinVotes?.ToString(CultureInfo.InvariantCulture), q.Sort, limit,
+        string.Join(',', q.AnyGenreIds), string.Join(',', q.AnyKeywordIds), string.Join(',', q.AnyLanguages), q.OriginCountry,
+        string.Join(',', q.CompanyIds), string.Join(',', q.NetworkIds), q.MinRuntime, q.MaxRuntime,
+        q.MaxRating?.ToString(CultureInfo.InvariantCulture), q.MaxVotes, q.MaxCertification,
+        q.AiringFrom?.ToString("O"), q.AiringTo?.ToString("O"), q.ShowStatus, q.ShowType);
 
     private static Outcome<T> Invalid<T>(string message) where T : class => Outcome<T>.Failed(Problem.Invalid, message);
 

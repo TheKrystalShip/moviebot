@@ -213,7 +213,8 @@
   // its rating and overview kept a year for a title out over a year and a week for anything newer;
   // and a person's portrait under CatalogueDirectory, their credits kept a week and a genre's most
   // popular titles a day. An empty directory is films/, shows/, popular/, glances/ or catalogue/ in
-  // the state directory.
+  // the state directory. Every ShelvesWarmMinutes the Discover shelves the same for everybody are
+  // asked for again, which asks the database only for what has come due; 0 asks nothing ahead.
   "Tmdb": {
     "BaseUrl": "https://api.themoviedb.org/3",
     "ImageBaseUrl": "https://image.tmdb.org/t/p",
@@ -225,7 +226,8 @@
     "PopularDirectory": "",
     "GlancesDirectory": "",
     "CatalogueDirectory": "",
-    "RefreshDays": 14
+    "RefreshDays": 14,
+    "ShelvesWarmMinutes": 60
   },
 
   // Listening in a voice channel. Off unless enabled: everyone in a channel the bot joins is heard.

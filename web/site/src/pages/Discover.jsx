@@ -1,24 +1,26 @@
 import React from "react";
-import { Button, Icon, Rail, ShowcaseCard, Skeleton } from "@thekrystalship/krystal-ui";
+import { Button, Icon, Skeleton } from "@thekrystalship/krystal-ui";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useOnline } from "../connectivity.js";
 import { useCan } from "../session.js";
-import { ANIME, discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
+import { ANIME, discoverPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard, watchHref } from "../components/Film.jsx";
 import { FilmActions } from "../components/FilmActions.jsx";
 import { FilmScore, initials } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
+import { DiscoverFront, FilterPage, ShelfPage } from "./DiscoverShelves.jsx";
 import { openingEpisode, watchOpening } from "../watchNow.js";
 
 /** The class the page's field carries, so the shortcut that opens the page can find it. */
 export const DISCOVER_FIELD = "kc-search--discover";
 
 /**
- * Finding anything to watch, here or not. With nothing typed, the field and what is popular this
- * week. With a query, the catalogue's films and shows in its own order, each by its poster: the first
+ * Finding anything to watch, here or not. With nothing typed, the field and the shelves, by tab
+ * (`tab`), with the moods as chips, Surprise me, the filter and the assistant; `shelf` is every title
+ * on one shelf, and `filter` the filter's answers at the choices the address holds. With a query, the catalogue's films and shows in its own order, each by its poster: the first
  * answer large, the rest as cards, followed by anything the server can play by that name that the
  * catalogue did not answer with. A result is a result wherever it is played from: one that can be
  * played now plays from here, and nothing says where it comes from. With a person (`person`, the film database's id for them) instead, the films and shows
@@ -26,14 +28,16 @@ export const DISCOVER_FIELD = "kc-search--discover";
  * popular films or shows in it. Every answer leads to its own page. What is shown is in the address,
  * so it can be shared and reloaded.
  */
-export function Discover({ query }) {
+export function Discover({ query, onAsk }) {
   const online = useOnline();
   const q = (query.get("q") || "").trim();
   const person = /^\d+$/.test(query.get("person") || "") ? query.get("person") : null;
   const genre = (query.get("genre") || "").trim();
   const genreKind = query.get("kind") === "show" ? "show" : "film";
   const genreCategory = query.get("category") === ANIME ? ANIME : null;
-  const browsing = !q && !!(person || genre);
+  const shelf = (query.get("shelf") || "").trim();
+  const filtering = query.has("filter");
+  const browsing = !q && !!(person || genre || shelf || filtering);
   const [draft, setDraft] = React.useState(q);
   React.useEffect(() => setDraft(q), [q]);
   const field = useFocusOnceShown();
@@ -52,7 +56,6 @@ export function Discover({ query }) {
   const answered = !finding || (foundFor.data && foundFor.data.q === q);
   const found = answered && foundFor.data && foundFor.data.q === q ? foundFor.data.list : [];
   const libraryShows = useLoad(() => api.shows().catch(() => []), []);
-  const popular = useLoad(() => (q || browsing ? Promise.resolve(null) : api.popular().catch(() => null)), [q, browsing]);
 
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const named = (name) => words.every((w) => name.toLowerCase().includes(w));
@@ -92,24 +95,9 @@ export function Discover({ query }) {
 
       {!q && person && <PersonWork key={person} personId={person} where={where} />}
       {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} where={where} />}
-
-      {!q && !browsing && popular.data && (
-        <>
-          {popular.data.films.length > 0 && (
-            <Rail
-              variant="posters" icon="flame" title="Popular movies now" count={popular.data.films.length}
-              items={popular.data.films} itemKey={(f) => f.imdbId}
-              renderItem={(f) => <PopularCard entry={f} here={filmsHere.get(f.imdbId)} />} />
-          )}
-          {popular.data.shows.length > 0 && (
-            <Rail
-              variant="posters" icon="flame" title="Popular shows now" count={popular.data.shows.length}
-              items={popular.data.shows} itemKey={(s) => s.imdbId}
-              renderItem={(s) => <PopularCard entry={s} show held={heldShows.has(s.imdbId)} />} />
-          )}
-          <p className="kc-attribution-note">Popular titles and artwork from TMDB.</p>
-        </>
-      )}
+      {!q && !person && !genre && shelf && <ShelfPage key={shelf} id={shelf} where={where} />}
+      {!q && !person && !genre && !shelf && filtering && <FilterPage query={query} where={where} />}
+      {!q && !browsing && <DiscoverFront tab={query.get("tab")} where={where} onAsk={onAsk} />}
 
       {q && (
         <>
@@ -130,28 +118,6 @@ export function Discover({ query }) {
         </>
       )}
     </div>
-  );
-}
-
-/**
- * A film or show trending this week. One that can be played now plays; any other opens its page,
- * which is where whether and how it can be watched is asked.
- */
-function PopularCard({ entry, show = false, here, held }) {
-  const page = show ? showPath(entry.imdbId, { held, category: entry.category }) : here ? moviePath(here.id, here.category) : discoverFilmPath(entry.imdbId);
-  const playable = here && here.status === "ready";
-  return (
-    <ShowcaseCard
-      name={entry.title}
-      art={entry.posterUrl ? `url("${entry.posterUrl}")` : null}
-      onPick={() => navigate(page)}
-      specs={[
-        { icon: "star", value: entry.rating ? entry.rating.toFixed(1) : null, label: "Rating" },
-        { icon: "calendar", value: entry.year || null, label: "Year" },
-      ]}
-      action={playable
-        ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) }
-        : { label: "View" }} />
   );
 }
 

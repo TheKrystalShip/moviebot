@@ -25,6 +25,7 @@ public sealed record KeptAnswer<T> where T : class
 [JsonSerializable(typeof(TitleCard))]
 [JsonSerializable(typeof(TitleKey))]
 [JsonSerializable(typeof(TitleTraits))]
+[JsonSerializable(typeof(TitleCollection))]
 internal partial class AnswerJson : JsonSerializerContext;
 
 /// <summary>A film or a show as a browse of the catalogue lists it, by its poster.</summary>

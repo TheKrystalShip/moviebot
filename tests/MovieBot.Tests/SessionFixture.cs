@@ -109,6 +109,8 @@ public class SessionFixture : WebApplicationFactory<Program>
                 ["Tmdb:PopularDirectory"] = Path.Combine(StateRoot, "popular"),
                 ["Tmdb:GlancesDirectory"] = Path.Combine(StateRoot, "glances"),
                 ["Tmdb:CatalogueDirectory"] = Path.Combine(StateRoot, "catalogue"),
+                // A test asks for each shelf itself, and counts what the database was asked.
+                ["Tmdb:ShelvesWarmMinutes"] = "0",
             }));
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(MoreSettings()));
 

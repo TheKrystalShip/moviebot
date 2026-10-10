@@ -26,6 +26,9 @@ public sealed class FilmStoreOptions
 
     /// <summary>How old a description may get before the database is asked again.</summary>
     public int RefreshDays { get; set; } = 14;
+
+    /// <summary>How often the Discover shelves the same for everybody are asked for again ahead of anybody; zero asks nothing ahead.</summary>
+    public int ShelvesWarmMinutes { get; set; } = 60;
 }
 
 /// <summary>What is kept for one film: what the database said, and when it was asked.</summary>

@@ -82,6 +82,12 @@ export const api = {
   // The film database browsed: everything a person is credited on, by its id for them, and the most
   // popular films or shows in a genre, by the genre's name.
   cataloguePerson: (personId) => call("GET", `/api/catalogue/people/${enc(personId)}`),
+  // Films or shows found by what they are like: kind, genre, years, runtime, rating, language and order.
+  catalogueDiscover: (params) => call("GET", "/api/catalogue/discover?" + new URLSearchParams(params)),
+  // Discover's tabs and the shelves on each for the signed-in person, with what its filter picks from;
+  // and one shelf's titles.
+  discover: () => call("GET", "/api/discover"),
+  discoverShelf: (id) => call("GET", `/api/discover/shelves/${enc(id)}`),
   catalogueGenre: (kind, genre, category) => call("GET", `/api/catalogue/genre?kind=${enc(kind)}&name=${enc(genre)}`
     + (category ? `&category=${enc(category)}` : "")),
 

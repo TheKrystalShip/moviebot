@@ -15,7 +15,7 @@ namespace TheKrystalShip.MovieBot.Tests;
 /// It also answers searches and discoveries over a small invented world: <see cref="Jo"/>, whose
 /// credits run from a film long out to one with no date; <see cref="Ray"/>, who is in the black and
 /// white <see cref="SilverHarbour"/>; two horror films of the early 2000s; and the lists of what is
-/// out and what is coming. Dates are read against the year the test runs in.
+/// out and what is coming; and one collection, <see cref="Series"/>. Dates are read against the year the test runs in.
 /// </summary>
 public sealed partial class FilmDatabaseStub : HttpMessageHandler
 {
@@ -41,6 +41,9 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
     public const int Ray = 8001;
 
     public const string SilverHarbour = "tt9000004";
+
+    /// <summary>The collection the Discover page's Star Wars shelf names, which here holds Heat and Pirates of the Caribbean.</summary>
+    public const int Series = 10;
 
     /// <summary>An animated film made in Japanese, which is what anime is here.</summary>
     public const string DreamDetective = "tt9000401";
@@ -262,6 +265,11 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             return Results();
         }
         if (path.EndsWith("/discover/tv")) return Results();
+
+        // A series: Pirates of the Caribbean before Heat, as they are not in release order.
+        if (path.EndsWith("/collection/" + Series))
+            return "{ \"id\": " + Series + ", \"name\": \"Test Collection\", \"parts\": [ "
+                + Listed(949, "Heat", "1995-12-15", 7.9, 8740, "80, 18") + ", " + Listed(22, "Pirates of the Caribbean", "2003-07-09", 7.8, 21000, "12") + " ] }";
 
         // What the database counts as similar to Heat.
         if (path.EndsWith("/movie/949/recommendations"))
