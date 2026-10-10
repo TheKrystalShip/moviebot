@@ -98,7 +98,7 @@ holds the title, and New list, which makes one and saves to it: a popover beside
 screen, the drawer on a phone.
 
 Every poster card says on its poster, above the name, what it holds (`kindLine` in
-`src/components/Film.jsx`): Film, or Series in the accent, each Anime film or Anime series for a title
+`src/components/Film.jsx`): Movie, or Series in the accent, each Anime movie or Anime series for a title
 the API shelves as anime. A show's card in the library draws a short bar per season it holds along the
 poster's foot, each filled by the share of its episodes the person watched through (`seasonProgress`
 on `GET /api/shows`), and gives its seasons and episodes where a film's gives its year and length.

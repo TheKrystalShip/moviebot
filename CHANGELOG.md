@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.1] - 2026-10-11
+
+### Changed
+
+- **A poster card names a film Movie**, and Anime movie on the anime shelves, the word the rest of the
+  site uses. Site 0.63.1.
+
 ## [3.13.0] - 2026-10-11
 
 ### Added

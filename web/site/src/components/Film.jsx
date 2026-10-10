@@ -122,7 +122,7 @@ export function kindLine(kind, title) {
   const anime = isAnime(title);
   return kind === "show"
     ? { icon: "tv", label: anime ? "Anime series" : "Series", tone: "accent" }
-    : { icon: "clapperboard", label: anime ? "Anime film" : "Film" };
+    : { icon: "clapperboard", label: anime ? "Anime movie" : "Movie" };
 }
 
 /** A card's marks for a download on this device: the pill on its poster, and its progress while under way. */
