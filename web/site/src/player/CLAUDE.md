@@ -72,10 +72,10 @@ nobody, the link stands where the token would, and the room gives the guest thei
   the door of a room private to them, which is drawn instead of the film with Ask to join; asking
   waits for an answer, and somebody saying no offers asking again. Once let in, the page enters
   the room exactly as one that walked in does.
-- **Only an open room has a link.** A private room's invite panel has the button that opens it (Close room once it is open) and
-  the people to invite, and no link anywhere in the player: a link to a private room would lead
-  whoever is given it to a door. Inviting somebody lets them in. On a phone the open room's link goes
-  to the phone's share sheet.
+- **Only an open room has a link.** The invite panel's room row carries the switch that opens and
+  closes the room, and the people to invite sit below it; a private room has no link anywhere in the
+  player, since a link to a private room would lead whoever is given it to a door. Inviting somebody
+  lets them in. On a phone the open room's link goes to the phone's share sheet.
 - **Somebody asking is shown to everybody in the room**, below the announcements, and anybody in it
   may let them in or say no, as anybody may move the film.
 - **A room's guest link is in the invite panel, private room or open**, for somebody holding

@@ -407,7 +407,6 @@
   display: block; padding: 12px 16px 2px; border-top: 1px solid var(--border-subtle);
   font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); font-weight: 600;
 }
-.mp-invite-panel .mp-menu__section { border-top: none; padding: 0; }
 .mp-menu__message { display: flex; align-items: center; gap: 8px; padding: 9px 10px; font-size: 12.5px; color: var(--fg-3); line-height: 1.45; }
 
 .mp-option {
@@ -440,51 +439,46 @@
 /* ── Invite ── */
 .mp-invite-panel {
   position: absolute; top: 72px; right: 28px; z-index: 6; width: 360px; max-width: calc(100% - 32px);
+  max-height: calc(100% - 96px); overflow-y: auto; overscroll-behavior: contain;
   background: rgba(17, 22, 29, 0.94); backdrop-filter: blur(12px); border-radius: var(--r-sm); box-shadow: var(--shadow-pop);
-  color: var(--fg-1); overflow: hidden;
+  color: var(--fg-1); white-space: normal;
 }
-.mp-invite-panel__head { padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid var(--border-subtle); }
-.mp-invite-panel__title { font-size: 14px; font-weight: 600; }
-.mp-invite-panel__text { font-size: 12.5px; color: var(--fg-3); line-height: 1.45; white-space: normal; }
-.mp-invite-panel__door {
-  display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); color: var(--fg-2);
+.mp-invite-panel__head { padding: 14px 16px 12px; font-size: 14px; font-weight: 600; }
+.mp-invite-panel__section { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 14px; border-top: 1px solid var(--border-subtle); }
+.mp-invite-panel__label {
+  display: flex; align-items: baseline; gap: 8px; min-height: 16px;
+  font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); font-weight: 600;
 }
-.mp-invite-panel__door-name { flex: 1; font-size: 13.5px; font-weight: 600; color: var(--fg-1); }
-.mp-invite-panel__link { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.mp-invite-panel__meta { margin-left: auto; font-size: 11.5px; letter-spacing: 0; text-transform: none; font-weight: 500; color: var(--fg-3); }
+.mp-invite-panel__access { display: flex; align-items: center; gap: 10px; }
+.mp-invite-panel__badge {
+  width: 32px; height: 32px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm); background: var(--surface-3); color: var(--fg-2); transition: background 140ms, color 140ms;
+}
+.mp-invite-panel__badge.is-open { background: rgba(64, 160, 192, 0.16); color: var(--krystal-teal); }
+.mp-invite-panel__access-name { flex: 1; font-size: 13.5px; font-weight: 600; }
 .mp-invite-panel__row { display: flex; gap: 8px; }
 .mp-invite-panel__url {
-  flex: 1; min-width: 0; height: 36px; display: flex; align-items: center; padding: 0 10px;
+  flex: 1; min-width: 0; height: 34px; display: flex; align-items: center; padding: 0 10px;
   background: var(--surface-3); border: 1px solid var(--border-subtle); border-radius: var(--r-sm);
   font-family: var(--font-mono); font-size: 12.5px; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.mp-copy {
-  height: 36px; padding: 0 12px; border-radius: var(--r-sm); border: none; cursor: pointer;
-  background: var(--krystal-teal); color: var(--fg-inverse); font-weight: 600; font-size: 12.5px;
-  display: inline-flex; align-items: center; gap: 6px;
+.mp-invite-panel__end { align-self: flex-end; margin: -4px -9px -6px 0; }
+.mp-invite-panel__people { padding: 12px 8px 8px; gap: 4px; }
+.mp-invite-panel__people > .mp-invite-panel__label { padding: 0 8px 2px; }
+.mp-invite-panel__list { display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow-y: auto; }
+.mp-invite-panel__person { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 8px; border-radius: var(--r-sm); }
+.mp-invite-panel__person:hover { background: rgba(255, 255, 255, 0.04); }
+.mp-invite-panel .mp-avatar.mp-invite-panel__avatar { width: 32px; height: 32px; margin-left: 0; border: 0; font-size: 12.5px; flex-shrink: 0; }
+.mp-invite-panel__who { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.mp-invite-panel__name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-invite-panel__status { font-size: 11.5px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-invite-panel__status.is-failed { color: var(--danger-fg); white-space: normal; }
+.mp-invite-panel__sent { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--fg-3); padding: 0 4px; }
+.mp-invite-panel__here {
+  font-size: 11.5px; font-weight: 600; color: var(--success-fg); background: var(--success-bg);
+  padding: 3px 9px; border-radius: 999px;
 }
-.mp-copy:hover { background: var(--krystal-teal-hover); }
-.mp-invite__people {
-  display: flex; flex-direction: column; gap: 2px; padding: 8px 8px 10px; border-top: 1px solid var(--border-subtle);
-  max-height: 280px; overflow-y: auto;
-}
-.mp-invite__label { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); font-weight: 600; padding: 6px 8px 4px; }
-.mp-invite__person { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: var(--r-sm); }
-.mp-avatar.mp-invite__avatar { width: 28px; height: 28px; margin-left: 0; border: 0; font-size: 12px; }
-.mp-invite__who { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
-.mp-invite__name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mp-invite__status { font-size: 11.5px; color: var(--fg-3); }
-.mp-invite__send {
-  height: 30px; padding: 0 10px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: transparent;
-  color: var(--fg-1); font: inherit; font-weight: 600; font-size: 12px; cursor: pointer;
-}
-.mp-invite__send:hover { background: var(--surface-2); }
-.mp-invite__send:disabled { opacity: 0.5; cursor: default; }
-.mp-invite__sent { font-size: 11.5px; font-weight: 600; color: var(--fg-3); }
-.mp-invite-panel__guests { border-top: 1px solid var(--border-subtle); }
-.mp-invite-panel__guests .mp-invite-panel__row { align-items: center; }
-.mp-invite-panel__guests .mp-invite__status { flex: 1; }
-.mp-invite-panel__guests .mp-invite__send { display: inline-flex; align-items: center; gap: 6px; }
-.mp-invite__here { font-size: 11.5px; font-weight: 600; color: var(--success-fg); background: var(--success-bg); padding: 2px 8px; border-radius: 999px; }
 
 /* ── Compact: icons and sheets ── */
 .mp-frame--compact .mp-top { padding: 12px 16px; gap: 10px; }
@@ -492,6 +486,7 @@
 .mp-frame--compact .mp-top__sub { font-size: 11.5px; }
 .mp-frame--compact .mp-avatar { width: 26px; height: 26px; font-size: 11px; }
 .mp-frame--compact .mp-round { width: 40px; height: 40px; }
+.mp-frame--compact .mp-invite-panel { top: 64px; right: 16px; }
 .mp-frame--compact .mp-bottom { padding: 0 16px 10px; gap: 6px; }
 .mp-frame--compact .mp-controls { gap: 2px; }
 .mp-frame--compact .mp-play { width: 40px; height: 40px; }

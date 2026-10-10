@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2026-10-10
+
+### Changed
+
+- **The player's invite panel is one column of aligned sections**: the room row is a lock badge, the
+  room's state and a switch that opens or closes it, with the room link beneath once open; Guests
+  carries how many are in and until when on its heading, the guest link or the button that asks for
+  it, and Stop guest access; Invite people lists everybody on the same gutter. Every control is a
+  krystal-ui `Button` or `Toggle`, the room link and the guest link are the same row, and the panel
+  scrolls within the frame. Site 0.55.0.
+
 ## [3.1.0] - 2026-10-10
 
 ### Removed

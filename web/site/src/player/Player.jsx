@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Button, Icon, Toggle } from "@thekrystalship/krystal-ui";
 import { PlayerRoom } from "./engine/room.ts";
 import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";
@@ -843,14 +843,8 @@ function InviteButton({ open, onToggle }) {
 function InvitePanel({ view, room, everyone, compact }) {
   const link = roomLink(view);
   const open = Boolean(view.door && view.door.open);
-  const [copied, setCopied] = React.useState(false);
   const [people, setPeople] = React.useState(null);
   const [sent, setSent] = React.useState({});
-  React.useEffect(() => {
-    if (!copied) return undefined;
-    const timer = window.setTimeout(() => setCopied(false), 1600);
-    return () => window.clearTimeout(timer);
-  }, [copied]);
   React.useEffect(() => {
     let live = true;
     api.people().then((list) => live && setPeople(list), () => live && setPeople([]));
@@ -875,57 +869,67 @@ function InvitePanel({ view, room, everyone, compact }) {
     if (state === "failed") return "Could not be invited";
     return person.lastSeenAt ? `Active ${ago(person.lastSeenAt)}` : "Not seen on the site";
   };
-  const share = compact && navigator.share;
-  const handOn = () => {
-    if (share) navigator.share({ title: `Watch ${filmName(view.manifest)}`, url: link }).catch(() => {});
-    else navigator.clipboard.writeText(link).then(() => setCopied(true), () => {});
-  };
+  const share = Boolean(compact && navigator.share);
+  const title = `Watch ${filmName(view.manifest)}`;
 
   return (
     <div className="mp-invite-panel">
-      <div className="mp-invite-panel__head">
-        <span className="mp-invite-panel__title">Watch together</span>
-        <span className="mp-invite-panel__text">Everyone in the room shares play, pause and position. Volume, audio, subtitles and quality stay your own.</span>
-      </div>
-      <div className="mp-invite-panel__door">
-        <Icon name={open ? "lock-open" : "lock"} size={16} />
-        <span className="mp-invite-panel__door-name">{open ? "Open room" : "Private room"}</span>
-        <button type="button" className="mp-invite__send" onClick={() => room.setOpen(!open)}>{open ? "Close room" : "Open room"}</button>
-      </div>
-      {link && (
-        <div className="mp-invite-panel__link">
-          <span className="mp-menu__section">Room link</span>
-          <div className="mp-invite-panel__row">
-            <span className="mp-invite-panel__url">{link}</span>
-            <button type="button" className="mp-copy" onClick={handOn}>
-              <Icon name={share ? "share-2" : copied ? "check" : "copy"} size={14} />{share ? "Share" : copied ? "Copied" : "Copy"}
-            </button>
-          </div>
+      <div className="mp-invite-panel__head">Watch together</div>
+      <section className="mp-invite-panel__section mp-invite-panel__door">
+        <div className="mp-invite-panel__access">
+          <span className={"mp-invite-panel__badge" + (open ? " is-open" : "")}><Icon name={open ? "lock-open" : "lock"} size={16} /></span>
+          <span className="mp-invite-panel__access-name">{open ? "Open room" : "Private room"}</span>
+          <Toggle on={open} label="Open room" onChange={(on) => room.setOpen(on)} />
         </div>
-      )}
-      <GuestAccess view={view} everyone={everyone} share={share} />
+        {link && <LinkRow url={link} share={share} title={title} />}
+      </section>
+      <GuestAccess view={view} everyone={everyone} share={share} title={title} />
       {people && people.length > 0 && (
-        <div className="mp-invite__people">
-          <span className="mp-invite__label">Invite people</span>
-          {people.map((person) => {
-            const state = sent[person.userId];
-            return (
-              <div key={person.userId} className="mp-invite__person">
-                <Avatar person={{ userId: person.userId, displayName: person.name }} className="mp-invite__avatar" />
-                <div className="mp-invite__who">
-                  <span className="mp-invite__name">{person.name}</span>
-                  <span className="mp-invite__status">{status(person)}</span>
+        <section className="mp-invite-panel__section mp-invite-panel__people">
+          <span className="mp-invite-panel__label">Invite people</span>
+          <div className="mp-invite-panel__list">
+            {people.map((person) => {
+              const state = sent[person.userId];
+              return (
+                <div key={person.userId} className="mp-invite-panel__person">
+                  <Avatar person={{ userId: person.userId, displayName: person.name }} className="mp-invite-panel__avatar" />
+                  <div className="mp-invite-panel__who">
+                    <span className="mp-invite-panel__name">{person.name}</span>
+                    <span className={"mp-invite-panel__status" + (state === "failed" ? " is-failed" : "")}>{status(person)}</span>
+                  </div>
+                  {here.has(person.userId)
+                    ? <span className="mp-invite-panel__here">Watching</span>
+                    : state === "push" || state === "bell"
+                      ? <span className="mp-invite-panel__sent"><Icon name="check" size={13} />Invited</span>
+                      : <Button variant="outline" size="sm" busy={state === "sending"} onClick={() => invite(person)}>Invite</Button>}
                 </div>
-                {here.has(person.userId)
-                  ? <span className="mp-invite__here">watching</span>
-                  : state === "push" || state === "bell"
-                    ? <span className="mp-invite__sent">invited</span>
-                    : <button type="button" className="mp-invite__send" disabled={state === "sending"} onClick={() => invite(person)}>Invite</button>}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </section>
       )}
+    </div>
+  );
+}
+
+/** A link to hand on: shown whole, and shared to the phone's sheet or copied. */
+function LinkRow({ url, share, title }) {
+  const [copied, setCopied] = React.useState(false);
+  React.useEffect(() => {
+    if (!copied) return undefined;
+    const timer = window.setTimeout(() => setCopied(false), 1600);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+  const handOn = () => {
+    if (share) navigator.share({ title, url }).catch(() => {});
+    else navigator.clipboard.writeText(url).then(() => setCopied(true), () => {});
+  };
+  return (
+    <div className="mp-invite-panel__row">
+      <span className="mp-invite-panel__url">{url}</span>
+      <Button variant="primary" icon={share ? "share-2" : copied ? "check" : "copy"} onClick={handOn}>
+        {share ? "Share" : copied ? "Copied" : "Copy"}
+      </Button>
     </div>
   );
 }
@@ -936,25 +940,16 @@ function InvitePanel({ view, room, everyone, compact }) {
  * the same one; it is shown once asked for, and copied or shared at once where the browser allows.
  * Somebody in the room who may not hand it out sees only that guests can come in.
  */
-function GuestAccess({ view, everyone, share }) {
+function GuestAccess({ view, everyone, share, title }) {
   const may = environment().holds("cinema:guests");
   const active = Boolean(view.door && view.door.guests);
   const [link, setLink] = React.useState(null);
   const [state, setState] = React.useState(null);
   React.useEffect(() => { if (!active) setLink(null); }, [active]);
-  React.useEffect(() => {
-    if (state !== "copied") return undefined;
-    const timer = window.setTimeout(() => setState(null), 1600);
-    return () => window.clearTimeout(timer);
-  }, [state]);
   if (!may && !active) return null;
 
   const guests = everyone.filter((p) => p.guest).length;
   const until = active ? new Date(view.door.guests.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null;
-  const handOn = (url) => {
-    if (share) navigator.share({ title: `Watch ${filmName(view.manifest)}`, url }).catch(() => {});
-    else navigator.clipboard.writeText(url).then(() => setState("copied"), () => {});
-  };
   const ask = async () => {
     setState("asking");
     try {
@@ -962,7 +957,8 @@ function GuestAccess({ view, everyone, share }) {
       const url = window.location.origin + made.path;
       setLink(url);
       setState(null);
-      handOn(url);
+      if (share) navigator.share({ title, url }).catch(() => {});
+      else navigator.clipboard.writeText(url).catch(() => {});
     } catch {
       setState("failed");
     }
@@ -978,30 +974,25 @@ function GuestAccess({ view, everyone, share }) {
   };
 
   return (
-    <div className="mp-invite-panel__link mp-invite-panel__guests">
-      <span className="mp-menu__section">Guests</span>
-      {link ? (
-        <div className="mp-invite-panel__row">
-          <span className="mp-invite-panel__url">{link}</span>
-          <button type="button" className="mp-copy" onClick={() => handOn(link)}>
-            <Icon name={share ? "share-2" : state === "copied" ? "check" : "copy"} size={14} />{share ? "Share" : state === "copied" ? "Copied" : "Copy"}
-          </button>
-        </div>
-      ) : may && (
-        <div className="mp-invite-panel__row">
-          <button type="button" className="mp-invite__send" disabled={state === "asking"} onClick={ask}>
-            <Icon name="ticket" size={14} />{active ? "Guest link" : "Invite guest"}
-          </button>
-        </div>
+    <section className="mp-invite-panel__section mp-invite-panel__guests">
+      <div className="mp-invite-panel__label">
+        Guests
+        {active && <span className="mp-invite-panel__meta">{guests === 1 ? "1 guest" : `${guests} guests`} · until {until}</span>}
+      </div>
+      {link
+        ? <LinkRow url={link} share={share} title={title} />
+        : may && (
+          <Button variant="secondary" icon="ticket" wide busy={state === "asking"} className="mp-invite-panel__ask" onClick={ask}>
+            {active ? "Guest link" : "Invite guest"}
+          </Button>
+        )}
+      {active && may && (
+        <Button variant="ghost" size="xs" tone="danger" busy={state === "ending"} className="mp-invite-panel__end" onClick={end}>
+          Stop guest access
+        </Button>
       )}
-      {active && (
-        <div className="mp-invite-panel__row">
-          <span className="mp-invite__status">{guests === 1 ? "1 guest" : `${guests} guests`} · until {until}</span>
-          {may && <button type="button" className="mp-invite__send" disabled={state === "ending"} onClick={end}>Stop guest access</button>}
-        </div>
-      )}
-      {state === "failed" && <span className="mp-invite__status">That did not reach the room.</span>}
-    </div>
+      {state === "failed" && <span className="mp-invite-panel__status is-failed">That did not reach the room.</span>}
+    </section>
   );
 }
 

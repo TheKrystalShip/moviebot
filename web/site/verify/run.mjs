@@ -150,7 +150,7 @@ async function roomChecks(browser) {
 
   // Opened, the room hands out its link and anybody holding it walks in.
   await press(ada, '.mp-invite');
-  await ada.click('.mp-invite-panel__door button');
+  await ada.click('.mp-invite-panel__door [role=switch]');
   await ada.waitForSelector('.mp-invite-panel__url', { timeout: 5000 }).catch(() => null);
   check('an open room hands out its link', /\/r\//.test(await ada.textContent('.mp-invite-panel__url').catch(() => '')));
   await press(ada, '.mp-invite');
@@ -332,8 +332,8 @@ async function guestChecks(browser) {
   await ada.goto(`${BASE}/r/${room}?title=${TITLE}`);
   await holds(ada);
   await press(ada, '.mp-invite');
-  await ada.waitForSelector('.mp-invite-panel__guests .mp-invite__send', { timeout: 5000 }).catch(() => null);
-  await ada.click('.mp-invite-panel__guests .mp-invite__send');
+  await ada.waitForSelector('.mp-invite-panel__ask', { timeout: 5000 }).catch(() => null);
+  await ada.click('.mp-invite-panel__ask');
   await ada.waitForSelector('.mp-invite-panel__guests .mp-invite-panel__url', { timeout: 5000 }).catch(() => null);
   const link = (await ada.textContent('.mp-invite-panel__guests .mp-invite-panel__url').catch(() => '')).trim();
   check('somebody in the room hands out a guest link', /\/g\/[\w-]+$/.test(link), link);
