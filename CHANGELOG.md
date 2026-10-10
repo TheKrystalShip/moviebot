@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.1] - 2026-10-11
+
+### Changed
+
+- **A title page's poster fills its hero's height.** The hero is two columns, the poster and everything
+  else: the text takes a width set by the hero alone, and the poster stands as tall as the text beside
+  it at its own 2:3, as wide as that needs, held to the room the text leaves. A hero narrower than 900px
+  keeps the poster at 220px wide, at the top. On a phone the poster spans the page with everything else
+  under it. Site 0.64.1.
+
 ## [3.14.0] - 2026-10-11
 
 ### Added

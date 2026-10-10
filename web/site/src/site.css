@@ -252,7 +252,7 @@ button.kc-continue:disabled { cursor: progress; }
 
 /* ── A film's page ───────────────────────────────────────────────────────────────────── */
 .kc-tt {
-  position: relative; border-radius: var(--r-sm); overflow: hidden;
+  container-type: inline-size; position: relative; border-radius: var(--r-sm); overflow: hidden;
   border: 1px solid var(--border-subtle); background: var(--canvas);
 }
 .kc-tt__art {
@@ -260,9 +260,26 @@ button.kc-continue:disabled { cursor: progress; }
   background-size: cover; background-position: center; opacity: 0.85;
 }
 .kc-tt__shade { position: absolute; inset: 0; background: linear-gradient(to right, var(--canvas) 38%, transparent 100%); }
-.kc-tt__grid { position: relative; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; padding: 32px; }
-.kc-tt__poster { width: 220px; align-self: start; aspect-ratio: 2 / 3; border: 1px solid var(--border-strong); }
+/*
+ * Two columns: the poster, and everything else. The text's width is set by the hero alone, never by the
+ * poster, so the text's height is settled before the poster is sized; the poster then fills that height
+ * at 2:3 and its column takes the width that gives. Past the room the text leaves, the poster is held
+ * to it and its picture cropped at the sides. A hero too narrow for both keeps the poster at its least.
+ */
+.kc-tt__grid {
+  --kc-tt-text: min(680px, 100cqw - 396px);
+  position: relative; display: grid; grid-template-columns: auto var(--kc-tt-text); justify-content: start;
+  gap: 32px; padding: 32px;
+}
+.kc-tt__poster {
+  height: 100%; min-width: 220px; max-width: calc(100cqw - 96px - var(--kc-tt-text));
+  aspect-ratio: 2 / 3; border: 1px solid var(--border-strong);
+}
 .kc-tt__poster img { width: 100%; height: 100%; object-fit: cover; }
+@container (max-width: 900px) {
+  .kc-tt__grid { grid-template-columns: 220px minmax(0, 1fr); }
+  .kc-tt__poster { width: 220px; height: auto; max-width: none; align-self: start; }
+}
 .kc-tt__body { display: flex; flex-direction: column; gap: 14px; max-width: 680px; min-width: 0; }
 .kc-tt__body h1 { margin: 0; font-size: 34px; font-weight: 700; line-height: 1.15; letter-spacing: -0.015em; }
 .kc-tt__meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--fg-2); }
@@ -273,7 +290,7 @@ button.kc-continue:disabled { cursor: progress; }
   .kc-tt__art { width: 100%; opacity: 0.35; }
   .kc-tt__shade { background: linear-gradient(to top, var(--canvas) 30%, rgba(11, 15, 20, 0.6)); }
   .kc-tt__grid { grid-template-columns: 1fr; padding: 20px; gap: 20px; }
-  .kc-tt__poster { width: 160px; }
+  .kc-tt__poster { width: 100%; height: auto; min-width: 0; max-width: none; }
   .kc-tt__body h1 { font-size: 28px; }
   /* Watch across the column, Save and Download sharing the row under it. */
   .kc-tt .kc-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
