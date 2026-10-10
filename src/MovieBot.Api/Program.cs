@@ -52,6 +52,7 @@ builder.Services.AddSingleton(sp => new TitleLibrary(
     sp.GetRequiredService<PinStore>(),
     sp.GetRequiredService<ILogger<TitleLibrary>>()));
 builder.Services.AddSingleton<LibraryListing>();
+builder.Services.AddSingleton<TitlePosters>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryListing>());
 builder.Services.AddSingleton<SessionStore>();
 
@@ -107,10 +108,13 @@ builder.Services.AddOptions<FilmStoreOptions>().Bind(builder.Configuration.GetSe
 builder.Services.AddHttpClient<TmdbClient>((sp, http) =>
     http.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<TmdbOptions>>().Value.TimeoutSeconds))
     .KeepConnectionsOpen();
+builder.Services.AddSingleton(sp => new PosterPins(
+    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.PostersDirectory, "posters")));
 builder.Services.AddSingleton(sp => new FilmStore(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.Directory, "films"),
     sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<PosterPins>(),
     TimeProvider.System,
     sp.GetRequiredService<ILogger<FilmStore>>()));
 builder.Services.AddSingleton<EpisodeNumbering>();
@@ -119,6 +123,7 @@ builder.Services.AddSingleton(sp => new ShowStore(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.ShowsDirectory, "shows"),
     sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<PosterPins>(),
     sp.GetRequiredService<EpisodeNumbering>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<ShowStore>>()));
@@ -126,6 +131,7 @@ builder.Services.AddSingleton(sp => new TitleGlances(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.GlancesDirectory, "glances"),
     sp.GetRequiredService<FilmStore>(),
     sp.GetRequiredService<ShowStore>(),
+    sp.GetRequiredService<PosterPins>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<TitleGlances>>()));
@@ -144,6 +150,7 @@ builder.Services.AddHostedService<FilmWarmer>();
 builder.Services.AddSingleton(sp => new PopularNow(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.PopularDirectory, "popular"),
     sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<PosterPins>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<PopularNow>>()));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PopularNow>());
@@ -373,13 +380,13 @@ app.MapMethods("/tv.apk", [HttpMethods.Get, HttpMethods.Head], (IConfiguration c
 // on the network, and a film not described yet is listed without it. Each carries the asking
 // person's progress and when the film was last played, and a caller that is nobody gets no progress.
 app.MapGet("/api/titles", (HttpContext context, LibraryListing library, FilmStore films, ShowStore shows,
-    WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
+    TitlePosters posters, WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
 {
     var person = PeopleEndpoints.Person(context);
     var viewing = sessions.Viewing();
     var now = clock.GetUtcNow();
     return Results.Ok(library.Titles()
-        .Select(t => (t with
+        .Select(t => (posters.Listed(t) with
         {
             // An episode is described by its show.
             Details = t.Kind == TitleKind.Show ? shows.Facts(t.Film?.ImdbId) : films.Facts(t.Film?.ImdbId),

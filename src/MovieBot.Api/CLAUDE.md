@@ -79,6 +79,14 @@ film onto a device is `Offline/CLAUDE.md`.
   the same way; a person's portrait is kept with their credits. A description whose cast carries no
   person id is due at once, since that id is what leads from a cast member to their work.
   `Acquisition/TitleSearch` holds the title index's answer for a name in memory for an hour.
+- **A title has one poster, the first the API showed it with.** A person finds a title by its poster,
+  and the database's answers name different posters for one title (search, trending and a description
+  can each differ, and a refresh can name another). `Films/PosterPins` pins each IMDb id to the image
+  path its poster was first shown from, under `posters/`, and `FilmStore`, `ShowStore`, `TitleGlances`
+  and `PopularNow` all fetch the pinned path. In the library, `Library/TitlePosters` serves that poster
+  at `/media/{id}/poster.jpg` and names it on `/api/titles`; the poster the hand-off put beside the
+  title (the title index's) is served only for a title the database holds none for. A source's own
+  cover art is never extracted (`src/MovieBot.Handoff/CLAUDE.md`).
 - **Finding is `Films/CatalogueSearch`, and every answer is kept by `Films/AnswerKeeper`.** A search by
   name, a person by name and every dated credit they have, a discovery by genre, years, people,
   keywords, language, a rating floor and similarity to another title, and the lists of what is out and

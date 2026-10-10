@@ -20,6 +20,9 @@ public sealed class FilmStoreOptions
     /// <summary>Where search results' ratings and overviews are kept. Empty is <c>glances/</c> in the state directory.</summary>
     public string GlancesDirectory { get; set; } = "";
 
+    /// <summary>Where the poster each title is shown by is pinned. Empty is <c>posters/</c> in the state directory.</summary>
+    public string PostersDirectory { get; set; } = "";
+
     /// <summary>Where people's credits and genres' titles are kept. Empty is <c>catalogue/</c> in the state directory.</summary>
     public string CatalogueDirectory { get; set; } = "";
 
@@ -56,6 +59,7 @@ public sealed class FilmStore(
     string root,
     IOptions<FilmStoreOptions> options,
     IServiceScopeFactory scopes,
+    PosterPins pins,
     TimeProvider clock,
     ILogger<FilmStore> logger)
 {
@@ -156,14 +160,14 @@ public sealed class FilmStore(
 
     private async Task FetchImagesAsync(TmdbClient tmdb, string imdbId, FilmDetails details, CancellationToken ct)
     {
+        var directory = Path.Combine(root, imdbId);
         var wanted = new List<(string? Path, string Size, string File)>
         {
-            (details.PosterPath, "w500", Poster),
+            (pins.Pin(imdbId, PosterPins.Shown(Path.Combine(directory, Poster)), details.PosterPath), "w500", Poster),
             (details.BackdropPath, "w1280", Backdrop),
         };
         wanted.AddRange(details.Cast.Select((c, i) => (c.ProfilePath, "w185", Portrait(i))));
 
-        var directory = Path.Combine(root, imdbId);
         Directory.CreateDirectory(directory);
         // A page opened on a film nothing is kept for waits on these, so they are asked side by side:
         // the wait is the slowest image rather than the sum of them.

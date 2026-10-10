@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.43.0] - 2026-10-10
+
+### Changed
+
+- **A title keeps one poster from the search that found it to the shelf that holds it.** The library
+  showed the title index's poster, or the source's own cover art once a download finished, where the
+  search had shown the film database's, so a film changed face on arriving. `/media/{id}/poster.jpg` is
+  now the film database's poster kept for the film, or for the show an episode belongs to, and the
+  poster beside the title is served only for a title the database has none for; `/api/titles` names
+  and versions it accordingly, so the site, the player, the TV app, Discord presence and the bot's
+  launch cards all show it. Each title's database poster is pinned to the first one the API showed
+  (`Tmdb:PostersDirectory`, `posters/` in the state directory), and the descriptions, search results
+  and trending shelf fetch the pinned image even when the database later names another. A wish's
+  `posterUrl` is the poster its page shows. API 2.20.0, bot 2.3.1.
+- **The ingest no longer extracts a source's own cover art.** Ingest 1.18.0.
+
 ## [2.42.2] - 2026-10-10
 
 ### Changed

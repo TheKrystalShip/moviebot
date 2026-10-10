@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using TheKrystalShip.MovieBot.Bot.Configuration;
 using TheKrystalShip.MovieBot.Bot.Api;
 using TheKrystalShip.MovieBot.Core;
 
@@ -73,7 +75,7 @@ public sealed record CancelResult(CancelStatus Status, string Message, Wish? Wis
 /// sweeps the tracker for every film on it, and tells the person on Krystal Cinema when one is out.
 /// What stays here is how a Discord channel is told each answer.
 /// </summary>
-public sealed class NotifyCommand(MovieBotApiClient api, ILogger<NotifyCommand> logger)
+public sealed class NotifyCommand(MovieBotApiClient api, IOptions<ApiOptions> options, ILogger<NotifyCommand> logger)
 {
     /// <summary>What a person whose account may not wait on films is told.</summary>
     public const string NotAllowed = "Your account does not let you wait on films in Krystal Cinema.";
@@ -102,9 +104,9 @@ public sealed class NotifyCommand(MovieBotApiClient api, ILogger<NotifyCommand> 
     /// <summary>
     /// What the API's answer to a wish is told as in a channel.
     /// </summary>
-    public static NotifyResult Describe(AddWishReply reply)
+    public NotifyResult Describe(AddWishReply reply)
     {
-        var wish = reply.Wish is { } view ? Wish.From(view) : null;
+        var wish = reply.Wish is { } view ? From(view) : null;
         var name = wish?.Display ?? reply.FilmTitle ?? reply.ImdbId;
         var title = wish?.Title ?? reply.FilmTitle ?? reply.ImdbId;
 
@@ -134,7 +136,7 @@ public sealed class NotifyCommand(MovieBotApiClient api, ILogger<NotifyCommand> 
 
     /// <summary>What the person the command runs for is waiting on.</summary>
     public async Task<IReadOnlyList<Wish>> ListAsync(CancellationToken ct) =>
-        (await api.ListWishesAsync(ct)).Select(Wish.From).ToList();
+        (await api.ListWishesAsync(ct)).Select(From).ToList();
 
     public async Task<CancelResult> CancelAsync(string chosen, CancellationToken ct)
     {
@@ -161,11 +163,13 @@ public sealed class NotifyCommand(MovieBotApiClient api, ILogger<NotifyCommand> 
         return reply.Outcome switch
         {
             "cancelled" when reply.Wish is { } view =>
-                new CancelResult(CancelStatus.Cancelled, $"You will not be told about {view.Display}.", Wish.From(view)),
+                new CancelResult(CancelStatus.Cancelled, $"You will not be told about {view.Display}.", From(view)),
             "nothingPicked" => new CancelResult(CancelStatus.NothingPicked,
                 "Pick one of the films you are waiting on from the suggestions."),
             _ => new CancelResult(CancelStatus.NotWaiting,
                 "You are not waiting on that film. /notify list shows what you are waiting on."),
         };
     }
+
+    private Wish From(WishView view) => Wish.From(view, options.Value.PublicBaseUrl);
 }

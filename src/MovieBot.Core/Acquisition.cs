@@ -181,6 +181,10 @@ public sealed record WishView
 
     public string? Starring { get; init; }
 
+    /// <summary>
+    /// The poster the film's page shows, served from the API at an address relative to it; the title
+    /// index's own, absolute, for a film the film database has no poster for.
+    /// </summary>
     public string? PosterUrl { get; init; }
 
     public IReadOnlyList<WishSubscriberView> Subscribers { get; init; } = [];

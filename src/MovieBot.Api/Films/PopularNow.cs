@@ -46,6 +46,7 @@ public sealed record PopularNowView(List<PopularTitleView> Films, List<PopularTi
 public sealed class PopularNow(
     string root,
     IServiceScopeFactory scopes,
+    PosterPins pins,
     TimeProvider clock,
     ILogger<PopularNow> logger) : BackgroundService
 {
@@ -157,19 +158,19 @@ public sealed class PopularNow(
     {
         var target = PosterPath(entry.ImdbId);
         var marker = target + ".src";
-        if (entry.PosterPath is null)
+        if (pins.Pin(entry.ImdbId, PosterPins.Shown(target), entry.PosterPath) is not { } path)
         {
             File.Delete(target);
             File.Delete(marker);
             return;
         }
         // An image a path names never changes; a new image comes under a new path.
-        if (File.Exists(target) && File.Exists(marker) && await File.ReadAllTextAsync(marker, ct) == entry.PosterPath) return;
+        if (File.Exists(target) && File.Exists(marker) && await File.ReadAllTextAsync(marker, ct) == path) return;
 
-        if (await tmdb.ImageAsync(entry.PosterPath, "w500", ct) is not { } bytes) return;
+        if (await tmdb.ImageAsync(path, "w500", ct) is not { } bytes) return;
         await File.WriteAllBytesAsync(target + ".tmp", bytes, ct);
         File.Move(target + ".tmp", target, overwrite: true);
-        await File.WriteAllTextAsync(marker, entry.PosterPath, ct);
+        await File.WriteAllTextAsync(marker, path, ct);
     }
 
     /// <summary>Removes the posters of whatever is no longer trending.</summary>

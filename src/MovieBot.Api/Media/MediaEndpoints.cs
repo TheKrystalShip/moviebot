@@ -31,11 +31,25 @@ public static class MediaEndpoints
             .RequireMediaAccess();
 
         // Discord's servers fetch the poster to render an embed and carry nothing of ours. A poster
-        // is not the film.
-        app.MapMethods("/media/{id}/poster.jpg", ["GET", "HEAD"],
-                (string id, string? v, TitleLibrary library, Subtitles.SubtitleStore subtitles) => Serve(id, "poster.jpg", v, library, subtitles))
+        // is not the film. It is the title's poster wherever it is kept (TitlePosters), so every
+        // surface that names a title's poster by this address shows the same one.
+        app.MapMethods("/media/{id}/" + TitlePosters.FileName, ["GET", "HEAD"], (string id, string? v, TitlePosters posters) =>
+                TitleLibrary.IsSafeId(id) && posters.FileOf(id) is { } poster
+                    ? Results.File(poster, "image/jpeg", enableRangeProcessing: true).WithCacheControl(ArtworkCacheControl(v))
+                    : Results.NotFound())
             .AllowAnonymous();
     }
+
+    /// <summary>
+    /// A poster and a sheet of scrub previews keep their names while what they name changes: a title
+    /// gains the film database's poster once it is described, and a sheet that came out wrong is
+    /// rebuilt. Served as immutable at the bare address, whoever already looked at the old one would
+    /// hold it for a year, so there it is checked instead, which costs a request answered 304. Asked
+    /// for with the version a listing gave it, it is immutable: a change moves the version and so the
+    /// address, and a page of posters is drawn from the browser's cache rather than a round trip each.
+    /// </summary>
+    private static string ArtworkCacheControl(string? v) =>
+        string.IsNullOrEmpty(v) ? "public, max-age=0, must-revalidate" : "public, max-age=31536000, immutable";
 
     /// <param name="v">
     /// The version a listing gave the file (<see cref="TitleSummary.PosterVersion"/>). Its value is
@@ -85,19 +99,12 @@ public static class MediaEndpoints
         // the film end early and stalls, which looks exactly like a broken transcode.
         // Segments never change once written, so they are immutable.
         //
-        // Artwork is neither. A poster and a sheet of scrub previews keep their names and are
-        // rewritten in place — by a catalogue lookup, or by rebuilding a sheet that came out
-        // wrong — so serving them as immutable at their bare address leaves whoever already looked
-        // at the broken one holding it for a year. At that address they are checked instead, which
-        // costs a request answered 304 and is what makes a correction reach anybody. Asked for
-        // with the version a listing gave them, they are immutable: a rewrite changes the version
-        // and so the address. A page of posters is then drawn from the browser's cache rather than
-        // a request per poster, each costing a round trip.
+        // Artwork is neither (ArtworkCacheControl).
         var cacheControl = (isPlaylist, transcoding) switch
         {
             (true, true) => "no-store, no-cache, must-revalidate",
             (true, false) => "public, max-age=300",
-            _ when IsArtwork(requested) && string.IsNullOrEmpty(v) => "public, max-age=0, must-revalidate",
+            _ when IsArtwork(requested) => ArtworkCacheControl(v),
             _ => "public, max-age=31536000, immutable"
         };
 
@@ -107,7 +114,7 @@ public static class MediaEndpoints
 
     /// <summary>What a title's directory holds that is rewritten under the same name.</summary>
     private static bool IsArtwork(string path) =>
-        Path.GetFileName(path) is "poster.jpg" or "thumbs.jpg";
+        Path.GetFileName(path) is TitlePosters.FileName or "thumbs.jpg";
 
     private static IResult WithCacheControl(this IResult inner, string value) =>
         new CacheHeaderResult(inner, value);

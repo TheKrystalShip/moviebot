@@ -46,6 +46,7 @@ public sealed class TitleGlances(
     string root,
     FilmStore films,
     ShowStore shows,
+    PosterPins pins,
     IServiceScopeFactory scopes,
     TimeProvider clock,
     ILogger<TitleGlances> logger)
@@ -78,12 +79,16 @@ public sealed class TitleGlances(
         return glance?.PosterPath is not null ? $"/glances/{imdbId}/poster.jpg" : null;
     }
 
+    /// <summary>Where a title's poster is served from, by what is kept about it; null when nothing kept names one.</summary>
+    public string? PosterUrl(string imdbId) => PosterUrl(imdbId, Described(imdbId) ?? Held(imdbId)?.Glance);
+
     /// <summary>The kept poster of a glance, fetched now if it is not kept yet; null when there is none.</summary>
     public Task<string?> PosterFileAsync(string imdbId)
     {
-        if ((Held(imdbId)?.Glance ?? Described(imdbId))?.PosterPath is not { } wanted) return Task.FromResult<string?>(null);
         var target = Path.Combine(root, imdbId + ".poster.jpg");
         var marker = target + ".src";
+        if (pins.Pin(imdbId, PosterPins.Shown(target), (Held(imdbId)?.Glance ?? Described(imdbId))?.PosterPath) is not { } wanted)
+            return Task.FromResult<string?>(null);
         if (File.Exists(target) && File.Exists(marker) && File.ReadAllText(marker) == wanted) return Task.FromResult<string?>(target);
 
         var fetching = _posters.GetOrAdd(imdbId, _ => FetchPosterAsync(wanted, target, marker));

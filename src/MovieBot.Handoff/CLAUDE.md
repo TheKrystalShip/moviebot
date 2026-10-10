@@ -61,8 +61,7 @@ is about not losing that.
   leave nothing to say the rest of the transcode is still owed, and an interrupted one unrecoverable.
 - **A poster is put on disk before the manifest names it.** A manifest is read the moment it exists,
   and a surface that fetches artwork on its own servers caches the 404 rather than trying again. The
-  catalogue's poster is already a local file and waits for nothing; a source's own cover art has to be
-  demuxed out of it, so for a film still downloading it is named only once it has been extracted.
+  catalogue's poster is fetched before the ingest starts, so it is a local file that waits for nothing.
 - **The feature is the largest video file above a floor**, with samples and trailers excluded by name.
   Without the floor, a torrent holding only a sample yields the sample and the room watches ninety
   seconds of a film.
@@ -110,8 +109,10 @@ A release name is what a film arrives as. It is not what the film is called.
 - **A film named wrongly is worse than a film not named.** Everything downstream believes it, so a
   search that cannot be sure returns nothing: a year given and matched by nothing finds nothing rather
   than the closest thing.
-- **A source that shipped its own cover art keeps it.** It came with the release, and the catalogue's
-  is only ever a stand-in for a film that has none.
+- **A source's own cover art is never used.** It is whatever the packer put there, often a landscape
+  still. The poster beside the title is the catalogue's, and the API shows the film database's in its
+  place wherever it holds one (`src/MovieBot.Api/CLAUDE.md`), so a title looks the same from the
+  search that found it to the library that holds it.
 
 ## What an episode lets a viewer skip (`MarkerPass`, `FingerprintStore`)
 

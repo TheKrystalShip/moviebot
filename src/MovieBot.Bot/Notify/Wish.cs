@@ -29,13 +29,23 @@ public sealed record Wish
 
     public string Url => $"https://www.imdb.com/title/{ImdbId}/";
 
-    public static Wish From(WishView view) => new()
+    /// <summary>
+    /// The wish as the API answered it. Its poster is served from the API at an address relative to
+    /// it, and Discord fetches an embed's image from its own servers, so it is offered at the API's
+    /// public address and left off when there is none.
+    /// </summary>
+    public static Wish From(WishView view, string? publicBaseUrl) => new()
     {
         ImdbId = view.ImdbId,
         Title = view.Title,
         Year = view.Year,
         Starring = view.Starring,
-        PosterUrl = view.PosterUrl,
+        PosterUrl = view.PosterUrl switch
+        {
+            ['/', ..] url => publicBaseUrl is { Length: > 0 } root ? root.TrimEnd('/') + url : null,
+            { } url when Uri.TryCreate(url, UriKind.Absolute, out var absolute) && absolute.Scheme is "https" or "http" => url,
+            _ => null,
+        },
         Subscribers = view.Subscribers.Select(s => new WishSubscriber(s.UserId)).ToList(),
     };
 }

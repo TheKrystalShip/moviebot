@@ -10,7 +10,7 @@ namespace TheKrystalShip.MovieBot.Ingest.Pipeline;
 /// <summary>
 /// Turns one source film into something a room can start watching within seconds.
 ///
-/// Order matters. Subtitles and the poster are extracted first, because a monolithic .vtt being
+/// Order matters. Subtitles are extracted first, because a monolithic .vtt being
 /// appended to while a player fetches it once gives subtitles that stop partway through the film.
 /// Only then does the main pass start, writing EVENT playlists that grow as segments land, so
 /// playback opens long before the transcode finishes.
@@ -35,7 +35,6 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
         var video = probe.Streams.FirstOrDefault(s => s.IsVideo && !s.IsAttachedPicture)
             ?? throw new InvalidOperationException("No video stream found.");
-        var attachedPicture = probe.Streams.FirstOrDefault(s => s.IsVideo && s.IsAttachedPicture);
         var audioStreams = probe.Streams.Where(s => s.IsAudio).ToList();
         var subtitleStreams = probe.Streams.Where(s => s.IsSubtitle).ToList();
 
@@ -91,19 +90,14 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         if (options.ThumbnailsOnly)
             return await RebuildThumbnailsAsync(id, video, probe.Format.DurationSeconds, log, ct);
 
-        var embeddedPosterIsReady = EmbeddedPosterIsReady(
-            hasCoverArt: attachedPicture is not null, sourceIsWhole: options.Availability is null);
-
         var manifest = BuildManifest(id, title, probe, video, dynamicRange, ladder,
             audioStreams, textSubtitles, bitmapSubtitles,
-            hasPoster: false,
             sourceStillArriving: options.Availability is not null);
         manifest.OtherLanguages = otherLanguages;
 
         if (options.DryRun)
         {
-            manifest.Poster = embeddedPosterIsReady || options.PosterSource is { Length: > 0 }
-                ? "poster.jpg" : null;
+            manifest.Poster = options.PosterSource is { Length: > 0 } ? "poster.jpg" : null;
             log(string.Empty);
             log(ManifestJson.Serialize(manifest));
             return manifest;
@@ -114,8 +108,8 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         // Put down before the manifest names it. A manifest is read the moment it exists — a film
         // is announced within seconds of the first segments landing, and an embed asking for a
         // poster that is not there yet gets a 404 which the surface then caches.
-        if (!embeddedPosterIsReady) CopyPoster(outputDirectory, log);
-        if (embeddedPosterIsReady || File.Exists(Path.Combine(outputDirectory, "poster.jpg")))
+        CopyPoster(outputDirectory, log);
+        if (File.Exists(Path.Combine(outputDirectory, "poster.jpg")))
             manifest.Poster = "poster.jpg";
 
         var manifestPath = Path.Combine(outputDirectory, "manifest.json");
@@ -140,12 +134,6 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                 {
                     log($"Extracting {textSubtitles.Count} subtitle tracks");
                     await ExtractSubtitlesAsync(textSubtitles, outputDirectory, ct);
-                }
-
-                if (attachedPicture is not null)
-                {
-                    log("Extracting cover art");
-                    await ExtractPosterAsync(attachedPicture, outputDirectory, ct);
                 }
             }
             else
@@ -184,15 +172,6 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                 {
                     log($"Extracting {textSubtitles.Count} subtitle tracks");
                     await ExtractSubtitlesAsync(textSubtitles, outputDirectory, ct);
-                }
-
-                // A source that shipped its own cover art keeps it, so this replaces whatever the
-                // catalogue stood in with while the film was arriving.
-                if (attachedPicture is not null)
-                {
-                    log("Extracting cover art");
-                    await ExtractPosterAsync(attachedPicture, outputDirectory, ct);
-                    manifest.Poster = "poster.jpg";
                 }
 
                 manifest.Subtitles = Advertise(manifest.Subtitles, textSubtitles);
@@ -328,20 +307,11 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
     }
 
     /// <summary>
-    /// Whether a source's own cover art can be had before the transcode rather than after it.
-    ///
-    /// It has to be demuxed out of the file, so for a file still arriving it cannot be had until
-    /// the download is. That is the whole reason a manifest cannot simply assume a poster: it is
-    /// read the moment it exists — a film is announced within seconds of the first segments
-    /// landing — and naming artwork that arrives an hour later is a message with a hole in it and
-    /// a 404 that whatever fetched it goes on to cache.
-    /// </summary>
-    internal static bool EmbeddedPosterIsReady(bool hasCoverArt, bool sourceIsWhole) =>
-        hasCoverArt && sourceIsWhole;
-
-    /// <summary>
-    /// The poster for a source that carries none, which is most of them. Never throws: a film
-    /// without artwork is worse than one with it, and better than an ingest that failed over it.
+    /// The title index's poster, which the hand-off fetched before the ingest started. A source's own
+    /// cover art is never used: it is whatever the packer put there, often a landscape still. The API
+    /// shows a title by the film database's poster and serves this one only for a title the database
+    /// holds none for. Never throws: a film without artwork is worse than one with it, and better than
+    /// an ingest that failed over it.
     /// </summary>
     private void CopyPoster(string outputDirectory, Action<string> log)
     {
@@ -356,18 +326,6 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         {
             log($"  no poster: {ex.Message}");
         }
-    }
-
-    private async Task ExtractPosterAsync(ProbeStream attachedPicture, string outputDirectory, CancellationToken ct)
-    {
-        await FfmpegProcess.RunAsync(
-        [
-            "-y", "-probesize", ProbeWindow, "-analyzeduration", ProbeWindow,
-            "-i", options.SourcePath,
-            "-map", $"0:{attachedPicture.Index}",
-            "-c", "copy", "-frames:v", "1",
-            Path.Combine(outputDirectory, "poster.jpg")
-        ], ct: ct);
     }
 
     // ---- Main pass ------------------------------------------------------------------
@@ -582,7 +540,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         string id, string title, ProbeResult probe, ProbeStream video, string dynamicRange,
         IReadOnlyList<VideoRung> ladder,
         List<ProbeStream> audioStreams, List<ProbeStream> textSubtitles,
-        List<ProbeStream> bitmapSubtitles, bool hasPoster, bool sourceStillArriving = false)
+        List<ProbeStream> bitmapSubtitles, bool sourceStillArriving = false)
     {
         var audio = new List<AudioTrack>();
         var primaryAssigned = false;
@@ -653,7 +611,6 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             DurationSeconds = probe.Format.DurationSeconds,
             Status = TitleStatus.Transcoding,
             HeadSeconds = 0,
-            Poster = hasPoster ? "poster.jpg" : null,
             Master = MasterPlaylist.FileName,
             Video = new VideoInfo
             {

@@ -117,18 +117,28 @@ public static class AcquisitionEndpoints
             .RequireAction(CinemaActions.Download);
 
         // A person's own wishes: whose they are is the token's to say.
-        group.MapGet("/wishes", (HttpContext context, Wishes wishes) =>
-            CinemaPerson.Of(context) is { } person ? Results.Ok(wishes.List(person.UserId)) : NoPerson())
-            .RequireAction(CinemaActions.Wish);
-
-        group.MapPost("/wishes", async (AddWishRequest request, HttpContext context, Wishes wishes, CancellationToken ct) =>
+        // A wish is shown by the poster the film's page shows, which is the one its search result
+        // showed; what the title index said is kept for a film the film database has none for.
+        group.MapGet("/wishes", (HttpContext context, Wishes wishes, Films.TitleGlances glances) =>
             CinemaPerson.Of(context) is { } person
-                ? Results.Ok(await wishes.SubscribeAsync(request, person.Actor, ct))
+                ? Results.Ok(wishes.List(person.UserId).Select(w => Shown(w, glances)).ToList())
                 : NoPerson())
             .RequireAction(CinemaActions.Wish);
 
-        group.MapDelete("/wishes/{imdbId}", (string imdbId, HttpContext context, Wishes wishes) =>
-            CinemaPerson.Of(context) is { } person ? Results.Ok(wishes.Cancel(person.UserId, imdbId)) : NoPerson())
+        group.MapPost("/wishes", async (AddWishRequest request, HttpContext context, Wishes wishes, Films.TitleGlances glances, CancellationToken ct) =>
+            CinemaPerson.Of(context) is { } person
+                ? Results.Ok(await wishes.SubscribeAsync(request, person.Actor, ct) is var reply && reply.Wish is { } wish
+                    ? reply with { Wish = Shown(wish, glances) }
+                    : reply)
+                : NoPerson())
+            .RequireAction(CinemaActions.Wish);
+
+        group.MapDelete("/wishes/{imdbId}", (string imdbId, HttpContext context, Wishes wishes, Films.TitleGlances glances) =>
+            CinemaPerson.Of(context) is { } person
+                ? Results.Ok(wishes.Cancel(person.UserId, imdbId) is var reply && reply.Wish is { } wish
+                    ? reply with { Wish = Shown(wish, glances) }
+                    : reply)
+                : NoPerson())
             .RequireAction(CinemaActions.Wish);
 
         // What the hand-off deletes: the settled films whose time is up. It is asked by the one process
@@ -138,6 +148,9 @@ public static class AcquisitionEndpoints
     }
 
     /// <summary>An act a person performs, asked for by something that is nobody.</summary>
+    private static WishView Shown(WishView wish, Films.TitleGlances glances) =>
+        wish with { PosterUrl = glances.PosterUrl(wish.ImdbId) ?? wish.PosterUrl };
+
     private static IResult NoPerson() =>
         Results.Json(new ErrorReply("This is done as a person; sign in as one."), ApiJsonContext.Default.ErrorReply,
             statusCode: StatusCodes.Status403Forbidden);

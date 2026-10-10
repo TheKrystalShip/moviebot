@@ -240,7 +240,9 @@
   // films and shows trending this week, with their posters, are kept under PopularDirectory (an empty
   // one is popular/ in the state directory) and asked for again every few hours. A search result's
   // rating and overview are kept under GlancesDirectory (an empty one is glances/ in the state
-  // directory): a year for a title out over a year, a week for anything newer. A person's credits
+  // directory): a year for a title out over a year, a week for anything newer. The poster each title
+  // is shown by, the first the API showed it with, is pinned under PostersDirectory (an empty one is
+  // posters/ in the state directory). A person's credits
   // and a genre's most popular titles are kept under CatalogueDirectory (an empty one is catalogue/
   // in the state directory): a person's for a week, a genre's for a day.
   "Tmdb": {
@@ -253,6 +255,7 @@
     "ShowsDirectory": "",
     "PopularDirectory": "",
     "GlancesDirectory": "",
+    "PostersDirectory": "",
     "CatalogueDirectory": "",
     "RefreshDays": 14
   },

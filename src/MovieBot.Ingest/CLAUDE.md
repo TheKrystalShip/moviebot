@@ -12,7 +12,7 @@ dotnet run --project src/MovieBot.Ingest -c Release -- "<file>" --out ./media  #
 - **Probe with `-probesize 200M -analyzeduration 200M`.** With the defaults, ffprobe cannot size PGS
   subtitle streams: it prints `Could not find codec parameters` once per stream and may return
   incomplete data.
-- **Subtitles and the poster are extracted before the main pass, never alongside it.** A monolithic
+- **Subtitles are extracted before the main pass, never alongside it.** A monolithic
   `.vtt` being appended to while a player fetches it once gives subtitles that stop partway through the
   film.
 - **Subtitles are repaired against double-encoding as they are extracted.** Releases ship tracks that

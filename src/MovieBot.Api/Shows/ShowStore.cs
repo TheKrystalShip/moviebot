@@ -37,6 +37,7 @@ public sealed class ShowStore(
     string root,
     IOptions<FilmStoreOptions> options,
     IServiceScopeFactory scopes,
+    PosterPins pins,
     EpisodeNumbering numbering,
     TimeProvider clock,
     ILogger<ShowStore> logger)
@@ -160,15 +161,15 @@ public sealed class ShowStore(
     private async Task FetchImagesAsync(
         TmdbClient tmdb, string imdbId, ShowDetails details, List<SeasonDetails> seasons, CancellationToken ct)
     {
+        var directory = Path.Combine(root, imdbId);
         var wanted = new List<(string? Path, string Size, string File)>
         {
-            (details.PosterPath, "w500", Poster),
+            (pins.Pin(imdbId, PosterPins.Shown(Path.Combine(directory, Poster)), details.PosterPath), "w500", Poster),
             (details.BackdropPath, "w1280", Backdrop),
         };
         wanted.AddRange(details.Cast.Select((c, i) => (c.ProfilePath, "w185", Portrait(i))));
         wanted.AddRange(seasons.SelectMany(s => s.Episodes).Select(e => (e.StillPath, "w300", Still(e.Season, e.Number))));
 
-        var directory = Path.Combine(root, imdbId);
         Directory.CreateDirectory(directory);
         // Asked side by side, as a film's are: a page opened on a show nothing is kept for waits on them.
         await Parallel.ForEachAsync(wanted, new ParallelOptions { MaxDegreeOfParallelism = FilmStore.ImagesAtOnce, CancellationToken = ct },

@@ -38,7 +38,7 @@ Playback starts seconds after a film is requested, while it is still being trans
                                                   (finished download → library)
 ```
 
-1. **Ingest** probes a film with `ffprobe`, extracts subtitles and cover art, and transcodes it to
+1. **Ingest** probes a film with `ffprobe`, extracts its subtitles, and transcodes it to
    H.264 video and AAC audio in fragmented-MP4 HLS segments. Its playlists are HLS `EVENT` type, so
    they only ever grow and a player can join while ffmpeg is still writing. A `manifest.json`
    describes the film's tracks and how far the transcode has reached.
@@ -150,7 +150,7 @@ Output for one film:
 ```
 media/<id>/
   manifest.json      the film's tracks, and how far the transcode has reached
-  poster.jpg         the container's own cover art, when present
+  poster.jpg         the title index's poster, when the hand-off fetched one
   s3.vtt s4.vtt …    one WebVTT file per text subtitle track, named by source stream index
   v0/index.m3u8      video: H.264 High, fMP4 segments
   a0/index.m3u8      primary audio: AAC stereo

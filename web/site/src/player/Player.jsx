@@ -92,8 +92,8 @@ function filmLine(manifest, around) {
 const episodeCode = (episode) => `S${episode.season} · E${episode.number}`;
 
 /**
- * The artwork behind the frame, always from this server: the poster saved beside the title, else the
- * copy the API keeps from the film database for the film, or for the show an episode belongs to.
+ * The artwork behind the frame, always from this server: the title's poster as the API serves it,
+ * else the copy the API keeps from the film database for the film, or for the show an episode belongs to.
  */
 function posterOf(manifest) {
   if (!manifest) return null;

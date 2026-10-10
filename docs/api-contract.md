@@ -150,7 +150,11 @@ a `HubException` (Who may come in, below). A guest's film bytes are opened by th
 
 A film's bytes are opened by the access token of somebody who may watch, or by a **media ticket** on
 the query string as `?mt=…`, and the ticket is what a player should use for the film itself. A title's
-`poster.jpg` is open: Discord's servers fetch it to draw an embed.
+`poster.jpg` is open: Discord's servers fetch it to draw an embed. It is the title's poster wherever it
+is shown: the film database's poster kept for the film, or for the show an episode belongs to, the same
+one a search result and the title's page show; the poster beside the title only when the database holds
+none. Each title's database poster is pinned to the first the API showed it with, so a title keeps one
+poster from the search that found it to the shelf that holds it.
 
 The difference is caching. A shared cache will not answer a request that carried an
 `Authorization` header. A ticket says only which film and until when, and **every viewer of a title
@@ -198,8 +202,8 @@ what a play does cannot come to depend on which door it arrived by.
 
 `.m3u8` for a title whose status is `transcoding` is served `no-store`; once `ready` it is
 `max-age=300`. Segments, init files and subtitles are `immutable` for a year. A poster or a preview
-sheet is rewritten under its own name, so at its bare address it is `max-age=0, must-revalidate`, and
-asked for with `?v=` it is `immutable` for a year: a rewrite is listed under another version.
+sheet can change under its own name, so at its bare address it is `max-age=0, must-revalidate`, and
+asked for with `?v=` it is `immutable` for a year: a change is listed under another version.
 
 Content types are set explicitly, because the framework knows none of them and hls.js refuses a
 segment delivered as `application/octet-stream`: `application/vnd.apple.mpegurl`,
@@ -402,7 +406,7 @@ key, for the announcements the bot posts. The shapes are in
 | `POST /api/watch` | `WatchNowReply` for `{imdbId, torrentId?, quality?, episodes?, room?}` — `{outcome, room?, libraryId?, streams?}`. See Watch now below |
 | `GET /api/downloads` | `DownloadView[]`: `{hash, name, release, summary, progress, isFinished, isWatchable, libraryId?, imdbId?, requestedBy?}`, `requestedBy` the account of whoever asked |
 | `POST /api/downloads` | `StartDownloadReply` for `{torrentId, notifyChannelId?, roomId?, episodes?}`; `episodes` (`[{season, episode}]`) fetches only those files out of a show's release, and picking more from a release already downloading switches them on in it |
-| `GET /api/wishes` | `WishView[]` — the wishes the person waits on; one the tracker has answered carries `release`, the `ReleaseOffer` found for it |
+| `GET /api/wishes` | `WishView[]` — the wishes the person waits on; one the tracker has answered carries `release`, the `ReleaseOffer` found for it. A wish's `posterUrl` is the poster the film's page shows, served from here at a relative address, or the title index's own, absolute, where the film database has none |
 | `POST /api/wishes` | `AddWishReply` for `{chosen}` |
 | `DELETE /api/wishes/{imdbId}` | `CancelWishReply` — the person comes off the wish |
 | `GET /api/library/due` | `string[]` — the ids of the settled films whose time is up; the **service key** alone |
@@ -579,7 +583,7 @@ names. The shapes are in `src/MovieBot.Core/Notifications.cs`.
   "headSeconds": 20.0,            // absent once ready; the shortest playlist: every rung and the audio have reached this
   "audioHeadSeconds": 31.0,       // how far the audio has reached; absent once ready, and absent when audio is not tracked apart from the rungs
   "error": "…",                   // present only when status is "failed"
-  "poster": "poster.jpg",         // absent when the container carried no cover art
+  "poster": "poster.jpg",         // the title index's poster put beside the title; absent when there was none
   "master": "master.m3u8",        // load THIS, not a bare video rendition
   "video": {
     "width": 1920,
@@ -652,8 +656,9 @@ menu reads as a bug. Render it disabled with its `reason`, do not hide it.
 
 `TitleSummary` is `{id, title, durationSeconds, status, kind, episode?, unit, headSeconds?, poster?,
 posterVersion?, film?, sizeBytes?, addedAt?, details?, progress?, lastPlayed?}`. `kind` is `"film"` or
-`"show"`, as the manifest says. `posterVersion` is when the poster was last written, in milliseconds
-since the epoch, and a page asks for the poster as `/media/{id}/{poster}?v={posterVersion}`. Every episode of a show is a title of its own: `episode` is `{season, number}`, `film`
+`"show"`, as the manifest says. `poster` is present whenever the title has a poster to serve, and
+`posterVersion` is when the file it is served from was last written, in milliseconds since the epoch; a
+page asks for the poster as `/media/{id}/{poster}?v={posterVersion}`. Every episode of a show is a title of its own: `episode` is `{season, number}`, `film`
 is the show, `title` is the show's name with the episode's place (`Severance S02E04`), and `unit` is
 its season's (a film's is its own id). `details` is what the film database said, as far as a
 listing shows it — `{rating?, votes, certification?, genres, runtimeMinutes?, overview?, directors,

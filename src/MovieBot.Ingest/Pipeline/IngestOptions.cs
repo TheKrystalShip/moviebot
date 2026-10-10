@@ -44,7 +44,8 @@ public sealed record IngestOptions
     public EpisodeIdentity? Episode { get; init; }
 
     /// <summary>
-    /// A poster on disk to use when the source carries no cover art of its own.
+    /// The poster put beside the title: the title index's, on disk. A source's own cover art is never
+    /// used.
     ///
     /// A path rather than an address: fetching it belongs to whoever knows where films are
     /// catalogued, and the ingest's whole job is turning one directory into another.
