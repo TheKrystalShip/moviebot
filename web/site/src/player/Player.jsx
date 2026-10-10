@@ -226,11 +226,9 @@ function useFrameSize(ref) {
  *
  * The frame decides the layout rather than the device: a wide frame has labelled controls and
  * popovers, a compact one has icons and sheets from the bottom edge, and a tiny one — a Discord
- * pop-out — is one row with an overflow menu. `embed` is the Activity: no way back to a site it
- * was never opened from, and a link to the room in place of the invite, since Discord does the
- * inviting.
+ * pop-out — is one row with an overflow menu.
  */
-export function Player({ embed = false, online = true, onBack, onEmpty, onCarryOn }) {
+export function Player({ online = true, onBack, onEmpty, onCarryOn }) {
   const frameRef = React.useRef(null);
   const videoRef = React.useRef(null);
   const [room, setRoom] = React.useState(null);
@@ -248,7 +246,7 @@ export function Player({ embed = false, online = true, onBack, onEmpty, onCarryO
   return (
     <div ref={frameRef} className={`mp-frame mp-frame--${size}`} data-size={size}>
       <video ref={videoRef} className="mp-video" playsInline preload="auto" />
-      {room && view && <Stage room={room} view={view} size={size} embed={embed} online={online} frameRef={frameRef} videoRef={videoRef}
+      {room && view && <Stage room={room} view={view} size={size} online={online} frameRef={frameRef} videoRef={videoRef}
         onBack={onBack} onEmpty={onEmpty} onCarryOn={onCarryOn} />}
     </div>
   );
@@ -274,7 +272,7 @@ function useRoomLost(view, online) {
   return lost;
 }
 
-function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, onEmpty, onCarryOn }) {
+function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, onCarryOn }) {
   const video = videoRef.current;
   const manifest = view.manifest;
   const solo = view.solo;
@@ -591,7 +589,7 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
       {/* ── Top bar ── */}
       {manifest && (
         <div className="mp-top">
-          {!embed && !viewOnly && onBack && size !== "tiny" && (
+          {!viewOnly && onBack && size !== "tiny" && (
             <button type="button" className="mp-round" aria-label="Back" title="Back" onClick={onBack}><Icon name="arrow-left" size={18} /></button>
           )}
           <div className="mp-top__title">
@@ -636,26 +634,25 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
       {preparing && <Preparing manifest={manifest} head={view.transcodeHead} />}
       {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} focused={tv} solo={solo} onJoin={() => { takeScreen(); room.joinPlayback(); }} />}
       {view.unplayable && <Message icon="circle-alert" title="This cannot play here" text={view.unplayable} />}
-      {view.fatal && <Message icon="circle-alert" title={view.fatal} action={!embed && onBack ? { label: "Back", go: onBack } : null} />}
+      {view.fatal && <Message icon="circle-alert" title={view.fatal} action={onBack ? { label: "Back", go: onBack } : null} />}
       {!view.fatal && view.entry !== null && view.entry !== "in" && (
-        <AtTheDoor entry={view.entry} onAsk={() => room.askToJoin()} onBack={!embed ? onBack : null} />
+        <AtTheDoor entry={view.entry} onAsk={() => room.askToJoin()} onBack={onBack} />
       )}
       {view.entry === "in" && view.door && view.door.knocking.length > 0 && (
         <Knocking knocks={view.door.knocking} onAnswer={(userId, admit) => room.answerKnock(userId, admit)} />
       )}
       {/* What the room holds while it arrives. */}
       {!view.fatal && view.state && view.state.preparing && view.state.preparing.stage !== "failed" && (
-        <Fetching preparing={view.state.preparing} onBack={!embed ? onBack : null} />
+        <Fetching preparing={view.state.preparing} onBack={onBack} />
       )}
       {!view.fatal && view.state && view.state.preparing && view.state.preparing.stage === "failed" && (
         <Message icon="circle-alert" title={`${view.state.preparing.name} could not be fetched`}
           text={fetchProblem(view.state.preparing)}
-          action={!embed && onBack ? { label: "Back", go: onBack } : null} />
+          action={onBack ? { label: "Back", go: onBack } : null} />
       )}
       {!view.fatal && view.state && !titleHeld && !view.state.preparing && (
         <Message icon="clapperboard" title="Nothing playing yet"
-          text={embed ? "Ask the bot for a film with /watch." : null}
-          action={!embed && onEmpty ? { label: "Choose something to watch", go: onEmpty } : null} />
+          action={onEmpty ? { label: "Choose something to watch", go: onEmpty } : null} />
       )}
 
       {/* ── Bottom controls ── */}
@@ -736,7 +733,7 @@ function Stage({ room, view, size, embed, online, frameRef, videoRef, onBack, on
       {menu !== null && manifest && <Menu kind={menu} view={view} room={room} sheet={sheet} position={clock.position}
         styling={styling} onStyling={setStyling} onClose={() => setMenu(null)} />}
       {overflow && manifest && (
-        <Overflow view={view} volume={volume} onVolume={changeVolume} onNudge={nudgeVolume} embed={embed}
+        <Overflow view={view} volume={volume} onVolume={changeVolume} onNudge={nudgeVolume}
           onPick={(kind) => { setOverflow(false); setMenu(kind); }} onClose={() => setOverflow(false)} />
       )}
       {invite && <InvitePanel view={view} room={room} everyone={everyone} compact={compact} />}

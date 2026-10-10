@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.0] - 2026-10-10
+
+### Changed
+
+- **The Discord Activity is the whole site.** It signs in through Discord as before and then shows
+  Krystal Cinema itself: browsing, lists, shows, Discover, profile and the assistant, with the
+  Discord sign-in held as the site's session. Its one room is the call's, so every Watch, Resume and
+  Watch now plays there in place of whatever the call held, and the player's back arrow returns to
+  the page the film was opened from while the film plays on for the call. A bar above every page names
+  what the call is watching, with Watch; the call being given something else opens the player for
+  everybody browsing. It opens on the player when the call is already watching, and on Home
+  otherwise. Download, the service worker and other rooms are not offered there, and links off the
+  site open outside Discord. Site 0.57.0.
+- **A launch that moves a room holding another film starts it where the launch says**, as one
+  filling an empty room does.
+
 ## [3.3.0] - 2026-10-10
 
 ### Added

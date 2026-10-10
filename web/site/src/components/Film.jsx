@@ -7,14 +7,16 @@ import { moviePath, playSavedPath, roomPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, timeLeft } from "../time.js";
 import { watchNow } from "../watchNow.js";
+import { activityRoom } from "../discord/launch.js";
 
 /**
  * Where a film is watched: a room of its own for whoever opens it, or the room somebody is already
  * watching it in. The room is the address, so the link can be handed to somebody else. `at` is where
- * to start when the room is empty; a room already holding the film ignores it.
+ * to start; a room already holding the film ignores it. In the Discord Activity every film is
+ * watched in the call's room, which it puts in place of whatever the call was watching.
  */
 export function watchHref(titleId, sessionId, at) {
-  const room = sessionId || crypto.randomUUID().replaceAll("-", "").slice(0, 8);
+  const room = activityRoom || sessionId || crypto.randomUUID().replaceAll("-", "").slice(0, 8);
   const query = [];
   if (titleId) query.push(`title=${encodeURIComponent(titleId)}`);
   if (titleId && at > 0) query.push(`at=${Math.floor(at)}`);

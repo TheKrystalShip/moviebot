@@ -60,7 +60,10 @@ export function Waiting({ note, returnTo }) {
   );
 }
 
-/** An approved account that holds no Cinema action that lets it watch: there is nothing here for it yet. */
+/**
+ * An approved account that holds no Cinema action that lets it watch: there is nothing here for it yet.
+ * Without `onSignOut` there is no way out offered, as in the Discord Activity, which is left in Discord.
+ */
 export function NoAccess({ onSignOut }) {
   return (
     <div className="kc-signin">
@@ -68,7 +71,23 @@ export function NoAccess({ onSignOut }) {
         <img src={markUrl} width="48" height="48" alt="" />
         <h1>Krystal Cinema</h1>
         <p>Your account has no access to Krystal Cinema yet.</p>
-        <Button variant="outline" size="xl" wide icon="log-out" onClick={onSignOut}>Sign out</Button>
+        {onSignOut && <Button variant="outline" size="xl" wide icon="log-out" onClick={onSignOut}>Sign out</Button>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The Discord Activity that could not sign in, or whose session ended: why, and nothing to press. It
+ * signs in through Discord when it starts, so starting it again is the way back.
+ */
+export function ActivityProblem({ note }) {
+  return (
+    <div className="kc-signin">
+      <div className="kc-signin__card">
+        <img src={markUrl} width="48" height="48" alt="" />
+        <h1>Krystal Cinema</h1>
+        <span className="kc-note kc-note--danger">{note}</span>
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ import { leave } from "./leave.js";
 import { goBack, navigate, useRoute } from "./router.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { PLACES } from "./nav.js";
-import { ANIME, OFFLINE_FLAG, discoverPath, homePath, libraryPath, moviePath, profilePath } from "./paths.js";
+import { ANIME, OFFLINE_FLAG, discoverPath, homePath, libraryPath, moviePath, profilePath, roomPath } from "./paths.js";
 import { useOnline } from "./connectivity.js";
 import { sendProgress } from "./offline/progress.js";
 import { useOfflineSync } from "./offline/sync.js";
@@ -24,24 +24,27 @@ import { Discover, DISCOVER_FIELD } from "./pages/Discover.jsx";
 import { Notify } from "./pages/Notify.jsx";
 import { ListPage, Saved } from "./pages/Saved.jsx";
 import { Profile } from "./pages/Profile.jsx";
-import { Dark, NoAccess, SignInReturn, Waiting } from "./pages/SignIn.jsx";
+import { ActivityProblem, Dark, NoAccess, SignInReturn, Waiting } from "./pages/SignIn.jsx";
 import { About } from "./pages/About.jsx";
 import { NotFound } from "./pages/NotFound.jsx";
 import { SiteFooter } from "./components/SiteFooter.jsx";
 import { BellNavItem } from "./components/Bell.jsx";
 import { PageStage } from "./components/PageStage.jsx";
 import { Trail } from "./components/Trail.jsx";
+import { CallBar } from "./components/CallBar.jsx";
+import { activityRoom, inActivity } from "./discord/launch.js";
+import { api } from "./api.js";
 import { onTv } from "./tv/tv.js";
 import { TvFrame } from "./tv/TvFrame.jsx";
 import { TvSignIn } from "./tv/TvSignIn.jsx";
 
 // The player carries hls.js, the hub client and Discord's SDK; only a room pays for them.
-const EmbedRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.EmbedRoom })));
 const SiteRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.SiteRoom })));
 const GuestRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) => ({ default: m.GuestRoom })));
 
 const UNANSWERED = "The sign-in service is not answering. Try again in a moment.";
 const ENDED = "Your session ended.";
+const ENDED_IN_ACTIVITY = "Your session ended. Close the Activity and start it again.";
 
 const place = (id) => ({ id, ...PLACES[id] });
 const HOME = ["home", "discover", "saved"].map(place);
@@ -91,15 +94,25 @@ const NEEDS_SERVER = new Set(["discover", "saved", "notify", "assistant"]);
  * that ends there puts the code over the page, which stays drawn and out of reach beneath it and is
  * where approval returns. A room is not kept under it: its position is the room's, and joining again
  * after approval picks it up where it is.
+ *
+ * The Discord Activity is the same site, signed in through Discord (`discord/activity.js`) and never
+ * through the provider. Its one room is the call's: every film is played there, the player is where
+ * the call's room is at, and the call moving on to something else takes everybody browsing back to it
+ * (`components/CallBar.jsx`).
  */
 export function App() {
   const session = useSession();
   const route = useRoute();
-  // The Activity and a guest link answer to no site session: the one proves who is watching through
-  // Discord, the other needs nobody to be anybody.
-  const embedded = route.view === "embed" || route.view === "guest";
-  const restored = useRestored(!embedded && route.view !== "signin");
+  // A guest link answers to no session: it needs nobody to be anybody.
+  const embedded = route.view === "guest";
+  const restoredHere = useRestored(!inActivity && !embedded && route.view !== "signin");
+  const activity = useActivity();
+  const restored = inActivity ? activity.ready : restoredHere;
   const online = useOnline();
+  // The page the Activity's player was opened from. Discord's frame does not go back through its
+  // history, so the player's way back is this page, navigated to.
+  const browsed = React.useRef(homePath);
+  if (route.view !== "room" && route.view !== "embed") browsed.current = route.href;
 
   const [waiting, setWaiting] = React.useState(null);
   // The last session held, which a television keeps its page drawn under while it signs in again.
@@ -113,15 +126,15 @@ export function App() {
   // reached: on opening, and each time the connection comes back.
   const sub = session && session.user.id;
   React.useEffect(() => {
-    if (sub && online && !embedded) void sendProgress();
+    if (sub && online && !embedded && !inActivity) void sendProgress();
   }, [sub, online, embedded]);
   // The saves on this device set beside the API's records, and the ones under way carried on.
-  useOfflineSync(!embedded && !onTv);
+  useOfflineSync(!embedded && !inActivity && !onTv);
 
   React.useEffect(() => {
     // With no connection nothing goes to the provider: a device with no session says a first sign-in
     // needs one, and signs in once the connection is back.
-    if (!restored || session || route.view === "signin" || embedded || onTv || !online) {
+    if (!restored || session || route.view === "signin" || embedded || inActivity || onTv || !online) {
       setWaiting(null);
       return;
     }
@@ -130,7 +143,23 @@ export function App() {
   }, [restored, session, route.view, route.href, embedded, online]);
 
   if (route.view === "guest") return <React.Suspense fallback={<Dark />}><GuestRoom code={route.arg} /></React.Suspense>;
-  if (embedded) return <React.Suspense fallback={<Dark />}><EmbedRoom /></React.Suspense>;
+  if (inActivity) {
+    if (activity.error) return <ActivityProblem note={activity.error} />;
+    if (!activity.ready) return <Dark />;
+    if (!session) return <ActivityProblem note={ENDED_IN_ACTIVITY} />;
+    if (!can(session, "cinema:watch")) return <NoAccess />;
+    if (route.view === "embed") return <ActivityLanding />;
+    if (route.view === "room") {
+      return (
+        <React.Suspense fallback={<Dark />}>
+          <SiteRoom room={activityRoom} title={route.query.get("title")}
+            onBack={() => navigate(browsed.current)} onEmpty={() => navigate(homePath, { replace: true })} />
+        </React.Suspense>
+      );
+    }
+    return <Frame session={session} route={route} />;
+  }
+  if (route.view === "embed") return <Away to={homePath} />;
   if (route.view === "signin") return <SignInReturn query={route.query} />;
   const covered = onTv && restored && !session && sessionEnded() && held.current && route.view !== "room";
   if (onTv && restored && !session && !covered) return <TvSignIn />;
@@ -225,7 +254,8 @@ function Frame({ session, route }) {
                 collapsed={dock.desktop && collapsed}
                 items={[
                   { icon: "user", label: "Profile", onClick: () => go(profilePath()) },
-                  { icon: "log-out", label: "Sign out", danger: true, onClick: leave },
+                  // In the Activity the session is the Discord account in it, which only leaving the Activity ends.
+                  ...(inActivity ? [] : [{ icon: "log-out", label: "Sign out", danger: true, onClick: leave }]),
                 ]} />
             </>}>
             <SidebarGroup>{HOME.map(item)}</SidebarGroup>
@@ -242,6 +272,7 @@ function Frame({ session, route }) {
           {!dock.open && online && <DockFab onClick={() => dock.setOpen(true)} />}
         </>}
         tabBar={<TabBar items={TABS.map(tab)} />}>
+        {inActivity && <CallBar />}
         <PageStage route={route} render={(r) => <Reachable route={r} />} above={(r) => <Trail route={r} />} onShown={toTop} />
         <SiteFooter />
       </AppShell>
@@ -280,6 +311,45 @@ function Reachable({ route }) {
     if (online && fromDevice) setFromDevice(false);
   }, [online, fromDevice]);
   return <Page key={fromDevice ? "device" : "server"} route={route} fromDevice={fromDevice} />;
+}
+
+/**
+ * The Discord Activity starting: `{ ready, error }`. Outside the Activity it is never ready and
+ * nothing is loaded; inside it, the SDK and the sign-in run once, before anything is drawn.
+ */
+function useActivity() {
+  const [state, setState] = React.useState({ ready: false, error: null });
+  React.useEffect(() => {
+    if (!inActivity) return;
+    let live = true;
+    import("./discord/activity.js")
+      .then((m) => m.startActivity())
+      .then(() => { if (live) setState({ ready: true, error: null }); })
+      .catch((error) => { if (live) setState({ ready: false, error: error instanceof Error ? error.message : "Discord sign-in failed." }); });
+    return () => { live = false; };
+  }, []);
+  return state;
+}
+
+/**
+ * Where the Activity opens: at the player when the call's room already holds something, or is private
+ * to this viewer, whose door is there; on the site's first page otherwise.
+ */
+function ActivityLanding() {
+  React.useEffect(() => {
+    let live = true;
+    api.room(activityRoom)
+      .then((push) => !!(push && push.state && (push.state.titleId || push.state.preparing)), (error) => error.status === 403)
+      .then((watching) => { if (live) navigate(watching ? roomPath(activityRoom) : homePath, { replace: true }); });
+    return () => { live = false; };
+  }, []);
+  return <Dark />;
+}
+
+/** An address that is somewhere else: replaced by `to` as soon as it is drawn. */
+function Away({ to }) {
+  React.useEffect(() => { navigate(to, { replace: true }); }, [to]);
+  return <Dark />;
 }
 
 /**

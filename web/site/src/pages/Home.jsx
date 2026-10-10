@@ -16,6 +16,7 @@ import { AnticipatedCard, MoreTile } from "../components/TitleCards.jsx";
 import { BellButton } from "../components/Bell.jsx";
 import { SavedCard } from "./Saved.jsx";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
+import { inActivity } from "../discord/launch.js";
 
 const RECENT_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -98,7 +99,9 @@ function DeviceHome() {
 
 function ServerHome() {
   const titles = useLoad(() => api.titles(), []);
-  const rooms = useLoad(() => api.rooms(), [], { every: 15000 });
+  // In the Discord Activity everything is watched in the call's room, which the call bar shows, so
+  // other rooms are not offered.
+  const rooms = useLoad(() => (inActivity ? Promise.resolve([]) : api.rooms()), [], { every: 15000 });
   const marks = useDownloadMarks();
   const progress = useLoad(() => api.progress().catch(() => []), []);
   const showList = useLoad(() => api.shows().catch(() => []), []);

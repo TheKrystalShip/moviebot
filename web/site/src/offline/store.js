@@ -7,12 +7,17 @@ import {
   accountDir, accountDirName, isMeta, META, root, saveDir, SHOW_META, SHOWS, showDir, showDirName, titleDirName, titleIdOf,
 } from "./layout.js";
 
+import { inActivity } from "../discord/launch.js";
+
 const CHANNEL = "cinema-offline";
 const FORGET_KEY = "cinema.offline.forget.";
 
-/** Whether this browser can keep saved films: the Origin Private File System is there. */
+/**
+ * Whether this browser can keep saved films: the Origin Private File System is there, and the page is
+ * not the Discord Activity, where every film is watched in the call's room.
+ */
 export function offlineSupported() {
-  return typeof navigator !== "undefined" && !!navigator.storage && typeof navigator.storage.getDirectory === "function";
+  return !inActivity && typeof navigator !== "undefined" && !!navigator.storage && typeof navigator.storage.getDirectory === "function";
 }
 
 /**

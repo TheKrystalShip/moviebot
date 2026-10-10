@@ -5,11 +5,15 @@
 import { toast } from "@thekrystalship/krystal-ui";
 import { api } from "./api.js";
 import { navigate } from "./router.js";
+import { activityRoom } from "./discord/launch.js";
 
-/** Starts watching and goes to the room; false when it could not start, which is said. */
+/**
+ * Starts watching and goes to the room; false when it could not start, which is said. In the Discord
+ * Activity the room is the call's.
+ */
 export async function watchNow(request, { limit } = {}) {
   try {
-    const reply = await api.watchNow(request);
+    const reply = await api.watchNow(activityRoom ? { ...request, room: activityRoom } : request);
     if (reply.outcome === "full") {
       toast.info(`The server is preparing ${limit ? `${limit} films` : "as many films as it can"} for people watching right now. Try again in a few minutes.`);
       return false;

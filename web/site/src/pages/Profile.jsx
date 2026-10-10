@@ -20,6 +20,7 @@ import { CardsSkeleton, WishCard, keptArt } from "../components/TitleCards.jsx";
 import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
 import { onTv } from "../tv/tv.js";
+import { inActivity } from "../discord/launch.js";
 
 // The tabs that show what only the server holds. With no connection they are drawn disabled; the
 // others show what the device keeps (Playback and Subtitles, read-only) or the browser's own (Appearance).
@@ -59,7 +60,7 @@ export function Profile({ tab: named, fromDevice = false }) {
   return (
     <div className="kc-page kc-profile">
       <PageHead title={user ? user.name : "Profile"} sub={user && user.username ? "@" + user.username : null}>
-        <Button size="lg" icon="log-out" className="kc-head__action" onClick={leave}>Sign out</Button>
+        {!inActivity && <Button size="lg" icon="log-out" className="kc-head__action" onClick={leave}>Sign out</Button>}
       </PageHead>
       {online ? saved : <Off>{saved}</Off>}
       <div ref={tabsRef} className="kc-profile__tabs">

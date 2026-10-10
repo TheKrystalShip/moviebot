@@ -90,6 +90,8 @@ export const api = {
   show: (imdbId) => call("GET", `/api/shows/${enc(imdbId)}`),
   showReleases: (imdbId) => call("GET", `/api/shows/${enc(imdbId)}/releases`),
   rooms: () => call("GET", "/api/sessions"),
+  // One room as it stands, which lets the person in when it admits them; a 403 is a room private to them.
+  room: (id) => call("GET", `/api/sessions/${enc(id)}`),
 
   // The catalogue's matches for a name, films and shows together or films alone, each with its
   // poster and cast; and whether a film can be watched and how.

@@ -375,7 +375,7 @@ export class PlayerRoom {
     // front door forgets the launch (`Environment.forgetLaunch`), so a reload tells the room nothing.
     const launched = this.launched;
     if (launched !== null && (joined.state.titleId ?? null) !== null && joined.state.titleId !== launched) {
-      await hub.loadTitle(launched);
+      await hub.loadTitle(launched, environment().startAt());
     }
   }
 

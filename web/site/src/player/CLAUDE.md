@@ -1,7 +1,7 @@
 # The player
 
-The site's player, at `/r/<room>` on the site and at `/embed/` as the Discord Activity: the same React
-page in both, drawn to the Krystal Cinema design. `engine/` is framework-free TypeScript (the hub, the
+The site's player, at `/r/<room>` on the site and in the Discord Activity, which is the site: the same
+React page in both, drawn to the Krystal Cinema design. `engine/` is framework-free TypeScript (the hub, the
 sync controller, the stream, the room) and the components draw what `engine/room.ts` says.
 `npm run check` type-checks the engine; `npm run verify` drives it in a real browser
 (`web/site/README.md`).
@@ -16,8 +16,9 @@ room holds something (`forgetLaunch`), whether it is a television, who the viewe
 else, where their presence is shown, how the film is held sideways on a phone, and what the device
 keeps for the viewer (`solo`, `deviceCopy`, `keptPreferences`, `online`, `resumeAt`,
 `recordProgress`, below). Nothing else reads `location` or builds a URL. The site's room is the address and its viewer whoever signed in; the
-Activity's room is the voice channel and its viewer whoever the token the API exchanged for its Discord
-sign-in names, so `engine/discordEnvironment.ts` is the other implementation and nothing more. The
+Activity's room is the channel it runs in and its viewer the site's session, which there is the token
+the API exchanged for its Discord sign-in, so `engine/discordEnvironment.ts` is the site's environment
+with the room, the presence and the phone's orientation of its own, and nothing more. The
 viewer's id and name are the token's `sub` and `name` on both, and the hub takes them from the
 connection's token rather than from anything the page sends. A room's guest link is the third
 (`engine/guestEnvironment.ts`, `Environment.guest`): the room is the one the link opens, the viewer is
@@ -59,7 +60,7 @@ nobody, the link stands where the token would, and the room gives the guest thei
   moment somebody asks for something not here, the room holds it and every player drops what it was
   showing. The player keeps no rule of its own about films or shows. The launch only fills an empty
   room: a launch that names a film puts it into a room holding nothing, and moves a room holding
-  something else once, on arrival; once the room holds anything the address is the room alone
+  something else once, on arrival, both from where the launch says to start; once the room holds anything the address is the room alone
   (`Environment.forgetLaunch`), so a reload rejoins it wherever it is.
 - **What a room holds while it arrives is shown from the room.** Every viewer sees the same three
   steps (finding, downloading, starting) and it starts on its own when the server loads it; one that

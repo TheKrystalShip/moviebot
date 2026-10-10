@@ -27,6 +27,10 @@
 // Signing out there revokes the refresh token (RFC 7009) and forgets the session; there is no provider
 // session in the television's browser to end.
 //
+// The Discord Activity never goes to the provider either. The API exchanges the Discord account in
+// it for a token (`discord/activity.js`), which is held through `adopt` as any session is and renewed
+// by asking the API again; nothing of it is stored, since a relaunched Activity signs in afresh.
+//
 // Without a connection (`connectivity.js`) a session is never ended. A token that has run out stands
 // as a stale session: the stored user's `sub`, name and actions, which is what the page draws and
 // keeps saved films by, until the connection is back and the refresh grant's answer decides. The
@@ -77,6 +81,11 @@ let lost = false;
 let client = null;
 let renewing = null;
 let timer = null;
+/**
+ * How a session minted somewhere other than this browser's provider client is renewed: the Discord
+ * Activity's, which the API exchanges (`discord/activity.js`). Null for the site's own.
+ */
+let minted = null;
 
 /**
  * What the API says about where to sign in. Asked once, and kept, so that offline the copy from the
@@ -191,6 +200,7 @@ function hold(session) {
  * refresh token, and the provider rotates it for whichever arrived first.
  */
 function renew() {
+  if (minted) return renewMinted();
   renewing ??= (async () => {
     const manager = await clientOf();
     const before = await manager.getUser().catch(() => null);
@@ -225,6 +235,43 @@ function renew() {
     }
   })().finally(() => { renewing = null; });
   return renewing;
+}
+
+/**
+ * Renews a minted session through whoever minted it. One that cannot be renewed stands while its
+ * token is good and is asked about again shortly.
+ */
+function renewMinted() {
+  renewing ??= minted()
+    .then(mintedSession)
+    .then((session) => {
+      hold(session);
+      return session;
+    }, () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => { void renew(); }, 15000);
+      const session = sessionStore.getState();
+      return session && session.expiresAt * 1000 > Date.now() ? session : null;
+    })
+    .finally(() => { renewing = null; });
+  return renewing;
+}
+
+/** The session for a token minted elsewhere: `{ token, expiresIn }`, the lifetime in seconds. */
+function mintedSession({ token, expiresIn }) {
+  return sessionFor({ access_token: token, expires_at: Math.floor(Date.now() / 1000) + expiresIn, expired: false, profile: {} });
+}
+
+/**
+ * Holds a session minted somewhere other than this browser's provider client, and renews it through
+ * `renewal`, which answers the next `{ token, expiresIn }`. Nothing of it is stored: it lives as long
+ * as the page that adopted it.
+ */
+export async function adopt(answer, renewal) {
+  minted = renewal;
+  const session = await mintedSession(answer);
+  hold(session);
+  return session;
 }
 
 /**
@@ -438,6 +485,10 @@ export async function pollDeviceCode(code) {
 
 /** Forgets a session the API refused even once renewed: it has ended, and the page says so. */
 export async function forget() {
+  if (minted) {
+    hold(null);
+    return;
+  }
   try {
     const manager = await clientOf();
     await manager.removeUser();

@@ -1,7 +1,7 @@
 # Krystal Cinema
 
 MovieBot's site and its player: the library in a browser for the people the identity provider lets
-watch, and the Discord Activity, which is the same player. It is served by `MovieBot.Api` from the
+watch, and the Discord Activity, which is the same site. It is served by `MovieBot.Api` from the
 root of its `wwwroot` and built on `@thekrystalship/krystal-ui`, the design system the KGSM Control
 Panel is built on too. The design is the Krystal Cinema project (desktop, mobile and embed pages); the
 API is the authority for everything it draws.
@@ -46,7 +46,7 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glanc
 | `/about` | What the site is, and where its film details come from |
 | `/signin` | Where the identity provider sends the browser back with its code; opened on its own, it goes to the provider |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from. A room waiting on a Watch now shows the film being found, arriving and starting, and plays it on its own |
-| `/embed/` | The Discord Activity: the same player with no site around it |
+| `/embed/` | Where the Discord Activity opens: it signs in through Discord, then goes to the player when the call's room holds something or is private to the viewer, and to Home otherwise |
 | `/g/<code>` | A room's guest link: the film it holds and a name to watch it as, then the player with nothing that moves the room and no way back to the site. Nobody signs in |
 
 A page is a path, so it can be linked to and reloaded: the API answers any path that is not its own
@@ -199,20 +199,36 @@ to end.
 The Activity signs in through the API instead, since it has no browser to redirect: the code the
 Embedded App SDK gives it is posted to `/api/auth/discord/callback`, which answers Discord's access
 token for the SDK and the provider's token for the person, and the same call with the Discord token is
-how it renews.
+how it renews (`src/discord/activity.js`). The provider's token is held as the site's session, kept in
+memory alone, so every page and the assistant use it as they use one signed in in a browser. The
+session is the Discord account in the Activity, so nothing offers Sign out there, and one that ends
+says to start the Activity again.
 
 ## Watching
 
 Watching opens `/r/<room>?title=<id>`: a room of its own for whoever opens it, or the room somebody is
 already watching in. The room is the address, so the link is what Invite hands to somebody else, and a
-voice channel's room is open on the site at `/r/<channel id>`. `title` is put on once, by whoever
-arrives while the room is showing nothing; somebody joining a room already holding it says nothing,
-because loading it again would send everyone back to the beginning.
+voice channel's room is open on the site at `/r/<channel id>`. `title` is put on once, on arrival, in
+place of whatever else the room holds, from `at` when the address carries it; somebody joining a room
+already holding it says nothing, because loading it again would send everyone back to the beginning.
 
 Discord launches the Activity at the root of its URL mapping. A load carrying Discord's launch
-parameters is the Activity's, so the index rewrites its address to `/embed/` before the page reads it,
-and the player signs the viewer in through the Embedded App SDK and the API rather than the site's
-session.
+parameters is the Activity's, so the index rewrites its address to `/embed/` before the page reads it.
+The launch is kept in the frame's sessionStorage (`src/discord/launch.js`), so the frame stays the
+Activity at every address of the site, a reload among them; Discord's proxy forwards every path to this
+origin. The Activity is the whole site, with three differences:
+
+- **Its one room is the call's**, the channel the Activity runs in, which is the room the bot loads a
+  film into for that channel. Every Watch, Resume and Watch now plays there, in place of whatever the
+  call was watching, and the player there has the site's way back. Rooms elsewhere are not offered.
+- **The call moving on takes everybody with it.** While somebody browses, the call's room is read every
+  few seconds (`src/components/CallBar.jsx`) and a bar above every page names what the call is
+  watching, with Watch. The room being given something else opens the player for everybody browsing;
+  what it held when they started browsing does not, so somebody who left the film to look around stays
+  where they are until the call moves on. A room private to the viewer answers nothing, and they meet
+  its door when they press Watch.
+- **Nothing is kept on the device.** Download, playing from the device and the service worker are not
+  there, and a link off the site is opened by Discord, outside the Activity.
 
 Somebody without an account watches on a room's guest link, which a person in the room holding
 `cinema:guests` hands out from the invite panel's Guests row, alongside how many guests are in and
