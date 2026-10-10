@@ -7,7 +7,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Api</RootNamespace>
     <AssemblyName>moviebot-api</AssemblyName>
-    <Version>2.21.0</Version>
+    <Version>3.0.0</Version>
 
     <!-- Compiled ahead of time. What a long-running .NET process holds is not its heap but the
          code the JIT has written and the type data the runtime built around it, and this
@@ -29,6 +29,16 @@
   <ItemGroup>
     <PackageReference Include="TheKrystalShip.WebPush" Version="2.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
+    <!-- Everything the API keeps, in one SQLite file. Raw ADO rather than EF Core, which is not
+         AOT-safe; the bundle carries the native e_sqlite3 the publish puts beside the binary. -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.5" />
+  </ItemGroup>
+
+  <!-- GHSA-2m69-gcr7-jv3q is an advisory on the native SQLite the bundle carries, with no patched
+       bundle to move to. The database holds this service's own records and runs no SQL that is not
+       its own. Delete when a patched bundle ships. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
   </ItemGroup>
 
   <!-- The shared settings file, shipped beside the binary as the defaults. -->

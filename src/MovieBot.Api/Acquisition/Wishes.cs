@@ -178,8 +178,6 @@ public sealed class WishSweep(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("Wishes are kept at {Path}.", wishes.Path);
-
         var delay = FirstPass;
         while (!stoppingToken.IsCancellationRequested)
         {

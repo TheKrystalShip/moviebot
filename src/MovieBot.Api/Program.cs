@@ -6,6 +6,7 @@ using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Api;
 using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Auth;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Api.Films;
@@ -29,17 +30,18 @@ builder.Configuration.AddMovieBotSettings();
 
 builder.Services.AddSingleton(TimeProvider.System);
 
+// Everything this service keeps, in one file in the state directory systemd makes for it.
+builder.Services.AddSingleton(sp => new CinemaDatabase(
+    StatePath(sp.GetRequiredService<IConfiguration>()["Database:Path"], CinemaDatabase.FileName)));
+
 // Configuration is resolved when the library is first asked for, not while the builder is still
 // being assembled: a source added after this line — as a test host does — would otherwise be
 // read too late and the service would quietly point somewhere else.
 builder.Services.AddSingleton(sp => new SubtitleStore(
     sp.GetRequiredService<IConfiguration>()["Subtitles:Root"]
         ?? Path.Combine(Directory.GetCurrentDirectory(), "subtitles"),
-    sp.GetRequiredService<ILogger<SubtitleStore>>()));
-builder.Services.AddSingleton(sp => new PinStore(
-    sp.GetRequiredService<IConfiguration>()["Subtitles:Root"]
-        ?? Path.Combine(Directory.GetCurrentDirectory(), "subtitles"),
-    sp.GetRequiredService<ILogger<PinStore>>()));
+    sp.GetRequiredService<CinemaDatabase>()));
+builder.Services.AddSingleton<PinStore>();
 // The disk films are made on, and the one they are kept on. A cold root is an upgrade: with
 // none configured, or with its volume gone, the library is what the media root holds.
 builder.Services.AddSingleton(sp => new MediaRoots(
@@ -71,50 +73,39 @@ builder.Services.AddSingleton<RoomGuests>();
 builder.Services.AddSingleton<GuestKeeper>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<GuestKeeper>());
 
-// What a room is watching and where it has got to exists nowhere but in memory, so a restart used
-// to take the film out from under everybody in it. The journal is the only copy.
-builder.Services.AddSingleton(sp => new SessionJournal(
-    sp.GetRequiredService<IConfiguration>()["Rooms:Journal"]
-        // The directory systemd makes for this service and hands over in the environment. A unit
-        // that names one is the only reason anything here may write outside the media root.
-        ?? Path.Combine(
-            Environment.GetEnvironmentVariable("STATE_DIRECTORY")
-                ?? Directory.GetCurrentDirectory(), "rooms.json"),
-    sp.GetRequiredService<ILogger<SessionJournal>>()));
+// What a room is watching and where it has got to exists nowhere but in memory; what is kept of it
+// is what a restart puts back.
+builder.Services.AddSingleton<RoomStore>();
 builder.Services.AddSingleton<SessionKeeper>();
 
 // How each person watches, which follows them from the site into the Activity and back.
-builder.Services.AddSingleton(sp => new PreferenceStore(
-    StatePath(sp.GetRequiredService<IConfiguration>()["People:Preferences"], "preferences.json"),
-    sp.GetRequiredService<ILogger<PreferenceStore>>()));
+builder.Services.AddSingleton<PreferenceStore>();
 
 // What each account is called, so an id on a record can be shown as a person.
-builder.Services.AddSingleton(sp => new PersonDirectory(
-    StatePath(sp.GetRequiredService<IConfiguration>()["People:Directory"], "people.json"),
-    sp.GetRequiredService<ILogger<PersonDirectory>>()));
+builder.Services.AddSingleton<PersonDirectory>();
 
 // What each person has watched and when each film was last played, which the library's clock reads.
-builder.Services.AddSingleton(sp => new WatchRecord(
-    StatePath(sp.GetRequiredService<IConfiguration>()["People:Watch"], "watch.json"),
-    sp.GetRequiredService<ILogger<WatchRecord>>()));
+builder.Services.AddSingleton<WatchRecord>();
 builder.Services.AddSingleton<IPlayHistory>(sp => sp.GetRequiredService<WatchRecord>());
 // Written from the rooms as they change: the room is where a film's position lives.
 builder.Services.AddSingleton<WatchRecorder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WatchRecorder>());
 
-// What a film is, from the film database, kept on disk with its artwork and served from here.
+// What a film is, from the film database, kept with its artwork and served from here.
 builder.Services.Configure<TmdbOptions>(builder.Configuration.GetSection(TmdbOptions.Section));
 builder.Services.AddOptions<FilmStoreOptions>().Bind(builder.Configuration.GetSection(TmdbOptions.Section));
 builder.Services.AddHttpClient<TmdbClient>((sp, http) =>
     http.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<TmdbOptions>>().Value.TimeoutSeconds))
     .KeepConnectionsOpen();
-builder.Services.AddSingleton(sp => new PosterPins(
-    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.PostersDirectory, "posters")));
+builder.Services.AddSingleton<PosterPins>();
+builder.Services.AddSingleton<KeptImages>();
 builder.Services.AddSingleton(sp => new FilmStore(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.Directory, "films"),
     sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<PosterPins>(),
+    sp.GetRequiredService<KeptImages>(),
+    sp.GetRequiredService<CinemaDatabase>(),
     TimeProvider.System,
     sp.GetRequiredService<ILogger<FilmStore>>()));
 builder.Services.AddSingleton<EpisodeNumbering>();
@@ -124,32 +115,29 @@ builder.Services.AddSingleton(sp => new ShowStore(
     sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<PosterPins>(),
+    sp.GetRequiredService<KeptImages>(),
+    sp.GetRequiredService<CinemaDatabase>(),
     sp.GetRequiredService<EpisodeNumbering>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<ShowStore>>()));
 // Which shelf each title is on beyond its kind: anime, or everything else.
-builder.Services.AddSingleton(sp => new TitleCategories(
-    StatePath(sp.GetRequiredService<IConfiguration>()["Library:Categories"], "categories.json"),
-    sp.GetRequiredService<FilmStore>(),
-    sp.GetRequiredService<ShowStore>(),
-    sp.GetRequiredService<ILogger<TitleCategories>>()));
+builder.Services.AddSingleton<TitleCategories>();
 builder.Services.AddSingleton(sp => new TitleGlances(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.GlancesDirectory, "glances"),
     sp.GetRequiredService<FilmStore>(),
     sp.GetRequiredService<ShowStore>(),
     sp.GetRequiredService<PosterPins>(),
+    sp.GetRequiredService<KeptImages>(),
+    sp.GetRequiredService<CinemaDatabase>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<TitleGlances>>()));
-builder.Services.AddSingleton(sp => new AnswerKeeper(
-    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.CatalogueDirectory, "catalogue"),
-    sp.GetRequiredService<IServiceScopeFactory>(),
-    sp.GetRequiredService<TimeProvider>(),
-    sp.GetRequiredService<ILogger<AnswerKeeper>>()));
+builder.Services.AddSingleton<AnswerKeeper>();
 builder.Services.AddSingleton(sp => new Catalogue(
-    sp.GetRequiredService<AnswerKeeper>().Root,
+    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.CatalogueDirectory, "catalogue"),
     sp.GetRequiredService<AnswerKeeper>(),
-    sp.GetRequiredService<TitleGlances>()));
+    sp.GetRequiredService<TitleGlances>(),
+    sp.GetRequiredService<KeptImages>()));
 builder.Services.AddSingleton<CatalogueSearch>();
 builder.Services.AddSingleton<TitleSearch>();
 builder.Services.AddHostedService<FilmWarmer>();
@@ -157,6 +145,8 @@ builder.Services.AddSingleton(sp => new PopularNow(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.PopularDirectory, "popular"),
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<PosterPins>(),
+    sp.GetRequiredService<KeptImages>(),
+    sp.GetRequiredService<CinemaDatabase>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<PopularNow>>()));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PopularNow>());
@@ -226,41 +216,27 @@ builder.Services.AddSingleton<TranscodePlanService>();
 
 // Telling people things: the bell, the pushes to their browsers, and the Discord messages the bot
 // sends where no push reaches them.
-builder.Services.AddSingleton(sp => new NotificationStore(
-    StatePath(sp.GetRequiredService<IConfiguration>()["Notifications:Inbox"], "notifications.json"),
-    sp.GetRequiredService<ILogger<NotificationStore>>()));
-builder.Services.AddSingleton(sp => new PushDevices(
-    StatePath(sp.GetRequiredService<IConfiguration>()["Notifications:Devices"], "push-devices.json"),
-    StatePath(sp.GetRequiredService<IConfiguration>()["Notifications:Keys"], "push-keys.json"),
-    sp.GetRequiredService<ILogger<PushDevices>>()));
-builder.Services.AddSingleton(sp => new NotificationPreferenceStore(
-    StatePath(sp.GetRequiredService<IConfiguration>()["Notifications:Preferences"], "notification-preferences.json"),
-    sp.GetRequiredService<ILogger<NotificationPreferenceStore>>()));
+builder.Services.AddSingleton<NotificationStore>();
+builder.Services.AddSingleton<PushDevices>();
+builder.Services.AddSingleton<NotificationPreferenceStore>();
 builder.Services.AddHttpClient<WebPushSender>(http => http.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddSingleton<Notifier>();
 builder.Services.AddHostedService<ReadyNotices>();
 
 // Following a show: who follows what, and the watcher that tells them when an episode is out.
 builder.Services.AddOptions<FollowOptions>().Bind(builder.Configuration.GetSection(FollowOptions.Section));
-builder.Services.AddSingleton(sp => new FollowStore(
-    StatePath(sp.GetRequiredService<IConfiguration>()["Follow:Path"], "follows.json"),
-    sp.GetRequiredService<ILogger<FollowStore>>()));
+builder.Services.AddSingleton<FollowStore>();
 builder.Services.AddSingleton<FollowWatcher>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FollowWatcher>());
 
 // Lists of films and shows to watch later, and what turns one into what a page shows.
-builder.Services.AddSingleton(sp => new ListStore(
-    StatePath(sp.GetRequiredService<IConfiguration>()["Lists:Path"], "lists.json"),
-    sp.GetRequiredService<ILogger<ListStore>>()));
+builder.Services.AddSingleton<ListStore>();
 builder.Services.AddSingleton<ListPresenter>();
 
 // Save offline: what each person saved onto which device or asked one to download, the tracks
 // measured for it, and the transfers under way, which yield to the rooms.
 builder.Services.AddOptions<OfflineOptions>().Bind(builder.Configuration.GetSection(OfflineOptions.Section));
-builder.Services.AddSingleton(sp => new OfflineSaves(
-    StatePath(sp.GetRequiredService<IOptions<OfflineOptions>>().Value.Path, "offline.json"),
-    sp.GetRequiredService<IOptionsMonitor<OfflineOptions>>(),
-    sp.GetRequiredService<ILogger<OfflineSaves>>()));
+builder.Services.AddSingleton<OfflineSaves>();
 builder.Services.AddSingleton<ISaveHolds>(sp => sp.GetRequiredService<OfflineSaves>());
 builder.Services.AddSingleton<OfflineWanting>();
 builder.Services.AddSingleton<OfflineEstimates>();
@@ -316,7 +292,7 @@ app.Logger.LogInformation("Settings: {Files}", MovieBotSettings.Describe());
 // Every record here is keyed by an account the provider named. Another provider's accounts are
 // strangers to every one of them, so the API refuses to start against one it was not told to adopt.
 var oidc = app.Services.GetRequiredService<IOptions<OidcOptions>>().Value;
-IssuerRecord.Enforce(oidc, StatePath(oidc.IssuerRecord, "issuer"), app.Logger);
+IssuerRecord.Enforce(oidc, app.Services.GetRequiredService<CinemaDatabase>(), app.Logger);
 
 // Before anything can serve a request. A room restored after the first client has joined is a
 // room that client was already told did not exist.

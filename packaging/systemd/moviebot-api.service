@@ -19,8 +19,8 @@ Restart=on-failure
 RestartSec=5s
 
 # The API reads the library and the download directory, and asks the tracker and qBittorrent for
-# films. What it writes (open rooms, downloaded subtitles, the wish list) goes to /var/lib/moviebot,
-# which systemd creates for it.
+# films. What it writes (its database of people's records, rooms and wishes, downloaded subtitles,
+# artwork) goes to /var/lib/moviebot, which systemd creates for it.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

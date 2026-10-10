@@ -1,18 +1,18 @@
 using System.Collections.Concurrent;
+using TheKrystalShip.MovieBot.Api.Data;
 
 namespace TheKrystalShip.MovieBot.Api.Films;
 
 /// <summary>
 /// The one poster each title is shown by: the film database's image path the API first showed it
-/// with, whichever of a trending shelf, a search result or a description that was, kept one small
-/// file per IMDb id.
+/// with, whichever of a trending shelf, a search result or a description that was, kept by IMDb id.
 ///
 /// The database's idea of a title's poster moves: a refresh can name another image, and its search,
 /// trending and description answers can each name a different one on the same day. A person finds a
 /// title by its poster, so every poster cache fetches the pinned path rather than the one it was
 /// answered with, and a title keeps the face it was first seen with for as long as it is kept.
 /// </summary>
-public sealed class PosterPins(string root)
+public sealed class PosterPins(CinemaDatabase database)
 {
     private readonly ConcurrentDictionary<string, string> _pinned = new(StringComparer.Ordinal);
 
@@ -26,48 +26,15 @@ public sealed class PosterPins(string root)
         if (!FilmStore.IsImdbId(imdbId)) return shown ?? offered;
         if (_pinned.TryGetValue(imdbId, out var pinned)) return pinned;
 
-        var file = Path.Combine(root, imdbId);
-        if (Read(file) is { } kept) return _pinned.GetOrAdd(imdbId, kept);
-
-        if ((shown ?? offered) is not { Length: > 0 } first) return null;
-        try
-        {
-            Directory.CreateDirectory(root);
-            // CreateNew, so two caches pinning one title at once agree on whichever wrote first.
-            using (var stream = new FileStream(file, FileMode.CreateNew, FileAccess.Write))
-            using (var writer = new StreamWriter(stream))
-                writer.Write(first);
-            return _pinned.GetOrAdd(imdbId, first);
-        }
-        catch (IOException) when (Read(file) is { } won)
-        {
-            return _pinned.GetOrAdd(imdbId, won);
-        }
-    }
-
-    /// <summary>The path a cache's kept poster was fetched from, by the marker written beside it; null when none is kept.</summary>
-    public static string? Shown(string target)
-    {
-        var marker = target + ".src";
-        try
-        {
-            return File.Exists(target) && File.Exists(marker) ? File.ReadAllText(marker) : null;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
-
-    private static string? Read(string file)
-    {
-        try
-        {
-            return File.Exists(file) && File.ReadAllText(file).Trim() is { Length: > 0 } path ? path : null;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
+        const string Pinned = "SELECT path FROM poster_pins WHERE imdb_id = $imdb";
+        var kept = (shown ?? offered) is { Length: > 0 } first
+            ? database.Write(c =>
+            {
+                // Two caches pinning one title at once agree on whichever was first.
+                c.Execute("INSERT OR IGNORE INTO poster_pins (imdb_id, path) VALUES ($imdb, $path)", ("$imdb", imdbId), ("$path", first));
+                return c.First(Pinned, r => r.GetString(0), ("$imdb", imdbId));
+            })
+            : database.Read(c => c.First(Pinned, r => r.GetString(0), ("$imdb", imdbId)));
+        return kept is null ? null : _pinned.GetOrAdd(imdbId, kept);
     }
 }

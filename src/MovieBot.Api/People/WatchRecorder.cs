@@ -31,7 +31,6 @@ public sealed class WatchRecorder(
     {
         sessions.EndAllSpans();
         sessions.Watched -= Credit;
-        record.Flush();
         return Task.CompletedTask;
     }
 

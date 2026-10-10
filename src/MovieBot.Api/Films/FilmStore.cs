@@ -3,27 +3,25 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
+using TheKrystalShip.MovieBot.Api.Data;
 
 namespace TheKrystalShip.MovieBot.Api.Films;
 
 public sealed class FilmStoreOptions
 {
-    /// <summary>Where descriptions and artwork are kept. Empty is <c>films/</c> in the state directory.</summary>
+    /// <summary>Where films' artwork is kept. Empty is <c>films/</c> in the state directory.</summary>
     public string Directory { get; set; } = "";
 
-    /// <summary>Where shows are kept, the same way. Empty is <c>shows/</c> in the state directory.</summary>
+    /// <summary>Where shows' artwork is kept. Empty is <c>shows/</c> in the state directory.</summary>
     public string ShowsDirectory { get; set; } = "";
 
-    /// <summary>Where the week's trending films and shows are kept. Empty is <c>popular/</c> in the state directory.</summary>
+    /// <summary>Where the posters of the week's trending films and shows are kept. Empty is <c>popular/</c> in the state directory.</summary>
     public string PopularDirectory { get; set; } = "";
 
-    /// <summary>Where search results' ratings and overviews are kept. Empty is <c>glances/</c> in the state directory.</summary>
+    /// <summary>Where search results' posters are kept. Empty is <c>glances/</c> in the state directory.</summary>
     public string GlancesDirectory { get; set; } = "";
 
-    /// <summary>Where the poster each title is shown by is pinned. Empty is <c>posters/</c> in the state directory.</summary>
-    public string PostersDirectory { get; set; } = "";
-
-    /// <summary>Where people's credits and genres' titles are kept. Empty is <c>catalogue/</c> in the state directory.</summary>
+    /// <summary>Where people's portraits are kept. Empty is <c>catalogue/</c> in the state directory.</summary>
     public string CatalogueDirectory { get; set; } = "";
 
     /// <summary>How old a description may get before the database is asked again.</summary>
@@ -41,16 +39,15 @@ public sealed record StoredFilm
 
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    WriteIndented = true)]
-[JsonSerializable(typeof(StoredFilm))]
-internal partial class StoredFilmJson : JsonSerializerContext;
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(FilmDetails))]
+internal partial class FilmDetailsJson : JsonSerializerContext;
 
 /// <summary>
-/// Films as the film database describes them, kept on disk and served from here.
+/// Films as the film database describes them, kept and served from here.
 ///
 /// The site never reaches the database: this asks it once per film, keeps the description and every
-/// image it names under one directory per film, and answers from that copy until it is
+/// image it names, the images under one directory per film, and answers from that copy until it is
 /// <see cref="FilmStoreOptions.RefreshDays"/> old. A database that cannot be reached when a copy is
 /// due costs nothing but freshness: the old copy is served. Artwork is fetched with the description,
 /// so serving an image is reading a file.
@@ -60,12 +57,16 @@ public sealed class FilmStore(
     IOptions<FilmStoreOptions> options,
     IServiceScopeFactory scopes,
     PosterPins pins,
+    KeptImages images,
+    CinemaDatabase database,
     TimeProvider clock,
     ILogger<FilmStore> logger)
 {
     public const string Poster = "poster.jpg";
     public const string Backdrop = "backdrop.jpg";
-    private const string DescriptionFile = "film.json";
+
+    /// <summary>What the images this keeps are named under in <see cref="KeptImages"/>.</summary>
+    private const string Images = "films";
 
     private readonly ConcurrentDictionary<string, StoredFilm> _held = new();
     private readonly ConcurrentDictionary<string, Task<StoredFilm?>> _asking = new();
@@ -160,37 +161,17 @@ public sealed class FilmStore(
 
     private async Task FetchImagesAsync(TmdbClient tmdb, string imdbId, FilmDetails details, CancellationToken ct)
     {
-        var directory = Path.Combine(root, imdbId);
         var wanted = new List<(string? Path, string Size, string File)>
         {
-            (pins.Pin(imdbId, PosterPins.Shown(Path.Combine(directory, Poster)), details.PosterPath), "w500", Poster),
+            (pins.Pin(imdbId, images.Source(Images, root, $"{imdbId}/{Poster}"), details.PosterPath), "w500", Poster),
             (details.BackdropPath, "w1280", Backdrop),
         };
         wanted.AddRange(details.Cast.Select((c, i) => (c.ProfilePath, "w185", Portrait(i))));
 
-        Directory.CreateDirectory(directory);
         // A page opened on a film nothing is kept for waits on these, so they are asked side by side:
         // the wait is the slowest image rather than the sum of them.
         await Parallel.ForEachAsync(wanted, new ParallelOptions { MaxDegreeOfParallelism = ImagesAtOnce, CancellationToken = ct },
-            async (image, token) =>
-            {
-                var (path, size, file) = image;
-                var target = Path.Combine(directory, file);
-                if (path is null)
-                {
-                    File.Delete(target);
-                    return;
-                }
-                // An image a path names never changes; a new image comes under a new path, and a
-                // refresh that keeps the path keeps the file.
-                var marker = target + ".src";
-                if (File.Exists(target) && File.Exists(marker) && await File.ReadAllTextAsync(marker, token) == path) return;
-
-                if (await tmdb.ImageAsync(path, size, token) is not { } bytes) return;
-                await File.WriteAllBytesAsync(target + ".tmp", bytes, token);
-                File.Move(target + ".tmp", target, overwrite: true);
-                await File.WriteAllTextAsync(marker, path, token);
-            });
+            async (image, token) => await images.KeepAsync(tmdb, Images, root, $"{imdbId}/{image.File}", image.Path, image.Size, token));
     }
 
     /// <summary>How many images are asked of the database's store at once.</summary>
@@ -198,29 +179,29 @@ public sealed class FilmStore(
 
     private StoredFilm? Read(string imdbId)
     {
-        var path = Path.Combine(root, imdbId, DescriptionFile);
         try
         {
-            if (!File.Exists(path)) return null;
-            using var stream = File.OpenRead(path);
-            return JsonSerializer.Deserialize(stream, StoredFilmJson.Default.StoredFilm);
+            return database.Read(c => c.First("SELECT fetched_at, details FROM film_descriptions WHERE imdb_id = $imdb",
+                r => new StoredFilm
+                {
+                    FetchedAt = r.GetInstant(0),
+                    Details = r.GetStringOrNull(1) is { } details ? JsonSerializer.Deserialize(details, FilmDetailsJson.Default.FilmDetails) : null,
+                },
+                ("$imdb", imdbId)));
         }
-        catch (Exception ex) when (ex is JsonException or IOException)
+        catch (JsonException ex)
         {
-            // A description that cannot be read is one not kept: the next ask writes a good one.
+            // A description that cannot be read is one not kept: the next ask keeps a good one.
             logger.LogWarning("The kept description of {Imdb} could not be read: {Reason}", imdbId, ex.Message);
             return null;
         }
     }
 
-    private void Write(string imdbId, StoredFilm film)
-    {
-        var directory = Path.Combine(root, imdbId);
-        Directory.CreateDirectory(directory);
-        var path = Path.Combine(directory, DescriptionFile);
-        File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(film, StoredFilmJson.Default.StoredFilm));
-        File.Move(path + ".tmp", path, overwrite: true);
-    }
+    private void Write(string imdbId, StoredFilm film) =>
+        database.Write(c => c.Execute(
+            "INSERT OR REPLACE INTO film_descriptions (imdb_id, fetched_at, details) VALUES ($imdb, $at, $details)",
+            ("$imdb", imdbId), ("$at", film.FetchedAt),
+            ("$details", film.Details is null ? null : JsonSerializer.Serialize(film.Details, FilmDetailsJson.Default.FilmDetails))));
 
     /// <summary>The canonical <c>tt</c> form and nothing else, since it becomes a directory name.</summary>
     public static bool IsImdbId(string? id) =>

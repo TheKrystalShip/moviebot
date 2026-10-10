@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Subtitles;
 using TheKrystalShip.MovieBot.Api.Sessions;
@@ -25,11 +26,12 @@ public sealed class RoomExpiryTests : IDisposable
 
     public RoomExpiryTests()
     {
+        var database = new CinemaDatabase(Path.Combine(_mediaRoot, "..", "moviebot.db"));
         WriteManifest(TitleId);
         var library = new TitleLibrary(
             new MediaRoots(_mediaRoot),
-            new SubtitleStore(Path.Combine(_mediaRoot, "..", "subtitles"), NullLogger<SubtitleStore>.Instance),
-            new PinStore(Path.Combine(_mediaRoot, "..", "subtitles"), NullLogger<PinStore>.Instance),
+            new SubtitleStore(Path.Combine(_mediaRoot, "..", "subtitles"), database),
+            new PinStore(database),
             NullLogger<TitleLibrary>.Instance);
         _sessions = new SessionStore(library, _clock);
     }

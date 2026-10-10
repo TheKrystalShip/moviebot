@@ -1,5 +1,5 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Microsoft.Data.Sqlite;
+using TheKrystalShip.MovieBot.Api.Data;
 
 namespace TheKrystalShip.MovieBot.Api.People;
 
@@ -19,24 +19,6 @@ public sealed record TitlePlay
     public string LastPlayedBy { get; init; } = "";
 }
 
-/// <summary>Everything the record holds, which is the whole of <c>watch.json</c>.</summary>
-public sealed class WatchData
-{
-    /// <summary>User id, then title id.</summary>
-    public Dictionary<string, Dictionary<string, WatchEntry>> People { get; init; } = [];
-
-    public Dictionary<string, TitlePlay> Titles { get; init; } = [];
-
-    /// <summary>When this record began. Before it, plays went unrecorded rather than unmade.</summary>
-    public DateTimeOffset? Since { get; set; }
-}
-
-[JsonSourceGenerationOptions(
-    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    WriteIndented = true)]
-[JsonSerializable(typeof(WatchData))]
-internal partial class WatchJson : JsonSerializerContext;
-
 /// <summary>
 /// What each person has watched, and when each film was last played.
 ///
@@ -44,35 +26,27 @@ internal partial class WatchJson : JsonSerializerContext;
 /// is what Continue watching and History read, and they can have it removed. The film's own last
 /// play is the library's, read by the clock that decides when an unwatched film leaves, so a person
 /// forgetting a film does not make it look unplayed.
-///
-/// Tens of people and hundreds of films fit in one small file. It is written whole through a
-/// temporary file and a rename, a few seconds after the first change since the last write: the
-/// sampler touches it every pass and a write per pass would be a write per pass of nothing new.
 /// </summary>
-public sealed class WatchRecord : IPlayHistory, IDisposable
+public sealed class WatchRecord : IPlayHistory
 {
     /// <summary>A film is finished once the position passes this share of its length.</summary>
     public const double FinishedFraction = 0.9;
 
-    private readonly string _path;
-    private readonly ILogger<WatchRecord> _logger;
-    private readonly TimeSpan _writeDelay;
-    private readonly Lock _gate = new();
-    private readonly WatchData _data;
-    private Timer? _timer;
-    private bool _pending;
+    private const string SinceKey = "watch_since";
 
-    public WatchRecord(string path, ILogger<WatchRecord> logger, TimeSpan? writeDelay = null)
+    private readonly CinemaDatabase _database;
+
+    public WatchRecord(CinemaDatabase database, TimeProvider clock)
     {
-        _path = path;
-        _logger = logger;
-        _writeDelay = writeDelay ?? TimeSpan.FromSeconds(3);
-        _data = Read();
-        if (_data.Since is null)
+        _database = database;
+        RecordingSince = database.Write(c =>
         {
-            _data.Since = DateTimeOffset.UtcNow;
-            lock (_gate) Schedule();
-        }
+            if (c.First("SELECT value FROM meta WHERE key = $key", r => r.GetString(0), ("$key", SinceKey)) is { } kept)
+                return Sql.ReadInstant(kept);
+            var now = clock.GetUtcNow();
+            c.Execute("INSERT INTO meta (key, value) VALUES ($key, $value)", ("$key", SinceKey), ("$value", Sql.Instant(now)));
+            return now;
+        });
     }
 
     /// <summary>
@@ -80,7 +54,7 @@ public sealed class WatchRecord : IPlayHistory, IDisposable
     /// recorded is one nobody played since then, not one nobody ever played, so the library's clock
     /// counts from no earlier than this.
     /// </summary>
-    public DateTimeOffset RecordingSince => _data.Since ?? DateTimeOffset.UtcNow;
+    public DateTimeOffset RecordingSince { get; }
 
     /// <summary>
     /// Notes that somebody watched a film up to a position at an instant. The latest sample is the
@@ -91,21 +65,13 @@ public sealed class WatchRecord : IPlayHistory, IDisposable
         if (durationSeconds <= 0) return;
         var position = Math.Clamp(positionSeconds, 0, durationSeconds);
 
-        lock (_gate)
+        _database.Write(c =>
         {
-            if (!_data.People.TryGetValue(userId, out var films))
-                _data.People[userId] = films = [];
-
-            films[titleId] = new WatchEntry
-            {
-                PositionSeconds = position,
-                DurationSeconds = durationSeconds,
-                LastWatchedAt = now,
-                Finished = position >= durationSeconds * FinishedFraction
-            };
-            _data.Titles[titleId] = new TitlePlay { LastPlayedAt = now, LastPlayedBy = userId };
-            Schedule();
-        }
+            Put(c, userId, titleId, position, durationSeconds, now);
+            c.Execute(
+                "INSERT OR REPLACE INTO title_plays (title_id, last_played_at, last_played_by) VALUES ($title, $at, $user)",
+                ("$title", titleId), ("$at", now), ("$user", userId));
+        });
     }
 
     /// <summary>
@@ -119,127 +85,76 @@ public sealed class WatchRecord : IPlayHistory, IDisposable
         if (durationSeconds <= 0) return false;
         var position = Math.Clamp(positionSeconds, 0, durationSeconds);
 
-        lock (_gate)
+        return _database.Write(c =>
         {
-            if (!_data.People.TryGetValue(userId, out var films))
-                _data.People[userId] = films = [];
-            if (films.TryGetValue(titleId, out var held) && held.LastWatchedAt >= at) return false;
+            if (c.Exists("SELECT 1 FROM watch_progress WHERE user_id = $user AND title_id = $title AND last_watched_at >= $at",
+                    ("$user", userId), ("$title", titleId), ("$at", at)))
+                return false;
 
-            films[titleId] = new WatchEntry
-            {
-                PositionSeconds = position,
-                DurationSeconds = durationSeconds,
-                LastWatchedAt = at,
-                Finished = position >= durationSeconds * FinishedFraction
-            };
-            if (!_data.Titles.TryGetValue(titleId, out var play) || play.LastPlayedAt < at)
-                _data.Titles[titleId] = new TitlePlay { LastPlayedAt = at, LastPlayedBy = userId };
-            Schedule();
+            Put(c, userId, titleId, position, durationSeconds, at);
+            c.Execute(
+                "INSERT INTO title_plays (title_id, last_played_at, last_played_by) VALUES ($title, $at, $user) "
+                + "ON CONFLICT (title_id) DO UPDATE SET last_played_at = excluded.last_played_at, last_played_by = excluded.last_played_by "
+                + "WHERE excluded.last_played_at > title_plays.last_played_at",
+                ("$title", titleId), ("$at", at), ("$user", userId));
             return true;
-        }
+        });
     }
 
     /// <summary>One person's films, newest first.</summary>
-    public IReadOnlyList<(string TitleId, WatchEntry Entry)> Entries(string userId)
-    {
-        lock (_gate)
-        {
-            if (!_data.People.TryGetValue(userId, out var films)) return [];
-            return [.. films.OrderByDescending(f => f.Value.LastWatchedAt).Select(f => (f.Key, f.Value))];
-        }
-    }
+    public IReadOnlyList<(string TitleId, WatchEntry Entry)> Entries(string userId) =>
+        _database.Read(c => c.Query(
+            "SELECT title_id, position_seconds, duration_seconds, last_watched_at, finished FROM watch_progress "
+            + "WHERE user_id = $user ORDER BY last_watched_at DESC",
+            r => (r.GetString(0), Entry(r, 1)),
+            ("$user", userId)));
 
     /// <summary>Everybody with an entry for any of the titles, which is who watched them.</summary>
-    public IReadOnlyList<string> Watchers(IReadOnlyCollection<string> titleIds)
-    {
-        lock (_gate)
-            return [.. _data.People.Where(p => p.Value.Keys.Any(titleIds.Contains)).Select(p => p.Key)];
-    }
+    public IReadOnlyList<string> Watchers(IReadOnlyCollection<string> titleIds) =>
+        _database.Read(c =>
+        {
+            var watchers = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var titleId in titleIds)
+                watchers.UnionWith(c.Query("SELECT user_id FROM watch_progress WHERE title_id = $title",
+                    r => r.GetString(0), ("$title", titleId)));
+            return (IReadOnlyList<string>)[.. watchers];
+        });
 
-    public WatchEntry? EntryOf(string userId, string titleId)
-    {
-        lock (_gate)
-            return _data.People.TryGetValue(userId, out var films) ? films.GetValueOrDefault(titleId) : null;
-    }
+    public WatchEntry? EntryOf(string userId, string titleId) =>
+        _database.Read(c => c.First(
+            "SELECT position_seconds, duration_seconds, last_watched_at, finished FROM watch_progress "
+            + "WHERE user_id = $user AND title_id = $title",
+            r => Entry(r, 0),
+            ("$user", userId), ("$title", titleId)));
 
     /// <summary>
     /// Removes the person's entry for a film and, with it, their progress. The film's last play stays:
     /// it says when the film was played, which is not something one person can take back.
     /// </summary>
-    public void Forget(string userId, string titleId)
-    {
-        lock (_gate)
-        {
-            if (!_data.People.TryGetValue(userId, out var films) || !films.Remove(titleId)) return;
-            if (films.Count == 0) _data.People.Remove(userId);
-            Schedule();
-        }
-    }
+    public void Forget(string userId, string titleId) =>
+        _database.Write(c => c.Execute("DELETE FROM watch_progress WHERE user_id = $user AND title_id = $title",
+            ("$user", userId), ("$title", titleId)));
 
-    public TitlePlay? LastPlayed(string titleId)
-    {
-        lock (_gate) return _data.Titles.GetValueOrDefault(titleId);
-    }
+    public TitlePlay? LastPlayed(string titleId) =>
+        _database.Read(c => c.First(
+            "SELECT last_played_at, last_played_by FROM title_plays WHERE title_id = $title",
+            r => new TitlePlay { LastPlayedAt = r.GetInstant(0), LastPlayedBy = r.GetString(1) },
+            ("$title", titleId)));
 
     public DateTimeOffset? LastPlayedAt(string titleId) => LastPlayed(titleId)?.LastPlayedAt;
 
-    /// <summary>Writes what is held now, without waiting for the delay.</summary>
-    public void Flush()
-    {
-        lock (_gate)
-        {
-            _pending = false;
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-                var temporary = _path + ".tmp";
-                File.WriteAllText(temporary, JsonSerializer.Serialize(_data, WatchJson.Default.WatchData));
-                File.Move(temporary, _path, overwrite: true);
-            }
-            catch (IOException ex)
-            {
-                // What could not be written is still held and goes out with the next change.
-                _logger.LogError(ex, "What people have watched could not be written to {Path}", _path);
-            }
-        }
-    }
+    private static void Put(SqliteConnection c, string userId, string titleId, double position, double duration, DateTimeOffset at) =>
+        c.Execute(
+            "INSERT OR REPLACE INTO watch_progress (user_id, title_id, position_seconds, duration_seconds, last_watched_at, finished) "
+            + "VALUES ($user, $title, $position, $duration, $at, $finished)",
+            ("$user", userId), ("$title", titleId), ("$position", position), ("$duration", duration), ("$at", at),
+            ("$finished", position >= duration * FinishedFraction));
 
-    public void Dispose()
+    private static WatchEntry Entry(SqliteDataReader r, int first) => new()
     {
-        bool dirty;
-        lock (_gate)
-        {
-            _timer?.Dispose();
-            _timer = null;
-            dirty = _pending;
-        }
-
-        if (dirty) Flush();
-    }
-
-    /// <summary>Called with the gate held.</summary>
-    private void Schedule()
-    {
-        if (_pending) return;
-        _pending = true;
-        _timer?.Dispose();
-        _timer = new Timer(_ => Flush(), null, _writeDelay, Timeout.InfiniteTimeSpan);
-    }
-
-    private WatchData Read()
-    {
-        try
-        {
-            if (!File.Exists(_path)) return new WatchData();
-            using var stream = File.OpenRead(_path);
-            return JsonSerializer.Deserialize(stream, WatchJson.Default.WatchData) ?? new WatchData();
-        }
-        catch (Exception ex) when (ex is JsonException or IOException)
-        {
-            // An unreadable record costs everybody their progress and nothing else. Starting anyway
-            // beats refusing to serve films over it; the file is left for somebody to look at.
-            _logger.LogError(ex, "What people have watched at {Path} could not be read; the record starts empty", _path);
-            return new WatchData();
-        }
-    }
+        PositionSeconds = r.GetDouble(first),
+        DurationSeconds = r.GetDouble(first + 1),
+        LastWatchedAt = r.GetInstant(first + 2),
+        Finished = r.GetBool(first + 3),
+    };
 }

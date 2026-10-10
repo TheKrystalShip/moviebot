@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Shows;
 
 namespace TheKrystalShip.MovieBot.Api.Films;
@@ -17,14 +18,13 @@ public sealed record StoredGlance
 
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    WriteIndented = true)]
-[JsonSerializable(typeof(StoredGlance))]
-internal partial class StoredGlanceJson : JsonSerializerContext;
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(TitleGlance))]
+internal partial class TitleGlanceJson : JsonSerializerContext;
 
 /// <summary>
-/// A search result's rating and overview, from the film database, kept on disk one file per title
-/// and asked for once.
+/// A search result's rating and overview, from the film database, kept one row per title and asked
+/// for once.
 ///
 /// A title already described in full (<see cref="FilmStore"/>, <see cref="ShowStore"/>) answers from
 /// that description and asks nothing. Anything else is asked for by its IMDb id the first time a
@@ -40,13 +40,15 @@ internal partial class StoredGlanceJson : JsonSerializerContext;
 ///
 /// A result shows the poster its title's page shows (<see cref="PosterUrl"/>): the described title's
 /// own kept poster, or else the one the glance names, fetched once in the background when the glance
-/// arrives, kept beside it and served from here at <c>/glances/{imdbId}/poster.jpg</c>.
+/// arrives, kept under this cache's directory and served from here at <c>/glances/{imdbId}/poster.jpg</c>.
 /// </summary>
 public sealed class TitleGlances(
     string root,
     FilmStore films,
     ShowStore shows,
     PosterPins pins,
+    KeptImages images,
+    CinemaDatabase database,
     IServiceScopeFactory scopes,
     TimeProvider clock,
     ILogger<TitleGlances> logger)
@@ -61,6 +63,9 @@ public sealed class TitleGlances(
     internal static readonly TimeSpan FreshKept = TimeSpan.FromDays(7);
 
     private const string PosterSize = "w500";
+
+    /// <summary>What the posters this keeps are named under in <see cref="KeptImages"/>.</summary>
+    private const string Images = "glances";
 
     private readonly ConcurrentDictionary<string, StoredGlance> _held = new();
     private readonly ConcurrentDictionary<string, Task<StoredGlance?>> _asking = new();
@@ -85,31 +90,30 @@ public sealed class TitleGlances(
     /// <summary>The kept poster of a glance, fetched now if it is not kept yet; null when there is none.</summary>
     public Task<string?> PosterFileAsync(string imdbId)
     {
-        var target = Path.Combine(root, imdbId + ".poster.jpg");
-        var marker = target + ".src";
-        if (pins.Pin(imdbId, PosterPins.Shown(target), (Held(imdbId)?.Glance ?? Described(imdbId))?.PosterPath) is not { } wanted)
+        var file = PosterFile(imdbId);
+        var target = Path.Combine(root, file);
+        var shown = images.Source(Images, root, file);
+        if (pins.Pin(imdbId, shown, (Held(imdbId)?.Glance ?? Described(imdbId))?.PosterPath) is not { } wanted)
             return Task.FromResult<string?>(null);
-        if (File.Exists(target) && File.Exists(marker) && File.ReadAllText(marker) == wanted) return Task.FromResult<string?>(target);
+        if (shown == wanted) return Task.FromResult<string?>(target);
 
-        var fetching = _posters.GetOrAdd(imdbId, _ => FetchPosterAsync(wanted, target, marker));
+        var fetching = _posters.GetOrAdd(imdbId, _ => FetchPosterAsync(wanted, file));
         fetching.ContinueWith(_ => _posters.TryRemove(new KeyValuePair<string, Task<string?>>(imdbId, fetching)),
             CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         return fetching;
     }
 
-    private async Task<string?> FetchPosterAsync(string path, string target, string marker)
+    private static string PosterFile(string imdbId) => imdbId + ".poster.jpg";
+
+    private async Task<string?> FetchPosterAsync(string path, string file)
     {
         await Task.Yield();
         using var scope = scopes.CreateScope();
         var tmdb = scope.ServiceProvider.GetRequiredService<TmdbClient>();
+        var target = Path.Combine(root, file);
         try
         {
-            if (await tmdb.ImageAsync(path, PosterSize, CancellationToken.None) is not { } bytes) return null;
-            Directory.CreateDirectory(root);
-            await File.WriteAllBytesAsync(target + ".tmp", bytes);
-            File.Move(target + ".tmp", target, overwrite: true);
-            await File.WriteAllTextAsync(marker, path);
-            return target;
+            return await images.KeepAsync(tmdb, Images, root, file, path, PosterSize, CancellationToken.None) ? target : null;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
         {
@@ -168,14 +172,7 @@ public sealed class TitleGlances(
         if (Held(imdbId) is { } held && !IsDue(held)) return;
 
         var stored = new StoredGlance { Glance = glance, FetchedAt = clock.GetUtcNow() };
-        try
-        {
-            Write(imdbId, stored);
-        }
-        catch (IOException ex)
-        {
-            logger.LogWarning("The glance of {Imdb} could not be kept: {Reason}", imdbId, ex.Message);
-        }
+        Write(imdbId, stored);
         _held[imdbId] = stored;
     }
 
@@ -240,25 +237,26 @@ public sealed class TitleGlances(
 
     private StoredGlance? Read(string imdbId)
     {
-        var path = Path.Combine(root, imdbId + ".json");
         try
         {
-            if (!File.Exists(path)) return null;
-            using var stream = File.OpenRead(path);
-            return JsonSerializer.Deserialize(stream, StoredGlanceJson.Default.StoredGlance);
+            return database.Read(c => c.First("SELECT fetched_at, glance FROM glances WHERE imdb_id = $imdb",
+                r => new StoredGlance
+                {
+                    FetchedAt = r.GetInstant(0),
+                    Glance = r.GetStringOrNull(1) is { } glance ? JsonSerializer.Deserialize(glance, TitleGlanceJson.Default.TitleGlance) : null,
+                },
+                ("$imdb", imdbId)));
         }
-        catch (Exception ex) when (ex is JsonException or IOException)
+        catch (JsonException ex)
         {
             logger.LogWarning("The kept glance of {Imdb} could not be read: {Reason}", imdbId, ex.Message);
             return null;
         }
     }
 
-    private void Write(string imdbId, StoredGlance glance)
-    {
-        Directory.CreateDirectory(root);
-        var path = Path.Combine(root, imdbId + ".json");
-        File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(glance, StoredGlanceJson.Default.StoredGlance));
-        File.Move(path + ".tmp", path, overwrite: true);
-    }
+    private void Write(string imdbId, StoredGlance glance) =>
+        database.Write(c => c.Execute(
+            "INSERT OR REPLACE INTO glances (imdb_id, fetched_at, glance) VALUES ($imdb, $at, $glance)",
+            ("$imdb", imdbId), ("$at", glance.FetchedAt),
+            ("$glance", glance.Glance is null ? null : JsonSerializer.Serialize(glance.Glance, TitleGlanceJson.Default.TitleGlance))));
 }

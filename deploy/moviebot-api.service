@@ -23,8 +23,9 @@ RestartSec=5s
 # client over the network, and writes nothing outside its own state.
 #
 # The media root stays read-only. What this writes goes to its own state directory, which systemd
-# makes and hands over in the environment: subtitles fetched from outside, the rooms, and the wish
-# list. None belongs under the media root — everything there is regenerable from the source file, a
+# makes and hands over in the environment: its database (people's records, the rooms, the wish
+# list), subtitles fetched from outside, and the film database's artwork. None belongs under the
+# media root — everything there is regenerable from the source file, a
 # re-ingest replaces a title's directory wholesale, and the transcode rewrites the manifest inside
 # it every few seconds. A subtitle that cost a download, a room somebody is sitting in and a film
 # somebody is waiting on are neither regenerable nor replaceable.

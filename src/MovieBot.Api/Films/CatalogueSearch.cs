@@ -82,7 +82,7 @@ public sealed record ListAnswer(string Kind, DateOnly From, DateOnly To, List<Ti
 /// credited on, and a discovery by what a title is like, each joined with the library and with
 /// whether the asking person has watched it.
 ///
-/// Every question's answer is kept on disk by <see cref="AnswerKeeper"/> and served from the copy until
+/// Every question's answer is kept by <see cref="AnswerKeeper"/> and served from the copy until
 /// it is old: a search or a discovery for a day, a person's credits for a day, the lists of the week
 /// for six hours. What names a title (its IMDb id, who made it and who stars in it) is one call per
 /// title kept for a week, so a title that turns up in many answers is asked about once. A title's
@@ -168,7 +168,7 @@ public sealed partial class CatalogueSearch(
 
         var wanted = query.Trim();
         var kept = await keeper.KeptAsync(AnswerKeeper.QueryName("people", wanted.ToLowerInvariant()),
-            KeptAnswerJson.Default.KeptAnswerListPersonMatch, SearchKept,
+            AnswerJson.Default.ListPersonMatch, SearchKept,
             async (tmdb, token) => (await tmdb.SearchPeopleAsync(wanted, token)).ToList(), null, ct);
         return kept is null
             ? Unavailable<List<PersonMatch>>("The film database could not be asked about this name.")
@@ -188,7 +188,7 @@ public sealed partial class CatalogueSearch(
         if (request.Kind is not null && !Catalogue.IsKind(request.Kind)) return Invalid<CreditsAnswer>("Kind is film or show.");
         if (request.From is { } from && request.To is { } to && from > to) return Invalid<CreditsAnswer>("From is after to.");
 
-        var kept = await keeper.KeptAsync($"credits/{personId}", KeptAnswerJson.Default.KeptAnswerFilmography, CreditsKept,
+        var kept = await keeper.KeptAsync($"credits/{personId}", AnswerJson.Default.Filmography, CreditsKept,
             async (tmdb, token) =>
             {
                 var person = await tmdb.FilmographyAsync(personId, token);
@@ -531,7 +531,7 @@ public sealed partial class CatalogueSearch(
     {
         var wanted = query.Trim();
         var kept = await keeper.KeptAsync(AnswerKeeper.QueryName("search", $"{kind}|{wanted.ToLowerInvariant()}"),
-            KeptAnswerJson.Default.KeptAnswerListListedTitle, SearchKept,
+            AnswerJson.Default.ListListedTitle, SearchKept,
             async (tmdb, token) => (await tmdb.SearchTitlesAsync(wanted, kind, 2, token)).ToList(), null, ct);
         return kept is null
             ? Unavailable<List<ListedTitle>>("The film database could not be asked about this name.")
@@ -541,7 +541,7 @@ public sealed partial class CatalogueSearch(
     private async Task<Outcome<List<ListedTitle>>> DiscoveredAsync(DiscoverQuery query, int limit, CancellationToken ct)
     {
         var kept = await keeper.KeptAsync(AnswerKeeper.QueryName("discover", Canonical(query, limit)),
-            KeptAnswerJson.Default.KeptAnswerListListedTitle, DiscoverKept,
+            AnswerJson.Default.ListListedTitle, DiscoverKept,
             async (tmdb, token) => (await tmdb.DiscoverAsync(query, limit, token)).ToList(), null, ct);
         return kept is null
             ? Unavailable<List<ListedTitle>>("The film database could not be asked to discover.")
@@ -563,7 +563,7 @@ public sealed partial class CatalogueSearch(
             query = query with { GenreIds = [animation.Id], Language = TitleCategories.AnimeLanguage };
         }
         var kept = await keeper.KeptAsync(AnswerKeeper.QueryName(family, Canonical(query, ResultsListed)),
-            KeptAnswerJson.Default.KeptAnswerListListedTitle, ListKept,
+            AnswerJson.Default.ListListedTitle, ListKept,
             async (tmdb, token) => (await tmdb.DiscoverAsync(query, ResultsListed, token)).ToList(), null, ct);
         if (kept is null) return Unavailable<ListAnswer>("The film database could not be asked what is on.");
 
@@ -584,7 +584,7 @@ public sealed partial class CatalogueSearch(
     private async Task<Outcome<List<ListedTitle>>> SimilarToAsync(TitleKey seed, DiscoverQuery query, string? sort, int limit, CancellationToken ct)
     {
         var space = seed.Kind == "film" ? "movie" : "tv";
-        var kept = await keeper.KeptAsync($"similar/{space}-{seed.TmdbId}", KeptAnswerJson.Default.KeptAnswerListListedTitle, DiscoverKept,
+        var kept = await keeper.KeptAsync($"similar/{space}-{seed.TmdbId}", AnswerJson.Default.ListListedTitle, DiscoverKept,
             async (tmdb, token) => (await tmdb.SimilarAsync(seed.Kind, seed.TmdbId, 2, token)).ToList(), null, ct);
         if (kept is null) return Unavailable<List<ListedTitle>>("The film database could not be asked what is similar.");
 
@@ -618,7 +618,7 @@ public sealed partial class CatalogueSearch(
                 {
                     var title = chunk[i];
                     var traitsKept = await keeper.KeptAsync($"traits/{(title.Kind == "film" ? "movie" : "tv")}-{title.TmdbId}",
-                        KeptAnswerJson.Default.KeptAnswerTitleTraits, VocabularyKept,
+                        AnswerJson.Default.TitleTraits, VocabularyKept,
                         (tmdb, t) => tmdb.TraitsAsync(title.Kind, title.TmdbId, t), null, token);
                     traits[i] = traitsKept?.Value;
                 });
@@ -636,7 +636,7 @@ public sealed partial class CatalogueSearch(
     {
         var wanted = phrase.Trim();
         var kept = await keeper.KeptAsync(AnswerKeeper.QueryName("keywords", wanted.ToLowerInvariant()),
-            KeptAnswerJson.Default.KeptAnswerListKeywordMatch, VocabularyKept,
+            AnswerJson.Default.ListKeywordMatch, VocabularyKept,
             async (tmdb, token) => (await tmdb.SearchKeywordsAsync(wanted, token)).ToList(), null, ct);
         return kept is null
             ? Unavailable<List<KeywordMatch>>("The film database could not be asked about its keywords.")
@@ -646,7 +646,7 @@ public sealed partial class CatalogueSearch(
     /// <summary>A language by its code or its English name.</summary>
     private async Task<Outcome<LanguageName>> LanguageAsync(string text, CancellationToken ct)
     {
-        var kept = await keeper.KeptAsync("languages", KeptAnswerJson.Default.KeptAnswerListLanguageName, VocabularyKept,
+        var kept = await keeper.KeptAsync("languages", AnswerJson.Default.ListLanguageName, VocabularyKept,
             async (tmdb, token) => (await tmdb.LanguagesAsync(token)).ToList() is { Count: > 0 } list ? list : null, null, ct);
         if (kept is null) return Unavailable<LanguageName>("The film database could not be asked about its languages.");
 
@@ -666,7 +666,7 @@ public sealed partial class CatalogueSearch(
         var text = like.Trim();
         if (ImdbId.ToTag(ImdbId.ToNumber(text)) is { } tag && text.StartsWith("tt", StringComparison.OrdinalIgnoreCase))
         {
-            var found = await keeper.KeptAsync($"finds/{tag}", KeptAnswerJson.Default.KeptAnswerTitleKey, VocabularyKept,
+            var found = await keeper.KeptAsync($"finds/{tag}", AnswerJson.Default.TitleKey, VocabularyKept,
                 (tmdb, token) => tmdb.FindAsync(tag, token), null, ct);
             if (found is null) return Unavailable<Seed>("The film database could not be asked about this title.");
             if (found.Value is not { } key) return NotFound<Seed>($"The film database has no title under {tag}.");
@@ -708,7 +708,7 @@ public sealed partial class CatalogueSearch(
             async (key, token) =>
             {
                 var kept = await keeper.KeptAsync($"cards/{(key.Kind == "film" ? "movie" : "tv")}-{key.Id}",
-                    KeptAnswerJson.Default.KeptAnswerTitleCard, CardKept,
+                    AnswerJson.Default.TitleCard, CardKept,
                     (tmdb, t) => tmdb.CardAsync(key.Kind, key.Id, t), null, token);
                 cards[key] = kept?.Value;
             });

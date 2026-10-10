@@ -1,6 +1,5 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using Microsoft.Extensions.Options;
+using Microsoft.Data.Sqlite;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Core;
@@ -11,12 +10,6 @@ namespace TheKrystalShip.MovieBot.Api.Acquisition;
 public sealed class NotifyOptions
 {
     public const string Section = "Notify";
-
-    /// <summary>
-    /// Where the wish list is written. Empty means the state directory systemd hands the service,
-    /// and the working directory when there is none.
-    /// </summary>
-    public string Path { get; set; } = "";
 
     /// <summary>
     /// How often the tracker is asked about every film on the list, in minutes. A film that was
@@ -33,17 +26,6 @@ public sealed class NotifyOptions
     /// available is its digital release, and a web encode is the first form that takes.
     /// </summary>
     public Source MinimumSource { get; set; } = Source.Web;
-
-    public string ResolvePath()
-    {
-        if (!string.IsNullOrWhiteSpace(Path)) return System.IO.Path.GetFullPath(Path);
-
-        // The directory systemd makes for this service; the variable may name more than one, and
-        // the first is the service's own.
-        var state = Environment.GetEnvironmentVariable("STATE_DIRECTORY")?.Split(':').FirstOrDefault();
-        return System.IO.Path.GetFullPath(System.IO.Path.Combine(
-            string.IsNullOrWhiteSpace(state) ? Directory.GetCurrentDirectory() : state, "wishes.json"));
-    }
 }
 
 /// <summary>One person waiting on a film, by the account the identity provider names them by.</summary>
@@ -77,7 +59,6 @@ public sealed record Wish
     public IReadOnlyList<WishSubscriber> Subscribers { get; init; } = [];
 
     /// <summary>The one spelling of the name and the year together.</summary>
-    [JsonIgnore]
     public string Display => Year is { } year ? $"{Title} ({year})" : Title;
 
     /// <summary>The wish as it crosses the wire, with the release that answers it once there is one.</summary>
@@ -98,13 +79,6 @@ public sealed record Wish
     };
 }
 
-[JsonSourceGenerationOptions(
-    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    WriteIndented = true)]
-[JsonSerializable(typeof(List<Wish>))]
-internal partial class WishListJson : JsonSerializerContext;
-
 public enum WishAdded
 {
     Subscribed,
@@ -112,117 +86,67 @@ public enum WishAdded
 }
 
 /// <summary>
-/// The films people are waiting on, kept on disk.
+/// The films people are waiting on.
 ///
-/// A download is kept as tags on the torrent and a room as the journal, but a film that is not on
-/// the tracker yet has no torrent to tag and no manifest to write: a wish for it exists nowhere
-/// unless it is written down here. Losing the file on a restart would drop every person waiting,
-/// silently, with the sweep carrying on over an empty list.
-///
-/// Every change is written whole and moved into place. Changes are rare — a person asking, a film
-/// arriving — so there is nothing to batch, and a half-written file read at the next start is worse
-/// than none.
+/// A download is kept as tags on the torrent and a room as its row, but a film that is not on the
+/// tracker yet has no torrent to tag and no manifest to write: a wish for it exists nowhere unless it
+/// is kept here. A wish is listed in the order it was first made, and its subscribers in the order
+/// they asked.
 /// </summary>
-public sealed class WishList
+public sealed class WishList(CinemaDatabase database)
 {
-    private readonly ILogger<WishList> _logger;
-    private readonly Lock _gate = new();
-    private List<Wish>? _wishes;
-
     // The release each wish that has come out was found as. Held in memory only: the sweep finds it
     // again on its first pass after a restart.
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Release> _out = new(StringComparer.OrdinalIgnoreCase);
 
-    public WishList(IOptions<NotifyOptions> options, ILogger<WishList> logger)
-        : this(options.Value.ResolvePath(), logger)
-    {
-    }
-
-    public WishList(string path, ILogger<WishList> logger)
-    {
-        Path = path;
-        _logger = logger;
-    }
-
-    public string Path { get; }
-
-    public IReadOnlyList<Wish> All()
-    {
-        lock (_gate) return [.. Loaded()];
-    }
+    public IReadOnlyList<Wish> All() => database.Read(c => Load(c, null, null));
 
     /// <summary>The films one person is waiting on.</summary>
-    public IReadOnlyList<Wish> For(string userId)
-    {
-        lock (_gate)
-            return Loaded().Where(w => w.Subscribers.Any(s => s.UserId == userId)).ToList();
-    }
+    public IReadOnlyList<Wish> For(string userId) => database.Read(c => Load(c, null, userId));
 
-    public Wish? Find(string imdbId)
-    {
-        lock (_gate)
-            return Loaded().FirstOrDefault(w => Same(w.ImdbId, imdbId));
-    }
+    public Wish? Find(string imdbId) => database.Read(c => Load(c, imdbId, null).FirstOrDefault());
 
     /// <summary>
     /// Adds a person to a film's wish, making the wish if it is the first. What is kept about the
     /// film is what the catalogue said now, which stands in for it until the film is out.
     /// </summary>
-    public (WishAdded Outcome, Wish Wish) Add(ImdbTitle film, WishSubscriber subscriber)
+    public (WishAdded Outcome, Wish Wish) Add(ImdbTitle film, WishSubscriber subscriber) => database.Write(c =>
     {
-        lock (_gate)
+        if (Load(c, film.ImdbId, null).FirstOrDefault() is { } existing)
         {
-            var wishes = Loaded();
-            var index = wishes.FindIndex(w => Same(w.ImdbId, film.ImdbId));
+            if (existing.Subscribers.Any(s => s.UserId == subscriber.UserId)) return (WishAdded.AlreadySubscribed, existing);
 
-            if (index >= 0)
-            {
-                var existing = wishes[index];
-                if (existing.Subscribers.Any(s => s.UserId == subscriber.UserId))
-                    return (WishAdded.AlreadySubscribed, existing);
-
-                var joined = existing with { Subscribers = [.. existing.Subscribers, subscriber] };
-                wishes[index] = joined;
-                Save(wishes);
-                return (WishAdded.Subscribed, joined);
-            }
-
-            var wish = new Wish
-            {
-                ImdbId = film.ImdbId,
-                Title = film.Title,
-                Year = film.Year,
-                Starring = film.Starring,
-                PosterUrl = film.PosterUrl?.ToString(),
-                Subscribers = [subscriber],
-            };
-
-            wishes.Add(wish);
-            Save(wishes);
-            return (WishAdded.Subscribed, wish);
+            Subscribe(c, existing.ImdbId, subscriber);
+            return (WishAdded.Subscribed, existing with { Subscribers = [.. existing.Subscribers, subscriber] });
         }
-    }
+
+        var wish = new Wish
+        {
+            ImdbId = film.ImdbId,
+            Title = film.Title,
+            Year = film.Year,
+            Starring = film.Starring,
+            PosterUrl = film.PosterUrl?.ToString(),
+            Subscribers = [subscriber],
+        };
+        c.Execute(
+            "INSERT INTO wishes (imdb_id, title, year, starring, poster_url, made_at) VALUES ($imdb, $title, $year, $starring, $poster, $at)",
+            ("$imdb", wish.ImdbId), ("$title", wish.Title), ("$year", wish.Year), ("$starring", wish.Starring),
+            ("$poster", wish.PosterUrl), ("$at", subscriber.AskedAt));
+        Subscribe(c, wish.ImdbId, subscriber);
+        return (WishAdded.Subscribed, wish);
+    });
 
     /// <summary>Takes one person off a film's wish. The wish goes with its last subscriber.</summary>
-    public Wish? Remove(string userId, string imdbId)
+    public Wish? Remove(string userId, string imdbId) => database.Write(c =>
     {
-        lock (_gate)
-        {
-            var wishes = Loaded();
-            var index = wishes.FindIndex(w => Same(w.ImdbId, imdbId));
-            if (index < 0) return null;
+        if (Load(c, imdbId, null).FirstOrDefault() is not { } wish || wish.Subscribers.All(s => s.UserId != userId)) return null;
 
-            var wish = wishes[index];
-            if (wish.Subscribers.All(s => s.UserId != userId)) return null;
-
-            var remaining = wish.Subscribers.Where(s => s.UserId != userId).ToList();
-            if (remaining.Count == 0) wishes.RemoveAt(index);
-            else wishes[index] = wish with { Subscribers = remaining };
-
-            Save(wishes);
-            return wish;
-        }
-    }
+        c.Execute("DELETE FROM wish_subscribers WHERE imdb_id = $imdb AND user_id = $user", ("$imdb", wish.ImdbId), ("$user", userId));
+        c.Execute("DELETE FROM wishes WHERE imdb_id = $imdb AND NOT EXISTS (SELECT 1 FROM wish_subscribers WHERE imdb_id = $imdb)",
+            ("$imdb", wish.ImdbId));
+        return wish;
+    });
 
     /// <summary>Notes that a wished film is out, as this release.</summary>
     public void MarkOut(string imdbId, Release release) => _out[imdbId] = release;
@@ -238,46 +162,31 @@ public sealed class WishList
         return null;
     }
 
-    private static bool Same(string a, string b) =>
-        string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+    private static void Subscribe(SqliteConnection c, string imdbId, WishSubscriber subscriber) =>
+        c.Execute("INSERT INTO wish_subscribers (imdb_id, user_id, asked_at) VALUES ($imdb, $user, $at)",
+            ("$imdb", imdbId), ("$user", subscriber.UserId), ("$at", subscriber.AskedAt));
 
     /// <summary>
-    /// Read once, on first use. Never throws: a file that cannot be read is a list that starts
-    /// empty, which is said on the log because it is also every wish being dropped.
+    /// The wishes, all of them or the one <paramref name="imdbId"/> names (whatever its case), or the ones
+    /// <paramref name="subscriber"/> waits on, each with everybody waiting on it.
     /// </summary>
-    private List<Wish> Loaded()
+    private static List<Wish> Load(SqliteConnection c, string? imdbId, string? subscriber)
     {
-        if (_wishes is not null) return _wishes;
+        var wishes = c.Query(
+            "SELECT imdb_id, title, year, starring, poster_url FROM wishes "
+            + "WHERE ($imdb IS NULL OR imdb_id = $imdb COLLATE NOCASE) "
+            + "AND ($user IS NULL OR imdb_id IN (SELECT imdb_id FROM wish_subscribers WHERE user_id = $user)) ORDER BY rowid",
+            r => new Wish
+            {
+                ImdbId = r.GetString(0), Title = r.GetString(1), Year = r.GetIntOrNull(2), Starring = r.GetStringOrNull(3),
+                PosterUrl = r.GetStringOrNull(4),
+            },
+            ("$imdb", imdbId), ("$user", subscriber));
 
-        try
+        return [.. wishes.Select(w => w with
         {
-            _wishes = File.Exists(Path)
-                ? JsonSerializer.Deserialize(File.ReadAllText(Path), WishListJson.Default.ListWish) ?? []
-                : [];
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "The wish list at {Path} could not be read; starting with none.", Path);
-            _wishes = [];
-        }
-
-        return _wishes;
-    }
-
-    private void Save(List<Wish> wishes)
-    {
-        try
-        {
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
-            var temporary = Path + ".tmp";
-            File.WriteAllText(temporary, JsonSerializer.Serialize(wishes, WishListJson.Default.ListWish));
-            File.Move(temporary, Path, overwrite: true);
-        }
-        catch (Exception ex)
-        {
-            // The list in memory is right and the request that changed it succeeded; what is lost
-            // is the next restart. Said as an error because that loss is every wish at once.
-            _logger.LogError(ex, "The wish list at {Path} could not be written.", Path);
-        }
+            Subscribers = c.Query("SELECT user_id, asked_at FROM wish_subscribers WHERE imdb_id = $imdb ORDER BY rowid",
+                r => new WishSubscriber { UserId = r.GetString(0), AskedAt = r.GetInstant(1) }, ("$imdb", w.ImdbId)),
+        })];
     }
 }

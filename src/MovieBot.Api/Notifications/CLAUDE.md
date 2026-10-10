@@ -14,9 +14,8 @@ rest on. `Notifier` is the one way anything here tells anybody anything.
   accepted the push for, and nothing anywhere says a phone showed it. A browser the service says is
   gone (404/410) is forgotten at once; any other refusal is logged and the row is kept.
 - **The key pair is made once and never again.** Its public half is inside every subscription a browser
-  makes, so a new pair silently orphans every registered device. `push-keys.json` is readable by this
-  service's user alone, and a file that is there but unreadable stops pushes rather than being
-  replaced.
+  makes, so a new pair silently orphans every registered device. It is kept in the database, which is
+  readable by this service's user alone.
 - **A subscription is a capability to put text on somebody's phone.** Only the person a token names
   registers, lists or removes their own browsers; there is no route that touches anybody else's. A
   browser belongs to whoever registered it last.

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
 using System.Text.Json;
 using TheKrystalShip.MovieBot.Api.People;
@@ -108,10 +109,7 @@ public sealed class ContinueWatchingTests(SessionFixture fixture) : IClassFixtur
                 },
             ],
         };
-        var directory = Path.Combine(fixture.StateRoot, "shows", imdbId);
-        Directory.CreateDirectory(directory);
-        File.WriteAllText(Path.Combine(directory, "show.json"),
-            JsonSerializer.Serialize(show, Api.Shows.StoredShowJson.Default.StoredShow));
+        fixture.Services.GetRequiredService<Api.Shows.ShowStore>().Keep(imdbId, show);
         return name;
     }
 

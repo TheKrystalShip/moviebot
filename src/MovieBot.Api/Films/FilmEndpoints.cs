@@ -107,7 +107,7 @@ public static class FilmEndpoints
             return Results.File(path, "image/jpeg", enableRangeProcessing: false);
         }).AllowAnonymous();
 
-        // The artwork kept beside each description. Open like a poster under /media: it is the
+        // The artwork kept with each description. Open like a poster under /media: it is the
         // database's public artwork, and an <img> carries no token. It never changes under one name
         // for long, so a browser may keep it a day.
         app.MapMethods("/films/{imdbId}/{file}", ["GET", "HEAD"], (string imdbId, string file, FilmStore store, HttpContext context) =>

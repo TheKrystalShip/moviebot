@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using TheKrystalShip.MovieBot.Api.Auth;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
 using Xunit;
@@ -279,23 +280,25 @@ public sealed class AccessTests(SessionFixture fixture) : IClassFixture<SessionF
     [Fact]
     public void The_issuer_is_recorded_the_first_time_and_another_is_refused_until_adopted()
     {
-        var path = Path.Combine(Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"), "issuer");
+        var path = Path.Combine(Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"), "moviebot.db");
         try
         {
+            var database = new CinemaDatabase(path);
             var first = new OidcOptions { Issuer = "https://one.test" };
-            IssuerRecord.Enforce(first, path, NullLogger.Instance);
-            Assert.Equal("https://one.test", File.ReadAllText(path).Trim());
-            IssuerRecord.Enforce(first, path, NullLogger.Instance);
+            IssuerRecord.Enforce(first, database, NullLogger.Instance);
+            Assert.Equal("https://one.test", database.Meta("issuer"));
+            IssuerRecord.Enforce(first, database, NullLogger.Instance);
 
             var other = new OidcOptions { Issuer = "https://two.test" };
-            Assert.Throws<InvalidOperationException>(() => IssuerRecord.Enforce(other, path, NullLogger.Instance));
-            Assert.Equal("https://one.test", File.ReadAllText(path).Trim());
+            Assert.Throws<InvalidOperationException>(() => IssuerRecord.Enforce(other, database, NullLogger.Instance));
+            Assert.Equal("https://one.test", database.Meta("issuer"));
 
-            IssuerRecord.Enforce(new OidcOptions { Issuer = "https://two.test", AdoptIssuer = "https://two.test" }, path, NullLogger.Instance);
-            Assert.Equal("https://two.test", File.ReadAllText(path).Trim());
+            IssuerRecord.Enforce(new OidcOptions { Issuer = "https://two.test", AdoptIssuer = "https://two.test" }, database, NullLogger.Instance);
+            Assert.Equal("https://two.test", database.Meta("issuer"));
         }
         finally
         {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             Directory.Delete(Path.GetDirectoryName(path)!, recursive: true);
         }
     }
@@ -329,20 +332,20 @@ public sealed class AccessTests(SessionFixture fixture) : IClassFixture<SessionF
     [Fact]
     public void The_api_does_not_start_against_an_issuer_its_records_were_not_kept_against()
     {
-        var record = Path.Combine(Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"), "issuer");
-        Directory.CreateDirectory(Path.GetDirectoryName(record)!);
-        File.WriteAllText(record, "https://previous.test\n");
+        var record = Path.Combine(Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"), "moviebot.db");
+        new CinemaDatabase(record).SetMeta("issuer", "https://previous.test");
         try
         {
             using var factory = fixture.WithWebHostBuilder(builder =>
                 builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(
-                    new Dictionary<string, string?> { ["Oidc:IssuerRecord"] = record })));
+                    new Dictionary<string, string?> { ["Database:Path"] = record })));
 
             var thrown = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
             Assert.Contains("Oidc:AdoptIssuer", thrown.ToString());
         }
         finally
         {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             Directory.Delete(Path.GetDirectoryName(record)!, recursive: true);
         }
     }

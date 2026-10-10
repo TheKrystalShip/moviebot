@@ -68,7 +68,7 @@ public sealed class Notifier(
 
         var pushed = await PushAsync(userId, notification, ct);
         if (pushed > 0)
-            inbox.Update(userId, notification.Id, n => n with { Pushed = pushed });
+            inbox.SetPushed(userId, notification.Id, pushed);
 
         logger.LogInformation("Told {User} {Kind} ({Key}): {Pushed} push.", userId, draft.Kind, draft.Key, pushed);
         return new Delivery(pushed);

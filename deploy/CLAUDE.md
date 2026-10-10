@@ -89,7 +89,7 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
   stopping and restarting are as privileged as installing a changed unit: `systemctl restart` as the
   owning user is refused with *"interactive authentication required"* and nothing happens, so the
   restart goes through `rsudo hotbox systemctl restart …` from hotrod.
-- **A deploy restarts the services whether or not anybody is watching.** A room is journalled and
+- **A deploy restarts the services whether or not anybody is watching.** A room is kept and
   comes back as it was, the player reconnects its hub on its own, and the video it has buffered keeps
   playing through the gap, so nobody in a room notices the restart. `/health` counting occupied rooms
   is no reason to hold a deploy back.
@@ -104,11 +104,11 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
   identity is kept out of the repository the same way the passkey is. A unit's own `Environment=`
   lines are for the process, not for MovieBot: `PATH`.
 - **The state directories are what no re-ingest can rebuild.** systemd hands the API
-  `/var/lib/moviebot` — the rooms, the wish list, the subtitles fetched from outside, each of
-  which cost one of a limited daily allowance, and `push-keys.json`, the key pair every browser's push
-  subscription is bound to, which cannot be made again without every device subscribing again —
-  the bot `/var/lib/moviebot-bot`, holding the launch
-  cards still standing. The assistant keeps no state of its own: the conversations and what people
+  `/var/lib/moviebot`: `moviebot.db`, which holds every person's records, the rooms, the wish list
+  and the push key pair every browser's subscription is bound to (it cannot be made again without
+  every device subscribing again), and the subtitles fetched from outside, each of which cost one of
+  a limited daily allowance. The artwork beside them is the film database's and is fetched again if
+  lost. The bot has `/var/lib/moviebot-bot`, holding the launch cards still standing. The assistant keeps no state of its own: the conversations and what people
   asked it to remember are the harness's.
 - **The cold disk is named in the settings file and proved by a marker file.** `Media.ColdRoot` and
   `Handoff.ColdRoot` point at the volume finished films are kept on, and it is used only while a

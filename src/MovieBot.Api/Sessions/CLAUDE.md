@@ -72,7 +72,7 @@ A room's guest link lets somebody with no account watch it. A guest is nobody: a
 name it gave itself, holding the link, and no record anywhere is keyed by one.
 
 - **The link is a capability, not an account.** `GuestPass` is one per room, kept with the room in
-  `RoomAdmission` and journalled with it, and the link's code is its id signed with a key derived
+  `RoomAdmission` and kept with it, and the link's code is its id signed with a key derived
   from `Auth:MediaTicketKey` (`GuestCodes`), so nothing secret is written down and everybody in the
   room who asks is handed the same link. Somebody in the room holding `cinema:guests` gives it and
   takes it away; it runs out after `Rooms:GuestPassLifetime`, and goes with the room when the reaper
@@ -103,12 +103,13 @@ name it gave itself, holding the link, and no record anywhere is keyed by one.
 ## Keeping a room
 
 A room is the only thing in the system that exists nowhere else. The films are on disk and the
-subtitles are on disk; what a room is watching and where it has got to would otherwise live in memory
+subtitles are kept; what a room is watching and where it has got to would otherwise live in memory
 alone, and restarting the API would take the film out from under everybody in it.
 
-- **A room is written down, and put back.** `SessionJournal` holds every room in the state directory
-  systemd hands over. It is read before the server begins listening — a room restored after the first
-  client has joined is a room that client was already told did not exist.
+- **A room is kept, and put back.** `RoomStore` keeps every room in the database, its state in the
+  shape it is pushed to the room. It is read before the server begins listening — a room restored
+  after the first client has joined is a room that client was already told did not exist. A room
+  whose kept state no longer reads as one starts again empty.
 - **A restored room keeps its epoch and its revision.** It is the same run of the same room rather
   than a new one wearing its name, so a client connected across the restart goes on applying pushes
   instead of discarding every one of them, and its reconnect resync hands back what it already had.
@@ -119,10 +120,10 @@ alone, and restarting the API would take the film out from under everybody in it
 - **Nobody is restored into a room.** Membership is a live connection and every one of them died with
   the server. Restoring the names would leave a room reporting people who are connected to nothing,
   which the reaper would then never forget.
-- **The journal does not resurrect what the reaper would have forgotten.** A room idle past the
+- **What is kept does not resurrect what the reaper would have forgotten.** A room idle past the
   window is dropped on the way back in, because a link into a room is supposed to stop working.
-- **Writing is on a two-second delay.** A drag along the scrub bar is a burst of changes and each
-  would be a whole file. A planned stop writes on the way out and loses nothing.
+- **Keeping is on a two-second delay.** A drag along the scrub bar is a burst of changes and each
+  would be every room written again. A planned stop keeps them on the way out and loses nothing.
 - **`/health` says how many rooms are occupied and by how many people, and no names.** It is what
   makes restarting something that can be looked at first rather than found out about afterwards.
 - **The room listing carries what each room is watching and how many are in it, and no names**: who

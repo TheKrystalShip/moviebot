@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Films;
 
 namespace TheKrystalShip.MovieBot.Api.Shows;
@@ -21,15 +22,15 @@ public sealed record StoredShow
 
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    WriteIndented = true)]
-[JsonSerializable(typeof(StoredShow))]
-internal partial class StoredShowJson : JsonSerializerContext;
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(ShowDetails))]
+[JsonSerializable(typeof(List<SeasonDetails>))]
+internal partial class ShowDetailsJson : JsonSerializerContext;
 
 /// <summary>
-/// Shows as the film database describes them, kept on disk and served from here, on the same terms
-/// as <see cref="FilmStore"/>: asked once per show, kept under one directory per show with every
-/// image it names, refreshed when <see cref="FilmStoreOptions.RefreshDays"/> old, and the old copy
+/// Shows as the film database describes them, kept and served from here, on the same terms as
+/// <see cref="FilmStore"/>: asked once per show, kept with every image it names under one directory
+/// per show, refreshed when <see cref="FilmStoreOptions.RefreshDays"/> old, and the old copy
 /// served when the database cannot be reached. A show is its description and its seasons' episode
 /// lists, asked for together, so a page about a show never waits on a second question.
 /// </summary>
@@ -38,13 +39,17 @@ public sealed class ShowStore(
     IOptions<FilmStoreOptions> options,
     IServiceScopeFactory scopes,
     PosterPins pins,
+    KeptImages images,
+    CinemaDatabase database,
     EpisodeNumbering numbering,
     TimeProvider clock,
     ILogger<ShowStore> logger)
 {
     public const string Poster = "poster.jpg";
     public const string Backdrop = "backdrop.jpg";
-    private const string DescriptionFile = "show.json";
+
+    /// <summary>What the images this keeps are named under in <see cref="KeptImages"/>.</summary>
+    private const string Images = "shows";
 
     private readonly ConcurrentDictionary<string, StoredShow> _held = new();
     private readonly ConcurrentDictionary<string, Task<StoredShow?>> _asking = new();
@@ -146,7 +151,7 @@ public sealed class ShowStore(
             }
 
             var stored = new StoredShow { Details = details, Seasons = seasons, FetchedAt = clock.GetUtcNow() };
-            Write(imdbId, stored);
+            Keep(imdbId, stored);
             _held[imdbId] = stored;
             return stored;
         }
@@ -161,63 +166,52 @@ public sealed class ShowStore(
     private async Task FetchImagesAsync(
         TmdbClient tmdb, string imdbId, ShowDetails details, List<SeasonDetails> seasons, CancellationToken ct)
     {
-        var directory = Path.Combine(root, imdbId);
         var wanted = new List<(string? Path, string Size, string File)>
         {
-            (pins.Pin(imdbId, PosterPins.Shown(Path.Combine(directory, Poster)), details.PosterPath), "w500", Poster),
+            (pins.Pin(imdbId, images.Source(Images, root, $"{imdbId}/{Poster}"), details.PosterPath), "w500", Poster),
             (details.BackdropPath, "w1280", Backdrop),
         };
         wanted.AddRange(details.Cast.Select((c, i) => (c.ProfilePath, "w185", Portrait(i))));
         wanted.AddRange(seasons.SelectMany(s => s.Episodes).Select(e => (e.StillPath, "w300", Still(e.Season, e.Number))));
 
-        Directory.CreateDirectory(directory);
         // Asked side by side, as a film's are: a page opened on a show nothing is kept for waits on them.
         await Parallel.ForEachAsync(wanted, new ParallelOptions { MaxDegreeOfParallelism = FilmStore.ImagesAtOnce, CancellationToken = ct },
-            async (image, token) =>
-            {
-                var (path, size, file) = image;
-                var target = Path.Combine(directory, file);
-                if (path is null)
-                {
-                    File.Delete(target);
-                    return;
-                }
-
-                // An image a path names never changes; a refresh that keeps the path keeps the file.
-                var marker = target + ".src";
-                if (File.Exists(target) && File.Exists(marker) && await File.ReadAllTextAsync(marker, token) == path) return;
-
-                if (await tmdb.ImageAsync(path, size, token) is not { } bytes) return;
-                await File.WriteAllBytesAsync(target + ".tmp", bytes, token);
-                File.Move(target + ".tmp", target, overwrite: true);
-                await File.WriteAllTextAsync(marker, path, token);
-            });
+            async (image, token) => await images.KeepAsync(tmdb, Images, root, $"{imdbId}/{image.File}", image.Path, image.Size, token));
     }
 
     private StoredShow? Read(string imdbId)
     {
-        var path = Path.Combine(root, imdbId, DescriptionFile);
         try
         {
-            if (!File.Exists(path)) return null;
-            using var stream = File.OpenRead(path);
-            return JsonSerializer.Deserialize(stream, StoredShowJson.Default.StoredShow);
+            return database.Read(c => c.First("SELECT fetched_at, details, seasons FROM show_descriptions WHERE imdb_id = $imdb",
+                r => new StoredShow
+                {
+                    FetchedAt = r.GetInstant(0),
+                    Details = r.GetStringOrNull(1) is { } details ? JsonSerializer.Deserialize(details, ShowDetailsJson.Default.ShowDetails) : null,
+                    Seasons = JsonSerializer.Deserialize(r.GetString(2), ShowDetailsJson.Default.ListSeasonDetails) ?? [],
+                },
+                ("$imdb", imdbId)));
         }
-        catch (Exception ex) when (ex is JsonException or IOException)
+        catch (JsonException ex)
         {
             logger.LogWarning("The kept description of the show {Imdb} could not be read: {Reason}", imdbId, ex.Message);
             return null;
         }
     }
 
-    private void Write(string imdbId, StoredShow show)
+    /// <summary>Keeps what the database said of a show in place of what was kept.</summary>
+    internal void Keep(string imdbId, StoredShow show)
     {
-        var directory = Path.Combine(root, imdbId);
-        Directory.CreateDirectory(directory);
-        var path = Path.Combine(directory, DescriptionFile);
-        File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(show, StoredShowJson.Default.StoredShow));
-        File.Move(path + ".tmp", path, overwrite: true);
+        Keep(database, imdbId, show);
+        _held.TryRemove(imdbId, out _);
     }
+
+    internal static void Keep(CinemaDatabase database, string imdbId, StoredShow show) =>
+        database.Write(c => c.Execute(
+            "INSERT OR REPLACE INTO show_descriptions (imdb_id, fetched_at, details, seasons) VALUES ($imdb, $at, $details, $seasons)",
+            ("$imdb", imdbId), ("$at", show.FetchedAt),
+            ("$details", show.Details is null ? null : JsonSerializer.Serialize(show.Details, ShowDetailsJson.Default.ShowDetails)),
+            ("$seasons", JsonSerializer.Serialize(show.Seasons, ShowDetailsJson.Default.ListSeasonDetails))));
 
     private static bool IsImageName(string file)
     {

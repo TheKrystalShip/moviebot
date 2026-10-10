@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Lists;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Core;
@@ -251,14 +252,14 @@ public sealed class ListTests(SessionFixture fixture) : IClassFixture<SessionFix
     [Fact]
     public void Lists_survive_a_restart()
     {
-        var path = Path.Combine(fixture.StateRoot, $"lists-{Guid.NewGuid():N}.json");
+        var path = Path.Combine(fixture.StateRoot, $"lists-{Guid.NewGuid():N}.db");
         var at = DateTimeOffset.UtcNow;
-        var first = new ListStore(path, NullLogger<ListStore>.Instance);
+        var first = new ListStore(new CinemaDatabase(path));
         var (list, _) = first.Create("8060", "Kept", at);
         first.Save("8060", list!.Id, HeatImdb, EntryKinds.Film, "note", at);
         first.SetMember("8060", list.Id, "8061", ListRoles.Viewer, at);
 
-        var again = new ListStore(path, NullLogger<ListStore>.Instance);
+        var again = new ListStore(new CinemaDatabase(path));
         var read = again.Get("8061", list.Id, at);
         Assert.NotNull(read);
         Assert.Equal("note", Assert.Single(read.Entries).Note);

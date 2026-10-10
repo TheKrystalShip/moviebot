@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Core;
 using Xunit;
@@ -300,32 +301,18 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
     }
 
     [Fact]
-    public async Task What_was_watched_survives_a_restart_and_is_written_after_a_delay()
+    public void What_was_watched_survives_a_restart()
     {
-        var path = Path.Combine(fixture.StateRoot, $"watch-{Guid.NewGuid():n}.json");
+        var path = Path.Combine(fixture.StateRoot, $"watch-{Guid.NewGuid():n}.db");
         var at = DateTimeOffset.UtcNow;
 
-        using (var first = new WatchRecord(path, NullLogger<WatchRecord>.Instance, TimeSpan.FromMilliseconds(50)))
-        {
-            first.Record("u", Film, 100, 6000, at);
-            Assert.False(File.Exists(path));
-            await Eventually(() => File.Exists(path));
-        }
+        var first = new WatchRecord(new CinemaDatabase(path), TimeProvider.System);
+        first.Record("u", Film, 100, 6000, at);
 
-        var second = new WatchRecord(path, NullLogger<WatchRecord>.Instance);
+        var second = new WatchRecord(new CinemaDatabase(path), TimeProvider.System);
         Assert.Equal(100, second.EntryOf("u", Film)!.PositionSeconds);
         Assert.Equal(at, second.LastPlayedAt(Film));
-    }
-
-    [Fact]
-    public void A_change_inside_the_delay_is_written_when_the_record_is_disposed()
-    {
-        var path = Path.Combine(fixture.StateRoot, $"watch-{Guid.NewGuid():n}.json");
-
-        using (var record = new WatchRecord(path, NullLogger<WatchRecord>.Instance, TimeSpan.FromHours(1)))
-            record.Record("u", Film, 100, 6000, DateTimeOffset.UtcNow);
-
-        Assert.True(File.Exists(path));
+        Assert.Equal(first.RecordingSince, second.RecordingSince);
     }
 
     private static async Task Eventually(Func<bool> condition)

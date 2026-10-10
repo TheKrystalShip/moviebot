@@ -50,7 +50,7 @@ offline"; these are the rules it rests on.
   Forgetting a save that is not there is the same end state and answers `204`.
 - **A title the library does not hold is wanted, then saved** (`OfflineWanting`). A want names a
   film, or an episode by its show and place, a device, a height and the audio and subtitle languages
-  asked for, and sits beside the saves in `offline.json`. A release says nothing of its audio but
+  asked for, and is kept beside the saves. A release says nothing of its audio but
   its name, and one made from the original carries the original's language unsaid, so an audio
   language that is not the title's own prefers a release whose name carries it
   (`Acquisition/ReleaseLanguages`), and the device picks the track in it where the title has one.

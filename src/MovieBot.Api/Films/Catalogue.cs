@@ -13,20 +13,19 @@ public sealed record KeptAnswer<T> where T : class
 
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    WriteIndented = true)]
-[JsonSerializable(typeof(KeptAnswer<PersonCredits>))]
-[JsonSerializable(typeof(KeptAnswer<List<CatalogueGenre>>))]
-[JsonSerializable(typeof(KeptAnswer<List<CatalogueTitle>>))]
-[JsonSerializable(typeof(KeptAnswer<List<ListedTitle>>))]
-[JsonSerializable(typeof(KeptAnswer<List<PersonMatch>>))]
-[JsonSerializable(typeof(KeptAnswer<List<KeywordMatch>>))]
-[JsonSerializable(typeof(KeptAnswer<List<LanguageName>>))]
-[JsonSerializable(typeof(KeptAnswer<Filmography>))]
-[JsonSerializable(typeof(KeptAnswer<TitleCard>))]
-[JsonSerializable(typeof(KeptAnswer<TitleKey>))]
-[JsonSerializable(typeof(KeptAnswer<TitleTraits>))]
-internal partial class KeptAnswerJson : JsonSerializerContext;
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(PersonCredits))]
+[JsonSerializable(typeof(List<CatalogueGenre>))]
+[JsonSerializable(typeof(List<CatalogueTitle>))]
+[JsonSerializable(typeof(List<ListedTitle>))]
+[JsonSerializable(typeof(List<PersonMatch>))]
+[JsonSerializable(typeof(List<KeywordMatch>))]
+[JsonSerializable(typeof(List<LanguageName>))]
+[JsonSerializable(typeof(Filmography))]
+[JsonSerializable(typeof(TitleCard))]
+[JsonSerializable(typeof(TitleKey))]
+[JsonSerializable(typeof(TitleTraits))]
+internal partial class AnswerJson : JsonSerializerContext;
 
 /// <summary>A film or a show as a browse of the catalogue lists it, by its poster.</summary>
 public sealed record CatalogueTitleView
@@ -89,7 +88,8 @@ public sealed record CatalogueGenreView
 public sealed class Catalogue(
     string root,
     AnswerKeeper keeper,
-    TitleGlances glances)
+    TitleGlances glances,
+    KeptImages images)
 {
     /// <summary>How many titles a person's credits or a genre lists.</summary>
     public const int TitlesListed = 40;
@@ -102,6 +102,9 @@ public sealed class Catalogue(
 
     private const string PortraitSize = "w185";
 
+    /// <summary>What the portraits this keeps are named under in <see cref="KeptImages"/>.</summary>
+    private const string Images = "catalogue";
+
     /// <summary>The kinds a genre is browsed in.</summary>
     public static bool IsKind(string? kind) => kind is "film" or "show";
 
@@ -110,7 +113,7 @@ public sealed class Catalogue(
     /// answer with no value when the database has nobody under the id.
     /// </summary>
     public Task<KeptAnswer<PersonCredits>?> PersonAsync(int personId, CancellationToken ct) =>
-        keeper.KeptAsync($"people/{personId}", KeptAnswerJson.Default.KeptAnswerPersonCredits, PersonKept,
+        keeper.KeptAsync($"people/{personId}", AnswerJson.Default.PersonCredits, PersonKept,
             async (tmdb, token) =>
             {
                 var person = await tmdb.PersonAsync(personId, TitlesListed, token);
@@ -125,7 +128,7 @@ public sealed class Catalogue(
     /// </summary>
     public async Task<IReadOnlyList<CatalogueGenre>?> GenresAsync(string kind, CancellationToken ct)
     {
-        var genres = await keeper.KeptAsync($"genres/{kind}", KeptAnswerJson.Default.KeptAnswerListCatalogueGenre, GenresKept,
+        var genres = await keeper.KeptAsync($"genres/{kind}", AnswerJson.Default.ListCatalogueGenre, GenresKept,
             async (tmdb, token) => (await tmdb.GenresAsync(kind, token)) is { Count: > 0 } list ? list.ToList() : null,
             null, ct);
         return genres is null ? null : genres.Value ?? [];
@@ -154,7 +157,7 @@ public sealed class Catalogue(
             language = Library.TitleCategories.AnimeLanguage;
         }
 
-        var titles = await keeper.KeptAsync($"genres/{kind}-{genre.Id}{(anime ? "-anime" : "")}", KeptAnswerJson.Default.KeptAnswerListCatalogueTitle, GenreKept,
+        var titles = await keeper.KeptAsync($"genres/{kind}-{genre.Id}{(anime ? "-anime" : "")}", AnswerJson.Default.ListCatalogueTitle, GenreKept,
             async (tmdb, token) => (await tmdb.GenreAsync(kind, ids, language, TitlesListed, token)).ToList(),
             Offer, ct);
         return titles is null ? null : (genre, titles);
@@ -215,24 +218,7 @@ public sealed class Catalogue(
         foreach (var title in titles) glances.Offer(title.ImdbId, Glance(title));
     }
 
-    /// <summary>Keeps a person's portrait beside their credits, or removes it when the database holds none.</summary>
-    internal async Task FetchPortraitAsync(TmdbClient tmdb, int personId, string? profilePath, CancellationToken ct)
-    {
-        var target = PortraitPath(personId);
-        var marker = target + ".src";
-        if (profilePath is null)
-        {
-            File.Delete(target);
-            File.Delete(marker);
-            return;
-        }
-        // An image a path names never changes; a new image comes under a new path.
-        if (File.Exists(target) && File.Exists(marker) && await File.ReadAllTextAsync(marker, ct) == profilePath) return;
-
-        if (await tmdb.ImageAsync(profilePath, PortraitSize, ct) is not { } bytes) return;
-        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        await File.WriteAllBytesAsync(target + ".tmp", bytes, ct);
-        File.Move(target + ".tmp", target, overwrite: true);
-        await File.WriteAllTextAsync(marker, profilePath, ct);
-    }
+    /// <summary>Keeps a person's portrait, or removes it when the database holds none.</summary>
+    internal Task FetchPortraitAsync(TmdbClient tmdb, int personId, string? profilePath, CancellationToken ct) =>
+        images.KeepAsync(tmdb, Images, root, $"people/{personId}.jpg", profilePath, PortraitSize, ct);
 }

@@ -1,4 +1,4 @@
-using System.Text.Json;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.WebPush;
 
 namespace TheKrystalShip.MovieBot.Api.Notifications;
@@ -20,12 +20,8 @@ public sealed record StoredPushSubscription
     public PushSubscription Subscription => new(Endpoint, P256dh, Auth);
 }
 
-/// <summary>This server's VAPID pair, as it is kept.</summary>
-public sealed record StoredVapidKeys(string PrivateKey, string PublicKey);
-
 /// <summary>
-/// The browsers each person has subscribed, in one file in the state directory, and this server's
-/// VAPID key pair beside it.
+/// The browsers each person has subscribed, and this server's VAPID key pair.
 ///
 /// A subscription is a capability to put text on somebody's phone, so the routes that touch one
 /// answer for the person the token names and nobody else. A browser that subscribes again replaces
@@ -34,127 +30,65 @@ public sealed record StoredVapidKeys(string PrivateKey, string PublicKey);
 ///
 /// The key pair is made the first time it is asked for and never again. Its public half is inside
 /// every subscription a browser makes, so a new pair silently orphans every device already
-/// registered. Its private half is a secret: the file is readable by this service's user alone.
+/// registered. Its private half is a secret, and the database it is kept in is readable by this
+/// service's user alone.
 /// </summary>
-public sealed class PushDevices
+public sealed class PushDevices(CinemaDatabase database, ILogger<PushDevices> logger)
 {
-    private readonly string _path;
-    private readonly string _keysPath;
-    private readonly ILogger<PushDevices> _logger;
-    private readonly Lock _gate = new();
-    private List<StoredPushSubscription> _all;
+    private const string PrivateKey = "vapid_private";
+    private const string PublicKey = "vapid_public";
+
     private VapidKeyPair? _keys;
 
-    public PushDevices(string path, string keysPath, ILogger<PushDevices> logger)
-    {
-        _path = path;
-        _keysPath = keysPath;
-        _logger = logger;
-        _all = Read();
-    }
-
-    /// <summary>This server's key pair, made and written down the first time it is asked for.</summary>
+    /// <summary>This server's key pair, made and kept the first time it is asked for.</summary>
     public VapidKeyPair Keys()
     {
-        lock (_gate)
-        {
-            if (_keys is not null) return _keys;
+        if (_keys is { } held) return held;
 
-            if (File.Exists(_keysPath))
-            {
-                // A file that is there and unreadable is not replaced: a new pair would orphan every
-                // device, and the old one may still be recoverable by hand. Nothing is pushed until then.
-                var stored = JsonSerializer.Deserialize(File.ReadAllText(_keysPath), NotificationsJson.Default.StoredVapidKeys)
-                    ?? throw new InvalidDataException($"The push keys at {_keysPath} are empty.");
-                return _keys = new VapidKeyPair(stored.PrivateKey, stored.PublicKey);
-            }
+        return _keys = database.Write(c =>
+        {
+            var kept = c.Query("SELECT key, value FROM meta WHERE key IN ($private, $public)",
+                r => KeyValuePair.Create(r.GetString(0), r.GetString(1)), ("$private", PrivateKey), ("$public", PublicKey))
+                .ToDictionary();
+            if (kept.TryGetValue(PrivateKey, out var privateKey) && kept.TryGetValue(PublicKey, out var publicKey))
+                return new VapidKeyPair(privateKey, publicKey);
 
             var keys = VapidKeyPair.Generate();
-            Directory.CreateDirectory(Path.GetDirectoryName(_keysPath)!);
-            var temporary = _keysPath + ".tmp";
-            File.WriteAllText(temporary, "");
-            if (!OperatingSystem.IsWindows())
-                File.SetUnixFileMode(temporary, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            File.WriteAllText(temporary, JsonSerializer.Serialize(
-                new StoredVapidKeys(keys.PrivateKey, keys.PublicKey), NotificationsJson.Default.StoredVapidKeys));
-            File.Move(temporary, _keysPath, overwrite: false);
-            _logger.LogInformation("Made this server's push keys at {Path}.", _keysPath);
-            return _keys = keys;
-        }
+            c.Execute("INSERT INTO meta (key, value) VALUES ($private, $privateValue), ($public, $publicValue)",
+                ("$private", PrivateKey), ("$privateValue", keys.PrivateKey), ("$public", PublicKey), ("$publicValue", keys.PublicKey));
+            logger.LogInformation("Made this server's push keys.");
+            return keys;
+        });
     }
 
-    public IReadOnlyList<StoredPushSubscription> For(string userId)
-    {
-        lock (_gate) return [.. _all.Where(s => s.UserId == userId)];
-    }
+    public IReadOnlyList<StoredPushSubscription> For(string userId) =>
+        database.Read(c => c.Query(
+            "SELECT endpoint, p256dh, auth, user_id, subscribed_at FROM push_subscriptions WHERE user_id = $user ORDER BY rowid",
+            r => new StoredPushSubscription
+            {
+                Endpoint = r.GetString(0), P256dh = r.GetString(1), Auth = r.GetString(2), UserId = r.GetString(3),
+                SubscribedAt = r.GetInstant(4),
+            },
+            ("$user", userId)));
 
-    public bool Holds(string userId, string endpoint)
-    {
-        lock (_gate) return _all.Any(s => s.UserId == userId && s.Endpoint == endpoint);
-    }
+    public bool Holds(string userId, string endpoint) =>
+        database.Read(c => c.Exists("SELECT 1 FROM push_subscriptions WHERE user_id = $user AND endpoint = $endpoint",
+            ("$user", userId), ("$endpoint", endpoint)));
 
     /// <summary>Registers a browser for a person, replacing whatever that browser was registered as.</summary>
-    public void Add(StoredPushSubscription subscription)
-    {
-        lock (_gate)
-        {
-            _all = [.. _all.Where(s => s.Endpoint != subscription.Endpoint), subscription];
-            Write();
-        }
-    }
+    public void Add(StoredPushSubscription subscription) =>
+        database.Write(c => c.Execute(
+            "INSERT OR REPLACE INTO push_subscriptions (endpoint, user_id, p256dh, auth, subscribed_at) "
+            + "VALUES ($endpoint, $user, $p256dh, $auth, $at)",
+            ("$endpoint", subscription.Endpoint), ("$user", subscription.UserId), ("$p256dh", subscription.P256dh),
+            ("$auth", subscription.Auth), ("$at", subscription.SubscribedAt)));
 
     /// <summary>Forgets one of a person's browsers. False when it was not theirs to forget.</summary>
-    public bool Remove(string userId, string endpoint)
-    {
-        lock (_gate)
-        {
-            var before = _all.Count;
-            _all = [.. _all.Where(s => !(s.UserId == userId && s.Endpoint == endpoint))];
-            if (_all.Count == before) return false;
-            Write();
-            return true;
-        }
-    }
+    public bool Remove(string userId, string endpoint) =>
+        database.Write(c => c.Execute("DELETE FROM push_subscriptions WHERE user_id = $user AND endpoint = $endpoint",
+            ("$user", userId), ("$endpoint", endpoint)) > 0);
 
     /// <summary>Forgets a browser the push service says is gone for good.</summary>
-    public void Expire(string endpoint)
-    {
-        lock (_gate)
-        {
-            var before = _all.Count;
-            _all = [.. _all.Where(s => s.Endpoint != endpoint)];
-            if (_all.Count != before) Write();
-        }
-    }
-
-    private List<StoredPushSubscription> Read()
-    {
-        try
-        {
-            if (!File.Exists(_path)) return [];
-            using var stream = File.OpenRead(_path);
-            return JsonSerializer.Deserialize(stream, NotificationsJson.Default.ListStoredPushSubscription) ?? [];
-        }
-        catch (Exception ex) when (ex is JsonException or IOException)
-        {
-            // Every device would have to subscribe again; the file is left for somebody to look at.
-            _logger.LogError(ex, "Push subscriptions at {Path} could not be read; nobody is subscribed", _path);
-            return [];
-        }
-    }
-
-    private void Write()
-    {
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            var temporary = _path + ".tmp";
-            File.WriteAllText(temporary, JsonSerializer.Serialize(_all, NotificationsJson.Default.ListStoredPushSubscription));
-            File.Move(temporary, _path, overwrite: true);
-        }
-        catch (IOException ex)
-        {
-            _logger.LogError(ex, "Push subscriptions at {Path} could not be written", _path);
-        }
-    }
+    public void Expire(string endpoint) =>
+        database.Write(c => c.Execute("DELETE FROM push_subscriptions WHERE endpoint = $endpoint", ("$endpoint", endpoint)));
 }

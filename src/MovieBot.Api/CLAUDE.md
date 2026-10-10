@@ -15,6 +15,18 @@ film onto a device is `Offline/CLAUDE.md`.
   list is looked up by the type the endpoint declares and written by the type it holds, so both are
   registered, and a list bound for the wire is built as a `List<T>`: a collection expression yields a
   type of the compiler's own that nothing has registered.
+- **Everything the API keeps is one SQLite database, `Data/CinemaDatabase`** (`moviebot.db` in the
+  state directory, or `Database:Path`; the tables are `Data/Schema`). Each read takes a pooled
+  connection and each change is one immediate transaction, after every change before it, so a store
+  that reads before it writes (a list's limit, a notification's key, the first poster pin) decides
+  inside the transaction it writes in. A store keeps nothing in memory but what a listing reads on
+  every row (`PersonDirectory`, `TitleCategories`, the film database caches), written through. What
+  the film database said is kept as its own JSON, one value per row beside the columns it is looked
+  up and aged by; what a person did is columns. Served bytes are files and nothing else is: artwork
+  under the caches' directories, with what each image came from in `images`
+  (`Films/KeptImages`), and fetched WebVTT under `Subtitles:Root`. The file is `0600`, since it holds
+  the push key pair; a file at a schema version this build does not know stops the API from
+  starting.
 - **Resolve configuration inside the DI factory, not at the top of `Program.cs`.** Reading
   `builder.Configuration` while the builder is still being assembled misses sources added later — a
   test host's media root, for one — and the service silently points somewhere else.
@@ -47,12 +59,12 @@ film onto a device is `Offline/CLAUDE.md`.
   endpoint matched ahead of the static files means they never see the request. Paths under `/api`,
   `/media` and `/hub` stay a 404.
 - **The film database is reached by this service alone, and asked once per film.** `Films/FilmStore`
-  keeps each description and every image it names under one directory per film in the state
-  directory, serves its own copies at `/films/{imdbId}/…`, and asks again only once a copy is
+  keeps each description and, under one directory per film, every image it names; it serves its own
+  copies at `/films/{imdbId}/…`, and asks again only once a copy is
   `Tmdb:RefreshDays` old; a database that cannot be reached then costs freshness and nothing else.
   `FilmWarmer` keeps every library film, every wished film and every listed title described, so a
   listing reads only what is kept and never waits on the network. No page talks to the database or its image store.
-  A show is kept the same way by `Shows/ShowStore` under `shows/`, its description and every season's
+  A show is kept the same way by `Shows/ShowStore`, its artwork under `shows/`, its description and every season's
   episodes asked for together with their stills, and served at `/shows/{imdbId}/…`; the warmer keeps
   every show the library holds described. An episode's show is never asked of the film side.
 - **An episode is numbered as its release numbers it, everywhere** (`Shows/EpisodeNumbering`). The
@@ -65,24 +77,24 @@ film onto a device is `Offline/CLAUDE.md`.
   two, and the offset holds until the next anchor. A database episode before the first release
   episode is a special and leaves the season. A still is asked for by the release's numbering and
   resolved to the database's file. A season with no names to match keeps the database's numbering.
-  `Films/PopularNow` keeps the week's trending films and shows under `popular/`, the list and one
-  poster per entry and nothing more, asked for every six hours and served at `/api/popular` and
+  `Films/PopularNow` keeps the week's trending films and shows, the list and one poster per entry
+  (under `popular/`) and nothing more, asked for every six hours and served at `/api/popular` and
   `/popular/{imdbId}.jpg`; an entry's page asks for the rest of it when it is opened.
   A search result's rating and overview are `Films/TitleGlances`, one lookup by IMDb id per title
-  kept under `glances/`: a title already described answers from its description, a search waits
+  kept: a title already described answers from its description, a search waits
   for new lookups at most a second and a half, and a kept one is refreshed in the background, after
   a year for a title out over a year and after a week for anything newer. A result's poster is the
-  one its page shows: the described title's kept poster, or the glance's, fetched once beside it and
-  served at `/glances/{imdbId}/poster.jpg`. `Films/Catalogue` browses the database by a person and by
-  a genre, keeping each answer under `catalogue/`, a person's credits for a week and a genre's most
+  one its page shows: the described title's kept poster, or the glance's, fetched once under
+  `glances/` and served at `/glances/{imdbId}/poster.jpg`. `Films/Catalogue` browses the database by
+  a person and by a genre, keeping each answer, a person's credits for a week and a genre's most
   popular titles for a day, and offers every title it lists to the glances, so its poster is served
-  the same way; a person's portrait is kept with their credits. A description whose cast carries no
+  the same way; a person's portrait is kept with their credits, under `catalogue/`. A description whose cast carries no
   person id is due at once, since that id is what leads from a cast member to their work.
   `Acquisition/TitleSearch` holds the title index's answer for a name in memory for an hour.
 - **A title has one poster, the first the API showed it with.** A person finds a title by its poster,
   and the database's answers name different posters for one title (search, trending and a description
   can each differ, and a refresh can name another). `Films/PosterPins` pins each IMDb id to the image
-  path its poster was first shown from, under `posters/`, and `FilmStore`, `ShowStore`, `TitleGlances`
+  path its poster was first shown from, and `FilmStore`, `ShowStore`, `TitleGlances`
   and `PopularNow` all fetch the pinned path. In the library, `Library/TitlePosters` serves that poster
   at `/media/{id}/poster.jpg` and names it on `/api/titles`; the poster the hand-off put beside the
   title (the title index's) is served only for a title the database holds none for. A source's own
@@ -90,8 +102,8 @@ film onto a device is `Offline/CLAUDE.md`.
 - **Finding is `Films/CatalogueSearch`, and every answer is kept by `Films/AnswerKeeper`.** A search by
   name, a person by name and every dated credit they have, a discovery by genre, years, people,
   keywords, language, a rating floor and similarity to another title, and the lists of what is out and
-  what is coming are asked of the film database once and kept under `catalogue/` (a question somebody
-  typed under `queries/`, trimmed after thirty days unasked), for a day or for six hours, and a database
+  what is coming are asked of the film database once and kept (a question somebody typed is named
+  under `queries/` and trimmed after thirty days unasked), for a day or for six hours, and a database
   that cannot be reached costs freshness and nothing else. What names a title (its IMDb id, makers and
   top-billed actors) is one call kept a week, so a title in many answers is asked about once. Every word
   that names a genre, a person, a keyword or a language is resolved to the database's and reported in
@@ -112,7 +124,7 @@ film onto a device is `Offline/CLAUDE.md`.
   built and the category where people look for it: anime is what the film database files under
   Animation and was made in Japanese, read from the kept description, so a listing still never waits
   on the network, and from the genres and language a catalogue answer carries. Somebody holding
-  `cinema:download` shelves a title against the rule by IMDb id (`categories.json`), a setting that
+  `cinema:download` shelves a title against the rule by IMDb id, a setting that
   agrees with the rule is dropped, and every view naming a title carries the result
   (`docs/api-contract.md`, Categories).
 - **An episode is a title, and a show is its episodes grouped.** Every route that serves a title
@@ -129,8 +141,8 @@ film onto a device is `Offline/CLAUDE.md`.
   is due from the day after its air date, an air date being a date read against UTC, and is looked for
   until `Follow:GiveUpDays` past it; only a show with an episode due is asked of the tracker, once per
   `Follow:AskMinutes` per episode. An offered episode is fetched once for every follower who wants it,
-  at the best quality any of them watches at, and what was announced is persisted beside the follows
-  (`follows.json`) so a restart never tells anybody twice. A followed show's description is asked of
+  at the best quality any of them watches at, and what was announced is kept beside the follows so a
+  restart never tells anybody twice. A followed show's description is asked of
   the film database again after `Follow:RefreshHours`, which is what brings a new episode into view.
   The rules for who is told what are in `Notifications/CLAUDE.md`.
 - **A list is keyed by the title's IMDb id, never by a library id** (`Lists/`). The library is what
@@ -139,7 +151,8 @@ film onto a device is `Offline/CLAUDE.md`.
   here, and whether the asking person watched it, are joined in when the list is read, from the
   library as listed and the watch record, and never stored. A list is shown to its owner and its
   members only, so somebody else asking for it is answered as if it did not exist. `later` in a route
-  is the asking person's own Watch later, which has no members. Everything is in `lists.json`.
+  is the asking person's own Watch later, which has no members, and is stored only once something is
+  saved to it.
 - **What a person watched comes from the room, the one source of where a film is** (`People/`). A
   room's state is a position at an instant and everything between two changes follows from it, so
   nothing polls the rooms. `SessionStore` raises `Watched` when a stretch of playing ends — a pause,

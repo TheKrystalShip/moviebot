@@ -78,7 +78,7 @@ public static class ShowEndpoints
             Results.Ok(await search.FindAsync(index, q ?? "", SearchKinds.Shows, ct)))
             .RequireAction(CinemaActions.Download);
 
-        // The artwork kept beside each description, open like any other: an <img> carries no token.
+        // The artwork kept with each description, open like any other: an <img> carries no token.
         app.MapMethods("/shows/{imdbId}/{file}", ["GET", "HEAD"], (string imdbId, string file, ShowStore store, HttpContext context) =>
         {
             if (store.ImageFile(imdbId, file) is not { } path) return Results.NotFound();

@@ -65,9 +65,6 @@ public sealed class OidcOptions
     /// </summary>
     public string AdoptIssuer { get; set; } = "";
 
-    /// <summary>Where the issuer is recorded; empty is <c>issuer</c> in the state directory.</summary>
-    public string IssuerRecord { get; set; } = "";
-
     /// <summary>Whether the exchange for the Activity can be made: it needs the client's secret.</summary>
     public bool ExchangesForActivity => ActivityClientId.Length > 0 && ActivityClientSecret.Length > 0;
 

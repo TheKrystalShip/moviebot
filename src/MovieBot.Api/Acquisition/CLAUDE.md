@@ -89,9 +89,9 @@ about when it can.
   message too many is the worst that skipping costs.
 - **A wish is keyed by the film and shared.** Two people asking for the same film are one tracker call
   per sweep.
-- **The wish list is written down because a wish exists nowhere else.** A film that is not on the
-  tracker has no torrent to tag and no manifest to write. It goes in the state directory systemd hands
-  the service, whole and through a rename, on every change.
+- **The wish list is kept because a wish exists nowhere else.** A film that is not on the tracker has
+  no torrent to tag and no manifest to write, so the wish and everybody waiting on it are rows in the
+  database.
 - **A wish that came out stays until its people let it go.** The sweep marks what became available
   and tells every subscriber with an `available` notification (`Notifications/`), which is said once
   per person, so somebody joining a wish already out is told on the next pass. The wish then lists

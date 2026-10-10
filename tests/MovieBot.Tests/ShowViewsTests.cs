@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Shows;
@@ -62,9 +63,7 @@ public sealed class ShowViewsTests(SessionFixture fixture) : IClassFixture<Sessi
     [Fact]
     public void A_shelf_lists_a_show_once_however_many_episodes_it_holds()
     {
-        var store = new ShowStore(Path.Combine(Path.GetTempPath(), "moviebot-shows-" + Guid.NewGuid().ToString("n")),
-            Microsoft.Extensions.Options.Options.Create(new Api.Films.FilmStoreOptions()), null!, new Api.Films.PosterPins(Path.Combine(Path.GetTempPath(), "moviebot-pins-" + Guid.NewGuid().ToString("n"))), new EpisodeNumbering(), TimeProvider.System,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<ShowStore>.Instance);
+        var store = NewShowStore();
 
         var shows = store.Summaries([Episode(2, 1), Episode(1, 2), Episode(1, 1), Episode(1, 1, show: "tt5875444") with { Id = "slow-horses-s01e01" }]);
 
@@ -78,9 +77,7 @@ public sealed class ShowViewsTests(SessionFixture fixture) : IClassFixture<Sessi
     [Fact]
     public void A_page_holds_every_season_the_library_has_even_one_the_database_does_not_list()
     {
-        var store = new ShowStore(Path.Combine(Path.GetTempPath(), "moviebot-shows-" + Guid.NewGuid().ToString("n")),
-            Microsoft.Extensions.Options.Options.Create(new Api.Films.FilmStoreOptions()), null!, new Api.Films.PosterPins(Path.Combine(Path.GetTempPath(), "moviebot-pins-" + Guid.NewGuid().ToString("n"))), new EpisodeNumbering(), TimeProvider.System,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<ShowStore>.Instance);
+        var store = NewShowStore();
         var stored = new StoredShow
         {
             FetchedAt = Then,
@@ -116,4 +113,13 @@ public sealed class ShowViewsTests(SessionFixture fixture) : IClassFixture<Sessi
         Assert.Equal(JsonValueKind.Array, JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.ValueKind);
     }
 
+
+    private static ShowStore NewShowStore()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "moviebot-shows-" + Guid.NewGuid().ToString("n"));
+        var database = new CinemaDatabase(Path.Combine(root, "moviebot.db"));
+        return new ShowStore(root, Microsoft.Extensions.Options.Options.Create(new Api.Films.FilmStoreOptions()), null!,
+            new Api.Films.PosterPins(database), new Api.Films.KeptImages(database), database, new EpisodeNumbering(), TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<ShowStore>.Instance);
+    }
 }

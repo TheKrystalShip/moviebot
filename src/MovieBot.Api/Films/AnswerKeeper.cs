@@ -4,21 +4,22 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
+using TheKrystalShip.MovieBot.Api.Data;
 
 namespace TheKrystalShip.MovieBot.Api.Films;
 
 /// <summary>
-/// The answers the film database gave to the questions the catalogue asks, kept on disk one file
-/// each under one directory: asked when nothing is kept or what is kept is older than the answer's
+/// The answers the film database gave to the questions the catalogue asks, one row each by the name
+/// the question is kept under: asked when nothing is kept or what is kept is older than the answer's
 /// own keep time, two requests for one answer sharing one question, and a database that cannot be
 /// reached costing freshness and nothing else.
 ///
 /// An answer that is a question of the visitor's own words (a search, a discovery) is named by a hash
-/// of the question and lives under <c>queries/</c>, which is trimmed of what has not been asked for in
+/// of the question under <c>queries/</c>, and is trimmed once it has not been asked for in
 /// <see cref="QueryKept"/>.
 /// </summary>
 public sealed class AnswerKeeper(
-    string root,
+    CinemaDatabase database,
     IServiceScopeFactory scopes,
     TimeProvider clock,
     ILogger<AnswerKeeper> logger)
@@ -32,8 +33,6 @@ public sealed class AnswerKeeper(
     private readonly ConcurrentDictionary<string, Task> _asking = new();
     private DateTimeOffset _trimmed;
 
-    public string Root => root;
-
     /// <summary>The name an answer to a question put in words is kept under: stable for the same words, whatever they contain.</summary>
     public static string QueryName(string family, string question) =>
         $"queries/{family}-{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(question)))[..20]}";
@@ -45,7 +44,7 @@ public sealed class AnswerKeeper(
     /// no value when the database has nothing to say.
     /// </summary>
     public async Task<KeptAnswer<T>?> KeptAsync<T>(
-        string name, JsonTypeInfo<KeptAnswer<T>> type, TimeSpan keep,
+        string name, JsonTypeInfo<T> type, TimeSpan keep,
         Func<TmdbClient, CancellationToken, Task<T?>> ask, Action<T>? received, CancellationToken ct) where T : class
     {
         var held = Held(name, type);
@@ -67,7 +66,7 @@ public sealed class AnswerKeeper(
     }
 
     private async Task<KeptAnswer<T>?> FetchAsync<T>(
-        string name, JsonTypeInfo<KeptAnswer<T>> type, KeptAnswer<T>? held,
+        string name, JsonTypeInfo<T> type, KeptAnswer<T>? held,
         Func<TmdbClient, CancellationToken, Task<T?>> ask, Action<T>? received) where T : class
     {
         await Task.Yield();
@@ -97,46 +96,39 @@ public sealed class AnswerKeeper(
         }
     }
 
-    private KeptAnswer<T>? Held<T>(string name, JsonTypeInfo<KeptAnswer<T>> type) where T : class
+    private KeptAnswer<T>? Held<T>(string name, JsonTypeInfo<T> type) where T : class
     {
         if (_held.TryGetValue(name, out var held)) return (KeptAnswer<T>)held;
-        var path = Path.Combine(root, name + ".json");
         try
         {
-            if (!File.Exists(path)) return null;
-            using var stream = File.OpenRead(path);
-            if (JsonSerializer.Deserialize(stream, type) is not { } read) return null;
+            if (database.Read(c => c.First("SELECT fetched_at, value FROM answers WHERE name = $name",
+                    r => new KeptAnswer<T>
+                    {
+                        FetchedAt = r.GetInstant(0),
+                        Value = r.GetStringOrNull(1) is { } value ? JsonSerializer.Deserialize(value, type) : null,
+                    },
+                    ("$name", name))) is not { } read)
+                return null;
             _held[name] = read;
             return read;
         }
-        catch (Exception ex) when (ex is JsonException or IOException)
+        catch (JsonException ex)
         {
-            // An answer that cannot be read is one not kept: the next ask writes a good one.
+            // An answer that cannot be read is one not kept: the next ask keeps a good one.
             logger.LogWarning("The kept answer for {Name} could not be read: {Reason}", name, ex.Message);
             return null;
         }
     }
 
-    private void Write<T>(string name, JsonTypeInfo<KeptAnswer<T>> type, KeptAnswer<T> kept) where T : class
-    {
-        var path = Path.Combine(root, name + ".json");
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(kept, type));
-        File.Move(path + ".tmp", path, overwrite: true);
-    }
+    private void Write<T>(string name, JsonTypeInfo<T> type, KeptAnswer<T> kept) where T : class =>
+        database.Write(c => c.Execute(
+            "INSERT OR REPLACE INTO answers (name, fetched_at, asked_at, value) VALUES ($name, $fetched, $asked, $value)",
+            ("$name", name), ("$fetched", kept.FetchedAt), ("$asked", clock.GetUtcNow()),
+            ("$value", kept.Value is null ? null : JsonSerializer.Serialize(kept.Value, type))));
 
     /// <summary>Marks a question as asked again, which is what keeps it from being trimmed.</summary>
-    private void Touch(string name)
-    {
-        try
-        {
-            File.SetLastWriteTimeUtc(Path.Combine(root, name + ".json"), clock.GetUtcNow().UtcDateTime);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // A question that cannot be marked is trimmed a little early, and asked again.
-        }
-    }
+    private void Touch(string name) =>
+        database.Write(c => c.Execute("UPDATE answers SET asked_at = $now WHERE name = $name", ("$name", name), ("$now", clock.GetUtcNow())));
 
     /// <summary>Removes the questions nobody has asked for in <see cref="QueryKept"/>, at most once every few hours.</summary>
     private void Trim()
@@ -145,19 +137,9 @@ public sealed class AnswerKeeper(
         if (now - _trimmed < TrimEvery) return;
         _trimmed = now;
 
-        var directory = Path.Combine(root, "queries");
-        try
-        {
-            foreach (var file in Directory.EnumerateFiles(directory, "*.json"))
-            {
-                if (now - File.GetLastWriteTimeUtc(file) < QueryKept) continue;
-                File.Delete(file);
-                _held.TryRemove("queries/" + Path.GetFileNameWithoutExtension(file), out _);
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            logger.LogWarning("The kept questions could not be trimmed: {Reason}", ex.Message);
-        }
+        foreach (var name in database.Write(c => c.Query(
+                     "DELETE FROM answers WHERE name LIKE 'queries/%' AND asked_at < $cutoff RETURNING name",
+                     r => r.GetString(0), ("$cutoff", now - QueryKept))))
+            _held.TryRemove(name, out _);
     }
 }

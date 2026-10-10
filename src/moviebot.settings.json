@@ -22,9 +22,8 @@
   },
 
   // The OpenID Connect provider people sign in with; MovieBot signs nobody in. Issuer is the
-  // provider's issuer, exactly as its tokens carry it, and has no default: the API records it the first
-  // time it starts and refuses another until AdoptIssuer names it (an empty IssuerRecord is the file
-  // `issuer` in the state directory). Access tokens are taken for Audience alone and list a person's
+  // provider's issuer, exactly as its tokens carry it, and has no default: the API records it in its
+  // database the first time it starts and refuses another until AdoptIssuer names it. Access tokens are taken for Audience alone and list a person's
   // Cinema actions in ActionsClaim. The site signs in as the public client SiteClientId, and on a
   // television as the public device client TvClientId; the API
   // exchanges the Activity's Discord token as ActivityClientId and the bot a Discord user as
@@ -38,8 +37,7 @@
     "TvClientId": "cinema-tv",
     "ActivityClientId": "cinema-activity",
     "BotClientId": "cinema-bot",
-    "AdoptIssuer": "",
-    "IssuerRecord": ""
+    "AdoptIssuer": ""
   },
 
   // The television app built for this site (tv/), served at /tv.apk. App is its path; empty is
@@ -64,6 +62,13 @@
     "Endpoints": {
       "Http": { "Url": "http://127.0.0.1:8099" }
     }
+  },
+
+  // Everything the API keeps: people's records, the rooms, the subtitles it fetched and what the film
+  // database said. Path is the SQLite file; empty is moviebot.db in the state directory systemd hands
+  // the service.
+  "Database": {
+    "Path": ""
   },
 
   // The library the API serves. ColdRoot, when set, is a second disk finished films move to.
@@ -137,11 +142,9 @@
 
   // How long a film stays in the library once it has settled on the cold disk: LeaveAfterDays after
   // its last play, or after it settled when nobody has played it. The API decides what is due and the
-  // hand-off deletes it. Categories is the file the categories set by hand are kept in; empty is
-  // categories.json in the API's state directory.
+  // hand-off deletes it.
   "Library": {
-    "LeaveAfterDays": 7,
-    "Categories": ""
+    "LeaveAfterDays": 7
   },
 
   // What the API's planner decides the card should be doing, for the hand-off to carry out. A watched
@@ -164,23 +167,11 @@
     "CatalogRefreshSeconds": 10
   },
 
-  // Films people are waiting on, watched for by the API. An empty Path writes wishes.json in the
-  // state directory systemd hands the service. A film counts as available once a release at or
-  // above MinimumSource is offered; a camcorder recording does not.
+  // Films people are waiting on, watched for by the API every SweepMinutes. A film counts as
+  // available once a release at or above MinimumSource is offered; a camcorder recording does not.
   "Notify": {
-    "Path": "",
     "SweepMinutes": 60,
     "MinimumSource": "Web"
-  },
-
-  // What the API keeps about each person, by the account the provider names them by: how they watch
-  // (Preferences), what each account is called (Directory), and what they have watched and when each
-  // film was last played (Watch). An empty value writes preferences.json, people.json and watch.json in
-  // the state directory.
-  "People": {
-    "Preferences": "",
-    "Directory": "",
-    "Watch": ""
   },
 
   // Watch now: how many films may be watched while they are still arriving (MaxStreams). Each is a
@@ -189,44 +180,22 @@
     "MaxStreams": 4
   },
 
-  // What the API tells people: each person's notifications (Inbox), the browsers they subscribed to
-  // pushes (Devices), this server's push key pair (Keys, made once and never again: every
-  // subscription is bound to it), and which kinds each person is pushed (Preferences). An empty
-  // value writes notifications.json, push-devices.json, push-keys.json and
-  // notification-preferences.json in the state directory.
-  "Notifications": {
-    "Inbox": "",
-    "Devices": "",
-    "Keys": "",
-    "Preferences": ""
-  },
-
-  // Following a show. Path is the file holding who follows what and which episodes were announced
-  // (an empty one is follows.json in the state directory). An episode is looked for from the day
-  // after its air date until GiveUpDays past it, asked of the tracker at most once per AskMinutes,
-  // and a followed show's description is asked of the film database again after RefreshHours.
+  // Following a show. An episode is looked for from the day after its air date until GiveUpDays past
+  // it, asked of the tracker at most once per AskMinutes, and a followed show's description is asked
+  // of the film database again after RefreshHours.
   "Follow": {
-    "Path": "",
     "RefreshHours": 24,
     "AskMinutes": 60,
     "GiveUpDays": 14
   },
 
-  // Lists of films and shows to watch later, everybody's Watch later and the lists they named and
-  // shared. Path is the file holding them (an empty one is lists.json in the state directory).
-  "Lists": {
-    "Path": ""
-  },
-
-  // Save offline: films copied onto a person's device. Path is the file the saves are kept in (an
-  // empty one is offline.json in the state directory). A save still being made keeps its title in the
+  // Save offline: films copied onto a person's device. A save still being made keeps its title in the
   // library and in place for HoldHours after it was made. A person fetches at most
   // MaxTransfersPerPerson tracks at once and the server sends at most MaxTransfers; while a room has
   // somebody in it, each transfer is held to MegabitsPerTransferWhileWatched (0 for no limit). A
   // title asked for before the library holds it is fetched onto the server and waited on for
   // WantDays, after which the device stops waiting for it.
   "Offline": {
-    "Path": "",
     "HoldHours": 48,
     "MaxTransfersPerPerson": 2,
     "MaxTransfers": 4,
@@ -235,18 +204,16 @@
   },
 
   // The film database that describes a film: credits, certificate, genres, overview, artwork. The
-  // API asks it, keeps what it said and the artwork under Directory (an empty one is films/ in the
-  // state directory), serves its own copies, and asks again after RefreshDays. The token is a
-  // credential and is set only in the environment as Tmdb__ReadAccessToken; without one, films are
-  // described by the title index alone. Region picks whose certificate a film is shown with. The
-  // films and shows trending this week, with their posters, are kept under PopularDirectory (an empty
-  // one is popular/ in the state directory) and asked for again every few hours. A search result's
-  // rating and overview are kept under GlancesDirectory (an empty one is glances/ in the state
-  // directory): a year for a title out over a year, a week for anything newer. The poster each title
-  // is shown by, the first the API showed it with, is pinned under PostersDirectory (an empty one is
-  // posters/ in the state directory). A person's credits
-  // and a genre's most popular titles are kept under CatalogueDirectory (an empty one is catalogue/
-  // in the state directory): a person's for a week, a genre's for a day.
+  // API asks it, keeps what it said in its database and the artwork under the directories here,
+  // serves its own copies, and asks again after RefreshDays. The token is a credential and is set only
+  // in the environment as Tmdb__ReadAccessToken; without one, films are described by the title index
+  // alone. Region picks whose certificate a film is shown with. A film's artwork is kept under
+  // Directory and a show's under ShowsDirectory; the posters of what is trending this week, asked for
+  // again every few hours, under PopularDirectory; a search result's poster under GlancesDirectory,
+  // its rating and overview kept a year for a title out over a year and a week for anything newer;
+  // and a person's portrait under CatalogueDirectory, their credits kept a week and a genre's most
+  // popular titles a day. An empty directory is films/, shows/, popular/, glances/ or catalogue/ in
+  // the state directory.
   "Tmdb": {
     "BaseUrl": "https://api.themoviedb.org/3",
     "ImageBaseUrl": "https://image.tmdb.org/t/p",
@@ -257,7 +224,6 @@
     "ShowsDirectory": "",
     "PopularDirectory": "",
     "GlancesDirectory": "",
-    "PostersDirectory": "",
     "CatalogueDirectory": "",
     "RefreshDays": 14
   },

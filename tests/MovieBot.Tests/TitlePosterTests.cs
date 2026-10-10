@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Bot.Notify;
@@ -19,6 +20,8 @@ public sealed class TitlePosterTests(SessionFixture fixture) : IClassFixture<Ses
 {
     private readonly string _pins = Path.Combine(Path.GetTempPath(), "moviebot-tests", "pins-" + Guid.NewGuid().ToString("N"));
 
+    private CinemaDatabase Database => field ??= new CinemaDatabase(Path.Combine(_pins, "moviebot.db"));
+
     public void Dispose()
     {
         if (Directory.Exists(_pins)) Directory.Delete(_pins, recursive: true);
@@ -27,17 +30,17 @@ public sealed class TitlePosterTests(SessionFixture fixture) : IClassFixture<Ses
     [Fact]
     public void The_first_poster_a_title_is_shown_with_is_the_one_it_keeps()
     {
-        var pins = new PosterPins(_pins);
+        var pins = new PosterPins(Database);
 
         Assert.Equal("/first.jpg", pins.Pin("tt0113277", shown: null, offered: "/first.jpg"));
         Assert.Equal("/first.jpg", pins.Pin("tt0113277", shown: null, offered: "/second.jpg"));
-        Assert.Equal("/first.jpg", new PosterPins(_pins).Pin("tt0113277", shown: "/kept.jpg", offered: "/third.jpg"));
+        Assert.Equal("/first.jpg", new PosterPins(Database).Pin("tt0113277", shown: "/kept.jpg", offered: "/third.jpg"));
     }
 
     [Fact]
     public void A_poster_already_on_show_is_pinned_ahead_of_a_new_answer()
     {
-        var pins = new PosterPins(_pins);
+        var pins = new PosterPins(Database);
 
         Assert.Equal("/kept.jpg", pins.Pin("tt0133093", shown: "/kept.jpg", offered: "/new.jpg"));
         Assert.Null(pins.Pin("tt0076759", shown: null, offered: null));
@@ -50,8 +53,8 @@ public sealed class TitlePosterTests(SessionFixture fixture) : IClassFixture<Ses
 
         await Signed().GetFromJsonAsync<TheKrystalShip.MovieBot.Api.Films.FilmView>("/api/films/tt0113277");
 
-        var marker = Path.Combine(fixture.StateRoot, "films", "tt0113277", FilmStore.Poster + ".src");
-        Assert.Equal("/p949.jpg", File.ReadAllText(marker));
+        var films = Path.Combine(fixture.StateRoot, "films");
+        Assert.Equal("/p949.jpg", fixture.Services.GetRequiredService<KeptImages>().Source("films", films, $"tt0113277/{FilmStore.Poster}"));
     }
 
     [Fact]

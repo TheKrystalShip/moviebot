@@ -1,5 +1,5 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Microsoft.Data.Sqlite;
+using TheKrystalShip.MovieBot.Api.Data;
 
 namespace TheKrystalShip.MovieBot.Api.People;
 
@@ -110,74 +110,60 @@ public sealed record SubtitleStyle
             : null;
 }
 
-[JsonSourceGenerationOptions(
-    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    WriteIndented = true)]
-[JsonSerializable(typeof(Dictionary<string, ViewerPreferences>))]
-internal partial class PreferencesJson : JsonSerializerContext;
-
 /// <summary>
-/// Everybody's preferences, in one file in the state directory, keyed by account.
-///
-/// Written whole on every change: it is a few hundred bytes per person and changes when somebody
-/// opens a menu, so a write is cheap and rare, and a file written whole through a rename is never
-/// found half-written.
+/// Everybody's preferences, one row per account. Somebody who never set anything has no row and has
+/// the defaults.
 /// </summary>
-public sealed class PreferenceStore
+public sealed class PreferenceStore(CinemaDatabase database)
 {
-    private readonly string _path;
-    private readonly ILogger<PreferenceStore> _logger;
-    private readonly Lock _gate = new();
-    private Dictionary<string, ViewerPreferences> _byUser;
-
-    public PreferenceStore(string path, ILogger<PreferenceStore> logger)
-    {
-        _path = path;
-        _logger = logger;
-        _byUser = Read();
-    }
+    private const string Columns =
+        "subtitle_language, audio_language, quality_height, offline_quality_height, skip_intros, style_size, "
+        + "style_font, style_bold, style_text_color, style_edge, style_edge_color, style_background_color, "
+        + "style_background_opacity, style_position";
 
     /// <summary>Somebody who never set anything has the defaults, which are all nulls.</summary>
-    public ViewerPreferences For(string userId)
-    {
-        lock (_gate) return _byUser.GetValueOrDefault(userId) ?? new ViewerPreferences();
-    }
+    public ViewerPreferences For(string userId) =>
+        database.Read(c => c.First($"SELECT {Columns} FROM viewer_preferences WHERE user_id = $user", Row, ("$user", userId)))
+        ?? new ViewerPreferences();
 
     public ViewerPreferences Set(string userId, ViewerPreferences preferences)
     {
         var stored = preferences.Normalised();
-        lock (_gate)
-        {
-            _byUser = new Dictionary<string, ViewerPreferences>(_byUser) { [userId] = stored };
-            Write(_byUser);
-        }
+        var style = stored.SubtitleStyle;
+        database.Write(c => c.Execute(
+            $"INSERT OR REPLACE INTO viewer_preferences (user_id, {Columns}) VALUES "
+            + "($user, $subtitle, $audio, $quality, $offline, $skip, $size, $font, $bold, $text, $edge, $edgeColor, "
+            + "$background, $opacity, $position)",
+            ("$user", userId), ("$subtitle", stored.SubtitleLanguage), ("$audio", stored.AudioLanguage),
+            ("$quality", stored.QualityHeight), ("$offline", stored.OfflineQualityHeight), ("$skip", stored.SkipIntros),
+            ("$size", style?.Size), ("$font", style?.Font), ("$bold", style?.Bold), ("$text", style?.TextColor),
+            ("$edge", style?.Edge), ("$edgeColor", style?.EdgeColor), ("$background", style?.BackgroundColor),
+            ("$opacity", style?.BackgroundOpacity), ("$position", style?.Position)));
         return stored;
     }
 
-    private Dictionary<string, ViewerPreferences> Read()
+    private static ViewerPreferences Row(SqliteDataReader r)
     {
-        try
+        var style = new SubtitleStyle
         {
-            if (!File.Exists(_path)) return [];
-            using var stream = File.OpenRead(_path);
-            return JsonSerializer.Deserialize(stream, PreferencesJson.Default.DictionaryStringViewerPreferences) ?? [];
-        }
-        catch (Exception ex) when (ex is JsonException or IOException)
+            Size = r.GetIntOrNull(5),
+            Font = r.GetStringOrNull(6),
+            Bold = r.GetBoolOrNull(7),
+            TextColor = r.GetStringOrNull(8),
+            Edge = r.GetStringOrNull(9),
+            EdgeColor = r.GetStringOrNull(10),
+            BackgroundColor = r.GetStringOrNull(11),
+            BackgroundOpacity = r.GetDoubleOrNull(12),
+            Position = r.GetDoubleOrNull(13),
+        };
+        return new ViewerPreferences
         {
-            // Unreadable preferences cost everybody their settings and nothing else. Starting
-            // anyway beats refusing to serve films over them; the file is left for somebody to
-            // look at, and the next change writes a good one beside it.
-            _logger.LogError(ex, "Preferences at {Path} could not be read; everybody starts from the defaults", _path);
-            return [];
-        }
-    }
-
-    private void Write(Dictionary<string, ViewerPreferences> all)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        var temporary = _path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(all, PreferencesJson.Default.DictionaryStringViewerPreferences));
-        File.Move(temporary, _path, overwrite: true);
+            SubtitleLanguage = r.GetStringOrNull(0),
+            AudioLanguage = r.GetStringOrNull(1),
+            QualityHeight = r.GetIntOrNull(2),
+            OfflineQualityHeight = r.GetIntOrNull(3),
+            SkipIntros = r.GetBool(4),
+            SubtitleStyle = style == new SubtitleStyle() ? null : style,
+        };
     }
 }

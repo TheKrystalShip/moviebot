@@ -7,6 +7,7 @@ using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Subtitles;
@@ -35,6 +36,8 @@ public sealed class WishesTests : IDisposable
 
     private readonly string _dir = Path.Combine(
         Path.GetTempPath(), "moviebot-tests", "wishes-" + Guid.NewGuid().ToString("N"));
+
+    private CinemaDatabase Database => field ??= new CinemaDatabase(Path.Combine(_dir, "moviebot.db"));
 
     /// <summary>Answers every service by the path asked, so each test states what the world holds.</summary>
     private sealed class StubHandler(Func<HttpRequestMessage, string?> answer) : HttpMessageHandler
@@ -87,8 +90,8 @@ public sealed class WishesTests : IDisposable
         var subtitles = Path.Combine(_dir, "subtitles");
         var library = new TitleLibrary(
             new MediaRoots(media),
-            new SubtitleStore(subtitles, NullLogger<SubtitleStore>.Instance),
-            new PinStore(subtitles, NullLogger<PinStore>.Instance),
+            new SubtitleStore(subtitles, Database),
+            new PinStore(Database),
             NullLogger<TitleLibrary>.Instance);
 
         var torrents = new QBittorrentClient(
@@ -113,7 +116,7 @@ public sealed class WishesTests : IDisposable
         var search = new StubSearch(offered ?? []);
         var suggestions = new AutocompleteSearch(search, new AutocompleteOptions(), NullLogger<AutocompleteSearch>.Instance);
 
-        _wishes = new WishList(Path.Combine(_dir, "wishes.json"), NullLogger<WishList>.Instance);
+        _wishes = new WishList(Database);
 
         return new Wishes(
             imdb, search, library, acquisition, new OfferedReleases(suggestions), _wishes,

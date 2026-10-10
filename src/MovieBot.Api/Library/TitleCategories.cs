@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Core;
@@ -30,29 +30,30 @@ public enum TitleCategory
 /// has no category, which a listing shelves with its kind.
 ///
 /// Where the rule is wrong for a title (an anime made in English, an animation from elsewhere that
-/// people shelve with anime) somebody who fetches titles sets its category, kept by IMDb id in one
-/// file beside the other state, so a show's every episode moves with it. A setting that agrees with
-/// the rule is not kept, so the title follows its description again.
+/// people shelve with anime) somebody who fetches titles sets its category, kept by IMDb id, so a
+/// show's every episode moves with it. A setting that agrees with the rule is not kept, so the title
+/// follows its description again. What is set is held in memory beside the database, since every
+/// listing asks it of every title.
 /// </summary>
 public sealed class TitleCategories
 {
     public const string AnimeGenre = "Animation";
     public const string AnimeLanguage = "ja";
 
-    private readonly string _path;
+    private readonly CinemaDatabase _database;
     private readonly FilmStore _films;
     private readonly ShowStore _shows;
-    private readonly ILogger<TitleCategories> _logger;
-    private readonly Lock _gate = new();
-    private ConcurrentDictionary<string, TitleCategory> _set;
+    private readonly ConcurrentDictionary<string, TitleCategory> _set;
 
-    public TitleCategories(string path, FilmStore films, ShowStore shows, ILogger<TitleCategories> logger)
+    public TitleCategories(CinemaDatabase database, FilmStore films, ShowStore shows)
     {
-        _path = path;
+        _database = database;
         _films = films;
         _shows = shows;
-        _logger = logger;
-        _set = Read();
+        _set = new ConcurrentDictionary<string, TitleCategory>(
+            database.Read(c => c.Query("SELECT imdb_id, category FROM title_categories",
+                r => KeyValuePair.Create(r.GetString(0), Parse(r.GetString(1)) ?? TitleCategory.General))),
+            StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -106,16 +107,25 @@ public sealed class TitleCategories
     /// </summary>
     public TitleCategory Set(string kind, string imdbId, TitleCategory category)
     {
-        lock (_gate)
+        _database.Write(c =>
         {
-            var next = new ConcurrentDictionary<string, TitleCategory>(_set, StringComparer.Ordinal);
-            if (Described(kind, imdbId) == category) next.TryRemove(imdbId, out _);
-            else next[imdbId] = category;
-            Write(next);
-            _set = next;
-        }
+            if (Described(kind, imdbId) == category)
+            {
+                c.Execute("DELETE FROM title_categories WHERE imdb_id = $imdb", ("$imdb", imdbId));
+                _set.TryRemove(imdbId, out _);
+            }
+            else
+            {
+                c.Execute("INSERT OR REPLACE INTO title_categories (imdb_id, category) VALUES ($imdb, $category)",
+                    ("$imdb", imdbId), ("$category", Spelling(category)));
+                _set[imdbId] = category;
+            }
+        });
         return category;
     }
+
+    /// <summary>A category as the wire spells it.</summary>
+    public static string Spelling(TitleCategory category) => category == TitleCategory.Anime ? "anime" : "general";
 
     private TitleCategory? Described(string kind, string? imdbId)
     {
@@ -123,34 +133,6 @@ public sealed class TitleCategories
         if (kind == "show")
             return _shows.Held(imdbId)?.Details is { } show ? ByRule(show.Genres, show.OriginalLanguage) : null;
         return _films.Held(imdbId)?.Details is { } film ? ByRule(film.Genres, film.OriginalLanguage) : null;
-    }
-
-    private ConcurrentDictionary<string, TitleCategory> Read()
-    {
-        try
-        {
-            if (!File.Exists(_path)) return new(StringComparer.Ordinal);
-            using var stream = File.OpenRead(_path);
-            var kept = JsonSerializer.Deserialize(stream, CategoriesJson.Default.DictionaryStringTitleCategory) ?? [];
-            return new(kept, StringComparer.Ordinal);
-        }
-        catch (Exception ex) when (ex is JsonException or IOException)
-        {
-            // Unreadable settings shelve every title by the rule, and nothing else is lost. The file is
-            // left for somebody to look at, and the next setting writes a good one beside it.
-            _logger.LogError(ex, "Title categories at {Path} could not be read; every title is shelved by the rule", _path);
-            return new(StringComparer.Ordinal);
-        }
-    }
-
-    private void Write(ConcurrentDictionary<string, TitleCategory> all)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        var temporary = _path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(
-            new Dictionary<string, TitleCategory>(all.OrderBy(p => p.Key, StringComparer.Ordinal)),
-            CategoriesJson.Default.DictionaryStringTitleCategory));
-        File.Move(temporary, _path, overwrite: true);
     }
 }
 
@@ -166,10 +148,3 @@ public sealed record CategoryRequest
 
 /// <summary>A title's category, and whether somebody set it rather than the rule.</summary>
 public sealed record CategoryView(string ImdbId, TitleCategory Category, bool Set);
-
-[JsonSourceGenerationOptions(
-    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    UseStringEnumConverter = true,
-    WriteIndented = true)]
-[JsonSerializable(typeof(Dictionary<string, TitleCategory>))]
-internal partial class CategoriesJson : JsonSerializerContext;

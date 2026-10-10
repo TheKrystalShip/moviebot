@@ -224,6 +224,12 @@ Secrets go there rather than in the file: the bot token, the Discord and identit
 secrets, the media ticket and service keys, the tracker account and its category names. Each service logs which files it read
 when it starts.
 
+The API keeps everything it knows in one SQLite database, `moviebot.db` in the state directory
+systemd hands it (`Database:Path` names another): every person's records, the rooms, the wish list,
+the push keys and what the film database said. Only served bytes sit beside it as files: fetched
+subtitles and the film database's artwork. It needs nothing installed; the native SQLite ships with
+the binary.
+
 ## API
 
 | Route | Purpose |

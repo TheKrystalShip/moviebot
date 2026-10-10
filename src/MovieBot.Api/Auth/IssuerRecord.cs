@@ -1,3 +1,5 @@
+using TheKrystalShip.MovieBot.Api.Data;
+
 namespace TheKrystalShip.MovieBot.Api.Auth;
 
 /// <summary>
@@ -12,20 +14,13 @@ namespace TheKrystalShip.MovieBot.Api.Auth;
 /// </remarks>
 public static class IssuerRecord
 {
+    private const string Key = "issuer";
+
     /// <summary>Records the issuer, or throws when a different one is recorded and the new one was not adopted.</summary>
-    public static void Enforce(OidcOptions options, string path, ILogger logger)
+    public static void Enforce(OidcOptions options, CinemaDatabase database, ILogger logger)
     {
         var configured = options.Issuer.Trim();
-        string? recorded = null;
-        try
-        {
-            if (File.Exists(path)) recorded = File.ReadAllText(path).Trim();
-        }
-        catch (IOException ex)
-        {
-            throw new InvalidOperationException($"The recorded issuer at {path} could not be read.", ex);
-        }
-
+        var recorded = database.Meta(Key);
         if (recorded == configured) return;
 
         if (!string.IsNullOrEmpty(recorded) && options.AdoptIssuer.Trim() != configured)
@@ -34,10 +29,7 @@ public static class IssuerRecord
                 + $"the new issuer does not know. Set Oidc:AdoptIssuer to {configured} to start against it anyway, "
                 + $"or put Oidc:Issuer back to {recorded}.");
 
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        var temporary = path + ".tmp";
-        File.WriteAllText(temporary, configured + "\n");
-        File.Move(temporary, path, overwrite: true);
+        database.SetMeta(Key, configured);
 
         if (string.IsNullOrEmpty(recorded))
             logger.LogInformation("Recorded {Issuer} as the issuer every person's records are kept against.", configured);

@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Microsoft.Data.Sqlite;
+using TheKrystalShip.MovieBot.Api.Data;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Core;
 
@@ -87,25 +87,6 @@ public sealed record StoredWant
 /// </summary>
 public sealed record WantPick(int? Height, string? AudioLanguage = null, string? SubtitleLanguage = null);
 
-/// <summary>
-/// Everything the saves keep: each person's saves and wants, by account. The properties are settable
-/// rather than init-only because the generated deserializer assigns every init-only property, the
-/// ones the file lacks as null, and a file written before one half existed lacks it.
-/// </summary>
-public sealed record OfflineData
-{
-    public Dictionary<string, List<StoredSave>> People { get; set; } = [];
-
-    public Dictionary<string, List<StoredWant>> Wants { get; set; } = [];
-}
-
-[JsonSourceGenerationOptions(
-    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    WriteIndented = true)]
-[JsonSerializable(typeof(OfflineData))]
-internal partial class OfflineJson : JsonSerializerContext;
-
 /// <summary>The titles a save still being made keeps in the library and in place.</summary>
 public interface ISaveHolds
 {
@@ -113,8 +94,7 @@ public interface ISaveHolds
 }
 
 /// <summary>
-/// What each person saved onto which device, in one file in the state directory, keyed by account and
-/// written whole through a rename on every change, like every other store here.
+/// What each person saved onto which device.
 ///
 /// A save still being made holds its title: the device is copying the title's files one track after
 /// another, and a title that left the library, moved between disks or was encoded again under it
@@ -127,115 +107,86 @@ public interface ISaveHolds
 /// title it became, when the person lets it go, or <see cref="OfflineOptions.WantDays"/> after it was
 /// asked for.
 /// </summary>
-public sealed class OfflineSaves : ISaveHolds
+public sealed class OfflineSaves(CinemaDatabase database, IOptionsMonitor<OfflineOptions> options) : ISaveHolds
 {
-    private readonly string _path;
-    private readonly IOptionsMonitor<OfflineOptions> _options;
-    private readonly ILogger<OfflineSaves> _logger;
-    private readonly Lock _gate = new();
-    private OfflineData _data;
+    private const string SaveColumns = "id, title_id, rung, subtitle_language, subtitle_sought, device, created_at, completed_at";
 
-    public OfflineSaves(string path, IOptionsMonitor<OfflineOptions> options, ILogger<OfflineSaves> logger)
-    {
-        _path = path;
-        _options = options;
-        _logger = logger;
-        _data = Read();
-    }
+    private const string WantColumns =
+        "id, imdb_id, season, episode, device, height, audio_language, subtitle_language, created_at, hash, problem, refusal";
 
     /// <summary>A person's saves, newest first.</summary>
-    public List<StoredSave> For(string userId)
-    {
-        lock (_gate)
-            return [.. (_data.People.GetValueOrDefault(userId) ?? []).OrderByDescending(s => s.CreatedAt)];
-    }
+    public List<StoredSave> For(string userId) =>
+        database.Read(c => Saves(c, "user_id = $user ORDER BY created_at DESC, rowid DESC", ("$user", userId)));
 
     /// <summary>Whether the person has a save of the title on any device, which is what opens its tracks to them.</summary>
-    public bool Has(string userId, string titleId)
-    {
-        lock (_gate) return _data.People.GetValueOrDefault(userId)?.Any(s => s.TitleId == titleId) ?? false;
-    }
+    public bool Has(string userId, string titleId) =>
+        database.Read(c => c.Exists("SELECT 1 FROM offline_saves WHERE user_id = $user AND title_id = $title",
+            ("$user", userId), ("$title", titleId)));
 
     /// <summary>
     /// Records a save. One of the same title on the same device is that save made again: it keeps its
     /// id, starts its hold over and is no longer complete.
     /// </summary>
     public StoredSave Save(string userId, string titleId, string rung, List<string> audio, List<string> subtitles,
-        string device, DateTimeOffset now, string? subtitleLanguage = null, bool subtitleSought = false)
+        string device, DateTimeOffset now, string? subtitleLanguage = null, bool subtitleSought = false) => database.Write(c =>
     {
-        lock (_gate)
+        var id = c.First("SELECT id FROM offline_saves WHERE user_id = $user AND title_id = $title AND device = $device",
+            r => r.GetString(0), ("$user", userId), ("$title", titleId), ("$device", device));
+        var save = new StoredSave
         {
-            var mine = _data.People.GetValueOrDefault(userId) ?? [];
-            var existing = mine.FirstOrDefault(s => s.TitleId == titleId && s.Device == device);
-            var save = new StoredSave
-            {
-                Id = existing?.Id ?? NewId(),
-                TitleId = titleId,
-                Rung = rung,
-                Audio = audio,
-                Subtitles = subtitles,
-                SubtitleLanguage = subtitleLanguage,
-                SubtitleSought = subtitleSought,
-                Device = device,
-                CreatedAt = now,
-            };
+            Id = id ?? NewId(),
+            TitleId = titleId,
+            Rung = rung,
+            Audio = audio,
+            Subtitles = subtitles,
+            SubtitleLanguage = subtitleLanguage,
+            SubtitleSought = subtitleSought,
+            Device = device,
+            CreatedAt = now,
+        };
 
-            Commit(userId, [.. mine.Where(s => s.Id != save.Id), save]);
-            return save;
-        }
-    }
+        c.Execute("DELETE FROM offline_saves WHERE id = $id", ("$id", save.Id));
+        c.Execute(
+            $"INSERT INTO offline_saves (user_id, {SaveColumns}) VALUES ($user, $id, $title, $rung, $language, $sought, $device, $created, NULL)",
+            ("$user", userId), ("$id", save.Id), ("$title", titleId), ("$rung", rung), ("$language", subtitleLanguage),
+            ("$sought", subtitleSought), ("$device", device), ("$created", now));
+        foreach (var (kind, tracks) in new[] { ("audio", audio), ("subtitle", subtitles) })
+            for (var i = 0; i < tracks.Count; i++)
+                c.Execute("INSERT INTO offline_save_tracks (save_id, kind, position, track) VALUES ($id, $kind, $position, $track)",
+                    ("$id", save.Id), ("$kind", kind), ("$position", i), ("$track", tracks[i]));
+        return save;
+    });
 
     /// <summary>Marks a save complete. Null when the person has no save by that id.</summary>
-    public StoredSave? Complete(string userId, string id, DateTimeOffset now)
+    public StoredSave? Complete(string userId, string id, DateTimeOffset now) => database.Write(c =>
     {
-        lock (_gate)
-        {
-            var mine = _data.People.GetValueOrDefault(userId) ?? [];
-            if (mine.FirstOrDefault(s => s.Id == id) is not { } save) return null;
-            if (save.CompletedAt is not null) return save;
+        if (Saves(c, "user_id = $user AND id = $id", ("$user", userId), ("$id", id)).FirstOrDefault() is not { } save) return null;
+        if (save.CompletedAt is not null) return save;
 
-            var done = save with { CompletedAt = now };
-            Commit(userId, [.. mine.Select(s => s.Id == id ? done : s)]);
-            return done;
-        }
-    }
+        c.Execute("UPDATE offline_saves SET completed_at = $now WHERE id = $id", ("$id", id), ("$now", now));
+        return save with { CompletedAt = now };
+    });
 
     /// <summary>Forgets a save. False when the person had none by that id.</summary>
-    public bool Forget(string userId, string id)
-    {
-        lock (_gate)
-        {
-            var mine = _data.People.GetValueOrDefault(userId) ?? [];
-            if (!mine.Any(s => s.Id == id)) return false;
-            Commit(userId, [.. mine.Where(s => s.Id != id)]);
-            return true;
-        }
-    }
+    public bool Forget(string userId, string id) =>
+        database.Write(c => c.Execute("DELETE FROM offline_saves WHERE user_id = $user AND id = $id", ("$user", userId), ("$id", id)) > 0);
 
     /// <summary>When the save stops holding its title, or null when it holds nothing.</summary>
     public DateTimeOffset? HoldsUntil(StoredSave save, DateTimeOffset now)
     {
         if (save.CompletedAt is not null) return null;
-        var until = save.CreatedAt + _options.CurrentValue.Hold;
+        var until = save.CreatedAt + options.CurrentValue.Hold;
         return until > now ? until : null;
     }
 
-    public IReadOnlySet<string> Holding(DateTimeOffset now)
-    {
-        lock (_gate)
-            return _data.People.Values.SelectMany(p => p)
-                .Where(s => HoldsUntil(s, now) is not null)
-                .Select(s => s.TitleId)
-                .ToHashSet(StringComparer.Ordinal);
-    }
+    public IReadOnlySet<string> Holding(DateTimeOffset now) =>
+        database.Read(c => c.Query("SELECT title_id FROM offline_saves WHERE completed_at IS NULL AND created_at > $since",
+                r => r.GetString(0), ("$since", now - options.CurrentValue.Hold)))
+            .ToHashSet(StringComparer.Ordinal);
 
     /// <summary>A person's wants not yet past <see cref="OfflineOptions.WantDays"/>, the oldest first.</summary>
-    public List<StoredWant> WantsOf(string userId, DateTimeOffset now)
-    {
-        var since = now - _options.CurrentValue.WantFor;
-        lock (_gate)
-            return [.. (_data.Wants.GetValueOrDefault(userId) ?? []).Where(w => w.CreatedAt > since).OrderBy(w => w.CreatedAt)];
-    }
+    public List<StoredWant> WantsOf(string userId, DateTimeOffset now) =>
+        database.Read(c => Wants(c, userId, now));
 
     /// <summary>
     /// Records a want for each of <paramref name="episodes"/> of a show, or for the film when there are
@@ -243,120 +194,101 @@ public sealed class OfflineSaves : ISaveHolds
     /// now; one that could not be fetched is asked for afresh. Answers the wants, in the order asked.
     /// </summary>
     public List<StoredWant> Want(string userId, string imdbId, IReadOnlyList<EpisodePick>? episodes, string device,
-        WantPick pick, DateTimeOffset now)
+        WantPick pick, DateTimeOffset now) => database.Write(c =>
     {
-        lock (_gate)
+        c.Execute("DELETE FROM offline_wants WHERE user_id = $user AND created_at <= $since",
+            ("$user", userId), ("$since", now - options.CurrentValue.WantFor));
+        var mine = Wants(c, userId, now);
+        var asked = new List<StoredWant>();
+        var each = episodes is { Count: > 0 } picked
+            ? picked.Distinct().Select(e => (EpisodePick?)e).ToList()
+            : new List<EpisodePick?> { null };
+        foreach (var episode in each)
         {
-            var since = now - _options.CurrentValue.WantFor;
-            var mine = (_data.Wants.GetValueOrDefault(userId) ?? []).Where(w => w.CreatedAt > since).ToList();
-            var asked = new List<StoredWant>();
-            var each = episodes is { Count: > 0 } picked
-                ? picked.Distinct().Select(e => (EpisodePick?)e).ToList()
-                : new List<EpisodePick?> { null };
-            foreach (var episode in each)
-            {
-                var existing = mine.FirstOrDefault(w => w.Device == device && w.Is(imdbId, episode));
-                var want = existing is { Problem: null }
-                    ? existing with { Height = pick.Height, AudioLanguage = pick.AudioLanguage, SubtitleLanguage = pick.SubtitleLanguage }
-                    : new StoredWant
-                    {
-                        Id = existing?.Id ?? NewId(), ImdbId = imdbId, Episode = episode, Device = device, Height = pick.Height,
-                        AudioLanguage = pick.AudioLanguage, SubtitleLanguage = pick.SubtitleLanguage, CreatedAt = now,
-                    };
-                mine = [.. mine.Where(w => w.Id != want.Id), want];
-                asked.Add(want);
-            }
-
-            CommitWants(userId, mine);
-            return asked;
+            var existing = mine.FirstOrDefault(w => w.Device == device && w.Is(imdbId, episode));
+            var want = existing is { Problem: null }
+                ? existing with { Height = pick.Height, AudioLanguage = pick.AudioLanguage, SubtitleLanguage = pick.SubtitleLanguage }
+                : new StoredWant
+                {
+                    Id = existing?.Id ?? NewId(), ImdbId = imdbId, Episode = episode, Device = device, Height = pick.Height,
+                    AudioLanguage = pick.AudioLanguage, SubtitleLanguage = pick.SubtitleLanguage, CreatedAt = now,
+                };
+            c.Execute("DELETE FROM offline_wants WHERE id = $id", ("$id", want.Id));
+            Insert(c, userId, want);
+            asked.Add(want);
         }
-    }
+        return asked;
+    });
 
     /// <summary>
     /// Records what fetching a want came to: the download fetching it, or the problem that stopped one
     /// being started. A want let go of meanwhile stays gone.
     /// </summary>
-    public void Fetched(string userId, string id, string? hash, string? problem = null, string? refusal = null)
-    {
-        lock (_gate)
-        {
-            var mine = _data.Wants.GetValueOrDefault(userId) ?? [];
-            if (!mine.Any(w => w.Id == id)) return;
-            CommitWants(userId, [.. mine.Select(w => w.Id == id ? w with { Hash = hash, Problem = problem, Refusal = refusal } : w)]);
-        }
-    }
+    public void Fetched(string userId, string id, string? hash, string? problem = null, string? refusal = null) =>
+        database.Write(c => c.Execute(
+            "UPDATE offline_wants SET hash = $hash, problem = $problem, refusal = $refusal WHERE user_id = $user AND id = $id",
+            ("$user", userId), ("$id", id), ("$hash", hash), ("$problem", problem), ("$refusal", refusal)));
 
     /// <summary>Lets a want go. False when the person had none by that id.</summary>
-    public bool Unwant(string userId, string id)
-    {
-        lock (_gate)
-        {
-            var mine = _data.Wants.GetValueOrDefault(userId) ?? [];
-            if (!mine.Any(w => w.Id == id)) return false;
-            CommitWants(userId, [.. mine.Where(w => w.Id != id)]);
-            return true;
-        }
-    }
+    public bool Unwant(string userId, string id) =>
+        database.Write(c => c.Execute("DELETE FROM offline_wants WHERE user_id = $user AND id = $id", ("$user", userId), ("$id", id)) > 0);
 
     /// <summary>Lets go of the device's wants for a title it has just saved: it has what it waited on.</summary>
-    public void Fulfilled(string userId, string device, string? imdbId, EpisodePick? episode)
+    public void Fulfilled(string userId, string device, string? imdbId, EpisodePick? episode) =>
+        database.Write(c => c.Execute(
+            "DELETE FROM offline_wants WHERE user_id = $user AND device = $device AND imdb_id = $imdb COLLATE NOCASE "
+            + "AND season IS $season AND episode IS $episode",
+            ("$user", userId), ("$device", device), ("$imdb", imdbId), ("$season", episode?.Season), ("$episode", episode?.Episode)));
+
+    private static List<StoredSave> Saves(SqliteConnection c, string where, params ReadOnlySpan<(string Name, object? Value)> args)
     {
-        lock (_gate)
+        var saves = c.Query($"SELECT {SaveColumns} FROM offline_saves WHERE {where}", r => new StoredSave
         {
-            var mine = _data.Wants.GetValueOrDefault(userId) ?? [];
-            if (!mine.Any(w => w.Device == device && w.Is(imdbId, episode))) return;
-            CommitWants(userId, [.. mine.Where(w => !(w.Device == device && w.Is(imdbId, episode)))]);
-        }
+            Id = r.GetString(0),
+            TitleId = r.GetString(1),
+            Rung = r.GetString(2),
+            SubtitleLanguage = r.GetStringOrNull(3),
+            SubtitleSought = r.GetBool(4),
+            Device = r.GetString(5),
+            CreatedAt = r.GetInstant(6),
+            CompletedAt = r.GetInstantOrNull(7),
+            Audio = [],
+            Subtitles = [],
+        }, args);
+
+        foreach (var save in saves)
+            foreach (var (kind, track) in c.Query("SELECT kind, track FROM offline_save_tracks WHERE save_id = $id ORDER BY kind, position",
+                         r => (r.GetString(0), r.GetString(1)), ("$id", save.Id)))
+                (kind == "audio" ? save.Audio : save.Subtitles).Add(track);
+        return saves;
     }
 
-    /// <summary>Called with the gate held.</summary>
-    private void Commit(string userId, List<StoredSave> saves)
-    {
-        var people = new Dictionary<string, List<StoredSave>>(_data.People);
-        if (saves.Count == 0) people.Remove(userId); else people[userId] = saves;
-        Write(_data with { People = people });
-    }
+    private List<StoredWant> Wants(SqliteConnection c, string userId, DateTimeOffset now) =>
+        c.Query($"SELECT {WantColumns} FROM offline_wants WHERE user_id = $user AND created_at > $since ORDER BY created_at, rowid",
+            r => new StoredWant
+            {
+                Id = r.GetString(0),
+                ImdbId = r.GetString(1),
+                Episode = r.IsDBNull(2) ? null : new EpisodePick(r.GetInt32(2), r.GetInt32(3)),
+                Device = r.GetString(4),
+                Height = r.GetIntOrNull(5),
+                AudioLanguage = r.GetStringOrNull(6),
+                SubtitleLanguage = r.GetStringOrNull(7),
+                CreatedAt = r.GetInstant(8),
+                Hash = r.GetStringOrNull(9),
+                Problem = r.GetStringOrNull(10),
+                Refusal = r.GetStringOrNull(11),
+            },
+            ("$user", userId), ("$since", now - options.CurrentValue.WantFor));
 
-    /// <summary>Called with the gate held.</summary>
-    private void CommitWants(string userId, List<StoredWant> wants)
-    {
-        var all = new Dictionary<string, List<StoredWant>>(_data.Wants);
-        if (wants.Count == 0) all.Remove(userId); else all[userId] = wants;
-        Write(_data with { Wants = all });
-    }
-
-    /// <summary>Called with the gate held.</summary>
-    private void Write(OfflineData data)
-    {
-        _data = data;
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            var temporary = _path + ".tmp";
-            File.WriteAllText(temporary, JsonSerializer.Serialize(_data, OfflineJson.Default.OfflineData));
-            File.Move(temporary, _path, overwrite: true);
-        }
-        catch (IOException ex)
-        {
-            _logger.LogError(ex, "Saves at {Path} could not be written", _path);
-        }
-    }
+    private static void Insert(SqliteConnection c, string userId, StoredWant want) =>
+        c.Execute(
+            $"INSERT INTO offline_wants (user_id, {WantColumns}) VALUES "
+            + "($user, $id, $imdb, $season, $episode, $device, $height, $audio, $subtitle, $created, $hash, $problem, $refusal)",
+            ("$user", userId), ("$id", want.Id), ("$imdb", want.ImdbId), ("$season", want.Episode?.Season),
+            ("$episode", want.Episode?.Episode), ("$device", want.Device), ("$height", want.Height),
+            ("$audio", want.AudioLanguage), ("$subtitle", want.SubtitleLanguage), ("$created", want.CreatedAt),
+            ("$hash", want.Hash), ("$problem", want.Problem), ("$refusal", want.Refusal));
 
     private static string NewId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
-
-    private OfflineData Read()
-    {
-        try
-        {
-            if (!File.Exists(_path)) return new OfflineData();
-            using var stream = File.OpenRead(_path);
-            return JsonSerializer.Deserialize(stream, OfflineJson.Default.OfflineData) ?? new OfflineData();
-        }
-        catch (Exception ex) when (ex is JsonException or IOException)
-        {
-            // An unreadable file costs every save its hold and its listing, and nothing on any device.
-            _logger.LogError(ex, "Saves at {Path} could not be read; nobody has any", _path);
-            return new OfflineData();
-        }
-    }
 }

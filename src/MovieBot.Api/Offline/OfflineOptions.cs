@@ -5,9 +5,6 @@ public sealed class OfflineOptions
 {
     public const string Section = "Offline";
 
-    /// <summary>The file the saves are kept in; empty for <c>offline.json</c> in the state directory.</summary>
-    public string Path { get; set; } = "";
-
     /// <summary>
     /// How long after it was made a save still being made holds its title in the library and in place.
     /// A save past it is still listed and holds nothing.

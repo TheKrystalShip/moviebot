@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Acquisition;
 using Xunit;
 
@@ -8,7 +9,7 @@ namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
 /// A wish exists nowhere but the API's wish list, so what matters is that it comes back the
-/// same from disk, that people are only ever dropped by stopping waiting, and that a film that came
+/// same once kept, that people are only ever dropped by stopping waiting, and that a film that came
 /// out says so for as long as anybody waits on it.
 /// </summary>
 public sealed class WishListTests : IDisposable
@@ -16,7 +17,7 @@ public sealed class WishListTests : IDisposable
     private readonly string _dir = Path.Combine(
         Path.GetTempPath(), "moviebot-tests", "wishes-" + Guid.NewGuid().ToString("N"));
 
-    private string File => Path.Combine(_dir, "wishes.json");
+    private string Database => Path.Combine(_dir, "moviebot.db");
 
     private static readonly ImdbTitle Prada = new()
     {
@@ -29,7 +30,7 @@ public sealed class WishListTests : IDisposable
 
     private static WishSubscriber Person(string user) => new() { UserId = user, AskedAt = DateTimeOffset.UnixEpoch };
 
-    private WishList List() => new(File, NullLogger<WishList>.Instance);
+    private WishList List() => new(new CinemaDatabase(Database));
 
     [Fact]
     public void Two_people_asking_for_one_film_share_one_wish()
@@ -48,7 +49,7 @@ public sealed class WishListTests : IDisposable
     }
 
     [Fact]
-    public void What_was_written_is_what_is_read_back()
+    public void What_was_kept_is_what_is_read_back()
     {
         List().Add(Prada, Person("local:usr_10"));
 
@@ -93,15 +94,6 @@ public sealed class WishListTests : IDisposable
 
         list.Remove("10", "tt33612209");
         Assert.Null(list.OutAs("tt33612209"));
-    }
-
-    [Fact]
-    public void A_file_that_cannot_be_read_starts_the_list_empty()
-    {
-        Directory.CreateDirectory(_dir);
-        System.IO.File.WriteAllText(File, "{ not json");
-
-        Assert.Empty(List().All());
     }
 
     public void Dispose()

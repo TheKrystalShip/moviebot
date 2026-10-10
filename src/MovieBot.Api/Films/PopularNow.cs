@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
+using TheKrystalShip.MovieBot.Api.Data;
 
 namespace TheKrystalShip.MovieBot.Api.Films;
 
@@ -14,10 +15,9 @@ public sealed record StoredPopular
 
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-    WriteIndented = true)]
-[JsonSerializable(typeof(StoredPopular))]
-internal partial class StoredPopularJson : JsonSerializerContext;
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(TrendingTitle))]
+internal partial class TrendingTitleJson : JsonSerializerContext;
 
 /// <summary>A film or a show trending this week, as a poster on a shelf shows it.</summary>
 public sealed record PopularTitleView
@@ -40,7 +40,7 @@ public sealed record PopularNowView(List<PopularTitleView> Films, List<PopularTi
 /// The films and shows the film database counts as trending this week, for somebody looking for
 /// something to watch beyond what the library holds.
 ///
-/// The list and one poster per entry are kept under one directory and served from here, on the
+/// The list is kept, and one poster per entry under one directory, both served from here, on the
 /// terms <see cref="FilmStore"/> keeps a description: a page reads only what is kept and never waits
 /// on the database. The list is asked for shortly after start when what is kept is due, and then
 /// every <see cref="Every"/>; a database that cannot be reached costs freshness and nothing else.
@@ -50,10 +50,16 @@ public sealed class PopularNow(
     string root,
     IServiceScopeFactory scopes,
     PosterPins pins,
+    KeptImages images,
+    CinemaDatabase database,
     TimeProvider clock,
     ILogger<PopularNow> logger) : BackgroundService
 {
-    private const string ListFile = "popular.json";
+    /// <summary>What the posters this keeps are named under in <see cref="KeptImages"/>.</summary>
+    private const string Images = "popular";
+
+    private const string FetchedKey = "trending_fetched_at";
+
     private static readonly TimeSpan FirstPass = TimeSpan.FromSeconds(40);
     private static readonly TimeSpan Every = TimeSpan.FromHours(6);
 
@@ -61,7 +67,7 @@ public sealed class PopularNow(
     private bool _read;
     private readonly Lock _gate = new();
 
-    /// <summary>What is kept, read from disk the first time it is asked for.</summary>
+    /// <summary>What is kept, read the first time it is asked for.</summary>
     public StoredPopular? Held()
     {
         lock (_gate)
@@ -85,7 +91,7 @@ public sealed class PopularNow(
             Year = t.Year,
             Rating = t.Rating,
             Votes = t.Votes,
-            PosterUrl = File.Exists(PosterPath(t.ImdbId)) ? ImageUrl(t.ImdbId) : null,
+            PosterUrl = File.Exists(Path.Combine(root, PosterName(t.ImdbId))) ? ImageUrl(t.ImdbId) : null,
         };
         return held is null
             ? new PopularNowView([], [], null)
@@ -99,7 +105,7 @@ public sealed class PopularNow(
     public string? PosterFile(string file)
     {
         if (!file.EndsWith(".jpg", StringComparison.Ordinal) || !FilmStore.IsImdbId(file[..^4])) return null;
-        var path = PosterPath(file[..^4]);
+        var path = Path.Combine(root, PosterName(file[..^4]));
         return File.Exists(path) ? path : null;
     }
 
@@ -135,7 +141,6 @@ public sealed class PopularNow(
             // nothing was watched: what is kept stays.
             if (films.Count == 0 && shows.Count == 0) return;
 
-            Directory.CreateDirectory(root);
             var entries = films.Concat(shows).ToList();
             foreach (var entry in entries)
                 await FetchPosterAsync(tmdb, entry, ct);
@@ -159,56 +164,57 @@ public sealed class PopularNow(
 
     private async Task FetchPosterAsync(TmdbClient tmdb, TrendingTitle entry, CancellationToken ct)
     {
-        var target = PosterPath(entry.ImdbId);
-        var marker = target + ".src";
-        if (pins.Pin(entry.ImdbId, PosterPins.Shown(target), entry.PosterPath) is not { } path)
-        {
-            File.Delete(target);
-            File.Delete(marker);
-            return;
-        }
-        // An image a path names never changes; a new image comes under a new path.
-        if (File.Exists(target) && File.Exists(marker) && await File.ReadAllTextAsync(marker, ct) == path) return;
-
-        if (await tmdb.ImageAsync(path, "w500", ct) is not { } bytes) return;
-        await File.WriteAllBytesAsync(target + ".tmp", bytes, ct);
-        File.Move(target + ".tmp", target, overwrite: true);
-        await File.WriteAllTextAsync(marker, path, ct);
+        var file = PosterName(entry.ImdbId);
+        await images.KeepAsync(tmdb, Images, root, file,
+            pins.Pin(entry.ImdbId, images.Source(Images, root, file), entry.PosterPath), "w500", ct);
     }
 
     /// <summary>Removes the posters of whatever is no longer trending.</summary>
     private void Prune(HashSet<string> kept)
     {
-        foreach (var file in Directory.EnumerateFiles(root, "tt*.jpg*"))
+        if (!Directory.Exists(root)) return;
+        foreach (var path in Directory.EnumerateFiles(root, "tt*.jpg"))
         {
-            var id = Path.GetFileName(file).Split('.')[0];
-            if (!kept.Contains(id)) File.Delete(file);
+            var file = Path.GetFileName(path);
+            if (!kept.Contains(file[..^4])) images.Forget(Images, root, file);
         }
     }
 
-    private string PosterPath(string imdbId) => Path.Combine(root, imdbId + ".jpg");
+    private static string PosterName(string imdbId) => imdbId + ".jpg";
 
     private StoredPopular? Read()
     {
-        var path = Path.Combine(root, ListFile);
         try
         {
-            if (!File.Exists(path)) return null;
-            using var stream = File.OpenRead(path);
-            return JsonSerializer.Deserialize(stream, StoredPopularJson.Default.StoredPopular);
+            return database.Read(c =>
+            {
+                if (c.First("SELECT value FROM meta WHERE key = $key", r => r.GetString(0), ("$key", FetchedKey)) is not { } fetched)
+                    return null;
+                var titles = c.Query("SELECT kind, title FROM trending ORDER BY kind, rank",
+                    r => (Kind: r.GetString(0), Title: JsonSerializer.Deserialize(r.GetString(1), TrendingTitleJson.Default.TrendingTitle)!));
+                return new StoredPopular
+                {
+                    Films = [.. titles.Where(t => t.Kind == "film").Select(t => t.Title)],
+                    Shows = [.. titles.Where(t => t.Kind == "show").Select(t => t.Title)],
+                    FetchedAt = Sql.ReadInstant(fetched),
+                };
+            });
         }
-        catch (Exception ex) when (ex is JsonException or IOException)
+        catch (JsonException ex)
         {
-            // A list that cannot be read is one not kept: the next pass writes a good one.
+            // A list that cannot be read is one not kept: the next pass keeps a good one.
             logger.LogWarning("The kept trending list could not be read: {Reason}", ex.Message);
             return null;
         }
     }
 
-    private void Write(StoredPopular popular)
+    private void Write(StoredPopular popular) => database.Write(c =>
     {
-        var path = Path.Combine(root, ListFile);
-        File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(popular, StoredPopularJson.Default.StoredPopular));
-        File.Move(path + ".tmp", path, overwrite: true);
-    }
+        c.Execute("DELETE FROM trending");
+        foreach (var (kind, titles) in new[] { ("film", popular.Films), ("show", popular.Shows) })
+            for (var rank = 0; rank < titles.Count; rank++)
+                c.Execute("INSERT INTO trending (kind, rank, title) VALUES ($kind, $rank, $title)",
+                    ("$kind", kind), ("$rank", rank), ("$title", JsonSerializer.Serialize(titles[rank], TrendingTitleJson.Default.TrendingTitle)));
+        c.Execute("INSERT OR REPLACE INTO meta (key, value) VALUES ($key, $value)", ("$key", FetchedKey), ("$value", Sql.Instant(popular.FetchedAt)));
+    });
 }

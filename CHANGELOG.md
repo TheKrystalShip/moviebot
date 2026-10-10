@@ -4,6 +4,28 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-10-10
+
+### Changed
+
+- **The API keeps everything in one SQLite database, `moviebot.db` in its state directory**, set by
+  the new `Database:Path`. Every person's records (names, preferences, notification switches,
+  progress and last plays, lists, follows and announced episodes, the bell, push subscriptions, saves
+  and wants, wishes), the categories set by hand, the rooms, the issuer pin, the push key pair, the
+  fetched subtitles' descriptors and pins, and every answer of the film database are rows; only
+  served bytes stay files (fetched WebVTT, artwork). Each change is one transaction, so a rule that
+  reads before it writes (a list's limit, a notification's key, the first poster pin) can no longer
+  race, and nothing is rewritten whole on every change. The `.src` marker beside every kept image is
+  a row in `images`, and poster pins are rows in place of `posters/`. Raw `Microsoft.Data.Sqlite`
+  keeps the API Native-AOT; the native SQLite ships beside the binary. API 3.0.0.
+- **Upgrading needs a hand-made carry-over.** The API reads no JSON state file: started against a
+  state directory of `rooms.json`, `watch.json`, `lists.json` and the rest, it starts with an empty
+  database beside them and none of what they held. The settings `People:*`, `Notifications:Inbox`,
+  `Notifications:Devices`, `Notifications:Keys`, `Notifications:Preferences`, `Follow:Path`,
+  `Lists:Path`, `Offline:Path`, `Notify:Path`, `Library:Categories`, `Rooms:Journal`,
+  `Oidc:IssuerRecord` and `Tmdb:PostersDirectory` are gone; the `Tmdb:*Directory` settings name where
+  artwork is kept and nothing else.
+
 ## [2.45.0] - 2026-10-10
 
 ### Added

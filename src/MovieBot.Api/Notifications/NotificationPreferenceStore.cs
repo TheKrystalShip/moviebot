@@ -1,63 +1,28 @@
-using System.Text.Json;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Notifications;
 
 /// <summary>
-/// Which notifications each person is pushed, in one file in the state directory, keyed by account.
-/// Somebody who never chose has the defaults, which <see cref="NotificationPreferences"/> spells.
+/// Which notifications each person is pushed, one row per account. Somebody who never chose has no
+/// row and has the defaults, which <see cref="NotificationPreferences"/> spells.
 /// </summary>
-public sealed class NotificationPreferenceStore
+public sealed class NotificationPreferenceStore(CinemaDatabase database)
 {
-    private readonly string _path;
-    private readonly ILogger<NotificationPreferenceStore> _logger;
-    private readonly Lock _gate = new();
-    private Dictionary<string, NotificationPreferences> _byUser;
-
-    public NotificationPreferenceStore(string path, ILogger<NotificationPreferenceStore> logger)
-    {
-        _path = path;
-        _logger = logger;
-        _byUser = Read();
-    }
-
-    public NotificationPreferences For(string userId)
-    {
-        lock (_gate) return _byUser.GetValueOrDefault(userId) ?? new NotificationPreferences();
-    }
+    public NotificationPreferences For(string userId) =>
+        database.Read(c => c.First(
+            "SELECT available, ready, episode, shared FROM notification_preferences WHERE user_id = $user",
+            r => new NotificationPreferences { Available = r.GetBool(0), Ready = r.GetBool(1), Episode = r.GetBool(2), Shared = r.GetBool(3) },
+            ("$user", userId)))
+        ?? new NotificationPreferences();
 
     public NotificationPreferences Set(string userId, NotificationPreferences preferences)
     {
-        lock (_gate)
-        {
-            _byUser = new Dictionary<string, NotificationPreferences>(_byUser) { [userId] = preferences };
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-                var temporary = _path + ".tmp";
-                File.WriteAllText(temporary, JsonSerializer.Serialize(_byUser, NotificationsJson.Default.DictionaryStringNotificationPreferences));
-                File.Move(temporary, _path, overwrite: true);
-            }
-            catch (IOException ex)
-            {
-                _logger.LogError(ex, "Notification preferences at {Path} could not be written", _path);
-            }
-        }
+        database.Write(c => c.Execute(
+            "INSERT OR REPLACE INTO notification_preferences (user_id, available, ready, episode, shared) "
+            + "VALUES ($user, $available, $ready, $episode, $shared)",
+            ("$user", userId), ("$available", preferences.Available), ("$ready", preferences.Ready),
+            ("$episode", preferences.Episode), ("$shared", preferences.Shared)));
         return preferences;
-    }
-
-    private Dictionary<string, NotificationPreferences> Read()
-    {
-        try
-        {
-            if (!File.Exists(_path)) return [];
-            using var stream = File.OpenRead(_path);
-            return JsonSerializer.Deserialize(stream, NotificationsJson.Default.DictionaryStringNotificationPreferences) ?? [];
-        }
-        catch (Exception ex) when (ex is JsonException or IOException)
-        {
-            _logger.LogError(ex, "Notification preferences at {Path} could not be read; everybody has the defaults", _path);
-            return [];
-        }
     }
 }

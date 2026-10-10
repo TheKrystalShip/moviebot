@@ -88,39 +88,26 @@ public class SessionFixture : WebApplicationFactory<Program>
             {
                 ["Media:Root"] = MediaRoot,
                 ["Media:ColdRoot"] = ColdRoot,
-                ["Rooms:Journal"] = Path.Combine(StateRoot, "rooms.json"),
+                ["Database:Path"] = Path.Combine(StateRoot, "moviebot.db"),
                 ["Auth:MediaTicketKey"] = MediaTicketKey,
                 ["Auth:ServiceKey"] = ServiceKey,
                 ["Oidc:Issuer"] = TestIssuer.Issuer,
-                ["Oidc:IssuerRecord"] = Path.Combine(StateRoot, "issuer"),
                 ["Oidc:ActivityClientSecret"] = "a-test-activity-secret",
                 ["Discord:ClientId"] = "123456789",
                 ["Discord:ClientSecret"] = "a-test-discord-secret",
 
                 // Fetching films: a tracker and a title index answered by the test, a torrent
-                // client nobody is listening for, and a wish list of this run's own.
+                // client nobody is listening for.
                 ["Selection:AllowedCategories:0"] = "Movies HD",
                 ["Tracker:BaseUrl"] = "https://tracker.invalid/",
                 ["QBittorrent:BaseUrl"] = "http://127.0.0.1:1",
                 ["Download:Root"] = StateRoot,
-                ["Notify:Path"] = Path.Combine(StateRoot, "wishes.json"),
-                ["People:Preferences"] = Path.Combine(StateRoot, "preferences.json"),
-                ["People:Directory"] = Path.Combine(StateRoot, "people.json"),
-                ["People:Watch"] = Path.Combine(StateRoot, "watch.json"),
-                ["Notifications:Inbox"] = Path.Combine(StateRoot, "notifications.json"),
-                ["Notifications:Devices"] = Path.Combine(StateRoot, "push-devices.json"),
-                ["Notifications:Keys"] = Path.Combine(StateRoot, "push-keys.json"),
-                ["Notifications:Preferences"] = Path.Combine(StateRoot, "notification-preferences.json"),
-                ["Follow:Path"] = Path.Combine(StateRoot, "follows.json"),
-                ["Lists:Path"] = Path.Combine(StateRoot, "lists.json"),
-                ["Library:Categories"] = Path.Combine(StateRoot, "categories.json"),
                 // The film database, answered by the test.
                 ["Tmdb:ReadAccessToken"] = "a-test-token",
                 ["Tmdb:Directory"] = Path.Combine(StateRoot, "films"),
                 ["Tmdb:ShowsDirectory"] = Path.Combine(StateRoot, "shows"),
                 ["Tmdb:PopularDirectory"] = Path.Combine(StateRoot, "popular"),
                 ["Tmdb:GlancesDirectory"] = Path.Combine(StateRoot, "glances"),
-                ["Tmdb:PostersDirectory"] = Path.Combine(StateRoot, "posters"),
                 ["Tmdb:CatalogueDirectory"] = Path.Combine(StateRoot, "catalogue"),
             }));
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(MoreSettings()));

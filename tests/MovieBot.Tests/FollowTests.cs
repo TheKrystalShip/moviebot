@@ -16,6 +16,7 @@ using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Notifications;
@@ -485,9 +486,8 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
         Assert.Single(Told("7014", imdb));
         Assert.Equal(1, Asked(imdb));
 
-        // A new process reads the file the first one wrote.
-        var path = Path.Combine(_fixture.StateRoot, "follows.json");
-        var restarted = new FollowStore(path, NullLogger<FollowStore>.Instance);
+        // A new process reads what the first one kept.
+        var restarted = new FollowStore(new CinemaDatabase(Path.Combine(_fixture.StateRoot, "moviebot.db")));
         Assert.True(restarted.IsAnnounced(imdb, 1, 3));
         var services = _fixture.Services;
         var watcher = new FollowWatcher(

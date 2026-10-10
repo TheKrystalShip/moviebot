@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Sessions;
@@ -42,10 +43,12 @@ public sealed class LibraryClockTests : IDisposable
 
     private readonly TitleLibrary _library;
 
+    private CinemaDatabase Database => field ??= new CinemaDatabase(Path.Combine(_root, "moviebot.db"));
+
     private TitleLibrary LibraryOn(MediaRoots roots) => new(
         roots,
-        new SubtitleStore(Path.Combine(_root, "subtitles"), NullLogger<SubtitleStore>.Instance),
-        new PinStore(Path.Combine(_root, "subtitles"), NullLogger<PinStore>.Instance),
+        new SubtitleStore(Path.Combine(_root, "subtitles"), Database),
+        new PinStore(Database),
         NullLogger<TitleLibrary>.Instance);
 
     public void Dispose()

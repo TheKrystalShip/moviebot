@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Offline;
 using TheKrystalShip.MovieBot.Core;
@@ -336,35 +337,17 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
     [Fact]
     public void A_save_stops_holding_once_its_hold_runs_out()
     {
-        var path = Path.Combine(fixture.StateRoot, $"hold-{Guid.NewGuid():n}.json");
-        var saves = new OfflineSaves(path, new Monitor(new OfflineOptions { HoldHours = 48 }), NullLogger<OfflineSaves>.Instance);
+        var path = Path.Combine(fixture.StateRoot, $"hold-{Guid.NewGuid():n}.db");
+        var saves = new OfflineSaves(new CinemaDatabase(path), new Monitor(new OfflineOptions { HoldHours = 48 }));
         var made = DateTimeOffset.UtcNow;
         saves.Save("p", "heat-1995", "v1", ["a0"], [], "Pixel", made);
 
         Assert.Contains("heat-1995", saves.Holding(made.AddHours(47)));
         Assert.Empty(saves.Holding(made.AddHours(48)));
 
-        // Read back from the file, it holds the same.
-        var reread = new OfflineSaves(path, new Monitor(new OfflineOptions { HoldHours = 48 }), NullLogger<OfflineSaves>.Instance);
+        // Read back from what was kept, it holds the same.
+        var reread = new OfflineSaves(new CinemaDatabase(path), new Monitor(new OfflineOptions { HoldHours = 48 }));
         Assert.Contains("heat-1995", reread.Holding(made.AddHours(1)));
-    }
-
-    [Theory]
-    [InlineData("""{ "people": {} }""")]
-    [InlineData("""{ "wants": {} }""")]
-    [InlineData("""{}""")]
-    public void A_file_missing_either_half_reads_as_empty_in_that_half(string json)
-    {
-        var path = Path.Combine(fixture.StateRoot, $"partial-{Guid.NewGuid():n}.json");
-        Directory.CreateDirectory(fixture.StateRoot);
-        File.WriteAllText(path, json);
-        var saves = new OfflineSaves(path, new Monitor(new OfflineOptions()), NullLogger<OfflineSaves>.Instance);
-        var now = DateTimeOffset.UtcNow;
-
-        Assert.Empty(saves.WantsOf("p", now));
-        Assert.Empty(saves.For("p"));
-        Assert.Single(saves.Want("p", "tt0113277", null, "Pixel", new WantPick(720), now));
-        saves.Save("p", "heat-1995", "v1", ["a0"], [], "Pixel", now);
     }
 
     [Fact]
@@ -553,8 +536,8 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
     [Fact]
     public void A_want_is_waited_on_for_its_days_and_one_that_failed_is_asked_for_afresh()
     {
-        var path = Path.Combine(fixture.StateRoot, $"wants-{Guid.NewGuid():n}.json");
-        var saves = new OfflineSaves(path, new Monitor(new OfflineOptions { WantDays = 14 }), NullLogger<OfflineSaves>.Instance);
+        var path = Path.Combine(fixture.StateRoot, $"wants-{Guid.NewGuid():n}.db");
+        var saves = new OfflineSaves(new CinemaDatabase(path), new Monitor(new OfflineOptions { WantDays = 14 }));
         var made = DateTimeOffset.UtcNow;
         var season = new List<EpisodePick> { new(1, 1), new(1, 2) };
 
@@ -571,7 +554,7 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
         Assert.All(again, w => Assert.Equal("es", w.AudioLanguage));
         Assert.All(again, w => Assert.Equal("en", w.SubtitleLanguage));
 
-        var reread = new OfflineSaves(path, new Monitor(new OfflineOptions { WantDays = 14 }), NullLogger<OfflineSaves>.Instance);
+        var reread = new OfflineSaves(new CinemaDatabase(path), new Monitor(new OfflineOptions { WantDays = 14 }));
         Assert.Equal(2, reread.WantsOf("p", made.AddDays(13)).Count);
         // The episode asked for afresh counts its days from then.
         Assert.Single(reread.WantsOf("p", made.AddDays(14).AddMinutes(30)));
