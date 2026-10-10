@@ -14,7 +14,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
     Find a film or show someone half remembers from the clues they give, and rank what fits.
     - Give every clue you can pull out of what they said; at least one. The tool does the searching and the matching.
     - people: names of actors or film-makers. from, to: release years. released: released, upcoming, announced or any.
-    - look: how it looks or what kind it is, such as "black and white", "animated", "anime". about: plot words, such as "lighthouse", "time loop".
+    - look: how it looks or what kind it is, such as "animated", "anime", "documentary". about: plot words, such as "lighthouse", "time loop".
     - Returns up to 8 candidates, best fit first, each with the clues it matches and the ones it does not.
     - Use for a film someone half remembers, then confirm the best with title_details.
     - web_search is for clues the database cannot hold, like a trailer or news.
@@ -40,9 +40,6 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
         ["animated"] = "Animation", ["animation"] = "Animation", ["cartoon"] = "Animation", ["anime"] = "Animation",
         ["documentary"] = "Documentary", ["musical"] = "Music",
     };
-
-    private const string NotTaggedBlackAndWhite =
-        "the database does not tag it black and white; that does not say it is in colour";
 
     protected override async ValueTask<ToolResult> RunAsync(Args args, ToolCall<Caller> call)
     {
@@ -251,12 +248,12 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
             if (c.Kind == "show")
             {
                 ShowDetails s = await database.ShowAsync(c.ImdbId!, ct);
-                c.Read(s.Keywords, s.Genres, s.Overview, s.BlackAndWhite, look, about);
+                c.Read(s.Keywords, s.Genres, s.Overview, look, about);
             }
             else
             {
                 FilmDetails f = await database.FilmAsync(c.ImdbId!, ct);
-                c.Read(f.Keywords, f.Genres, f.Overview, f.BlackAndWhite, look, about);
+                c.Read(f.Keywords, f.Genres, f.Overview, look, about);
             }
         }
         catch (ToolRefusal)
@@ -362,7 +359,7 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
 
         /// <summary>Settles the look and plot clues a database page can settle: its keywords, genres and overview.</summary>
         public void Read(
-            List<string> keywords, List<string> genres, string? overview, bool blackAndWhite,
+            List<string> keywords, List<string> genres, string? overview,
             IReadOnlyList<string> look, IReadOnlyList<string> about)
         {
             if (Plot is null && overview is { Length: > 0 })
@@ -371,13 +368,9 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
 
             foreach (string word in look)
             {
-                bool tagged = word.Equals("black and white", StringComparison.OrdinalIgnoreCase)
-                    ? blackAndWhite || keywords.Any(k => k.Contains(word, StringComparison.OrdinalIgnoreCase))
-                    : keywords.Any(k => k.Contains(word, StringComparison.OrdinalIgnoreCase))
-                      || (LookGenres.TryGetValue(word, out string? genre) && genres.Contains(genre, StringComparer.OrdinalIgnoreCase));
-                Set(word, tagged, tagged ? "the database tags it so"
-                    : word.Equals("black and white", StringComparison.OrdinalIgnoreCase) ? NotTaggedBlackAndWhite
-                    : "not among its keywords or genres");
+                bool tagged = keywords.Any(k => k.Contains(word, StringComparison.OrdinalIgnoreCase))
+                    || (LookGenres.TryGetValue(word, out string? genre) && genres.Contains(genre, StringComparer.OrdinalIgnoreCase));
+                Set(word, tagged, tagged ? "the database tags it so" : "not among its keywords or genres");
             }
 
             foreach (string word in about)

@@ -54,9 +54,7 @@ There are no room controls: whoever is in a room has the player.
   a person sees is exactly what the API lets them, and `watched` is theirs. The service holds no key of
   the API's and no state of its own: the plugin keeps no data directory and announces nothing.
 - **Facts come from the film database, never from the model.** A value the API left out is not written.
-  The database has a tag for black and white and none for colour: a title not tagged is "not tagged", never
-  "in colour", and a title whose keywords have not arrived is "not known". A title the database holds no
-  IMDb id for is named in words and has no card.
+  A title the database holds no IMDb id for is named in words and has no card.
 - **A card is a title with a page.** Every tool that names titles returns a `titles` card:
   `{kind: "titles", titles: [{imdbId, kind, title, year?, posterUrl?, inLibrary, watched}]}`. A result
   with no title to show carries none. The site draws a card only for a title the reply names.

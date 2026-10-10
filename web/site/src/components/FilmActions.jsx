@@ -13,8 +13,9 @@ import { SaveButton } from "./SaveButton.jsx";
 
 /**
  * What can be done with a film that has to be fetched, from what its availability says: Watch when it
- * can be fetched or is already being prepared, with how far the preparing has got, Download onto this
- * device the same way, Notify when it is not out digitally yet, and Save. `state` is the `useLoad` of
+ * can be fetched or is already being prepared, with how far the preparing has got, Notify when it is
+ * not out digitally yet, Save, and Download onto this device when it can be watched, in the order a
+ * library film's page puts them. `state` is the `useLoad` of
  * `api.availability`, which the caller asks for and can reload; `film` is the film as `api.film`
  * describes it. `compact` keeps to the one action that watches or waits, for a film shown among others;
  * `children` follow the actions on their row.
@@ -84,18 +85,18 @@ export function FilmActions({ imdbId, film, state, compact = false, children }) 
           Watch
         </Button>
       )}
-      {!compact && a && downloading && saving && (arriving || offer) && (
-        <DownloadButton imdbId={imdbId} head={{
-          name: film.title, context: film.year || null, runtime: film.runtimeMinutes ? clock(film.runtimeMinutes * 60) : null,
-          still: film.posterUrl, portrait: true, backdrop: film.backdropUrl || film.posterUrl,
-        }} />
-      )}
       {arriving && <span className="kc-pill kc-pill--info">preparing · {Math.floor(arriving.progress * 100)}%</span>}
 
       {a && wishing && a.notOut && (a.waiting
         ? <Button variant="accent" size="xl" icon="bell-ring" disabled={busy} onClick={stopWaiting}>Notifying</Button>
         : <Button variant="primary" size="xl" icon="bell-plus" disabled={busy} onClick={wait}>Notify</Button>)}
       {!compact && <SaveButton imdbId={imdbId} kind="film" title={film.title} />}
+      {!compact && a && downloading && saving && (arriving || offer) && (
+        <DownloadButton imdbId={imdbId} head={{
+          name: film.title, context: film.year || null, runtime: film.runtimeMinutes ? clock(film.runtimeMinutes * 60) : null,
+          still: film.posterUrl, portrait: true, backdrop: film.backdropUrl || film.posterUrl,
+        }} />
+      )}
       {children}
       {!compact && a && a.notOut && <span className="kc-note">{waitingWords}</span>}
     </div>

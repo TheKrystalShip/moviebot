@@ -33,6 +33,27 @@ export function FilmScore({ rating, votes: count, compact = false }) {
   );
 }
 
+/** The line the film database sells a title with, set apart from the overview under it. */
+export function Tagline({ text }) {
+  return text ? <p className="kc-tt__tagline">{text}</p> : null;
+}
+
+/** The film database's keywords for a title, as a section of quiet chips; none, no section. */
+export function Keywords({ names }) {
+  if (!names || names.length === 0) return null;
+  return (
+    <section className="kc-section">
+      <h2>Keywords</h2>
+      <div className="kc-keywords">{names.map((k) => <span key={k} className="kc-keyword">{k}</span>)}</div>
+    </section>
+  );
+}
+
+/** The title in its own language, when it is not the one the page is headed with. */
+export function originalTitle(title, original) {
+  return original && original !== title ? original : null;
+}
+
 export function Genres({ names }) {
   if (!names || names.length === 0) return null;
   return <div className="kc-genres">{names.map((g) => <span key={g} className="kc-genre">{g}</span>)}</div>;

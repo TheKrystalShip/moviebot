@@ -110,9 +110,7 @@ film onto a device is `Offline/CLAUDE.md`.
   `resolved`; a word the database does not know is refused (`404`) rather than dropped, because a
   discovery that ignores a filter answers a question nobody asked. The library join (`LibraryShelf`) and
   whether the asking person watched are made when an answer is read and are never kept with it. A title
-  the database holds no IMDb id for is listed by its own id with no page and no poster. The database
-  has no tag for colour: `blackAndWhite` is true only for the tag it has, and false is not a claim of
-  colour. The Discover page's shelves are `Films/DiscoverShelves`: each shelf the same for everybody
+  the database holds no IMDb id for is listed by its own id with no page and no poster. The Discover page's shelves are `Films/DiscoverShelves`: each shelf the same for everybody
   is a fixed question by the database's own ids (genres, keywords, companies, networks, collections,
   people), answered and kept through `CatalogueSearch`, and `Films/DiscoverWarmer` asks every one of
   them again every `Tmdb:ShelvesWarmMinutes`, which asks the database only for what is due, so a page

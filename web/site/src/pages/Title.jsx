@@ -7,7 +7,7 @@ import { navigate } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, WatchButton } from "../components/Film.jsx";
-import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FactGrid, FilmScore, Genres, Keywords, Tagline, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { DownloadButton, useOffersSaving } from "../components/DownloadButton.jsx";
 import { useDeviceTitle } from "../offline/hooks.js";
@@ -75,6 +75,7 @@ export function Title({ id, category = null, fromDevice = false }) {
   const playedBy = played && (me && played.byId === me.id ? "you" : played.byName);
 
   const facts = [
+    ["Original title", d ? originalTitle(d.title, d.originalTitle) : null],
     ["Released", d && d.releaseDate ? new Date(d.releaseDate).getFullYear() : film.year],
     ["Language", d && d.languages.length ? d.languages.join(", ") : null],
     ["Country", d && d.countries.length ? d.countries.join(", ") : null],
@@ -104,6 +105,7 @@ export function Title({ id, category = null, fromDevice = false }) {
                 <Genres names={d.genres} />
               </div>
             )}
+            {d && <Tagline text={d.tagline} />}
             {d && d.overview && <p className="kc-tt__overview">{d.overview}</p>}
             {m.status === "transcoding" && (
               <span className="kc-note">Still being prepared{m.headSeconds ? `: watchable up to ${clock(m.headSeconds)}` : ""}.</span>
@@ -145,6 +147,8 @@ export function Title({ id, category = null, fromDevice = false }) {
         <h2>Details</h2>
         <FactGrid facts={facts} />
       </section>
+
+      {d && <Keywords names={d.keywords} />}
 
       {d && <p className="kc-attribution-note">Film details and artwork from TMDB.</p>}
     </div>

@@ -419,16 +419,16 @@ public sealed class CatalogueSearchTests(SessionFixture fixture) : IClassFixture
     }
 
     [Fact]
-    public async Task Black_and_white_with_a_named_person_is_resolved_to_the_databases_keyword_and_person()
+    public async Task A_keyword_with_a_named_person_is_resolved_to_the_databases_keyword_and_person()
     {
-        var (view, asked) = await Discover($"?about={Escaped("black and white")}&with={Escaped("Ray Dane")}&goodOnly=false");
+        var (view, asked) = await Discover($"?about={Escaped("silent film")}&with={Escaped("Ray Dane")}&goodOnly=false");
 
         var discover = asked.Single(a => a.StartsWith("/3/discover/movie"));
         Assert.Contains("with_keywords=12999", discover);
         Assert.Contains("with_people=8001", discover);
         var found = Assert.Single(view!.Titles);
         Assert.Equal((FilmDatabaseStub.SilverHarbour, "Silver Harbour"), (found.ImdbId, found.Title));
-        Assert.Equal(["black and white"], view.Resolved.Keywords);
+        Assert.Equal(["silent film"], view.Resolved.Keywords);
         var ray = Assert.Single(view.Resolved.People);
         Assert.Equal((8001, "Ray Dane", "Acting"), (ray.PersonId, ray.Name, ray.KnownFor));
     }
@@ -634,18 +634,16 @@ public sealed class CatalogueSearchTests(SessionFixture fixture) : IClassFixture
         var other = await Get<FilmView>("/api/films/tt0113277", "9106");
 
         Assert.Equal(["heist", "Los Angeles"], watcher!.Keywords);
-        Assert.False(watcher.BlackAndWhite);
         Assert.Equal((SessionFixture.Heat, true), (watcher.LibraryId, watcher.Watched));
         Assert.Equal((SessionFixture.Heat, false), (other!.LibraryId, other.Watched));
     }
 
     [Fact]
-    public async Task A_film_the_database_tags_black_and_white_says_so()
+    public async Task A_film_the_library_does_not_hold_carries_its_keywords()
     {
         var film = await Get<FilmView>($"/api/films/{FilmDatabaseStub.SilverHarbour}");
 
-        Assert.True(film!.BlackAndWhite);
-        Assert.Equal(["black and white", "harbour"], film.Keywords);
+        Assert.Equal(["silent film", "harbour"], film!.Keywords);
         Assert.Null(film.LibraryId);
         Assert.False(film.Watched);
     }

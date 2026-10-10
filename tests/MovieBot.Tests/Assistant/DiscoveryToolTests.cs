@@ -86,12 +86,12 @@ public sealed class DiscoveryToolTests
     }
 
     [Fact]
-    public async Task A_black_and_white_film_with_a_person_is_a_keyword_and_a_name()
+    public async Task A_silent_film_with_a_person_is_a_keyword_and_a_name()
     {
         ToolOutcome result = await _rig.RunAsync(
-            _rig.Discover, new { about = new[] { "black and white" }, with = new[] { "Julian Rook" }, good_only = false });
+            _rig.Discover, new { about = new[] { "silent film" }, with = new[] { "Julian Rook" }, good_only = false });
 
-        Assert.Contains("Matched: people Julian Rook; keywords black and white.", result.Text);
+        Assert.Contains("Matched: people Julian Rook; keywords silent film.", result.Text);
         Assert.Contains("The Lantern Keeper (2019)", result.Text);
     }
 

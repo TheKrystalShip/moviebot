@@ -113,10 +113,6 @@ public sealed partial class ProfileTests
         Assert.Equal("Find films or shows by what they are like rather than by name. Every filter is optional and they combine.", First("discover"));
         Assert.Equal("What is current: trending this week, out recently, or coming soon.", First("whats_new"));
         Assert.StartsWith("What the asking person has watched, rated and saved", First("my_taste"));
-
-        string details = profile.Tools.Single(t => t.Name == "title_details").Description;
-        Assert.Contains("whether it is tagged black and white", details);
-        Assert.DoesNotContain("colour", details);
     }
 
     [Fact]
@@ -282,7 +278,7 @@ public sealed partial class ProfileTests
         Assert.Equal(["Days Later"], Claimed("2. **28 Days Later** (2002)"));
 
         // A sentence claims the title and not the words before it.
-        Assert.Equal(["The Lighthouse"], Claimed("You might be thinking of The Lighthouse (2019). It is a black and white film."));
+        Assert.Equal(["The Lighthouse"], Claimed("You might be thinking of The Lighthouse (2019). It is a silent film."));
         // Bold hides the first word from the lookbehind; the rest of the title is still found in the result.
         Assert.Equal(["Lighthouse"], Claimed("It sounds like you're thinking of **The Lighthouse (2019)**."));
         Assert.Equal(["A Tale of Two Sisters"], Claimed("Is the film you're thinking of A Tale of Two Sisters (2003)?"));

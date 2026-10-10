@@ -40,11 +40,11 @@
       }
     },
     {
-      "id": "clues-black-and-white",
+      "id": "clues-soft",
       "group": "find_by_clues",
       "title": "A half-remembered film is found from soft clues, and more clues are invited",
       "turns": [
-        { "say": "There's a black and white movie with Robert Pattinson that I can't remember the name of." }
+        { "say": "There's a movie with Robert Pattinson where two men slowly go mad somewhere remote, and I can't remember the name of it." }
       ],
       "expect": {
         "calls": [ { "tool": "find_by_clues" } ],
@@ -57,7 +57,7 @@
       "group": "find_by_clues",
       "title": "A second clue narrows the same film",
       "turns": [
-        { "say": "There's a black and white movie with Robert Pattinson that I can't remember the name of." },
+        { "say": "There's a movie with Robert Pattinson where two men slowly go mad somewhere remote, and I can't remember the name of it." },
         { "say": "It was set on an island and Willem Dafoe was in it too." }
       ],
       "expect": {

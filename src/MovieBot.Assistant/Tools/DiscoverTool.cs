@@ -12,7 +12,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
     - exclude: genres to leave out. A genre search already leaves out animation and family titles unless the person asked for them; include_family true keeps them.
     - from, to: release years.
     - with: people who are in it or made it.
-    - about: keywords such as "black and white", "time loop", "heist", "based on a true story".
+    - about: keywords such as "time loop", "heist", "based on a true story".
     - language: original language.
     - anime: only anime, films or shows. Use it whenever the person asks for anime; it sets the genre and the language itself.
     - good_only: well rated with enough votes to mean it. Default true.

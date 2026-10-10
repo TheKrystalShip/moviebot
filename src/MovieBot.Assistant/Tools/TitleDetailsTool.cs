@@ -9,7 +9,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
 [AssistantTool("title_details", ToolClass.Read, ResultLimit = 8000, Order = 2)]
 [Description("""
     Everything the film database knows about one film or show.
-    - Year and release date, runtime, genres, rating and vote count, plot, director and writers, main cast with their parts, original language, whether it is tagged black and white, keywords, and for a show its seasons.
+    - Year and release date, runtime, genres, rating and vote count, plot, director and writers, main cast with their parts, original language, keywords, and for a show its seasons.
     - Whether the library has it, and whether the person has watched it.
     - Use to confirm a candidate against what the person remembers before naming it.
     """)]
@@ -108,7 +108,6 @@ internal sealed partial class TitleDetailsTool(CinemaApi api) : AssistantTool<Ti
         Cast(text, f.Cast);
         Line(text, "Original language", f.OriginalLanguage);
         Line(text, "Countries", Join(f.Countries));
-        text.Append(Colour(f.BlackAndWhite, f.Keywords)).Append('\n');
         Line(text, "Keywords", Join(f.Keywords));
         text.Append(TitleText.Library(f.LibraryId is not null, f.Watched, "film"));
 
@@ -134,7 +133,6 @@ internal sealed partial class TitleDetailsTool(CinemaApi api) : AssistantTool<Ti
         Cast(text, s.Cast);
         Line(text, "Networks", Join(s.Networks));
         Line(text, "Countries", Join(s.Countries));
-        text.Append(Colour(s.BlackAndWhite, s.Keywords)).Append('\n');
         Line(text, "Keywords", Join(s.Keywords));
 
         foreach (SeasonDetails season in s.Seasons)
@@ -156,18 +154,6 @@ internal sealed partial class TitleDetailsTool(CinemaApi api) : AssistantTool<Ti
         return ToolResult.Ok(text.ToString(), TitleCards.Of([
             new TitleCard(s.ImdbId, "show", s.Title, year, s.PosterUrl, held, false)]));
     }
-
-    /// <summary>
-    /// What the database says of colour. It has a tag for black and white and none for colour, so a title
-    /// without the tag is not known to be in colour, and a title whose keywords have not arrived yet is
-    /// not known either way.
-    /// </summary>
-    private static string Colour(bool blackAndWhite, List<string> keywords) =>
-        blackAndWhite
-            ? "Black and white: the database tags it black and white."
-            : keywords.Count == 0
-                ? "Black and white: not known; the database's keywords for it have not arrived."
-                : "Black and white: the database does not tag it black and white. It has no tag for colour, so this does not say it is in colour.";
 
     private static void Cast(StringBuilder text, List<CastMember> cast)
     {

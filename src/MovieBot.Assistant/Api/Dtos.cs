@@ -190,9 +190,6 @@ public sealed record FilmDetails
     public string? Tagline { get; init; }
     public List<string> Keywords { get; init; } = [];
 
-    /// <summary>True when the database tags the film black and white. False says only that it is not tagged.</summary>
-    public bool BlackAndWhite { get; init; }
-
     public double? Rating { get; init; }
     public int Votes { get; init; }
     public List<string> Directors { get; init; } = [];
@@ -240,7 +237,6 @@ public sealed record ShowDetails
     public string? Overview { get; init; }
     public string? Tagline { get; init; }
     public List<string> Keywords { get; init; } = [];
-    public bool BlackAndWhite { get; init; }
     public double? Rating { get; init; }
     public int Votes { get; init; }
     public List<string> Creators { get; init; } = [];

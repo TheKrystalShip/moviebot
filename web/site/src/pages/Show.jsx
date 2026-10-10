@@ -9,7 +9,7 @@ import { navigate } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago, airDay, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, WatchButton, useWatchLink } from "../components/Film.jsx";
-import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FactGrid, FilmScore, Genres, Keywords, Tagline, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { DownloadMark, SeasonDownload, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
@@ -102,6 +102,7 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
   const episodeCount = seasons.reduce((n, x) => n + x.episodes.length, 0);
 
   const facts = [
+    ["Original title", originalTitle(s.title, s.originalTitle)],
     ["Aired", years],
     ["Status", s.status],
     ["Network", s.networks.join(", ") || null],
@@ -135,6 +136,7 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
                 <Genres names={s.genres} />
               </div>
             )}
+            <Tagline text={s.tagline} />
             {s.overview && <p className="kc-tt__overview">{s.overview}</p>}
             <Credits film={{ creators: s.creators, personIds: s.personIds, cast: s.cast }} />
 
@@ -195,6 +197,8 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
         <h2>Details</h2>
         <FactGrid facts={facts} />
       </section>
+
+      <Keywords names={s.keywords} />
 
       <p className="kc-attribution-note">Show details and artwork from TMDB.</p>
     </div>

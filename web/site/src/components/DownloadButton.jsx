@@ -213,7 +213,7 @@ export function DownloadButton({ titleId = null, imdbId = null, ready = false, h
   const target = { titleId, imdbId, ready, episodes: null };
   return (
     <>
-      <Button variant="outline" size="xl" icon={icon} className={"kc-dl-button" + (standing.kind !== "none" ? " is-held" : "")}
+      <Button variant={standing.kind !== "none" ? "accent" : "secondary"} size="xl" icon={icon}
         disabled={standing.kind === "none" && !online} onClick={() => setOpen(true)}>
         {label}
       </Button>

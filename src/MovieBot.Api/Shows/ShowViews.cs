@@ -29,9 +29,6 @@ public sealed record ShowView
     /// <summary>The database's keywords for the show; empty while the description is being asked for them.</summary>
     public required List<string> Keywords { get; init; }
 
-    /// <summary>True when the database tags the show black and white; false does not say it is in colour, as for a film.</summary>
-    public bool BlackAndWhite { get; init; }
-
     public double? Rating { get; init; }
     public int Votes { get; init; }
     public required List<string> Creators { get; init; }
@@ -242,7 +239,6 @@ public static class ShowViews
             Overview = d?.Overview,
             Tagline = d?.Tagline,
             Keywords = [.. d?.Keywords ?? []],
-            BlackAndWhite = KeywordNames.MarksBlackAndWhite(d?.Keywords),
             Rating = d?.Rating,
             Votes = d?.Votes ?? 0,
             Creators = [.. d?.Creators ?? []],

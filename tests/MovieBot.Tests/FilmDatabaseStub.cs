@@ -13,8 +13,8 @@ namespace TheKrystalShip.MovieBot.Tests;
 /// can show what was asked once and served after.
 ///
 /// It also answers searches and discoveries over a small invented world: <see cref="Jo"/>, whose
-/// credits run from a film long out to one with no date; <see cref="Ray"/>, who is in the black and
-/// white <see cref="SilverHarbour"/>; two horror films of the early 2000s; and the lists of what is
+/// credits run from a film long out to one with no date; <see cref="Ray"/>, who is in the silent
+/// <see cref="SilverHarbour"/>; two horror films of the early 2000s; and the lists of what is
 /// out and what is coming; and one collection, <see cref="Series"/>. Dates are read against the year the test runs in.
 /// </summary>
 public sealed partial class FilmDatabaseStub : HttpMessageHandler
@@ -174,7 +174,7 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         {
             return query["query"]?.ToLowerInvariant() switch
             {
-                "black and white" => """{ "results": [ { "id": 12999, "name": "black and white" } ] }""",
+                "silent film" => """{ "results": [ { "id": 12999, "name": "silent film" } ] }""",
                 "time loop" => """{ "results": [ { "id": 366519, "name": "time loops" }, { "id": 10854, "name": "time loop" } ] }""",
                 _ => Results(),
             };
@@ -220,7 +220,7 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         if (path.EndsWith("/movie/7003")) return Movie(7003, null, "Untitled Jo Test Project", null, "Planned", "", "", Cast(Jo, "Jo Test", 0));
         if (path.EndsWith("/movie/7004"))
             return Movie(7004, SilverHarbour, "Silver Harbour", released, "Released", drama, Director(Jo, "Jo Test"), Cast(Ray, "Ray Dane", 0),
-                "{ \"id\": 12999, \"name\": \"black and white\" }, { \"id\": 5, \"name\": \"harbour\" }");
+                "{ \"id\": 12999, \"name\": \"silent film\" }, { \"id\": 5, \"name\": \"harbour\" }");
         if (path.EndsWith("/movie/7005")) return Movie(7005, "tt9000005", "Quiet Money", "2010-06-01", "Released", drama, "", "");
         if (path.EndsWith("/movie/7101"))
             return Movie(7101, "tt9000101", "The Cellar Door", "2002-10-31", "Released", horror, Director(41, "Lou Frame"), Cast(42, "Ada Moor", 0) + ", " + Cast(43, "Ben Pike", 1));

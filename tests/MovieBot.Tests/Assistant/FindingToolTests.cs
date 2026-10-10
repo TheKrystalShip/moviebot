@@ -112,7 +112,7 @@ public sealed class FindingToolTests
         Assert.Contains("Written by: Rowan Pike, Sol Pike.", result.Text);
         Assert.Contains("Main cast: Julian Rook (Thomas), Willa Dane (Ephraim).", result.Text);
         Assert.Contains("Original language: en.", result.Text);
-        Assert.Contains("Keywords: black and white, lighthouse, isolation.", result.Text);
+        Assert.Contains("Keywords: silent film, lighthouse, isolation.", result.Text);
         Assert.Contains("Not in the library.", result.Text);
         Assert.Equal(["tt1000003"], ToolRig.CardIds(result));
     }
@@ -182,28 +182,10 @@ public sealed class FindingToolTests
     }
 
     [Fact]
-    public async Task A_title_tagged_black_and_white_says_so()
-    {
-        ToolOutcome result = await _rig.RunAsync(_rig.Details, new { title = "tt1000003" });
-
-        Assert.Contains("Black and white: the database tags it black and white.", result.Text);
-    }
-
-    [Fact]
-    public async Task A_title_not_tagged_is_never_called_colour()
-    {
-        ToolOutcome result = await _rig.RunAsync(_rig.Details, new { title = "tt1000004" });
-
-        Assert.Contains("the database does not tag it black and white. It has no tag for colour, so this does not say it is in colour.", result.Text);
-        Assert.DoesNotContain("is in colour.", result.Text.Replace("does not say it is in colour.", ""));
-    }
-
-    [Fact]
-    public async Task A_title_whose_keywords_have_not_arrived_is_not_known_either_way()
+    public async Task A_title_whose_keywords_have_not_arrived_lists_none()
     {
         ToolOutcome result = await _rig.RunAsync(_rig.Details, new { title = "tt1000005" });
 
-        Assert.Contains("Black and white: not known; the database's keywords for it have not arrived.", result.Text);
         Assert.DoesNotContain("Keywords:", result.Text);
     }
 

@@ -8,7 +8,6 @@ became on its Matched line.
 
 | They say | Ask for |
 |---|---|
-| black and white, "no colour", old-looking | about "black and white" (a tag; an untagged title may still be black and white) |
 | silent | about "silent film" |
 | cartoon, animated | genre Animation |
 | anime, Japanese animation | discover's anime true (animated and made in Japanese); find_by_clues look "anime" |

@@ -9,7 +9,7 @@ import { navigate } from "../router.js";
 import { clock } from "../time.js";
 import { Empty, Failed } from "../components/Film.jsx";
 import { FilmActions } from "../components/FilmActions.jsx";
-import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FactGrid, FilmScore, Genres, Keywords, Tagline, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
 
 /**
  * A film by its IMDb id, here or not: what it is, and the way to it. A film that plays now goes to its
@@ -42,6 +42,7 @@ export function CatalogueFilm({ imdbId }) {
   const a = state.data;
   // The library page's facts, less what only a held copy knows: its picture and when it was added.
   const facts = [
+    ["Original title", originalTitle(d.title, d.originalTitle)],
     ["Released", d.releaseDate ? new Date(d.releaseDate).getFullYear() : d.year],
     ["Language", d.languages.length ? d.languages.join(", ") : null],
     ["Country", d.countries.length ? d.countries.join(", ") : null],
@@ -76,6 +77,7 @@ export function CatalogueFilm({ imdbId }) {
                 <Genres names={d.genres} />
               </div>
             )}
+            <Tagline text={d.tagline} />
             {d.overview && <p className="kc-tt__overview">{d.overview}</p>}
             <Credits film={d} />
 
@@ -95,6 +97,8 @@ export function CatalogueFilm({ imdbId }) {
         <h2>Details</h2>
         <FactGrid facts={facts} />
       </section>
+
+      <Keywords names={d.keywords} />
 
       <p className="kc-attribution-note">Film details and artwork from TMDB.</p>
     </div>

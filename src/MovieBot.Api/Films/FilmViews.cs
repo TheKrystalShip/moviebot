@@ -23,12 +23,6 @@ public sealed record FilmView
     /// <summary>The database's keywords for the film (<c>time loop</c>, <c>heist</c>); empty while the description is being asked for them.</summary>
     public required List<string> Keywords { get; init; }
 
-    /// <summary>
-    /// True when the database tags the film black and white. The database has no tag for colour, so a
-    /// film not tagged is not known to be in colour, and this is false for it.
-    /// </summary>
-    public bool BlackAndWhite { get; init; }
-
     public double? Rating { get; init; }
     public int Votes { get; init; }
     public required List<string> Directors { get; init; }
@@ -105,7 +99,6 @@ public static class FilmViews
             Overview = d.Overview,
             Tagline = d.Tagline,
             Keywords = [.. d.Keywords ?? []],
-            BlackAndWhite = KeywordNames.MarksBlackAndWhite(d.Keywords),
             Rating = d.Rating,
             Votes = d.Votes,
             Directors = [.. d.Directors],

@@ -10,7 +10,7 @@ namespace TheKrystalShip.MovieBot.Tests.Assistant;
 
 /// <summary>
 /// The film database and the library as the API answers them, in an invented world: a person with the
-/// same name twice, a film tagged black and white and ones that are not, early-2000s horror, announced
+/// same name twice, a silent film and ones that are not, early-2000s horror, announced
 /// titles with and without an IMDb id, a person's history, lists and follows. It is a table of answers
 /// behind the same HTTP client the tools use, so a recording of the live API replays the same way.
 /// </summary>
@@ -60,22 +60,22 @@ internal static class CinemaWorld
 
     public static readonly TitleHit Unpaged = Hit("", "Untitled Harbour Project", 2027, genres: ["Drama"], rating: 0, votes: 0);
 
-    /// <summary>A film's page: tagged black and white, with its keywords.</summary>
+    /// <summary>A film's page, with its keywords.</summary>
     public static readonly FilmDetails LanternPage = new()
     {
         ImdbId = "tt1000003", Title = "The Lantern Keeper", Year = 2019, ReleaseDate = "2019-10-18", RuntimeMinutes = 109,
         Certification = "R", Genres = ["Drama", "Mystery"], Overview = "Two keepers lose their grip on a lighthouse.",
-        Tagline = "The light is the least of it.", Keywords = ["black and white", "lighthouse", "isolation"], BlackAndWhite = true,
+        Tagline = "The light is the least of it.", Keywords = ["silent film", "lighthouse", "isolation"],
         Rating = 7.5, Votes = 61000, Directors = ["Rowan Pike"], Writers = ["Rowan Pike", "Sol Pike"],
         Cast = [new() { Name = "Julian Rook", Character = "Thomas" }, new() { Name = "Willa Dane", Character = "Ephraim" }],
         OriginalLanguage = "en", Countries = ["United States"], PosterUrl = "/films/tt1000003/poster.jpg", LibraryId = null, Watched = false,
     };
 
-    /// <summary>A film with keywords and no black and white tag.</summary>
+    /// <summary>A film with keywords, none of them a look.</summary>
     public static readonly FilmDetails CoastalPage = new()
     {
         ImdbId = "tt1000004", Title = "Coastal Hours", Year = 2021, ReleaseDate = "2021-06-11", RuntimeMinutes = 98,
-        Genres = ["Drama"], Overview = "Three summers at one cafe.", Keywords = ["friendship", "summer"], BlackAndWhite = false,
+        Genres = ["Drama"], Overview = "Three summers at one cafe.", Keywords = ["friendship", "summer"],
         Rating = 6.9, Votes = 800, Directors = ["Ines Varga"], Cast = [new() { Name = "Ada Calloway", Character = "Lia" }],
         OriginalLanguage = "es", Countries = ["Spain"], PosterUrl = "/films/tt1000004/poster.jpg", LibraryId = "coastal-hours-2021", Watched = true,
     };
@@ -84,7 +84,7 @@ internal static class CinemaWorld
     public static readonly FilmDetails ColdFramePage = new()
     {
         ImdbId = "tt1000005", Title = "Cold Frame", Year = 2023, ReleaseDate = "2023-01-20", Genres = ["Thriller"], Keywords = [],
-        BlackAndWhite = false, Rating = 6.1, Votes = 400, Directors = ["Maks Ilves"], Cast = [],
+        Rating = 6.1, Votes = 400, Directors = ["Maks Ilves"], Cast = [],
     };
 
     public static readonly ShowDetails SaltLine = new()
@@ -219,11 +219,11 @@ internal static class CinemaWorld
             Resolved = new DiscoverResolved { Genres = ["Horror", "Mystery"], Sort = "rating" },
             Titles = [QuietRoom],
         });
-        world.Answer("/api/catalogue/discover?kind=film&about=black and white&with=Julian Rook&goodOnly=false", new DiscoverResult
+        world.Answer("/api/catalogue/discover?kind=film&about=silent film&with=Julian Rook&goodOnly=false", new DiscoverResult
         {
             Resolved = new DiscoverResolved
             {
-                People = [new ResolvedPerson(601, "Julian Rook", "Acting")], Keywords = ["black and white"], Sort = "popular",
+                People = [new ResolvedPerson(601, "Julian Rook", "Acting")], Keywords = ["silent film"], Sort = "popular",
             },
             Titles = [LanternKeeper],
         });
@@ -245,9 +245,9 @@ internal static class CinemaWorld
         });
 
         // find_by_clues: the look alone, the plot word alone, a person's work from 2024, and the pages that settle the clues.
-        world.Answer("/api/catalogue/discover?kind=film&about=black and white&goodOnly=false", new DiscoverResult
+        world.Answer("/api/catalogue/discover?kind=film&about=silent film&goodOnly=false", new DiscoverResult
         {
-            Resolved = new DiscoverResolved { Keywords = ["black and white"], Sort = "popular" },
+            Resolved = new DiscoverResolved { Keywords = ["silent film"], Sort = "popular" },
             Titles = [LanternKeeper, Hit("tt1000060", "Moth Light", 2008, rating: 6.1, votes: 150, plot: "A projectionist chases a moth.")],
         });
         world.Answer("/api/catalogue/discover?kind=film&about=lighthouse&goodOnly=false", new DiscoverResult
@@ -278,7 +278,7 @@ internal static class CinemaWorld
         world.Answer("/api/films/tt1000060", new FilmDetails
         {
             ImdbId = "tt1000060", Title = "Moth Light", Year = 2008, Genres = ["Drama"], Overview = "A projectionist chases a moth.",
-            Keywords = ["black and white", "silent film"], BlackAndWhite = true, Votes = 150,
+            Keywords = ["silent film", "projectionist"], Votes = 150,
         });
 
         world.Answer("/api/popular", new Popular

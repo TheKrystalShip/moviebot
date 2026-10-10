@@ -1,8 +1,5 @@
 /* ── Download ── the control on a film's page and an episode's row, and the sheet it opens. */
 
-/* On a film's page, an outline button that takes the accent once anything of the film is here. */
-.kc-dl-button.is-held { border-color: var(--border-accent); background: var(--krystal-teal-dim); color: var(--krystal-teal-hover); }
-
 /* At an episode's row's end: a square button, a ring while under way, the accent once downloaded. */
 .kc-dl-mark {
   width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center;

@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.0] - 2026-10-11
+
+### Added
+
+- **A film's and a show's page carry everything the film database describes them with**: the tagline
+  above the overview, the original title among the details when it differs from the title, and the
+  keywords in a section of their own. Library films, films found in Discover and shows draw them alike.
+
+### Changed
+
+- **The actions on a film's page come in one order and one style**: Watch, then Save, then Download,
+  whether the library holds the film or not. Download is drawn like Save and Follow, and takes the
+  accent once the film is on the device, as Save does once saved. Site 0.64.0.
+
+### Removed
+
+- **Black and white is no longer a fact of its own.** `GET /api/films/{imdbId}` and
+  `GET /api/shows/{imdbId}` drop `blackAndWhite`; the keyword stays in `keywords` like any other.
+  The assistant's `title_details` no longer writes a black-and-white line, and `find_by_clues` matches
+  a look against keywords and genres the same way for every word.
+
 ## [3.13.2] - 2026-10-11
 
 ### Changed
