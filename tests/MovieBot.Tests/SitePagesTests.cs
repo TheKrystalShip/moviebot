@@ -40,6 +40,31 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
         }
     }
 
+    /// <summary>
+    /// The web root is read from disk on every request, so a new build installed there is served
+    /// without a restart.
+    /// </summary>
+    [Fact]
+    public async Task A_new_build_in_the_web_root_is_served_without_a_restart()
+    {
+        var site = Path.Combine(_root, "installed");
+        Directory.CreateDirectory(Path.Combine(site, "assets"));
+        File.WriteAllText(Path.Combine(site, "index.html"), "<!doctype html><title>first build</title>");
+        File.WriteAllText(Path.Combine(site, "assets", "app-1.js"), "first");
+        using var host = fixture.WithWebHostBuilder(b => b.UseEnvironment("Production").UseWebRoot(site));
+        var client = host.CreateClient();
+
+        Assert.Contains("first build", await client.GetStringAsync("/library"));
+        Assert.Equal("first", await client.GetStringAsync("/assets/app-1.js"));
+
+        File.WriteAllText(Path.Combine(site, "index.html"), "<!doctype html><title>second build</title>");
+        File.WriteAllText(Path.Combine(site, "assets", "app-2.js"), "second");
+
+        Assert.Contains("second build", await client.GetStringAsync("/"));
+        Assert.Contains("second build", await client.GetStringAsync("/library"));
+        Assert.Equal("second", await client.GetStringAsync("/assets/app-2.js"));
+    }
+
     [Theory]
     [InlineData("/")]
     [InlineData("/library")]

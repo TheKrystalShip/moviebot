@@ -321,7 +321,9 @@ app.UseCors();
 // Krystal Cinema, whose player is also the Discord Activity, is served from this origin at its
 // root, which is what lets an Activity reach the page, the API, the media and the hub through a
 // single declared URL mapping instead of a set of them. Static files sit under wwwroot, open to
-// anybody, and never shadow /api, /media or /hub, which are explicit routes.
+// anybody, and never shadow /api, /media or /hub, which are explicit routes. They are read from disk
+// on every request, so a site installed there is served at once, without restarting this; only a
+// wwwroot that exists when this starts is served at all.
 app.UseDefaultFiles();
 app.UseStaticFiles();
 

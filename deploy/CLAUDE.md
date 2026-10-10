@@ -5,24 +5,18 @@ Four units run on **hotbox**, under `heisen`, out of `/opt/moviebot`: `moviebot-
 `moviebot-assistant` is a plugin to the organization's assistant harness on hotrod, which runs the
 model and holds the conversations; it presents the key issued for `moviebot` there. All of it is built
 on hotrod, which holds the checkouts, the .NET SDK, `clang` and node; hotbox carries the .NET runtime
-and nothing else of the toolchain (`../../kgsm-docs/systems/moviebot/build-and-deploy.md`). A deploy of
-the services is a publish here, an rsync there, and a restart:
+and nothing else of the toolchain (`../../kgsm-docs/systems/moviebot/build-and-deploy.md`). A deploy is
+one script run from hotrod, with no arguments and nothing to set:
 
 ```bash
-./scripts/build-player.sh                                    # site and player -> the API's wwwroot
-dotnet publish src/MovieBot.Api       -c Release -o /tmp/mb/api
-dotnet publish src/MovieBot.Bot       -c Release -o /tmp/mb/bot
-dotnet publish src/MovieBot.Handoff   -c Release -o /tmp/mb/handoff
-dotnet publish src/MovieBot.Assistant -c Release -r linux-x64 --self-contained false -o /tmp/mb/assistant
-
-rsync -a --delete /tmp/mb/api/       hotbox:/opt/moviebot/api/
-rsync -a --delete /tmp/mb/bot/       hotbox:/opt/moviebot/bot/
-rsync -a --delete /tmp/mb/handoff/   hotbox:/opt/moviebot/handoff/
-rsync -a --delete /tmp/mb/assistant/ hotbox:/opt/moviebot/assistant/
-ssh hotbox 'mkdir -p ~/.config/moviebot'
-rsync deploy/hotbox.settings.json hotbox:.config/moviebot/moviebot.settings.json
-ssh hotbox 'sudo systemctl restart moviebot-api moviebot-bot moviebot-handoff moviebot-assistant'
+deploy/deploy.sh            # everything: the services, then the site
+deploy/deploy-services.sh   # the four services: publish, rsync to /opt/moviebot, settings, restart
+deploy/deploy-site.sh       # the site and its player alone, into /opt/moviebot/api/wwwroot; restarts nothing
 ```
+
+Each script holds the host, the paths and the units itself and checks its own result: the services
+script waits for the API's `/health` after the restart, and the site script checks that the API serves
+the index it just installed.
 
 `moviebot-assistant` is reached by the site at `/assistant/` on the vhost, which strips the prefix
 (`nginx-moviebot.conf`).
@@ -72,11 +66,14 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
   `/opt/ffmpeg-p2000` matches the driver and is kept off the global PATH; the unit names it, and
   `ffprobe` is in the same directory so the probe and the transcode cannot end up on different
   builds.
-- **The site and its player reach people through the API.** `scripts/build-player.sh` installs
-  Krystal Cinema (`web/site`) at the root of `src/MovieBot.Api/wwwroot`, and the API is what serves
-  it, so a change arrives only once the API is published after that script has run. One origin serves
-  the site, the player, the API, the media and the hub, because a Discord Activity maps one URL;
-  Discord launches the Activity at the root, and the site's index takes that load to `/embed/`.
+- **The site and its player reach people through the API's web root, deployed on their own.** Krystal
+  Cinema (`web/site`, built by `scripts/build-site.sh`) is installed into `/opt/moviebot/api/wwwroot`.
+  The API reads it from disk on every request, so a site deploy reaches people at once without
+  restarting anything. The services deploy copies the API with `wwwroot` excluded, so it neither ships
+  a site nor deletes the one installed; the API serves `wwwroot` only if it exists when it starts. Its hashed assets land before the index that names them, and an earlier build's assets stay
+  a fortnight for a page still open on one. One origin serves the site, the player, the API, the media
+  and the hub, because a Discord Activity maps one URL; Discord launches the Activity at the root, and
+  the site's index takes that load to `/embed/`.
 - **People sign in at tks-auth, which knows Cinema as an application** (the model:
   `../../kgsm-docs/systems/moviebot/sign-in.md`). The issuer is `https://auth.thekrystalship.com`
   (`Oidc.Issuer` in `deploy/hotbox.settings.json`); Cinema is registered there with the id and audience

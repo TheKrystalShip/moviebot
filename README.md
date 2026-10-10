@@ -174,7 +174,8 @@ dotnet run --project src/MovieBot.Api -c Release
 ```
 
 The API listens on `http://127.0.0.1:8099`. The site, with its player, is built into the API's
-`wwwroot` with `scripts/build-player.sh`, or served on its own for development:
+`wwwroot` with `scripts/build-player.sh`. The API reads it from disk on every request, so a new build
+installed there needs no restart. It is served on its own for development:
 
 ```bash
 cd web/site

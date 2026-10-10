@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.44.0] - 2026-10-10
+
+### Added
+
+- **hotbox deploys with one script and no arguments**: `deploy/deploy.sh` for everything,
+  `deploy/deploy-services.sh` for the four services (publish, rsync with the API's `wwwroot` left alone,
+  settings, restart, wait for `/health`), and `deploy/deploy-site.sh` for the site alone, installed into
+  the API's `wwwroot`, which the API reads on every request, so it deploys without a restart. `scripts/build-site.sh` builds the site; `scripts/build-player.sh` builds it and installs it
+  into the API's `wwwroot` for a release.
+
 ## [2.43.0] - 2026-10-10
 
 ### Changed
