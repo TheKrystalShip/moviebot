@@ -5,6 +5,7 @@ import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { useCan } from "../session.js";
 import { wishWords } from "../pages/Discover.jsx";
+import { clock } from "../time.js";
 import { defaultOffer, watchNow } from "../watchNow.js";
 import { DownloadButton, useOffersSaving } from "./DownloadButton.jsx";
 import { waitersWords } from "./TitleCards.jsx";
@@ -85,7 +86,7 @@ export function FilmActions({ imdbId, film, state, compact = false, children }) 
       )}
       {!compact && a && downloading && saving && (arriving || offer) && (
         <DownloadButton imdbId={imdbId} head={{
-          name: film.title, context: film.year || null, runtime: film.runtimeMinutes ? `${film.runtimeMinutes} min` : null,
+          name: film.title, context: film.year || null, runtime: film.runtimeMinutes ? clock(film.runtimeMinutes * 60) : null,
           still: film.posterUrl, portrait: true, backdrop: film.backdropUrl || film.posterUrl,
         }} />
       )}

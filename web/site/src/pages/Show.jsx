@@ -239,7 +239,7 @@ function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, backdrop
               ? <DownloadMark titleId={e.titleId || null} imdbId={showImdbId} season={e.season} number={e.number}
                   ready={e.status === "ready"} head={{
                     name: e.name || `Episode ${e.number}`, context: `${showName} · ${episodeCode(e)}`,
-                    runtime: e.runtimeMinutes ? `${e.runtimeMinutes} min` : e.durationSeconds ? clock(e.durationSeconds) : null,
+                    runtime: e.runtimeMinutes ? clock(e.runtimeMinutes * 60) : e.durationSeconds ? clock(e.durationSeconds) : null,
                     still: e.stillUrl, backdrop,
                   }} />
               : <span className="kc-episode-save" />}

@@ -4,11 +4,12 @@ import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { useCan } from "../session.js";
 import { useCrumb } from "../crumbs.js";
-import { moviePath } from "../paths.js";
+import { ANIME, moviePath } from "../paths.js";
 import { navigate } from "../router.js";
+import { clock } from "../time.js";
 import { Empty, Failed } from "../components/Film.jsx";
 import { FilmActions } from "../components/FilmActions.jsx";
-import { CastGrid, Credits, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 
 /**
  * A film by its IMDb id, here or not: what it is, and the way to it. A film that plays now goes to its
@@ -39,6 +40,13 @@ export function CatalogueFilm({ imdbId }) {
 
   const d = film.data;
   const a = state.data;
+  // The library page's facts, less what only a held copy knows: its picture and when it was added.
+  const facts = [
+    ["Released", d.releaseDate ? new Date(d.releaseDate).getFullYear() : d.year],
+    ["Language", d.languages.length ? d.languages.join(", ") : null],
+    ["Country", d.countries.length ? d.countries.join(", ") : null],
+    ["IMDb", d.imdbId, true],
+  ];
 
   return (
     <div className="kc-page kc-title">
@@ -50,8 +58,15 @@ export function CatalogueFilm({ imdbId }) {
             {d.posterUrl ? <img src={d.posterUrl} alt="" /> : <span className="kc-poster-art__name">{d.title}</span>}
           </div>
           <div className="kc-tt__body">
-            <span className="kc-eyebrow kc-eyebrow--muted">Movie</span>
-            <h1>{d.title} {d.year && <span className="kc-quiet kc-tt__year">{d.year}</span>}</h1>
+            <span className="kc-eyebrow kc-eyebrow--muted">{d.category === ANIME ? "Anime movie" : "Movie"}</span>
+            <h1>{d.title}</h1>
+            {(d.year || d.certification || d.runtimeMinutes) && (
+              <div className="kc-tt__meta">
+                {d.year && <span>{d.year}</span>}
+                {d.certification && <span className="kc-cert">{d.certification}</span>}
+                {d.runtimeMinutes && <span>{clock(d.runtimeMinutes * 60)}</span>}
+              </div>
+            )}
             {a && a.notOut && (
               <span className="kc-pill kc-pill--warn kc-tt__notout"><Icon name="calendar-clock" size={15} />Not out digitally yet</span>
             )}
@@ -75,6 +90,11 @@ export function CatalogueFilm({ imdbId }) {
           <CastGrid cast={d.cast} />
         </section>
       )}
+
+      <section className="kc-section">
+        <h2>Details</h2>
+        <FactGrid facts={facts} />
+      </section>
 
       <p className="kc-attribution-note">Film details and artwork from TMDB.</p>
     </div>

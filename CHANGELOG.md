@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.2] - 2026-10-11
+
+### Changed
+
+- **A film's page draws the same description whether the library holds it or not.** A film found in
+  Discover shows its year, certification and runtime under its name, and a Details section with its
+  release year, languages, countries and IMDb id, as a library film's page does; the library adds only
+  what a held copy knows, its picture and when it was added. Both name an anime film Anime movie, the
+  word its card uses. A runtime reads the same everywhere, as `2h 24m`, in a download sheet and on an
+  episode's row too. Site 0.63.2.
+
 ## [3.13.1] - 2026-10-11
 
 ### Changed

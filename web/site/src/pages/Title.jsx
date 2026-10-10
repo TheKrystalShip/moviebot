@@ -91,7 +91,7 @@ export function Title({ id, category = null, fromDevice = false }) {
         <div className="kc-tt__grid">
           <PosterArt title={title} className="kc-tt__poster" />
           <div className="kc-tt__body">
-            <span className="kc-eyebrow kc-eyebrow--muted">{shelved === ANIME ? "Anime film" : "Movie"}</span>
+            <span className="kc-eyebrow kc-eyebrow--muted">{shelved === ANIME ? "Anime movie" : "Movie"}</span>
             <h1>{(d && d.title) || film.name || m.title}</h1>
             <div className="kc-tt__meta">
               {(film.year || (d && d.year)) && <span>{film.year || d.year}</span>}

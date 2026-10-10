@@ -18,7 +18,7 @@ export function EpisodeRow({ episode: e, download = null, link = null, onPick = 
   const done = e.progress && e.progress.finished;
   const fraction = done ? 1
     : e.progress && e.durationSeconds ? Math.min(1, e.progress.positionSeconds / e.durationSeconds) : 0;
-  const runtime = e.runtimeMinutes ? `${e.runtimeMinutes}m` : e.durationSeconds ? clock(e.durationSeconds) : null;
+  const runtime = e.runtimeMinutes ? clock(e.runtimeMinutes * 60) : e.durationSeconds ? clock(e.durationSeconds) : null;
   const watchable = Boolean(link || onPick);
   const inner = (
     <>
