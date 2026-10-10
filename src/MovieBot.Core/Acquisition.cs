@@ -196,6 +196,32 @@ public sealed record WishView
     public ReleaseOffer? Release { get; init; }
 }
 
+/// <summary>
+/// A film people are waiting on, as anybody browsing sees it: how many are waiting and whether the
+/// asker is one of them, and nobody by name.
+/// </summary>
+public sealed record AnticipatedView
+{
+    public required string ImdbId { get; init; }
+
+    /// <summary>What the title is. A wish is for a film, so this is <c>film</c>.</summary>
+    public string Kind { get; init; } = "film";
+
+    public required string Title { get; init; }
+
+    public int? Year { get; init; }
+
+    public required string Display { get; init; }
+
+    /// <summary>The poster the film's page shows, as <see cref="WishView.PosterUrl"/> gives it.</summary>
+    public string? PosterUrl { get; init; }
+
+    public required int Waiters { get; init; }
+
+    /// <summary>Whether the person asking is one of the <see cref="Waiters"/>.</summary>
+    public required bool Waiting { get; init; }
+}
+
 /// <summary>Wait on a film: an IMDb id, or what was typed over the suggestions, often a pasted link.</summary>
 public sealed record AddWishRequest
 {

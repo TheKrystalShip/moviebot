@@ -13,7 +13,7 @@ namespace TheKrystalShip.MovieBot.Tests.Assistant;
 public sealed partial class ProfileTests
 {
     private static readonly string[] Tools =
-        ["search_titles", "title_details", "person_credits", "discover", "find_by_clues", "whats_new", "my_taste"];
+        ["search_titles", "title_details", "person_credits", "discover", "find_by_clues", "whats_new", "my_taste", "anticipated"];
 
     private static readonly string[] Skills =
         ["filmography", "find-a-forgotten-film", "recommend", "taste-survey", "whats-on"];
@@ -25,7 +25,7 @@ public sealed partial class ProfileTests
     private static PluginProfile Load() => ComposedProfile.Load();
 
     [Fact]
-    public void The_profile_has_the_seven_tools_in_the_order_the_model_is_offered_them()
+    public void The_profile_has_the_tools_in_the_order_the_model_is_offered_them()
     {
         Assert.Equal(Tools, Load().Tools.Select(t => t.Name));
     }

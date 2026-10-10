@@ -125,6 +125,18 @@ public sealed record PopularTitle
     public string? Category { get; init; }
 }
 
+/// <summary>A film people are waiting on: how many, and whether the asking person is one of them.</summary>
+public sealed record AnticipatedTitle
+{
+    public string ImdbId { get; init; } = "";
+    public string Kind { get; init; } = "film";
+    public string Title { get; init; } = "";
+    public int? Year { get; init; }
+    public string? PosterUrl { get; init; }
+    public int Waiters { get; init; }
+    public bool Waiting { get; init; }
+}
+
 public sealed record Popular
 {
     public List<PopularTitle> Films { get; init; } = [];

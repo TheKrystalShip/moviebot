@@ -5,13 +5,14 @@ import { useLoad } from "../data.js";
 import { ANIME, isAnime, libraryPath, listPath, moviePath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { ago, clock, since } from "../time.js";
+import { useCan } from "../session.js";
 import { useOnline } from "../connectivity.js";
 import { useDeviceLibrary } from "../offline/hooks.js";
 import { Off } from "./Offline.jsx";
 import { useDownloadMarks } from "../components/DownloadButton.jsx";
 import { ContinueCard, Empty, Failed, FilmCard, NextEpisodeCard, PosterArt, ShowCard, WatchButton, watchLink } from "../components/Film.jsx";
 import { FilmScore } from "../components/FilmDetails.jsx";
-import { MoreTile } from "../components/TitleCards.jsx";
+import { AnticipatedCard, MoreTile } from "../components/TitleCards.jsx";
 import { BellButton } from "../components/Bell.jsx";
 import { SavedCard } from "./Saved.jsx";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
@@ -21,8 +22,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The front page: a film to watch, where this person left off, the rooms watching something now,
- * their Watch later, what arrived lately, and the shelf split into films, shows and anime. Every row is
- * something the API measured; a row with nothing in it is left out rather than drawn empty.
+ * their Watch later, what arrived lately, the films people are waiting on, and the shelf split into
+ * films, shows and anime. Every row is something the API measured; a row with nothing in it is left
+ * out rather than drawn empty.
  * `fromDevice` is the page opened with no connection, drawing what is downloaded (`DeviceHome`).
  */
 export function Home({ fromDevice = false }) {
@@ -101,6 +103,9 @@ function ServerHome() {
   const progress = useLoad(() => api.progress().catch(() => []), []);
   const showList = useLoad(() => api.shows().catch(() => []), []);
   const later = useLoad(() => api.list("later").catch(() => null), []);
+  const canWish = useCan("cinema:wish");
+  const anticipated = useLoad(() => (canWish ? api.anticipated().catch(() => []) : Promise.resolve([])), [canWish]);
+  const waitedOn = anticipated.data || [];
   // The Movies, TV Shows and Anime rows are dealt in a new order on every visit, and keep it while the
   // page is open, so a read answered again never moves a poster out from under somebody.
   const [deal] = React.useState(() => Math.random().toString(36).slice(2));
@@ -192,6 +197,13 @@ function ServerHome() {
           variant="posters" icon="sparkles" title="Recently added" count={recent.length}
           items={recent} itemKey={itemKey}
           renderItem={either} />
+      )}
+
+      {waitedOn.length > 0 && (
+        <Rail
+          variant="posters" icon="bell" title="Anticipated" count={waitedOn.length}
+          items={waitedOn} itemKey={(f) => f.imdbId}
+          renderItem={(f) => <AnticipatedCard film={f} />} />
       )}
 
       {generalFilms.length > 0 && (

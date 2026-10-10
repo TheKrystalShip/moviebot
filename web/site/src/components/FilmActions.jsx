@@ -6,6 +6,7 @@ import { useCan } from "../session.js";
 import { wishWords } from "../pages/Discover.jsx";
 import { defaultOffer, watchNow } from "../watchNow.js";
 import { DownloadButton, useOffersSaving } from "./DownloadButton.jsx";
+import { waitersWords } from "./TitleCards.jsx";
 import { SaveButton } from "./SaveButton.jsx";
 
 /**
@@ -64,10 +65,7 @@ export function FilmActions({ imdbId, film, state }) {
     }
   };
 
-  const others = a ? a.waiters - (a.waiting ? 1 : 0) : 0;
-  const waitingWords = a && (a.waiting
-    ? (others ? `You + ${others} ${others === 1 ? "other" : "others"} waiting` : "You're waiting")
-    : (others ? `${others} waiting` : "Nobody's waiting yet"));
+  const waitingWords = a && waitersWords(a.waiters, a.waiting);
 
   return (
     <div className="kc-actions">

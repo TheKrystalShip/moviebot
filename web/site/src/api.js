@@ -165,6 +165,7 @@ export const api = {
   invite: (room, userId) => call("POST", `/api/rooms/${enc(room)}/invite`, { userId }),
 
   wishes: () => call("GET", "/api/wishes"),
+  anticipated: () => call("GET", "/api/anticipated"),
   wish: (chosen) => call("POST", "/api/wishes", { chosen }),
   cancelWish: (imdbId) => call("DELETE", `/api/wishes/${enc(imdbId)}`),
 };

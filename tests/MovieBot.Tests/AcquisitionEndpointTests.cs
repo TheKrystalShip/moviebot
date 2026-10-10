@@ -123,4 +123,31 @@ public sealed class AcquisitionEndpointTests(SessionFixture fixture) : IClassFix
         Assert.Equal("cancelled", (await cancelled.Content.ReadFromJsonAsync(ManifestJsonContext.Default.CancelWishReply))?.Outcome);
         Assert.Empty((await bea.GetFromJsonAsync("/api/wishes", ManifestJsonContext.Default.IReadOnlyListWishView))!);
     }
+
+    [Fact]
+    public async Task What_is_anticipated_counts_people_and_names_none()
+    {
+        const string film = "tt1790809";
+        var dee = fixture.CreatePersonClient("81", "Dee", [CinemaActions.Wish]);
+        var eli = fixture.CreatePersonClient("82", "Eli", [CinemaActions.Wish]);
+        using (await dee.PostAsJsonAsync("/api/wishes", new AddWishRequest { Chosen = film }, ManifestJsonContext.Default.AddWishRequest)) { }
+        using (await eli.PostAsJsonAsync("/api/wishes", new AddWishRequest { Chosen = film }, ManifestJsonContext.Default.AddWishRequest)) { }
+
+        var seenByDee = await dee.GetFromJsonAsync("/api/anticipated", ManifestJsonContext.Default.IReadOnlyListAnticipatedView);
+        var entry = Assert.Single(seenByDee!, a => a.ImdbId == film);
+        Assert.Equal("film", entry.Kind);
+        Assert.True(entry.Waiters >= 2);
+        Assert.True(entry.Waiting);
+
+        var seenByStranger = await fixture.CreatePersonClient("83", "Fay", [CinemaActions.Wish])
+            .GetFromJsonAsync("/api/anticipated", ManifestJsonContext.Default.IReadOnlyListAnticipatedView);
+        Assert.False(Assert.Single(seenByStranger!, a => a.ImdbId == film).Waiting);
+
+        var raw = await dee.GetStringAsync("/api/anticipated");
+        Assert.DoesNotContain("userId", raw, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Eli", raw);
+
+        using var refused = await fixture.CreatePersonClient("84", "Vi", [CinemaActions.Watch]).GetAsync("/api/anticipated");
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+    }
 }

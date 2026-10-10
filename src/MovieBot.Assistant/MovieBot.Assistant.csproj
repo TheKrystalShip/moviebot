@@ -7,7 +7,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Assistant</RootNamespace>
     <AssemblyName>moviebot-assistant</AssemblyName>
-    <Version>3.3.0</Version>
+    <Version>3.4.0</Version>
 
     <!-- The plugin package and the film database's answers are read with reflection-based JSON, so
          this runs on the JIT. A service that runs for weeks gains nothing from tiering, so a method

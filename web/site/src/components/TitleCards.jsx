@@ -85,6 +85,27 @@ export function FoundCard({ found, here, held, line = found.starring }) {
   );
 }
 
+/** How many wait on a film, as its page and its card say it: `waiting` is whether the person is one of the `waiters`. */
+export function waitersWords(waiters, waiting) {
+  const others = waiters - (waiting ? 1 : 0);
+  if (waiting) return others ? `You + ${others} ${others === 1 ? "other" : "others"} waiting` : "You're waiting";
+  return others ? `${others} waiting` : "Nobody's waiting yet";
+}
+
+/** A film not out yet that people wait on, from the Anticipated row: its year and how many wait. */
+export function AnticipatedCard({ film }) {
+  return (
+    <ShowcaseCard
+      className="kc-card"
+      name={film.title}
+      art={keptArt(film.imdbId, film.posterUrl)}
+      onPick={() => navigate(discoverFilmPath(film.imdbId))}
+      specs={[{ icon: "calendar", value: film.year || null, label: "Year" }]}
+      status={{ icon: "bell", label: waitersWords(film.waiters, film.waiting) }}
+      action={{ label: "View" }} />
+  );
+}
+
 /**
  * A film somebody is waiting on: out now with its release, or how many wait on it. `onStop` lets the
  * person stop waiting; `downloading` turns a film that is out into Get it.

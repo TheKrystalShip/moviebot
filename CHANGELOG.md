@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0] - 2026-10-10
+
+### Added
+
+- **Anticipated: the films people are waiting on, for everybody to see.** `GET /api/anticipated`
+  lists every wish that is neither out nor in the library, most waited on first, with how many wait on
+  it and whether the person asking is one of them; it names nobody and takes `cinema:wish`. The site's
+  front page and the television's carry it as an Anticipated row after Recently added, each card
+  leading to the film's page, where the person can wait on it too; the count reads as the film's page
+  says it. The assistant answers "what are people waiting for" with an `anticipated` tool. API 3.2.0,
+  Core 4.5.0, assistant 3.4.0, site 0.56.0.
+
 ## [3.2.0] - 2026-10-10
 
 ### Changed

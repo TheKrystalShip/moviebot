@@ -319,6 +319,19 @@
       "replay": true,
       "resultLimit": 12000,
       "deferred": false
+    },
+    {
+      "name": "anticipated",
+      "description": "The films that are not out yet and that people on Krystal Cinema are waiting for, most waiters first, with how many wait on each and whether the asking person is one of them.\n- Use for \"what are people waiting for\", \"what is anticipated\", \"anything coming that people are excited about\".\n- Not the release calendar: whats_new upcoming lists films by date.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "class": "read",
+      "parallel": true,
+      "replay": true,
+      "resultLimit": 8000,
+      "deferred": false
     }
   ],
   "skills": [
@@ -352,7 +365,7 @@
     {
       "name": "whats-on",
       "description": "Answer what is new, popular or coming soon, in general or in a genre.",
-      "body": "# What is on\n\n1. whats_new for the lists: trending for what people are watching this week, released for what is out, upcoming for what has a date, library for what has just arrived here.\n2. discover with sort newest for a genre.\n3. web_search for news the database does not carry yet (festival buzz, a trailer released today), and confirm each title with title_details before naming it.\n4. When the person asks what is new for them, filter it by their taste note as recommend does.\n\nThe released and upcoming lists are the most looked at titles of the window, which can include obscure releases from anywhere; keep the ones that fit the question and skip the rest.",
+      "body": "# What is on\n\n1. whats_new for the lists: trending for what people are watching this week, released for what is out, upcoming for what has a date, library for what has just arrived here.\n2. anticipated for the films not out yet that people here are waiting on, with how many wait on each; it is not the release calendar, which is whats_new upcoming.\n3. discover with sort newest for a genre.\n4. web_search for news the database does not carry yet (festival buzz, a trailer released today), and confirm each title with title_details before naming it.\n5. When the person asks what is new for them, filter it by their taste note as recommend does.\n\nThe released and upcoming lists are the most looked at titles of the window, which can include obscure releases from anywhere; keep the ones that fit the question and skip the rest.",
       "references": {}
     }
   ],

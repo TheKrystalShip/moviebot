@@ -96,6 +96,22 @@ public sealed class Wishes(
             .Select(w => w.View(Out(w.ImdbId)))
             .ToList();
 
+    /// <summary>
+    /// The films people are waiting on that are neither out nor already in the library, with how many
+    /// wait on each. A film that is out or here is nothing to anticipate.
+    /// </summary>
+    public List<AnticipatedView> Anticipated(string userId)
+    {
+        var here = library.List()
+            .Select(t => t.Film?.ImdbId)
+            .OfType<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return wishes.Anticipated(userId)
+            .Where(w => !here.Contains(w.ImdbId) && wishes.OutAs(w.ImdbId) is null)
+            .ToList();
+    }
+
     /// <summary>The release a wished film came out as, as a page shows it; null while it is not out.</summary>
     private ReleaseOffer? Out(string imdbId) => wishes.OutAs(imdbId) is { } release ? OfferedReleases.View(release) : null;
 

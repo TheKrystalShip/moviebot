@@ -7,6 +7,8 @@ import { linkProps } from "../../router.js";
 import { since, timeLeft } from "../../time.js";
 import { Empty, Failed, watchLink } from "../../components/Film.jsx";
 import { SaveButton } from "../../components/SaveButton.jsx";
+import { waitersWords } from "../../components/TitleCards.jsx";
+import { useCan } from "../../session.js";
 import { continueKey, dealt, newest } from "../../pages/Home.jsx";
 import { SpotFacts, SpotStage, entrySpot, showSpot, titleSpot, useSpotlight } from "../spot.jsx";
 import { watchNow } from "../../watchNow.js";
@@ -16,8 +18,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The front page on a television. It opens on the newest film, large, with Watch focused. Down goes
- * into the rows: Continue watching, Watching now, Watch later, Recently added, then the shelf as
- * Movies, TV Shows and Anime, each ending in the tile that leads to all of it. Once focus is in the rows the
+ * into the rows: Continue watching, Watching now, Watch later, Recently added, Anticipated (the films
+ * not out yet that people wait on, for a person who may wait on one), then the shelf as Movies, TV
+ * Shows and Anime, each ending in the tile that leads to all of it. Once focus is in the rows the
  * top of the screen is a spotlight on the card it rests on, the focused row holds one line on the
  * screen, and the rows above it are put away. A row with nothing in it is left out.
  */
@@ -27,6 +30,8 @@ export function TvHome() {
   const progress = useLoad(() => api.progress().catch(() => []), []);
   const showList = useLoad(() => api.shows().catch(() => []), []);
   const later = useLoad(() => api.list("later").catch(() => null), []);
+  const canWish = useCan("cinema:wish");
+  const anticipated = useLoad(() => (canWish ? api.anticipated().catch(() => []) : Promise.resolve([])), [canWish]);
   const [deal] = React.useState(() => Math.random().toString(36).slice(2));
   const { store, pageRef, regionRef, focusOn: card } = useSpotlight();
 
@@ -123,6 +128,18 @@ export function TvHome() {
     rows.push(
       <TvRow key="recent" icon="sparkles" title="Recently added" count={recent.length}>
         {recent.map((item) => either(row, item, "New · added " + since(item.at).toLowerCase()))}
+      </TvRow>,
+    );
+  }
+  const waitedOn = anticipated.data || [];
+  if (waitedOn.length > 0) {
+    const row = rows.length;
+    rows.push(
+      <TvRow key="anticipated" icon="bell" title="Anticipated" count={waitedOn.length}>
+        {waitedOn.map((f) => (
+          <TvCard key={f.imdbId} art={f.posterUrl} label={f.title} {...linkProps(discoverFilmPath(f.imdbId))}
+            {...card(row, { key: "anticipated:" + f.imdbId, art: f.posterUrl, eyebrow: waitersWords(f.waiters, f.waiting), title: f.title, facts: { year: f.year } })} />
+        ))}
       </TvRow>,
     );
   }

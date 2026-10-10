@@ -104,6 +104,27 @@ public sealed class WishList(CinemaDatabase database)
     /// <summary>The films one person is waiting on.</summary>
     public IReadOnlyList<Wish> For(string userId) => database.Read(c => Load(c, null, userId));
 
+    /// <summary>
+    /// Every wish with how many people wait on it and whether <paramref name="userId"/> is one, the
+    /// most waited on first and, among equals, the one most recently asked for. Names nobody.
+    /// </summary>
+    public IReadOnlyList<AnticipatedView> Anticipated(string userId) => database.Read(c => c.Query(
+        "SELECT w.imdb_id, w.title, w.year, w.poster_url, COUNT(*) AS waiters, MAX(s.user_id = $user) AS waiting "
+        + "FROM wishes w JOIN wish_subscribers s ON s.imdb_id = w.imdb_id "
+        + "GROUP BY w.imdb_id ORDER BY waiters DESC, MAX(s.asked_at) DESC, w.rowid",
+        r =>
+        {
+            var title = r.GetString(1);
+            var year = r.GetIntOrNull(2);
+            return new AnticipatedView
+            {
+                ImdbId = r.GetString(0), Title = title, Year = year, PosterUrl = r.GetStringOrNull(3),
+                Display = year is { } y ? $"{title} ({y})" : title,
+                Waiters = r.GetInt32(4), Waiting = r.GetInt32(5) != 0,
+            };
+        },
+        ("$user", userId)));
+
     public Wish? Find(string imdbId) => database.Read(c => Load(c, imdbId, null).FirstOrDefault());
 
     /// <summary>

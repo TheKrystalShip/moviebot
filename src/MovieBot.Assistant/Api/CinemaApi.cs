@@ -71,6 +71,16 @@ public sealed class CinemaApi(HttpClient http)
 
         public Task<Popular> PopularAsync(CancellationToken ct) => GetAsync<Popular>("api/popular", [], ct);
 
+        /// <summary>The films people are waiting on, most waiters first; a person without the right to wait on films is refused in words the model can read.</summary>
+        public async Task<List<AnticipatedTitle>> AnticipatedAsync(CancellationToken ct)
+        {
+            Reply<List<AnticipatedTitle>> reply = await SendAsync<List<AnticipatedTitle>>("api/anticipated", [], ct);
+            if (reply.Value is not null) return reply.Value;
+            throw new ToolRefusal(reply.Status == HttpStatusCode.Forbidden
+                ? "This account may not wait on films in Krystal Cinema, so the list of films people are waiting for is not open to the person."
+                : reply.Message);
+        }
+
         public Task<FilmDetails> FilmAsync(string imdbId, CancellationToken ct) =>
             GetAsync<FilmDetails>($"api/films/{Uri.EscapeDataString(imdbId)}", [], ct);
 

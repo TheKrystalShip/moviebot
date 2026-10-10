@@ -125,6 +125,14 @@ public static class AcquisitionEndpoints
                 : NoPerson())
             .RequireAction(CinemaActions.Wish);
 
+        // What everybody is waiting on, as counts: no one is named.
+        group.MapGet("/anticipated", (HttpContext context, Wishes wishes, Films.TitleGlances glances) =>
+            CinemaPerson.Of(context) is { } person
+                ? Results.Ok(wishes.Anticipated(person.UserId)
+                    .Select(a => a with { PosterUrl = glances.PosterUrl(a.ImdbId) ?? a.PosterUrl }).ToList())
+                : NoPerson())
+            .RequireAction(CinemaActions.Wish);
+
         group.MapPost("/wishes", async (AddWishRequest request, HttpContext context, Wishes wishes, Films.TitleGlances glances, CancellationToken ct) =>
             CinemaPerson.Of(context) is { } person
                 ? Results.Ok(await wishes.SubscribeAsync(request, person.Actor, ct) is var reply && reply.Wish is { } wish

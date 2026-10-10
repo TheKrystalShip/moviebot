@@ -272,6 +272,57 @@ public sealed class WishesTests : IDisposable
         Assert.Single(desk.List("20"));
     }
 
+    private static ImdbTitle Film(string id, string title, int year) => new() { ImdbId = id, Title = title, Year = year };
+
+    private static WishSubscriber Asked(string user, int minute) =>
+        new() { UserId = user, AskedAt = DateTimeOffset.UnixEpoch.AddMinutes(minute) };
+
+    [Fact]
+    public void The_anticipated_are_the_most_waited_on_first_then_the_newest_ask()
+    {
+        var desk = Desk();
+        _wishes.Add(Film("tt0000001", "Lone", 2026), Asked("10", 50));
+        _wishes.Add(Film("tt0000002", "Older Pair", 2026), Asked("10", 1));
+        _wishes.Add(Film("tt0000002", "Older Pair", 2026), Asked("20", 2));
+        _wishes.Add(Film("tt0000003", "Newer Pair", 2026), Asked("30", 3));
+        _wishes.Add(Film("tt0000003", "Newer Pair", 2026), Asked("40", 4));
+        _wishes.Add(Film("tt0000004", "Trio", 2026), Asked("10", 0));
+        _wishes.Add(Film("tt0000004", "Trio", 2026), Asked("20", 0));
+        _wishes.Add(Film("tt0000004", "Trio", 2026), Asked("30", 0));
+
+        var listed = desk.Anticipated("10");
+
+        Assert.Equal(["tt0000004", "tt0000003", "tt0000002", "tt0000001"], listed.Select(a => a.ImdbId));
+        Assert.Equal([3, 2, 2, 1], listed.Select(a => a.Waiters));
+        Assert.Equal([true, false, true, true], listed.Select(a => a.Waiting));
+        Assert.All(listed, a => Assert.Equal("film", a.Kind));
+        Assert.Equal("Trio (2026)", listed[0].Display);
+    }
+
+    [Fact]
+    public void A_wish_that_is_out_or_already_here_is_not_anticipated()
+    {
+        var desk = Desk(inLibrary: new FilmIdentity { ImdbId = "tt0000002", Name = "Here", Year = 2026 });
+        _wishes.Add(Film("tt0000001", "Out", 2026), Asked("10", 1));
+        _wishes.Add(Film("tt0000002", "Here", 2026), Asked("10", 2));
+        _wishes.Add(Film("tt0000003", "Pending", 2026), Asked("10", 3));
+        _wishes.MarkOut("tt0000001", Offered("Out.2026.1080p.WEB-GRP", Source.Web));
+
+        Assert.Equal("tt0000003", Assert.Single(desk.Anticipated("20")).ImdbId);
+    }
+
+    [Fact]
+    public void The_anticipated_name_nobody()
+    {
+        var desk = Desk();
+        _wishes.Add(Film("tt0000001", "Lone", 2026), Asked("local:usr_secret", 1));
+
+        var json = System.Text.Json.JsonSerializer.Serialize(desk.Anticipated("local:usr_secret"), ManifestJsonContext.Default.ListAnticipatedView);
+
+        Assert.DoesNotContain("usr_secret", json);
+        Assert.DoesNotContain("userId", json, StringComparison.OrdinalIgnoreCase);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);

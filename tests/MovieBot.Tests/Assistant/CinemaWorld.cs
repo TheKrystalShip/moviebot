@@ -364,6 +364,7 @@ internal sealed class ToolRig
     public DiscoverTool Discover => new(Api);
     public WhatsNewTool WhatsNew => new(Api);
     public MyTasteTool Taste => new(Api);
+    public AnticipatedTool Anticipated => new(Api);
 
     /// <summary>The day the world is read on; the statuses of its credits are as of it.</summary>
     public static readonly DateTimeOffset Now = new(2026, 10, 9, 12, 0, 0, TimeSpan.Zero);
