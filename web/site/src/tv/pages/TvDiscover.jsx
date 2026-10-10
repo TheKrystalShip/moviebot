@@ -11,11 +11,14 @@ import { foundPage } from "../../components/TitleCards.jsx";
 import { Failed } from "../../components/Film.jsx";
 import { initials } from "../../components/FilmDetails.jsx";
 import { startFilm } from "./TvFilm.jsx";
+import { TvCategory, TvDiscoverFront, TvShelf } from "./TvDiscoverShelves.jsx";
 
 /**
  * Finding anything to watch, on a television. The field is focused when the page opens; OK on it
  * raises the system keyboard, which types, speaks and takes a phone, and its search key searches.
- * With nothing typed, what is popular this week. With a query, the catalogue's first answer large,
+ * With nothing typed, the spotlight and the page's rows (`/api/discover`), with the moods, the
+ * franchises and the browse categories as rows of tiles; `browse` is one category and `shelf` every
+ * title on one shelf. With a query, the catalogue's first answer large,
  * with Watch, More info and Save, then the rest of what it answered and whatever the library holds by
  * that name, all as one row. The query is in the address, as on every surface.
  */
@@ -25,7 +28,9 @@ export function TvDiscover({ query }) {
   const genre = (query.get("genre") || "").trim();
   const genreKind = query.get("kind") === "show" ? "show" : "film";
   const genreCategory = query.get("category") === ANIME ? ANIME : null;
-  const browsing = !q && !!(person || genre);
+  const shelf = (query.get("shelf") || "").trim();
+  const category = (query.get("browse") || "").trim();
+  const browsing = !q && !!(person || genre || shelf || category);
   const [draft, setDraft] = React.useState(q);
   React.useEffect(() => setDraft(q), [q]);
   const downloading = useCan("cinema:download");
@@ -34,7 +39,7 @@ export function TvDiscover({ query }) {
 
   const titles = useLoad(() => api.titles(), []);
   const libraryShows = useLoad(() => api.shows().catch(() => []), []);
-  const popular = useLoad(() => (q || browsing ? Promise.resolve(null) : api.popular().catch(() => null)), [q, browsing]);
+  const index = useLoad(() => (q || person || genre || shelf ? Promise.resolve(null) : api.discover()), [!!(q || person || genre || shelf)]);
   const foundFor = useLoad(() => (q && finding
     ? (downloading ? api.findTitles(q) : api.findFilms(q)).catch(() => [])
     : Promise.resolve([])).then((list) => ({ q, list })), [q, downloading, finding]);
@@ -69,27 +74,10 @@ export function TvDiscover({ query }) {
       {!q && person && <PersonWork key={person} personId={person} where={where} />}
       {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} where={where} />}
 
-      {!q && !browsing && popular.data && (
-        <div className="kc-tvd__rows">
-          {popular.data.films.length > 0 && (
-            <TvRow icon="flame" title="Popular movies now" count={popular.data.films.length}>
-              {popular.data.films.map((f) => (
-                <TvCard key={f.imdbId} art={f.posterUrl} label={f.title}
-                  {...linkProps(foundPage({ ...f, kind: "film" }, filmsHere.get(f.imdbId)))} />
-              ))}
-            </TvRow>
-          )}
-          {popular.data.shows.length > 0 && (
-            <TvRow icon="tv" title="Popular shows now" count={popular.data.shows.length}>
-              {popular.data.shows.map((s) => (
-                <TvCard key={s.imdbId} art={s.posterUrl} label={s.title}
-                  {...linkProps(foundPage({ ...s, kind: "show" }, null, heldShows.has(s.imdbId)))} />
-              ))}
-            </TvRow>
-          )}
-          <p className="kc-tv-tmdb">Popular titles and artwork from TMDB.</p>
-        </div>
-      )}
+      {!q && !person && !genre && shelf && <TvShelf key={shelf} id={shelf} where={where} />}
+      {!q && !person && !genre && !shelf && category && <TvCategory key={category} id={category} index={index} where={where} />}
+      {!q && !browsing && index.error && !index.data && <div className="kc-tv-pad"><Failed error={index.error} onRetry={index.reload} /></div>}
+      {!q && !browsing && index.data && <TvDiscoverFront index={index.data} where={where} />}
 
       {q && answered && (
         <div className="kc-tvd__rows">

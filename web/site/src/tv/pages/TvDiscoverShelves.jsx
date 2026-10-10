@@ -1,0 +1,195 @@
+import React from "react";
+import { Button, CollectionTile, TvBackdrop, TvCard, TvRow, TvSpotlight } from "@thekrystalship/krystal-ui";
+import { api } from "../../api.js";
+import { useLoad } from "../../data.js";
+import { discoverBrowsePath, discoverFilmPath, discoverShelfPath } from "../../paths.js";
+import { linkProps, navigate } from "../../router.js";
+import { Failed, watchHref } from "../../components/Film.jsx";
+import { foundPage } from "../../components/TitleCards.jsx";
+import { surprisePool, useSurprise } from "../../pages/DiscoverShelves.jsx";
+import { SpotFacts } from "../spot.jsx";
+import { startFilm } from "./TvFilm.jsx";
+
+// Discover on a television: the spotlight over the page's artwork, then the page's rows, the moods,
+// the franchises and the browse categories as rows of tiles; a category's shelves as rows; and one
+// shelf's titles in rows that wrap. Every shelf comes from `/api/discover`, as on every surface.
+
+/** How many films the spotlight turns through. */
+const SPOTLIGHT_FILMS = 3;
+
+/** The spotlight: a film from the season's shelf, with Watch, More info and Surprise me. */
+function TvDiscoverSpotlight({ index, where }) {
+  const shelf = useLoad(() => api.discoverShelf(index.spotlight).catch(() => null), [index.spotlight]);
+  const [busy, surprise] = useSurprise(where);
+  const [starting, setStarting] = React.useState(false);
+  const films = shelf.data ? shelf.data.titles.filter((t) => t.kind === "film" && !t.watched).slice(0, SPOTLIGHT_FILMS) : [];
+  const pick = films.length ? films[new Date().getDate() % films.length] : null;
+  const described = useLoad(() => (pick ? api.film(pick.imdbId).catch(() => null) : Promise.resolve(null)), [pick && pick.imdbId]);
+  if (!pick) return null;
+
+  const d = described.data && described.data.imdbId === pick.imdbId ? described.data : null;
+  const { here } = where(pick);
+  const page = here ? foundPage(pick, here) : discoverFilmPath(pick.imdbId);
+  const watch = async () => {
+    if (here) { navigate(watchHref(here.id)); return; }
+    setStarting(true);
+    if (!(await startFilm(pick.imdbId))) setStarting(false);
+  };
+  return (
+    <>
+      <TvBackdrop src={(d && d.backdropUrl) || pick.posterUrl} size="tall" />
+      <section className="kc-tvd__spot" data-tv-row="">
+        <TvSpotlight size="lg" eyebrow={shelf.data.title} title={pick.title}
+          meta={<SpotFacts facts={{
+            rating: pick.rating, year: pick.year, cert: d && d.certification,
+            length: d && d.runtimeMinutes ? `${Math.floor(d.runtimeMinutes / 60)}h ${String(d.runtimeMinutes % 60).padStart(2, "0")}m` : null,
+            genres: d ? d.genres : [],
+          }} />}>
+          {d && d.overview && <p className="tv-spot__overview">{d.overview}</p>}
+          <div className="tv-spot__actions">
+            <Button variant="primary" size="lg" icon="play" busy={starting} onClick={watch}>Watch</Button>
+            <Button size="lg" icon="info" {...linkProps(page)}>More info</Button>
+            <Button size="lg" icon="dices" busy={busy} onClick={() => surprise({ shelves: surprisePool(index) })}>Surprise me</Button>
+          </div>
+        </TvSpotlight>
+      </section>
+    </>
+  );
+}
+
+/** A shelf's tile: a mood's posters fanned, a series' films in order with how far the person got. */
+function TvShelfTile({ head, series, ...rest }) {
+  const link = { ...linkProps(discoverShelfPath(head.id)), ...rest };
+  return series
+    ? (
+      <CollectionTile variant="strip" name={head.title} posters={head.posters || []} total={head.total} watched={head.watched || 0}
+        next={head.next ? "Next: " + head.next : null} caption={head.total != null ? `${head.total} films` : null} {...link} />
+    )
+    : <CollectionTile variant="fan" name={head.title} icon={head.icon} posters={head.posters || []} caption={head.total ? `${head.total} titles` : null} {...link} />;
+}
+
+/** A shelf's row of posters, asked for once it nears the screen; one with nothing on it is left out. */
+function TvShelfRow({ head, where }) {
+  const ref = React.useRef(null);
+  const [near, setNear] = React.useState(false);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el || near) return undefined;
+    if (typeof IntersectionObserver !== "function") {
+      setNear(true);
+      return undefined;
+    }
+    const watcher = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) setNear(true);
+    }, { rootMargin: "400px 0px" });
+    watcher.observe(el);
+    return () => watcher.disconnect();
+  }, [near]);
+  return <div ref={ref} className="kc-tvd__lazy">{near && <TvShelfCards head={head} where={where} />}</div>;
+}
+
+function TvShelfCards({ head, where }) {
+  const shelf = useLoad(() => api.discoverShelf(head.id), [head.id]);
+  const titles = shelf.data ? shelf.data.titles : [];
+  if (titles.length === 0) return null;
+  return (
+    <TvRow icon={head.icon} title={head.title} count={titles.length}>
+      {titles.slice(0, 20).map((t) => {
+        const w = where(t);
+        return <TvCard key={t.kind + t.imdbId} art={t.posterUrl} label={t.title} {...linkProps(foundPage(t, w.here, w.held))} />;
+      })}
+    </TvRow>
+  );
+}
+
+/** The page's rows on a television, in the order `/api/discover` gives them. */
+export function TvDiscoverFront({ index, where }) {
+  const sections = new Map(index.sections.map((s) => [s.id, s]));
+  return (
+    <>
+      <TvDiscoverSpotlight index={index} where={where} />
+      <div className="kc-tvd__rows">
+        {index.rows.map((row) => {
+          if (row.kind === "shelf") return <TvShelfRow key={row.shelf.id} head={row.shelf} where={where} />;
+          if (row.kind === "browse") {
+            return (
+              <TvRow key="browse" icon="compass" title="Browse" count={index.sections.length}>
+                {index.sections.map((s) => (
+                  <CollectionTile key={s.id} variant="fan" name={s.label} icon={s.icon} caption={s.caption} posters={s.posters}
+                    {...linkProps(discoverBrowsePath(s.id))} />
+                ))}
+              </TvRow>
+            );
+          }
+          const section = sections.get(row.kind);
+          if (!section) return null;
+          const shelves = section.shelves.filter((h) => h.total !== 0);
+          return (
+            <TvRow key={row.kind} icon={section.icon} title={section.label} count={shelves.length}>
+              {shelves.map((h) => <TvShelfTile key={h.id} head={h} series={section.series} />)}
+            </TvRow>
+          );
+        })}
+        <p className="kc-tv-tmdb">Titles and artwork from TMDB.</p>
+      </div>
+    </>
+  );
+}
+
+/** One browse category on a television: a series' tiles in rows that wrap, any other's shelves as rows. */
+export function TvCategory({ id, index, where }) {
+  if (index.error && !index.data) return <div className="kc-tv-pad"><Failed error={index.error} onRetry={index.reload} /></div>;
+  if (!index.data) return null;
+  const section = index.data.sections.find((s) => s.id === id);
+  if (!section) return <p className="kc-tvd__none">Nothing by that name.</p>;
+  return (
+    <section className="kc-tvd__browse">
+      <div className="kc-tvd__browse-head">
+        <span className="kc-tvd__browse-text">
+          <span className="tv-spot__eyebrow">Discover</span>
+          <span className="kc-tvd__title">{section.label}</span>
+        </span>
+        <span className="tv-row__count">{section.shelves.length}</span>
+      </div>
+      {section.series
+        ? (
+          <div className="kc-tvsv__grid">
+            {section.shelves.filter((h) => h.total !== 0).map((h, i) => (
+              <TvShelfTile key={h.id} head={h} series data-tv-initial={i === 0 ? "" : undefined} />
+            ))}
+          </div>
+        )
+        : <div className="kc-tvd__rows">{section.shelves.map((h) => <TvShelfRow key={h.id} head={h} where={where} />)}</div>}
+      <p className="kc-tv-tmdb">Titles and artwork from TMDB.</p>
+    </section>
+  );
+}
+
+/** Every title on one shelf, on a television, in rows that wrap. */
+export function TvShelf({ id, where }) {
+  const shelf = useLoad(() => api.discoverShelf(id), [id]);
+  const s = shelf.data;
+  if (shelf.error && !s) return <div className="kc-tv-pad"><Failed error={shelf.error} onRetry={shelf.reload} /></div>;
+  if (!s) return null;
+  return (
+    <section className="kc-tvd__browse">
+      <div className="kc-tvd__browse-head">
+        <span className="kc-tvd__browse-text">
+          <span className="tv-spot__eyebrow">{s.section}</span>
+          <span className="kc-tvd__title">{s.title}</span>
+        </span>
+        <span className="tv-row__count">{s.titles.length}</span>
+      </div>
+      <div className="kc-tvsv__grid">
+        {s.titles.map((t, i) => {
+          const w = where(t);
+          return (
+            <TvCard key={t.kind + t.imdbId} art={t.posterUrl} label={t.title} data-tv-initial={i === 0 ? "" : undefined}
+              {...linkProps(foundPage(t, w.here, w.held))} />
+          );
+        })}
+      </div>
+      <p className="kc-tv-tmdb">Titles and artwork from TMDB.</p>
+    </section>
+  );
+}

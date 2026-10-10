@@ -422,24 +422,42 @@ a.kc-row__title:hover { color: var(--krystal-teal-hover); }
   .kc-search--discover input { font-size: 16px; }
 }
 
-/* Discover's shelves: the moods as one row of chips that scrolls sideways, the page's actions, and a
-   rail's place held at its height until its shelf is asked for. */
-.kc-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-.kc-chips::-webkit-scrollbar { display: none; }
-.kc-chips .kc-season-chip { flex: none; text-decoration: none; }
-.kc-discover-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.kc-hide-watched { margin-left: auto; display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--fg-2); cursor: pointer; }
+/* Discover: the field with the filter beside it at the field's height; a rail's place held until its
+   shelf is asked for; the tiles' rails and the browse grid; and the spotlight's pager. */
+.kc-discover-bar { display: flex; align-items: stretch; gap: 10px; }
+.kc-discover-bar .kc-search { flex: 1; min-width: 0; }
+.kc-discover-filters { display: flex; align-items: stretch; }
+.kc-discover-filters .toolbar-filter { display: flex; align-items: stretch; }
+.kc-discover-filters .toolbar-filter__trigger {
+  height: auto; padding: 0 18px; font-size: 14px; border: 1px solid var(--border-strong); border-radius: var(--r-md, var(--r-sm));
+}
 .kc-lazy-shelf { min-width: 0; }
 .kc-rail-skeleton { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.kc-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-/* Nine tabs: one line that scrolls sideways when the page is narrowed, by the dock or a small window. */
-.kc-discover .subtabs { overflow-x: auto; scrollbar-width: none; max-width: 100%; }
-.kc-discover .subtabs::-webkit-scrollbar { display: none; }
-.kc-discover .subtab { flex: none; white-space: nowrap; }
-.kc-browse-head__text h2 .lucide { vertical-align: -2px; color: var(--fg-3); }
-@media (max-width: 430px) {
-  .kc-hide-watched { margin-left: 0; }
-  .kc-filters .k-select { flex: 1 1 calc(50% - 5px); }
+.rail--tiles .rail__track { --rail-per-view: 4.3; }
+@container rail (max-width: 1100px) { .rail--tiles .rail__track { --rail-per-view: 3.2; } }
+@container rail (max-width: 760px) { .rail--tiles .rail__track { --rail-per-view: 2.2; } }
+@container rail (max-width: 430px) { .rail--tiles .rail__track { --rail-per-view: 1.4; } }
+.kc-browse-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; padding: 14px; }
+.kc-shelf > .kc-browse-grid { padding: 0; }
+@media (max-width: 600px) { .kc-browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; } }
+.kc-browse-head__text h2 { display: flex; align-items: center; gap: 12px; }
+.kc-browse-head__mark {
+  width: 36px; height: 36px; flex: none; border-radius: 999px; background: var(--krystal-teal-dim); color: var(--krystal-teal-hover);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.kc-spotlight__eyebrow { display: inline-flex; align-items: center; gap: 7px; }
+.kc-spotlight__pager { position: absolute; right: 20px; bottom: 18px; display: flex; gap: 6px; }
+.kc-spotlight__pager button {
+  width: 8px; height: 4px; padding: 0; border: none; border-radius: 2px; cursor: pointer;
+  background: color-mix(in srgb, var(--fg-1) 30%, transparent); transition: width var(--d-base, 140ms) ease;
+}
+.kc-spotlight__pager button[aria-current] { width: 22px; background: var(--fg-1); }
+@media (max-width: 600px) {
+  .kc-discover-filters .toolbar-filter__trigger { width: 52px; padding: 0; justify-content: center; position: relative; }
+  .kc-discover-filters .toolbar-filter__trigger > span:not(.toolbar-filter__badge) { display: none; }
+  .kc-spotlight .kc-featured__overview {
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
 }
 
 /* Discover's heading over a person's work or a genre: who or what, and how many. */

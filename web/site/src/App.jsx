@@ -273,7 +273,7 @@ function Frame({ session, route }) {
         </>}
         tabBar={<TabBar items={TABS.map(tab)} />}>
         {inActivity && <CallBar />}
-        <PageStage route={route} render={(r) => <Reachable route={r} onAsk={online ? () => dock.setOpen(true) : null} />} above={(r) => <Trail route={r} />} onShown={toTop} />
+        <PageStage route={route} render={(r) => <Reachable route={r} />} above={(r) => <Trail route={r} />} onShown={toTop} />
         <SiteFooter />
       </AppShell>
       <Toasts />
@@ -304,13 +304,13 @@ function useOfflineTabs(offline, needsServer) {
  * Opened with one, it stays as it is when the connection goes: what it shows stands, and its controls
  * that ask the server are disabled where they are drawn.
  */
-function Reachable({ route, onAsk }) {
+function Reachable({ route }) {
   const online = useOnline();
   const [fromDevice, setFromDevice] = React.useState(!online);
   React.useEffect(() => {
     if (online && fromDevice) setFromDevice(false);
   }, [online, fromDevice]);
-  return <Page key={fromDevice ? "device" : "server"} route={route} fromDevice={fromDevice} onAsk={onAsk} />;
+  return <Page key={fromDevice ? "device" : "server"} route={route} fromDevice={fromDevice} />;
 }
 
 /**
@@ -398,7 +398,7 @@ function useDiscoverKey(onDiscover) {
  * draw are drawn from it, Discover says it is out of reach, and so does every page only the server
  * can give.
  */
-function Page({ route, fromDevice, onAsk }) {
+function Page({ route, fromDevice }) {
   switch (route.view) {
     case "home": return <Home fromDevice={fromDevice} />;
     case "movies": return <Library key="film" kind="film" fromDevice={fromDevice} />;
@@ -417,7 +417,7 @@ function Page({ route, fromDevice, onAsk }) {
   if (fromDevice) return <Unreachable place={route.view === "discover" || route.view === "discover-film" ? "discover" : null} />;
   switch (route.view) {
     case "discover-film": return <CatalogueFilm key={route.arg} imdbId={route.arg} />;
-    case "discover": return <Discover query={route.query} onAsk={onAsk} />;
+    case "discover": return <Discover query={route.query} />;
     case "saved": return <Saved />;
     case "list": return <ListPage key={route.arg} id={route.arg} />;
     case "notify": return <Notify />;

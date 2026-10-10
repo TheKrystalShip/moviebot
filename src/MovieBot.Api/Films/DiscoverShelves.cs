@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
@@ -117,7 +118,7 @@ public sealed record ShelfTitleView
     public TitleCategory? Category { get; init; }
 }
 
-/// <summary>A shelf as its tab lists it, before its titles are asked for.</summary>
+/// <summary>A shelf as Discover lists it, before its titles are asked for.</summary>
 public sealed record ShelfHeadView
 {
     public required string Id { get; init; }
@@ -126,23 +127,61 @@ public sealed record ShelfHeadView
 
     /// <summary><c>film</c> or <c>show</c>; absent for a shelf of both.</summary>
     public string? Kind { get; init; }
+
+    /// <summary>For a shelf drawn as a tile: the posters of its first titles, in its order, served from here.</summary>
+    public List<string>? Posters { get; init; }
+
+    /// <summary>For a shelf drawn as a tile: how many titles are on it.</summary>
+    public int? Total { get; init; }
+
+    /// <summary>For a series: how many of its films the asking person watched through.</summary>
+    public int? Watched { get; init; }
+
+    /// <summary>For a series some of whose films the person watched: the first they have not, by the part of its name that tells it from the series.</summary>
+    public string? Next { get; init; }
 }
 
-/// <summary>A tab of the Discover page and the shelves on it, in order.</summary>
+/// <summary>A browse category of the Discover page and the shelves in it, in order.</summary>
 public sealed record ShelfSectionView
 {
     public required string Id { get; init; }
     public required string Label { get; init; }
     public required string Icon { get; init; }
+
+    /// <summary>What is in it, in a few words: how many shelves.</summary>
+    public required string Caption { get; init; }
+
+    /// <summary>Three posters from its first shelves, for its tile.</summary>
+    public required List<string> Posters { get; init; }
+
+    /// <summary>Whether its shelves are series, drawn as a grid of tiles rather than rows.</summary>
+    public bool Series { get; init; }
+
     public required List<ShelfHeadView> Shelves { get; init; }
+}
+
+/// <summary>
+/// One row of Discover's page with nothing typed: <c>shelf</c> (its <c>shelf</c>), <c>moods</c> and
+/// <c>franchises</c> (those categories' shelves as tiles), or <c>browse</c> (the categories as tiles).
+/// </summary>
+public sealed record DiscoverRowView
+{
+    public required string Kind { get; init; }
+    public ShelfHeadView? Shelf { get; init; }
 }
 
 /// <summary>A language the Discover page's filter offers: its ISO 639-1 code and its English name.</summary>
 public sealed record LanguageOptionView(string Code, string Name);
 
-/// <summary>What <c>/api/discover</c> answers: the tabs and their shelves for the viewer, and what the filter picks from.</summary>
+/// <summary>What <c>/api/discover</c> answers: the page's rows and categories for the viewer, and what the filter picks from.</summary>
 public sealed record DiscoverIndexView
 {
+    /// <summary>The shelf the page's spotlight draws from: the season's, else the week's trending films.</summary>
+    public required string Spotlight { get; init; }
+
+    public required List<DiscoverRowView> Rows { get; init; }
+
+    /// <summary>The browse categories, in order.</summary>
     public required List<ShelfSectionView> Sections { get; init; }
 
     /// <summary>The database's genres for films, by name.</summary>
@@ -161,7 +200,7 @@ public sealed record ShelfView
     public required string Title { get; init; }
     public required string Icon { get; init; }
 
-    /// <summary>The tab it is on, by its label.</summary>
+    /// <summary>The category it is in, by its label.</summary>
     public required string Section { get; init; }
 
     public string? Kind { get; init; }
@@ -197,19 +236,26 @@ public sealed class DiscoverShelves(
     /// <summary>How far back what the people here watched is read.</summary>
     internal static readonly TimeSpan PopularHereWindow = TimeSpan.FromDays(30);
 
-    /// <summary>The tabs, in the order they are shown; the first is the page's own.</summary>
+    /// <summary>Where every shelf belongs: the page's own rows (<c>for-you</c>), then the browse categories in order.</summary>
     public static readonly IReadOnlyList<ShelfSection> Sections =
     [
         new("for-you", "For you", "sparkles"),
         new("moods", "Moods", "smile"),
-        new("movies", "Movies", "clapperboard"),
+        new("movies", "Movies", "trophy"),
         new("shows", "TV Shows", "tv"),
         new("genres", "Genres", "shapes"),
         new("themes", "Themes", "tags"),
         new("world", "World cinema", "globe"),
         new("franchises", "Franchises", "library"),
-        new("makers", "Studios and directors", "megaphone"),
+        new("studios", "Studios", "clapperboard"),
+        new("directors", "Directors", "megaphone"),
     ];
+
+    /// <summary>The category whose shelves are series, drawn as strips that follow a person through them.</summary>
+    private const string SeriesSection = "franchises";
+
+    /// <summary>How many posters a tile is handed: as many as a strip can show.</summary>
+    private const int TilePosters = 4;
 
     /// <summary>The languages the filter offers, besides any.</summary>
     public static readonly IReadOnlyList<LanguageOptionView> FilterLanguages =
@@ -234,50 +280,133 @@ public sealed class DiscoverShelves(
     /// <summary>The directors a spotlight on the first tab turns through, a different one each day.</summary>
     private static readonly IReadOnlyList<Shelf> Directors = [.. Fixed.Where(s => s.Source == ShelfSource.Director)];
 
-    /// <summary>The tabs and their shelves for one viewer; <paramref name="viewerId"/> is null for the service key.</summary>
+    /// <summary>
+    /// The page's rows and the browse categories for one viewer; <paramref name="viewerId"/> is null for
+    /// the service key. A shelf drawn as a tile (a mood, a series, a category) carries its posters, read
+    /// from what was last answered for it, and a series how far the viewer got through it.
+    /// </summary>
     public async Task<DiscoverIndexView> IndexAsync(string? viewerId, CancellationToken ct)
     {
         var today = Today();
         var titles = library.Titles();
+        var held = LibraryShelf.Of(titles, record, viewerId);
         var personal = Personal(viewerId, titles);
+        var shown = Fixed.Where(s => s.Season is null || s.Season.Holds(today)).ToList();
+        var seasonal = shown.Where(s => s.Season is not null).ToList();
+
+        // What a tile draws: every mood and series, and the first shelves of each category.
+        var drawn = shown.Where(s => s.Section is "moods" or SeriesSection).ToList();
+        foreach (var section in Sections.Skip(1))
+            drawn.AddRange(shown.Where(s => s.Section == section.Id).Take(3));
+        await KnownAsync(drawn.Distinct(), titles, ct);
+
+        ShelfHeadView Drawn(Shelf shelf)
+        {
+            var listed = _known.GetValueOrDefault(shelf.Id) ?? [];
+            var head = Head(shelf) with
+            {
+                Posters = [.. listed.Where(t => t.PosterUrl is not null).Take(TilePosters).Select(t => t.PosterUrl!)],
+                Total = listed.Count,
+            };
+            if (shelf.Section != SeriesSection) return head;
+            var watched = listed.Count(t => held.Saw(t.Kind, t.ImdbId));
+            var next = listed.FirstOrDefault(t => !held.Saw(t.Kind, t.ImdbId));
+            return head with
+            {
+                Watched = watched,
+                Next = watched > 0 && next is not null ? Shortened(next.Title, shelf.Title) : null,
+            };
+        }
 
         var sections = new List<ShelfSectionView>();
-        foreach (var section in Sections)
+        foreach (var section in Sections.Skip(1))
         {
-            var shelves = Fixed.Where(s => s.Section == section.Id && (s.Season is null || s.Season.Holds(today))).ToList();
-            if (section.Id == "for-you")
-            {
-                // The season's first, then what follows from the viewer's own watching, what is popular
-                // everywhere and here, the day's director, what is out and coming, and what plays now.
-                var spotlight = Directors[today.DayOfYear % Directors.Count];
-                Shelf Named(string id) => shelves.First(s => s.Id == id);
-                shelves =
-                [
-                    .. shelves.Where(s => s.Season is not null),
-                    .. personal.Where(s => s.Source == ShelfSource.Like),
-                    Named("trending-today"), Named("trending-films"), Named("trending-shows"),
-                    .. personal.Where(s => s.Source == ShelfSource.PopularHere),
-                    spotlight,
-                    Named("in-cinemas"), Named("new-releases"), Named("coming-soon"),
-                    .. personal.Where(s => s.Source == ShelfSource.ReadyHere),
-                ];
-            }
+            var shelves = shown.Where(s => s.Section == section.Id).ToList();
+            var firsts = shelves.Take(3).Select(s => _known.GetValueOrDefault(s.Id) ?? []).ToList();
             sections.Add(new ShelfSectionView
             {
                 Id = section.Id,
                 Label = section.Label,
                 Icon = section.Icon,
-                Shelves = [.. shelves.Select(Head)],
+                Caption = Caption(shelves),
+                Posters = [.. Spread(firsts).Take(3)],
+                Series = section.Id == SeriesSection,
+                Shelves = [.. shelves.Select(s => s.Section is "moods" or SeriesSection ? Drawn(s) : Head(s))],
             });
         }
 
+        // The likes of what the viewer watched and the season's first, then the moods and what is
+        // popular, the series, what is popular here, the categories, the day's director, what is out and
+        // coming, and what plays now.
+        Shelf Named(string id) => ById[id];
+        DiscoverRowView Row(Shelf shelf) => new() { Kind = "shelf", Shelf = Head(shelf) };
+        var rows = new List<DiscoverRowView>();
+        rows.AddRange(personal.Where(s => s.Source == ShelfSource.Like).Select(Row));
+        rows.AddRange(seasonal.Select(Row));
+        rows.Add(new DiscoverRowView { Kind = "moods" });
+        rows.Add(Row(Named("trending-today")));
+        rows.Add(new DiscoverRowView { Kind = "franchises" });
+        rows.AddRange(personal.Where(s => s.Source == ShelfSource.PopularHere).Select(Row));
+        rows.Add(Row(Named("trending-films")));
+        rows.Add(Row(Named("trending-shows")));
+        rows.Add(new DiscoverRowView { Kind = "browse" });
+        rows.Add(Row(Directors[today.DayOfYear % Directors.Count]));
+        rows.Add(Row(Named("in-cinemas")));
+        rows.Add(Row(Named("new-releases")));
+        rows.Add(Row(Named("coming-soon")));
+        rows.AddRange(personal.Where(s => s.Source == ShelfSource.ReadyHere).Select(Row));
+
         return new DiscoverIndexView
         {
+            Spotlight = seasonal.FirstOrDefault()?.Id ?? "trending-films",
+            Rows = rows,
             Sections = sections,
             FilmGenres = [.. (await catalogue.GenresAsync("film", ct) ?? []).Select(g => g.Name)],
             ShowGenres = [.. (await catalogue.GenresAsync("show", ct) ?? []).Where(g => !UnscriptedShowGenres.Contains(g.Id)).Select(g => g.Name)],
             Languages = [.. FilterLanguages],
         };
+    }
+
+    /// <summary>
+    /// The titles last answered for each shelf the same for everybody, as nobody in particular sees
+    /// them: what a tile draws its posters and a series its films from. The warmer keeps every one.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, List<ShelfTitleView>> _known = new(StringComparer.Ordinal);
+
+    /// <summary>Answers each of the shelves nothing is known of yet, a few at a time.</summary>
+    private async Task KnownAsync(IEnumerable<Shelf> shelves, IReadOnlyList<TitleSummary> titles, CancellationToken ct)
+    {
+        var missing = shelves.Where(s => s.Shared && !_known.ContainsKey(s.Id)).ToList();
+        await Parallel.ForEachAsync(missing, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
+            async (shelf, token) => await TitlesAsync(shelf, null, titles, token));
+    }
+
+    /// <summary>A category's caption: how many shelves it holds.</summary>
+    private static string Caption(IReadOnlyList<Shelf> shelves) => shelves.Count == 1 ? "1 shelf" : $"{shelves.Count} shelves";
+
+    /// <summary>The first poster of each list, then the second of each, and so on, each once.</summary>
+    private static IEnumerable<string> Spread(IReadOnlyList<List<ShelfTitleView>> lists)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < 10; i++)
+            foreach (var list in lists)
+                if (i < list.Count && list[i].PosterUrl is { } poster && seen.Add(poster))
+                    yield return poster;
+    }
+
+    /// <summary>
+    /// A film's name as told apart from its series: what follows the series' name and any joining word,
+    /// <c>Part II</c> of <c>Back to the Future</c>, <c>Chamber of Secrets</c> of <c>Harry Potter</c>;
+    /// its whole name when it does not begin with the series'.
+    /// </summary>
+    internal static string Shortened(string title, string series)
+    {
+        var name = series.StartsWith("The ", StringComparison.Ordinal) && !title.StartsWith("The ", StringComparison.Ordinal) ? series[4..] : series;
+        if (!title.StartsWith(name, StringComparison.OrdinalIgnoreCase) || title.Length == name.Length || char.IsLetterOrDigit(title[name.Length])) return title;
+        var rest = title[name.Length..].TrimStart(' ', ':', '-', '–', '—', '.', ',');
+        foreach (var joint in new[] { "and the ", "and ", "of the " })
+            if (rest.StartsWith(joint, StringComparison.OrdinalIgnoreCase)) rest = rest[joint.Length..];
+        return rest.Length > 0 ? rest : title;
     }
 
     /// <summary>One shelf and its titles for a viewer, by its id; NotFound for an id that names no shelf.</summary>
@@ -319,6 +448,13 @@ public sealed class DiscoverShelves(
     private static ShelfHeadView Head(Shelf shelf) => new() { Id = shelf.Id, Title = shelf.Title, Icon = shelf.Icon, Kind = shelf.Kind };
 
     private async Task<Outcome<List<ShelfTitleView>>> TitlesAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, CancellationToken ct)
+    {
+        var answer = await AnsweredAsync(shelf, viewerId, titles, ct);
+        if (shelf.Shared && answer.Value is { } found) _known[shelf.Id] = found;
+        return answer;
+    }
+
+    private async Task<Outcome<List<ShelfTitleView>>> AnsweredAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, CancellationToken ct)
     {
         var held = LibraryShelf.Of(titles, record, viewerId);
         var limit = CatalogueSearch.ShelfListed;
@@ -755,7 +891,7 @@ public sealed class DiscoverShelves(
                      ("aardman", "Aardman", 297), ("marvel-studios", "Marvel Studios", 420), ("disney-animation", "Walt Disney Animation Studios", 6125),
                      ("neon", "Neon", 90733),
                  })
-            shelves.Add(Film("makers", id, name, "building", new DiscoverQuery { Kind = "film", CompanyIds = [company], MinVotes = 50 }));
+            shelves.Add(Film("studios", id, name, "building", new DiscoverQuery { Kind = "film", CompanyIds = [company], MinVotes = 50 }));
         foreach (var (id, name, person) in new[]
                  {
                      ("christopher-nolan", "Christopher Nolan", 525), ("denis-villeneuve", "Denis Villeneuve", 137427), ("quentin-tarantino", "Quentin Tarantino", 138),
@@ -766,7 +902,7 @@ public sealed class DiscoverShelves(
                      ("akira-kurosawa", "Akira Kurosawa", 5026), ("park-chan-wook", "Park Chan-wook", 10099), ("sofia-coppola", "Sofia Coppola", 1769),
                      ("joel-coen", "Joel Coen", 1223), ("edgar-wright", "Edgar Wright", 11090), ("jordan-peele", "Jordan Peele", 291263),
                  })
-            shelves.Add(new Shelf { Section = "makers", Id = id, Title = $"Directed by {name}", Icon = "megaphone", Source = ShelfSource.Director, DatabaseId = person });
+            shelves.Add(new Shelf { Section = "directors", Id = id, Title = $"Directed by {name}", Icon = "megaphone", Source = ShelfSource.Director, DatabaseId = person });
 
         return shelves;
     }

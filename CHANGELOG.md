@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.0] - 2026-10-10
+
+### Changed
+
+- **Discover is a page to browse, the same on a computer, a phone and a television.** The mood chips,
+  the row of buttons and the nine tabs give way to the page's own rows: a spotlight on a film from the
+  season's shelf (Watch, More info, Surprise me), the shelves as rails of posters, the moods as a rail
+  of tiles that fan three of each mood's posters, the franchises as tiles that lay each series' films
+  out in order and follow the person through it (the films ahead dimmed, a segment per film, the next
+  named), and the browse categories as a grid of tiles: Moods, Movies, TV Shows, Genres, Themes, World
+  cinema, Franchises, Studios and Directors, each its own page at `/discover?browse=`. Filters sits
+  beside the field and opens the filter; a shelf's page and the filter use the library's Toolbar, with
+  Watched among the filters and Surprise me beside the count. The tiles are krystal-ui's
+  `CollectionTile` (0.21.2). `/api/discover` answers the page's rows, the categories with their
+  posters, and each franchise's progress for the person. API 3.5.0, site 0.59.0.
+
 ## [3.7.0] - 2026-10-10
 
 ### Added

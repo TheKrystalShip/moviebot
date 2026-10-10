@@ -4,23 +4,25 @@ import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useOnline } from "../connectivity.js";
 import { useCan } from "../session.js";
-import { ANIME, discoverPath } from "../paths.js";
+import { ANIME, discoverFilmPath, discoverPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard, watchHref } from "../components/Film.jsx";
 import { FilmActions } from "../components/FilmActions.jsx";
 import { FilmScore, initials } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
-import { DiscoverFront, FilterPage, ShelfPage } from "./DiscoverShelves.jsx";
+import { CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, LandingFilters, ShelfPage, surprisePool, useSurprise } from "./DiscoverShelves.jsx";
 import { openingEpisode, watchOpening } from "../watchNow.js";
 
 /** The class the page's field carries, so the shortcut that opens the page can find it. */
 export const DISCOVER_FIELD = "kc-search--discover";
 
 /**
- * Finding anything to watch, here or not. With nothing typed, the field and the shelves, by tab
- * (`tab`), with the moods as chips, Surprise me, the filter and the assistant; `shelf` is every title
- * on one shelf, and `filter` the filter's answers at the choices the address holds. With a query, the catalogue's films and shows in its own order, each by its poster: the first
+ * Finding anything to watch, here or not. With nothing typed, the field with the filter beside it, a
+ * spotlight on a film from the season's shelf, and the page's rows (`/api/discover`): shelves of
+ * posters, the moods and the franchises as tiles, and the browse categories. `browse` is one
+ * category, `shelf` every title on one shelf, and `filter` the filter's answers at the choices the
+ * address holds. With a query, the catalogue's films and shows in its own order, each by its poster: the first
  * answer large, the rest as cards, followed by anything the server can play by that name that the
  * catalogue did not answer with. A result is a result wherever it is played from: one that can be
  * played now plays from here, and nothing says where it comes from. With a person (`person`, the film database's id for them) instead, the films and shows
@@ -28,7 +30,7 @@ export const DISCOVER_FIELD = "kc-search--discover";
  * popular films or shows in it. Every answer leads to its own page. What is shown is in the address,
  * so it can be shared and reloaded.
  */
-export function Discover({ query, onAsk }) {
+export function Discover({ query }) {
   const online = useOnline();
   const q = (query.get("q") || "").trim();
   const person = /^\d+$/.test(query.get("person") || "") ? query.get("person") : null;
@@ -36,8 +38,9 @@ export function Discover({ query, onAsk }) {
   const genreKind = query.get("kind") === "show" ? "show" : "film";
   const genreCategory = query.get("category") === ANIME ? ANIME : null;
   const shelf = (query.get("shelf") || "").trim();
+  const category = (query.get("browse") || "").trim();
   const filtering = query.has("filter");
-  const browsing = !q && !!(person || genre || shelf || filtering);
+  const browsing = !q && !!(person || genre || shelf || category || filtering);
   const [draft, setDraft] = React.useState(q);
   React.useEffect(() => setDraft(q), [q]);
   const field = useFocusOnceShown();
@@ -56,6 +59,9 @@ export function Discover({ query, onAsk }) {
   const answered = !finding || (foundFor.data && foundFor.data.q === q);
   const found = answered && foundFor.data && foundFor.data.q === q ? foundFor.data.list : [];
   const libraryShows = useLoad(() => api.shows().catch(() => []), []);
+  // The page's rows and categories, and what the filter picks from, for everything here that is not a
+  // search, a person or a genre.
+  const index = useLoad(() => (q || person || genre ? Promise.resolve(null) : api.discover()), [!!(q || person || genre)]);
 
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const named = (name) => words.every((w) => name.toLowerCase().includes(w));
@@ -86,18 +92,29 @@ export function Discover({ query, onAsk }) {
   return (
     <div className="kc-page kc-discover">
       <PageHead title="Discover" />
+      <div className="kc-discover-bar">
       <form className={"kc-search " + DISCOVER_FIELD + (online ? "" : " is-off")} onSubmit={submit} role="search">
         <Icon name="search" size={20} />
         <input ref={field} value={draft} onChange={(e) => setDraft(e.target.value)} disabled={!online}
           placeholder="Any movie or show" aria-label="Any movie or show" enterKeyHint="search" />
         <Button type="submit" variant="primary" size="lg" disabled={!online}>Search</Button>
       </form>
+      {!q && !browsing && online && <LandingFilters index={index.data} />}
+      </div>
 
       {!q && person && <PersonWork key={person} personId={person} where={where} />}
       {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} where={where} />}
       {!q && !person && !genre && shelf && <ShelfPage key={shelf} id={shelf} where={where} />}
-      {!q && !person && !genre && !shelf && filtering && <FilterPage query={query} where={where} />}
-      {!q && !browsing && <DiscoverFront tab={query.get("tab")} where={where} onAsk={onAsk} />}
+      {!q && !person && !genre && !shelf && category && <CategoryPage key={category} id={category} index={index} where={where} />}
+      {!q && !person && !genre && !shelf && !category && filtering && <FilterPage query={query} index={index} where={where} />}
+      {!q && !browsing && index.error && !index.data && <Failed error={index.error} onRetry={index.reload} />}
+      {!q && !browsing && !index.data && !index.error && <FrontSkeleton />}
+      {!q && !browsing && index.data && (
+        <>
+          <Spotlight key={index.data.spotlight} index={index.data} where={where} />
+          <DiscoverRows index={index.data} where={where} />
+        </>
+      )}
 
       {q && (
         <>
@@ -118,6 +135,71 @@ export function Discover({ query, onAsk }) {
         </>
       )}
     </div>
+  );
+}
+
+/** How many films the spotlight turns through. */
+const SPOTLIGHT_FILMS = 3;
+
+/**
+ * The page's spotlight: a film from the season's shelf, or the week's trending films out of season,
+ * drawn as Home draws its film, with its actions as its own page offers them, More info, and Surprise
+ * me. It turns through the first few the person has not watched, a different one leading each day.
+ */
+function Spotlight({ index, where }) {
+  const shelf = useLoad(() => api.discoverShelf(index.spotlight).catch(() => null), [index.spotlight]);
+  const [turn, setTurn] = React.useState(() => new Date().getDate());
+  const [busy, surprise] = useSurprise(where);
+  const films = shelf.data ? shelf.data.titles.filter((t) => t.kind === "film" && !t.watched).slice(0, SPOTLIGHT_FILMS) : [];
+  const pick = films.length ? films[turn % films.length] : null;
+  const described = useLoad(() => (pick ? api.film(pick.imdbId).catch(() => null) : Promise.resolve(null)), [pick && pick.imdbId]);
+  if (!pick) return shelf.data || shelf.error ? null : <Skeleton w="100%" h={380} r={6} />;
+
+  const d = described.data && described.data.imdbId === pick.imdbId ? described.data : null;
+  const { here } = where(pick);
+  const playable = here && here.status === "ready";
+  const page = here ? foundPage(pick, here) : discoverFilmPath(pick.imdbId);
+  const art = (d && d.backdropUrl) || pick.posterUrl;
+  const more = (
+    <>
+      <Button size="xl" icon="info" {...linkProps(page)}>More info</Button>
+      <Button size="xl" variant="ghost" icon="dices" busy={busy} onClick={() => surprise({ shelves: surprisePool(index) })}>Surprise me</Button>
+    </>
+  );
+  return (
+    <section className="kc-featured kc-spotlight">
+      {art && <div className="kc-featured__art" style={{ backgroundImage: `url("${art}")` }} />}
+      <div className="kc-featured__scrim" />
+      <div className="kc-featured__body">
+        <span className="kc-eyebrow kc-spotlight__eyebrow"><Icon name={shelf.data.icon} size={14} />{shelf.data.title}</span>
+        <h1>{pick.title}</h1>
+        <div className="kc-featured__meta">
+          {pick.rating != null && <FilmScore rating={pick.rating} votes={pick.votes} compact />}
+          {pick.year && <span>{pick.year}</span>}
+          {d && d.certification && <span className="kc-cert">{d.certification}</span>}
+          {d && d.runtimeMinutes && <span>{Math.floor(d.runtimeMinutes / 60)}h {String(d.runtimeMinutes % 60).padStart(2, "0")}m</span>}
+          {d && d.genres.length > 0 && <span>{d.genres.join(" · ")}</span>}
+        </div>
+        {d && d.overview && <p className="kc-featured__overview">{d.overview}</p>}
+        {d && d.directors.length > 0 && <span className="kc-featured__starring">Directed by <b>{d.directors.join(", ")}</b></span>}
+        {here
+          ? (
+            <div className="kc-actions">
+              {playable && <Button variant="primary" size="xl" icon="play" onClick={() => navigate(watchHref(here.id))}>Watch</Button>}
+              {more}
+            </div>
+          )
+          : <FilmMatchActions found={pick} compact>{more}</FilmMatchActions>}
+      </div>
+      {films.length > 1 && (
+        <div className="kc-spotlight__pager">
+          {films.map((f, i) => (
+            <button key={f.imdbId} type="button" aria-label={`Show ${f.title}`} aria-current={i === turn % films.length ? "true" : undefined}
+              onClick={() => setTurn(i)} />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -256,13 +338,16 @@ function BestMatch({ found, here, held, shelf }) {
   );
 }
 
-/** A film that has to be fetched, as its own page offers it: whether it can be is asked as soon as it is shown. */
-function FilmMatchActions({ found }) {
+/**
+ * A film that has to be fetched, as its own page offers it: whether it can be is asked as soon as it is
+ * shown. `compact` and `children` are FilmActions'.
+ */
+function FilmMatchActions({ found, compact, children }) {
   const downloading = useCan("cinema:download");
   const wishing = useCan("cinema:wish");
   const state = useLoad(() => (downloading || wishing ? api.availability(found.imdbId) : Promise.resolve(null)), [found.imdbId, downloading, wishing]);
   const film = { title: found.title, year: found.year, posterUrl: found.posterUrl, directors: [] };
-  return <FilmActions imdbId={found.imdbId} film={film} state={state} />;
+  return <FilmActions imdbId={found.imdbId} film={film} state={state} compact={compact}>{children}</FilmActions>;
 }
 
 /**

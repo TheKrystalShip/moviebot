@@ -136,7 +136,9 @@
 }
 .kc-tvd.has-query { padding-top: 84px; }
 .kc-tvd.has-query .kc-tvd__search { height: 46px; background: var(--surface-2); }
-.kc-tvd__rows { display: flex; flex-direction: column; gap: 8px; padding-top: 18px; }
+.kc-tvd__rows { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 8px; padding-top: 18px; }
+.kc-tvd__spot { position: relative; z-index: 1; padding: 36px var(--tv-margin-x) 8px; max-width: 62%; }
+.kc-tvd__lazy { min-height: 1px; }
 .kc-tvd__q { text-transform: none; letter-spacing: 0; color: var(--fg-1); }
 .kc-tvd__none { margin: 0; padding: 0 var(--tv-margin-x); font-size: var(--text-md); color: var(--fg-3); }
 

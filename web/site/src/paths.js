@@ -39,8 +39,8 @@ export const tvPath = (imdbId, season, category) => libraryPath("show", category
 /** Finding anything to watch, here or not; `q` is what was searched for. */
 export const discoverPath = (q) => "/discover" + (q ? "?q=" + seg(q) : "");
 
-/** A tab of Discover's shelves; the first tab has no parameter. */
-export const discoverTabPath = (tab) => "/discover" + (tab ? "?tab=" + seg(tab) : "");
+/** One of Discover's browse categories: its shelves, by the category's id. */
+export const discoverBrowsePath = (id) => "/discover?browse=" + seg(id);
 
 /** Every title on one of Discover's shelves, by the shelf's id. */
 export const discoverShelfPath = (id) => "/discover?shelf=" + seg(id);

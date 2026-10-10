@@ -27,30 +27,63 @@ public sealed class DiscoverShelvesTests(SessionFixture fixture) : IClassFixture
     private void Finished(string userId, string titleId) =>
         fixture.Services.GetRequiredService<WatchRecord>().Record(userId, titleId, 5900, 6000, DateTimeOffset.UtcNow);
 
+    /// <summary>The shelves the page's rows name, in order.</summary>
+    private static List<string> RowShelves(DiscoverIndexView index) => [.. index.Rows.Where(r => r.Shelf is not null).Select(r => r.Shelf!.Id)];
+
     [Fact]
-    public async Task The_tabs_come_in_order_each_with_its_shelves_and_the_filter_its_choices()
+    public async Task The_categories_come_in_order_each_with_its_shelves_a_caption_and_the_filter_its_choices()
     {
         var index = await Get<DiscoverIndexView>("/api/discover");
 
-        Assert.Equal(DiscoverShelves.Sections.Select(s => s.Id), index.Sections.Select(s => s.Id));
+        Assert.Equal(DiscoverShelves.Sections.Skip(1).Select(s => s.Id), index.Sections.Select(s => s.Id));
         Assert.All(index.Sections, s => Assert.NotEmpty(s.Shelves));
         var moods = index.Sections.Single(s => s.Id == "moods");
         Assert.Contains(moods.Shelves, s => s.Id == "sunday-chill" && s.Title == "Sunday chill");
+        Assert.Equal("12 shelves", moods.Caption);
+        Assert.True(index.Sections.Single(s => s.Id == "franchises").Series);
         Assert.Contains("Horror", index.FilmGenres);
         Assert.Contains("Drama", index.ShowGenres);
         Assert.Contains(index.Languages, l => l.Code == "ca" && l.Name == "Catalan");
     }
 
     [Fact]
-    public async Task The_first_tab_turns_to_one_director_a_day_and_shows_a_season_s_shelf_only_in_its_season()
+    public async Task The_page_has_the_moods_the_series_and_the_categories_one_director_a_day_and_a_season_s_shelf_in_its_season()
     {
         var index = await Get<DiscoverIndexView>("/api/discover");
-        var forYou = index.Sections[0].Shelves;
+        var shelves = RowShelves(index);
 
-        Assert.Single(forYou, s => DiscoverShelves.Fixed.Any(f => f.Id == s.Id && f.Source == ShelfSource.Director));
+        Assert.Equal(["moods", "franchises", "browse"], index.Rows.Where(r => r.Kind != "shelf").Select(r => r.Kind));
+        Assert.Single(shelves, id => DiscoverShelves.Fixed.Any(f => f.Id == id && f.Source == ShelfSource.Director));
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var season = DiscoverShelves.Fixed.Where(s => s.Season is not null && s.Season.Holds(today)).Select(s => s.Id).ToList();
         foreach (var seasonal in DiscoverShelves.Fixed.Where(s => s.Season is not null))
-            Assert.Equal(seasonal.Season!.Holds(today), forYou.Any(s => s.Id == seasonal.Id));
+            Assert.Equal(seasonal.Season!.Holds(today), shelves.Contains(seasonal.Id));
+        Assert.Equal(season.FirstOrDefault() ?? "trending-films", index.Spotlight);
+    }
+
+    [Fact]
+    public async Task A_series_tile_has_its_posters_and_follows_the_person_through_it()
+    {
+        Finished("d9", SessionFixture.Heat);
+
+        var watcher = (await Get<DiscoverIndexView>("/api/discover", "d9")).Sections.Single(s => s.Id == "franchises").Shelves.Single(s => s.Id == "star-wars");
+        var other = (await Get<DiscoverIndexView>("/api/discover", "d10")).Sections.Single(s => s.Id == "franchises").Shelves.Single(s => s.Id == "star-wars");
+
+        Assert.Equal((2, 1, "Pirates of the Caribbean"), (watcher.Total, watcher.Watched, watcher.Next));
+        Assert.Equal(2, watcher.Posters!.Count);
+        Assert.Equal((0, (string?)null), (other.Watched, other.Next));
+    }
+
+    [Theory]
+    [InlineData("Back to the Future Part II", "Back to the Future", "Part II")]
+    [InlineData("Harry Potter and the Chamber of Secrets", "Harry Potter", "Chamber of Secrets")]
+    [InlineData("The Dark Knight Rises", "The Dark Knight", "Rises")]
+    [InlineData("Mission: Impossible - Fallout", "Mission: Impossible", "Fallout")]
+    [InlineData("Aliens", "Alien", "Aliens")]
+    [InlineData("Return of the Jedi", "Star Wars", "Return of the Jedi")]
+    public void A_film_of_a_series_is_named_by_what_tells_it_from_the_series(string title, string series, string expected)
+    {
+        Assert.Equal(expected, DiscoverShelves.Shortened(title, series));
     }
 
     [Theory]
@@ -131,12 +164,12 @@ public sealed class DiscoverShelvesTests(SessionFixture fixture) : IClassFixture
         Finished("d2", SessionFixture.Heat);
 
         var index = await Get<DiscoverIndexView>("/api/discover", "d2");
-        var like = Assert.Single(index.Sections[0].Shelves, s => s.Id == "like-film-tt0113277");
+        var like = Assert.Single(index.Rows, r => r.Shelf?.Id == "like-film-tt0113277").Shelf!;
         var shelf = await Get<ShelfView>("/api/discover/shelves/" + like.Id, "d2");
 
         Assert.Equal("Because you watched Heat", like.Title);
         Assert.Equal(["Echo Valley", "Again and Again"], shelf.Titles.Select(t => t.Title));
-        Assert.DoesNotContain((await Get<DiscoverIndexView>("/api/discover", "d3")).Sections[0].Shelves, s => s.Id.StartsWith("like-"));
+        Assert.DoesNotContain(RowShelves(await Get<DiscoverIndexView>("/api/discover", "d3")), id => id.StartsWith("like-"));
     }
 
     [Fact]
@@ -149,7 +182,7 @@ public sealed class DiscoverShelvesTests(SessionFixture fixture) : IClassFixture
         var index = await Get<DiscoverIndexView>("/api/discover", "d7");
         var here = await Get<ShelfView>("/api/discover/shelves/popular-here", "d7");
 
-        Assert.Contains(index.Sections[0].Shelves, s => s.Id == "popular-here");
+        Assert.Contains("popular-here", RowShelves(index));
         Assert.Equal(["tt0113277", "tt0369339"], here.Titles.Take(2).Select(t => t.ImdbId));
         Assert.All(here.Titles, t => Assert.True(t.InLibrary));
     }
