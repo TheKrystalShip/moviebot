@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.42.1] - 2026-10-10
+
+### Changed
+
+- **The assistant plugin takes `TheKrystalShip.Agent.Plugin` 1.0.0-dev.13,** which reads only
+  `prompt.md` and `skills/` from the profile directory. The profile the harness holds is the one it held.
+  Assistant 3.2.1.
+
 ## [2.42.0] - 2026-10-10
 
 ### Added

@@ -7,7 +7,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Assistant</RootNamespace>
     <AssemblyName>moviebot-assistant</AssemblyName>
-    <Version>3.2.0</Version>
+    <Version>3.2.1</Version>
 
     <!-- The plugin package and the film database's answers are read with reflection-based JSON, so
          this runs on the JIT. A service that runs for weeks gains nothing from tiering, so a method
@@ -26,7 +26,7 @@
   <ItemGroup>
     <!-- The plugin to the assistant harness: the harness client, profile registration, the tool host
          and the routes this service relays to the people of Krystal Cinema. -->
-    <PackageReference Include="TheKrystalShip.Agent.Plugin" Version="1.0.0-dev.11" />
+    <PackageReference Include="TheKrystalShip.Agent.Plugin" Version="1.0.0-dev.13" />
 
     <!-- Checks the identity provider's access tokens, as the API does. -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
