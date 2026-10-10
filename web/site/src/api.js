@@ -122,6 +122,9 @@ export const api = {
   // read with no connection (`offline/preferences.js`).
   preferences: () => call("GET", "/api/me/preferences").then(kept),
   setPreferences: (preferences) => call("PUT", "/api/me/preferences", preferences).then(kept),
+  // The order picked on each page that sorts, by the page's name (`sorts.js`).
+  sorts: () => call("GET", "/api/me/sorts"),
+  setSort: (surface, order) => call("PUT", `/api/me/sorts/${enc(surface)}`, order),
 
   // Films saved on a device: what a title can be saved as, saving it (which answers the package the
   // device fetches), every save the person has on any device, saying one holds every byte, and

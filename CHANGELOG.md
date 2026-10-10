@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.12.0] - 2026-10-10
+
+### Added
+
+- **Every page that sorts opens in the order the person last picked on it**, on the site, in the
+  Activity and on a television alike: every list (Watch later among them) shares one order, Movies and
+  TV Shows one each with their anime pages, every Discover shelf one, and the filter one, which an
+  address's own `sort` overrides. The device keeps the last answer, so a page opens in that order
+  before the API answers and with no connection. A television's list is drawn in the list order. Site
+  0.62.0.
+- **`GET /api/me/sorts` and `PUT /api/me/sorts/{page}`**: the order kept for each page, `{key,
+  direction}`, by the site's name for the page, at most 32 pages a person.
+
+### Changed
+
+- **The database is at schema version 2**, which adds `viewer_sorts`. A file at version 1 is brought
+  forward when the API starts, keeping everything it held.
+
 ## [3.11.0] - 2026-10-10
 
 ### Changed

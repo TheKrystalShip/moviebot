@@ -7,6 +7,7 @@ import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { FILTER_PARAMS, discoverBrowsePath, discoverFilterPath, discoverShelfPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
+import { SORTED, useSort } from "../sorts.js";
 import { Empty, Failed } from "../components/Film.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
 
@@ -221,6 +222,12 @@ const watchedField = (hide, setHide) => ({
   options: [{ value: "show", label: "Show everything" }, { value: "hide", label: "Hide what I watched" }],
 });
 
+const SHELF_SORTS = [
+  { value: "order", label: "Shelf order", defaultDir: "asc" },
+  { value: "rating", label: "Rating", defaultDir: "desc" },
+  { value: "year", label: "Release date", defaultDir: "desc" },
+];
+
 /** A shelf's titles in an order the person picked; `order` is the shelf's own. */
 function sorted(titles, { key, dir }) {
   const by = key === "rating" ? (t) => t.rating || 0 : key === "year" ? (t) => t.year || 0 : null;
@@ -239,7 +246,7 @@ export function ShelfPage({ id, where }) {
   const [kind, setKind] = React.useState("all");
   const [decade, setDecade] = React.useState("any");
   const [rating, setRating] = React.useState("any");
-  const [sort, setSort] = React.useState({ key: "order", dir: "asc" });
+  const [sort, setSort] = useSort(SORTED.shelf, SHELF_SORTS);
   const s = shelf.data;
   if (shelf.error && !s) return <Failed error={shelf.error} onRetry={shelf.reload} />;
   if (!s) return <BrowseSkeleton />;
@@ -274,8 +281,7 @@ export function ShelfPage({ id, where }) {
       <BrowseHead eyebrow={s.section} icon={s.icon} title={s.title} />
       <Toolbar>
         <ToolbarFilters fields={fields} />
-        <ToolbarSort value={sort.key} dir={sort.dir} onChange={(key, dir) => setSort({ key, dir })}
-          options={[{ value: "order", label: "Shelf order", defaultDir: "asc" }, { value: "rating", label: "Rating", defaultDir: "desc" }, { value: "year", label: "Release date", defaultDir: "desc" }]} />
+        <ToolbarSort value={sort.key} dir={sort.dir} onChange={setSort} options={SHELF_SORTS} />
         <ToolbarSpacer />
         <ToolbarCount shown={shown.length} total={all.length} unit="titles" />
         <ToolbarButton icon="dices" spinning={busy} disabled={busy || !shown.some((t) => !t.watched)}
@@ -297,7 +303,22 @@ const LENGTHS = {
 };
 
 const RATINGS = ["8", "7", "6"];
-const SORTS = ["rating", "newest", "oldest"];
+
+const FILTER_SORTS = [
+  { value: "popular", label: "Popularity", defaultDir: "desc" },
+  { value: "rating", label: "Rating", defaultDir: "desc" },
+  { value: "year", label: "Release date", defaultDir: "desc" },
+];
+
+/** The filter's order as the address and the catalogue name it, from the toolbar's key and direction. */
+const sortParam = ({ key, dir }) => (key === "year" ? (dir === "asc" ? "oldest" : "newest") : key);
+
+/** The toolbar's key and direction for the order the address names. */
+const sortOrder = (param) => (param === "newest" || param === "oldest"
+  ? { key: "year", dir: param === "oldest" ? "asc" : "desc" }
+  : { key: param, dir: "desc" });
+
+const SORT_PARAMS = ["popular", "rating", "newest", "oldest"];
 
 /** The filter's choices as the address holds them; anything it does not offer is any. */
 export function readFilter(query) {
@@ -311,7 +332,7 @@ export function readFilter(query) {
     length: kind === "film" && LENGTHS[get("length")] ? get("length") : "",
     rating: RATINGS.includes(get("rating")) ? get("rating") : "",
     lang: /^[a-z]{2}$/.test(get("lang")) ? get("lang") : "",
-    sort: SORTS.includes(get("sort")) ? get("sort") : "",
+    sort: SORT_PARAMS.includes(get("sort")) ? get("sort") : "",
   };
 }
 
@@ -335,7 +356,7 @@ function filterQuestion(f) {
     q.minVotes = "100";
   }
   if (f.lang) q.language = f.lang;
-  if (f.sort) q.sort = f.sort;
+  if (f.sort && f.sort !== "popular") q.sort = f.sort;
   return q;
 }
 
@@ -384,29 +405,36 @@ export function LandingFilters({ index }) {
   return <div className="kc-discover-filters"><ToolbarFilters fields={fields} /></div>;
 }
 
-/** Discover's filter: a kind, a genre, a decade, a length, a least rating, a language and an order. */
+/**
+ * Discover's filter: a kind, a genre, a decade, a length, a least rating, a language and an order. An
+ * address that names no order is in the order the person last picked here.
+ */
 export function FilterPage({ query, index, where }) {
   const [hideWatched, setHideWatched] = useHideWatched();
   const [busy, surprise] = useSurprise(where);
-  const f = readFilter(query);
+  const [picked, pick] = useSort(SORTED.filter, FILTER_SORTS);
+  const named = readFilter(query);
+  const f = { ...named, sort: named.sort || sortParam(picked) };
+  const order = sortOrder(f.sort);
   const question = filterQuestion(f);
   const key = JSON.stringify(question);
   const found = useLoad(() => api.catalogueDiscover(question), [key]);
-  const set = (change) => navigate(discoverFilterPath({ ...f, ...change }), { replace: true });
+  const set = (change) => navigate(discoverFilterPath({ ...named, ...change }), { replace: true });
 
   const all = found.data ? found.data.titles.filter((t) => t.imdbId).map((t) => ({ ...t, starring: t.starring.join(", ") })) : null;
   const titles = all && (hideWatched ? all.filter((t) => !t.watched) : all);
-  const sortKey = f.sort === "newest" || f.sort === "oldest" ? "year" : f.sort || "popular";
-  const sortDir = f.sort === "oldest" ? "asc" : "desc";
 
   return (
     <section className="kc-shelf">
       <BrowseHead eyebrow="Discover" icon="sliders-horizontal" title="Filter" />
       <Toolbar>
         <ToolbarFilters fields={filterFields(f, set, index.data, hideWatched, setHideWatched)} />
-        <ToolbarSort value={sortKey} dir={sortDir}
-          onChange={(k, dir) => set({ sort: k === "year" ? (dir === "asc" ? "oldest" : "newest") : k === "popular" ? "" : k })}
-          options={[{ value: "popular", label: "Popularity", defaultDir: "desc" }, { value: "rating", label: "Rating", defaultDir: "desc" }, { value: "year", label: "Release date", defaultDir: "desc" }]} />
+        <ToolbarSort value={order.key} dir={order.dir}
+          onChange={(key, dir) => {
+            pick(key, dir);
+            set({ sort: sortParam({ key, dir }) });
+          }}
+          options={FILTER_SORTS} />
         <ToolbarSpacer />
         {titles && <ToolbarCount shown={titles.length} total={all.length} unit="titles" />}
         <ToolbarButton icon="dices" spinning={busy} disabled={busy || !titles || !titles.some((t) => !t.watched)}

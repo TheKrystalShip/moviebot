@@ -30,6 +30,24 @@ public static class PeopleEndpoints
                 : NoPerson())
             .RequireAction(CinemaActions.ProfileWrite);
 
+        app.MapGet("/api/me/sorts", (HttpContext context, SortStore store) =>
+            Person(context) is { } person
+                ? Results.Json(store.For(person.UserId), ApiJsonContext.Default.DictionaryStringSortOrder)
+                : NoPerson())
+            .RequireAction(CinemaActions.ProfileRead);
+
+        app.MapPut("/api/me/sorts/{surface}", (string surface, SortOrder body, HttpContext context, SortStore store) =>
+        {
+            if (Person(context) is not { } person) return NoPerson();
+            if (!SortStore.IsName(surface) || !body.Valid())
+                return Refuse($"A page and its key are lowercase names of at most {SortStore.NameLength} characters, and a direction is asc or desc.");
+            var sorts = store.Set(person.UserId, surface, body);
+            return sorts is not null
+                ? Results.Json(sorts, ApiJsonContext.Default.DictionaryStringSortOrder)
+                : Refuse($"An order is kept for at most {SortStore.MaxSurfaces} pages.");
+        })
+            .RequireAction(CinemaActions.ProfileWrite);
+
         // What this person can carry on with, newest first: each film they started and did not
         // finish, and for each show one episode, the latest they watched while they have not finished
         // it, else the one after it. A title the library no longer holds is left out: there is
@@ -257,6 +275,9 @@ public static class PeopleEndpoints
         manifest.Episode is not null
             ? manifest.Film?.Name ?? manifest.Title
             : manifest.Film?.Display ?? manifest.Title;
+
+    private static IResult Refuse(string message) =>
+        Results.Json(new ErrorReply(message), ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status400BadRequest);
 
     /// <summary>The service key names nobody, so there is nobody's preferences, progress or history to answer with.</summary>
     private static IResult NoPerson() =>

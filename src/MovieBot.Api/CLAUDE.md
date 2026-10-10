@@ -25,8 +25,8 @@ film onto a device is `Offline/CLAUDE.md`.
   up and aged by; what a person did is columns. Served bytes are files and nothing else is: artwork
   under the caches' directories, with what each image came from in `images`
   (`Films/KeptImages`), and fetched WebVTT under `Subtitles:Root`. The file is `0600`, since it holds
-  the push key pair; a file at a schema version this build does not know stops the API from
-  starting.
+  the push key pair. A file at an earlier schema version is brought forward by `Schema`'s steps, each
+  only adding to it, and a file at a version this build does not know stops the API from starting.
 - **Resolve configuration inside the DI factory, not at the top of `Program.cs`.** Reading
   `builder.Configuration` while the builder is still being assembled misses sources added later — a
   test host's media root, for one — and the service silently points somewhere else.
@@ -136,9 +136,9 @@ film onto a device is `Offline/CLAUDE.md`.
   serves an episode unchanged; `/api/shows` and `/api/shows/{imdbId}` group the library's episodes by
   the show their manifest names and join them with the show's description, and an episode's
   `details` on `/api/titles` are its show's.
-- **A person's own settings are asked for by token, never by id.** `/api/me/preferences` answers for
-  whoever the token names, so there is no route by which anybody reads or writes anybody else's; the
-  service key names nobody and is refused there. Progress, history, follows and lists
+- **A person's own settings are asked for by token, never by id.** `/api/me/preferences` and
+  `/api/me/sorts` answer for whoever the token names, so there is no route by which anybody reads or
+  writes anybody else's; the service key names nobody and is refused there. Progress, history, follows and lists
   (`/api/me/progress`, `/api/me/history`, `/api/me/follows`, `/api/me/lists`) are asked for the same
   way.
 - **A followed show is watched by `Shows/FollowWatcher`, and what it announces is kept.** A follow

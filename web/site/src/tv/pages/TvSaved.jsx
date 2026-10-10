@@ -5,7 +5,9 @@ import { useLoad } from "../../data.js";
 import { discoverFilmPath, listPath, moviePath, showPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { ago, clock } from "../../time.js";
+import { SORTED, useSort } from "../../sorts.js";
 import { Failed } from "../../components/Film.jsx";
+import { LIST_SORTS } from "../../pages/Saved.jsx";
 
 const titles = (n) => `${n} ${n === 1 ? "title" : "titles"}`;
 
@@ -72,13 +74,15 @@ export function TvSaved() {
   );
 }
 
-/** One list on a television: its name, and its titles, newest saved first, as posters in rows. */
+/** One list on a television: its name, and its titles in the order last picked on a list, as posters in rows. */
 export function TvList({ id }) {
   const list = useLoad(() => api.list(id), [id]);
+  const [sort] = useSort(SORTED.list, LIST_SORTS);
   if (list.error && !list.data) return <div className="kc-tv-page kc-tv-pad"><Failed error={list.error} onRetry={list.reload} /></div>;
   if (!list.data) return <div className="kc-tv-page" />;
   const l = list.data;
-  const entries = [...l.entries].sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+  const order = LIST_SORTS.find((s) => s.value === sort.key) || LIST_SORTS[0];
+  const entries = [...l.entries].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
   return (
     <div className="kc-tv-page kc-tvsv kc-tvsv--list">
       <div className="kc-tvsv__head">

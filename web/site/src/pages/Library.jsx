@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, useFilters,
 } from "@thekrystalship/krystal-ui";
@@ -7,6 +6,7 @@ import { useOnline } from "../connectivity.js";
 import { useLibrary } from "../offline/hooks.js";
 import { ANIME, discoverGenrePath, isAnime, libraryPath } from "../paths.js";
 import { navigate } from "../router.js";
+import { SORTED, useSort } from "../sorts.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard } from "../components/Film.jsx";
 import { MoreTile } from "../components/TitleCards.jsx";
 import { useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
@@ -128,7 +128,7 @@ function ShowLibrary({ category, fromDevice }) {
   const offered = useOffersSaving();
   const marks = useDownloadMarks();
   const held = (s) => marks.episodes(s.imdbId) > 0;
-  const [sort, setSort] = React.useState({ key: "added", dir: "desc" });
+  const [sort, setSort] = useSort(SORTED.shows, SHOW_SORTS);
 
   const all = (shows.data || []).filter((s) => onShelf(s, category));
   const genreCounts = new Map();
@@ -159,7 +159,7 @@ function ShowLibrary({ category, fromDevice }) {
         <Toolbar>
           <ToolbarSearch value={f.query} onChange={f.setQuery} pending={f.searchPending} placeholder={`Search ${words.unit[1]}…`} />
           <ToolbarFilters fields={fields} onReset={() => f.setQuery("")} />
-          <ToolbarSort value={sort.key} dir={sort.dir} onChange={(key, dir) => setSort({ key, dir })} options={SHOW_SORTS} />
+          <ToolbarSort value={sort.key} dir={sort.dir} onChange={setSort} options={SHOW_SORTS} />
           <ToolbarSpacer />
           <ToolbarCount shown={shown.length} total={all.length} unit={words.unit[1]} />
         </Toolbar>
@@ -186,7 +186,7 @@ function FilmLibrary({ category, fromDevice }) {
   const offered = useOffersSaving();
   const marks = useDownloadMarks();
   const held = (t) => !!marks.film(t.id) && marks.film(t.id).kind === "done";
-  const [sort, setSort] = React.useState({ key: "added", dir: "desc" });
+  const [sort, setSort] = useSort(SORTED.films, SORTS);
   const words = shelfOf(kind, category);
 
   const all = (titles.data || []).filter((t) => t.kind !== "show" && onShelf(t, category));
@@ -231,7 +231,7 @@ function FilmLibrary({ category, fromDevice }) {
         <Toolbar>
           <ToolbarSearch value={f.query} onChange={f.setQuery} pending={f.searchPending} placeholder={`Search ${words.unit[1]}…`} />
           <ToolbarFilters fields={fields} onReset={() => f.setQuery("")} />
-          <ToolbarSort value={sort.key} dir={sort.dir} onChange={(key, dir) => setSort({ key, dir })} options={SORTS} />
+          <ToolbarSort value={sort.key} dir={sort.dir} onChange={setSort} options={SORTS} />
           <ToolbarSpacer />
           <ToolbarCount shown={shown.length} total={all.length} unit={words.unit[1]} />
         </Toolbar>

@@ -10,6 +10,7 @@ import { useCrumb } from "../crumbs.js";
 import { discoverFilmPath, listPath, moviePath, savedPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { useSession } from "../session.js";
+import { SORTED, useSort } from "../sorts.js";
 import { ago, clock, dayGroup } from "../time.js";
 import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
 
@@ -112,8 +113,9 @@ function ListCard({ list, me }) {
   );
 }
 
-// Each comparator orders ascending; the toolbar's direction reverses it.
-const SORTS = [
+// Each comparator orders ascending; the toolbar's direction reverses it. Every list, and a list on a
+// television, opens in the order last picked on any of them.
+export const LIST_SORTS = [
   { value: "added", label: "Date added", defaultDir: "desc", compare: (a, b) => a.addedAt.localeCompare(b.addedAt) },
   { value: "name", label: "Name", defaultDir: "asc", compare: (a, b) => a.title.localeCompare(b.title) },
   { value: "year", label: "Year", defaultDir: "desc", compare: (a, b) => (a.year || 0) - (b.year || 0) },
@@ -142,7 +144,7 @@ export function ListPage({ id }) {
   const view = useLoad(() => api.list(id), [id]);
   const me = (useSession() || {}).user || {};
   const f = useFilters({ search: "", kind: "all", watched: "any" });
-  const [sort, setSort] = React.useState({ key: "added", dir: "desc" });
+  const [sort, setSort] = useSort(SORTED.list, LIST_SORTS);
   const [renaming, setRenaming] = React.useState(null);
   const [people, setPeople] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
@@ -163,7 +165,7 @@ export function ListPage({ id }) {
   const kind = KIND_FILTERS.find((k) => k.value === f.values.kind) || KIND_FILTERS[0];
   const watched = WATCHED_FILTERS.find((k) => k.value === f.values.watched) || WATCHED_FILTERS[0];
   const query = f.debouncedQuery.trim().toLowerCase();
-  const order = SORTS.find((s) => s.value === sort.key) || SORTS[0];
+  const order = LIST_SORTS.find((s) => s.value === sort.key) || LIST_SORTS[0];
   const shown = entries
     .filter((e) => (!query || e.title.toLowerCase().includes(query) || (e.note || "").toLowerCase().includes(query))
       && kind.test(e) && watched.test(e))
@@ -250,7 +252,7 @@ export function ListPage({ id }) {
         <Toolbar>
           <ToolbarSearch value={f.query} onChange={f.setQuery} pending={f.searchPending} placeholder="Search this list…" />
           <ToolbarFilters fields={fields} onReset={() => f.setQuery("")} />
-          <ToolbarSort value={sort.key} dir={sort.dir} onChange={(key, dir) => setSort({ key, dir })} options={SORTS} />
+          <ToolbarSort value={sort.key} dir={sort.dir} onChange={setSort} options={LIST_SORTS} />
           <ToolbarSpacer />
           <ToolbarCount shown={shown.length} total={entries.length} unit="titles" />
         </Toolbar>

@@ -5,9 +5,12 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// <summary>
 /// The tables everything this service keeps lives in, and the version they are at.
 ///
-/// The version is the database's <c>user_version</c>. A new file is made at <see cref="Version"/>; a
-/// file at a version this build does not know is refused rather than guessed at, because a store
-/// reading columns that mean something else is a person's records read as somebody else's.
+/// The version is the database's <c>user_version</c>, and it counts the <see cref="Steps"/> the file
+/// has run: each step takes a file from the version before it to its own, only ever adding to it. A
+/// new file runs every step and a file behind runs the ones it lacks, so every file at a version holds
+/// the same tables. A file at a version this build does not know is refused rather than guessed at,
+/// because a store reading columns that mean something else is a person's records read as somebody
+/// else's.
 ///
 /// A person is the account the identity provider names them by and nothing else, so no table is
 /// keyed by anything a person typed. What the film database said about a title is kept as that
@@ -16,21 +19,34 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// </summary>
 internal static class Schema
 {
-    public const int Version = 1;
+    private static readonly string[] Steps = [Tables, Sorts];
+
+    public static int Version => Steps.Length;
 
     public static void Apply(SqliteConnection connection)
     {
         var version = connection.Count("PRAGMA user_version;");
         if (version == Version) return;
-        if (version != 0)
+        if (version < 0 || version > Version)
             throw new InvalidOperationException(
                 $"The database {connection.DataSource} is at schema version {version}; this build knows version {Version}.");
 
         using var transaction = connection.BeginTransaction();
-        connection.Execute(Tables);
+        foreach (var step in Steps[(int)version..]) connection.Execute(step);
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string Sorts = """
+        -- The order each person last picked on each page that sorts, by the site's name for the page.
+        CREATE TABLE viewer_sorts (
+            user_id   TEXT NOT NULL,
+            surface   TEXT NOT NULL,
+            key       TEXT NOT NULL,
+            direction TEXT NOT NULL CHECK (direction IN ('asc', 'desc')),
+            PRIMARY KEY (user_id, surface)
+        ) WITHOUT ROWID;
+        """;
 
     private const string Tables = """
         -- Single facts about this installation: the issuer records are kept against, when the watch
