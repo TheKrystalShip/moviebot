@@ -20,7 +20,7 @@ film onto a device is `Offline/CLAUDE.md`.
   connection and each change is one immediate transaction, after every change before it, so a store
   that reads before it writes (a list's limit, a notification's key, the first poster pin) decides
   inside the transaction it writes in. A store keeps nothing in memory but what a listing reads on
-  every row (`PersonDirectory`, `TitleCategories`, the film database caches), written through. What
+  every row (`PersonDirectory`, the film database caches), written through. What
   the film database said is kept as its own JSON, one value per row beside the columns it is looked
   up and aged by; what a person did is columns. Served bytes are files and nothing else is: artwork
   under the caches' directories, with what each image came from in `images`
@@ -123,10 +123,8 @@ film onto a device is `Offline/CLAUDE.md`.
 - **A title's category is `Library/TitleCategories`, beside its kind.** The kind is how a title is
   built and the category where people look for it: anime is what the film database files under
   Animation and was made in Japanese, read from the kept description, so a listing still never waits
-  on the network, and from the genres and language a catalogue answer carries. Somebody holding
-  `cinema:download` shelves a title against the rule by IMDb id, a setting that
-  agrees with the rule is dropped, and every view naming a title carries the result
-  (`docs/api-contract.md`, Categories).
+  on the network, and from the genres and language a catalogue answer carries. Every view naming a
+  title carries it (`docs/api-contract.md`, Categories).
 - **An episode is a title, and a show is its episodes grouped.** Every route that serves a title
   serves an episode unchanged; `/api/shows` and `/api/shows/{imdbId}` group the library's episodes by
   the show their manifest names and join them with the show's description, and an episode's

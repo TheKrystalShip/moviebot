@@ -78,8 +78,6 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 [JsonSerializable(typeof(IReadOnlyList<TitleSummary>))]
 [JsonSerializable(typeof(List<TitleSummary>))]
 [JsonSerializable(typeof(Shows.ShowView))]
-[JsonSerializable(typeof(CategoryRequest))]
-[JsonSerializable(typeof(CategoryView))]
 [JsonSerializable(typeof(List<Shows.ShowSummary>))]
 [JsonSerializable(typeof(Shows.FollowView))]
 [JsonSerializable(typeof(List<Shows.FollowView>))]

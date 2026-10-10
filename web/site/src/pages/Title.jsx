@@ -9,7 +9,6 @@ import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, WatchButton } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
-import { ShelfButton } from "../components/ShelfButton.jsx";
 import { DownloadButton, useOffersSaving } from "../components/DownloadButton.jsx";
 import { useDeviceTitle } from "../offline/hooks.js";
 import { Unreachable } from "./Offline.jsx";
@@ -121,10 +120,6 @@ export function Title({ id, category = null, fromDevice = false }) {
                 </WatchButton>
               )}
               {film.imdbId && <SaveButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
-              {!fromDevice && film.imdbId && (
-                <ShelfButton imdbId={film.imdbId} kind="film" category={shelved}
-                  onMoved={(to) => { listing.reload(); navigate(moviePath(id, to), { replace: true }); }} />
-              )}
               {saving && (m.status === "ready" || (fetching && m.status === "transcoding" && film.imdbId)) && (
                 <DownloadButton titleId={m.id} imdbId={film.imdbId || null} ready={m.status === "ready"} head={{
                   name: (d && d.title) || filmName(m), context: film.year || (d && d.year) || null,

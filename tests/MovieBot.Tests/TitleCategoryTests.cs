@@ -9,7 +9,7 @@ namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
 /// Which shelf a title is on beyond its kind: anime when the film database files it under Animation
-/// and it was made in Japanese, else general, unless somebody who fetches titles shelved it otherwise.
+/// and it was made in Japanese, else general.
 /// </summary>
 public sealed class TitleCategoryTests(SessionFixture fixture) : IClassFixture<SessionFixture>
 {
@@ -36,51 +36,6 @@ public sealed class TitleCategoryTests(SessionFixture fixture) : IClassFixture<S
 
         Assert.Equal(TitleCategory.Anime, anime!.Category);
         Assert.Equal(TitleCategory.General, heat!.Category);
-    }
-
-    [Fact]
-    public async Task Somebody_who_fetches_titles_shelves_one_against_the_rule_and_back()
-    {
-        var client = fixture.CreatePersonClient("cat-2", "Curator", [CinemaActions.Watch, CinemaActions.Download]);
-        await client.GetFromJsonAsync<FilmView>("/api/films/" + FilmDatabaseStub.DreamDetective);
-
-        using var moved = await client.PutAsJsonAsync("/api/categories/" + FilmDatabaseStub.DreamDetective, new { kind = "film", category = "general" });
-        var set = await moved.Content.ReadFromJsonAsync<CategoryView>();
-        var after = await client.GetFromJsonAsync<FilmView>("/api/films/" + FilmDatabaseStub.DreamDetective);
-
-        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
-        Assert.Equal(new CategoryView(FilmDatabaseStub.DreamDetective, TitleCategory.General, true), set);
-        Assert.Equal(TitleCategory.General, after!.Category);
-
-        using var back = await client.PutAsJsonAsync("/api/categories/" + FilmDatabaseStub.DreamDetective, new { kind = "film", category = "anime" });
-        var agreed = await back.Content.ReadFromJsonAsync<CategoryView>();
-
-        // Agreeing with the rule keeps nothing, so the title follows its description again.
-        Assert.False(agreed!.Set);
-        Assert.Equal(TitleCategory.Anime, (await client.GetFromJsonAsync<FilmView>("/api/films/" + FilmDatabaseStub.DreamDetective))!.Category);
-    }
-
-    [Fact]
-    public async Task Somebody_who_only_watches_cannot_move_a_title()
-    {
-        var client = fixture.CreatePersonClient("cat-3", "Viewer", [CinemaActions.Watch]);
-
-        using var response = await client.PutAsJsonAsync("/api/categories/" + FilmDatabaseStub.DreamDetective, new { kind = "film", category = "general" });
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-    }
-
-    [Theory]
-    [InlineData("heat", "film", "general")]
-    [InlineData("tt0113277", "episode", "general")]
-    [InlineData("tt0113277", "film", "cartoon")]
-    public async Task A_setting_names_an_imdb_id_a_kind_and_a_category(string imdbId, string kind, string category)
-    {
-        var client = fixture.CreatePersonClient("cat-4", "Curator", [CinemaActions.Download]);
-
-        using var response = await client.PutAsJsonAsync("/api/categories/" + imdbId, new { kind, category });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

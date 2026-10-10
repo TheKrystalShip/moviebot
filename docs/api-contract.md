@@ -509,19 +509,13 @@ and a show's every episode is on its show's.
 
 A title is anime when the film database files it under Animation and its original language is
 Japanese (`ja`), and general otherwise. A title whose genres nothing has described has no category,
-and is shelved as general. Somebody holding `cinema:download` may shelve a title against the rule,
-kept by IMDb id; a setting that agrees with the rule is not kept, so the title follows its description
-again.
+and is shelved as general.
 
 Every view that names a title carries `category`, `anime` or `general`, absent while nothing says:
 `TitleSummary`, `ShowSummary`, `FilmView`, `ShowView`, `TitleHitView`, `CreditView`,
 `CatalogueTitleView`, a library addition, a trending entry, a `FoundTitle`, a list entry and an
 `OfflinePackage`. A catalogue answer reads it from the title's kept description where there is one,
 else from the genres and language the answer carries.
-
-| Route | Returns |
-|---|---|
-| `PUT /api/categories/{imdbId}` | `{imdbId, category, set}` for `{kind, category}` — shelves the `film` or `show` as `anime` or `general`; `set` is whether a setting is kept against the rule. `400` for an id that is not an IMDb id, a kind that is neither or a category that is not one. `cinema:download` |
 
 ### Lists
 

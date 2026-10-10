@@ -404,7 +404,6 @@ app.MapPeople();
 app.MapFilms();
 app.MapCatalogueSearch();
 app.MapShows();
-app.MapCategories();
 app.MapFollows();
 app.MapLists();
 app.MapNotifications();

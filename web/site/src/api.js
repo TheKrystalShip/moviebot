@@ -144,7 +144,6 @@ export const api = {
   removeListMember: (id, userId) => call("DELETE", `/api/lists/${enc(id)}/members/${enc(userId)}`),
 
   // Shelving a film or a show as anime (`anime`) or with its kind (`general`), against the API's rule.
-  setCategory: (imdbId, kind, category) => call("PUT", `/api/categories/${enc(imdbId)}`, { kind, category }),
 
   // The shows this person follows, and whether each is fetched when a new episode airs.
   follows: () => call("GET", "/api/me/follows"),

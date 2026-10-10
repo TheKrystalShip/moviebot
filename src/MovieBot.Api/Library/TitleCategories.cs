@@ -1,6 +1,4 @@
-using System.Collections.Concurrent;
 using System.Text.Json.Serialization;
-using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Core;
@@ -21,40 +19,18 @@ public enum TitleCategory
 }
 
 /// <summary>
-/// A title's category: the one somebody set for it, else the rule read from its description.
+/// A title's category, read from its description.
 ///
-/// The rule is that a title the film database files under Animation and that was made in Japanese is
-/// anime. Both facts are on every description and on every title a catalogue answer lists, so the
-/// same rule shelves the library and sorts a discovery. The database's own <c>anime</c> keyword is
-/// not the rule: it is missing from most of the titles it describes. A title nothing describes yet
-/// has no category, which a listing shelves with its kind.
-///
-/// Where the rule is wrong for a title (an anime made in English, an animation from elsewhere that
-/// people shelve with anime) somebody who fetches titles sets its category, kept by IMDb id, so a
-/// show's every episode moves with it. A setting that agrees with the rule is not kept, so the title
-/// follows its description again. What is set is held in memory beside the database, since every
-/// listing asks it of every title.
+/// A title the film database files under Animation and that was made in Japanese is anime. Both facts
+/// are on every description and on every title a catalogue answer lists, so the same rule shelves the
+/// library and sorts a discovery. The database's own <c>anime</c> keyword is not the rule: it is
+/// missing from most of the titles it describes. A title nothing describes yet has no category, which
+/// a listing shelves with its kind.
 /// </summary>
-public sealed class TitleCategories
+public sealed class TitleCategories(FilmStore films, ShowStore shows)
 {
     public const string AnimeGenre = "Animation";
     public const string AnimeLanguage = "ja";
-
-    private readonly CinemaDatabase _database;
-    private readonly FilmStore _films;
-    private readonly ShowStore _shows;
-    private readonly ConcurrentDictionary<string, TitleCategory> _set;
-
-    public TitleCategories(CinemaDatabase database, FilmStore films, ShowStore shows)
-    {
-        _database = database;
-        _films = films;
-        _shows = shows;
-        _set = new ConcurrentDictionary<string, TitleCategory>(
-            database.Read(c => c.Query("SELECT imdb_id, category FROM title_categories",
-                r => KeyValuePair.Create(r.GetString(0), Parse(r.GetString(1)) ?? TitleCategory.General))),
-            StringComparer.Ordinal);
-    }
 
     /// <summary>
     /// What the rule says of a title by its genres and original language; null while its genres are
@@ -82,69 +58,24 @@ public sealed class TitleCategories
     public TitleCategory? Of(TitleKind kind, string? imdbId) => Of(kind == TitleKind.Show ? "show" : "film", imdbId);
 
     /// <summary>
-    /// A title's category by its kind (<c>film</c> or <c>show</c>) and IMDb id: the one set for it, else
-    /// the rule over its kept description. Null when neither says.
+    /// A title's category by its kind (<c>film</c> or <c>show</c>) and IMDb id: the rule over its kept
+    /// description. Null while nothing describes it.
     /// </summary>
     public TitleCategory? Of(string kind, string? imdbId) => Of(kind, imdbId, null, null);
 
     /// <summary>
     /// A title's category where a catalogue answer carries its <paramref name="genres"/> and
-    /// <paramref name="originalLanguage"/>: the one set for it, else the rule over its kept
-    /// description, else the rule over what the answer carries.
+    /// <paramref name="originalLanguage"/>: the rule over its kept description, else the rule over what
+    /// the answer carries.
     /// </summary>
-    public TitleCategory? Of(string kind, string? imdbId, IEnumerable<string>? genres, string? originalLanguage)
-    {
-        if (imdbId is not null && _set.TryGetValue(imdbId, out var set)) return set;
-        return Described(kind, imdbId) ?? ByRule(genres, originalLanguage);
-    }
-
-    /// <summary>Whether a title's category is one somebody set rather than the rule's.</summary>
-    public bool IsSet(string imdbId) => _set.ContainsKey(imdbId);
-
-    /// <summary>
-    /// Shelves a title in <paramref name="category"/>. Kept only where the rule over its description
-    /// says otherwise or cannot say; answers the title's category as it now stands.
-    /// </summary>
-    public TitleCategory Set(string kind, string imdbId, TitleCategory category)
-    {
-        _database.Write(c =>
-        {
-            if (Described(kind, imdbId) == category)
-            {
-                c.Execute("DELETE FROM title_categories WHERE imdb_id = $imdb", ("$imdb", imdbId));
-                _set.TryRemove(imdbId, out _);
-            }
-            else
-            {
-                c.Execute("INSERT OR REPLACE INTO title_categories (imdb_id, category) VALUES ($imdb, $category)",
-                    ("$imdb", imdbId), ("$category", Spelling(category)));
-                _set[imdbId] = category;
-            }
-        });
-        return category;
-    }
-
-    /// <summary>A category as the wire spells it.</summary>
-    public static string Spelling(TitleCategory category) => category == TitleCategory.Anime ? "anime" : "general";
+    public TitleCategory? Of(string kind, string? imdbId, IEnumerable<string>? genres, string? originalLanguage) =>
+        Described(kind, imdbId) ?? ByRule(genres, originalLanguage);
 
     private TitleCategory? Described(string kind, string? imdbId)
     {
         if (imdbId is null) return null;
         if (kind == "show")
-            return _shows.Held(imdbId)?.Details is { } show ? ByRule(show.Genres, show.OriginalLanguage) : null;
-        return _films.Held(imdbId)?.Details is { } film ? ByRule(film.Genres, film.OriginalLanguage) : null;
+            return shows.Held(imdbId)?.Details is { } show ? ByRule(show.Genres, show.OriginalLanguage) : null;
+        return films.Held(imdbId)?.Details is { } film ? ByRule(film.Genres, film.OriginalLanguage) : null;
     }
 }
-
-/// <summary>What <c>PUT /api/categories/{imdbId}</c> takes.</summary>
-public sealed record CategoryRequest
-{
-    /// <summary><c>film</c> or <c>show</c>.</summary>
-    public string? Kind { get; init; }
-
-    /// <summary><c>anime</c> or <c>general</c>.</summary>
-    public string? Category { get; init; }
-}
-
-/// <summary>A title's category, and whether somebody set it rather than the rule.</summary>
-public sealed record CategoryView(string ImdbId, TitleCategory Category, bool Set);

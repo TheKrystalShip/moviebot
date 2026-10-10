@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-10-10
+
+### Removed
+
+- **A title's shelf is the rule's alone.** `PUT /api/categories/{imdbId}`, the `title_categories`
+  table and the Move to Anime / Move to Movies|TV Shows button on a film's and a show's page are gone:
+  a title is anime when the film database files it under Animation and it was made in Japanese, and
+  nobody shelves one by hand. API 3.1.0, site 0.54.0.
+
 ## [3.0.0] - 2026-10-10
 
 ### Changed

@@ -224,12 +224,6 @@ internal static class Schema
         );
         CREATE INDEX offline_wants_user ON offline_wants (user_id, created_at);
 
-        -- The shelf somebody put a title on against the rule.
-        CREATE TABLE title_categories (
-            imdb_id  TEXT PRIMARY KEY,
-            category TEXT NOT NULL CHECK (category IN ('general', 'anime'))
-        ) WITHOUT ROWID;
-
         -- A room worth restoring after a restart. Its state is the shared state exactly as it is
         -- pushed to the room, revision and epoch included, so a restored room is the same run of it.
         CREATE TABLE rooms (
