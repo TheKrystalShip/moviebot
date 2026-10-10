@@ -1,7 +1,7 @@
 import { Icon, ShowcaseCard, Skeleton } from "@thekrystalship/krystal-ui";
-import { discoverFilmPath, discoverPath, isAnime, moviePath, showPath } from "../paths.js";
+import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
-import { watchHref } from "./Film.jsx";
+import { kindLine, watchHref } from "./Film.jsx";
 import { useSaveRibbon } from "./SaveButton.jsx";
 
 // Poster cards for titles that are not on a shelf: a search's answers, what somebody waits on, what
@@ -58,8 +58,8 @@ export function foundPage(found, here, held) {
 }
 
 /**
- * A film or show the catalogue answered with: its rating, year, whether it is a film or a show, and
- * its cast, or `line` in its place (a person's part in it). `here` is the library's title for a film
+ * A film or show the catalogue answered with: whether it is a film or a show on its poster, its rating
+ * and year, and its cast, or `line` in its place (a person's part in it). `here` is the library's title for a film
  * it holds, `held` whether it holds an episode of a show; they decide where the card leads and whether
  * it plays from here, and nothing on the card says which. Its ribbon saves it.
  */
@@ -72,14 +72,12 @@ export function FoundCard({ found, here, held, line = found.starring }) {
       <ShowcaseCard
         className="kc-card"
         name={found.title}
-      art={found.posterUrl ? `url("${found.posterUrl}")` : null}
+        eyebrow={kindLine(found.kind, found)}
+        art={found.posterUrl ? `url("${found.posterUrl}")` : null}
         onPick={() => navigate(foundPage(found, here, held))}
         specs={[
           { icon: "star", value: found.rating != null ? found.rating.toFixed(1) : null, label: "Rating" },
           { icon: "calendar", value: found.year || null, label: "Year" },
-          isAnime(found)
-            ? { icon: "swords", value: "Anime", label: "Type" }
-            : { icon: show ? "tv" : "clapperboard", value: show ? "Series" : "Movie", label: "Type" },
         ]}
         status={line ? { label: line, title: line } : null}
         action={playable
@@ -106,6 +104,7 @@ export function AnticipatedCard({ film }) {
       <ShowcaseCard
         className="kc-card"
         name={film.title}
+        eyebrow={kindLine("film", film)}
         art={keptArt(film.imdbId, film.posterUrl)}
         onPick={() => navigate(discoverFilmPath(film.imdbId))}
         specs={[{ icon: "calendar", value: film.year || null, label: "Year" }]}
@@ -128,6 +127,7 @@ export function WishCard({ wish, onStop, downloading, status }) {
     <ShowcaseCard
       className="kc-card"
       name={wish.title}
+      eyebrow={kindLine("film", wish)}
       art={keptArt(wish.imdbId, wish.posterUrl)}
       onPick={() => navigate(discoverFilmPath(wish.imdbId))}
       badge={out ? { tone: "accent", label: "Out now" } : null}

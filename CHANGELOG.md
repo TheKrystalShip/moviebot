@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.0] - 2026-10-11
+
+### Added
+
+- **A poster card says what it holds**: Film, or Series in the accent, on the poster above the name,
+  Anime film or Anime series on the anime shelves, on every card the site draws: the library, Home,
+  Discover, Saved, Notify and the history. A show's card in the library draws a short bar per season
+  along the poster's foot, each filled as far as the person watched it, and gives its rating, seasons
+  and episodes; a film's keeps its rating, year and length. Site 0.63.0, on krystal-ui 0.24.0.
+- **`GET /api/shows` carries `seasonProgress`**: `[{season, episodes, watched}]` for each season the
+  library holds, in order, with how many of its episodes the asking person watched through.
+
 ## [3.12.0] - 2026-10-10
 
 ### Added

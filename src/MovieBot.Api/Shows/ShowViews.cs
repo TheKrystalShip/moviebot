@@ -96,6 +96,9 @@ public sealed record EpisodeView
 /// <summary>An episode somebody is in the middle of, or the one after the last they finished.</summary>
 public sealed record ResumePoint(string TitleId, int Season, int Episode, double PositionSeconds, double DurationSeconds);
 
+/// <summary>One season of a show in the library: the episodes held of it, and those the asking person watched through.</summary>
+public sealed record SeasonProgress(int Season, int Episodes, int Watched);
+
 /// <summary>One show in the library, as a shelf, a hero and the library page list it.</summary>
 public sealed record ShowSummary
 {
@@ -108,6 +111,10 @@ public sealed record ShowSummary
     public FilmFacts? Details { get; init; }
     public required List<int> Seasons { get; init; }
     public required int Episodes { get; init; }
+
+    /// <summary>Each season the library holds, in order: how many of its episodes it holds and how many of those the asking person watched through.</summary>
+    public required List<SeasonProgress> SeasonProgress { get; init; }
+
     public DateTimeOffset? AddedAt { get; init; }
     public long SizeBytes { get; init; }
     public TitleLastPlayed? LastPlayed { get; init; }
@@ -281,6 +288,9 @@ public static class ShowViews
                     Details = store.Facts(imdbId),
                     Seasons = [.. episodes.Select(e => e.Episode!.Season).Distinct()],
                     Episodes = episodes.Count,
+                    SeasonProgress = [.. episodes
+                        .GroupBy(e => e.Episode!.Season)
+                        .Select(s => new SeasonProgress(s.Key, s.Count(), s.Count(e => e.Progress is { Finished: true })))],
                     AddedAt = episodes.Max(e => e.AddedAt),
                     SizeBytes = episodes.Sum(e => e.SizeBytes ?? 0),
                     LastPlayed = episodes.Select(e => e.LastPlayed).OfType<TitleLastPlayed>().MaxBy(p => p.At),

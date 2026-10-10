@@ -14,7 +14,7 @@ import { offlineSupported } from "../offline/store.js";
 import { Off } from "./Offline.jsx";
 import { linkProps, navigate } from "../router.js";
 import { ago, airDay } from "../time.js";
-import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
+import { Empty, Failed, PageHead, kindLine, watchHref } from "../components/Film.jsx";
 import { TabStage } from "../components/PageStage.jsx";
 import { CardsSkeleton, WishCard, keptArt } from "../components/TitleCards.jsx";
 import { Cues } from "../player/Cues.jsx";
@@ -148,6 +148,7 @@ function HistoryCard({ row, title, onForget }) {
     <ShowcaseCard
       className="kc-card"
       name={name}
+      eyebrow={kindLine(row.episode ? "show" : "film", title)}
       art={poster ? `url("${poster}")` : null}
       onPick={() => navigate(moviePath(row.titleId))}
       progress={fraction}

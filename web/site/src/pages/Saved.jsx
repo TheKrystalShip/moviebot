@@ -12,7 +12,7 @@ import { linkProps, navigate } from "../router.js";
 import { useSession } from "../session.js";
 import { SORTED, useSort } from "../sorts.js";
 import { ago, clock, dayGroup } from "../time.js";
-import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
+import { Empty, Failed, PageHead, kindLine, watchHref } from "../components/Film.jsx";
 
 const count = (n) => `${n} ${n === 1 ? "title" : "titles"}`;
 
@@ -23,19 +23,20 @@ function entryHref(e) {
 }
 
 /**
- * A saved title on a shelf, the same card as the library's: its poster and name, rating, year and
- * length, when it was saved, and Watch for a film the library holds.
+ * A saved title on a shelf, the same card as the library's: its poster named a film or a series, its
+ * rating, year and a film's length, when it was saved, and Watch for a film the library holds.
  */
 export function SavedCard({ entry: e }) {
   return (
     <ShowcaseCard
       name={e.title}
+      eyebrow={kindLine(e.kind, e)}
       art={e.posterUrl ? `url("${e.posterUrl}")` : null}
       onPick={() => navigate(entryHref(e))}
       specs={[
         { icon: "star", value: e.rating ? e.rating.toFixed(1) : null, label: "Rating" },
         { icon: "calendar", value: e.year || null, label: "Year" },
-        { icon: "clock", value: e.runtimeMinutes ? clock(e.runtimeMinutes * 60) : null, label: "Length" },
+        ...(e.kind === "show" ? [] : [{ icon: "clock", value: e.runtimeMinutes ? clock(e.runtimeMinutes * 60) : null, label: "Length" }]),
       ]}
       status={{ icon: "bookmark", label: `Saved ${ago(e.addedAt)}` }}
       action={e.libraryId
@@ -297,15 +298,14 @@ function EntryCard({ entry: e, listId, editable, shared, onChange }) {
       <ShowcaseCard
         className="kc-card"
         name={e.title}
+        eyebrow={kindLine(e.kind, e)}
         art={e.posterUrl ? `url("${e.posterUrl}")` : null}
         onPick={() => navigate(entryHref(e))}
         badge={e.watched ? { tone: "info", label: "Watched" } : null}
         specs={[
           { icon: "star", value: e.rating ? e.rating.toFixed(1) : null, label: "Rating" },
           { icon: "calendar", value: e.year || null, label: "Year" },
-          e.kind === "show"
-            ? { icon: "tv", value: "Series", label: "Type" }
-            : { icon: "clock", value: e.runtimeMinutes ? clock(e.runtimeMinutes * 60) : null, label: "Length" },
+          ...(e.kind === "show" ? [] : [{ icon: "clock", value: e.runtimeMinutes ? clock(e.runtimeMinutes * 60) : null, label: "Length" }]),
         ]}
         status={e.note
           ? { icon: "message-square-text", label: e.note, title: `${e.note}\n${saved}` }
