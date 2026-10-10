@@ -480,6 +480,78 @@
   padding: 3px 9px; border-radius: 999px;
 }
 
+/* ── What is playing ── the (i) at the top bar's end, its pane down the right edge, and the card a
+   pause leaves over the left of the film. */
+.mp-stage { --mp-about-w: min(440px, 42%); }
+.mp-top__about { margin-left: auto; }
+.mp-top__room + .mp-top__about { margin-left: 0; }
+.mp-top__about.is-open { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.3); }
+/* The pane stands beside the film rather than over its controls: the bars end where it begins. */
+.mp-stage.has-about :is(.mp-top, .mp-bottom) { right: var(--mp-about-w); }
+.mp-stage.has-about .mp-nextup { right: calc(var(--mp-about-w) + 24px); }
+.mp-stage.has-about :is(.mp-event, .mp-notices, .mp-knocks) { left: calc((100% - var(--mp-about-w)) / 2); max-width: calc(100% - var(--mp-about-w) - 32px); }
+/* Beside the pane a frame under 1240px wide leaves the bars less than a compact frame's width, and
+   they draw as a compact frame's do: menus as icons, and no count of who is watching. */
+@media (max-width: 1240px) {
+  .mp-stage.has-about .mp-menu-button { width: 40px; padding: 0; justify-content: center; }
+  .mp-stage.has-about :is(.mp-menu-button__value, .mp-top__count) { display: none; }
+}
+
+.mp-about--pane {
+  position: absolute; top: 0; right: 0; bottom: 0; z-index: 6; width: var(--mp-about-w);
+  display: flex; flex-direction: column;
+  background: rgba(17, 22, 29, 0.94); backdrop-filter: blur(12px); border-left: 1px solid var(--border-subtle);
+  color: var(--fg-1); white-space: normal; animation: mp-about-in 200ms var(--ease-out);
+}
+.mp-about__bar { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 10px 20px; }
+.mp-about__label {
+  margin: 0; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); font-weight: 600;
+}
+.mp-about__scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 20px 24px; }
+.mp-about__body { display: flex; flex-direction: column; gap: 22px; }
+.mp-about__art {
+  aspect-ratio: 16 / 9; flex-shrink: 0; border-radius: var(--r-sm);
+  background: center / cover no-repeat var(--surface-2);
+}
+.mp-about__head { display: flex; flex-direction: column; gap: 10px; }
+.mp-about__head--show { padding-top: 20px; border-top: 1px solid var(--border-subtle); }
+.mp-about__name { margin: 0; font-size: 22px; font-weight: 700; line-height: 1.2; text-wrap: balance; }
+.mp-about__head--show .mp-about__name { font-size: 18px; }
+.mp-about__overview { margin: 0; font-size: 14px; line-height: 1.55; color: var(--fg-2); text-wrap: pretty; }
+.mp-about .kc-tt__tagline { font-size: 14px; }
+.mp-about .kc-credits { grid-template-columns: 72px minmax(0, 1fr); font-size: 12.5px; }
+.mp-about__section { display: flex; flex-direction: column; gap: 10px; }
+.mp-about .kc-cast { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.mp-about .kc-cast__card { padding: 8px 10px; gap: 10px; }
+.mp-about .kc-factgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mp-about .kc-factgrid__cell { padding: 10px 12px; }
+@keyframes mp-about-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+/* On a compact frame it is a sheet from the bottom, as the menus are. */
+.mp-about--sheet { padding-left: 16px; padding-right: 16px; }
+.mp-about--sheet .mp-about__body { padding-bottom: 8px; }
+.mp-about--sheet .mp-about__art { aspect-ratio: 21 / 9; }
+
+.mp-pausecard {
+  position: absolute; top: 0; bottom: 0; left: 0; z-index: 2; pointer-events: none;
+  width: min(620px, 60%); display: flex; align-items: center; padding: 96px 32px 150px 48px; box-sizing: border-box;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.55) 55%, transparent);
+  animation: mp-pausecard-in 500ms var(--ease-out);
+}
+.mp-pausecard__text { display: flex; flex-direction: column; gap: 10px; max-width: 480px; }
+.mp-pausecard__eyebrow {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--krystal-teal);
+}
+.mp-pausecard__name { font-size: 34px; font-weight: 700; line-height: 1.12; text-wrap: balance; }
+.mp-pausecard__episode { font-size: 17px; font-weight: 600; color: var(--fg-1); }
+.mp-pausecard__meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13.5px; color: rgba(255, 255, 255, 0.75); }
+.mp-pausecard__story {
+  margin: 0; font-size: 15px; line-height: 1.55; color: rgba(255, 255, 255, 0.85); text-wrap: pretty;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.mp-pausecard__stars { font-size: 13px; color: rgba(255, 255, 255, 0.6); }
+@keyframes mp-pausecard-in { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .mp-about--pane, .mp-pausecard { animation: none; } }
+
 /* ── Compact: icons and sheets ── */
 .mp-frame--compact .mp-top { padding: 12px 16px; gap: 10px; }
 .mp-frame--compact .mp-top__name { font-size: 14px; }
@@ -554,4 +626,23 @@
 @keyframes mp-tap { from { opacity: 0.4; transform: translateY(-50%) scale(0.85); } to { opacity: 1; transform: translateY(-50%) scale(1); } }
 @media (prefers-reduced-motion: reduce) {
   .mp-event, .mp-gesture-skip { animation: none; }
+}
+
+.mp-frame--compact .mp-pausecard { width: min(460px, 70%); padding: 64px 20px 110px 24px; }
+.mp-frame--compact .mp-pausecard__text { gap: 6px; }
+.mp-frame--compact .mp-pausecard__name { font-size: 22px; }
+.mp-frame--compact .mp-pausecard__episode { font-size: 14px; }
+.mp-frame--compact .mp-pausecard__meta { font-size: 12px; }
+.mp-frame--compact .mp-pausecard__story { font-size: 13px; -webkit-line-clamp: 3; }
+.mp-frame--compact .mp-pausecard__stars { display: none; }
+/* A frame this short is a phone held sideways, wide but with little height between the bars. The
+   player fills its viewport wherever it runs, so the viewport's height is the frame's. */
+@media (max-height: 520px) {
+  .mp-pausecard { width: min(520px, 60%); padding: 64px 24px 104px 32px; }
+  .mp-pausecard__text { gap: 6px; }
+  .mp-pausecard__name { font-size: 22px; }
+  .mp-pausecard__episode { font-size: 14px; }
+  .mp-pausecard__meta { font-size: 12px; }
+  .mp-pausecard__story { font-size: 13px; -webkit-line-clamp: 2; }
+  .mp-pausecard__stars { display: none; }
 }

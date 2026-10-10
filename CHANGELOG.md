@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.0] - 2026-10-11
+
+### Added
+
+- **The player says what is playing.** An (i) at the end of its top bar, or `i`, opens the title's page
+  beside the film: its heading, score, story, credits, cast and facts, an episode first and its show
+  after it, with nothing in it that leaves the room. On a wide frame it is a pane down the right edge
+  and the controls make room for it; on a phone held upright it is a sheet from the bottom. The film
+  plays on, and it is the viewer's own: nobody else in the room sees it open.
+- **A room left paused a few seconds says what is playing** over the left of the film: the name, an
+  episode's place and name, the year, rating and length, the story and who is in it, gone as soon as
+  the film plays. A guest sees it too, from what the room's film says of itself. Site 0.65.0.
+
 ## [3.14.1] - 2026-10-11
 
 ### Changed

@@ -174,9 +174,25 @@ and does nothing that would be.
   A held key is a keydown for a key that has not come up, since a Fire TV marks no repeat as one.
   Rewind and Fast-forward skip wherever focus is, and the media keys act directly. Back closes a
   menu, then puts the controls away, then leaves the room; Menu opens the subtitles. A television
-  has no volume, full screen, invite or back button in the player, and none of a phone's landscape
-  or gestures. There a menu is a panel down the right edge, a focused control is a light pill, and
+  has no volume, full screen, invite, about or back button in the player, and none of a phone's
+  landscape or gestures. There a menu is a panel down the right edge, a focused control is a light pill, and
   subtitles nobody has sized are drawn large enough to read from across a room.
+- **What is playing is told beside the film, and the telling is this viewer's alone** (`About.jsx`).
+  The (i) at the top bar's end, or `i`, opens what the title's page says without what the page does:
+  its heading, score, story, credits, cast and facts, and no action. On a wide frame it is a pane down
+  the right edge and the bars end where it begins, drawing as a compact frame's do while that leaves
+  them less than a compact frame's width; on a compact frame it is a sheet from the bottom. The film
+  plays on beside it, and no name in it leads anywhere, since following one would leave the room. An
+  episode leads with itself (its still, name and story) and its show follows. A tiny frame and a
+  television have no (i). The words are the API's (`/api/films/{imdbId}`, `/api/shows/{imdbId}`, read
+  once a title), else what the manifest carries: a guest, whose link opens the room's film and nothing
+  else, and a film played alone out of reach of the server are told the name, year and stars, and
+  whatever a saved copy keeps of the description.
+- **A room left paused says what is playing.** Four seconds into a pause, the left of the frame holds
+  the name, an episode's place and name, the facts, the story and who is in it, until the film plays
+  again or anything opens over it; on a frame as short as a phone held sideways the story is two
+  lines and the stars are left out. It answers no press, so a tap or a click goes through to the
+  film. For a guest it is the room's Paused, said with more.
 - **Brightness is how dark the picture is drawn, not the screen's.** A page has no hold on the
   screen's backlight, so the left sweep fades a black layer over the film, from none to most of the
   way. The subtitles sit above it at the brightness they were styled at. Like volume it is the

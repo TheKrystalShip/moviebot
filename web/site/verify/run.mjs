@@ -360,10 +360,11 @@ async function guestChecks(browser) {
   check('the guest watches the room', (await sam.textContent('.mp-top__name').catch(() => '')).length > 0);
 
   await press(sam, '.mp-scrub');
-  const absent = await sam.evaluate(() => ['.mp-play', '.mp-invite', '.mp-round', '.mp-nextup']
+  const absent = await sam.evaluate(() => ['.mp-play', '.mp-invite', '[aria-label="Back"]', '.mp-nextup']
     .filter((s) => document.querySelector(s) !== null));
   check('no play, skip, invite or way back is drawn', absent.length === 0 && (await sam.$('[aria-label^="Back 10"]')) === null, absent.join(', '));
   check('the bar shows the film and moves nothing', (await sam.$('.mp-scrub.is-readonly')) !== null);
+  check('what is playing is theirs to read', (await sam.$('.mp-top__about')) !== null);
   check('subtitles are theirs to choose', (await sam.$('.mp-menu-button[aria-label^="Subtitles"]')) !== null);
   await ada.waitForSelector('.mp-avatar.is-guest', { timeout: 5000 }).catch(() => null);
   check('the room sees the guest as a guest', (await ada.$('.mp-avatar.is-guest')) !== null);

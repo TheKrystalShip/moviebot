@@ -15,6 +15,7 @@ import { ScrubBar } from "./ScrubBar.jsx";
 import { Volume } from "./Volume.jsx";
 import { ago } from "../time.js";
 import { Drawer } from "../components/Drawer.jsx";
+import { AboutButton, AboutPanel, PauseCard, useAbout, usePausedLong } from "./About.jsx";
 import {
   Menu, MenuTitles, audioValue, episodeValue, hasEpisodes, hasQualityChoice, qualityValue, subtitleValue,
 } from "./Menus.jsx";
@@ -286,6 +287,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   React.useEffect(() => { if (menu !== "subs") setStyling(false); }, [menu]);
   const [overflow, setOverflow] = React.useState(false);
   const [invite, setInvite] = React.useState(false);
+  const [info, setInfo] = React.useState(false);
   const [held, setHeld] = React.useState(0);
   const [active, setActive] = React.useState(true);
   const [announcement, setAnnouncement] = React.useState(null);
@@ -298,6 +300,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   const around = useAround(view);
   const next = around && around.next;
   const goNext = () => room.nextEpisode();
+  const about = useAbout(view);
 
   // The stored number is the loudness asked for; the element is given the amplitude that makes it.
   React.useEffect(() => {
@@ -367,7 +370,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   }, []);
   React.useEffect(() => { wake(); return () => window.clearTimeout(idleTimer.current); }, [wake]);
   const hold = React.useCallback((on) => setHeld((n) => Math.max(0, n + (on ? 1 : -1))), []);
-  const shown = active || held > 0 || menu !== null || overflow || invite || clock.paused || !view.ready;
+  const shown = active || held > 0 || menu !== null || overflow || invite || info || clock.paused || !view.ready;
 
   // A television is driven by its remote (`engine/media/remote.ts`): the volume is the set's own, the
   // screen is already whole, and nobody across the room is handed a link to copy.
@@ -378,7 +381,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   const live = React.useRef(null);
   live.current = {
     shown, active, paused: clock.paused, position: clock.position,
-    duration: manifest ? manifest.durationSeconds : 0, open: menu !== null || overflow || invite,
+    duration: manifest ? manifest.durationSeconds : 0, open: menu !== null || overflow || invite || info,
   };
 
   // A phone holds the film sideways and full screen from the first press, so it has no button for
@@ -404,8 +407,14 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
     else void frameRef.current.requestFullscreen().catch(() => {});
   }, [frameRef]);
 
-  const closeAll = React.useCallback(() => { setMenu(null); setOverflow(false); setInvite(false); }, []);
-  const openMenu = (kind) => { setOverflow(false); setInvite(false); setMenu((m) => (m === kind ? null : kind)); };
+  const closeAll = React.useCallback(() => { setMenu(null); setOverflow(false); setInvite(false); setInfo(false); }, []);
+  const openMenu = (kind) => { setOverflow(false); setInvite(false); setInfo(false); setMenu((m) => (m === kind ? null : kind)); };
+  // What is playing is offered wherever a pane fits beside the film and a pointer can scroll it.
+  const offersAbout = Boolean(about) && size !== "tiny" && !tv;
+  const toggleInfo = React.useCallback(() => {
+    if (!offersAbout) return;
+    setMenu(null); setOverflow(false); setInvite(false); setInfo((o) => !o);
+  }, [offersAbout]);
 
   React.useEffect(() => tv ? undefined : bindShortcuts({
     togglePlay: () => { room.togglePlay(); wake(); },
@@ -414,7 +423,8 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
     toggleFullscreen,
     toggleMute: () => { setVolume((v) => { prefs.setVolume(v.position, !v.muted); return { ...v, muted: !v.muted }; }); wake(); },
     toggleSubtitles: () => { room.toggleSubtitles(); wake(); },
-  }), [tv, room, wake, nudgeVolume, toggleFullscreen]);
+    toggleAbout: () => { toggleInfo(); wake(); },
+  }), [tv, room, wake, nudgeVolume, toggleFullscreen, toggleInfo]);
 
   // The remote, ahead of the page's navigator: it listens while the key is still on its way down.
   // Back closes what is open, then puts the controls away, then leaves; Menu is the subtitles.
@@ -473,6 +483,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
     const offMenu = onTvMenu(() => {
       setOverflow(false);
       setInvite(false);
+      setInfo(false);
       setMenu((m) => (m === "subs" ? null : "subs"));
       wake();
       return true;
@@ -533,7 +544,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   // hides what is over the frame.
   const pressStage = (e) => {
     if (e.target !== e.currentTarget) return;
-    if (menu !== null || overflow || invite) { closeAll(); return; }
+    if (menu !== null || overflow || invite || info) { closeAll(); return; }
     if (e.pointerType === "mouse") { if (!viewOnly) room.togglePlay(); wake(); return; }
     if (view.ready) gestures.onPointerDown(e);
     else toggleControls();
@@ -558,6 +569,10 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
     && ((titleHeld && !manifest) || view.catchingUp || view.stalled);
   const sheet = compact;
   const swipe = remoteScrub ?? (gestures.hud && gestures.hud.kind === "seek" ? gestures.hud.at : null);
+  // A room left paused a moment says what is playing over the left of the film, while nothing else is open over it.
+  const pausedLong = usePausedLong(Boolean(view.ready && clock.paused));
+  const pauseCard = pausedLong && about && view.ready && !waiting && !view.fatal && !view.unplayable && !view.gate
+    && size !== "tiny" && menu === null && !overflow && !invite && !info;
   // The room stopped by somebody in it, which a guest has no button to say.
   const roomPaused = viewOnly && view.ready && !view.gate && Boolean(view.state && view.state.paused);
 
@@ -576,7 +591,8 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   }
 
   return (
-    <div className={"mp-stage" + (shown ? " is-shown" : " is-idle") + (view.ready ? " is-playing-film" : "")} style={frameStyle}
+    <div className={"mp-stage" + (shown ? " is-shown" : " is-idle") + (view.ready ? " is-playing-film" : "")
+      + (info && offersAbout && !sheet ? " has-about" : "")} style={frameStyle}
       onPointerDown={pressStage} onPointerMove={moveOnStage} onPointerUp={liftFromStage}
       onPointerCancel={(e) => { if (e.pointerType !== "mouse") gestures.onPointerCancel(e); }}>
       {brightness < 1 && <div className="mp-dim" style={{ opacity: 1 - brightness }} aria-hidden="true" />}
@@ -601,9 +617,10 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
               <div className="mp-avatars">{everyone.map((p) => <Avatar key={p.userId} person={p} />)}</div>
               {size === "wide" && <span className="mp-top__count">{everyone.length > 1 ? `${everyone.length} watching` : "Just you"}</span>}
               {size !== "tiny" && !tv && !viewOnly && <InviteButton open={invite}
-                onToggle={() => { setMenu(null); setOverflow(false); setInvite((o) => !o); }} />}
+                onToggle={() => { setMenu(null); setOverflow(false); setInfo(false); setInvite((o) => !o); }} />}
             </div>
           )}
+          {offersAbout && <AboutButton open={info} onToggle={toggleInfo} />}
         </div>
       )}
 
@@ -630,7 +647,8 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
 
       {/* ── What stands in the middle of the frame ── */}
       {waiting && <div className="mp-spinner" role="status" aria-label="Waiting for the film"><Icon name="loader-circle" size={36} className="mp-spin" /></div>}
-      {roomPaused && !waiting && <div className="mp-paused" role="status"><Icon name="pause" size={18} />Paused</div>}
+      {pauseCard && <PauseCard about={about} />}
+      {roomPaused && !waiting && !pauseCard && <div className="mp-paused" role="status"><Icon name="pause" size={18} />Paused</div>}
       {preparing && <Preparing manifest={manifest} head={view.transcodeHead} />}
       {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} focused={tv} solo={solo} onJoin={() => { takeScreen(); room.joinPlayback(); }} />}
       {view.unplayable && <Message icon="circle-alert" title="This cannot play here" text={view.unplayable} />}
@@ -737,6 +755,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
           onPick={(kind) => { setOverflow(false); setMenu(kind); }} onClose={() => setOverflow(false)} />
       )}
       {invite && <InvitePanel view={view} room={room} everyone={everyone} compact={compact} />}
+      {info && offersAbout && <AboutPanel about={about} sheet={sheet} onClose={() => setInfo(false)} />}
     </div>
   );
 }

@@ -125,6 +125,9 @@ export interface SubtitleSearch {
 export interface EpisodePlace {
   season: number;
   number: number;
+  /** The description's own name and story for the episode, as a saved copy's manifest keeps them. */
+  name?: string;
+  overview?: string;
 }
 
 /** One episode of a show as its description lists it, joined with the library and the viewer's progress. */
@@ -132,6 +135,7 @@ export interface ShowEpisode {
   season: number;
   number: number;
   name?: string;
+  overview?: string;
   airDate?: string;
   runtimeMinutes?: number;
   rating?: number;
@@ -149,6 +153,64 @@ export interface ShowSeasons {
   imdbId: string;
   title: string;
   seasons: { number: number; name?: string; episodes: ShowEpisode[] }[];
+}
+
+/** One person in a title's billing; `personId` is the film database's, which Discover takes. */
+export interface CastMember {
+  personId?: number;
+  name: string;
+  character?: string;
+  /** Served from here. */
+  portraitUrl?: string;
+}
+
+/** What the film database says of a film or a show, as the API keeps it; the parts the player draws. */
+export interface TitleDescription {
+  imdbId: string;
+  title: string;
+  originalTitle?: string;
+  certification?: string;
+  genres: string[];
+  overview?: string;
+  tagline?: string;
+  rating?: number;
+  votes: number;
+  cast: CastMember[];
+  languages: string[];
+  countries: string[];
+  posterUrl?: string;
+  backdropUrl?: string;
+}
+
+/** A film's description: `GET /api/films/{imdbId}`. */
+export interface FilmDescription extends TitleDescription {
+  year?: number;
+  releaseDate?: string;
+  directors: string[];
+  writers: string[];
+}
+
+/** A show's description with its seasons: `GET /api/shows/{imdbId}`. */
+export interface ShowDescription extends TitleDescription, ShowSeasons {
+  firstYear?: number;
+  lastYear?: number;
+  status?: string;
+  inProduction?: boolean;
+  creators: string[];
+  networks: string[];
+}
+
+/** The part of a description a listing carries, which a saved copy's manifest keeps. */
+export interface FilmFacts {
+  rating?: number;
+  votes: number;
+  certification?: string;
+  genres: string[];
+  runtimeMinutes?: number;
+  overview?: string;
+  directors: string[];
+  posterUrl?: string;
+  backdropUrl?: string;
 }
 
 /** One point in the film with a name, as the container already records it. */
@@ -194,6 +256,8 @@ export interface Manifest {
   film?: FilmIdentity;
   /** An episode's place in its show, which `film` then names; absent for a film. */
   episode?: EpisodePlace;
+  /** The film's description, or an episode's show's, as far as a listing carries it: a saved copy's. */
+  details?: FilmFacts;
   source?: SourceFingerprint;
   /** Languages the source carries that were not extracted, so an absent one is explained. */
   otherLanguages?: string[];

@@ -8,6 +8,8 @@ export interface ShortcutHooks {
   toggleFullscreen(): void;
   toggleMute(): void;
   toggleSubtitles(): void;
+  /** What is playing, beside the film; this viewer's alone. */
+  toggleAbout(): void;
 }
 
 const SmallStepSeconds = 5;
@@ -16,10 +18,10 @@ const LargeStepSeconds = 10;
 /**
  * The keys a player is expected to answer.
  *
- * Every one of them moves the whole room. There is one playhead and no host, so a space bar here
- * pauses the film for everybody, not for whoever pressed it — which is the premise rather than a
- * hazard, but it is why nothing is bound that a hand resting on a keyboard could trigger, and why
- * the bindings stop at what somebody would deliberately reach for.
+ * Every one that moves the film moves it for the whole room. There is one playhead and no host, so
+ * a space bar here pauses the film for everybody, not for whoever pressed it — which is the premise
+ * rather than a hazard, but it is why nothing is bound that a hand resting on a keyboard could
+ * trigger, and why the bindings stop at what somebody would deliberately reach for.
  *
  * Nothing is bound while a person is typing, and nothing is bound over a control that already
  * answers the same key: the scrub bar and the volume slider each handle the arrows themselves
@@ -81,6 +83,10 @@ function dispatch(key: string, hooks: ShortcutHooks): boolean {
     case 'c':
     case 'C':
       hooks.toggleSubtitles();
+      return true;
+    case 'i':
+    case 'I':
+      hooks.toggleAbout();
       return true;
     default:
       return false;
