@@ -48,7 +48,6 @@ public sealed class WatchNow(
     ShowOfferCache showOffers,
     IOptions<NotifyOptions> notify,
     IOptions<WatchOptions> options,
-    IOptions<OidcOptions> oidc,
     ILogger<WatchNow> logger)
 {
     /// <summary>The server's own name on what it does to a room, for the log.</summary>
@@ -123,7 +122,7 @@ public sealed class WatchNow(
         var room = request.Room is { Length: > 0 } named ? named : NewRoom();
         if (!TorrentTags.IsRoomId(room)) return new WatchNowReply { Outcome = "badRoom" };
         // The asker comes into the room the film is played in, and a room made for them is theirs.
-        if (!sessions.Enter(room, asker.UserId, oidc.Value.OpensRoomsMadeThrough(asker.Via))) return new WatchNowReply { Outcome = "private" };
+        if (!sessions.Enter(room, asker.UserId)) return new WatchNowReply { Outcome = "private" };
 
         if (request.Episodes is null && InLibrary(request.ImdbId) is { } title)
         {

@@ -831,8 +831,8 @@ function InviteButton({ open, onToggle }) {
 }
 
 /**
- * Who may come into the room, and everybody who can be asked in. The room is private until somebody
- * opens it, and only an open room has a link to hand out: on a phone it goes to the phone's own
+ * Who may come into the room, and everybody who can be asked in. The room is open until somebody
+ * closes it, and only an open room has a link to hand out: on a phone it goes to the phone's own
  * share sheet, elsewhere it is copied. An invite lets the person in, and is a push to their devices,
  * or a Discord message where no push reaches them; the row says which went out and nothing about
  * whether they saw it. Somebody already in the room is marked as watching.

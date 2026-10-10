@@ -127,7 +127,7 @@ public sealed class RoomControlTests(SessionFixture fixture) : IClassFixture<Ses
         // about and the room is not is a film that stops for nobody.
         var client = fixture.CreatePersonClient();
         var session = NewSession();
-        await using var viewer = await fixture.ConnectOpenAsync(session, "u1", "Alice");
+        await using var viewer = await fixture.ConnectAsync(session, "u1", "Alice");
 
         // The load is broadcast too, and over long polling it can land after the next subscription —
         // so it is waited for first, or the play below would be read off the load's paused state.

@@ -65,7 +65,7 @@ public sealed class RoomStoreTests : IDisposable
     }
 
     /// <summary>
-    /// A restart that opened every private room is the worst way for one to stop being private, and
+    /// A restart that opened every closed room is the worst way for one to stop being private, and
     /// one that forgot who was let in would shut everybody out of their own room.
     /// </summary>
     [Fact]
@@ -73,9 +73,9 @@ public sealed class RoomStoreTests : IDisposable
     {
         var before = NewStore();
         before.Enter("private", "maker");
+        before.SetOpen("private", false);
         before.Admit("private", "guest");
         before.Enter("open", "maker");
-        before.SetOpen("open", true);
 
         Rooms().Write(before.Snapshot());
 

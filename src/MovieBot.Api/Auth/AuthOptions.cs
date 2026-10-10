@@ -66,14 +66,6 @@ public sealed class OidcOptions
     public string BotClientId { get; set; } = "cinema-bot";
 
     /// <summary>
-    /// Whether a room a person makes through <paramref name="client"/> is open from the moment it is
-    /// made: the Activity's and the bot's, Discord's own doors. Their room is a channel, Discord decides
-    /// who is in the call, and a door of the room's own would stand between the people in it.
-    /// </summary>
-    public bool OpensRoomsMadeThrough(string? client) =>
-        client is { Length: > 0 } && (client == ActivityClientId || client == BotClientId);
-
-    /// <summary>
     /// Set to <see cref="Issuer"/> to adopt it in place of a different issuer the API recorded before. Every
     /// account the old provider named is a stranger to the new one, so nothing changes issuer unasked.
     /// </summary>

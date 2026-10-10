@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.0] - 2026-10-10
+
+### Changed
+
+- **A room is open from the moment it is made**, wherever it is made: the site, the Activity, the
+  bot or Watch now. Anybody who may watch finds it in the listing and walks in, and somebody in it
+  closes it to keep it to the people already let in. A room already closed stays closed.
+
 ## [3.10.0] - 2026-10-10
 
 ### Added

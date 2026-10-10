@@ -81,8 +81,8 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     private readonly ConcurrentDictionary<string, string> _passes = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// The room, made private and holding nothing when there is none. A room made here has nobody let
-    /// in: machine work makes rooms this way, and a person makes one by entering it (<see cref="Enter"/>).
+    /// The room, made open and holding nothing when there is none. A room made here has nobody let in:
+    /// machine work makes rooms this way, and a person makes one by entering it (<see cref="Enter"/>).
     /// </summary>
     public SessionState GetOrCreate(string sessionId)
     {
@@ -91,7 +91,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
             return WithCurrentHead(entry.State);
     }
 
-    private SessionEntry NewRoom(string sessionId, IEnumerable<string> admitted, bool open = false) => new()
+    private SessionEntry NewRoom(string sessionId, IEnumerable<string> admitted) => new()
     {
         State = new SessionState
         {
@@ -105,7 +105,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
             Epoch = Guid.NewGuid().ToString("n")
         },
         LastActivityUtc = clock.GetUtcNow(),
-        Admission = new RoomAdmission(open, admitted),
+        Admission = new RoomAdmission(open: true, admitted),
         MembersGoneSince = clock.GetUtcNow()
     };
 
@@ -113,13 +113,12 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
 
     /// <summary>
     /// Lets a person into the room when it admits them, and keeps them let in; false when it is
-    /// private to them. A room there is none of is made with them let in, whoever makes a room being
-    /// the first person it admits: private, or open with <paramref name="openWhenMade"/>, which says
-    /// nothing about a room that already stands. Every door a person comes through asks this.
+    /// private to them. A room there is none of is made open with them let in, whoever makes a room
+    /// being the first person it admits. Every door a person comes through asks this.
     /// </summary>
-    public bool Enter(string sessionId, string userId, bool openWhenMade = false)
+    public bool Enter(string sessionId, string userId)
     {
-        var entry = _sessions.GetOrAdd(sessionId, id => NewRoom(id, [userId], openWhenMade));
+        var entry = _sessions.GetOrAdd(sessionId, id => NewRoom(id, [userId]));
         lock (entry.Gate)
             if (!entry.Admission.Enter(userId)) return false;
 

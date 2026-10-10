@@ -447,7 +447,7 @@ A film that is not here is fetched and played in a room the moment it can be ope
 /api/watch` answers at once: `inLibrary` (the film is here, and is loaded into `room`), `preparing`
 (the room waits on it), `full` (a `409`: `streams` films are already being watched while they arrive,
 the `Watch:MaxStreams` setting, and the person is offered Download instead) or `badRoom`. Without a
-`room` a new one is made, private to the person asking; a room id is 1 to 64 letters, digits, `-` or
+`room` a new one is made, open, with the person asking in it; a room id is 1 to 64 letters, digits, `-` or
 `_`, and a room named that is private to them is a `403`. A film already arriving
 has the room added to its download. Otherwise the release is `torrentId`, one the API offered, or the
 best at `quality` (`1080p` unless `720p` is asked) from a digital source up; `episodes` fetches only
@@ -781,7 +781,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 
 | Method | Signature | Notes |
 |---|---|---|
-| `Join` | `(sessionId) → JoinReply` | call first; everything else but `Knock` throws until you are in. The viewer is the connection's token: its `sub` and `name`. `{admitted: true, push, door}` puts them in the room, and a room there is none of is made, private, with them let in; `{admitted: false}` is a room private to them, and says nothing else about it (Who may come in, below) |
+| `Join` | `(sessionId) → JoinReply` | call first; everything else but `Knock` throws until you are in. The viewer is the connection's token: its `sub` and `name`. `{admitted: true, push, door}` puts them in the room, and a room there is none of is made, open, with them let in; `{admitted: false}` is a room private to them, and says nothing else about it (Who may come in, below) |
 | `JoinAsGuest` | `(name: string?) → JoinReply` | a guest link's `Join`: the link names the room. `{admitted: true, push, you}` puts the guest in, `you` the `Participant` the room has them as (`guest: true`, an id of the connection's, `name` cleaned of control and formatting characters and held to 32, "Guest" when empty); calling it again on the same connection keeps them who they were. `{admitted: false, refused}` says why not: `ended` (the link is no longer the room's), `unattended` (nobody with an account is in the room, nor has been within `Rooms.GuestGrace`) or `full` (`Rooms.GuestsPerRoom`). A connection that is no guest is refused |
 | `Knock` | `(sessionId) → bool` | asks to be let into a room private to this viewer. `true` is no need to ask, so `Join` now; otherwise the room is told who is asking and this connection is answered with `KnockAnswered`. The asking ends with the connection |
 | `SetOpen` | `(open: bool)` | opens the room to anybody holding `cinema:watch`, or closes it to anybody not already let in |
@@ -811,12 +811,11 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 
 ### Who may come in
 
-A room is private from the moment it is made. Whoever makes it is let in by making it — by `Join`,
-by any room route below, or by Watch now — and nobody else is, until somebody in it lets them in, invites
-them (`POST /api/rooms/{room}/invite`), or opens it. A room made through Discord is open instead: one
-whose maker's token names the Activity's client (`Oidc.ActivityClientId`) or the bot's
-(`Oidc.BotClientId`) as the client acting for them, since its room is a channel and Discord decides
-who is in the call. Arriving through Discord opens no room that already stands. Entering an open room lets that person in for good,
+A room is open from the moment it is made, whichever client its maker came through. Whoever makes it
+is let in by making it — by `Join`, by any room route below, or by Watch now — and so is anybody who
+enters while it is open. Once somebody in it closes it (`SetOpen`), nobody else comes in until somebody
+in it lets them in, invites them (`POST /api/rooms/{room}/invite`), or opens it again. Arriving opens
+no room that already stands. Entering an open room lets that person in for good,
 so closing it again shuts out nobody who has been in, a reload included, and lets in nobody new. Who was
 let in is kept with the room across a restart. What a room private to a person tells them is that it
 is private and nothing more: `Join` answers `{admitted: false}`, every room route a `403` with

@@ -130,6 +130,7 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
         var room = "private-" + Guid.NewGuid().ToString("N")[..8];
         (await client.PostAsJsonAsync($"/api/sessions/{room}/title",
             new TheKrystalShip.MovieBot.Core.SetTitleRequest(SessionFixture.Heat))).EnsureSuccessStatusCode();
+        Rooms.SetOpen(room, false);
 
         var page = await Client().GetStringAsync($"/r/{room}?title={SessionFixture.Heat}");
 
@@ -146,6 +147,7 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
         var room = "guests-" + Guid.NewGuid().ToString("N")[..8];
         (await client.PostAsJsonAsync($"/api/sessions/{room}/title",
             new TheKrystalShip.MovieBot.Core.SetTitleRequest(SessionFixture.Heat))).EnsureSuccessStatusCode();
+        Rooms.SetOpen(room, false);
         using var issued = await client.PostAsync($"/api/rooms/{room}/guests", null);
         var link = (await issued.Content.ReadFromJsonAsync<TheKrystalShip.MovieBot.Core.GuestLink>())!;
 

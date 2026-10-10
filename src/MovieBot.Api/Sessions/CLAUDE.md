@@ -39,16 +39,15 @@ door and miss the other.
 
 ## Who may come in
 
-A room is private from the moment it is made, unless it is made through Discord, and letting somebody in is something a person in it
-does. The rules live in `RoomAdmission`, one per room under the room's lock; `SessionStore.Enter` is
+A room is open from the moment it is made, and closing it, and letting somebody into it once closed,
+is something a person in it does. The rules live in `RoomAdmission`, one per room under the room's lock; `SessionStore.Enter` is
 the one question every door asks, and `RoomDoors` is the one place a change at the door is made and
 told.
 
-- **A room made through Discord is open from the moment it is made** (`OidcOptions.OpensRoomsMadeThrough`):
-  the maker's token names the Activity or the bot as the client acting for them. That room is a
-  channel, Discord decides who is in the call, and a door of the room's own would stand between the
-  people in it. Only making a room opens it: arriving through Discord at a room somebody made private
-  leaves it private.
+- **A room is open from the moment it is made**, whichever door its maker came through. Friends find
+  each other's rooms in the listing and walk in; a room that wants a door has somebody in it close
+  it. Only making a room opens it: arriving at a room somebody closed, through Discord or anywhere
+  else, leaves it closed.
 - **Whoever makes a room is let in by making it.** `Enter` on a room there is none of makes it with
   that person let in, whichever door they came through: the hub's `Join`, a room route
   (`RoomEntry.RequireRoomEntry`), Watch now. A room made by machine work (`GetOrCreate`) lets nobody
@@ -65,7 +64,7 @@ told.
   and nothing else, a route is a `403`, the listing leaves it out, and its link unfurls as the site.
   The door goes to the room's group and the answer to the asking page alone, so somebody outside
   never learns who else is asking or who is in.
-- **Who was let in is kept with the room.** A restart that opened every private room would be the
+- **Who was let in is kept with the room.** A restart that opened every closed room would be the
   worst way for one to stop being private, and one that forgot who was let in would shut everybody
   out of their own room.
 - **Machine work is let into every room.** The service key names nobody; what it does to a room is

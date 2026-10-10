@@ -102,7 +102,7 @@ public sealed class GuestTests(GuestFixture fixture) : IClassFixture<GuestFixtur
     public async Task Everybody_in_the_room_is_handed_the_same_link_and_the_door_says_there_is_one()
     {
         var room = NewRoom();
-        await using var alice = await fixture.ConnectOpenAsync(room, "g-alice-2", "Alice");
+        await using var alice = await fixture.ConnectAsync(room, "g-alice-2", "Alice");
         await using var bob = await fixture.ConnectAsync(room, "g-bob-2", "Bob");
 
         var told = Next<RoomDoor>(bob, "DoorChanged");
@@ -313,6 +313,7 @@ public sealed class GuestTests(GuestFixture fixture) : IClassFixture<GuestFixtur
         var room = NewRoom();
         var (alice, code) = await RoomWithLink(room);
         await using var _ = alice;
+        await alice.InvokeAsync("SetOpen", false);
         await using var guest = await GuestConnection(code);
         await guest.InvokeAsync<JoinReply>("JoinAsGuest", "Sam");
         var doors = 0;
@@ -417,7 +418,7 @@ public sealed class GuestTests(GuestFixture fixture) : IClassFixture<GuestFixtur
     public async Task Handing_out_a_link_takes_its_action_and_a_place_in_the_room()
     {
         var room = NewRoom();
-        await using var alice = await fixture.ConnectAsync(room, "g-alice-9", "Alice");
+        await using var alice = await fixture.ConnectPrivateAsync(room, "g-alice-9", "Alice");
 
         var withoutAction = fixture.CreatePersonClient("g-alice-9", "Alice",
             TestIssuer.Everything.Where(a => a != CinemaActions.Guests));

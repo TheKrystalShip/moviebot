@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Api.Auth;
 
 namespace TheKrystalShip.MovieBot.Api.Sessions;
@@ -33,8 +32,7 @@ public static class RoomEntry
             if (CinemaPerson.Of(http) is null && GuestViewer.Of(http.User) is not null) return Private;
             if (CinemaPerson.Of(http) is { } person
                 && http.GetRouteValue(roomParameter) is string room
-                && !http.RequestServices.GetRequiredService<SessionStore>().Enter(room, person.UserId,
-                    http.RequestServices.GetRequiredService<IOptions<OidcOptions>>().Value.OpensRoomsMadeThrough(person.Via)))
+                && !http.RequestServices.GetRequiredService<SessionStore>().Enter(room, person.UserId))
                 return Private;
             return await next(context);
         });

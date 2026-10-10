@@ -241,9 +241,9 @@ public class SessionFixture : WebApplicationFactory<Program>
     }
 
     /// <summary>
-    /// A hub connection routed through the in-process test server, in the room. A room is private to
-    /// everybody but whoever made it, so a second person comes in only once it is open
-    /// (<see cref="ConnectOpenAsync"/>) or they were let in.
+    /// A hub connection routed through the in-process test server, in the room. A room is open from the
+    /// moment it is made, so anybody comes in until somebody in it closes it
+    /// (<see cref="ConnectPrivateAsync"/>).
     /// </summary>
     public async Task<HubConnection> ConnectAsync(string sessionId, string userId, string displayName)
     {
@@ -254,11 +254,11 @@ public class SessionFixture : WebApplicationFactory<Program>
         return connection;
     }
 
-    /// <summary>The first person in a room, who opens it to anybody who may watch.</summary>
-    public async Task<HubConnection> ConnectOpenAsync(string sessionId, string userId, string displayName)
+    /// <summary>The first person in a room, who closes it to anybody not let in.</summary>
+    public async Task<HubConnection> ConnectPrivateAsync(string sessionId, string userId, string displayName)
     {
         var connection = await ConnectAsync(sessionId, userId, displayName);
-        await connection.InvokeAsync("SetOpen", true);
+        await connection.InvokeAsync("SetOpen", false);
         return connection;
     }
 

@@ -5,10 +5,10 @@ namespace TheKrystalShip.MovieBot.Core;
 /// let in.
 /// </summary>
 /// <remarks>
-/// A room is private from the moment it is made. Only the people let in may enter it: whoever made it,
-/// whoever somebody in it let in or invited, and everybody who came in while it was open. Opening it
-/// lets in anybody who may watch; closing it again lets in nobody new, and turns away nobody who has
-/// already been in.
+/// A room is open from the moment it is made, and lets in anybody who may watch. Closing it lets in
+/// nobody new and turns away nobody who has already been in: whoever made it, whoever somebody in it
+/// let in or invited, and everybody who came in while it was open. Opening it again lets in anybody
+/// who may watch.
 /// </remarks>
 public sealed record RoomDoor
 {

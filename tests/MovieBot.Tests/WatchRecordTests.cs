@@ -40,7 +40,7 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
     /// <summary>Somebody in a room holding a film, playing it from a position, with the room open to whoever joins them.</summary>
     private async Task<HubConnection> Watching(string session, string userId, string name, string title, double at)
     {
-        var connection = await fixture.ConnectOpenAsync(session, userId, name);
+        var connection = await fixture.ConnectAsync(session, userId, name);
         await connection.InvokeAsync<SessionStatePush>("LoadTitle", title, null);
         await connection.InvokeAsync<SessionStatePush>("Play", at);
         return connection;
