@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0] - 2026-10-10
+
+### Added
+
+- **A host chooses which disk a transcode is written to.** `Handoff.TranscodeDisk` is `Media` (the
+  default) or `Cold`; the chosen disk takes the transcode when it has the room and the other one
+  when it does not, and cold storage is used only while its volume is present. `Cold` keeps a
+  transcode that runs alongside its download off the disk the download is landing on, and the film
+  never has to settle. hotbox runs `Cold`. Hand-off 0.19.0.
+
 ## [3.6.0] - 2026-10-10
 
 ### Added

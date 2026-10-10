@@ -31,11 +31,12 @@ is about not losing that.
   episode, is what prevents it.
 - **A transcode chooses its disk when it starts, against a reservation** (`TranscodePlacement`).
   The size is the ladder's bitrates and each audio track's, times the running time from a probe, plus
-  an overhead for framing, playlists and artwork (`TranscodeEstimate`). The media root takes it when
-  it fits what that volume has left after the downloads still arriving and the other transcodes still
-  writing; otherwise the cold root, when its volume is present and has the room; otherwise the film
-  is not started. It stays owed, is asked about again each poll, and the reason is logged once when it
-  begins to wait. A transcode that began and then ran out of room would stop partway with a manifest
+  an overhead for framing, playlists and artwork (`TranscodeEstimate`). The disk `TranscodeDisk`
+  names takes it when it fits what that volume has left after the downloads still arriving and the
+  other transcodes still writing; otherwise the other disk, when it has the room; otherwise the film
+  is not started. It stays owed, is asked about again each poll, and the reason is logged once when
+  it begins to wait. The cold disk is a candidate only while its volume is present, so a host set to
+  `Cold` makes films on the media root while the volume is out. A transcode that began and then ran out of room would stop partway with a manifest
   nobody can finish, in front of a room.
 - **The reservation is one account, kept in the acquire library's `DiskBudget`.** A running transcode
   holds a claim in the `TranscodeLedger`: files in the dotted `.transcode-reservations` directory
@@ -50,6 +51,11 @@ is about not losing that.
   every claim is cleared when this process starts, which is what removes one a dead process left.
   Placement is decided and claimed under one lock, so two films that each fit are not both placed on a
   disk that holds one.
+- **Which disk is preferred is a host's choice, `Handoff.TranscodeDisk`.** `Media` keeps the
+  transcode's writes off the platter that viewers read the library from, and the film settles onto
+  it afterwards. `Cold` keeps them off the disk the download is landing on, which a transcode
+  alongside the download otherwise shares with the torrent client's writes and its own reads of the
+  source, and the film never has to move.
 - **A transcode on the cold root keeps every invariant of the two roots**
   (`src/MovieBot.Core/CLAUDE.md`). Before it starts, under the title's lock, the media root's copy is
   cleared (`ColdStore.ClearWorking`), as a transcode on the media root clears the settled one; and

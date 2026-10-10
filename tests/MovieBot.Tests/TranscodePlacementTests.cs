@@ -115,6 +115,24 @@ public sealed class TranscodePlacementTests : IDisposable
     }
 
     [Fact]
+    public void A_host_preferring_cold_storage_writes_there_while_it_has_the_room()
+    {
+        var placement = TranscodePlacement.Decide(
+            6 * GiB, Room(freeGiB: 40), Room(freeGiB: 500), Disk.Cold);
+
+        Assert.Equal(Disk.Cold, placement.Disk);
+    }
+
+    [Fact]
+    public void A_host_preferring_cold_storage_falls_back_to_the_media_root()
+    {
+        Assert.Equal(Disk.Media,
+            TranscodePlacement.Decide(6 * GiB, Room(freeGiB: 40), Room(freeGiB: 3), Disk.Cold).Disk);
+        Assert.Equal(Disk.Media,
+            TranscodePlacement.Decide(6 * GiB, Room(freeGiB: 40), cold: null, Disk.Cold).Disk);
+    }
+
+    [Fact]
     public void The_margin_is_kept_free_past_the_reservation()
     {
         Assert.Equal(Disk.Cold, TranscodePlacement.Decide(6 * GiB, Room(freeGiB: 6.5), Room(freeGiB: 500)).Disk);

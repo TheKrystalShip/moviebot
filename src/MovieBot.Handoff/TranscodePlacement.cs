@@ -78,17 +78,24 @@ public static class TranscodeEstimate
 public static class TranscodePlacement
 {
     /// <summary>
-    /// The media root when the reservation fits what it has left after the downloads still
-    /// arriving and the other transcodes still writing; otherwise the cold root, when its volume
-    /// is present and has the room; otherwise nowhere, and the film stays owed.
+    /// The preferred disk when the reservation fits what it has left after the downloads still
+    /// arriving and the other transcodes still writing; otherwise the other disk, when it has the
+    /// room; otherwise nowhere, and the film stays owed. The cold disk is a candidate only while
+    /// its volume is present.
     /// </summary>
     /// <param name="reservationBytes">What the transcode is expected to take.</param>
     /// <param name="media">The media root's volume as it stands.</param>
     /// <param name="cold">The cold root's volume, or null when it is absent or not configured.</param>
-    public static Placement Decide(long reservationBytes, VolumeRoom media, VolumeRoom? cold)
+    /// <param name="preferred">The disk tried first (<see cref="HandoffOptions.TranscodeDisk"/>).</param>
+    public static Placement Decide(
+        long reservationBytes, VolumeRoom media, VolumeRoom? cold, Disk preferred = Disk.Media)
     {
-        if (media.Fits(reservationBytes)) return new Placement(Disk.Media, null);
-        if (cold is not null && cold.Fits(reservationBytes)) return new Placement(Disk.Cold, null);
+        var mediaFits = media.Fits(reservationBytes);
+        var coldFits = cold is not null && cold.Fits(reservationBytes);
+
+        if (preferred == Disk.Cold && coldFits) return new Placement(Disk.Cold, null);
+        if (mediaFits) return new Placement(Disk.Media, null);
+        if (coldFits) return new Placement(Disk.Cold, null);
 
         var needed = reservationBytes / (double)(1L << 30);
         var onMedia = media.AvailableBytes / (double)(1L << 30);

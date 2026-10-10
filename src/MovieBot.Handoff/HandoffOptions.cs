@@ -14,17 +14,26 @@ public sealed class HandoffOptions
 
     /// <summary>
     /// Where a finished film is kept, once there is nothing left to write to it, and where a film
-    /// is made when the media root has no room for its transcode.
+    /// is made when <see cref="TranscodeDisk"/> names it or the media root has no room for its
+    /// transcode.
     ///
-    /// The disk a film is made on is the one the transcode writes in four-second pieces to for as
-    /// long as it runs, with the download it reads from seeding beside it; the disk it is kept on
-    /// serves one playhead at a little over a megabyte a second. Separating them is what lets the
-    /// library be larger than the disk the work happens on.
+    /// The disk a film is kept on serves one playhead at a little over a megabyte a second.
+    /// Separating it from the disk the downloads land on is what lets the library be larger than
+    /// the disk the work happens on.
     ///
-    /// Empty leaves the whole library on the media root, which is what one disk means and what
-    /// every other part of this behaves as though were still true.
+    /// Empty leaves the whole library on the media root, which is what one disk means.
     /// </summary>
     public string ColdRoot { get; set; } = "";
+
+    /// <summary>
+    /// The disk a transcode is written to when it has the room; the other one takes it when it
+    /// does not. <see cref="Disk.Media"/> keeps the transcode on the disk the downloads land on,
+    /// and a finished film settles onto cold storage afterwards. <see cref="Disk.Cold"/> writes it
+    /// where it is kept, so the disk the download is landing on carries only the download and the
+    /// transcode's read of it, and the film never moves; the price is a platter taking every
+    /// transcode's writes while viewers read from it. Cold is used only while its volume is present.
+    /// </summary>
+    public Disk TranscodeDisk { get; set; } = Disk.Media;
 
     /// <summary>
     /// How often finished downloads are looked for. A transcode takes minutes and the download

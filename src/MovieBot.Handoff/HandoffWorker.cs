@@ -67,7 +67,10 @@ public sealed class HandoffWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation(
-            "Watching for finished downloads, writing into {MediaRoot}.", roots.Hot);
+            "Watching for finished downloads; transcodes are written to {Preferred} when it has the room.",
+            _options.TranscodeDisk == Disk.Cold && roots.Cold is { } coldRoot
+                ? $"cold storage, {coldRoot}"
+                : $"the media root, {roots.Hot}");
 
         // This process holds no transcode when it starts, so any claim on the ledger is one a
         // process that died left behind.
@@ -231,7 +234,7 @@ public sealed class HandoffWorker(
             var media = budget.ReadVolume(roots.Hot, pending);
             var coldRoom = roots.ColdReady ? budget.ReadVolume(roots.Cold!, pending) : null;
 
-            var placement = TranscodePlacement.Decide(needed, media, coldRoom);
+            var placement = TranscodePlacement.Decide(needed, media, coldRoom, _options.TranscodeDisk);
             if (placement.Disk is not { } disk)
             {
                 if (_waiting.TryAdd(key, 0))

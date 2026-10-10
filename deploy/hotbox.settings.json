@@ -33,9 +33,12 @@
   // The card saturates at roughly 10.6x realtime in aggregate: two films run at 5.3x each, three
   // at 3.6x each for the same total. A third only moves every film in flight closer to the
   // playhead it has to outrun.
+  // Transcodes are written to the cold disk, so the SSD a download lands on carries only the
+  // download and the transcode's read of it; "Media" makes them on the SSD again.
   "Handoff": {
     "MediaRoot": "/home/heisen/moviebot/media",
     "ColdRoot": "/home/heisen/moviebot/cold",
+    "TranscodeDisk": "Cold",
     "MaxConcurrentIngests": 2
   },
 

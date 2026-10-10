@@ -91,13 +91,15 @@
     "GuestsPerRoom": 10
   },
 
-  // The hand-off writes films into MediaRoot, which must be the API's Media.Root. Films share the
-  // GPU, so each of MaxConcurrentIngests runs slower than one alone. DialogueBoost adds a
-  // dialogue-raised mix of each feature track after the main pass, a CPU-bound pass that fills
-  // every core for as long as it runs.
+  // The hand-off writes films into MediaRoot, which must be the API's Media.Root, and ColdRoot,
+  // which must be the API's Media.ColdRoot. TranscodeDisk is the one a transcode is written to
+  // when it has the room, Media or Cold. Films share the GPU, so each of MaxConcurrentIngests runs
+  // slower than one alone. DialogueBoost adds a dialogue-raised mix of each feature track after
+  // the main pass, a CPU-bound pass that fills every core for as long as it runs.
   "Handoff": {
     "MediaRoot": "/srv/moviebot/media",
     "ColdRoot": "",
+    "TranscodeDisk": "Media",
     "PollSeconds": 30,
     "MinimumFilmSizeMiB": 200,
     "StartAtProgress": 0.05,

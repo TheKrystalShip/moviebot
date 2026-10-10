@@ -1,12 +1,11 @@
 # The two disks a film lives on (`MediaRoots`)
 
-A film is made on one disk and kept on another. The transcode writes it in pieces for as long as it
-runs, and the download it was read from seeds beside it for a week; between them that is what fills a
-disk. Reading a finished film back is one playhead at a little over a megabyte a second, which any
-disk serves. So the media root holds the work in progress and the cold root holds the library, and the
-library's capacity is the cold disk's. A transcode that does not fit the media root is written to the
-cold root directly, and a film made on the media root is moved to the cold one when it is finished and
-no room is playing it. The placement and the move are the hand-off's
+A film is kept on one disk and its source on another. The download is written beside the media root
+and seeds there for a week; reading a finished film back is one playhead at a little over a megabyte a
+second, which any disk serves. So the cold root holds the library, and the library's capacity is the
+cold disk's. A transcode is written to whichever root the host prefers (`Handoff.TranscodeDisk`), or to
+the other when the preferred one has no room, and a film made on the media root is moved to the cold
+one when it is finished and no room is playing it. The placement and the move are the hand-off's
 (`src/MovieBot.Handoff/CLAUDE.md`).
 
 - **A title is under exactly one root, and cold is resolved first.** The only moment it is under both
@@ -33,5 +32,5 @@ no room is playing it. The placement and the move are the hand-off's
   one already deleted, and acting on what it cannot see is how a library loses a film that was only
   unplugged. A film is on the library's clock only while it is under the cold root alone.
 - **Nothing seek-heavy goes on the cold disk.** It is a platter: sequential streaming is well within
-  budget and random IO is a cliff. Large finished media files, and nothing else — no database, no
-  journal, no scratch space.
+  budget and random IO is a cliff. Media files and nothing else: segments written in order by a
+  transcode and read back by playheads, but no database, no journal and no download.
