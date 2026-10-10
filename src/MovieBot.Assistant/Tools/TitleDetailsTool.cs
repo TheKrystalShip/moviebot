@@ -93,7 +93,7 @@ internal sealed partial class TitleDetailsTool(CinemaApi api) : AssistantTool<Ti
     {
         var text = new StringBuilder();
         if (note is not null) text.Append(note).Append('\n');
-        text.Append(TitleText.Named(f.Title, f.Year)).Append(", film. id ").Append(f.ImdbId).Append(".\n");
+        text.Append(TitleText.Named(f.Title, f.Year)).Append(", ").Append(TitleText.KindWord("film", f.Category)).Append(". id ").Append(f.ImdbId).Append(".\n");
         if (f.OriginalTitle is { Length: > 0 } original && original != f.Title)
             text.Append("Original title: ").Append(original).Append(".\n");
         Line(text, "Release date", f.ReleaseDate);
@@ -121,7 +121,7 @@ internal sealed partial class TitleDetailsTool(CinemaApi api) : AssistantTool<Ti
         int? year = s.FirstYear;
         var text = new StringBuilder();
         if (note is not null) text.Append(note).Append('\n');
-        text.Append(TitleText.Named(s.Title, year)).Append(", show. id ").Append(s.ImdbId).Append(".\n");
+        text.Append(TitleText.Named(s.Title, year)).Append(", ").Append(TitleText.KindWord("show", s.Category)).Append(". id ").Append(s.ImdbId).Append(".\n");
         if (s.FirstYear is { } first)
             text.Append("Ran from ").Append(first).Append(s.LastYear is { } last && last != first ? $" to {last}" : "").Append(".\n");
         Line(text, "Status", s.Status);

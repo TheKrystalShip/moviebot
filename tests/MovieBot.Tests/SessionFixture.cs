@@ -113,6 +113,7 @@ public class SessionFixture : WebApplicationFactory<Program>
                 ["Notifications:Preferences"] = Path.Combine(StateRoot, "notification-preferences.json"),
                 ["Follow:Path"] = Path.Combine(StateRoot, "follows.json"),
                 ["Lists:Path"] = Path.Combine(StateRoot, "lists.json"),
+                ["Library:Categories"] = Path.Combine(StateRoot, "categories.json"),
                 // The film database, answered by the test.
                 ["Tmdb:ReadAccessToken"] = "a-test-token",
                 ["Tmdb:Directory"] = Path.Combine(StateRoot, "films"),

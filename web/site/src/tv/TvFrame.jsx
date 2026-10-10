@@ -18,6 +18,7 @@ const BAR = [
   { id: "discover", views: ["discover"] },
   { id: "movies", views: ["movies"] },
   { id: "tv", views: ["tv"] },
+  { id: "anime", views: ["anime", "anime-films"] },
   { id: "saved", views: ["saved", "list"] },
 ];
 

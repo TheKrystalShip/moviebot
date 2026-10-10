@@ -201,6 +201,13 @@ internal static class CinemaWorld
             Resolved = new DiscoverResolved { Genres = ["Horror"], MinRating = 6.5, MinVotes = 200, Sort = "popular" },
             Titles = [HollowHouse, QuietRoom, AshRoad],
         });
+        world.Answer("/api/catalogue/discover?kind=show&goodOnly=true&category=anime", new DiscoverResult
+        {
+            Kind = "show",
+            Resolved = new DiscoverResolved { Genres = ["Animation"], Language = "Japanese", MinRating = 6.5, MinVotes = 200, Sort = "popular" },
+            Titles = [Hit("tt1000020", "Paper Lanterns", 2019, "show", ["Animation", "Drama"]) with { Category = "anime", OriginalLanguage = "ja" }],
+        });
+        world.Answer("/api/catalogue/added?kind=show&category=anime&limit=20", new LibraryAdditions());
         world.Answer("/api/catalogue/discover?kind=film&genre=Horror&exclude=Crime&includeFamily=true&goodOnly=true", new DiscoverResult
         {
             Kind = "film",

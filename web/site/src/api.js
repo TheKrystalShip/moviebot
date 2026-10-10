@@ -82,7 +82,8 @@ export const api = {
   // The film database browsed: everything a person is credited on, by its id for them, and the most
   // popular films or shows in a genre, by the genre's name.
   cataloguePerson: (personId) => call("GET", `/api/catalogue/people/${enc(personId)}`),
-  catalogueGenre: (kind, genre) => call("GET", `/api/catalogue/genre?kind=${enc(kind)}&name=${enc(genre)}`),
+  catalogueGenre: (kind, genre, category) => call("GET", `/api/catalogue/genre?kind=${enc(kind)}&name=${enc(genre)}`
+    + (category ? `&category=${enc(category)}` : "")),
 
   // Shows: the library's, one by its IMDb id (in the library or not), and what the tracker offers of one.
   shows: () => call("GET", "/api/shows"),
@@ -141,6 +142,9 @@ export const api = {
   removeFromList: (id, imdbId) => call("DELETE", `/api/lists/${enc(id)}/entries/${enc(imdbId)}`),
   setListMember: (id, userId, role) => call("PUT", `/api/lists/${enc(id)}/members/${enc(userId)}`, { role }),
   removeListMember: (id, userId) => call("DELETE", `/api/lists/${enc(id)}/members/${enc(userId)}`),
+
+  // Shelving a film or a show as anime (`anime`) or with its kind (`general`), against the API's rule.
+  setCategory: (imdbId, kind, category) => call("PUT", `/api/categories/${enc(imdbId)}`, { kind, category }),
 
   // The shows this person follows, and whether each is fetched when a new episode airs.
   follows: () => call("GET", "/api/me/follows"),

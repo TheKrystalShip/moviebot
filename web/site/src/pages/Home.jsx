@@ -2,7 +2,7 @@ import React from "react";
 import { Button, Icon, Rail } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
-import { libraryPath, listPath, moviePath } from "../paths.js";
+import { ANIME, isAnime, libraryPath, listPath, moviePath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { ago, clock, since } from "../time.js";
 import { useOnline } from "../connectivity.js";
@@ -21,7 +21,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The front page: a film to watch, where this person left off, the rooms watching something now,
- * their Watch later, what arrived lately, and the shelf split into films and shows. Every row is
+ * their Watch later, what arrived lately, and the shelf split into films, shows and anime. Every row is
  * something the API measured; a row with nothing in it is left out rather than drawn empty.
  * `fromDevice` is the page opened with no connection, drawing what is downloaded (`DeviceHome`).
  */
@@ -31,8 +31,8 @@ export function Home({ fromDevice = false }) {
 
 /**
  * The front page from the downloads on this device: the film downloaded last at the top, where this
- * person left off in what is here, and the films and the shows here, each leading to the library. A
- * row that would list what is not here is not drawn.
+ * person left off in what is here, and the films, the shows and the anime here, each leading to the
+ * library. A row that would list what is not here is not drawn.
  */
 function DeviceHome() {
   const device = useDeviceLibrary();
@@ -49,6 +49,10 @@ function DeviceHome() {
   }
   const latest = (a, b) => String(b.addedAt || "").localeCompare(String(a.addedAt || ""));
   const featured = [...films].sort(latest)[0];
+  const anime = [...films.filter(isAnime).map((t) => ({ film: t, at: t.addedAt })), ...shows.filter(isAnime).map((s) => ({ show: s, at: s.addedAt }))]
+    .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  const generalFilms = films.filter((t) => !isAnime(t));
+  const generalShows = shows.filter((s) => !isAnime(s));
   return (
     <div className="kc-page kc-home">
       <PhoneHead />
@@ -61,20 +65,30 @@ function DeviceHome() {
           renderItem={(p) => <ContinueCard title={titles.get(p.titleId)} progress={p} remainingSeconds={p.remainingSeconds} />} />
       )}
 
-      {films.length > 0 && (
+      {generalFilms.length > 0 && (
         <Rail
-          variant="posters" icon="clapperboard" title="Movies" count={films.length}
+          variant="posters" icon="clapperboard" title="Movies" count={generalFilms.length}
           onViewAll={() => navigate(libraryPath("film"))} viewAllLabel="All movies"
-          items={[...films].sort(latest)} itemKey={(t) => t.id}
+          items={[...generalFilms].sort(latest)} itemKey={(t) => t.id}
           renderItem={(t) => <FilmCard title={t} download={marks.film(t.id)} />} />
       )}
 
-      {shows.length > 0 && (
+      {generalShows.length > 0 && (
         <Rail
-          variant="posters" icon="tv" title="TV Shows" count={shows.length}
+          variant="posters" icon="tv" title="TV Shows" count={generalShows.length}
           onViewAll={() => navigate(libraryPath("show"))} viewAllLabel="All shows"
-          items={[...shows].sort(latest)} itemKey={showKey}
+          items={[...generalShows].sort(latest)} itemKey={showKey}
           renderItem={(s) => <ShowCard show={s} downloaded={marks.episodes(s.imdbId)} />} />
+      )}
+
+      {anime.length > 0 && (
+        <Rail
+          variant="posters" icon="swords" title="Anime" count={anime.length}
+          onViewAll={() => navigate(libraryPath("show", ANIME))} viewAllLabel="All anime"
+          items={anime} itemKey={itemKey}
+          renderItem={(item) => (item.show
+            ? <ShowCard show={item.show} downloaded={marks.episodes(item.show.imdbId)} />
+            : <FilmCard title={item.film} download={marks.film(item.film.id)} />)} />
       )}
     </div>
   );
@@ -87,8 +101,8 @@ function ServerHome() {
   const progress = useLoad(() => api.progress().catch(() => []), []);
   const showList = useLoad(() => api.shows().catch(() => []), []);
   const later = useLoad(() => api.list("later").catch(() => null), []);
-  // The Movies and TV Shows rows are dealt in a new order on every visit, and keep it while the page
-  // is open, so a read answered again never moves a poster out from under somebody.
+  // The Movies, TV Shows and Anime rows are dealt in a new order on every visit, and keep it while the
+  // page is open, so a read answered again never moves a poster out from under somebody.
   const [deal] = React.useState(() => Math.random().toString(36).slice(2));
   const saved = (later.data && later.data.entries) || [];
 
@@ -111,7 +125,10 @@ function ServerHome() {
     <FilmCard title={t} room={watching.find((r) => r.titleId === t.id)} isNew={recentIds.has(t.id)} download={marks.film(t.id)} />
   );
   const either = (item) => (item.show ? <ShowCard show={item.show} downloaded={marks.episodes(item.show.imdbId)} /> : card(item.film));
-  const keyOf = (item) => (item.show ? "show:" + (item.show.imdbId || item.show.firstTitleId) : item.film.id);
+  // Each shelf's row holds its own: anime, films and shows together, is a row of its own.
+  const generalFilms = films.filter((t) => !isAnime(t));
+  const generalShows = shows.filter((s) => !isAnime(s));
+  const anime = [...films.filter(isAnime).map((t) => ({ film: t })), ...shows.filter(isAnime).map((s) => ({ show: s }))];
 
   const featured = newest(films);
 
@@ -173,24 +190,32 @@ function ServerHome() {
       {recent.length > 0 && (
         <Rail
           variant="posters" icon="sparkles" title="Recently added" count={recent.length}
-          items={recent} itemKey={keyOf}
+          items={recent} itemKey={itemKey}
           renderItem={either} />
       )}
 
-      {films.length > 0 && (
+      {generalFilms.length > 0 && (
         <Rail
-          variant="posters" icon="clapperboard" title="Movies" count={films.length}
+          variant="posters" icon="clapperboard" title="Movies" count={generalFilms.length}
           onViewAll={() => navigate(libraryPath("film"))} viewAllLabel="All movies"
-          items={[...dealt(films, (t) => t.id, deal), MORE]} itemKey={(t) => (t === MORE ? "more" : t.id)}
+          items={[...dealt(generalFilms, (t) => t.id, deal), MORE]} itemKey={(t) => (t === MORE ? "more" : t.id)}
           renderItem={(t) => (t === MORE ? <MoreTile label="Any movie" /> : card(t))} />
       )}
 
-      {shows.length > 0 && (
+      {generalShows.length > 0 && (
         <Rail
-          variant="posters" icon="tv" title="TV Shows" count={shows.length}
+          variant="posters" icon="tv" title="TV Shows" count={generalShows.length}
           onViewAll={() => navigate(libraryPath("show"))} viewAllLabel="All shows"
-          items={[...dealt(shows, showKey, deal), MORE]} itemKey={(s) => (s === MORE ? "more" : showKey(s))}
+          items={[...dealt(generalShows, showKey, deal), MORE]} itemKey={(s) => (s === MORE ? "more" : showKey(s))}
           renderItem={(s) => (s === MORE ? <MoreTile label="Any show" /> : <ShowCard show={s} downloaded={marks.episodes(s.imdbId)} />)} />
+      )}
+
+      {anime.length > 0 && (
+        <Rail
+          variant="posters" icon="swords" title="Anime" count={anime.length}
+          onViewAll={() => navigate(libraryPath("show", ANIME))} viewAllLabel="All anime"
+          items={dealt(anime, itemKey, deal)} itemKey={itemKey}
+          renderItem={either} />
       )}
     </div>
   );
@@ -226,7 +251,7 @@ function Featured({ title, room, eyebrow }) {
           <WatchButton variant="primary" size="lg" icon={room ? "users" : "play"} titleId={title.id} sessionId={room && room.sessionId}>
             {room ? "Join the room" : "Watch"}
           </WatchButton>
-          <Button size="lg" icon="info" {...linkProps(moviePath(title.id))}>
+          <Button size="lg" icon="info" {...linkProps(moviePath(title.id, title.category))}>
             More info
           </Button>
         </div>
@@ -239,6 +264,9 @@ function Featured({ title, room, eyebrow }) {
 const MORE = { more: true };
 
 const showKey = (s) => s.imdbId || s.firstTitleId;
+
+/** A row's key for a film or a show held as `{ film }` or `{ show }`. */
+const itemKey = (item) => (item.show ? "show:" + showKey(item.show) : item.film.id);
 
 /** A Continue watching entry's key: its title, or for an episode not here yet the show and the episode. */
 export const continueKey = (p) => p.titleId || `${p.showImdbId}:${p.episode.season}:${p.episode.number}`;

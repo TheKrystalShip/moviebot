@@ -48,6 +48,9 @@ public sealed record TitleHitView
 
     /// <summary>Whether the asking person watched the film through; never set for a show, or for the service key.</summary>
     public bool Watched { get; init; }
+
+    /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
+    public Library.TitleCategory? Category { get; init; }
 }
 
 /// <summary>What <c>/api/catalogue/search</c> answers.</summary>
@@ -116,6 +119,9 @@ public sealed record CreditView
     public bool InLibrary { get; init; }
     public string? LibraryId { get; init; }
     public bool Watched { get; init; }
+
+    /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
+    public Library.TitleCategory? Category { get; init; }
 }
 
 /// <summary>What <c>/api/catalogue/people/{personId}/credits</c> answers: the credits asked for, oldest first.</summary>
@@ -198,6 +204,9 @@ public sealed record LibraryAdditionView
     public DateTimeOffset AddedAt { get; init; }
 
     public bool Watched { get; init; }
+
+    /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
+    public Library.TitleCategory? Category { get; init; }
 }
 
 /// <summary>What <c>/api/catalogue/added</c> answers: the library's newest films and shows, newest first.</summary>

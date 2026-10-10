@@ -11,7 +11,7 @@ public static class FilmEndpoints
         // A film by its IMDb id, in the library or not: a page about a film somebody is waiting on
         // shows it as fully as one on the shelf.
         app.MapGet("/api/films/{imdbId}", async (string imdbId, HttpContext context, FilmStore store, LibraryListing library,
-            WatchRecord record, CancellationToken ct) =>
+            WatchRecord record, TitleCategories categories, CancellationToken ct) =>
         {
             if (!FilmStore.IsImdbId(imdbId))
                 return Results.Json(new ErrorReply("That is not an IMDb id."), ApiJsonContext.Default.ErrorReply,
@@ -24,49 +24,70 @@ public static class FilmEndpoints
 
             var shelf = LibraryShelf.Of(library.Titles(), record, PeopleEndpoints.Person(context)?.UserId);
             return store.View(stored, shelf.LibraryIdOf("film", imdbId), shelf.Saw("film", imdbId)) is { } view
-                ? Results.Ok(view)
+                ? Results.Ok(view with { Category = categories.Of("film", imdbId) })
                 : Results.Json(new ErrorReply("The film database has no film under that id."),
                     ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
         }).RequireAction(CinemaActions.Watch);
 
         // The films and shows trending this week, from what is kept: a page never waits on the database.
-        app.MapGet("/api/popular", (PopularNow popular) => Results.Ok(popular.View()))
+        app.MapGet("/api/popular", (PopularNow popular, TitleCategories categories) =>
+        {
+            var view = popular.View();
+            return Results.Ok(view with
+            {
+                Films = [.. view.Films.Select(t => t with { Category = categories.Of("film", t.ImdbId) })],
+                Shows = [.. view.Shows.Select(t => t with { Category = categories.Of("show", t.ImdbId) })],
+            });
+        })
             .RequireAction(CinemaActions.Watch);
 
         // A person and the films and shows they are credited on, best known first, by the film
         // database's id for them, which a cast member on a film's or show's page carries.
-        app.MapGet("/api/catalogue/people/{personId:int}", async (int personId, Catalogue catalogue, CancellationToken ct) =>
+        app.MapGet("/api/catalogue/people/{personId:int}", async (int personId, Catalogue catalogue, TitleCategories categories, CancellationToken ct) =>
         {
             var kept = await catalogue.PersonAsync(personId, ct);
             if (kept is null)
                 return Results.Json(new ErrorReply("The film database could not be asked about this person."),
                     ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status503ServiceUnavailable);
-            return kept.Value is { } person
-                ? Results.Ok(catalogue.View(person))
-                : Results.Json(new ErrorReply("The film database has nobody under that id."),
+            if (kept.Value is not { } person)
+                return Results.Json(new ErrorReply("The film database has nobody under that id."),
                     ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
+            var view = catalogue.View(person);
+            return Results.Ok(view with { Titles = [.. view.Titles.Select(t => t with { Category = categories.Of(t.Kind, t.ImdbId) })] });
         }).RequireAction(CinemaActions.Watch);
 
         // The most popular films or shows in a genre, by the genre's name: the one call a shelf of a
-        // genre makes to lead on into the catalogue.
-        app.MapGet("/api/catalogue/genre", async (string? kind, string? name, Catalogue catalogue, CancellationToken ct) =>
+        // genre makes to lead on into the catalogue. With category=anime, the anime among them.
+        app.MapGet("/api/catalogue/genre", async (string? kind, string? name, string? category, Catalogue catalogue,
+            TitleCategories categories, CancellationToken ct) =>
         {
             if (!Catalogue.IsKind(kind) || string.IsNullOrWhiteSpace(name))
                 return Results.Json(new ErrorReply("Name a kind, film or show, and a genre."), ApiJsonContext.Default.ErrorReply,
                     statusCode: StatusCodes.Status400BadRequest);
+            if (category is not null && TitleCategories.Parse(category) != TitleCategory.Anime)
+                return Results.Json(new ErrorReply("A genre's catalogue is narrowed to anime alone."), ApiJsonContext.Default.ErrorReply,
+                    statusCode: StatusCodes.Status400BadRequest);
+            var anime = category is not null;
 
-            if (await catalogue.GenreAsync(kind!, name, ct) is not { } answer)
+            if (await catalogue.GenreAsync(kind!, name, anime, ct) is not { } answer)
                 return Results.Json(new ErrorReply("The film database could not be asked about this genre."),
                     ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status503ServiceUnavailable);
             if (answer.Genre is not { } genre)
                 return Results.Json(new ErrorReply("The film database has no genre by that name."),
                     ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
 
+            // Every title an anime catalogue lists is animated and made in Japanese, which is what the
+            // rule reads; a title somebody shelved elsewhere keeps its own.
             return Results.Ok(new CatalogueGenreView
             {
                 Kind = kind!,
                 Genre = genre.Name,
-                Titles = (answer.Titles?.Value ?? []).Select(catalogue.View).ToList(),
+                Category = anime ? TitleCategory.Anime : null,
+                Titles = (answer.Titles?.Value ?? []).Select(t => catalogue.View(t) with
+                {
+                    Category = categories.Of(t.Kind, t.ImdbId,
+                        anime ? [TitleCategories.AnimeGenre] : null, anime ? TitleCategories.AnimeLanguage : null),
+                }).ToList(),
             });
         }).RequireAction(CinemaActions.Watch);
 

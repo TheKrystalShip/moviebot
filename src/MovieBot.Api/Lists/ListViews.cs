@@ -61,6 +61,9 @@ public sealed record ListEntryView
 
     /// <summary>Whether the asking person watched the film through; never set for a show.</summary>
     public bool Watched { get; init; }
+
+    /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
+    public Library.TitleCategory? Category { get; init; }
 }
 
 public sealed record ListView
@@ -95,7 +98,8 @@ public sealed class ListPresenter(
     ShowStore shows,
     LibraryListing library,
     WatchRecord record,
-    PersonDirectory people)
+    PersonDirectory people,
+    TitleCategories categories)
 {
     public ListSummary Summary(StoredList list, string viewerId, string? holding = null) => new()
     {
@@ -131,6 +135,7 @@ public sealed class ListPresenter(
             ImdbId = entry.ImdbId, Kind = entry.Kind, Title = entry.ImdbId, Genres = [],
             AddedAt = entry.AddedAt, AddedBy = Person(entry.AddedBy), Note = entry.Note,
             PosterUrl = PosterOf(entry),
+            Category = categories.Of(entry.Kind, entry.ImdbId),
         };
 
         if (entry.Kind == EntryKinds.Show)

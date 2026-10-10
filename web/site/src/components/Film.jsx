@@ -148,7 +148,7 @@ export function FilmCard({ title, room, isNew, download }) {
     <ShowcaseCard
       name={film.name || title.title}
       art={poster ? `url("${poster}")` : null}
-      onPick={() => navigate(moviePath(title.id))}
+      onPick={() => navigate(moviePath(title.id, title.category))}
       badge={isNew ? { tone: "info", label: "New" } : null}
       {...downloadMarks(download)}
       specs={[
@@ -182,7 +182,7 @@ export function ShowCard({ show, downloaded = 0 }) {
     <ShowcaseCard
       name={show.title}
       art={d && d.posterUrl ? `url("${d.posterUrl}")` : null}
-      onPick={() => navigate(show.imdbId ? showPath(show.imdbId) : moviePath(show.firstTitleId))}
+      onPick={() => navigate(show.imdbId ? showPath(show.imdbId, { category: show.category }) : moviePath(show.firstTitleId, show.category))}
       {...(downloaded > 0 ? { corner: { icon: "circle-check", label: `${downloaded} downloaded` }, className: "kc-card--dl kc-card--dl-done" } : {})}
       specs={[
         { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },

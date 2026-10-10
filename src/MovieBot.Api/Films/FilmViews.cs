@@ -49,6 +49,9 @@ public sealed record FilmView
 
     /// <summary>Whether the asking person watched the film through; false for the service key.</summary>
     public bool Watched { get; init; }
+
+    /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
+    public Library.TitleCategory? Category { get; init; }
 }
 
 public sealed record CastView

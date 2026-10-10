@@ -42,13 +42,16 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
 
     public const string SilverHarbour = "tt9000004";
 
+    /// <summary>An animated film made in Japanese, which is what anime is here.</summary>
+    public const string DreamDetective = "tt9000401";
+
     private static string Quote(string? text) => text is null ? "null" : "\"" + text + "\"";
 
     private static string Num(double value) => value.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>A film's description with its credits and keywords, which is also what names it to a list.</summary>
-    private static string Movie(int id, string? imdb, string title, string? date, string status, string genres, string director, string cast, string keywords = "") =>
-        "{ \"id\": " + id + ", \"imdb_id\": " + Quote(imdb) + ", \"title\": \"" + title + "\", \"original_language\": \"en\","
+    private static string Movie(int id, string? imdb, string title, string? date, string status, string genres, string director, string cast, string keywords = "", string language = "en") =>
+        "{ \"id\": " + id + ", \"imdb_id\": " + Quote(imdb) + ", \"title\": \"" + title + "\", \"original_language\": \"" + language + "\","
         + " \"overview\": \"About " + title + ". It goes on.\", \"release_date\": " + Quote(date) + ", \"status\": \"" + status + "\","
         + " \"vote_average\": 7.04, \"vote_count\": 100, \"poster_path\": \"/p" + id + ".jpg\","
         + " \"genres\": [ " + genres + " ], \"keywords\": { \"keywords\": [ " + keywords + " ] },"
@@ -109,6 +112,7 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         if (path.EndsWith("/find/tt0325980"))
             return """{ "movie_results": [ { "id": 22, "overview": "A blacksmith and a pirate.", "vote_average": 7.81, "vote_count": 21000, "release_date": "2003-07-09", "poster_path": "/pearl.jpg" } ] }""";
         if (path.EndsWith("/find/" + SilverHarbour)) return """{ "movie_results": [ { "id": 7004 } ] }""";
+        if (path.EndsWith("/find/" + DreamDetective)) return """{ "movie_results": [ { "id": 7401 } ] }""";
         if (path.Contains("/find/")) return """{ "movie_results": [] }""";
         if (path.EndsWith("/movie/949")) return Heat;
         if (path.EndsWith("/trending/movie/week"))
@@ -224,6 +228,9 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             return Movie(7202, "tt9000202", "Again and Again", "2021-02-02", "Released", drama, Director(53, "Vic Dunn"), Cast(54, "Eli Ward", 0), "{ \"id\": 10854, \"name\": \"time loop\" }");
         if (path.EndsWith("/movie/7203")) return Movie(7203, "tt9000203", "Rerun", "2018-08-08", "Released", drama, Director(55, "Wes Hart"), Cast(56, "Fay Cole", 0));
         if (path.EndsWith("/movie/7301")) return Movie(7301, "tt9000301", "Fresh Cut", released, "Released", drama, Director(61, "Max Orr"), Cast(62, "Gia Fox", 0));
+        if (path.EndsWith("/movie/7401"))
+            return Movie(7401, DreamDetective, "Dream Detective", "2006-11-25", "Released", Genre(16, "Animation") + ", " + Genre(878, "Science Fiction"),
+                Director(81, "Kai Mori"), Cast(82, "Rin Sato", 0), language: "ja");
         if (path.EndsWith("/movie/7302")) return Movie(7302, "tt9000302", "Next Summer", coming, "Post Production", drama, Director(63, "Ned Ives"), Cast(64, "Hal Vance", 0));
         if (path.EndsWith("/tv/6000"))
             return """

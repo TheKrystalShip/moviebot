@@ -14,16 +14,27 @@ export const aboutPath = "/about";
 /** Where the provider sends the browser back with a code. */
 export const signInPath = "/signin";
 
-/** The shelf of one kind, as the API words it: `film` or `show`. */
-export const libraryPath = (kind) => (kind === "show" ? "/tv" : "/movies");
+/** The API's category for a title shelved as anime, whatever its kind. */
+export const ANIME = "anime";
 
-/** One film in the library. */
-export const moviePath = (titleId) => "/movies/" + seg(titleId);
+/** Whether a title the API listed is shelved as anime. */
+export const isAnime = (title) => !!title && title.category === ANIME;
+
+/**
+ * The shelf of one kind, as the API words it (`film` or `show`), in a category: `anime`, or anything
+ * else for the general shelves. Anime's own shelf lists its series, and its films one level below.
+ */
+export const libraryPath = (kind, category) => (category === ANIME
+  ? (kind === "film" ? "/anime/films" : "/anime")
+  : (kind === "show" ? "/tv" : "/movies"));
+
+/** One film in the library, under the shelf its category puts it on. */
+export const moviePath = (titleId, category) => libraryPath("film", category) + "/" + seg(titleId);
 
 const seasonSegment = (season) => (season == null ? "" : "/season/" + season);
 
-/** A show the library holds at least one episode of, at a season or at its default one. */
-export const tvPath = (imdbId, season) => "/tv/" + seg(imdbId) + seasonSegment(season);
+/** A show the library holds at least one episode of, at a season or at its default one, under its category's shelf. */
+export const tvPath = (imdbId, season, category) => libraryPath("show", category) + "/" + seg(imdbId) + seasonSegment(season);
 
 /** Finding anything to watch, here or not; `q` is what was searched for. */
 export const discoverPath = (q) => "/discover" + (q ? "?q=" + seg(q) : "");
@@ -31,8 +42,9 @@ export const discoverPath = (q) => "/discover" + (q ? "?q=" + seg(q) : "");
 /** Discover's catalogue of the films and shows one person is credited on, by the film database's id for them. */
 export const discoverPersonPath = (personId) => "/discover?person=" + seg(personId);
 
-/** Discover's catalogue of the films (`film`) or shows (`show`) in one genre, by the genre's name. */
-export const discoverGenrePath = (kind, genre) => "/discover?genre=" + seg(genre) + "&kind=" + (kind === "show" ? "show" : "film");
+/** Discover's catalogue of the films (`film`) or shows (`show`) in one genre, by the genre's name; of its anime alone with `anime`. */
+export const discoverGenrePath = (kind, genre, category) => "/discover?genre=" + seg(genre) + "&kind=" + (kind === "show" ? "show" : "film")
+  + (category === ANIME ? "&category=" + ANIME : "");
 
 /** A film the library does not hold. */
 export const discoverFilmPath = (imdbId) => "/discover/film/" + seg(imdbId);
@@ -41,10 +53,11 @@ export const discoverFilmPath = (imdbId) => "/discover/film/" + seg(imdbId);
 export const discoverShowPath = (imdbId, season) => "/discover/show/" + seg(imdbId) + seasonSegment(season);
 
 /**
- * A show's page. Where the library holds it is the page's to find out, so a link that does not know
- * says nothing and lands on the shelf's address, which forwards when it is wrong.
+ * A show's page. Where the library holds it and which shelf it is on are the page's to find out, so a
+ * link that does not know says nothing and lands on the general shelf's address, which forwards when
+ * it is wrong.
  */
-export const showPath = (imdbId, { held = true, season } = {}) => (held ? tvPath(imdbId, season) : discoverShowPath(imdbId, season));
+export const showPath = (imdbId, { held = true, season, category } = {}) => (held ? tvPath(imdbId, season, category) : discoverShowPath(imdbId, season));
 
 /** One list; `later` is the person's own Watch later. */
 export const listPath = (id) => "/saved/" + seg(id);

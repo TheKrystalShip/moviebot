@@ -28,6 +28,9 @@ public sealed record PopularTitleView
     public double? Rating { get; init; }
     public int Votes { get; init; }
     public string? PosterUrl { get; init; }
+
+    /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
+    public Library.TitleCategory? Category { get; init; }
 }
 
 /// <summary>What <c>/api/popular</c> answers. <c>FetchedAt</c> is absent while nothing has been asked yet.</summary>

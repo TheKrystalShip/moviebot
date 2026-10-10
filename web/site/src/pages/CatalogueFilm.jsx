@@ -25,9 +25,10 @@ export function CatalogueFilm({ imdbId }) {
   useCrumb(film.data ? film.data.title : film.error && film.error.status === 404 ? "No such film" : null);
 
   const here = state.data && state.data.libraryId;
+  const shelved = film.data && film.data.category;
   React.useEffect(() => {
-    if (here) navigate(moviePath(here), { replace: true });
-  }, [here]);
+    if (here) navigate(moviePath(here, shelved), { replace: true });
+  }, [here, shelved]);
   if (here) return <div className="kc-page" />;
 
   if (film.error && film.error.status === 404) {

@@ -68,6 +68,9 @@ public sealed record DiscoverRequest
     public int? MinVotes { get; init; }
     public string? Sort { get; init; }
     public int Limit { get; init; } = CatalogueSearch.ResultsListed;
+
+    /// <summary><c>anime</c> keeps the titles <see cref="TitleCategories"/> counts as anime: animated, and made in Japanese.</summary>
+    public string? Category { get; init; }
 }
 
 public sealed record DiscoverAnswer(string Kind, DiscoverResolved Resolved, List<TitleHit> Hits);
@@ -93,6 +96,7 @@ public sealed partial class CatalogueSearch(
     ShowStore shows,
     LibraryListing library,
     WatchRecord record,
+    TitleCategories categories,
     TimeProvider clock)
 {
     /// <summary>The most titles a search lists.</summary>
@@ -229,6 +233,20 @@ public sealed partial class CatalogueSearch(
         if (request.Kind is not null && !Catalogue.IsKind(request.Kind)) return Invalid<DiscoverAnswer>("Kind is film or show.");
         if (request.Sort is not null && !DiscoverSorts.IsSort(request.Sort)) return Invalid<DiscoverAnswer>("Sort is popular, rating, newest or oldest.");
         if (request.From > request.To) return Invalid<DiscoverAnswer>("From is after to.");
+        if (request.Category is not null)
+        {
+            if (TitleCategories.Parse(request.Category) != TitleCategory.Anime)
+                return Invalid<DiscoverAnswer>("A discovery is narrowed to anime alone; leave category out for everything.");
+            if (!string.IsNullOrWhiteSpace(request.Language)
+                && !string.Equals(request.Language.Trim(), TitleCategories.AnimeLanguage, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(request.Language.Trim(), "japanese", StringComparison.OrdinalIgnoreCase))
+                return Invalid<DiscoverAnswer>("Anime is made in Japanese; a discovery of anime takes no other language.");
+            request = request with
+            {
+                Genres = [.. request.Genres, TitleCategories.AnimeGenre],
+                Language = TitleCategories.AnimeLanguage,
+            };
+        }
 
         var kind = request.Kind;
         Seed? seed = null;
@@ -347,22 +365,31 @@ public sealed partial class CatalogueSearch(
         return Outcome<DiscoverAnswer>.Ok(new DiscoverAnswer(kind, resolved, hits));
     }
 
-    /// <summary>The films or shows released in the last <paramref name="days"/> days, the most looked at, newest first.</summary>
-    public Task<Outcome<ListAnswer>> RecentAsync(string kind, int days, CancellationToken ct)
+    /// <summary>
+    /// The films or shows released in the last <paramref name="days"/> days, the most looked at, newest
+    /// first; with <paramref name="anime"/>, the anime among them.
+    /// </summary>
+    public Task<Outcome<ListAnswer>> RecentAsync(string kind, int days, bool anime, CancellationToken ct)
     {
         var today = Today();
-        return WindowAsync("released", kind, today.AddDays(-days), today, newestFirst: true, ct);
+        return WindowAsync("released", kind, today.AddDays(-days), today, newestFirst: true, anime, ct);
     }
 
-    /// <summary>The films or shows with a date in the next <paramref name="days"/> days, the most looked at, soonest first.</summary>
-    public Task<Outcome<ListAnswer>> UpcomingAsync(string kind, int days, CancellationToken ct)
+    /// <summary>
+    /// The films or shows with a date in the next <paramref name="days"/> days, the most looked at,
+    /// soonest first; with <paramref name="anime"/>, the anime among them.
+    /// </summary>
+    public Task<Outcome<ListAnswer>> UpcomingAsync(string kind, int days, bool anime, CancellationToken ct)
     {
         var today = Today();
-        return WindowAsync("upcoming", kind, today.AddDays(1), today.AddDays(days), newestFirst: false, ct);
+        return WindowAsync("upcoming", kind, today.AddDays(1), today.AddDays(days), newestFirst: false, anime, ct);
     }
 
-    /// <summary>The library's newest films and shows, newest first, described from what is kept.</summary>
-    public LibraryAdditionsView Added(string? kind, int limit, string? viewerId)
+    /// <summary>
+    /// The library's newest films and shows, newest first, described from what is kept; with
+    /// <paramref name="category"/>, those of that category alone.
+    /// </summary>
+    public LibraryAdditionsView Added(string? kind, TitleCategory? category, int limit, string? viewerId)
     {
         var titles = library.Titles();
         var shelf = LibraryShelf.Of(titles, record, viewerId);
@@ -385,6 +412,7 @@ public sealed partial class CatalogueSearch(
                     LibraryId = film.Id,
                     AddedAt = film.AddedAt!.Value,
                     Watched = shelf.Saw("film", film.Film?.ImdbId),
+                    Category = categories.Of("film", film.Film?.ImdbId),
                 });
             }
 
@@ -407,10 +435,17 @@ public sealed partial class CatalogueSearch(
                     PosterUrl = imdb is not null && shows.HasImage(imdb, ShowStore.Poster) ? ShowViews.ImageUrl(imdb, ShowStore.Poster) : null,
                     LibraryId = first.Id,
                     AddedAt = show.Max(t => t.AddedAt)!.Value,
+                    Category = categories.Of("show", imdb),
                 });
             }
 
-        return new LibraryAdditionsView { Titles = [.. additions.OrderByDescending(a => a.AddedAt).Take(Math.Clamp(limit, 1, 50))] };
+        // A title nothing describes yet is shelved with its kind, so it counts as general here too.
+        return new LibraryAdditionsView
+        {
+            Titles = [.. additions
+                .Where(a => category is null || (a.Category ?? TitleCategory.General) == category)
+                .OrderByDescending(a => a.AddedAt).Take(Math.Clamp(limit, 1, 50))],
+        };
     }
 
     // Views.
@@ -442,6 +477,7 @@ public sealed partial class CatalogueSearch(
             InLibrary = shelf.Holds(listed.Kind, imdb),
             LibraryId = shelf.LibraryIdOf(listed.Kind, imdb),
             Watched = shelf.Saw(listed.Kind, imdb),
+            Category = categories.Of(listed.Kind, imdb, card?.Genres, listed.OriginalLanguage ?? card?.OriginalLanguage),
         };
     }
 
@@ -465,6 +501,7 @@ public sealed partial class CatalogueSearch(
             InLibrary = shelf.Holds(credit.Kind, imdb),
             LibraryId = shelf.LibraryIdOf(credit.Kind, imdb),
             Watched = shelf.Saw(credit.Kind, imdb),
+            Category = categories.Of(credit.Kind, imdb),
         };
     }
 
@@ -512,11 +549,19 @@ public sealed partial class CatalogueSearch(
     }
 
     /// <summary>The released and upcoming lists: the most looked at titles of a window of days.</summary>
-    private async Task<Outcome<ListAnswer>> WindowAsync(string family, string kind, DateOnly from, DateOnly to, bool newestFirst, CancellationToken ct)
+    private async Task<Outcome<ListAnswer>> WindowAsync(string family, string kind, DateOnly from, DateOnly to, bool newestFirst, bool anime, CancellationToken ct)
     {
         if (!Catalogue.IsKind(kind)) return Invalid<ListAnswer>("Kind is film or show.");
 
         var query = new DiscoverQuery { Kind = kind, From = from, To = to, Sort = DiscoverSorts.Popular };
+        if (anime)
+        {
+            var genres = await catalogue.GenresAsync(kind, ct);
+            if (genres is null) return Unavailable<ListAnswer>("The film database could not be asked about its genres.");
+            if (MatchGenre(genres, TitleCategories.AnimeGenre) is not { } animation)
+                return NotFound<ListAnswer>($"The film database has no {kind} genre called {TitleCategories.AnimeGenre}.");
+            query = query with { GenreIds = [animation.Id], Language = TitleCategories.AnimeLanguage };
+        }
         var kept = await keeper.KeptAsync(AnswerKeeper.QueryName(family, Canonical(query, ResultsListed)),
             KeptAnswerJson.Default.KeptAnswerListListedTitle, ListKept,
             async (tmdb, token) => (await tmdb.DiscoverAsync(query, ResultsListed, token)).ToList(), null, ct);

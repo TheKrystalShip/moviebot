@@ -3,7 +3,7 @@
 
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
 import {
-  PROFILE_TABS, aboutPath, discoverFilmPath, discoverPath, discoverShowPath, guestPath, homePath, libraryPath,
+  ANIME, PROFILE_TABS, aboutPath, discoverFilmPath, discoverPath, discoverShowPath, guestPath, homePath, libraryPath,
   listPath, moviePath, notifyPath, profilePath, roomPath, savedPath, signInPath, tvPath,
 } from "./paths.js";
 
@@ -45,8 +45,9 @@ function arrived(segments, search) {
  * parse to the canonical route, whose `href` is what the address becomes. An unknown first segment is
  * `notfound` and keeps the address as typed.
  *
- *   view      which page: home, movies, movie, tv, show, discover, discover-film, discover-show, saved,
- *             list, notify, profile, about, signin, room, guest, embed, notfound
+ *   view      which page: home, movies, movie, tv, show, anime, anime-films, discover, discover-film,
+ *             discover-show, saved, list, notify, profile, about, signin, room, guest, embed, notfound
+ *   category  `anime` for a shelf or a title's page under Anime; null everywhere else
  *   arg       the id the path carries: a title, a show, a film, a list or a room
  *   season    the season a show's path names, or null for the show's own choice
  *   tab       the profile tab the path names, or null for the first
@@ -58,8 +59,8 @@ function parse(href) {
   const url = new URL(href, window.location.origin);
   const [segments, search] = arrived(url.pathname.split("/").filter(Boolean).map(decode), url.search);
   const [head = "", ...rest] = segments;
-  const shaped = (view, path, more = {}) => ({ view, path, arg: null, season: null, tab: null, key: path, ...more });
-  const show = (id, season, path, view) => shaped(view, path, { arg: id, season, key: "show:" + id });
+  const shaped = (view, path, more = {}) => ({ view, path, arg: null, season: null, tab: null, category: null, key: path, ...more });
+  const show = (id, season, path, view, category = null) => shaped(view, path, { arg: id, season, category, key: "show:" + id });
 
   let route;
   switch (head) {
@@ -72,6 +73,20 @@ function parse(href) {
     case "tv": {
       const season = seasonOf(rest.slice(1));
       route = rest[0] ? show(rest[0], season, tvPath(rest[0], season), "show") : shaped("tv", libraryPath("show"));
+      break;
+    }
+    case "anime": {
+      const [first, id] = rest;
+      if (first === "films") {
+        route = id
+          ? shaped("movie", moviePath(id, ANIME), { arg: id, category: ANIME })
+          : shaped("anime-films", libraryPath("film", ANIME), { category: ANIME });
+      } else if (first) {
+        const season = seasonOf(rest.slice(1));
+        route = show(first, season, tvPath(first, season, ANIME), "show", ANIME);
+      } else {
+        route = shaped("anime", libraryPath("show", ANIME), { category: ANIME });
+      }
       break;
     }
     case "discover": {

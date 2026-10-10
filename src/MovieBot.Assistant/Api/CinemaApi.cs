@@ -52,21 +52,22 @@ public sealed class CinemaApi(HttpClient http)
             parameters.Add(("like", query.Like));
             parameters.Add(("goodOnly", query.GoodOnly ? "true" : "false"));
             parameters.Add(("sort", query.Sort));
+            if (query.Anime) parameters.Add(("category", "anime"));
             return parameters;
         }
 
-        public Task<TitleList> ReleasedAsync(string kind, CancellationToken ct) =>
-            GetAsync<TitleList>("api/catalogue/released", [("kind", kind)], ct);
+        public Task<TitleList> ReleasedAsync(string kind, bool anime, CancellationToken ct) =>
+            GetAsync<TitleList>("api/catalogue/released", [("kind", kind), ("category", anime ? "anime" : null)], ct);
 
-        public Task<TitleList> UpcomingAsync(string kind, CancellationToken ct) =>
-            GetAsync<TitleList>("api/catalogue/upcoming", [("kind", kind)], ct);
+        public Task<TitleList> UpcomingAsync(string kind, bool anime, CancellationToken ct) =>
+            GetAsync<TitleList>("api/catalogue/upcoming", [("kind", kind), ("category", anime ? "anime" : null)], ct);
 
         /// <summary>The upcoming list, or why the API declined to give it (not found, bad request).</summary>
         public Task<Answer<TitleList>> TryUpcomingAsync(string kind, CancellationToken ct) =>
             TryAsync<TitleList>("api/catalogue/upcoming", [("kind", kind)], ct);
 
-        public Task<LibraryAdditions> AddedAsync(string? kind, int limit, CancellationToken ct) =>
-            GetAsync<LibraryAdditions>("api/catalogue/added", [("kind", kind), ("limit", limit)], ct);
+        public Task<LibraryAdditions> AddedAsync(string? kind, bool anime, int limit, CancellationToken ct) =>
+            GetAsync<LibraryAdditions>("api/catalogue/added", [("kind", kind), ("category", anime ? "anime" : null), ("limit", limit)], ct);
 
         public Task<Popular> PopularAsync(CancellationToken ct) => GetAsync<Popular>("api/popular", [], ct);
 

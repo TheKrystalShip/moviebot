@@ -5,7 +5,7 @@
 import React from "react";
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
 import { PLACES, PROFILE_TAB_FACES } from "./nav.js";
-import { profilePath, showPath } from "./paths.js";
+import { ANIME, libraryPath, profilePath, showPath } from "./paths.js";
 
 /** The key of the page being drawn, so a page registers its name for itself and no other. */
 export const PageKey = React.createContext(null);
@@ -36,21 +36,28 @@ export function useCrumbName(key) {
 
 const place = (id, last = false) => ({ label: PLACES[id].label, ...(last ? {} : { href: PLACES[id].path }) });
 
+/** Anime's films, the level below Anime. */
+const animeFilms = (last = false) => ({ label: "Films", ...(last ? {} : { href: libraryPath("film", ANIME) }) });
+
 /** The trail for a route; `name` is what its page has called itself. Empty where there is no trail. */
 export function trailFor(route, name) {
   const home = place("home");
   const id = name || route.arg;
   switch (route.view) {
     case "movies": return [home, place("movies", true)];
-    case "movie": return [home, place("movies"), { label: id }];
+    case "movie": return route.category === ANIME
+      ? [home, place("anime"), animeFilms(), { label: id }]
+      : [home, place("movies"), { label: id }];
     case "tv": return [home, place("tv", true)];
+    case "anime": return [home, place("anime", true)];
+    case "anime-films": return [home, place("anime"), animeFilms(true)];
     case "show":
     case "discover-show": {
-      const section = place(route.view === "show" ? "tv" : "discover");
+      const section = place(route.view === "show" ? (route.category === ANIME ? "anime" : "tv") : "discover");
       if (route.season == null) return [home, section, { label: id }];
       return [
         home, section,
-        { label: id, href: showPath(route.arg, { held: route.view === "show" }) },
+        { label: id, href: showPath(route.arg, { held: route.view === "show", category: route.category }) },
         { label: "Season " + route.season },
       ];
     }

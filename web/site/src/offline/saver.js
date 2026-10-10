@@ -220,6 +220,7 @@ function metaOf(sub, pkg) {
     overview: (pkg.episode && pkg.episode.overview) || d.overview || null,
     genres: d.genres || [],
     rating: d.rating ?? null,
+    category: pkg.category || null,
     durationSeconds: m.durationSeconds,
     quality: { rendition: rendition(rung.uri), width: rung.width || null, height: rung.height || null, label: rung.name || null },
     files,

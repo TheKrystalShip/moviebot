@@ -12,12 +12,14 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
     - released: films out in the last few weeks.
     - upcoming: films with a release date in the coming months.
     - Also the newest additions to the library.
+    - anime: only anime, for any of these but trending.
     """)]
 internal sealed partial class WhatsNewTool(CinemaApi api) : AssistantTool<WhatsNewTool.Args, Caller>
 {
     public sealed record Args(
         [property: Description("What to list.")] Window Which,
-        [property: Description("Default both.")] TitleKind? Kind = null);
+        [property: Description("Default both.")] TitleKind? Kind = null,
+        [property: Description("Only anime. Default false.")] bool? Anime = null);
 
     private const int LibraryShown = 20;
 
@@ -29,11 +31,15 @@ internal sealed partial class WhatsNewTool(CinemaApi api) : AssistantTool<WhatsN
         string? kind = args.Kind.Wire();
         string[] kinds = kind is null ? ["film", "show"] : [kind];
 
+        bool anime = args.Anime ?? false;
+        if (anime && args.Which == Window.Trending)
+            throw new ToolRefusal("The week's trending list cannot be narrowed to anime. Call whats_new with released, upcoming or library, or discover with anime true.");
+
         return args.Which switch
         {
             Window.Trending => await TrendingAsync(database, kinds, ct),
-            Window.Library => await LibraryAsync(database, kind, ct),
-            _ => await WindowAsync(database, args.Which.Wire(), kinds, ct),
+            Window.Library => await LibraryAsync(database, kind, anime, ct),
+            _ => await WindowAsync(database, args.Which.Wire(), kinds, anime, ct),
         };
     }
 
@@ -52,6 +58,7 @@ internal sealed partial class WhatsNewTool(CinemaApi api) : AssistantTool<WhatsN
             foreach (PopularTitle t in titles)
             {
                 text.Append("- ").Append(TitleText.Named(t.Title, t.Year)).Append('.');
+                if (t.Category == "anime") text.Append(" Anime.");
                 if (t.Rating is not null) text.Append(' ').Append(TitleText.Rating(t.Rating, t.Votes));
                 text.Append(" id ").Append(t.ImdbId).Append(".\n");
                 cards.Add(new TitleCard(t.ImdbId, kind, t.Title, t.Year, t.PosterUrl, false, false));
@@ -63,18 +70,18 @@ internal sealed partial class WhatsNewTool(CinemaApi api) : AssistantTool<WhatsN
         return ToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(cards));
     }
 
-    private static async Task<ToolResult> WindowAsync(CinemaApi.PersonApi database, string which, string[] kinds, CancellationToken ct)
+    private static async Task<ToolResult> WindowAsync(CinemaApi.PersonApi database, string which, string[] kinds, bool anime, CancellationToken ct)
     {
         TitleList[] lists = await Task.WhenAll(kinds.Select(k => which == "released"
-            ? database.ReleasedAsync(k, ct)
-            : database.UpcomingAsync(k, ct)));
+            ? database.ReleasedAsync(k, anime, ct)
+            : database.UpcomingAsync(k, anime, ct)));
 
         var text = new StringBuilder();
         foreach (TitleList list in lists)
         {
             text.Append(which == "released"
-                    ? $"{Plural(list.Kind)} released from {list.From} to {list.To}, newest first, the most looked at"
-                    : $"{Plural(list.Kind)} with a release date from {list.From} to {list.To}, soonest first, the most looked at")
+                    ? $"{(anime ? "Anime " + Plural(list.Kind).ToLowerInvariant() : Plural(list.Kind))} released from {list.From} to {list.To}, newest first, the most looked at"
+                    : $"{(anime ? "Anime " + Plural(list.Kind).ToLowerInvariant() : Plural(list.Kind))} with a release date from {list.From} to {list.To}, soonest first, the most looked at")
                 .Append(":\n");
             text.Append(list.Titles.Count == 0 ? "None.\n" : TitleText.Lines(list.Titles, withDate: true) + "\n");
         }
@@ -82,16 +89,16 @@ internal sealed partial class WhatsNewTool(CinemaApi api) : AssistantTool<WhatsN
         return ToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(lists.SelectMany(l => l.Titles)));
     }
 
-    private static async Task<ToolResult> LibraryAsync(CinemaApi.PersonApi database, string? kind, CancellationToken ct)
+    private static async Task<ToolResult> LibraryAsync(CinemaApi.PersonApi database, string? kind, bool anime, CancellationToken ct)
     {
-        LibraryAdditions added = await database.AddedAsync(kind, LibraryShown, ct);
+        LibraryAdditions added = await database.AddedAsync(kind, anime, LibraryShown, ct);
         if (added.Titles.Count == 0)
-            return ToolResult.Ok("The library has no titles.");
+            return ToolResult.Ok(anime ? "The library has no anime." : "The library has no titles.");
 
-        var text = new StringBuilder("Newest in the library, newest first:\n");
+        var text = new StringBuilder(anime ? "Newest anime in the library, newest first:\n" : "Newest in the library, newest first:\n");
         foreach (LibraryAddition t in added.Titles)
         {
-            text.Append("- ").Append(TitleText.Named(t.Title, t.Year)).Append(", ").Append(TitleText.KindWord(t.Kind))
+            text.Append("- ").Append(TitleText.Named(t.Title, t.Year)).Append(", ").Append(TitleText.KindWord(t.Kind, t.Category))
                 .Append(". Added ").Append(t.AddedAt.ToString("yyyy-MM-dd")).Append('.');
             if (t.Genres.Count > 0) text.Append(' ').Append(string.Join(", ", t.Genres)).Append('.');
             if (t.Rating is { } r) text.Append(" Rated ").Append(r.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)).Append('.');

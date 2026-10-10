@@ -11,8 +11,8 @@ const titles = (n) => `${n} ${n === 1 ? "title" : "titles"}`;
 
 /** Where a saved title leads: the library's page for a film it holds, otherwise the catalogue's. */
 function entryHref(e) {
-  if (e.kind === "show") return showPath(e.imdbId);
-  return e.libraryId ? moviePath(e.libraryId) : discoverFilmPath(e.imdbId);
+  if (e.kind === "show") return showPath(e.imdbId, { category: e.category });
+  return e.libraryId ? moviePath(e.libraryId, e.category) : discoverFilmPath(e.imdbId);
 }
 
 /** A saved title's name, and under it its year, length and when it was saved. */

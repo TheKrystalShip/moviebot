@@ -132,7 +132,7 @@ async function compose() {
   if (lead) {
     const [titleId, entry] = lead;
     const meta = (await readSave(sub, titleId).catch(() => null))?.meta || null;
-    const url = libraryPath(meta && meta.kind === "episode" ? "show" : "film");
+    const url = libraryPath(meta && meta.kind === "episode" ? "show" : "film", meta && meta.category);
     const title = meta ? saveTitle(meta) : "Download";
     if (entry.state === "waiting") return { title, body: "Waiting for a connection" + tail, url };
     if (entry.state === "queued") return { title, body: "Queued" + tail, url };
@@ -161,7 +161,7 @@ function finished() {
       if (!reg) return;
       await reg.showNotification(saveTitle(save.meta), {
         body: "Downloaded", tag: DONE_TAG + titleId, icon: ICON, badge: ICON,
-        data: { url: libraryPath(save.meta.kind === "episode" ? "show" : "film") },
+        data: { url: libraryPath(save.meta.kind === "episode" ? "show" : "film", save.meta.category) },
       }).catch(() => {});
     })();
   }

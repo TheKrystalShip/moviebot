@@ -16,7 +16,7 @@ public enum SearchKinds { Films, Shows, Both }
 /// are searching for today, and a title just announced joins it. An empty answer is never held: the
 /// index answers one when it cannot be reached as well as when it knows nothing.
 /// </summary>
-public sealed class TitleSearch(TitleGlances glances, TimeProvider clock)
+public sealed class TitleSearch(TitleGlances glances, Library.TitleCategories categories, TimeProvider clock)
 {
     internal static readonly TimeSpan Held = TimeSpan.FromHours(1);
     private const int HeldAtMost = 1000;
@@ -45,7 +45,8 @@ public sealed class TitleSearch(TitleGlances glances, TimeProvider clock)
         return [.. held.Titles.Select(t =>
         {
             var glance = glanced.GetValueOrDefault(t.ImdbId);
-            return FoundTitle.From(t, glance, glances.PosterUrl(t.ImdbId, glance));
+            var found = FoundTitle.From(t, glance, glances.PosterUrl(t.ImdbId, glance));
+            return found with { Category = categories.Of(found.Kind, found.ImdbId) };
         })];
     }
 

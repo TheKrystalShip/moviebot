@@ -164,9 +164,13 @@ button.kc-continue:disabled { cursor: progress; }
   .kc-heights { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; }
   .kc-heights .kc-segmented__option { height: 40px; }
 }
-/* The library's Movies | TV shows switch is the phone's; a wide screen has a sidebar entry for each. */
+/* The library's Movies | TV shows | Anime switch is the phone's; a wide screen has a sidebar entry for each. */
 .kc-kind-switch { display: none; }
 @media (max-width: 768px) { .kc-kind-switch { display: grid; } }
+/* Anime holds both kinds, so its Series | Films switch is on every screen, the width of its two words
+   on a wide one and across the page on a phone. */
+.kc-anime-switch { width: min(100%, 280px); }
+@media (max-width: 768px) { .kc-anime-switch { width: 100%; } }
 /* A film card on a phone's two-up grid keeps its rating, year and length and lets their icons go:
    "1h 28m" with its icon is wider than a third of a card that narrow, and runs into the next fact. */
 @container showcase (max-width: 210px) {

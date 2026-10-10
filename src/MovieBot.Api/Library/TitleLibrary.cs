@@ -52,6 +52,9 @@ public sealed record TitleSummary
     /// </summary>
     public Films.FilmFacts? Details { get; init; }
 
+    /// <summary>The shelf the title is on beyond its kind; absent until something says (<see cref="TitleCategories"/>).</summary>
+    public TitleCategory? Category { get; init; }
+
     /// <summary>
     /// How far the asking person has got in the film. Absent when they have not watched it, and for
     /// a caller that is nobody in particular.

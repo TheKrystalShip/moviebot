@@ -2,7 +2,7 @@ import React from "react";
 import { Button, TvCard, TvRow, TvSpotlight, TvTile } from "@thekrystalship/krystal-ui";
 import { api, episodeCode, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
-import { discoverFilmPath, libraryPath, listPath, moviePath, showPath } from "../../paths.js";
+import { ANIME, discoverFilmPath, isAnime, libraryPath, listPath, moviePath, showPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { since, timeLeft } from "../../time.js";
 import { Empty, Failed, watchLink } from "../../components/Film.jsx";
@@ -17,7 +17,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /**
  * The front page on a television. It opens on the newest film, large, with Watch focused. Down goes
  * into the rows: Continue watching, Watching now, Watch later, Recently added, then the shelf as
- * Movies and TV Shows, each ending in the tile that leads to all of it. Once focus is in the rows the
+ * Movies, TV Shows and Anime, each ending in the tile that leads to all of it. Once focus is in the rows the
  * top of the screen is a spotlight on the card it rests on, the focused row holds one line on the
  * screen, and the rows above it are put away. A row with nothing in it is left out.
  */
@@ -54,9 +54,9 @@ export function TvHome() {
   const showArt = (s) => s.details && s.details.posterUrl;
   const either = (row, item, eyebrow) => item.show
     ? <TvCard key={"show:" + showKey(item.show)} art={showArt(item.show)} label={item.show.title}
-      {...linkProps(showPath(item.show.imdbId))} {...card(row, showSpot(item.show, eyebrow))} />
+      {...linkProps(showPath(item.show.imdbId, { category: item.show.category }))} {...card(row, showSpot(item.show, eyebrow))} />
     : <TvCard key={item.film.id} art={posterUrl(item.film)} label={item.film.title}
-      {...linkProps(moviePath(item.film.id))} {...card(row, titleSpot(item.film, eyebrow))} />;
+      {...linkProps(moviePath(item.film.id, item.film.category))} {...card(row, titleSpot(item.film, eyebrow))} />;
 
   if (continuing.length > 0) {
     const row = rows.length;
@@ -109,7 +109,7 @@ export function TvHome() {
         end={<TvTile label="See all" {...linkProps(listPath("later"))} {...card(row, end)} />}>
         {saved.map((e) => {
           const held = e.kind !== "show" ? byImdb.get(e.imdbId) : null;
-          const href = e.kind === "show" ? showPath(e.imdbId) : held ? moviePath(held.id) : discoverFilmPath(e.imdbId);
+          const href = e.kind === "show" ? showPath(e.imdbId, { category: e.category }) : held ? moviePath(held.id, held.category) : discoverFilmPath(e.imdbId);
           return (
             <TvCard key={e.imdbId} art={e.posterUrl} label={e.title} {...linkProps(href)}
               {...card(row, entrySpot(e, held, "Watch later · saved " + since(e.addedAt).toLowerCase()))} />
@@ -126,23 +126,37 @@ export function TvHome() {
       </TvRow>,
     );
   }
-  if (films.length > 0) {
+  const generalFilms = films.filter((t) => !isAnime(t));
+  const generalShows = shows.filter((s) => !isAnime(s));
+  const anime = [...films.filter(isAnime).map((t) => ({ film: t })), ...shows.filter(isAnime).map((s) => ({ show: s }))];
+  if (generalFilms.length > 0) {
     const row = rows.length;
-    const end = { key: "end:films", eyebrow: "See all", title: "Movies", line: count(films.length, "film") };
+    const end = { key: "end:films", eyebrow: "See all", title: "Movies", line: count(generalFilms.length, "film") };
     rows.push(
-      <TvRow key="films" icon="clapperboard" title="Movies" count={films.length}
+      <TvRow key="films" icon="clapperboard" title="Movies" count={generalFilms.length}
         end={<TvTile label="See all" {...linkProps(libraryPath("film"))} {...card(row, end)} />}>
-        {dealt(films, (t) => t.id, deal).map((t) => either(row, { film: t }, "Movies"))}
+        {dealt(generalFilms, (t) => t.id, deal).map((t) => either(row, { film: t }, "Movies"))}
       </TvRow>,
     );
   }
-  if (shows.length > 0) {
+  if (generalShows.length > 0) {
     const row = rows.length;
-    const end = { key: "end:shows", eyebrow: "See all", title: "TV Shows", line: count(shows.length, "show") };
+    const end = { key: "end:shows", eyebrow: "See all", title: "TV Shows", line: count(generalShows.length, "show") };
     rows.push(
-      <TvRow key="shows" icon="tv" title="TV Shows" count={shows.length}
+      <TvRow key="shows" icon="tv" title="TV Shows" count={generalShows.length}
         end={<TvTile label="See all" {...linkProps(libraryPath("show"))} {...card(row, end)} />}>
-        {dealt(shows, showKey, deal).map((s) => either(row, { show: s }, "TV Shows"))}
+        {dealt(generalShows, showKey, deal).map((s) => either(row, { show: s }, "TV Shows"))}
+      </TvRow>,
+    );
+  }
+  if (anime.length > 0) {
+    const row = rows.length;
+    const end = { key: "end:anime", eyebrow: "See all", title: "Anime", line: count(anime.length, "title") };
+    const animeKey = (item) => (item.show ? "show:" + showKey(item.show) : item.film.id);
+    rows.push(
+      <TvRow key="anime" icon="swords" title="Anime" count={anime.length}
+        end={<TvTile label="See all" {...linkProps(libraryPath("show", ANIME))} {...card(row, end)} />}>
+        {dealt(anime, animeKey, deal).map((item) => either(row, item, "Anime"))}
       </TvRow>,
     );
   }
@@ -162,7 +176,7 @@ export function TvHome() {
               <Button variant="primary" size="lg" icon={room ? "users" : "play"} data-tv-initial="" {...watchLink(featured.id, room && room.sessionId)}>
                 {room ? "Join the room" : "Watch"}
               </Button>
-              <Button size="lg" icon="info" {...linkProps(moviePath(featured.id))}>More info</Button>
+              <Button size="lg" icon="info" {...linkProps(moviePath(featured.id, featured.category))}>More info</Button>
               {featured.film && featured.film.imdbId && <SaveButton imdbId={featured.film.imdbId} kind="film" title={hero.title} />}
             </div>
           </TvSpotlight>

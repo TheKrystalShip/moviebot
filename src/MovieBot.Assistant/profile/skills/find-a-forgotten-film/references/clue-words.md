@@ -10,7 +10,8 @@ became on its Matched line.
 |---|---|
 | black and white, "no colour", old-looking | about "black and white" (a tag; an untagged title may still be black and white) |
 | silent | about "silent film" |
-| cartoon, animated | genre Animation; about "anime" for Japanese animation |
+| cartoon, animated | genre Animation |
+| anime, Japanese animation | discover's anime true (animated and made in Japanese); find_by_clues look "anime" |
 | subtitled, foreign, "not in English" | language set to the one they name (Korean, French, Japanese, Spanish) |
 | stylish crime, shadowy | about "film noir" or "neo-noir" |
 | shaky camera, "filmed like a home video" | about "found footage" |

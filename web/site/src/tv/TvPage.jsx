@@ -1,3 +1,4 @@
+import { ANIME } from "../paths.js";
 import { NotFound } from "../pages/NotFound.jsx";
 import { Notify } from "../pages/Notify.jsx";
 import { TvDiscover } from "./pages/TvDiscover.jsx";
@@ -14,6 +15,8 @@ export function TvPage({ route }) {
     case "home": return <TvHome />;
     case "movies": return <TvLibrary key="film" kind="film" />;
     case "tv": return <TvLibrary key="show" kind="show" />;
+    case "anime":
+    case "anime-films": return <TvLibrary key="anime" category={ANIME} />;
     case "movie": return <TvTitle key={route.arg} id={route.arg} />;
     case "show":
     case "discover-show":

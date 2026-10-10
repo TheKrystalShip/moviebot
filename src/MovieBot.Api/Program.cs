@@ -127,6 +127,12 @@ builder.Services.AddSingleton(sp => new ShowStore(
     sp.GetRequiredService<EpisodeNumbering>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<ShowStore>>()));
+// Which shelf each title is on beyond its kind: anime, or everything else.
+builder.Services.AddSingleton(sp => new TitleCategories(
+    StatePath(sp.GetRequiredService<IConfiguration>()["Library:Categories"], "categories.json"),
+    sp.GetRequiredService<FilmStore>(),
+    sp.GetRequiredService<ShowStore>(),
+    sp.GetRequiredService<ILogger<TitleCategories>>()));
 builder.Services.AddSingleton(sp => new TitleGlances(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.GlancesDirectory, "glances"),
     sp.GetRequiredService<FilmStore>(),
@@ -382,7 +388,7 @@ app.MapMethods("/tv.apk", [HttpMethods.Get, HttpMethods.Head], (IConfiguration c
 // on the network, and a film not described yet is listed without it. Each carries the asking
 // person's progress and when the film was last played, and a caller that is nobody gets no progress.
 app.MapGet("/api/titles", (HttpContext context, LibraryListing library, FilmStore films, ShowStore shows,
-    TitlePosters posters, WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
+    TitleCategories categories, TitlePosters posters, WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
 {
     var person = PeopleEndpoints.Person(context);
     var viewing = sessions.Viewing();
@@ -392,6 +398,7 @@ app.MapGet("/api/titles", (HttpContext context, LibraryListing library, FilmStor
         {
             // An episode is described by its show.
             Details = t.Kind == TitleKind.Show ? shows.Facts(t.Film?.ImdbId) : films.Facts(t.Film?.ImdbId),
+            Category = categories.Of(t.Kind, t.Film?.ImdbId),
         }).WithPlays(person, record, people, viewing, now))
         .ToList());
 }).RequireActionOrService(CinemaActions.Watch);
@@ -421,6 +428,7 @@ app.MapPeople();
 app.MapFilms();
 app.MapCatalogueSearch();
 app.MapShows();
+app.MapCategories();
 app.MapFollows();
 app.MapLists();
 app.MapNotifications();

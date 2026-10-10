@@ -148,7 +148,8 @@ export function TvCatalogueFilm({ imdbId }) {
   const [busy, setBusy] = React.useState(false);
 
   const here = state.data && state.data.libraryId;
-  React.useEffect(() => { if (here) navigate(moviePath(here), { replace: true }); }, [here]);
+  const shelved = film.data && film.data.category;
+  React.useEffect(() => { if (here) navigate(moviePath(here, shelved), { replace: true }); }, [here, shelved]);
   if (here || (!film.data && !film.error)) return <div className="kc-tv-page" />;
   if (!film.data) return <div className="kc-tv-page kc-tv-pad"><Failed error={film.error} onRetry={film.reload} /></div>;
 

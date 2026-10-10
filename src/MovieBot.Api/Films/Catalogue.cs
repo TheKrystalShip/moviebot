@@ -47,6 +47,9 @@ public sealed record CatalogueTitleView
 
     /// <summary>Among a person's credits, the part they played or the job they did.</summary>
     public string? Role { get; init; }
+
+    /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
+    public Library.TitleCategory? Category { get; init; }
 }
 
 /// <summary>What <c>/api/catalogue/people/{personId}</c> answers.</summary>
@@ -64,6 +67,10 @@ public sealed record CatalogueGenreView
 {
     public required string Kind { get; init; }
     public required string Genre { get; init; }
+
+    /// <summary><c>anime</c> for a genre's anime alone; absent for the whole genre.</summary>
+    public Library.TitleCategory? Category { get; init; }
+
     public required List<CatalogueTitleView> Titles { get; init; }
 }
 
@@ -125,19 +132,30 @@ public sealed class Catalogue(
     }
 
     /// <summary>
-    /// A genre of films or shows by its name, any case, and its most popular titles. Null when the
-    /// database cannot be asked and nothing is kept; a kept answer with no value when the database has
-    /// no genre by that name for the kind.
+    /// A genre of films or shows by its name, any case, and its most popular titles; with
+    /// <paramref name="anime"/>, the most popular of them that are anime (<see cref="Library.TitleCategories"/>).
+    /// Null when the database cannot be asked and nothing is kept; a kept answer with no value when the
+    /// database has no genre by that name for the kind.
     /// </summary>
-    public async Task<(CatalogueGenre? Genre, KeptAnswer<List<CatalogueTitle>>? Titles)?> GenreAsync(string kind, string name, CancellationToken ct)
+    public async Task<(CatalogueGenre? Genre, KeptAnswer<List<CatalogueTitle>>? Titles)?> GenreAsync(string kind, string name, bool anime, CancellationToken ct)
     {
         var genres = await GenresAsync(kind, ct);
         if (genres is null) return null;
         if (genres.FirstOrDefault(g => string.Equals(g.Name, name.Trim(), StringComparison.OrdinalIgnoreCase)) is not { } genre)
             return (null, null);
 
-        var titles = await keeper.KeptAsync($"genres/{kind}-{genre.Id}", KeptAnswerJson.Default.KeptAnswerListCatalogueTitle, GenreKept,
-            async (tmdb, token) => (await tmdb.GenreAsync(kind, genre.Id, TitlesListed, token)).ToList(),
+        List<int> ids = [genre.Id];
+        string? language = null;
+        if (anime)
+        {
+            if (genres.FirstOrDefault(g => string.Equals(g.Name, Library.TitleCategories.AnimeGenre, StringComparison.OrdinalIgnoreCase)) is not { } animation)
+                return (null, null);
+            if (animation.Id != genre.Id) ids.Add(animation.Id);
+            language = Library.TitleCategories.AnimeLanguage;
+        }
+
+        var titles = await keeper.KeptAsync($"genres/{kind}-{genre.Id}{(anime ? "-anime" : "")}", KeptAnswerJson.Default.KeptAnswerListCatalogueTitle, GenreKept,
+            async (tmdb, token) => (await tmdb.GenreAsync(kind, ids, language, TitlesListed, token)).ToList(),
             Offer, ct);
         return titles is null ? null : (genre, titles);
     }

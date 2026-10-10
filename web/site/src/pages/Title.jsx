@@ -2,13 +2,14 @@ import React from "react";
 import { api, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
-import { tvPath } from "../paths.js";
+import { ANIME, moviePath, tvPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, WatchButton } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
+import { ShelfButton } from "../components/ShelfButton.jsx";
 import { DownloadButton, useOffersSaving } from "../components/DownloadButton.jsx";
 import { useDeviceTitle } from "../offline/hooks.js";
 import { Unreachable } from "./Offline.jsx";
@@ -19,9 +20,10 @@ import { Unreachable } from "./Offline.jsx";
  * What the film is comes from the film database through the API, which keeps it; what is on this
  * server — its length, its picture, its size, how far this person got — comes from the library.
  * `fromDevice` is the page opened with no connection, drawn from the film's download on this device
- * (`useDeviceTitle`); a film not downloaded here cannot be drawn.
+ * (`useDeviceTitle`); a film not downloaded here cannot be drawn. `category` is the shelf the address
+ * is under; a film the API shelves elsewhere moves to its own shelf's address.
  */
-export function Title({ id, fromDevice = false }) {
+export function Title({ id, category = null, fromDevice = false }) {
   const device = useDeviceTitle(id, fromDevice);
   const served = useLoad(() => (fromDevice ? Promise.resolve(null) : api.title(id)), [id]);
   const manifest = fromDevice ? device.manifest : served;
@@ -46,6 +48,11 @@ export function Title({ id, fromDevice = false }) {
   React.useEffect(() => {
     if (episodeOf) navigate(episodeOf, { replace: true });
   }, [episodeOf]);
+  // Under Anime or Movies, as the API shelves it. A film the listing does not name stays where it is.
+  const shelved = listing.data ? (listing.data.category === ANIME ? ANIME : null) : category;
+  React.useEffect(() => {
+    if (!episodeOf && shelved !== category) navigate(moviePath(id, shelved), { replace: true });
+  }, [episodeOf, shelved, category, id]);
   if (episodeOf) return <div className="kc-page" />;
   if (fromDevice && !manifest.data) return manifest.loading ? <div className="kc-page" /> : <Unreachable />;
 
@@ -85,7 +92,7 @@ export function Title({ id, fromDevice = false }) {
         <div className="kc-tt__grid">
           <PosterArt title={title} className="kc-tt__poster" />
           <div className="kc-tt__body">
-            <span className="kc-eyebrow kc-eyebrow--muted">Movie</span>
+            <span className="kc-eyebrow kc-eyebrow--muted">{shelved === ANIME ? "Anime film" : "Movie"}</span>
             <h1>{(d && d.title) || film.name || m.title}</h1>
             <div className="kc-tt__meta">
               {(film.year || (d && d.year)) && <span>{film.year || d.year}</span>}
@@ -114,6 +121,10 @@ export function Title({ id, fromDevice = false }) {
                 </WatchButton>
               )}
               {film.imdbId && <SaveButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
+              {!fromDevice && film.imdbId && (
+                <ShelfButton imdbId={film.imdbId} kind="film" category={shelved}
+                  onMoved={(to) => { listing.reload(); navigate(moviePath(id, to), { replace: true }); }} />
+              )}
               {saving && (m.status === "ready" || (fetching && m.status === "transcoding" && film.imdbId)) && (
                 <DownloadButton titleId={m.id} imdbId={film.imdbId || null} ready={m.status === "ready"} head={{
                   name: (d && d.title) || filmName(m), context: film.year || (d && d.year) || null,

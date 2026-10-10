@@ -9,7 +9,7 @@ import { leave } from "./leave.js";
 import { goBack, navigate, useRoute } from "./router.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { PLACES } from "./nav.js";
-import { OFFLINE_FLAG, discoverPath, homePath, libraryPath, moviePath, profilePath } from "./paths.js";
+import { ANIME, OFFLINE_FLAG, discoverPath, homePath, libraryPath, moviePath, profilePath } from "./paths.js";
 import { useOnline } from "./connectivity.js";
 import { sendProgress } from "./offline/progress.js";
 import { useOfflineSync } from "./offline/sync.js";
@@ -45,7 +45,7 @@ const ENDED = "Your session ended.";
 
 const place = (id) => ({ id, ...PLACES[id] });
 const HOME = ["home", "discover", "saved"].map(place);
-const LIBRARY = ["movies", "tv"].map(place);
+const LIBRARY = ["movies", "tv", "anime"].map(place);
 const WAITING = ["notify"].map(place);
 
 // A phone's way around: a tab for each place. The assistant's tab opens the dock rather than a page.
@@ -65,6 +65,8 @@ const LIT = {
   movie: { item: "movies", tab: "library" },
   tv: { item: "tv", tab: "library" },
   show: { item: "tv", tab: "library" },
+  anime: { item: "anime", tab: "library" },
+  "anime-films": { item: "anime", tab: "library" },
   discover: { item: "discover", tab: "discover" },
   "discover-film": { item: "discover", tab: "discover" },
   "discover-show": { item: "discover", tab: "discover" },
@@ -178,7 +180,8 @@ function Frame({ session, route }) {
     if (mainRef.current) mainRef.current.scrollTop = 0;
   }, []);
 
-  const lit = LIT[route.view] || {};
+  // A film's or a show's page under Anime lights Anime rather than its kind's shelf.
+  const lit = (route.category === ANIME && route.view !== "discover-show" ? LIT.anime : LIT[route.view]) || {};
   const go = (path) => navigate(path);
   const item = (n) => (online || !NEEDS_SERVER.has(n.id)
     ? <NavItem key={n.id} icon={n.icon} label={n.label} active={lit.item === n.id} onClick={() => go(n.path)} />
@@ -330,10 +333,12 @@ function Page({ route, fromDevice }) {
     case "home": return <Home fromDevice={fromDevice} />;
     case "movies": return <Library key="film" kind="film" fromDevice={fromDevice} />;
     case "tv": return <Library key="show" kind="show" fromDevice={fromDevice} />;
-    case "movie": return <Title key={route.arg} id={route.arg} fromDevice={fromDevice} />;
+    case "anime": return <Library key="anime-show" kind="show" category={ANIME} fromDevice={fromDevice} />;
+    case "anime-films": return <Library key="anime-film" kind="film" category={ANIME} fromDevice={fromDevice} />;
+    case "movie": return <Title key={route.arg} id={route.arg} category={route.category} fromDevice={fromDevice} />;
     case "show":
     case "discover-show":
-      return <Show key={route.arg} imdbId={route.arg} season={route.season} inLibrary={route.view === "show"} fromDevice={fromDevice} />;
+      return <Show key={route.arg} imdbId={route.arg} season={route.season} inLibrary={route.view === "show"} category={route.category} fromDevice={fromDevice} />;
     case "profile": return <Profile tab={route.tab} fromDevice={fromDevice} />;
     case "about": return <About />;
     case "notfound": return <NotFound />;

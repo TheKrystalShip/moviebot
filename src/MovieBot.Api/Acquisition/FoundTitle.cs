@@ -40,6 +40,9 @@ public sealed record FoundTitle
 
     public string? Overview { get; init; }
 
+    /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
+    public Library.TitleCategory? Category { get; init; }
+
     public static FoundTitle From(ImdbTitle title, TitleGlance? glance = null, string? poster = null) => new()
     {
         ImdbId = title.ImdbId,

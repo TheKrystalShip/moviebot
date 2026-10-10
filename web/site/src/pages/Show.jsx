@@ -4,7 +4,7 @@ import { api, episodeCode } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
-import { showPath } from "../paths.js";
+import { ANIME, showPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago, airDay, clock, since, timeLeft } from "../time.js";
@@ -12,6 +12,7 @@ import { Empty, Failed, WatchButton, useWatchLink } from "../components/Film.jsx
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
+import { ShelfButton } from "../components/ShelfButton.jsx";
 import { DownloadMark, SeasonDownload, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
 import { EpisodeRow } from "../components/EpisodeRow.jsx";
 import { episodeRelease, openingEpisode, watchNow, watchOpening } from "../watchNow.js";
@@ -27,16 +28,17 @@ import { Unreachable } from "./Offline.jsx";
  * What the show is comes from the film database through the API; which episodes play now and how far
  * this person got in each comes from the library.
  *
- * The address says which season is open (`season`) and where the library stands (`inLibrary`: the
- * shelf's address or Discover's). Both are the page's to correct once it knows the show: a show with
- * an episode here belongs at the shelf's address, one without at Discover's, and a season the show
- * does not have is dropped, each by replacing the address.
+ * The address says which season is open (`season`), where the library stands (`inLibrary`: a shelf's
+ * address or Discover's) and which shelf (`category`: Anime's, or TV Shows'). All three are the page's
+ * to correct once it knows the show: a show with an episode here belongs at the address of the shelf
+ * the API puts it on, one without at Discover's, and a season the show does not have is dropped, each
+ * by replacing the address.
  *
  * `fromDevice` is the page opened with no connection, drawn from the show kept on the device for its
  * downloaded episodes (`offline/shows.js`); the episodes not downloaded are drawn and cannot be played.
  * Read from the API while the device keeps the show, the page writes it there again.
  */
-export function Show({ imdbId, season, inLibrary, fromDevice = false }) {
+export function Show({ imdbId, season, inLibrary, category = null, fromDevice = false }) {
   const fetched = useLoad(() => (fromDevice ? Promise.resolve(null) : api.show(imdbId)), [imdbId]);
   const kept = useKeptShow(imdbId, fromDevice);
   const show = fromDevice ? kept : fetched;
@@ -62,11 +64,13 @@ export function Show({ imdbId, season, inLibrary, fromDevice = false }) {
   const seasonsHere = show.data ? show.data.seasons : null;
   const episodesHere = seasonsHere ? seasonsHere.some((x) => x.episodes.some((e) => e.titleId)) : null;
   const hasSeason = seasonsHere ? seasonsHere.some((x) => x.number === season) : null;
+  const shelved = show.data ? (show.data.category === ANIME ? ANIME : null) : category;
   React.useEffect(() => {
     if (episodesHere === null) return;
-    navigate(showPath(imdbId, { held: episodesHere, season: hasSeason ? season : undefined }), { replace: true });
-  }, [imdbId, season, inLibrary, episodesHere, hasSeason]);
-  if (episodesHere !== null && (episodesHere !== inLibrary || (season != null && !hasSeason))) return <div className="kc-page" />;
+    navigate(showPath(imdbId, { held: episodesHere, season: hasSeason ? season : undefined, category: shelved }), { replace: true });
+  }, [imdbId, season, inLibrary, episodesHere, hasSeason, shelved]);
+  if (episodesHere !== null
+    && (episodesHere !== inLibrary || (season != null && !hasSeason) || (episodesHere && shelved !== category))) return <div className="kc-page" />;
 
   if (fromDevice && !show.data) return show.loading ? <div className="kc-page" /> : <Unreachable place={inLibrary ? null : "discover"} />;
   if (show.error && show.error.status === 404) {
@@ -118,7 +122,7 @@ export function Show({ imdbId, season, inLibrary, fromDevice = false }) {
             {s.posterUrl ? <img src={s.posterUrl} alt="" /> : <span className="kc-poster-art__name">{s.title}</span>}
           </div>
           <div className="kc-tt__body">
-            <span className="kc-eyebrow kc-eyebrow--muted">TV series</span>
+            <span className="kc-eyebrow kc-eyebrow--muted">{shelved === ANIME ? "Anime series" : "TV series"}</span>
             <h1>{s.title}</h1>
             <div className="kc-tt__meta">
               {years && <span>{years}</span>}
@@ -147,6 +151,9 @@ export function Show({ imdbId, season, inLibrary, fromDevice = false }) {
               )}
               {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
               {s.imdbId && <SaveButton imdbId={s.imdbId} kind="show" title={s.title} />}
+              {inLibrary && !fromDevice && (
+                <ShelfButton imdbId={s.imdbId} kind="show" category={shelved} onMoved={() => show.reload()} />
+              )}
               {resume && (
                 <span className="kc-mono kc-quiet">
                   {episodeCode({ season: resume.season, number: resume.episode })}
@@ -169,7 +176,7 @@ export function Show({ imdbId, season, inLibrary, fromDevice = false }) {
             {seasons.map((x) => (
               <button key={x.number} type="button"
                 className={"kc-season-chip" + (x.number === current.number ? " is-on" : "")}
-                onClick={() => navigate(showPath(imdbId, { held: inLibrary, season: x.number }), { replace: true })}>
+                onClick={() => navigate(showPath(imdbId, { held: inLibrary, season: x.number, category: shelved }), { replace: true })}>
                 Season {x.number}
               </button>
             ))}

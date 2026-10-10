@@ -5,7 +5,7 @@ import {
 import { filmName } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLibrary } from "../offline/hooks.js";
-import { discoverGenrePath, libraryPath } from "../paths.js";
+import { ANIME, discoverGenrePath, isAnime, libraryPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard } from "../components/Film.jsx";
 import { MoreTile } from "../components/TitleCards.jsx";
@@ -34,36 +34,78 @@ const SORTS = [
   { value: "length", label: "Length", defaultDir: "asc", compare: (a, b) => a.durationSeconds - b.durationSeconds },
 ];
 
-const KINDS = {
-  film: { title: "Movies", unit: ["movie", "movies"], empty: "No movies yet" },
-  show: { title: "TV Shows", unit: ["show", "shows"], empty: "No shows yet" },
+// What each shelf calls itself and its titles: the general shelves by kind, and Anime's by kind under it.
+const SHELVES = {
+  film: { title: "Movies", unit: ["movie", "movies"], empty: "No movies yet", icon: "clapperboard" },
+  show: { title: "TV Shows", unit: ["show", "shows"], empty: "No shows yet", icon: "tv" },
+  "anime:film": { title: "Anime", unit: ["film", "films"], empty: "No anime films yet", icon: "swords" },
+  "anime:show": { title: "Anime", unit: ["series", "series"], empty: "No anime series yet", icon: "swords" },
 };
 
-/**
- * Every title of one kind on the shelf, searched by name, narrowed by state, genre and download, and
- * ordered the way somebody asks; with a genre picked, the last tile leads on to Discover's catalogue
- * of that genre. The kind is the API's word for what a title is.
- */
-export function Library({ kind = "film", fromDevice = false }) {
-  return kind === "show" ? <ShowLibrary fromDevice={fromDevice} /> : <FilmLibrary fromDevice={fromDevice} />;
-}
+const shelfOf = (kind, category) => SHELVES[(category === ANIME ? "anime:" : "") + kind] || SHELVES.film;
 
 /**
- * Movies or TV shows, on a phone. Its Library tab is the one way into either, where a wide screen
- * has a sidebar entry for each; picking one replaces the page rather than stacking on it.
+ * Whether a listed title belongs on a shelf of `category`: Anime holds what the API shelves as anime,
+ * and the general shelves hold everything else, a title nothing describes yet among them.
  */
-function KindSwitch({ kind }) {
-  const options = [{ kind: "film", label: "Movies", path: libraryPath("film") }, { kind: "show", label: "TV shows", path: libraryPath("show") }];
+const onShelf = (title, category) => isAnime(title) === (category === ANIME);
+
+/**
+ * Every title of one kind and category on the shelf, searched by name, narrowed by state, genre and
+ * download, and ordered the way somebody asks; with a genre picked, the last tile leads on to
+ * Discover's catalogue of that genre. The kind and the category are the API's words for what a title
+ * is and where it is shelved.
+ */
+export function Library({ kind = "film", category = null, fromDevice = false }) {
+  return kind === "show"
+    ? <ShowLibrary category={category} fromDevice={fromDevice} />
+    : <FilmLibrary category={category} fromDevice={fromDevice} />;
+}
+
+/** A row of options, one of them on, each replacing the page with its own rather than stacking on it. */
+function Segmented({ label, options, on, className }) {
   return (
-    <div className="kc-segmented kc-segmented--fill kc-kind-switch" role="radiogroup" aria-label="Library">
+    <div className={"kc-segmented kc-segmented--fill " + className} role="radiogroup" aria-label={label}>
       {options.map((o) => (
-        <button key={o.kind} type="button" role="radio" aria-checked={o.kind === kind}
-          className={"kc-segmented__option" + (o.kind === kind ? " is-on" : "")}
-          onClick={() => { if (o.kind !== kind) navigate(o.path, { replace: true }); }}>
+        <button key={o.id} type="button" role="radio" aria-checked={o.id === on}
+          className={"kc-segmented__option" + (o.id === on ? " is-on" : "")}
+          onClick={() => { if (o.id !== on) navigate(o.path, { replace: true }); }}>
           {o.label}
         </button>
       ))}
     </div>
+  );
+}
+
+/**
+ * Movies, TV shows or Anime, on a phone. Its Library tab is the one way into any of them, where a
+ * wide screen has a sidebar entry for each.
+ */
+function ShelfSwitch({ kind, category }) {
+  const options = [
+    { id: "film", label: "Movies", path: libraryPath("film") },
+    { id: "show", label: "TV shows", path: libraryPath("show") },
+    { id: ANIME, label: "Anime", path: libraryPath("show", ANIME) },
+  ];
+  return <Segmented label="Library" options={options} on={category === ANIME ? ANIME : kind} className="kc-kind-switch" />;
+}
+
+/** Anime's series or its films, on every screen: the one shelf holds both kinds. */
+function AnimeKindSwitch({ kind }) {
+  const options = [
+    { id: "show", label: "Series", path: libraryPath("show", ANIME) },
+    { id: "film", label: "Films", path: libraryPath("film", ANIME) },
+  ];
+  return <Segmented label="Anime" options={options} on={kind} className="kc-anime-switch" />;
+}
+
+/** The switches above a shelf: the shelves on a phone, and under Anime, its two kinds. */
+function Switches({ kind, category }) {
+  return (
+    <>
+      <ShelfSwitch kind={kind} category={category} />
+      {category === ANIME && <AnimeKindSwitch kind={kind} />}
+    </>
   );
 }
 
@@ -78,8 +120,9 @@ const SHOW_SORTS = [
  * Every show the library holds, one card each however many of its episodes are here, searched by
  * name, narrowed by genre, and ordered the way somebody asks.
  */
-function ShowLibrary({ fromDevice }) {
+function ShowLibrary({ category, fromDevice }) {
   const shows = useLibrary("show", fromDevice);
+  const words = shelfOf("show", category);
   const online = useOnline();
   const f = useFilters({ search: "", genre: "all", download: "all" });
   const offered = useOffersSaving();
@@ -87,7 +130,7 @@ function ShowLibrary({ fromDevice }) {
   const held = (s) => marks.episodes(s.imdbId) > 0;
   const [sort, setSort] = React.useState({ key: "added", dir: "desc" });
 
-  const all = shows.data || [];
+  const all = (shows.data || []).filter((s) => onShelf(s, category));
   const genreCounts = new Map();
   for (const s of all) for (const g of (s.details && s.details.genres) || []) genreCounts.set(g, (genreCounts.get(g) || 0) + 1);
   const genres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
@@ -109,33 +152,33 @@ function ShowLibrary({ fromDevice }) {
 
   return (
     <div className="kc-page">
-      <PageHead title="TV Shows" sub={shows.data ? `${all.length} ${all.length === 1 ? "show" : "shows"}` : null} />
-      <KindSwitch kind="show" />
+      <PageHead title={words.title} sub={shows.data ? `${all.length} ${all.length === 1 ? words.unit[0] : words.unit[1]}` : null} />
+      <Switches kind="show" category={category} />
 
       {all.length > 0 && (
         <Toolbar>
-          <ToolbarSearch value={f.query} onChange={f.setQuery} pending={f.searchPending} placeholder="Search shows…" />
+          <ToolbarSearch value={f.query} onChange={f.setQuery} pending={f.searchPending} placeholder={`Search ${words.unit[1]}…`} />
           <ToolbarFilters fields={fields} onReset={() => f.setQuery("")} />
           <ToolbarSort value={sort.key} dir={sort.dir} onChange={(key, dir) => setSort({ key, dir })} options={SHOW_SORTS} />
           <ToolbarSpacer />
-          <ToolbarCount shown={shown.length} total={all.length} unit="shows" />
+          <ToolbarCount shown={shown.length} total={all.length} unit={words.unit[1]} />
         </Toolbar>
       )}
 
       <Failed error={shows.error} onRetry={shows.reload} />
-      {shows.data && all.length === 0 && <Empty icon="tv" title="No shows yet">Search for a show to fetch its episodes.</Empty>}
+      {shows.data && all.length === 0 && <Empty icon={words.icon} title={words.empty}>Search for a show to fetch its episodes.</Empty>}
       {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
       {(shown.length > 0 || f.values.genre !== "all") && (
         <div className="kc-grid">
           {shown.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} downloaded={marks.episodes(s.imdbId)} />)}
-          {online && f.values.genre !== "all" && <MoreTile label="Discover more" to={discoverGenrePath("show", f.values.genre)} />}
+          {online && f.values.genre !== "all" && <MoreTile label="Discover more" to={discoverGenrePath("show", f.values.genre, category)} />}
         </div>
       )}
     </div>
   );
 }
 
-function FilmLibrary({ fromDevice }) {
+function FilmLibrary({ category, fromDevice }) {
   const kind = "film";
   const titles = useLibrary("film", fromDevice);
   const online = useOnline();
@@ -144,9 +187,9 @@ function FilmLibrary({ fromDevice }) {
   const marks = useDownloadMarks();
   const held = (t) => !!marks.film(t.id) && marks.film(t.id).kind === "done";
   const [sort, setSort] = React.useState({ key: "added", dir: "desc" });
-  const words = KINDS[kind] || KINDS.film;
+  const words = shelfOf(kind, category);
 
-  const all = (titles.data || []).filter((t) => (kind === "show" ? t.kind === "show" : t.kind !== "show"));
+  const all = (titles.data || []).filter((t) => t.kind !== "show" && onShelf(t, category));
 
   const states = [
     { value: "all", label: "All", test: () => true },
@@ -182,7 +225,7 @@ function FilmLibrary({ fromDevice }) {
   return (
     <div className="kc-page">
       <PageHead title={words.title} sub={titles.data ? `${all.length} ${unit}` : null} />
-      <KindSwitch kind={kind} />
+      <Switches kind={kind} category={category} />
 
       {all.length > 0 && (
         <Toolbar>
@@ -196,12 +239,12 @@ function FilmLibrary({ fromDevice }) {
 
       <Failed error={titles.error} onRetry={titles.reload} />
 
-      {titles.data && all.length === 0 && <Empty icon={kind === "show" ? "tv" : "clapperboard"} title={words.empty} />}
+      {titles.data && all.length === 0 && <Empty icon={words.icon} title={words.empty} />}
       {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
       {(shown.length > 0 || f.values.genre !== "all") && (
         <div className="kc-grid">
           {shown.map((t) => <FilmCard key={t.id} title={t} download={marks.film(t.id)} />)}
-          {online && f.values.genre !== "all" && <MoreTile label="Discover more" to={discoverGenrePath(kind, f.values.genre)} />}
+          {online && f.values.genre !== "all" && <MoreTile label="Discover more" to={discoverGenrePath(kind, f.values.genre, category)} />}
         </div>
       )}
     </div>

@@ -16,8 +16,8 @@ const count = (n) => `${n} ${n === 1 ? "title" : "titles"}`;
 
 /** Where an entry leads: the library's own page for a film it holds, otherwise the catalogue's. */
 function entryHref(e) {
-  if (e.kind === "show") return showPath(e.imdbId);
-  return e.libraryId ? moviePath(e.libraryId) : discoverFilmPath(e.imdbId);
+  if (e.kind === "show") return showPath(e.imdbId, { category: e.category });
+  return e.libraryId ? moviePath(e.libraryId, e.category) : discoverFilmPath(e.imdbId);
 }
 
 /**

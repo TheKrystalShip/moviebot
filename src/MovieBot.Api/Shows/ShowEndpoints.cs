@@ -15,15 +15,16 @@ public static class ShowEndpoints
     public static void MapShows(this WebApplication app)
     {
         // The shows the library holds, one entry each, with the asking person's place in each.
-        app.MapGet("/api/shows", (HttpContext context, LibraryListing library, ShowStore shows,
+        app.MapGet("/api/shows", (HttpContext context, LibraryListing library, ShowStore shows, TitleCategories categories,
             WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
-            Results.Ok(shows.Summaries(Titles(context, library, record, people, sessions, clock))))
+            Results.Ok(shows.Summaries(Titles(context, library, record, people, sessions, clock))
+                .Select(s => s with { Category = categories.Of("show", s.ImdbId) }).ToList()))
             .RequireAction(CinemaActions.Watch);
 
         // A show by its IMDb id, in the library or not: the page somebody picks episodes on shows it
         // as fully as one on the shelf.
         app.MapGet("/api/shows/{imdbId}", async (string imdbId, HttpContext context, LibraryListing library,
-            ShowStore shows, WatchRecord record, PersonDirectory people,
+            ShowStore shows, TitleCategories categories, WatchRecord record, PersonDirectory people,
             SessionStore sessions, FollowStore follows, TimeProvider clock, CancellationToken ct) =>
         {
             if (!FilmStore.IsImdbId(imdbId))
@@ -44,7 +45,7 @@ public static class ShowEndpoints
 
             var person = PeopleEndpoints.Person(context);
             return Results.Ok(shows.View(imdbId, stored, episodes,
-                person is null ? null : follows.Get(person.UserId, imdbId)));
+                person is null ? null : follows.Get(person.UserId, imdbId)) with { Category = categories.Of("show", imdbId) });
         }).RequireAction(CinemaActions.Watch);
 
         // What the tracker offers for a show, season by season: packs and single episodes, each best

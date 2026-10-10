@@ -26,6 +26,36 @@ public sealed class DiscoveryToolTests
     }
 
     [Fact]
+    public async Task Anime_is_asked_for_as_a_category_and_said_as_the_kind()
+    {
+        ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { kind = "show", anime = true });
+
+        Assert.False(result.IsError);
+        Assert.Equal(["GET /api/catalogue/discover?category=anime&goodonly=true&kind=show"], _rig.World.Asked);
+        Assert.Contains("1 anime show, in the database's popular order.", result.Text);
+        Assert.Contains("Matched: genres Animation; original language Japanese;", result.Text);
+        Assert.Contains("- Paper Lanterns (2019), anime show.", result.Text);
+    }
+
+    [Fact]
+    public async Task The_library_s_newest_anime_is_asked_for_by_category()
+    {
+        ToolOutcome result = await _rig.RunAsync(_rig.WhatsNew, new { which = "library", kind = "show", anime = true });
+
+        Assert.Equal(["GET /api/catalogue/added?category=anime&kind=show&limit=20"], _rig.World.Asked);
+        Assert.Equal("The library has no anime.", result.Text);
+    }
+
+    [Fact]
+    public async Task The_week_s_trending_list_is_not_narrowed_to_anime()
+    {
+        ToolOutcome result = await _rig.RunAsync(_rig.WhatsNew, new { which = "trending", anime = true });
+
+        Assert.True(result.IsError);
+        Assert.Empty(_rig.World.Asked);
+    }
+
+    [Fact]
     public async Task Genres_to_leave_out_and_keeping_family_titles_are_passed_and_reported()
     {
         ToolOutcome result = await _rig.RunAsync(

@@ -108,6 +108,13 @@ film onto a device is `Offline/CLAUDE.md`.
   root is a spinning disk: built per request, a listing costs a second. A change on disk reaches the
   shelf within ten seconds. What must be exact reads `TitleLibrary` directly: a title's own
   manifest, a room's head, and whether a film is here before anything is fetched.
+- **A title's category is `Library/TitleCategories`, beside its kind.** The kind is how a title is
+  built and the category where people look for it: anime is what the film database files under
+  Animation and was made in Japanese, read from the kept description, so a listing still never waits
+  on the network, and from the genres and language a catalogue answer carries. Somebody holding
+  `cinema:download` shelves a title against the rule by IMDb id (`categories.json`), a setting that
+  agrees with the rule is dropped, and every view naming a title carries the result
+  (`docs/api-contract.md`, Categories).
 - **An episode is a title, and a show is its episodes grouped.** Every route that serves a title
   serves an episode unchanged; `/api/shows` and `/api/shows/{imdbId}` group the library's episodes by
   the show their manifest names and join them with the show's description, and an episode's

@@ -2,7 +2,7 @@
 // breadcrumb trail all read them here, so they cannot disagree.
 
 import {
-  PROFILE_TABS, aboutPath, discoverPath, homePath, libraryPath, notifyPath, profilePath, savedPath,
+  ANIME, PROFILE_TABS, aboutPath, discoverPath, homePath, libraryPath, notifyPath, profilePath, savedPath,
 } from "./paths.js";
 
 /** A place by id: its address, its icon and its name. */
@@ -12,6 +12,7 @@ export const PLACES = {
   saved: { path: savedPath, icon: "bookmark", label: "Saved" },
   movies: { path: libraryPath("film"), icon: "clapperboard", label: "Movies" },
   tv: { path: libraryPath("show"), icon: "tv", label: "TV Shows" },
+  anime: { path: libraryPath("show", ANIME), icon: "swords", label: "Anime" },
   notify: { path: notifyPath, icon: "bell-plus", label: "Notify me" },
   about: { path: aboutPath, icon: "info", label: "About" },
   profile: { path: profilePath(), icon: "user", label: "Profile" },

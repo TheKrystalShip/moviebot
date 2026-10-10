@@ -19,6 +19,10 @@ internal static class TitleText
 
     public static string KindWord(string kind) => kind == "show" ? "show" : "film";
 
+    /// <summary>"film", or "anime film" for a title the site shelves as anime.</summary>
+    public static string KindWord(string kind, string? category) =>
+        category == "anime" ? "anime " + KindWord(kind) : KindWord(kind);
+
     /// <summary>"Heat (1995)", or "Heat" when the database dates it no year.</summary>
     public static string Named(string title, int? year) => year is { } y ? $"{title} ({y})" : title;
 
@@ -31,7 +35,7 @@ internal static class TitleText
     /// <summary>The line a search, a discovery or a list of the week gives a title.</summary>
     public static string Line(TitleHit hit, bool withDate = false)
     {
-        var text = new StringBuilder("- ").Append(Named(hit.Title, hit.Year)).Append(", ").Append(KindWord(hit.Kind)).Append('.');
+        var text = new StringBuilder("- ").Append(Named(hit.Title, hit.Year)).Append(", ").Append(KindWord(hit.Kind, hit.Category)).Append('.');
         if (withDate && hit.ReleaseDate is { Length: > 0 } date)
             text.Append(" Release date ").Append(date).Append('.');
         if (hit.MadeBy.Count > 0)

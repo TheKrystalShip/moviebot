@@ -4,7 +4,7 @@ import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useOnline } from "../connectivity.js";
 import { useCan } from "../session.js";
-import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
+import { ANIME, discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard, watchHref } from "../components/Film.jsx";
 import { FilmActions } from "../components/FilmActions.jsx";
@@ -32,6 +32,7 @@ export function Discover({ query }) {
   const person = /^\d+$/.test(query.get("person") || "") ? query.get("person") : null;
   const genre = (query.get("genre") || "").trim();
   const genreKind = query.get("kind") === "show" ? "show" : "film";
+  const genreCategory = query.get("category") === ANIME ? ANIME : null;
   const browsing = !q && !!(person || genre);
   const [draft, setDraft] = React.useState(q);
   React.useEffect(() => setDraft(q), [q]);
@@ -90,7 +91,7 @@ export function Discover({ query }) {
       </form>
 
       {!q && person && <PersonWork key={person} personId={person} where={where} />}
-      {!q && !person && genre && <GenreTitles key={genreKind + genre} kind={genreKind} genre={genre} where={where} />}
+      {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} where={where} />}
 
       {!q && !browsing && popular.data && (
         <>
@@ -137,7 +138,7 @@ export function Discover({ query }) {
  * which is where whether and how it can be watched is asked.
  */
 function PopularCard({ entry, show = false, here, held }) {
-  const page = show ? showPath(entry.imdbId, { held }) : here ? moviePath(here.id) : discoverFilmPath(entry.imdbId);
+  const page = show ? showPath(entry.imdbId, { held, category: entry.category }) : here ? moviePath(here.id, here.category) : discoverFilmPath(entry.imdbId);
   const playable = here && here.status === "ready";
   return (
     <ShowcaseCard
@@ -194,9 +195,9 @@ function PersonWork({ personId, where }) {
   );
 }
 
-/** The catalogue's most popular films or shows in one genre, as the film database names it. */
-function GenreTitles({ kind, genre, where }) {
-  const listed = useLoad(() => api.catalogueGenre(kind, genre), [kind, genre]);
+/** The catalogue's most popular films or shows in one genre, as the film database names it; of its anime alone with `category`. */
+function GenreTitles({ kind, genre, category, where }) {
+  const listed = useLoad(() => api.catalogueGenre(kind, genre, category), [kind, genre, category]);
   const g = listed.data;
   return (
     <>
@@ -206,7 +207,7 @@ function GenreTitles({ kind, genre, where }) {
         <section className="kc-shelf">
           <div className="kc-browse-head">
             <div className="kc-browse-head__text">
-              <span className="kc-eyebrow">{kind === "show" ? "TV Shows" : "Movies"}</span>
+              <span className="kc-eyebrow">{category === ANIME ? (kind === "show" ? "Anime series" : "Anime films") : kind === "show" ? "TV Shows" : "Movies"}</span>
               <h2>{g.genre}</h2>
             </div>
             <span className="kc-count">{g.titles.length}</span>
@@ -217,7 +218,7 @@ function GenreTitles({ kind, genre, where }) {
                 {g.titles.map((t) => <FoundCard key={t.imdbId} found={t} {...where(t)} />)}
               </div>
             )
-            : <Empty icon={kind === "show" ? "tv" : "clapperboard"} title="Nothing in this genre" />}
+            : <Empty icon={category === ANIME ? "swords" : kind === "show" ? "tv" : "clapperboard"} title="Nothing in this genre" />}
           <p className="kc-attribution-note">Popular titles and artwork from TMDB.</p>
         </section>
       )}

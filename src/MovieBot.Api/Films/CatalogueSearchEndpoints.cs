@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TheKrystalShip.MovieBot.Api.Auth;
+using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 
 namespace TheKrystalShip.MovieBot.Api.Films;
@@ -48,7 +49,7 @@ public static class CatalogueSearchEndpoints
         // Films or shows found by what they are like. Every filter is optional and they combine.
         app.MapGet("/api/catalogue/discover", async (
             string? kind, [FromQuery] string[]? genre, [FromQuery] string[]? exclude, bool? includeFamily, int? from, int? to, [FromQuery(Name = "with")] string[]? people, [FromQuery] string[]? about,
-            string? language, string? like, bool? goodOnly, double? minRating, int? minVotes, string? sort, int? limit,
+            string? language, string? like, bool? goodOnly, double? minRating, int? minVotes, string? sort, int? limit, string? category,
             HttpContext context, CatalogueSearch search, CancellationToken ct) =>
         {
             var outcome = await search.DiscoverAsync(new DiscoverRequest
@@ -68,6 +69,7 @@ public static class CatalogueSearchEndpoints
                 MinVotes = minVotes,
                 Sort = sort,
                 Limit = limit ?? CatalogueSearch.ResultsListed,
+                Category = category,
             }, ct);
             if (outcome.Value is not { } answer) return Refused(outcome);
 
@@ -80,21 +82,30 @@ public static class CatalogueSearchEndpoints
             });
         }).RequireAction(CinemaActions.Watch);
 
-        // What came out lately and what has a date coming, the most looked at of each.
-        app.MapGet("/api/catalogue/released", async (string? kind, int? days, HttpContext context, CatalogueSearch search, CancellationToken ct) =>
-            Window(await search.RecentAsync(kind ?? "film", Math.Clamp(days ?? CatalogueSearch.RecentDays, 1, 120), ct), context, search))
+        // What came out lately and what has a date coming, the most looked at of each; with
+        // category=anime, of the anime alone.
+        app.MapGet("/api/catalogue/released", async (string? kind, int? days, string? category, HttpContext context, CatalogueSearch search, CancellationToken ct) =>
+            AnimeOnly(category) is not { } anime
+                ? BadCategory()
+                : Window(await search.RecentAsync(kind ?? "film", Math.Clamp(days ?? CatalogueSearch.RecentDays, 1, 120), anime, ct), context, search))
             .RequireAction(CinemaActions.Watch);
 
-        app.MapGet("/api/catalogue/upcoming", async (string? kind, int? days, HttpContext context, CatalogueSearch search, CancellationToken ct) =>
-            Window(await search.UpcomingAsync(kind ?? "film", Math.Clamp(days ?? CatalogueSearch.UpcomingDays, 1, 365), ct), context, search))
+        app.MapGet("/api/catalogue/upcoming", async (string? kind, int? days, string? category, HttpContext context, CatalogueSearch search, CancellationToken ct) =>
+            AnimeOnly(category) is not { } anime
+                ? BadCategory()
+                : Window(await search.UpcomingAsync(kind ?? "film", Math.Clamp(days ?? CatalogueSearch.UpcomingDays, 1, 365), anime, ct), context, search))
             .RequireAction(CinemaActions.Watch);
 
         // What the library gained most recently, from what is kept: nothing here waits on the database.
-        app.MapGet("/api/catalogue/added", (string? kind, int? limit, HttpContext context, CatalogueSearch search) =>
-            Catalogue.IsKind(kind) || kind is null
-                ? Results.Ok(search.Added(kind, limit ?? CatalogueSearch.ResultsListed, Viewer(context)))
-                : Results.Json(new ErrorReply("Kind is film or show."), ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status400BadRequest))
-            .RequireAction(CinemaActions.Watch);
+        app.MapGet("/api/catalogue/added", (string? kind, string? category, int? limit, HttpContext context, CatalogueSearch search) =>
+        {
+            if (!Catalogue.IsKind(kind) && kind is not null)
+                return Results.Json(new ErrorReply("Kind is film or show."), ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status400BadRequest);
+            var shelved = TitleCategories.Parse(category);
+            if (category is not null && shelved is null)
+                return Results.Json(new ErrorReply("Category is anime or general."), ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status400BadRequest);
+            return Results.Ok(search.Added(kind, shelved, limit ?? CatalogueSearch.ResultsListed, Viewer(context)));
+        }).RequireAction(CinemaActions.Watch);
     }
 
     private static IResult Window(Outcome<ListAnswer> outcome, HttpContext context, CatalogueSearch search)
@@ -110,6 +121,18 @@ public static class CatalogueSearchEndpoints
             Titles = [.. answer.Hits.Select(h => search.View(h, shelf))],
         });
     }
+
+    /// <summary>
+    /// Whether a list of the film database's is narrowed to anime: false with no category, true for
+    /// <c>anime</c>, null for anything else. Everything that is not anime is not a question the database
+    /// can be asked.
+    /// </summary>
+    private static bool? AnimeOnly(string? category) =>
+        category is null ? false : TitleCategories.Parse(category) == TitleCategory.Anime ? true : null;
+
+    private static IResult BadCategory() => Results.Json(
+        new ErrorReply("A list is narrowed to anime alone; leave category out for everything."), ApiJsonContext.Default.ErrorReply,
+        statusCode: StatusCodes.Status400BadRequest);
 
     /// <summary>Who is asking: the token's person, or nobody for the service key.</summary>
     private static string? Viewer(HttpContext context) => PeopleEndpoints.Person(context)?.UserId;

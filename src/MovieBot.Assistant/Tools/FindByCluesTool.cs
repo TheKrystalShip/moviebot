@@ -14,7 +14,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
     Find a film or show someone half remembers from the clues they give, and rank what fits.
     - Give every clue you can pull out of what they said; at least one. The tool does the searching and the matching.
     - people: names of actors or film-makers. from, to: release years. released: released, upcoming, announced or any.
-    - look: how it looks or what kind it is, such as "black and white", "animated". about: plot words, such as "lighthouse", "time loop".
+    - look: how it looks or what kind it is, such as "black and white", "animated", "anime". about: plot words, such as "lighthouse", "time loop".
     - Returns up to 8 candidates, best fit first, each with the clues it matches and the ones it does not.
     - Use for a film someone half remembers, then confirm the best with title_details.
     - web_search is for clues the database cannot hold, like a trailer or news.
@@ -37,7 +37,7 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
     /// <summary>Looks the database files as genres, not keywords.</summary>
     private static readonly Dictionary<string, string> LookGenres = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["animated"] = "Animation", ["animation"] = "Animation", ["cartoon"] = "Animation",
+        ["animated"] = "Animation", ["animation"] = "Animation", ["cartoon"] = "Animation", ["anime"] = "Animation",
         ["documentary"] = "Documentary", ["musical"] = "Music",
     };
 
@@ -57,7 +57,9 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
         string? released = args.Released.Wire();
         if (released == "any") released = null;
         string? kind = args.Kind.Wire();
-        string? language = args.Language;
+        // Anime is animation made in Japanese, so the look names the language too unless another was given.
+        string? language = args.Language
+            ?? (look.Contains("anime", StringComparer.OrdinalIgnoreCase) ? "Japanese" : null);
 
         if (people.Count == 0 && look.Count == 0 && about.Count == 0 && from is null && to is null
             && released is null && language is null)

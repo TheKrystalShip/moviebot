@@ -1,5 +1,5 @@
 import { Icon, ShowcaseCard, Skeleton } from "@thekrystalship/krystal-ui";
-import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
+import { discoverFilmPath, discoverPath, isAnime, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { watchHref } from "./Film.jsx";
 
@@ -52,8 +52,8 @@ export function MoreTile({ label, to = discoverPath() }) {
 
 /** Where a found film or show leads: the library's own page when it is here, its catalogue page when not. */
 export function foundPage(found, here, held) {
-  if (found.kind === "show") return showPath(found.imdbId, { held });
-  return here ? moviePath(here.id) : discoverFilmPath(found.imdbId);
+  if (found.kind === "show") return showPath(found.imdbId, { held, category: found.category });
+  return here ? moviePath(here.id, here.category) : discoverFilmPath(found.imdbId);
 }
 
 /**
@@ -74,7 +74,9 @@ export function FoundCard({ found, here, held, line = found.starring }) {
       specs={[
         { icon: "star", value: found.rating != null ? found.rating.toFixed(1) : null, label: "Rating" },
         { icon: "calendar", value: found.year || null, label: "Year" },
-        { icon: show ? "tv" : "clapperboard", value: show ? "Series" : "Movie", label: "Type" },
+        isAnime(found)
+          ? { icon: "swords", value: "Anime", label: "Type" }
+          : { icon: show ? "tv" : "clapperboard", value: show ? "Series" : "Movie", label: "Type" },
       ]}
       status={line ? { label: line, title: line } : null}
       action={playable

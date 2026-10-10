@@ -38,6 +38,7 @@ worker that writes a save names every file the way the page reads it. Nothing el
   "overview": "…",                   // the episode's own for an episode, the film's otherwise
   "genres": ["Drama"],
   "rating": 7.2,                     // the film's, or an episode's show's; or null
+  "category": "anime",               // the package's: "anime" or "general", the shelf it is on; or null
   "durationSeconds": 5340,
   "quality": { "rendition": "v1", "width": 1280, "height": 546, "label": "546p" },
   "files": [                         // every file the save holds, each written under its `name`

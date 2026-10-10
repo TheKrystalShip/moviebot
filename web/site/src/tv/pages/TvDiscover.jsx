@@ -2,7 +2,7 @@ import React from "react";
 import { Button, Icon, TvCard, TvRow } from "@thekrystalship/krystal-ui";
 import { api, filmName, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
-import { discoverPath } from "../../paths.js";
+import { ANIME, discoverPath } from "../../paths.js";
 import { linkProps, navigate } from "../../router.js";
 import { useCan } from "../../session.js";
 import { watchHref } from "../../components/Film.jsx";
@@ -24,6 +24,7 @@ export function TvDiscover({ query }) {
   const person = /^\d+$/.test(query.get("person") || "") ? query.get("person") : null;
   const genre = (query.get("genre") || "").trim();
   const genreKind = query.get("kind") === "show" ? "show" : "film";
+  const genreCategory = query.get("category") === ANIME ? ANIME : null;
   const browsing = !q && !!(person || genre);
   const [draft, setDraft] = React.useState(q);
   React.useEffect(() => setDraft(q), [q]);
@@ -66,7 +67,7 @@ export function TvDiscover({ query }) {
       </form>
 
       {!q && person && <PersonWork key={person} personId={person} where={where} />}
-      {!q && !person && genre && <GenreTitles key={genreKind + genre} kind={genreKind} genre={genre} where={where} />}
+      {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} where={where} />}
 
       {!q && !browsing && popular.data && (
         <div className="kc-tvd__rows">
@@ -155,9 +156,9 @@ function PersonWork({ personId, where }) {
   );
 }
 
-/** The catalogue's most popular films or shows in one genre. */
-function GenreTitles({ kind, genre, where }) {
-  const listed = useLoad(() => api.catalogueGenre(kind, genre), [kind, genre]);
+/** The catalogue's most popular films or shows in one genre; of its anime alone with `category`. */
+function GenreTitles({ kind, genre, category, where }) {
+  const listed = useLoad(() => api.catalogueGenre(kind, genre, category), [kind, genre, category]);
   const g = listed.data;
   if (listed.error && !g) return <div className="kc-tv-pad"><Failed error={listed.error} onRetry={listed.reload} /></div>;
   if (!g) return null;
@@ -165,7 +166,7 @@ function GenreTitles({ kind, genre, where }) {
     <section className="kc-tvd__browse">
       <div className="kc-tvd__browse-head">
         <span className="kc-tvd__browse-text">
-          <span className="tv-spot__eyebrow">{kind === "show" ? "TV Shows" : "Movies"}</span>
+          <span className="tv-spot__eyebrow">{category === ANIME ? (kind === "show" ? "Anime series" : "Anime films") : kind === "show" ? "TV Shows" : "Movies"}</span>
           <span className="kc-tvd__title">{g.genre}</span>
         </span>
         <span className="tv-row__count">{g.titles.length}</span>

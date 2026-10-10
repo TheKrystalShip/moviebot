@@ -14,6 +14,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
     - with: people who are in it or made it.
     - about: keywords such as "black and white", "time loop", "heist", "based on a true story".
     - language: original language.
+    - anime: only anime, films or shows. Use it whenever the person asks for anime; it sets the genre and the language itself.
     - good_only: well rated with enough votes to mean it. Default true.
     - sort: popular (default), rating, newest, oldest.
     - Returns up to 20, each with year, genres, rating, a one-line plot and whether the library has it.
@@ -33,7 +34,8 @@ internal sealed partial class DiscoverTool(CinemaApi api) : AssistantTool<Discov
         [property: Description("Original language, such as Korean.")] string? Language = null,
         [property: Description("A title to find similar ones to.")] string? Like = null,
         [property: Description("Default true.")] bool? GoodOnly = null,
-        [property: Description("Default popular.")] DiscoverSort? Sort = null);
+        [property: Description("Default popular.")] DiscoverSort? Sort = null,
+        [property: Description("Only anime. Default false.")] bool? Anime = null);
 
     protected override async ValueTask<ToolResult> RunAsync(Args args, ToolCall<Caller> call)
     {
@@ -60,6 +62,7 @@ internal sealed partial class DiscoverTool(CinemaApi api) : AssistantTool<Discov
             Like = args.Like,
             GoodOnly = args.GoodOnly ?? true,
             Sort = args.Sort.Wire(),
+            Anime = args.Anime ?? false,
         };
 
         DiscoverResult found = await api.As(call.Principal.AccessToken).DiscoverAsync(query, call.CancellationToken);
@@ -67,11 +70,11 @@ internal sealed partial class DiscoverTool(CinemaApi api) : AssistantTool<Discov
 
         if (found.Titles.Count == 0)
             return ToolResult.Ok(
-                $"The film database has no {kind} that fits all of that. {matched} {Loosen(query)} "
+                $"The film database has no {(query.Anime ? "anime " : "")}{kind} that fits all of that. {matched} {Loosen(query)} "
                 + "A title no tool returned is not to be named.");
 
         return ToolResult.Ok(
-            $"{found.Titles.Count} {kind}{(found.Titles.Count == 1 ? "" : "s")}, in the database's {found.Resolved.Sort} order. {matched}\n"
+            $"{found.Titles.Count} {(query.Anime ? "anime " : "")}{kind}{(found.Titles.Count == 1 ? "" : "s")}, in the database's {found.Resolved.Sort} order. {matched}\n"
             + TitleText.Lines(found.Titles),
             TitleCards.Of(found.Titles));
     }

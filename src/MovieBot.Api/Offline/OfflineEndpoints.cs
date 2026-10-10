@@ -35,7 +35,7 @@ public static class OfflineEndpoints
 
         app.MapPost("/api/me/offline", async (OfflineSaveRequest body, HttpContext context, TitleLibrary library,
             TrackIndexes indexes, SubtitleStore subtitles, SubtitleFetcher fetcher, OfflineSaves saves, FilmStore films,
-            ShowStore shows, TimeProvider clock, CancellationToken ct) =>
+            ShowStore shows, TitleCategories categories, TimeProvider clock, CancellationToken ct) =>
         {
             if (CinemaPerson.Of(context) is not { } person) return NoPerson();
             if (string.IsNullOrEmpty(body.TitleId)) return Bad("Name the title to save.");
@@ -114,7 +114,8 @@ public static class OfflineEndpoints
                 details,
                 EpisodeOf(manifest, shows),
                 ArtworkOf(id, manifest, details, shows),
-                offer.Growing));
+                offer.Growing,
+                categories.Of(manifest.Kind, manifest.Film?.ImdbId)));
         }).RequireAction(CinemaActions.Offline);
 
         // Download of a title the library does not hold yet: fetched onto the server, and downloaded

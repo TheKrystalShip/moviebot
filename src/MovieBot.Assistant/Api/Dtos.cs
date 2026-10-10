@@ -24,6 +24,9 @@ public sealed record TitleHit
     public bool InLibrary { get; init; }
     public string? LibraryId { get; init; }
     public bool Watched { get; init; }
+
+    /// <summary><c>anime</c> or <c>general</c>: the shelf the site puts it on beyond its kind; absent while unknown.</summary>
+    public string? Category { get; init; }
 }
 
 public sealed record SearchResult
@@ -117,6 +120,9 @@ public sealed record PopularTitle
     public double? Rating { get; init; }
     public int Votes { get; init; }
     public string? PosterUrl { get; init; }
+
+    /// <summary><c>anime</c> or <c>general</c>: the shelf the site puts it on beyond its kind; absent while unknown.</summary>
+    public string? Category { get; init; }
 }
 
 public sealed record Popular
@@ -141,6 +147,9 @@ public sealed record LibraryAddition
     public string LibraryId { get; init; } = "";
     public DateTimeOffset AddedAt { get; init; }
     public bool Watched { get; init; }
+
+    /// <summary><c>anime</c> or <c>general</c>: the shelf the site puts it on beyond its kind; absent while unknown.</summary>
+    public string? Category { get; init; }
 }
 
 public sealed record LibraryAdditions
@@ -182,6 +191,9 @@ public sealed record FilmDetails
     public string? PosterUrl { get; init; }
     public string? LibraryId { get; init; }
     public bool Watched { get; init; }
+
+    /// <summary><c>anime</c> or <c>general</c>: the shelf the site puts it on beyond its kind; absent while unknown.</summary>
+    public string? Category { get; init; }
 }
 
 public sealed record EpisodeEntry
@@ -229,6 +241,9 @@ public sealed record ShowDetails
 
     /// <summary>The asking person's follow of the show; absent when they do not follow it.</summary>
     public FollowDetails? Follow { get; init; }
+
+    /// <summary><c>anime</c> or <c>general</c>: the shelf the site puts it on beyond its kind; absent while unknown.</summary>
+    public string? Category { get; init; }
 }
 
 public sealed record FollowDetails
@@ -304,4 +319,7 @@ public sealed record DiscoverQuery
     public string? Like { get; init; }
     public bool GoodOnly { get; init; } = true;
     public string? Sort { get; init; }
+
+    /// <summary>Only anime: animated, and made in Japanese.</summary>
+    public bool Anime { get; init; }
 }

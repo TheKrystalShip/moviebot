@@ -137,9 +137,11 @@
 
   // How long a film stays in the library once it has settled on the cold disk: LeaveAfterDays after
   // its last play, or after it settled when nobody has played it. The API decides what is due and the
-  // hand-off deletes it.
+  // hand-off deletes it. Categories is the file the categories set by hand are kept in; empty is
+  // categories.json in the API's state directory.
   "Library": {
-    "LeaveAfterDays": 7
+    "LeaveAfterDays": 7,
+    "Categories": ""
   },
 
   // What the API's planner decides the card should be doing, for the hand-off to carry out. A watched

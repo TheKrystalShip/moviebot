@@ -31,10 +31,11 @@ export function TvShow({ imdbId, season, inLibrary }) {
   const seasonsHere = show.data ? show.data.seasons : null;
   const episodesHere = seasonsHere ? seasonsHere.some((x) => x.episodes.some((e) => e.titleId)) : null;
   const hasSeason = seasonsHere ? seasonsHere.some((x) => x.number === season) : null;
+  const shelved = show.data ? show.data.category : null;
   React.useEffect(() => {
     if (episodesHere === null) return;
-    navigate(showPath(imdbId, { held: episodesHere, season: hasSeason ? season : undefined }), { replace: true });
-  }, [imdbId, season, inLibrary, episodesHere, hasSeason]);
+    navigate(showPath(imdbId, { held: episodesHere, season: hasSeason ? season : undefined, category: shelved }), { replace: true });
+  }, [imdbId, season, inLibrary, episodesHere, hasSeason, shelved]);
 
   if (!show.data && !show.error) return <div className="kc-tv-page" />;
   if (!show.data) return <div className="kc-tv-page kc-tv-pad"><Failed error={show.error} onRetry={show.reload} /></div>;
@@ -123,7 +124,7 @@ export function TvShow({ imdbId, season, inLibrary }) {
             {seasons.map((x) => (
               <button key={x.number} type="button" className={"tv-pill kc-tvs__pill" + (x.number === current.number ? " is-on" : "")}
                 aria-current={x.number === current.number ? "true" : undefined}
-                onClick={() => navigate(showPath(imdbId, { held: inLibrary, season: x.number }), { replace: true })}
+                onClick={() => navigate(showPath(imdbId, { held: inLibrary, season: x.number, category: shelved }), { replace: true })}
                 {...focusOn(0, { key: "season:" + x.number, eyebrow: s.title, title: x.name || `Season ${x.number}`,
                   facts: { length: `${x.episodes.length} episodes`, year: x.airDate ? new Date(x.airDate).getFullYear() : null }, overview: x.overview })}>
                 Season {x.number}

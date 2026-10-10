@@ -58,6 +58,9 @@ public sealed record ShowView
 
     /// <summary>The episode the film database expects next; absent when it names none.</summary>
     public AiringView? NextEpisode { get; init; }
+
+    /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
+    public Library.TitleCategory? Category { get; init; }
 }
 
 public sealed record SeasonView
@@ -112,6 +115,9 @@ public sealed record ShowSummary
 
     /// <summary>The first episode the library holds, for a surface that only wants to start it.</summary>
     public required string FirstTitleId { get; init; }
+
+    /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
+    public Library.TitleCategory? Category { get; init; }
 }
 
 public static class ShowViews

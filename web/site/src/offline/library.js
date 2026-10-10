@@ -12,6 +12,7 @@ export function deviceFilm(save, art, progress) {
     id: save.titleId,
     title: meta.name,
     kind: "film",
+    category: meta.category || null,
     status: "ready",
     film: { name: meta.name, year: meta.year, imdbId: meta.imdbId },
     details: {
@@ -58,6 +59,7 @@ export function deviceShowSummary(imdbId, episodes, kept, poster, progress) {
     imdbId,
     title: show ? show.title : meta.show.name,
     firstYear: show ? show.firstYear : meta.year,
+    category: (show ? show.category : meta.category) || null,
     lastYear: show ? show.lastYear : null,
     status: show ? show.status : null,
     details: {

@@ -29,14 +29,15 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glanc
 
 | Path | What it is |
 |---|---|
-| `/` | A film to watch, then a row each for where the person left off, their Watch later (with Watch on a film the library holds, and See all opening it), the rooms watching something now, what was recently added, and the shelf as Movies and TV Shows, each krystal-ui's scroll-snapped `Rail`. The Movies and TV Shows rows are dealt in a new order on every visit, kept while the page is open, and end in a tile that opens Discover |
-| `/movies`, `/tv` | Every film, or every show (one card each, however many of its episodes are here), with krystal-ui's `Toolbar`: a search by name, one Filters popover (state and genre for films, genre for shows, and Downloaded for either where the browser downloads) with the active ones as chips, and a sort with its direction. With a genre picked, the grid ends in a Discover more tile opening Discover's catalogue of that genre. On a phone a Movies \| TV shows switch under the heading moves between the two |
-| `/movies/<titleId>` | One film in the library: what it is, who played it last, save, Download, and watch or resume. An episode's id forwards to its show's page at its season |
-| `/tv/<imdbId>`, `/tv/<imdbId>/season/<n>` | One show the library holds an episode of, at a season (the default season has no segment): what it is, its seasons as chips, each season's episodes with their stills and how far this person got, and resume. Every episode plays from its row, one that has to be fetched while it is prepared, and nothing on a row says which; with nothing of the show here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them. Each episode that can be downloaded has Download at its row's end, and each season Download season in its head. A show the library holds nothing of forwards to its `/discover/show/` address |
+| `/` | A film to watch, then a row each for where the person left off, their Watch later (with Watch on a film the library holds, and See all opening it), the rooms watching something now, what was recently added, and the shelf as Movies, TV Shows and Anime, each krystal-ui's scroll-snapped `Rail`. Anime is one row of its films and shows together, and Movies and TV Shows hold the rest. The three are dealt in a new order on every visit, kept while the page is open, and Movies and TV Shows end in a tile that opens Discover |
+| `/movies`, `/tv` | Every film, or every show (one card each, however many of its episodes are here), with krystal-ui's `Toolbar`: a search by name, one Filters popover (state and genre for films, genre for shows, and Downloaded for either where the browser downloads) with the active ones as chips, and a sort with its direction. With a genre picked, the grid ends in a Discover more tile opening Discover's catalogue of that genre. A title the API shelves as anime is on neither (Categories in `docs/api-contract.md`). On a phone a Movies \| TV shows \| Anime switch under the heading moves between the three |
+| `/anime`, `/anime/films` | Anime: its series, or its films, as the same page as `/tv` and `/movies` with the titles the API shelves as anime. A Series \| Films switch under the heading moves between the two on every screen, and a genre's Discover more tile opens that genre's anime |
+| `/movies/<titleId>`, `/anime/films/<titleId>` | One film in the library: what it is, who played it last, save, Download, and watch or resume, under the shelf the API puts it on. Somebody who may fetch titles moves it between Anime and Movies. An episode's id forwards to its show's page at its season |
+| `/tv/<imdbId>`, `/anime/<imdbId>`, each with `/season/<n>` | One show the library holds an episode of, under the shelf the API puts it on, at a season (the default season has no segment): what it is, its seasons as chips, each season's episodes with their stills and how far this person got, and resume. Every episode plays from its row, one that has to be fetched while it is prepared, and nothing on a row says which; with nothing of the show here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them. Each episode that can be downloaded has Download at its row's end, and each season Download season in its head. Somebody who may fetch titles moves it between Anime and TV Shows. A show the library holds nothing of forwards to its `/discover/show/` address |
 | `/discover/show/<imdbId>`, `/discover/show/<imdbId>/season/<n>` | The same page for a show the library holds no episode of, where its episodes are picked to download. A show the library holds an episode of forwards to its `/tv/` address |
 | `/discover/film/<imdbId>` | A film that has to be fetched: what it is, and Watch (it plays while it is prepared) and Download when the tracker offers it, how far the preparing has got while it is under way (`preparing · N%`), or Notify when it is not out digitally yet, and Save. A film that plays now forwards to its `/movies/` address |
 | `/discover?person=<personId>` | Discover's catalogue of one person's work: their portrait, name and what they are known for, then the films and shows they are credited on, most voted on first (`/api/catalogue/people/<personId>`), each card with the part they played or the job they did, leading to its page as any other answer does. Every cast member on a film's or show's page leads here, and so does each director, writer and creator in its credits |
-| `/discover?genre=<name>&kind=<film\|show>` | Discover's catalogue of one genre: the most popular films or shows in it (`/api/catalogue/genre`), as the same cards |
+| `/discover?genre=<name>&kind=<film\|show>`, with `&category=anime` | Discover's catalogue of one genre: the most popular films or shows in it (`/api/catalogue/genre`), or its anime alone, as the same cards. A card for anime says Anime where it says Movie or Series |
 | `/discover`, `/discover?q=` | Finding anything to watch, here or not. A large field and, with nothing typed, the films and shows popular this week (`/api/popular`), each leading to its page. With a query, the catalogue's films and shows together in its own order (`/api/titles/find`, or films alone for somebody who may only wish), each by its poster, rating, year and cast: the first answer large, with what it is about and the actions its own page offers, asked for as soon as it is shown (`components/FilmActions.jsx` for a film, Watch from its seasons for a show), and the rest as cards under More results, a skeleton of both while the catalogue is asked. Anything the server can play by that name that the catalogue did not answer with joins those cards. A result is a result wherever it plays from: nothing on a card says whether it is here, and one that plays now plays from the card. `/`, Ctrl+K or Cmd+K anywhere outside a text field opens it with the field focused, and a fine pointer focuses the field on arrival |
 | `/saved` | Saved: the signed-in person's lists, Watch later first, then the rest most recently changed first, each its newest posters, name and size, and whose it is when it is somebody else's; and making a new one |
 | `/saved/<id>` | One list (`later` is the person's own Watch later): its titles newest saved first under Today, Yesterday, This week and each month, with krystal-ui's `Toolbar` to search titles and notes, narrow by kind and watched, and sort. Each is a poster card with its rating, year and length, its note or when it was saved and by whom on a shared list, and Watched when the person watched it; an owner or editor writes the note in a sheet over the page and takes it off, from the card's tools. Its owner renames it, deletes it, and puts people on it as editors or viewers; a member leaves it |
@@ -56,10 +57,11 @@ person holds in an earlier shape (`/title/<id>`, `/show/<id>?season=<n>`, `/film
 `/profile?tab=<t>`) all resolve to the canonical address by replacing the entry, so Back never lands on
 one. A first segment the site has no page for draws Not found and keeps the address as typed. A season
 and a profile tab are part of the address and not of the page: pressing one replaces the entry and the
-page stays where it is. Where the library stands decides a show's and a film's address: a film it holds
-is at `/movies/`, one it does not at `/discover/film/`, a show with an episode here at `/tv/` and
-one with none at `/discover/show/`, and the page forwards by replacing the entry when the address names
-the other.
+page stays where it is. Where the library stands and the shelf the API puts a title on decide a show's and a film's address: a
+film it holds is at `/movies/`, or `/anime/films/` for anime, one it does not at `/discover/film/`, a
+show with an episode here at `/tv/`, or `/anime/` for anime, and one with none at `/discover/show/`, and
+the page forwards by replacing the entry when the address names another. A link that knows the title's
+category builds its address; one that does not lands on the general shelf's and is forwarded.
 
 A page navigated to is prepared out of sight, while the one being left stays, until its first reads
 are answered or half a second has passed. A film's or show's page whose description takes longer — a
@@ -137,7 +139,7 @@ library. They need the browser's leave to notify, which the first Download on a 
 
 Wide screens get around by the sidebar, which has Discover and Saved under Home. A phone has
 krystal-ui's `TabBar` along its bottom edge instead, and no drawer: Home (lit on `/`),
-Library (lit under `/movies` and `/tv`), Discover (lit under `/discover`), Assistant,
+Library (lit under `/movies`, `/tv` and `/anime`), Discover (lit under `/discover`), Assistant,
 which opens the dock above the bar rather than a page, and Me (`/profile`, lit on `/notify` and
 `/saved` too), whose page leads to Saved. What each page lights is one table in `App.jsx`, by the route's
 view. The tab of the page already open scrolls it back to its top. The
@@ -382,9 +384,10 @@ with what needs the server dimmed and out of reach.
 - **What is drawn.** A page opened with no connection is the same page drawn from the device, from
   finished downloads only (`offline/hooks.js` puts them in the API's shapes). Home is its header, a
   hero of the film downloaded last ("Downloaded yesterday"), Continue watching with the downloaded
-  titles this person is part way through, and a Movies and a TV Shows row of what is downloaded, each
-  leading to the library; a row that would list what is not on the device is not drawn. The library's
-  Movies and TV Shows list what is downloaded, a show once however many of its episodes are, with
+  titles this person is part way through, and a Movies, a TV Shows and an Anime row of what is
+  downloaded, each leading to the library; a row that would list what is not on the device is not
+  drawn. The library's Movies, TV Shows and Anime list what is downloaded, shelved by the category the
+  save kept, a show once however many of its episodes are, with
   search, filters and sort working on them. A downloaded film's page is its page, and Watch plays it
   from the device. A show's page is drawn whole from the show kept on the device beside its episodes
   (`offline/shows.js`): every season and episode with its name, number and still; a downloaded episode
@@ -429,10 +432,10 @@ in a WebView, driven by the remote. `src/tv/` is all of it that is the site's ow
 - **The television's own pages** (`src/tv/TvFrame.jsx`, `src/tv/pages/`), drawn to the TV design at
   the WebView's 960 by 540 page, on krystal-ui's `TvBar`, `TvBackdrop`, `TvSpotlight`, `TvRow`,
   `TvCard` and `TvTile`. No sidebar, footer or breadcrumb: a bar across the top holds Home, Discover,
-  Movies, TV Shows and Saved, with the bell and the person at its right, on those five pages; a
+  Movies, TV Shows, Anime and Saved, with the bell and the person at its right, on those six pages; a
   film's, a show's and the profile's pages have none, and Back leaves them. The bar moves away once
-  a page scrolls or its rows hold focus, and comes back with focus. Home, Movies, TV Shows and a
-  show's episodes put a spotlight at the top of the screen on the card focused below
+  a page scrolls or its rows hold focus, and comes back with focus. Home, Movies, TV Shows, Anime (its
+  films and series in the same genre rows) and a show's episodes put a spotlight at the top of the screen on the card focused below
   (`src/tv/spot.jsx`): its artwork behind the page, its name, facts and story, turning to a new card
   once focus has rested on it for 300 ms so a held arrow loads nothing; the focused row holds a line
   on the screen and the rows above it are put away. A row ends in the tile that leads to all of it.

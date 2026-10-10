@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.0] - 2026-10-10
+
+### Added
+
+- **Anime is a shelf of its own, beside Movies and TV Shows, across the whole site.** A title has a
+  category as well as a kind: `anime` when the film database files it under Animation and it was made
+  in Japanese, `general` otherwise, so an anime film is a film and an anime series a show, on the
+  Anime shelf. Every API view that names a title carries `category`; somebody holding
+  `cinema:download` shelves a title against the rule with `PUT /api/categories/{imdbId}`, kept by IMDb
+  id in `Library:Categories` (`categories.json` in the state directory). `category=anime` narrows a
+  genre's catalogue, a discovery, the released and upcoming lists and the library's additions. The
+  site has Anime in the sidebar, the phone's library switch and the television's bar, at `/anime`
+  (series) and `/anime/films`, with each anime title's page under it, an Anime row on Home, a Move to
+  Anime or Move to Movies or TV Shows button on a title's page, and Anime on a search result's card. A
+  download keeps its category, so the device's own library splits the same way. The assistant's
+  `discover` and `whats_new` take `anime`, and a title's line says anime film or anime show. API
+  2.21.0, assistant 3.3.0, site 0.53.0; needs moviebot-acquire 0.38.0.
+
 ## [2.44.0] - 2026-10-10
 
 ### Added
