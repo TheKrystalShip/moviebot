@@ -530,6 +530,7 @@ for anybody else a list's id is a `404`, never a `403`. The shapes are in `src/M
 | Route | Returns |
 |---|---|
 | `GET /api/me/lists?holding=` | `ListSummary[]` — the lists the token's person can see, their Watch later first and then the rest most recently changed first: `{id, name, watchLater, role, owner, members, count, updatedAt, posters, holds?}`. `role` is `owner`, `editor` or `viewer`; `owner` is `{userId, name?}`; `members` are `{userId, name?, role, since}`; `posters` are the newest entries' posters, at most four. With `holding` (an IMDb id) each list says in `holds` whether it holds that title |
+| `GET /api/me/saved` | `string[]` — the IMDb ids on every list the token's person can save to (one they own or edit), each once. A title only on a list they view is not among them |
 | `POST /api/lists` | `ListView` for `{name}` — a new list the token's person owns. `400` for a name blank or over 80 characters once trimmed, `409` past 100 lists |
 | `GET /api/lists/{id}` | `ListView` — `{list: ListSummary, entries}`, the entries newest saved first: `{imdbId, kind, title, year?, posterUrl?, rating?, runtimeMinutes?, genres, addedAt, addedBy, note?, libraryId?, inLibrary, watched, category?}`. `addedBy` is `{userId, name?}`; `libraryId` is the title that plays a film the library holds; `inLibrary` is true for a film the library holds or a show with any episode here; `watched` is the asking person having watched the film through, and never set for a show |
 | `PATCH /api/lists/{id}` | `ListSummary` for `{name}` — the owner renames it |

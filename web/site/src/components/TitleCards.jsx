@@ -2,6 +2,7 @@ import { Icon, ShowcaseCard, Skeleton } from "@thekrystalship/krystal-ui";
 import { discoverFilmPath, discoverPath, isAnime, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { watchHref } from "./Film.jsx";
+import { useSaveRibbon } from "./SaveButton.jsx";
 
 // Poster cards for titles that are not on a shelf: a search's answers, what somebody waits on, what
 // they asked to be fetched. Every card is krystal-ui's ShowcaseCard, so a page of them reads like
@@ -60,28 +61,33 @@ export function foundPage(found, here, held) {
  * A film or show the catalogue answered with: its rating, year, whether it is a film or a show, and
  * its cast, or `line` in its place (a person's part in it). `here` is the library's title for a film
  * it holds, `held` whether it holds an episode of a show; they decide where the card leads and whether
- * it plays from here, and nothing on the card says which.
+ * it plays from here, and nothing on the card says which. Its ribbon saves it.
  */
 export function FoundCard({ found, here, held, line = found.starring }) {
   const show = found.kind === "show";
   const playable = here && here.status === "ready";
+  const [ribbon, lists] = useSaveRibbon(found.imdbId, show ? "show" : "film", found.title);
   return (
-    <ShowcaseCard
-      className="kc-card"
-      name={found.title}
+    <>
+      <ShowcaseCard
+        className="kc-card"
+        name={found.title}
       art={found.posterUrl ? `url("${found.posterUrl}")` : null}
-      onPick={() => navigate(foundPage(found, here, held))}
-      specs={[
-        { icon: "star", value: found.rating != null ? found.rating.toFixed(1) : null, label: "Rating" },
-        { icon: "calendar", value: found.year || null, label: "Year" },
-        isAnime(found)
-          ? { icon: "swords", value: "Anime", label: "Type" }
-          : { icon: show ? "tv" : "clapperboard", value: show ? "Series" : "Movie", label: "Type" },
-      ]}
-      status={line ? { label: line, title: line } : null}
-      action={playable
-        ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) }
-        : { label: "View" }} />
+        onPick={() => navigate(foundPage(found, here, held))}
+        specs={[
+          { icon: "star", value: found.rating != null ? found.rating.toFixed(1) : null, label: "Rating" },
+          { icon: "calendar", value: found.year || null, label: "Year" },
+          isAnime(found)
+            ? { icon: "swords", value: "Anime", label: "Type" }
+            : { icon: show ? "tv" : "clapperboard", value: show ? "Series" : "Movie", label: "Type" },
+        ]}
+        status={line ? { label: line, title: line } : null}
+        action={playable
+          ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) }
+          : { label: "View" }}
+        ribbon={ribbon} />
+      {lists}
+    </>
   );
 }
 
@@ -92,17 +98,22 @@ export function waitersWords(waiters, waiting) {
   return others ? `${others} waiting` : "Nobody's waiting yet";
 }
 
-/** A film not out yet that people wait on, from the Anticipated row: its year and how many wait. */
+/** A film not out yet that people wait on, from the Anticipated row: its year, how many wait, and its ribbon. */
 export function AnticipatedCard({ film }) {
+  const [ribbon, lists] = useSaveRibbon(film.imdbId, "film", film.title);
   return (
-    <ShowcaseCard
-      className="kc-card"
-      name={film.title}
-      art={keptArt(film.imdbId, film.posterUrl)}
-      onPick={() => navigate(discoverFilmPath(film.imdbId))}
-      specs={[{ icon: "calendar", value: film.year || null, label: "Year" }]}
-      status={{ icon: "bell", label: waitersWords(film.waiters, film.waiting) }}
-      action={{ label: "View" }} />
+    <>
+      <ShowcaseCard
+        className="kc-card"
+        name={film.title}
+        art={keptArt(film.imdbId, film.posterUrl)}
+        onPick={() => navigate(discoverFilmPath(film.imdbId))}
+        specs={[{ icon: "calendar", value: film.year || null, label: "Year" }]}
+        status={{ icon: "bell", label: waitersWords(film.waiters, film.waiting) }}
+        action={{ label: "View" }}
+        ribbon={ribbon} />
+      {lists}
+    </>
   );
 }
 

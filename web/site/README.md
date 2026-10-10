@@ -88,6 +88,16 @@ any list the button reads Saved and opens the lists the person can add to, each 
 holds the title, and New list, which makes one and saves to it: a popover beside the button on a wide
 screen, the drawer on a phone.
 
+Every poster card of a film or a show, in the library, in Discover and in the Anticipated row, carries
+the same save as a ribbon hanging from its top edge (krystal-ui's `ShowcaseCard` `ribbon`). A press on
+a title not saved puts it on Watch later; on one saved, the ribbon is filled and always shown, and
+opens the same lists beside it. Not saved, it shows on the card a mouse is over or that holds focus,
+and always on a touch screen. What is saved is one set for every card (`src/saved.js`): the ids
+`GET /api/me/saved` answers, read once, again whenever the page comes back into view, the connection
+comes back or somebody else signs in, and changed at once by every save made here, the ribbon's and the
+button's alike. A card draws no ribbon until the set is known, and a page being prepared out of sight
+waits for it.
+
 Download keeps a film or an episode on this device to play with no connection (`src/offline/`,
 `components/DownloadButton.jsx`). It is an outline button beside Save on a film's page, in the
 library or not (on a phone Watch spans the column and Save and Download share the row under it),

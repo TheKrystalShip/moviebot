@@ -143,6 +143,29 @@ public sealed class ListTests(SessionFixture fixture) : IClassFixture<SessionFix
     }
 
     [Fact]
+    public async Task What_a_person_saved_is_every_title_on_a_list_they_can_add_to()
+    {
+        var owner = As("8013", "Ana");
+        var me = As("8014", "Bo");
+        var store = fixture.Services.GetRequiredService<ListStore>();
+        var at = DateTimeOffset.UtcNow;
+
+        Assert.Empty((await me.GetFromJsonAsync<List<string>>("/api/me/saved"))!);
+
+        var edits = await Create(owner, "Heists");
+        var reads = await Create(owner, "Westerns");
+        (await owner.PutAsJsonAsync($"/api/lists/{edits}/members/8014", new ListMemberRequest { Role = "editor" })).EnsureSuccessStatusCode();
+        (await owner.PutAsJsonAsync($"/api/lists/{reads}/members/8014", new ListMemberRequest { Role = "viewer" })).EnsureSuccessStatusCode();
+        store.Save("8014", "later", HeatImdb, EntryKinds.Film, null, at);
+        store.Save("8013", edits, HeatImdb, EntryKinds.Film, null, at);
+        store.Save("8013", edits, "tt0369339", EntryKinds.Film, null, at);
+        store.Save("8013", reads, "tt0060196", EntryKinds.Film, null, at);
+
+        var saved = (await me.GetFromJsonAsync<List<string>>("/api/me/saved"))!;
+        Assert.Equal([HeatImdb, "tt0369339"], saved.Order());
+    }
+
+    [Fact]
     public async Task A_shared_list_is_read_by_a_viewer_added_to_by_an_editor_and_hidden_from_everyone_else()
     {
         var owner = As("8010", "Ana");

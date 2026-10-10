@@ -3,6 +3,7 @@ import { Button, Icon, ShowcaseCard } from "@thekrystalship/krystal-ui";
 import { episodeCode, filmName, posterUrl } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useSave } from "../offline/hooks.js";
+import { useSaveRibbon } from "./SaveButton.jsx";
 import { moviePath, playSavedPath, roomPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, timeLeft } from "../time.js";
@@ -122,9 +123,9 @@ function downloadMarks(download) {
 
 /**
  * A film on a shelf, as krystal-ui's ShowcaseCard: the poster with the name on it, its rating, year
- * and length, one line saying where it stands, and Watch. What a page knows beside the film — a room
- * watching it, whether it is new — is optional, and a card without it says less rather than guessing.
- * How far the person got comes with the title itself.
+ * and length, one line saying where it stands, Watch, and a ribbon that saves it. What a page knows
+ * beside the film — a room watching it, whether it is new — is optional, and a card without it says
+ * less rather than guessing. How far the person got comes with the title itself.
  *
  * The one status line, in precedence order: a film not ready says so; then a room watching it; then
  * how far this person got; then its genres. A film downloaded to this device (`download`, from
@@ -137,6 +138,7 @@ export function FilmCard({ title, room, isNew, download }) {
   const poster = posterUrl(title);
   const ready = title.status === "ready";
   const link = useWatchLink(title.id, room && room.sessionId, progress && progress.positionSeconds);
+  const [ribbon, lists] = useSaveRibbon(film.imdbId, "film", film.name || title.title);
 
   const status =
     title.status === "transcoding" ? { tone: "notice", icon: "loader", label: "Still preparing" }
@@ -147,28 +149,32 @@ export function FilmCard({ title, room, isNew, download }) {
     : null;
 
   return (
-    <ShowcaseCard
-      name={film.name || title.title}
-      art={poster ? `url("${poster}")` : null}
-      onPick={() => navigate(moviePath(title.id, title.category))}
-      badge={isNew ? { tone: "info", label: "New" } : null}
-      {...downloadMarks(download)}
-      specs={[
-        { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
-        { icon: "calendar", value: film.year || null, label: "Year" },
-        { icon: "clock", value: title.durationSeconds ? clock(title.durationSeconds) : null, label: "Length" },
-      ]}
-      status={status}
-      action={ready
-        ? { label: room ? "Join" : progress ? "Resume" : "Watch", onClick: link.disabled ? undefined : () => navigate(link.href) }
-        : { label: "View" }} />
+    <>
+      <ShowcaseCard
+        name={film.name || title.title}
+        art={poster ? `url("${poster}")` : null}
+        onPick={() => navigate(moviePath(title.id, title.category))}
+        badge={isNew ? { tone: "info", label: "New" } : null}
+        {...downloadMarks(download)}
+        specs={[
+          { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
+          { icon: "calendar", value: film.year || null, label: "Year" },
+          { icon: "clock", value: title.durationSeconds ? clock(title.durationSeconds) : null, label: "Length" },
+        ]}
+        status={status}
+        action={ready
+          ? { label: room ? "Join" : progress ? "Resume" : "Watch", onClick: link.disabled ? undefined : () => navigate(link.href) }
+          : { label: "View" }}
+        ribbon={ribbon} />
+      {lists}
+    </>
   );
 }
 
 /**
  * A show on a shelf, the same card as a film's: its poster and name, rating, years and seasons, where
- * this person picks up, and Watch or Resume into the episode that is next. A show with episodes
- * downloaded to this device (`downloaded`) says how many on its poster.
+ * this person picks up, Watch or Resume into the episode that is next, and its ribbon. A show with
+ * episodes downloaded to this device (`downloaded`) says how many on its poster.
  */
 export function ShowCard({ show, downloaded = 0 }) {
   const d = show.details;
@@ -179,20 +185,25 @@ export function ShowCard({ show, downloaded = 0 }) {
     : null;
   const to = resume ? resume.titleId : show.firstTitleId;
   const link = useWatchLink(to, null, resume && resume.positionSeconds);
+  const [ribbon, lists] = useSaveRibbon(show.imdbId, "show", show.title);
 
   return (
-    <ShowcaseCard
-      name={show.title}
-      art={d && d.posterUrl ? `url("${d.posterUrl}")` : null}
-      onPick={() => navigate(show.imdbId ? showPath(show.imdbId, { category: show.category }) : moviePath(show.firstTitleId, show.category))}
-      {...(downloaded > 0 ? { corner: { icon: "circle-check", label: `${downloaded} downloaded` }, className: "kc-card--dl kc-card--dl-done" } : {})}
-      specs={[
-        { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
-        { icon: "calendar", value: show.firstYear || null, label: "Year" },
-        { icon: "layers", value: show.seasons.length, label: show.seasons.length === 1 ? "Season" : "Seasons" },
-      ]}
-      status={status}
-      action={{ label: resume ? "Resume" : "Watch", onClick: link.disabled ? undefined : () => navigate(link.href) }} />
+    <>
+      <ShowcaseCard
+        name={show.title}
+        art={d && d.posterUrl ? `url("${d.posterUrl}")` : null}
+        onPick={() => navigate(show.imdbId ? showPath(show.imdbId, { category: show.category }) : moviePath(show.firstTitleId, show.category))}
+        {...(downloaded > 0 ? { corner: { icon: "circle-check", label: `${downloaded} downloaded` }, className: "kc-card--dl kc-card--dl-done" } : {})}
+        specs={[
+          { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
+          { icon: "calendar", value: show.firstYear || null, label: "Year" },
+          { icon: "layers", value: show.seasons.length, label: show.seasons.length === 1 ? "Season" : "Seasons" },
+        ]}
+        status={status}
+        action={{ label: resume ? "Resume" : "Watch", onClick: link.disabled ? undefined : () => navigate(link.href) }}
+        ribbon={ribbon} />
+      {lists}
+    </>
   );
 }
 

@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.0] - 2026-10-10
+
+### Added
+
+- **A poster card saves its title without opening it.** Every film and show card, in the library, in
+  Discover and in the Anticipated row, carries a ribbon hanging from its top edge: a press on one not
+  saved puts it on Watch later, and on one saved opens the person's lists beside it, the same lists the
+  Save button opens. A saved title's ribbon is filled and always shown; one not saved shows on the card
+  a mouse is over or that holds focus, and always on a touch screen. Every card, the Save button and
+  the Saved page read one set of what the person saved, so a title saved anywhere is marked everywhere
+  at once, and a save made on another device shows the next time the page is looked at. The ribbon is
+  krystal-ui's `ShowcaseCard` `ribbon` (0.23.0). Site 0.61.0.
+- **`GET /api/me/saved`**: the IMDb ids on every list the person can save to, each once.
+
 ## [3.9.0] - 2026-10-10
 
 ### Changed

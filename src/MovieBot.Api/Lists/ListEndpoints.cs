@@ -24,6 +24,19 @@ public static class ListEndpoints
                 : NoPerson())
             .RequireAction(CinemaActions.ProfileRead);
 
+        // Every title the person has saved: on a list of theirs, or one they were made an editor of. A
+        // list they can only read holds what somebody else saved. It is what marks a saved title on a
+        // card, so a page of cards asks once rather than once a card.
+        app.MapGet("/api/me/saved", (HttpContext context, ListStore lists, TimeProvider clock) =>
+            PeopleEndpoints.Person(context) is { } person
+                ? Results.Ok(lists.For(person.UserId, clock.GetUtcNow())
+                    .Where(l => ListRoles.CanEdit(l.RoleOf(person.UserId)))
+                    .SelectMany(l => l.Entries.Select(e => e.ImdbId))
+                    .Distinct()
+                    .ToList())
+                : NoPerson())
+            .RequireAction(CinemaActions.ProfileRead);
+
         app.MapPost("/api/lists", (ListNameRequest body, HttpContext context, ListStore lists, ListPresenter present, TimeProvider clock) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();

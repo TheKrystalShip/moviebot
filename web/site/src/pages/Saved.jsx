@@ -5,6 +5,7 @@ import {
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
+import { refreshSaved } from "../saved.js";
 import { useCrumb } from "../crumbs.js";
 import { discoverFilmPath, listPath, moviePath, savedPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
@@ -196,6 +197,7 @@ export function ListPage({ id }) {
   const remove = async () => {
     try {
       await api.deleteList(list.id);
+      refreshSaved();
       toast.info(`Deleted ${list.name}.`);
       navigate(savedPath, { replace: true });
     } catch (error) {
@@ -206,6 +208,7 @@ export function ListPage({ id }) {
   const leave = async () => {
     try {
       await api.removeListMember(list.id, me.id);
+      refreshSaved();
       toast.info(`You left ${list.name}.`);
       navigate(savedPath, { replace: true });
     } catch (error) {
@@ -278,6 +281,7 @@ function EntryCard({ entry: e, listId, editable, shared, onChange }) {
   const remove = async () => {
     try {
       await api.removeFromList(listId, e.imdbId);
+      refreshSaved();
       toast.info(`Took ${e.title} off the list.`);
       onChange();
     } catch (error) {

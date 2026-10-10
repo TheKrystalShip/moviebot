@@ -142,6 +142,7 @@ export const api = {
   // Lists of films and shows to watch later. `later` names the signed-in person's own Watch later;
   // asked about a title, each list says whether it holds it.
   lists: (holding) => call("GET", "/api/me/lists" + (holding ? `?holding=${enc(holding)}` : "")),
+  saved: () => call("GET", "/api/me/saved"),
   list: (id) => call("GET", `/api/lists/${enc(id)}`),
   createList: (name) => call("POST", "/api/lists", { name }),
   renameList: (id, name) => call("PATCH", `/api/lists/${enc(id)}`, { name }),
