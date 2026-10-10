@@ -90,9 +90,12 @@ rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
 - **The units in `/etc/systemd/system/` are root-owned copies of `*.service` here, and every
   `systemctl` verb against them needs root.** There is no polkit grant on hotbox, so starting,
   stopping and restarting are as privileged as installing a changed unit: `systemctl restart` as the
-  owning user is refused with *"interactive authentication required"* and nothing happens.
-  Publishing the binaries is unprivileged and the restart that picks them up is not, so a deploy ends
-  by saying what changed and handing over the command rather than working around the privilege.
+  owning user is refused with *"interactive authentication required"* and nothing happens, so the
+  restart goes through `rsudo hotbox systemctl restart …` from hotrod.
+- **A deploy restarts the services whether or not anybody is watching.** A room is journalled and
+  comes back as it was, the player reconnects its hub on its own, and the video it has buffered keeps
+  playing through the gap, so nobody in a room notices the restart. `/health` counting occupied rooms
+  is no reason to hold a deploy back.
 - **`/etc/moviebot/moviebot.env` holds the credentials** every unit reads — the bot's token, the
   Discord and identity-provider client secrets, `Auth__MediaTicketKey` that signs media tickets and
   the service key the hand-off and the bot's background passes present — **and which tracker
