@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.42.2] - 2026-10-10
+
+### Changed
+
+- **The assistant plugin takes `TheKrystalShip.Agent.Plugin` 1.0.0-dev.14,** which logs
+  `System.Net.Http.HttpClient.*` at Warning by default, so the harness watch's poll leaves no line in the
+  journal. Assistant 3.2.2.
+
 ## [2.42.1] - 2026-10-10
 
 ### Changed
