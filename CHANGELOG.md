@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.5.0] - 2026-10-10
+
+### Changed
+
+- **A room made through Discord is open.** A room whose maker came through the Activity or the bot
+  (the token names `Oidc.ActivityClientId` or `Oidc.BotClientId` as the client acting for them) is
+  open from the moment it is made, so everybody in a call is in the call's room without knocking, and
+  the Activity's bar and its pull into the player reach all of them. Rooms made on the site stay
+  private, and arriving through Discord opens no room that already stands. API 3.3.0.
+
+### Fixed
+
+- **Watch on a film while a room plays another switches the room.** Joining applied the room's state
+  before reading the film the address named, which spent it, so the room went on with what it held.
+  The film and where to start in it are read first. In the Activity this was every Watch after the
+  first. Site 0.57.1.
+
 ## [3.4.0] - 2026-10-10
 
 ### Changed

@@ -810,7 +810,10 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 
 A room is private from the moment it is made. Whoever makes it is let in by making it — by `Join`,
 by any room route below, or by Watch now — and nobody else is, until somebody in it lets them in, invites
-them (`POST /api/rooms/{room}/invite`), or opens it. Entering an open room lets that person in for good,
+them (`POST /api/rooms/{room}/invite`), or opens it. A room made through Discord is open instead: one
+whose maker's token names the Activity's client (`Oidc.ActivityClientId`) or the bot's
+(`Oidc.BotClientId`) as the client acting for them, since its room is a channel and Discord decides
+who is in the call. Arriving through Discord opens no room that already stands. Entering an open room lets that person in for good,
 so closing it again shuts out nobody who has been in, a reload included, and lets in nobody new. Who was
 let in is kept with the room across a restart. What a room private to a person tells them is that it
 is private and nothing more: `Join` answers `{admitted: false}`, every room route a `403` with

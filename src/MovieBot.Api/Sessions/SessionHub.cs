@@ -40,7 +40,7 @@ public sealed class SessionHub(
     public async Task<JoinReply> Join(string sessionId)
     {
         var person = Person("Sign in to join a room.");
-        if (!sessions.Enter(sessionId, person.UserId))
+        if (!sessions.Enter(sessionId, person.UserId, oidc.Value.OpensRoomsMadeThrough(person.Via)))
         {
             logger.LogInformation("{DisplayName} was not let into private room {SessionId}", person.DisplayName, sessionId);
             return new JoinReply { Admitted = false };

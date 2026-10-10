@@ -55,6 +55,50 @@ public sealed class RoomDoorTests(SessionFixture fixture) : IClassFixture<Sessio
         Assert.Null(refused.Door);
     }
 
+    /// <summary>
+    /// The Activity's room is the call's, and Discord decides who is in the call: a room made through
+    /// the Activity or the bot is open from the moment it is made, so everybody in the call is in it.
+    /// </summary>
+    [Theory]
+    [InlineData("cinema-activity")]
+    [InlineData("cinema-bot")]
+    public async Task A_room_made_through_Discord_is_open_to_everybody(string client)
+    {
+        var room = NewRoom();
+        await using var alice = await fixture.ConnectOutsideAsync("d-alice-9" + client, "Alice", via: client);
+        await using var bob = await fixture.ConnectOutsideAsync("d-bob-9" + client, "Bob");
+
+        var made = await alice.InvokeAsync<JoinReply>("Join", room);
+        var joined = await bob.InvokeAsync<JoinReply>("Join", room);
+
+        Assert.True(made.Door!.Open);
+        Assert.True(joined.Admitted);
+    }
+
+    /// <summary>Only making a room opens it: a room somebody made private stays so, whoever arrives.</summary>
+    [Fact]
+    public async Task Arriving_through_Discord_opens_no_room_somebody_made_private()
+    {
+        var room = NewRoom();
+        await using var alice = await fixture.ConnectOutsideAsync("d-alice-10", "Alice");
+        await using var bob = await fixture.ConnectOutsideAsync("d-bob-10", "Bob", via: "cinema-activity");
+
+        Assert.True((await alice.InvokeAsync<JoinReply>("Join", room)).Admitted);
+        Assert.False((await bob.InvokeAsync<JoinReply>("Join", room)).Admitted);
+    }
+
+    /// <summary>The room's routes make a room the way the hub does: the Activity's first read of the call's room opens it.</summary>
+    [Fact]
+    public async Task A_room_first_read_through_the_Activity_is_open()
+    {
+        var room = NewRoom();
+        using var activity = fixture.CreatePersonClient("d-alice-11", "Alice", via: "cinema-activity");
+        Assert.Equal(HttpStatusCode.OK, (await activity.GetAsync($"/api/sessions/{room}")).StatusCode);
+
+        using var bob = fixture.CreatePersonClient("d-bob-11", "Bob");
+        Assert.Equal(HttpStatusCode.OK, (await bob.GetAsync($"/api/sessions/{room}")).StatusCode);
+    }
+
     [Fact]
     public async Task Closing_a_room_keeps_everybody_who_has_been_in_and_lets_in_nobody_new()
     {

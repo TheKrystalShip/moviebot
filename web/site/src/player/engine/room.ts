@@ -354,6 +354,9 @@ export class PlayerRoom {
   private async entered(hub: SessionHub, joined: SessionStatePush): Promise<void> {
     if (this.controller === null) return;
     this.set({ entry: 'in' });
+    // The launch is read before the room's state is applied: a state holding anything spends it
+    // (`onState`), and the front door forgets it from the address, `at` with it.
+    const launch = this.launched === null ? null : { titleId: this.launched, at: environment().startAt() };
     this.controller.applyPush(joined, true);
     // A guest is told who is in the room by the hub alone, which says so as they arrive.
     if (!this.view.viewOnly) {
@@ -373,9 +376,9 @@ export class PlayerRoom {
     // something else; a viewer joining a room that already holds the title says nothing, because
     // loading it again would send everyone back to the beginning. Once the room holds anything the
     // front door forgets the launch (`Environment.forgetLaunch`), so a reload tells the room nothing.
-    const launched = this.launched;
-    if (launched !== null && (joined.state.titleId ?? null) !== null && joined.state.titleId !== launched) {
-      await hub.loadTitle(launched, environment().startAt());
+    const held = joined.state.titleId ?? null;
+    if (launch !== null && (held !== null || joined.state.preparing != null) && held !== launch.titleId) {
+      await hub.loadTitle(launch.titleId, launch.at);
     }
   }
 

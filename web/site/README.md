@@ -225,8 +225,9 @@ origin. The Activity is the whole site, with three differences:
   few seconds (`src/components/CallBar.jsx`) and a bar above every page names what the call is
   watching, with Watch. The room being given something else opens the player for everybody browsing;
   what it held when they started browsing does not, so somebody who left the film to look around stays
-  where they are until the call moves on. A room private to the viewer answers nothing, and they meet
-  its door when they press Watch.
+  where they are until the call moves on. The API makes a room open when it is made through the
+  Activity, so everybody in the call is in it; a call whose room somebody made private elsewhere
+  answers nothing, and its door is met on pressing Watch.
 - **Nothing is kept on the device.** Download, playing from the device and the service worker are not
   there, and a link off the site is opened by Discord, outside the Activity.
 

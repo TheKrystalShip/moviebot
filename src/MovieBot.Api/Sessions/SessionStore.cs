@@ -91,7 +91,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
             return WithCurrentHead(entry.State);
     }
 
-    private SessionEntry NewRoom(string sessionId, IEnumerable<string> admitted) => new()
+    private SessionEntry NewRoom(string sessionId, IEnumerable<string> admitted, bool open = false) => new()
     {
         State = new SessionState
         {
@@ -105,7 +105,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
             Epoch = Guid.NewGuid().ToString("n")
         },
         LastActivityUtc = clock.GetUtcNow(),
-        Admission = new RoomAdmission(open: false, admitted),
+        Admission = new RoomAdmission(open, admitted),
         MembersGoneSince = clock.GetUtcNow()
     };
 
@@ -113,12 +113,13 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
 
     /// <summary>
     /// Lets a person into the room when it admits them, and keeps them let in; false when it is
-    /// private to them. A room there is none of is made, private, with them let in: whoever makes a
-    /// room is the first person it admits. Every door a person comes through asks this.
+    /// private to them. A room there is none of is made with them let in, whoever makes a room being
+    /// the first person it admits: private, or open with <paramref name="openWhenMade"/>, which says
+    /// nothing about a room that already stands. Every door a person comes through asks this.
     /// </summary>
-    public bool Enter(string sessionId, string userId)
+    public bool Enter(string sessionId, string userId, bool openWhenMade = false)
     {
-        var entry = _sessions.GetOrAdd(sessionId, id => NewRoom(id, [userId]));
+        var entry = _sessions.GetOrAdd(sessionId, id => NewRoom(id, [userId], openWhenMade));
         lock (entry.Gate)
             if (!entry.Admission.Enter(userId)) return false;
 
