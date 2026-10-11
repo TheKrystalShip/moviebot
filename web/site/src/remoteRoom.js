@@ -19,6 +19,7 @@ import { holdPersonConnection } from "./personConnection.js";
 import { ServerClock } from "./player/engine/session/clock.ts";
 import { derivePosition } from "./player/engine/session/hub.ts";
 import { RevisionGate } from "./player/engine/session/revision.ts";
+import { forgetSettings, heardPreferences, heardTracks, refreshSettings } from "./remoteSettings.js";
 
 const ProbeMs = 30_000;
 const PositionTickMs = 250;
@@ -65,6 +66,10 @@ export function holdRemoteRoom(screenId) {
     listen: (connection) => {
       connection.on("StateChanged", (push) => apply(push));
       connection.on("RemoteMoved", (reply) => apply(reply.push, true));
+      // The person's own settings, pushed by the API to every connection of theirs: what the television
+      // plays with and what the phone's labels say are the same record.
+      connection.on("PreferencesChanged", heardPreferences);
+      connection.on("TracksChanged", heardTracks);
     },
     opened: async (connection) => {
       if (held !== mine) return;
@@ -74,6 +79,8 @@ export function holdRemoteRoom(screenId) {
         if (held === mine) {
           apply(reply.push, true);
           roomStore.setState({ live: true });
+          // Whatever changed while this connection was not there was pushed to nobody here.
+          void refreshSettings();
         }
       } catch {
         // Not paired with it any more: the person connection hears the pairing end and lets this go.
@@ -96,6 +103,7 @@ export function releaseRemoteRoom() {
   probe = null;
   held.stop();
   held = null;
+  forgetSettings();
   roomStore.setState(nothing);
 }
 

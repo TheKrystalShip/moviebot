@@ -1,7 +1,7 @@
 import { environment } from './environment';
 import type {
-  FilmDescription, GuestLink, Manifest, Participant, Person, RoomAround, ShowDescription, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary,
-  ViewerPreferences
+  FilmDescription, FilmTracks, GuestLink, Manifest, Participant, Person, RoomAround, ShowDescription, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary,
+  TrackChoice, ViewerPreferences
 } from './types';
 
 async function getJson<T>(path: string): Promise<T> {
@@ -89,6 +89,11 @@ export const api = {
   preferences: () => getJson<ViewerPreferences>('/api/me/preferences'),
   setPreferences: (preferences: ViewerPreferences) =>
     sendJson<ViewerPreferences>('/api/me/preferences', 'PUT', preferences),
+
+  /** The tracks the signed-in person watches a film with, the same on every device they watch it on. */
+  tracks: (titleId: string) => getJson<FilmTracks>(`/api/me/tracks/${encodeURIComponent(titleId)}`),
+  setTracks: (titleId: string, choice: TrackChoice) =>
+    sendJson<FilmTracks>(`/api/me/tracks/${encodeURIComponent(titleId)}`, 'PUT', choice),
 
   /**
    * This is the call that spends one of the day's downloads, and it adds it for the whole room. Who

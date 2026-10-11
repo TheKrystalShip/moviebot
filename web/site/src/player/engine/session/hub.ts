@@ -1,7 +1,8 @@
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { environment } from '../environment';
 import type {
-  GuestRefusal, JoinReply, Manifest, Participant, RoomDoor, SeekClamped, SessionState, SessionStatePush
+  FilmTracks, GuestRefusal, JoinReply, Manifest, Participant, RoomDoor, SeekClamped, SessionState, SessionStatePush,
+  ViewerPreferences
 } from '../types';
 import { ServerClock } from './clock';
 
@@ -48,6 +49,10 @@ export interface HubHandlers {
   onShutOut(): void;
   /** This guest was sent away, or not let back in, and why. The connection is closed by then. */
   onGuestEnded(reason: GuestRefusal): void;
+  /** How this person watches changed, on this device or another: the whole record as the API keeps it. */
+  onPreferences(preferences: ViewerPreferences): void;
+  /** The tracks this person watches a film with changed, on this device or another. */
+  onTracks(tracks: FilmTracks): void;
 }
 
 /**
@@ -90,6 +95,9 @@ export class SessionHub implements Timeline {
     this.connection.on('ParticipantsChanged', (list: Participant[]) => this.handlers.onParticipants(list));
     this.connection.on('TitleChanged', (manifest: Manifest) => this.handlers.onTitle(manifest));
     this.connection.on('DoorChanged', (door: RoomDoor) => this.handlers.onDoor(door));
+    // The person's own settings, pushed to every connection of theirs that has an account: never the room's.
+    this.connection.on('PreferencesChanged', (preferences: ViewerPreferences) => this.handlers.onPreferences(preferences));
+    this.connection.on('TracksChanged', (tracks: FilmTracks) => this.handlers.onTracks(tracks));
     this.connection.on('KnockAnswered', (admitted: boolean) => {
       this.asking = false;
       this.handlers.onKnockAnswered(admitted);

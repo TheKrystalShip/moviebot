@@ -24,10 +24,37 @@ public static class PeopleEndpoints
                 : NoPerson())
             .RequireAction(CinemaActions.ProfileRead);
 
-        app.MapPut("/api/me/preferences", (ViewerPreferences body, HttpContext context, PreferenceStore store) =>
-            Person(context) is { } person
-                ? Results.Ok(store.Set(person.UserId, body))
-                : NoPerson())
+        app.MapPut("/api/me/preferences", async (ViewerPreferences body, HttpContext context, PreferenceStore store, ViewerPush push) =>
+        {
+            if (Person(context) is not { } person) return NoPerson();
+            if (body.Refusal() is { } refusal) return Refuse(refusal);
+
+            var stored = store.Set(person.UserId, body);
+            await push.PreferencesChangedAsync(person.UserId, stored);
+            return Results.Ok(stored);
+        })
+            .RequireAction(CinemaActions.ProfileWrite);
+
+        // The subtitle and audio track this person watches a film with, the same on every device. Asked
+        // for by the token and the film, so nobody reads another's; the manifest decides what the film has.
+        app.MapGet("/api/me/tracks/{titleId}", (string titleId, HttpContext context, TrackStore store, TitleLibrary library) =>
+            Person(context) is not { } person ? NoPerson()
+            : library.Get(titleId) is null ? Results.Json(new ErrorReply("No such film."), ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound)
+            : Results.Ok(store.For(person.UserId, titleId)))
+            .RequireAction(CinemaActions.ProfileRead);
+
+        app.MapPut("/api/me/tracks/{titleId}", async (string titleId, TrackChoice body, HttpContext context, TrackStore store,
+            TitleLibrary library, ViewerPush push) =>
+        {
+            if (Person(context) is not { } person) return NoPerson();
+            if (library.Get(titleId) is not { } manifest)
+                return Results.Json(new ErrorReply("No such film."), ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
+            if ((body.Malformed() ?? body.RefusedBy(manifest)) is { } refusal) return Refuse(refusal);
+
+            var tracks = store.Set(person.UserId, titleId, body);
+            await push.TracksChangedAsync(person.UserId, tracks);
+            return Results.Ok(tracks);
+        })
             .RequireAction(CinemaActions.ProfileWrite);
 
         app.MapGet("/api/me/sorts", (HttpContext context, SortStore store) =>

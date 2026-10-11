@@ -2,7 +2,7 @@
 // walked with the arrow keys from where focus starts, against the scratch site verify/mobile/scratch.sh
 // serves (staged first, by its run or `node verify/mobile/run.mjs`; an unstaged site stops this run).
 //
-//   node verify/tv.mjs [--checks pages,heads,empty,overlays,back,player,remote,driving,remoteui,signin] [--pages home,title] [--out dir]
+//   node verify/tv.mjs [--checks pages,heads,empty,overlays,back,player,remote,driving,remoteui,settings,signin] [--pages home,title] [--out dir]
 //
 // Each page is checked for:
 // - focus starting on a control when it opens, and on screen;
@@ -23,6 +23,12 @@
 // Then the phone driving the film: the site's own remote modules on a blank page of a phone paired with
 // the television, which play, pause and seek the room and move the television's player, stay out of the
 // room's roster, follow the television into another room, and lose the room when the television leaves.
+// Then the phone changing the television's own settings, which the API holds and pushes: the drawers
+// for Subtitles, Style, Audio and Quality aimed at the television, each change showing on the
+// television's player (the track on the stream, the style on the cues, the audio rendition fetched,
+// the quality label), the television's own menus moving the phone's labels, and the room's revision
+// and roster standing still throughout. The film has two audio tracks and two subtitle tracks, which
+// the check puts in the scratch library when it is not there.
 // Last, signing in through the test provider's device grant, where the check decides for the person:
 // the code and its QR, approval, a restart, signing out, a refusal, an expired code, a provider that
 // cannot be reached, and a session that ends under a page.
@@ -1237,7 +1243,9 @@ async function remoteUi() {
       || !labels.includes("Play") || !labels.includes("Back 10 seconds") || !labels.includes("Forward 10 seconds"))
       fail("remoteui", `the open drawer holds ${JSON.stringify(drawer)}`);
     else pass(`the drawer opens with the TV, the switch, the still, the scrub bar and ${labels.length} controls, each at least 44px`);
-    if (labels.some((l) => /^(Subtitles|Audio|Quality)/.test(l))) fail("remoteui", `the control row has a button that belongs to the next step: ${labels}`);
+    if (!labels.some((l) => l.startsWith("Subtitles")) || !labels.some((l) => l.startsWith("Quality")) || labels.some((l) => l.startsWith("Audio")))
+      fail("remoteui", `a film with one audio track and two rungs offers Subtitles and Quality and no Audio: ${labels}`);
+    else pass("the control row offers Subtitles and Quality, and no Audio for a film with one audio track");
 
     // The television shows a phone glyph while it is paused and a remote drives it, and not otherwise.
     const glyph = () => tv.page.evaluate(() => Boolean(document.querySelector(".mp-top__remote")));
@@ -1542,7 +1550,273 @@ async function remoteUi() {
   }
 }
 
-const checks = option("checks", "pages,heads,empty,overlays,back,player,remote,driving,remoteui,signin").split(",");
+
+/** The film the settings check plays: coherence with a second audio track and a second subtitle track. */
+const DualFilm = "dual-audio-2013";
+
+/**
+ * Puts a film with two audio tracks and two subtitle tracks into the scratch library, beside the film it is
+ * made from: its files are hard links, its manifest a copy that lists a second audio rendition (a copy of
+ * the first, in a directory of its own, so the stream's request for it is told apart) and a second subtitle
+ * track, and lists no master, so the player composes one from the manifest. Waits for the listing to show it.
+ */
+async function stageDualFilm() {
+  if ((await api("/api/titles")).some((t) => t.id === DualFilm)) return;
+  const { execFileSync } = await import("node:child_process");
+  const { existsSync: exists, renameSync, writeFileSync } = await import("node:fs");
+  const source = ["media", "cold"].map((root) => join(dir, "library", root, playable)).find((d) => exists(d));
+  if (!source) throw new Error(`The scratch library holds no ${playable} to make ${DualFilm} from.`);
+  const target = join(dir, "library", "media", DualFilm);
+  execFileSync("cp", ["-al", source, target]);
+  execFileSync("cp", ["-al", join(target, "a0"), join(target, "a1")]);
+  execFileSync("cp", ["-l", join(target, "s3.vtt"), join(target, "s4.vtt")]);
+  const manifest = JSON.parse(readFileSync(join(source, "manifest.json"), "utf8"));
+  manifest.id = DualFilm;
+  manifest.title = "Dual Audio";
+  delete manifest.film;
+  delete manifest.master;
+  manifest.audio = [
+    { ...manifest.audio[0], default: true },
+    { ...manifest.audio[0], id: "a1", language: "spa", label: "Español", default: false, uri: "a1/index.m3u8" },
+  ];
+  manifest.subtitles = [
+    manifest.subtitles[0],
+    { ...manifest.subtitles[0], id: "s4", language: "spa", label: "Español", uri: "s4.vtt" },
+  ];
+  writeFileSync(join(target, "manifest.json.tmp"), JSON.stringify(manifest));
+  renameSync(join(target, "manifest.json.tmp"), join(target, "manifest.json"));
+  if (!(await until(async () => (await api("/api/titles")).some((t) => t.id === DualFilm), 30000)))
+    throw new Error(`${DualFilm} never appeared in the scratch library's listing.`);
+}
+
+/**
+ * The phone changing the television's own settings: Subtitles, Style, Audio and Quality as the player's own
+ * menus aimed at the television. Every change is written to the API and pushed to the television, which
+ * shows it, and the television's own menus move the phone's labels; the room's state and roster are
+ * never touched.
+ */
+async function settingsUi() {
+  console.log("settings");
+  await stageDualFilm();
+  const stamp = Date.now().toString(36);
+  const tvSession = { hours: 6, client: TV_CLIENT, sid: `verify-set-tv-${stamp}`, device: "Verify TV" };
+  const phoneSid = `verify-set-phone-${stamp}`;
+  const room = `verify-set-${stamp}`;
+  const tv = await open("/profile/remote", VIEWER, tvSession);
+  const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: PhoneAgent, isMobile: true, hasTouch: true, bypassCSP: true });
+  await phoneContext.addInitScript(({ key, value }) => {
+    localStorage.setItem(key, value);
+    if (localStorage.getItem("cinema:remote") === null) localStorage.setItem("cinema:remote", "1");
+  }, issuer.planted(VIEWER, { hours: 6, sid: phoneSid }));
+  const phone = await phoneContext.newPage();
+  phone.on("pageerror", (e) => failures.push(`settings: phone page error ${e.message}`));
+  const finger = fingerOn(await phoneContext.newCDPSession(phone));
+  const phoneAuth = { Authorization: `Bearer ${issuer.mint(VIEWER, { sid: phoneSid })}` };
+  const asked = [];
+  tv.page.on("request", (r) => asked.push(r.url()));
+  // What each page's hub connections are sent, counted by message name from the frames themselves.
+  const heard = { tv: {}, phone: {} };
+  for (const [name, page] of [["tv", tv.page], ["phone", phone]]) {
+    page.on("websocket", (ws) => ws.on("framereceived", ({ payload }) => {
+      for (const part of String(payload).split("\u001e")) {
+        const target = /"target":"(\w+)"/.exec(part);
+        if (target) heard[name][target[1]] = (heard[name][target[1]] || 0) + 1;
+      }
+    }));
+  }
+  const counts = (name, ...targets) => JSON.stringify(targets.map((t) => heard[name][t] || 0));
+  const shot = (name) => phone.screenshot({ path: join(out, name) });
+  const centre = async (selector) => {
+    const box = await phone.locator(selector).first().boundingBox();
+    if (!box) throw new Error(`no ${selector} on the phone`);
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  };
+  const tap = async (selector) => { const c = await centre(selector); await finger.tap(c.x, c.y); };
+  const label = (prefix) => phone.evaluate((p) => [...document.querySelectorAll(".kc-remote .mp-controls button")]
+    .map((b) => b.getAttribute("aria-label")).find((l) => l && l.startsWith(p)) || null, prefix);
+  const tvLabel = (prefix) => tv.page.evaluate((p) => [...document.querySelectorAll(".mp-controls button, .mp-bottom button")]
+    .map((b) => b.getAttribute("aria-label")).find((l) => l && l.startsWith(p)) || null, prefix);
+  const rows = () => phone.evaluate(() => [...document.querySelectorAll(".mp-menu .mp-option")]
+    .map((o) => ({ label: o.querySelector(".mp-option__label")?.textContent, on: o.classList.contains("is-on") })));
+  const tvTracks = () => tv.page.evaluate(() => [...document.querySelectorAll("video track")].map((t) => t.label));
+  const mine = (path) => fetch(base + path, { headers: phoneAuth }).then((r) => r.json());
+  try {
+    // Start from a known place: no style, Auto, and the film's first audio track with subtitles off.
+    const before = await mine("/api/me/preferences");
+    const put = (path, body) => fetch(base + path, { method: "PUT", headers: { ...phoneAuth, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    await put("/api/me/preferences", { ...before, qualityHeight: null, subtitleStyle: null });
+    await put(`/api/me/tracks/${DualFilm}`, { subtitleOff: true, audioId: "a0" });
+
+    await tv.page.goto(`${base}/r/${room}?title=${DualFilm}&tv=1`, { waitUntil: "load" });
+    await tv.page.waitForFunction(() => { const v = document.querySelector("video"); return v && v.readyState >= 3; }, null, { timeout: 30000 }).catch(() => {});
+    await tv.page.keyboard.press("Enter");
+    await tv.page.waitForTimeout(1500);
+    await tv.page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "MediaPlayPause", bubbles: true, cancelable: true })));
+    await tv.page.waitForSelector(".kc-tvr-paused__qr svg", { timeout: 10000 }).catch(() => {});
+    await tv.page.waitForTimeout(700);
+    const url = await readQr(tv.page, ".kc-tvr-paused__qr", SofaScale);
+    if (!url) { fail("settings", "the paused player drew no code to pair with"); return; }
+    const paired = await fetch(base + "/api/me/screens", {
+      method: "POST", headers: { ...phoneAuth, "Content-Type": "application/json", "User-Agent": PhoneAgent },
+      body: JSON.stringify({ code: new URL(url).pathname.slice("/p/".length) }),
+    });
+    if (!paired.ok) { fail("settings", `pairing answered ${paired.status}`); return; }
+
+    await phone.goto(`${base}/`, { waitUntil: "load" });
+    await phone.waitForSelector(".kc-remote-strip", { timeout: 15000 });
+    await phone.waitForTimeout(1500);
+    await tap(".kc-remote-strip__open");
+    await phone.waitForSelector(".kc-remote .mp-controls .mp-menu-button", { timeout: 10000 });
+    await phone.waitForTimeout(1500);
+    const quiet = { tv: counts("tv", "StateChanged", "ParticipantsChanged"), phone: counts("phone", "StateChanged", "ParticipantsChanged") };
+
+    // The control row, for a film with two audio tracks (canvas board 21).
+    const controls = await phone.evaluate(() => [...document.querySelectorAll(".kc-remote .mp-controls button, .kc-remote .mp-controls a")]
+      .map((b) => ({ label: b.getAttribute("aria-label"), w: Math.round(b.getBoundingClientRect().width), h: Math.round(b.getBoundingClientRect().height) })));
+    await shot("settings-21-film-remote.png");
+    const names = controls.map((c) => c.label);
+    const wanted = ["Subtitles: Off", "Audio track: English", "Quality: Auto"];
+    if (!wanted.every((w) => names.includes(w))) fail("settings", `the control row says ${JSON.stringify(names)}, expected ${wanted}`);
+    else if (names.indexOf("Subtitles: Off") > names.indexOf("Audio track: English") || names.indexOf("Audio track: English") > names.indexOf("Quality: Auto"))
+      fail("settings", `Audio is not between Subtitles and Quality: ${names}`);
+    else pass(`the control row has ${wanted.join(", ")} in that order, with Quality as "Auto" and no playing height`);
+    const small = controls.filter((c) => c.w < 44 || c.h < 44).map((c) => `${c.label} ${c.w}x${c.h}`);
+    if (small.length > 0) fail("settings", `controls under 44px: ${small}`);
+    else pass("every control in the row is at least 44px");
+
+    // Subtitles (board 19).
+    await tap('.kc-remote .mp-menu-button[title="Subtitles"]');
+    await phone.waitForSelector(".mp-aimed.mp-menu", { timeout: 5000 });
+    await phone.waitForTimeout(800);
+    await shot("settings-19-subtitles.png");
+    const list = await rows();
+    const head = await phone.evaluate(() => ({ title: document.querySelector(".mp-aimed .kc-drawer__title")?.textContent, aim: document.querySelector(".mp-aimed .mp-menu__aim")?.textContent,
+      back: Boolean(document.querySelector(".mp-aimed .kc-drawer__back")) }));
+    if (head.title !== "Subtitles" || head.aim !== "Verify TV" || !head.back || list[0]?.label !== "Off" || !list[0].on || !list.some((r) => r.label === "Español"))
+      fail("settings", `the subtitles drawer shows ${JSON.stringify({ head, list })}`);
+    else pass("the Subtitles drawer is aimed at the TV with Off checked, the film's tracks and a back arrow");
+
+    await tap('.mp-aimed .mp-option[title="Español"]');
+    const seen = await until(async () => (await tvTracks()).join() === "Español", 8000);
+    const stored = await mine(`/api/me/tracks/${DualFilm}`);
+    await phone.waitForTimeout(400);
+    const checked = (await rows()).find((r) => r.on)?.label;
+    if (!seen || stored.subtitleId !== "s4" || checked !== "Español") fail("settings", `choosing Español: the TV's subtitle track is ${JSON.stringify(await tvTracks())}, the API holds ${JSON.stringify(stored)}, the phone checks ${checked}`);
+    else pass("choosing a subtitle track shows it on the TV's player and in the API, and checks it on the phone");
+
+    // Style (board 07): each change restyles the TV's cues, whose sample line stands in while the film is silent.
+    const cueStyle = () => tv.page.evaluate(() => {
+      const t = document.querySelector(".mp-cue__text");
+      if (!t) return null;
+      const c = getComputedStyle(t);
+      return { size: parseFloat(c.fontSize), weight: c.fontWeight, text: t.textContent };
+    });
+    const plain = await cueStyle();
+    await tap(".mp-aimed .mp-option:has(.lucide-type)");
+    await phone.waitForSelector(".mp-aimed.is-styling", { timeout: 5000 });
+    await phone.waitForTimeout(500);
+    await shot("settings-07-style.png");
+    const editor = await phone.evaluate(() => ({ title: document.querySelector(".mp-aimed .kc-drawer__title")?.textContent,
+      back: document.querySelector(".mp-aimed .kc-drawer__back")?.getAttribute("aria-label") }));
+    if (editor.title !== "Subtitle style" || editor.back !== "Back to subtitles") fail("settings", `the style editor shows ${JSON.stringify(editor)}`);
+    else pass("the style editor opens from Style with the back arrow to the subtitle list");
+    await tap('.mp-aimed .mp-style__choice:has-text("150%")');
+    await tap('.mp-aimed .mp-style__choice:has-text("200%")');
+    await tap('.mp-aimed .mp-style__choice:has-text("Bold")');
+    const restyled = await until(async () => {
+      const c = await cueStyle();
+      return c && c.weight >= 700 && (!plain || c.size > plain.size);
+    }, 8000);
+    await tv.page.screenshot({ path: join(out, "settings-tv-style-sample.png") });
+    const mid = await cueStyle();
+    const stylePut = await until(async () => (await mine("/api/me/preferences")).subtitleStyle?.size === 200, 6000);
+    if (!restyled || !stylePut) fail("settings", `after three style changes the TV's cue is ${JSON.stringify(mid)} (was ${JSON.stringify(plain)}) and the API holds size ${(await mine("/api/me/preferences")).subtitleStyle?.size}`);
+    else pass(`style changes restyle the TV's cues live (${plain ? plain.size : "none"}px to ${mid.size}px, bold) and are kept by the API`);
+    const sampled = mid && mid.text === "I'll meet you at the station at nine.";
+    const lapsed = await until(async () => { const c = await cueStyle(); return !c || c.text !== "I'll meet you at the station at nine."; }, 9000);
+    if (sampled && !lapsed) fail("settings", "the TV's sample line stayed after the style stopped changing");
+    else pass(sampled ? "the TV showed its sample line while the style changed and let it lapse after the last change" : "the TV restyled a line the film was saying, and showed no sample");
+
+    await tap('.mp-aimed .kc-drawer__back');
+    await phone.waitForFunction(() => !document.querySelector(".mp-aimed.is-styling"), null, { timeout: 5000 });
+    const listAgain = await rows();
+    if (!listAgain.some((r) => r.label === "Español" && r.on)) fail("settings", `the back arrow of the style editor did not return to the subtitle list: ${JSON.stringify(listAgain)}`);
+    else pass("the style editor's back arrow returns to the subtitle list");
+    await tap('.mp-aimed .kc-drawer__back');
+    await phone.waitForFunction(() => !document.querySelector(".mp-aimed"), null, { timeout: 5000 });
+    if (await label("Subtitles") !== "Subtitles: Español") fail("settings", `the Subtitles label says ${await label("Subtitles")}`);
+    else pass("the drawer's back arrow returns to the remote, whose Subtitles button names the track");
+
+    // Audio (board 22): a rendition fetched from the second directory.
+    await tap('.kc-remote .mp-menu-button[title="Audio track"]');
+    await phone.waitForSelector(".mp-aimed.mp-menu", { timeout: 5000 });
+    await phone.waitForTimeout(500);
+    await shot("settings-22-audio.png");
+    const audio = await rows();
+    if (audio.map((r) => r.label).join() !== "English,Español" || !audio[0].on) fail("settings", `the audio drawer shows ${JSON.stringify(audio)}`);
+    asked.length = 0;
+    await tap('.mp-aimed .mp-option[title="Español"]');
+    const audioFetched = await until(async () => asked.some((u) => u.includes(`/media/${DualFilm}/a1/`)), 10000);
+    const audioLabel = await until(async () => (await tvLabel("Audio track")) === "Audio track: Español", 6000);
+    await phone.waitForSelector(".mp-aimed", { state: "detached", timeout: 5000 }).catch(() => {});
+    if (!audioFetched || !audioLabel || (await mine(`/api/me/tracks/${DualFilm}`)).audioId !== "a1")
+      fail("settings", `choosing Español audio: the TV fetched the second rendition ${audioFetched}, its button says ${await tvLabel("Audio track")}`);
+    else pass("choosing an audio track switches the TV's stream to that rendition and is kept by the API");
+
+    // Quality (board 20): the setting, not the height playing.
+    await tap('.kc-remote .mp-menu-button[title="Quality"]');
+    await phone.waitForSelector(".mp-aimed.mp-menu", { timeout: 5000 });
+    await phone.waitForTimeout(500);
+    await shot("settings-20-quality.png");
+    const quality = await rows();
+    const qualityHead = await phone.evaluate(() => [...document.querySelectorAll(".mp-aimed .mp-option__sub")].map((e) => e.textContent));
+    if (quality.map((r) => r.label).join() !== "Auto,818p,546p" || !quality[0].on || qualityHead[0] !== "Adaptive")
+      fail("settings", `the quality drawer shows ${JSON.stringify({ quality, qualityHead })}`);
+    else pass("the Quality drawer lists Auto (checked, plain Adaptive) and the film's own rungs");
+    asked.length = 0;
+    await tap('.mp-aimed .mp-option[title="546p"]');
+    const qualityLabel = await until(async () => /^Quality: (Up to )?546p/.test(await tvLabel("Quality") || ""), 8000);
+    const qualityKept = await until(async () => (await mine("/api/me/preferences")).qualityHeight === 546, 6000);
+    await phone.waitForSelector(".mp-aimed", { state: "detached", timeout: 5000 }).catch(() => {});
+    const phoneQuality = await label("Quality");
+    if (!qualityLabel || !qualityKept || phoneQuality !== "Quality: 546p") fail("settings", `choosing 546p: the TV's button says ${await tvLabel("Quality")}, the API holds ${(await mine("/api/me/preferences")).qualityHeight}, the phone says ${phoneQuality}`);
+    else pass('choosing a fixed quality applies on the TV and is kept by the API; the phone says "546p", never a playing height');
+
+    // The television's own menus move the phone's labels.
+    await tv.page.click('.mp-menu-button[title="Subtitles"]');
+    await tv.page.click('.mp-popover .mp-option[title="English"], .mp-menu .mp-option[title="English"]');
+    const phoneSubtitle = await until(async () => (await label("Subtitles")) === "Subtitles: English", 8000);
+    // The subtitles popover stays open over the control bar; a button under it is pressed as a script would.
+    await tv.page.locator('.mp-menu-button[title="Quality"]').dispatchEvent("click");
+    await tv.page.click('.mp-popover .mp-option[title="Auto"], .mp-menu .mp-option[title="Auto"]');
+    const phoneAuto = await until(async () => (await label("Quality")) === "Quality: Auto", 8000);
+    await shot("settings-21-after-tv-menu.png");
+    if (!phoneSubtitle || !phoneAuto) fail("settings", `after the TV's own menus the phone says ${await label("Subtitles")} and ${await label("Quality")}`);
+    else pass("a track and a quality chosen in the TV's own menus move the phone's labels");
+
+    const after = { tv: counts("tv", "StateChanged", "ParticipantsChanged"), phone: counts("phone", "StateChanged", "ParticipantsChanged") };
+    if (after.tv !== quiet.tv || after.phone !== quiet.phone)
+      fail("settings", `the room was sent messages: StateChanged and ParticipantsChanged on the TV ${quiet.tv} became ${after.tv}, on the phone ${quiet.phone} became ${after.phone}`);
+    else if ((heard.tv.TracksChanged || 0) < 3 || (heard.phone.TracksChanged || 0) < 3 || (heard.tv.PreferencesChanged || 0) < 3 || (heard.phone.PreferencesChanged || 0) < 3)
+      fail("settings", `the settings were not pushed to both: TracksChanged ${heard.tv.TracksChanged}/${heard.phone.TracksChanged}, PreferencesChanged ${heard.tv.PreferencesChanged}/${heard.phone.PreferencesChanged} (tv/phone)`);
+    else pass(`no StateChanged or ParticipantsChanged reached the TV or the phone for any of it, while ${heard.tv.TracksChanged} TracksChanged and ${heard.tv.PreferencesChanged} PreferencesChanged reached the TV and ${heard.phone.TracksChanged} and ${heard.phone.PreferencesChanged} the phone`);
+
+    // A film starting afresh reads what the API holds: the audio and subtitle chosen above, on any device.
+    await tv.page.goto(`${base}/r/${room}?title=${DualFilm}&tv=1`, { waitUntil: "load" });
+    await tv.page.waitForFunction(() => { const v = document.querySelector("video"); return v && v.readyState >= 3; }, null, { timeout: 30000 }).catch(() => {});
+    await tv.page.waitForTimeout(1500);
+    const started = { audio: await tvLabel("Audio track"), subtitles: await tvLabel("Subtitles"), tracks: await tvTracks() };
+    if (started.audio !== "Audio track: Español" || started.subtitles !== "Subtitles: English" || started.tracks.join() !== "English")
+      fail("settings", `a film starting afresh on the TV read ${JSON.stringify(started)}, not the API's Español audio and English subtitles`);
+    else pass("a film starting afresh on the TV starts on the tracks the API holds");
+  } finally {
+    await fetch(base + `/api/me/screens/${tvSession.sid}`, { method: "DELETE", headers: phoneAuth });
+    await phoneContext.close();
+    await tv.close();
+  }
+}
+
+const checks = option("checks", "pages,heads,empty,overlays,back,player,remote,driving,remoteui,settings,signin").split(",");
 try {
   if (checks.includes("pages")) for (const p of PAGES) if (!pageNames || pageNames.includes(p.name)) await walk(p);
   if (checks.includes("heads")) await heads();
@@ -1556,6 +1830,7 @@ try {
   if (checks.includes("remote")) await remote();
   if (checks.includes("driving")) await driving();
   if (checks.includes("remoteui")) await remoteUi();
+  if (checks.includes("settings")) await settingsUi();
   if (checks.includes("signin")) await signIn();
 } finally {
   await browser.close();

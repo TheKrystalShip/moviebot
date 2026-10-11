@@ -87,6 +87,8 @@ builder.Services.AddSingleton<SessionKeeper>();
 // How each person watches, which follows them from the site into the Activity and back.
 builder.Services.AddSingleton<PreferenceStore>();
 builder.Services.AddSingleton<SortStore>();
+builder.Services.AddSingleton<TrackStore>();
+builder.Services.AddSingleton<ViewerPush>();
 
 // What each account is called, so an id on a record can be shown as a person.
 builder.Services.AddSingleton<PersonDirectory>();

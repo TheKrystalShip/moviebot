@@ -187,6 +187,15 @@ participant of no kind.
   screen is connected and in no room, since a screen in one is moved through that room, where the hold,
   the watch record and the roster already see it. The message goes to the screen's own group and carries
   no state: what the screen shows is the room it then joins.
+- **A remote changes the screen's own settings through the API, never through the room.** The subtitle
+  track, how subtitles look, the audio track and quality are the person's (`/api/me/preferences`,
+  `/api/me/tracks/{titleId}`), and a phone writes them as any device of the person's does. The API checks
+  them against the film and pushes the change to the person's group (`PersonGroups.Everything`), which
+  holds the television's room connection and its person connection and the phone's, so the television
+  that is playing the film applies it and the phone's labels follow, with the television reporting
+  nothing back. Nothing about it is a hub method of the remote's, goes through `RoomControls`, is in
+  `SessionState`, `Actor` or any room group, or names a screen: the record is the person's, not the
+  screen's.
 - **A pairing ending ends the remote.** `ScreenPresence` drops the remotes of a pairing it ends
   (unpaired from either side, or a television signed in again under the same name) out of the room's
   group and forgets them; a disconnect forgets the connection's.

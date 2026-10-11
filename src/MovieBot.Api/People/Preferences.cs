@@ -33,13 +33,29 @@ public sealed record ViewerPreferences
     /// <summary>How subtitles are drawn for this person, or null for the player's own look.</summary>
     public SubtitleStyle? SubtitleStyle { get; init; }
 
-    /// <summary>A stored value that no longer makes sense is the setting left alone.</summary>
+    /// <summary>The tallest picture a height may name: 8K.</summary>
+    public const int MaxHeight = 4320;
+
+    /// <summary>
+    /// Why these cannot be kept, or null. A quality is Auto (absent) or a height; it is the person's
+    /// default for every film, so it is held to what a picture can be and not to one film's rungs, and a
+    /// film with no rung at that height plays the tallest below it. A style is held to the ranges
+    /// <see cref="SubtitleStyle"/> keeps.
+    /// </summary>
+    public string? Refusal() =>
+        HeightRefusal("qualityHeight", QualityHeight) ?? HeightRefusal("offlineQualityHeight", OfflineQualityHeight)
+        ?? SubtitleStyle?.Refusal();
+
+    private static string? HeightRefusal(string name, int? height) =>
+        height is { } value && value is <= 0 or > MaxHeight
+            ? $"{name} is absent for Auto, or a height from 1 to {MaxHeight}."
+            : null;
+
+    /// <summary>Whitespace around a language is not part of it, and a style with nothing in it is no style.</summary>
     public ViewerPreferences Normalised() => this with
     {
         SubtitleLanguage = string.IsNullOrWhiteSpace(SubtitleLanguage) ? null : SubtitleLanguage.Trim(),
         AudioLanguage = string.IsNullOrWhiteSpace(AudioLanguage) ? null : AudioLanguage.Trim(),
-        QualityHeight = QualityHeight is > 0 ? QualityHeight : null,
-        OfflineQualityHeight = OfflineQualityHeight is > 0 ? OfflineQualityHeight : null,
         SubtitleStyle = SubtitleStyle?.Normalised(),
     };
 }
@@ -83,23 +99,26 @@ public sealed record SubtitleStyle
     /// <summary>How far above the bottom of the frame dialogue sits, as a percentage of its height, 0 to 30.</summary>
     public double? Position { get; init; }
 
-    /// <summary>
-    /// Anything out of range or unknown is that field left to the default, and a style with nothing
-    /// left in it is no style at all.
-    /// </summary>
+    /// <summary>Why this style cannot be kept, or null: a field outside the ranges and sets above is refused, not bent.</summary>
+    public string? Refusal() =>
+        Size is { } size && size is < 50 or > 200 ? "size is from 50 to 200."
+        : Font is { } font && !Fonts.Contains(font) ? $"font is one of {string.Join(", ", Fonts)}."
+        : Edge is { } edge && !Edges.Contains(edge) ? $"edge is one of {string.Join(", ", Edges)}."
+        : TextColor is not null && Colour(TextColor) is null ? "textColor is #rrggbb."
+        : EdgeColor is not null && Colour(EdgeColor) is null ? "edgeColor is #rrggbb."
+        : BackgroundColor is not null && Colour(BackgroundColor) is null ? "backgroundColor is #rrggbb."
+        : BackgroundOpacity is { } opacity && !(double.IsFinite(opacity) && opacity is >= 0 and <= 1) ? "backgroundOpacity is from 0 to 1."
+        : Position is { } position && !(double.IsFinite(position) && position is >= 0 and <= 30) ? "position is from 0 to 30."
+        : null;
+
+    /// <summary>Colours are kept lowercase, and a style with nothing left in it is no style at all.</summary>
     public SubtitleStyle? Normalised()
     {
-        var style = new SubtitleStyle
+        var style = this with
         {
-            Size = Size is { } size ? Math.Clamp(size, 50, 200) : null,
-            Font = Font is { } font && Fonts.Contains(font) ? font : null,
-            Bold = Bold,
             TextColor = Colour(TextColor),
-            Edge = Edge is { } edge && Edges.Contains(edge) ? edge : null,
             EdgeColor = Colour(EdgeColor),
             BackgroundColor = Colour(BackgroundColor),
-            BackgroundOpacity = BackgroundOpacity is { } opacity && double.IsFinite(opacity) ? Math.Clamp(opacity, 0, 1) : null,
-            Position = Position is { } position && double.IsFinite(position) ? Math.Clamp(position, 0, 30) : null,
         };
         return style == new SubtitleStyle() ? null : style;
     }

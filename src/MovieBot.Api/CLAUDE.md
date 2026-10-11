@@ -134,11 +134,23 @@ film onto a device is `Offline/CLAUDE.md`.
   serves an episode unchanged; `/api/shows` and `/api/shows/{imdbId}` group the library's episodes by
   the show their manifest names and join them with the show's description, and an episode's
   `details` on `/api/titles` are its show's.
-- **A person's own settings are asked for by token, never by id.** `/api/me/preferences` and
-  `/api/me/sorts` answer for whoever the token names, so there is no route by which anybody reads or
+- **A person's own settings are asked for by token, never by id.** `/api/me/preferences`,
+  `/api/me/tracks/{titleId}` and `/api/me/sorts` answer for whoever the token names, so there is no route by which anybody reads or
   writes anybody else's; the service key names nobody and is refused there. Progress, history, follows and lists
   (`/api/me/progress`, `/api/me/history`, `/api/me/follows`, `/api/me/lists`) are asked for the same
   way.
+- **How a person watches is one record the API keeps, checks and pushes** (`People/Preferences`,
+  `People/FilmTracks`, `People/ViewerPush`). Subtitle style and quality are the account's
+  preferences; the subtitle and audio track are kept per person and film in `viewer_tracks`, so every
+  device the person watches a film on, and a phone driving a television, read the same one. The API
+  refuses what the film or the ranges do not have rather than bending it: a track the title's manifest
+  does not list (a subtitle that can be shown, an audio track), a quality that is neither Auto nor a
+  height, a style outside the ranges `SubtitleStyle` keeps. A quality is the person's default for every
+  film, so it is held to what a picture can be, never to one film's rungs. A change is pushed to
+  `PersonGroups.Everything(person)` (`PreferencesChanged`, `TracksChanged`): the person's every connection
+  with an account, a playing player's and a phone's remote among them, and never the room's groups, so no
+  room state, roster or `StateChanged` moves for it. A guest has no account and keeps their choices in
+  their own browser.
 - **A followed show is watched by `Shows/FollowWatcher`, and what it announces is kept.** A follow
   starts from a baseline, the latest episode already due, so only later episodes are news. An episode
   is due from the day after its air date, an air date being a date read against UTC, and is looked for

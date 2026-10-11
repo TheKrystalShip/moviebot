@@ -273,12 +273,28 @@ and does nothing that would be.
   changes and a search that lands after the change is dropped. The film's own tracks are read again
   whenever the menu opens: what a film gains is pushed as it lands, and the re-read is the guarantee
   behind the push. The search asks for the person's own language and English beside it.
-- **A person's defaults are the API's, and a choice made for one film is the browser's.** Subtitle
-  language, audio language, quality, how subtitles look and whether stretches are skipped
-  automatically come from `/api/me/preferences`, so they follow the person
-  between the site and the Activity; the track picked for a film is held in `localStorage` per title,
-  because a track id means nothing outside the film it came from. Volume and brightness stay in the
-  browser: they are about the speakers and the screen in front of the person.
+- **How a person watches is the API's record, and a playing player follows it.** Subtitle language,
+  audio language, quality, how subtitles look and whether stretches are skipped automatically come from
+  `/api/me/preferences`; the subtitle and audio track picked for a film come from
+  `/api/me/tracks/{titleId}`. Both follow the person between devices, so a phone driving a television
+  writes the record the television plays from. The player's menus write the API and read it when a film
+  starts, falling back to the person's languages (`startingTracks`) for a film they chose no track for.
+  A guest has no account, and a film saved on the device played alone with no connection has no API to
+  ask: both keep a track choice in `localStorage` per title (`engine/prefs.ts`), because a track id
+  means nothing outside the film it came from. Volume and brightness stay in the browser: they are
+  about the speakers and the screen in front of the person.
+- **A change to the record is pushed, and the room applies it.** The room's own hub connection hears
+  `PreferencesChanged` and `TracksChanged` (the API sends them to every connection of the person's with
+  an account, never into the room's groups) and applies them through the setters' own checks: a
+  subtitle id that is not a track the film lists as one that can be shown, an audio id it does not
+  list, and a quality that is neither Auto nor a positive height are refused, and a refused id is never
+  kept as the film's choice nor turns subtitles off. A track another device just fetched may not have
+  reached this copy of the film's list, so the subtitle list is read again once before a subtitle id is
+  refused. A push for another film is ignored (that film reads the record when it starts), a style
+  being chosen on this device is left alone until it is saved, and a style that arrives from another
+  device shows the sample line over the film for four seconds after the last one. The stream keeps the
+  track choices it was given and moves them with every choice after, so one made while the film is
+  loading is the one the load ends on.
 
 ## Playing from the device
 

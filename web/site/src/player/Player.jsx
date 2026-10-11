@@ -555,7 +555,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
       <div className="mp-shade" aria-hidden="true" />
 
       {view.ready && <Cues track={view.subtitleTrack} raised={shown} lifted={styling && sheet} beside={styling && !sheet}
-        style={view.preferences.subtitleStyle} sample={styling} />}
+        style={view.preferences.subtitleStyle} sample={styling || view.styleSample} />}
 
       {/* ── Top bar ── */}
       {manifest && (

@@ -83,6 +83,18 @@ internal static class Schema
             style_position           REAL
         ) WITHOUT ROWID;
 
+        -- The subtitle and audio track each person watches each title with, the same on every device
+        -- they watch it on. A title with no row, or a row naming no track, starts on the person's
+        -- languages. subtitle_off is a chosen "no subtitles", which is not the same as no choice.
+        CREATE TABLE viewer_tracks (
+            user_id      TEXT NOT NULL,
+            title_id     TEXT NOT NULL,
+            subtitle_id  TEXT,
+            subtitle_off INTEGER NOT NULL,
+            audio_id     TEXT,
+            PRIMARY KEY (user_id, title_id)
+        ) WITHOUT ROWID;
+
         CREATE TABLE notification_preferences (
             user_id   TEXT PRIMARY KEY,
             available INTEGER NOT NULL,

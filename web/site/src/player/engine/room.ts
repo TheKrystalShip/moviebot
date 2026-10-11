@@ -5,33 +5,15 @@ import { prefs } from './prefs';
 import { playableHead, playableHeadOf } from './media/heads';
 import type { DeviceCopy } from './media/deviceLoader';
 import { FilmStream, type QualityLevel } from './media/stream';
-import { defaultAudioId } from './media/tracks';
+import { startingTracks } from './media/tracks';
 import { describeChange } from './session/changes';
 import { SessionHub, type ConnectionStatus, type Timeline } from './session/hub';
 import { LocalTimeline } from './session/local';
 import { SyncController } from './session/sync';
 import type {
-  Actor, GuestRefusal, Manifest, Participant, RoomDoor, SeekClamped, SessionState, SessionStatePush, SubtitleSearch,
+  Actor, FilmTracks, GuestRefusal, Manifest, Participant, RoomDoor, SeekClamped, SessionState, SessionStatePush, SubtitleSearch,
   SubtitleStyle, SubtitleTrack, ThumbnailStrip, TitleSummary, ViewerPreferences
 } from './types';
-
-/**
- * A language's primary code in its canonical spelling. A film's tracks carry the three-letter codes
- * its container wrote (`eng`, `ger`) and a person's preference the two-letter ones, and the browser
- * already knows which is which.
- */
-function primaryLanguage(code: string): string {
-  try {
-    return (Intl.getCanonicalLocales(code)[0] ?? code).split('-')[0].toLowerCase();
-  } catch {
-    return code.split('-')[0].toLowerCase();
-  }
-}
-
-/** Whether a track's language is the one asked for: `eng` is `en`, and `es` matches `es-419`. */
-function sameLanguage(track: string, wanted: string): boolean {
-  return primaryLanguage(track) === primaryLanguage(wanted);
-}
 
 export interface Notice {
   id: number;
@@ -86,6 +68,8 @@ export interface RoomView {
   playingHeight: number | null;
   /** How this person watches, as the API keeps it for them. */
   preferences: ViewerPreferences;
+  /** Another device of this person's is changing how subtitles look: a sample line stands in while the film is silent. */
+  styleSample: boolean;
   /** The film plays alone from this device: there is no room, nobody else and nothing to invite to. */
   solo: boolean;
   /** The film this viewer holds is saved whole on this device, so it can go on with no connection. */
@@ -105,6 +89,12 @@ export interface RoomView {
   /** Why this guest is not watching: never let in, or sent away. Null while they are. */
   guestEnded: GuestRefusal | null;
 }
+
+/**
+ * How long a sample line stays over the film after the last change to how subtitles look arrived from
+ * another device, so a style being chosen elsewhere is seen here while it is chosen.
+ */
+const StyleSampleLapseMs = 4000;
 
 /** How often a film played alone writes down where it has got to, while it plays. */
 const ProgressEveryMs = 10_000;
@@ -148,6 +138,7 @@ export class PlayerRoom {
   private readonly announcers = new Set<(announcement: Announcement) => void>();
   private disposed = false;
   private styleSave: ReturnType<typeof setTimeout> | null = null;
+  private styleSampleLapse: ReturnType<typeof setTimeout> | null = null;
   /** The film as the device holds it, for the title this viewer holds, or null. */
   private copy: DeviceCopy | null = null;
   private progressTimer: number | null = null;
@@ -189,6 +180,7 @@ export class PlayerRoom {
       qualityLevels: [],
       quality: null,
       preferences: {},
+      styleSample: false,
       playingHeight: null,
       solo: environment().solo,
       saved: false,
@@ -302,6 +294,8 @@ export class PlayerRoom {
         this.set({ entry: 'private', door: null });
       },
       onGuestEnded: (reason) => this.endGuest(reason),
+      onPreferences: (preferences) => this.preferencesChanged(preferences),
+      onTracks: (tracks) => this.tracksChanged(tracks),
       onStatus: (status) => {
         this.set({ connection: status });
         // Nothing is derived forward from a room that cannot be heard from. Its anchor runs
@@ -508,6 +502,7 @@ export class PlayerRoom {
       this.styleSave = null;
       void this.savePreferences(this.view.preferences).catch(() => {});
     }
+    if (this.styleSampleLapse !== null) clearTimeout(this.styleSampleLapse);
     document.removeEventListener('visibilitychange', this.onVisible);
     this.controller?.dispose();
     this.stream.dispose();
@@ -607,30 +602,9 @@ export class PlayerRoom {
     // A choice made for this film stands, where the film as this viewer holds it has the track: a
     // copy saved on the device carries only the tracks picked when it was saved. Otherwise the
     // person's languages decide, where the film carries them, and the film's own default after that.
-    const held = prefs.forTitle(manifest.id);
-    const stored = {
-      audioTrackId: manifest.audio.some((t) => t.id === held.audioTrackId) ? held.audioTrackId : undefined,
-      subtitleTrackId: held.subtitleTrackId === null || manifest.subtitles.some((t) => t.id === held.subtitleTrackId)
-        ? held.subtitleTrackId
-        : undefined
-    };
-    // Among tracks in the person's language, the ones saved on the device come first: they were picked
-    // when the film was saved, and they cost no connection.
-    const { audioLanguage, subtitleLanguage } = this.view.preferences;
-    const onDevice = (ids: { id: string }[] | undefined) => (track: { id: string }) => ids?.some((t) => t.id === track.id) ?? false;
-    const first = <T extends { id: string }>(tracks: T[], held: (t: T) => boolean, wanted: (t: T) => boolean) =>
-      tracks.find((t) => wanted(t) && held(t)) ?? tracks.find(wanted);
-    const audioId = stored.audioTrackId
-      ?? (audioLanguage
-        ? first(manifest.audio, onDevice(copy?.manifest.audio), (t) => t.kind === 'feature' && sameLanguage(t.language, audioLanguage))?.id
-        : undefined)
-      ?? defaultAudioId(manifest) ?? null;
-    const subtitleId = stored.subtitleTrackId !== undefined
-      ? stored.subtitleTrackId
-      : (subtitleLanguage
-        ? first(manifest.subtitles, onDevice(copy?.manifest.subtitles),
-          (t) => t.available && t.uri !== undefined && !t.forced && sameLanguage(t.language, subtitleLanguage))?.id ?? null
-        : null);
+    const held = await this.chosenTracks(manifest.id);
+    if (this.loadedTitleId !== titleId) return;
+    const { audioId, subtitleId } = startingTracks(manifest, held, this.view.preferences, copy?.manifest);
 
     this.set({
       manifest,
@@ -784,24 +758,140 @@ export class PlayerRoom {
     return to - from;
   }
 
+  /**
+   * The audio track, chosen by its id. An id the film does not list is refused: it would be kept as
+   * this film's choice and found nowhere.
+   */
   selectAudio(trackId: string): void {
-    this.stream.selectAudio(trackId);
-    if (this.view.manifest) prefs.setAudioTrack(this.view.manifest.id, trackId);
-    this.set({ audioId: trackId });
+    if (!this.applyAudio(trackId)) return;
+    this.keepTracks({ audioId: trackId });
   }
 
+  /**
+   * The subtitle track, chosen by its id, or null for none. An id the film does not list as a track
+   * that can be shown is refused: the stream would clear the subtitles it was showing, and the id
+   * would be kept as this film's choice.
+   */
   selectSubtitle(trackId: string | null): void {
+    if (!this.applySubtitle(trackId)) return;
+    this.keepTracks(trackId === null ? { subtitleOff: true } : { subtitleId: trackId });
+  }
+
+  private applyAudio(trackId: string): boolean {
+    const manifest = this.view.manifest;
+    if (manifest === null || !manifest.audio.some((track) => track.id === trackId)) return false;
+    this.stream.selectAudio(trackId);
+    this.set({ audioId: trackId });
+    return true;
+  }
+
+  private applySubtitle(trackId: string | null): boolean {
+    const manifest = this.view.manifest;
+    if (manifest === null) return false;
+    if (trackId !== null
+      && !manifest.subtitles.some((track) => track.id === trackId && track.available && track.uri !== undefined)) return false;
     void this.stream.selectSubtitle(trackId);
-    if (this.view.manifest) prefs.setSubtitleTrack(this.view.manifest.id, trackId);
     this.set({ subtitleId: trackId });
+    return true;
   }
 
   /** A height to hold the film at, or null to let the connection decide. */
   selectQuality(height: number | null): void {
-    this.stream.selectQuality(height);
+    if (!this.applyQuality(height)) return;
     const preferences = { ...this.view.preferences, qualityHeight: height };
-    this.set({ quality: height, preferences });
+    this.set({ preferences });
     void this.savePreferences(preferences).catch(() => this.notice('Your quality choice could not be saved.', 'error'));
+  }
+
+  /** Auto, or a height; anything else is not a quality. */
+  private applyQuality(height: number | null): boolean {
+    if (height !== null && !(Number.isFinite(height) && height > 0)) return false;
+    this.stream.selectQuality(height);
+    this.set({ quality: height });
+    return true;
+  }
+
+  /**
+   * Where this viewer's track choices for a film are kept: the API for a person, so every device they
+   * watch it on agrees, and this browser for a guest, who has no account, and for a saved film played
+   * alone with no connection.
+   */
+  private tracksKeptHere(): boolean {
+    const env = environment();
+    return env.guest !== null || (this.view.solo && !env.online());
+  }
+
+  /** The tracks chosen for a film: from the API or from this browser (`tracksKeptHere`), none when nothing was chosen. */
+  private async chosenTracks(titleId: string): Promise<{ audioTrackId?: string; subtitleTrackId?: string | null }> {
+    if (this.tracksKeptHere()) return prefs.forTitle(titleId);
+    try {
+      const tracks = await api.tracks(titleId);
+      return {
+        audioTrackId: tracks.audioId ?? undefined,
+        subtitleTrackId: tracks.subtitleOff === true ? null : tracks.subtitleId ?? undefined
+      };
+    } catch {
+      this.notice('Your track choices could not be read, so this film starts on your languages.', 'error');
+      return {};
+    }
+  }
+
+  private keepTracks(choice: { audioId?: string; subtitleId?: string; subtitleOff?: boolean }): void {
+    const manifest = this.view.manifest;
+    if (manifest === null) return;
+    if (this.tracksKeptHere()) {
+      if (choice.audioId !== undefined) prefs.setAudioTrack(manifest.id, choice.audioId);
+      if (choice.subtitleId !== undefined) prefs.setSubtitleTrack(manifest.id, choice.subtitleId);
+      if (choice.subtitleOff === true) prefs.setSubtitleTrack(manifest.id, null);
+      return;
+    }
+    void api.setTracks(manifest.id, choice).catch(() => this.notice('Your track choice could not be saved.', 'error'));
+  }
+
+  /**
+   * The tracks this person watches a film with changed on another device (or this one, echoed): the
+   * film this viewer holds follows, and any other film reads them when it starts.
+   */
+  private tracksChanged(tracks: FilmTracks): void {
+    if (this.view.manifest?.id !== tracks.titleId) return;
+    if (tracks.subtitleOff === true) {
+      if (this.view.subtitleId !== null) this.applySubtitle(null);
+    } else if (tracks.subtitleId && tracks.subtitleId !== this.view.subtitleId) {
+      const wanted = tracks.subtitleId;
+      // A track another device just fetched may not have reached this copy of the film's list yet.
+      if (!this.applySubtitle(wanted)) {
+        void this.refreshManifest().then(() => {
+          if (this.view.subtitleId !== wanted) this.applySubtitle(wanted);
+        }).catch(() => {});
+      }
+    }
+    if (tracks.audioId && tracks.audioId !== this.view.audioId) this.applyAudio(tracks.audioId);
+  }
+
+  /**
+   * How this person watches changed on another device (or this one, echoed). The record replaces
+   * the one held, so what a save writes back is current; a style being chosen here is left alone
+   * until it is saved, and a style that arrives from elsewhere shows its sample line for a few seconds.
+   */
+  private preferencesChanged(preferences: ViewerPreferences): void {
+    const before = this.view.preferences;
+    const choosingStyle = this.styleSave !== null;
+    const next = choosingStyle ? { ...preferences, subtitleStyle: before.subtitleStyle } : preferences;
+    const styled = JSON.stringify(before.subtitleStyle ?? null) !== JSON.stringify(next.subtitleStyle ?? null);
+    this.set({ preferences: next });
+    if (styled) this.sampleStyle();
+    const quality = next.qualityHeight ?? null;
+    if (quality !== this.view.quality) this.applyQuality(quality);
+  }
+
+  /** Puts the sample line over the film, and takes it away a few seconds after the last time this is asked. */
+  private sampleStyle(): void {
+    this.set({ styleSample: true });
+    if (this.styleSampleLapse !== null) clearTimeout(this.styleSampleLapse);
+    this.styleSampleLapse = setTimeout(() => {
+      this.styleSampleLapse = null;
+      this.set({ styleSample: false });
+    }, StyleSampleLapseMs);
   }
 
   /** Keeps how this viewer watches: with the API for a person, in this browser for a guest. */

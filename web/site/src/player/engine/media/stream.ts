@@ -119,6 +119,12 @@ export class FilmStream {
   private thumbnailUrl: string | null = null;
   /** The height this viewer holds the film at, or null to let the connection decide. */
   private quality: number | null = null;
+  /**
+   * The tracks this viewer wants, kept from `load` and moved by every choice after it, so a choice made
+   * while the film is still loading is the one the load ends on.
+   */
+  private audioChoice: string | undefined;
+  private subtitleChoice: string | null = null;
   /** Set while the player holds a rung other than the one the viewer or the connection chose, because the chosen one is behind the playhead. */
   private stepDown = false;
   private watchTimer: number | null = null;
@@ -157,6 +163,8 @@ export class FilmStream {
              subtitleId: string | null, quality: number | null, device: DeviceCopy | null = null): Promise<void> {
     this.teardownSource();
     this.quality = quality;
+    this.audioChoice = audioId;
+    this.subtitleChoice = subtitleId;
     this.events.onQuality([], null);
 
     this.manifest = manifest;
@@ -247,7 +255,7 @@ export class FilmStream {
       this.hls = hls;
       hls.on(Hls.Events.ERROR, (_event, data) => this.onHlsError(data));
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (audioId !== undefined) this.selectAudio(audioId);
+        if (this.audioChoice !== undefined) this.selectAudio(this.audioChoice);
         // The first playlist and segment are the saved rung's, not whatever the connection would
         // have started on.
         if (this.heldLevel() >= 0) hls.startLevel = this.heldLevel();
@@ -279,7 +287,7 @@ export class FilmStream {
     // configuration, and setting it here as well is harmless.
     if (startPosition !== undefined && startPosition > 0) this.video.currentTime = startPosition;
 
-    if (subtitleId !== null) await this.selectSubtitle(subtitleId);
+    if (this.subtitleChoice !== null) await this.selectSubtitle(this.subtitleChoice);
     this.ready = true;
     this.events.onReady();
   }
@@ -307,6 +315,7 @@ export class FilmStream {
   }
 
   selectAudio(trackId: string): void {
+    this.audioChoice = trackId;
     const name = this.master?.audioNames[trackId];
     if (this.hls) {
       // Renditions are written in manifest order, so the position is the reliable key; the name
@@ -492,6 +501,7 @@ export class FilmStream {
   async selectSubtitle(trackId: string | null): Promise<void> {
     const manifest = this.manifest;
     if (!manifest) return;
+    this.subtitleChoice = trackId;
 
     const token = ++this.subtitleToken;
     this.clearSubtitle();

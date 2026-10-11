@@ -6,7 +6,8 @@ import { setRemoteMode, chooseScreen, useDrivenScreen, usePairedScreens, useRemo
 import { roomCommands, useRemotePosition, useRemoteRoom } from "../remoteRoom.js";
 import { stillSources, useRemoteFilm } from "../remoteFilm.js";
 import { GestureHud, useStageGestures } from "../player/Gestures.jsx";
-import { Menu, MenuButton, episodeValue } from "../player/Menus.jsx";
+import { Menu, MenuButton, audioValue, episodeValue, hasQualityChoice, qualityValue, subtitleValue } from "../player/Menus.jsx";
+import { useTvRoom, useTvView } from "../remoteMenus.js";
 import { ScrubBar } from "../player/ScrubBar.jsx";
 import { SkipLabels, useSkipOffer } from "../player/stretches.js";
 import { ContinueCard, NextEpisodeCard } from "./Film.jsx";
@@ -296,7 +297,11 @@ function Remote({ screen, onCollapse }) {
   const position = useRemotePosition();
   const [mode] = useRemoteMode();
   const [picking, setPicking] = React.useState(false);
-  const [menu, setMenu] = React.useState(false);
+  // Which of the player's menus is open, aimed at the TV: episodes, subs, audio or quality.
+  const [menu, setMenu] = React.useState(null);
+  // The subtitle menu's style editor is open.
+  const [styling, setStyling] = React.useState(false);
+  React.useEffect(() => { if (menu !== "subs") setStyling(false); }, [menu]);
   const [stepping, setStepping] = React.useState(false);
   const [, setHeld] = React.useState(false);
   const tv = screen.name || "TV";
@@ -307,6 +312,8 @@ function Remote({ screen, onCollapse }) {
   const duration = manifest ? manifest.durationSeconds : 0;
   const shown = describe(room, film);
   const at = position ?? 0;
+  const tvView = useTvView();
+  const tvRoom = useTvRoom(manifest);
 
   const toggle = () => run(paused ? roomCommands.play : roomCommands.pause, buzz);
   const seek = (seconds) => run(() => roomCommands.seek(seconds), buzz);
@@ -402,7 +409,10 @@ function Remote({ screen, onCollapse }) {
                       </>
                     )}
                     <span className="mp-controls__gap" />
-                    {offersEpisodes && <MenuButton kind="episodes" icon="list-video" value={episodeValue({ manifest })} open={menu} compact onClick={() => setMenu(true)} />}
+                    {offersEpisodes && <MenuButton kind="episodes" icon="list-video" value={episodeValue({ manifest })} open={menu === "episodes"} compact onClick={() => setMenu("episodes")} />}
+                    {tvView && <MenuButton kind="subs" icon="captions" value={subtitleValue(tvView)} open={menu === "subs"} compact onClick={() => setMenu("subs")} />}
+                    {tvView && manifest.audio.length > 1 && <MenuButton kind="audio" icon="audio-lines" value={audioValue(tvView)} open={menu === "audio"} compact onClick={() => setMenu("audio")} />}
+                    {tvView && hasQualityChoice(tvView) && <MenuButton kind="quality" icon="gauge" value={qualityValue(tvView)} open={menu === "quality"} compact onClick={() => setMenu("quality")} />}
                   </div>
                 </div>
               </div>
@@ -410,9 +420,13 @@ function Remote({ screen, onCollapse }) {
           </>
         )}
       </Drawer>
-      {menu && episodeView && (
-        <Menu kind="episodes" view={episodeView} sheet contained={false} aimedAt={tv} onClose={() => setMenu(false)}
+      {menu === "episodes" && episodeView && (
+        <Menu kind="episodes" view={episodeView} sheet contained={false} aimedAt={tv} onClose={() => setMenu(null)}
           room={{ playEpisode: (season, number) => run(() => roomCommands.playEpisode(season, number)) }} />
+      )}
+      {(menu === "subs" || menu === "audio" || menu === "quality") && tvView && (
+        <Menu kind={menu} view={tvView} room={tvRoom} sheet contained={false} aimedAt={tv}
+          styling={styling} onStyling={setStyling} onClose={() => setMenu(null)} />
       )}
     </>
   );

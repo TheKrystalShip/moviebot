@@ -124,6 +124,15 @@ export const api = {
   // read with no connection (`offline/preferences.js`).
   preferences: () => call("GET", "/api/me/preferences").then(kept),
   setPreferences: (preferences) => call("PUT", "/api/me/preferences", preferences).then(kept),
+
+  // The subtitle and audio track the signed-in person watches a film with, the same on every device.
+  tracks: (titleId) => call("GET", `/api/me/tracks/${enc(titleId)}`),
+  setTracks: (titleId, choice) => call("PUT", `/api/me/tracks/${enc(titleId)}`, choice),
+
+  // What OpenSubtitles offers for a film (it costs no allowance), and adding one for the room (it spends one).
+  searchSubtitles: (titleId, languages) =>
+    call("GET", `/api/titles/${enc(titleId)}/subtitles/search?language=${enc([...new Set(languages.map((l) => l.toLowerCase()))].sort().join(","))}`),
+  addSubtitle: (titleId, fileId) => call("POST", `/api/titles/${enc(titleId)}/subtitles`, { fileId }),
   // The order picked on each page that sorts, by the page's name (`sorts.js`).
   sorts: () => call("GET", "/api/me/sorts"),
   setSort: (surface, order) => call("PUT", `/api/me/sorts/${enc(surface)}`, order),

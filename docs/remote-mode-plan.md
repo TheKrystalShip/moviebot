@@ -394,13 +394,38 @@ Answers:
   minutes in the background, the page's timers and socket running throughout. Not measured: a TV that
   sleeps on its own, or Fire OS ending the app.
 
-Questions:
+Questions answered:
 
-- Where the push goes: the person's group reaches every device showing the film, which per-person
-  tracks call for; whether anything should reach only the screen.
-- What a guest keeps: a guest has no account, so whether their tracks stay in their own storage.
-- How a phone's label learns the current state when it opens the remote: read from the API's records
-  for the person and the film, with the push keeping it current.
+- **Where the push goes: the person's group.** Tracks are per person, so a change reaches every connection
+  of the person's that has an account (`PersonGroups.Everything`): the television's room connection, which
+  is the one that applies it to a playing film, its person connection, the phone's remote and any other
+  device of theirs showing the film. Nothing reaches only the screen: a screen-only push would have to
+  name a screen, which the record is not, and would leave a second device of the person's playing the same
+  film on the track the first just left. The groups never include a room, so `StateChanged` and
+  `ParticipantsChanged` do not move: measured with real touch in `verify:tv`, none reached the television
+  or the phone for any of the changes while the settings pushes did.
+- **What a guest keeps: their browser.** A guest is nobody and no record is keyed by one, so their track
+  choices stay in `localStorage` per title, as their preferences already do (`GuestViewer`). A saved film
+  played alone with no connection has no API to ask and does the same. A person with an account and a
+  connection never reads the browser's choices.
+- **How a phone's label learns the state: from the API's records, then the push.** The remote reads
+  `/api/me/preferences` and `/api/me/tracks/{film}` when its room connection opens and whenever the
+  television's film changes, and `PreferencesChanged` and `TracksChanged` keep it current. Where the person
+  chose nothing for the film the label is what the film starts on (`startingTracks`, the player's own
+  rule), so it is never a track the television is not on, and never a measurement the phone does not have.
+- **Whether a quality is checked against the film.** Not by the API: quality is the account's default for
+  every film, so it is held to Auto or a height from 1 to 4320, and a film with no rung at that height plays
+  the tallest below it, as before. The phone offers only the film's own ladder, from its manifest.
+- **How the television hears it: through the room's own connection.** The player's room connection is in
+  the person's group and applies `PreferencesChanged` and `TracksChanged` through the setters' own checks, so
+  the seam is the room itself, built and gone with the player, and no module holds a player room.
+
+Built. `viewer_tracks` holds a person's subtitle and audio track per film, and `GET` and `PUT
+/api/me/tracks/{titleId}` read and set them against the title's manifest; `PUT /api/me/preferences` refuses
+a quality and a style out of range; `ViewerPush` sends both changes to the person's connections
+(`docs/api-contract.md`, `src/MovieBot.Api/CLAUDE.md`, `Sessions/CLAUDE.md`). The player writes and reads
+the API for a person (`player/CLAUDE.md`), and the remote's Subtitles, Audio and Quality buttons open the
+player's own menus aimed at the television (`web/site/README.md`, "Driving a television").
 
 ## 5. Testing
 

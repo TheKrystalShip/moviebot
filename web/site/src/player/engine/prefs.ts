@@ -1,12 +1,12 @@
 /**
  * What this browser remembers for its viewer.
  *
- * Volume, brightness and the track picked for each film are this device's and never reach the hub:
- * shared volume is a way for one person to deafen everyone else, and one person needing subtitles
- * should not put them on five other screens. Volume and brightness are held here because they are
- * about the speakers and the screen in front of the person; a track choice is held per title because a track id only means anything inside the
- * film it came from. The person's defaults — languages and quality — are the API's to keep, so they
- * follow them from the site into the Activity.
+ * Volume and brightness are this device's and never reach the hub: shared volume is a way for one
+ * person to deafen everyone else, and they are about the speakers and the screen in front of the
+ * person. A track choice is held per title, because a track id only means anything inside the film it
+ * came from, for a viewer the API keeps nothing for: a guest, and a film saved on the device played
+ * alone with no connection. For a person the API keeps the tracks and the defaults (languages, quality,
+ * how subtitles look), so they follow the person between devices.
  */
 const Key = 'moviebot.prefs.v1';
 

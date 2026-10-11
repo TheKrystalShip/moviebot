@@ -604,13 +604,31 @@ Open, its head names the television, which opens the picker (an option list, "No
 for one that is not connected), and holds the Remote switch. The picker and the Episodes list carry the drawer's back button, which returns to the remote. Below are the still, what plays, and the
 player's scrub bar (with its preview) and controls: Play or Pause, back and forward ten seconds, and for an
 episode previous, next and Episodes, the player's own list aimed at the television. A film has no
-episode controls. With nothing playing it shows "Nothing playing" and Continue watching, each card Watch
+episode controls. Subtitles, Audio (only a film with more than one audio track) and Quality follow, each the
+player's own menu aimed at the television (below). With nothing playing it shows "Nothing playing" and Continue watching, each card Watch
 on TV. The still takes the player's touch handling (`player/Gestures.jsx` with `levels: false`): a tap in
 the middle plays or pauses, a double tap at a side skips, a sweep sideways scrubs and the room moves on
 release, vertical sweeps do nothing; a gesture the television took vibrates the phone where
 `navigator.vibrate` exists. Skip intro stands on the still when the player would offer it
 (`player/stretches.js`). `remoteFilm.js` reads what the television holds (manifest, the episodes either
 side, the preview sheet) for the drawer.
+
+The television's own settings are the API's, never the room's: the subtitle track, how subtitles look,
+the audio track and quality. The remote's Subtitles, Audio and Quality buttons open the player's own menus
+(`Menu` with `aimedAt`: the television's name in the head and a back arrow to the remote; Style is the
+subtitle menu's editor, its back arrow returning to the subtitle list), and what they read and write is
+the person's record, not the television's report (`src/remoteMenus.js`, `src/remoteSettings.js`). The
+labels and the checked rows are `/api/me/preferences` and `/api/me/tracks/<film>`, read when the remote
+connects and when the television's film changes and kept current by `PreferencesChanged` and
+`TracksChanged` on the remote's connection; where the person chose no track for the film, they are what
+the film starts on (`startingTracks`, the player's own rule), so the phone never names a track the
+television is not on. Quality reads "Auto" or the fixed height: the height playing is a measurement
+only the television's player has, and is never shown. A choice shows at once and is written through the
+API, which refuses what the film does not have and pushes the change to the person's connections; a
+refusal is said in a toast and the record read again. A style change is sent once the choosing pauses
+(250 ms) with the whole stored style. The television's player applies a push for the film it holds
+(`engine/room.ts`, below), the television's own menus write the same record, and the phone's labels
+follow. Nothing here is in the room's state or roster.
 
 A television draws a phone glyph beside who is watching while it is paused and a remote drives it
 (`tv/screen.js` hears `RemotesChanged`; the room's roster is untouched).

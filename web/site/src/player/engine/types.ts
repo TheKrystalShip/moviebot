@@ -410,6 +410,25 @@ export interface ViewerPreferences {
   subtitleStyle?: SubtitleStyle | null;
 }
 
+/**
+ * The tracks a person watches one title with, kept by the API and the same on every device. A subtitle
+ * is a track id, `subtitleOff` is a chosen "no subtitles", and neither is no choice, so the film starts
+ * on the person's languages. Likewise the audio track.
+ */
+export interface FilmTracks {
+  titleId: string;
+  subtitleId?: string | null;
+  subtitleOff?: boolean;
+  audioId?: string | null;
+}
+
+/** What a request to change a film's tracks names: what it leaves out is kept. */
+export interface TrackChoice {
+  subtitleId?: string;
+  subtitleOff?: boolean;
+  audioId?: string;
+}
+
 /** A person's subtitle look. The API keeps each field in range; `subtitleStyle.js` holds the defaults. */
 export interface SubtitleStyle {
   /** Percent of the player's own size, 50 to 200. */

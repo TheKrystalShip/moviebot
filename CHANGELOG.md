@@ -4,6 +4,45 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.24.0] - 2026-10-11
+
+### Added
+
+- **The phone's remote changes the television's own settings.** Subtitles, Audio (only for a film with more
+  than one audio track) and Quality join the control row, each the player's own menu aimed at the television
+  with a back arrow to the remote; Style opens the subtitle style editor, whose back arrow returns to the
+  subtitle list. The labels and the checked rows read the person's records from the API and are kept current
+  by a push, and where the person chose nothing for the film they show what the film starts on. Quality reads
+  "Auto" or the fixed height, never the height playing. While style changes keep arriving the television
+  shows its sample line and lets it lapse four seconds after the last. Site 0.73.0.
+- **The subtitle and audio track are kept per person and film by the API**, the same on every device:
+  `GET` and `PUT /api/me/tracks/{titleId}` (`FilmTracks`), in the new table `viewer_tracks`. The player
+  writes them there and reads them when a film starts, so a track chosen on the phone, the television or
+  the site is the one every device plays, and a film nobody chose tracks for starts on the person's
+  languages. A guest, who has no account, and a film saved on a device played alone with no connection keep
+  theirs in the browser.
+- **A change to how a person watches is pushed to their connections** (`PreferencesChanged`,
+  `TracksChanged`, to every connection of the person's with an account, never to the room): a playing player
+  follows a track, a quality or a style chosen on another device, and a phone's open remote follows the
+  television's own menus. The room's state and roster are untouched. Measured in `npm run verify:tv`.
+
+### Changed
+
+- **The API refuses what the film or the ranges do not have.** A track the title's manifest does not list
+  (a subtitle that can be shown, an audio track) is a `400`; so is a quality that is neither Auto nor a height
+  from 1 to 4320 and a subtitle style outside the ranges it keeps (`size` 50 to 200, `font` and `edge` among
+  their sets, colours as `#rrggbb`, `backgroundOpacity` 0 to 1, `position` 0 to 30), which were bent into
+  range before and are refused now. The player's own setters check what arrives the same way: an unknown
+  subtitle id no longer turns the subtitles off and is no longer kept as the film's choice, and an unknown
+  audio id is not kept.
+
+### Upgrading
+
+- The database gains the table `viewer_tracks`, declared with the others in `Data/Schema` and not added to a
+  database that already exists: create it with the statement there before starting this version on one.
+- Track choices made before this version, which each device kept for itself, are not carried over: a film
+  starts on the person's languages until a track is chosen for it again.
+
 ## [3.23.3] - 2026-10-11
 
 ### Fixed

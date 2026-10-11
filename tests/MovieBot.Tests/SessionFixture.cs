@@ -52,6 +52,9 @@ public class SessionFixture : WebApplicationFactory<Program>
     public const string Heat = "heat-1995";
     public const string Collateral = "collateral-2004";
 
+    /// <summary>A finished film with two audio tracks, two subtitle tracks that can be shown and one that cannot.</summary>
+    public const string Dubbed = "dubbed-1999";
+
     public SessionFixture()
     {
         WriteManifest(MediaRoot, TranscodingTitle, TitleStatus.Transcoding, TranscodingHead);
@@ -60,6 +63,9 @@ public class SessionFixture : WebApplicationFactory<Program>
             new FilmIdentity { ImdbId = "tt0113277", Name = "Heat", Year = 1995, Starring = "Al Pacino, Robert De Niro" });
         WriteManifest(MediaRoot, Collateral, TitleStatus.Ready, null,
             new FilmIdentity { ImdbId = "tt0369339", Name = "Collateral", Year = 2004, Starring = "Tom Cruise, Jamie Foxx" });
+
+        WriteManifest(MediaRoot, Dubbed, TitleStatus.Ready, null,
+            new FilmIdentity { ImdbId = "tt0133093", Name = "Dubbed", Year = 1999 }, tracks: true);
 
         Directory.CreateDirectory(ColdRoot);
         File.WriteAllText(Path.Combine(ColdRoot, MediaRoots.ColdMarker), "");
@@ -208,7 +214,7 @@ public class SessionFixture : WebApplicationFactory<Program>
     }
 
     private static void WriteManifest(string root, string id, TitleStatus status, double? head, FilmIdentity? film = null,
-        EpisodeIdentity? episode = null)
+        EpisodeIdentity? episode = null, bool tracks = false)
     {
         var manifest = new Manifest
         {
@@ -234,9 +240,31 @@ public class SessionFixture : WebApplicationFactory<Program>
                 {
                     Id = "a0", Kind = TrackKind.Feature, Language = "eng",
                     Label = "English", Channels = 2, Default = true, Uri = "a0/index.m3u8"
-                }
+                },
+                .. tracks
+                    ? [new AudioTrack { Id = "a1", Kind = TrackKind.Feature, Language = "spa", Label = "Spanish", Channels = 6, Uri = "a1/index.m3u8" }]
+                    : Array.Empty<AudioTrack>(),
             ],
-            Subtitles = []
+            Subtitles = tracks
+                ?
+                [
+                    new SubtitleTrack
+                    {
+                        Id = "s0", Kind = TrackKind.Feature, Language = "eng", Label = "English", Source = SubtitleSource.EmbeddedText,
+                        Available = true, Uri = "s0.vtt"
+                    },
+                    new SubtitleTrack
+                    {
+                        Id = "s1", Kind = TrackKind.Feature, Language = "spa", Label = "Spanish", Source = SubtitleSource.EmbeddedText,
+                        Available = true, Uri = "s1.vtt"
+                    },
+                    new SubtitleTrack
+                    {
+                        Id = "s2", Kind = TrackKind.Feature, Language = "jpn", Label = "Japanese", Source = SubtitleSource.EmbeddedText,
+                        Available = false, Reason = "needs-ocr"
+                    },
+                ]
+                : []
         };
 
         ManifestJson.WriteAtomic(Path.Combine(root, id, "manifest.json"), manifest);

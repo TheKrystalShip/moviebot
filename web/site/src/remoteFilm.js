@@ -12,6 +12,7 @@
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
 import { api } from "./api.js";
 import { currentRemoteRoom, subscribeRemoteRoom } from "./remoteRoom.js";
+import { followFilm } from "./remoteSettings.js";
 import { freshToken } from "./session.js";
 
 const nothing = { titleId: null, sessionId: null, manifest: null, around: null, thumbnails: null };
@@ -76,6 +77,17 @@ async function read(titleId, sessionId) {
   }
 }
 
+/**
+ * Reads the held film's manifest again, for what it gained since: a subtitle track fetched from outside
+ * lands beside the manifest, and the lists the remote offers come from here. Only the manifest is replaced.
+ */
+export async function refreshRemoteFilm() {
+  const { titleId } = filmStore.getState();
+  if (!titleId) return;
+  const manifest = await api.title(titleId);
+  if (filmStore.getState().titleId === titleId) filmStore.setState({ manifest });
+}
+
 let lastHeld = null;
 
 function follow() {
@@ -85,6 +97,7 @@ function follow() {
   if (held === lastHeld) return;
   lastHeld = held;
   reading += 1;
+  followFilm(titleId);
   if (!titleId) {
     release();
     filmStore.setState(nothing);
