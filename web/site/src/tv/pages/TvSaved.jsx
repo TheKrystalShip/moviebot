@@ -1,8 +1,8 @@
 import React from "react";
-import { Icon, TvCard, TvRow } from "@thekrystalship/krystal-ui";
+import { Button, EmptyState, Icon, TvCard, TvRow } from "@thekrystalship/krystal-ui";
 import { api } from "../../api.js";
 import { useLoad } from "../../data.js";
-import { discoverFilmPath, listPath, moviePath, showPath } from "../../paths.js";
+import { discoverFilmPath, discoverPath, listPath, moviePath, showPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { ago, clock } from "../../time.js";
 import { SORTED, useSort } from "../../sorts.js";
@@ -29,6 +29,16 @@ function EntryLine({ entry: e }) {
   );
 }
 
+/** What a page of saved titles holds when it holds none: Discover, focused, for the remote to land on. */
+function Nothing() {
+  return (
+    <div className="kc-tvsv__empty">
+      <EmptyState icon="bookmark" title="Nothing saved yet"
+        actions={<Button variant="primary" size="lg" icon="compass" data-tv-initial="" {...linkProps(discoverPath())}>Discover</Button>} />
+    </div>
+  );
+}
+
 /**
  * Saved on a television: the person's Watch later as a row, with the focused title named under it,
  * then every other list they can see as a card. Lists are made and changed on the other surfaces.
@@ -41,6 +51,10 @@ export function TvSaved() {
   if (lists.error && !lists.data) return <div className="kc-tv-page kc-tv-pad"><Failed error={lists.error} onRetry={lists.reload} /></div>;
   const entries = (later.data && later.data.entries) || [];
   const others = (lists.data || []).filter((l) => !l.watchLater);
+
+  if (lists.data && others.length === 0 && lists.data.every((l) => l.count === 0)) {
+    return <div className="kc-tv-page kc-tvsv kc-tvsv--none"><Nothing /></div>;
+  }
 
   return (
     <div className="kc-tv-page kc-tvsv">
@@ -84,11 +98,12 @@ export function TvList({ id }) {
   const order = LIST_SORTS.find((s) => s.value === sort.key) || LIST_SORTS[0];
   const entries = [...l.entries].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
   return (
-    <div className="kc-tv-page kc-tvsv kc-tvsv--list">
+    <div className={"kc-tv-page kc-tvsv kc-tvsv--list" + (entries.length === 0 ? " kc-tvsv--none" : "")}>
       <div className="kc-tvsv__head">
         <h1 className="tv-spot__title">{l.name}</h1>
         <span className="kc-tvsv__facts">{titles(entries.length)}</span>
       </div>
+      {entries.length === 0 && <Nothing />}
       <div className="kc-tvsv__grid">
         {entries.map((e) => (
           <TvCard key={e.imdbId} art={e.posterUrl} label={e.title} {...linkProps(entryHref(e))} />

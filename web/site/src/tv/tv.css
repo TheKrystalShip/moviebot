@@ -164,6 +164,9 @@
 /* ── Saved ── */
 
 .kc-tvsv { padding: 84px 0 160px; display: flex; flex-direction: column; gap: 6px; }
+/* Nothing to show: the empty state centred in the page under the bar, inside the margins a television may crop. */
+.kc-tvsv--none { box-sizing: border-box; min-height: 100vh; padding-bottom: var(--tv-margin-y); }
+.kc-tvsv__empty { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 var(--tv-margin-x); }
 .kc-tvsv__line { min-height: 44px; padding: 0 var(--tv-margin-x); display: flex; align-items: baseline; gap: 12px; }
 .kc-tvsv__name { font-size: var(--text-md); font-weight: var(--w-semibold); color: var(--fg-1); }
 .kc-tvsv__facts { font-size: var(--text-sm); color: var(--fg-2); }

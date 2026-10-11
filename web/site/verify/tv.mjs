@@ -2,13 +2,15 @@
 // walked with the arrow keys from where focus starts, against the scratch site verify/mobile/scratch.sh
 // serves (staged first, by its run or `node verify/mobile/run.mjs`; an unstaged site stops this run).
 //
-//   node verify/tv.mjs [--checks pages,overlays,back,player,signin] [--pages home,title] [--out dir]
+//   node verify/tv.mjs [--checks pages,empty,overlays,back,player,signin] [--pages home,title] [--out dir]
 //
 // Each page is checked for:
 // - focus starting on a control when it opens, and on screen;
 // - every control on it reached from there with arrows alone (Menu into a card's own controls and
 //   Back out of them counted too), and each one on screen when it is reached;
 // - focus never falling to nothing after a key.
+// Then Saved and a list with nothing on them, for a person with nothing saved: the empty state's one
+// Discover button focused, the page centred inside the margins, Up and Back reaching the bar from it.
 // Then what the keys do: an overlay taking focus when it opens and handing it back when it closes,
 // Back going back a page to the control it was left on, Back on Home going to the bar and then
 // being left to the app, and the player: the play button focused, OK playing, presses gathered into
@@ -29,7 +31,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
-import { VIEWER, memberToken } from "./mobile/stage.mjs";
+import { PEOPLE, VIEWER, memberToken } from "./mobile/stage.mjs";
 import { TV_CLIENT, issuerIn } from "./issuer.mjs";
 
 const args = process.argv.slice(2);
@@ -114,9 +116,9 @@ const pass = (what) => console.log(`  ✓ ${what}`);
 
 const browser = await chromium.launch({ executablePath: chromePath(), args: ["--autoplay-policy=no-user-gesture-required"] });
 
-async function open(path) {
+async function open(path, person = VIEWER) {
   const context = await browser.newContext({ viewport: Viewport, reducedMotion: "reduce" });
-  await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), issuer.planted(VIEWER, { hours: 6, client: TV_CLIENT }));
+  await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), issuer.planted(person, { hours: 6, client: TV_CLIENT }));
   const page = await context.newPage();
   page.on("pageerror", (e) => failures.push(`${path}: page error ${e.message}`));
   await page.goto(base + path + (path.includes("?") ? "&" : "?") + "tv=1", { waitUntil: "load" });
@@ -601,9 +603,78 @@ async function signIn() {
   }
 }
 
-const checks = option("checks", "pages,overlays,back,player,signin").split(",");
+/**
+ * Saved and a list with nothing on them, as a person with nothing saved sees them: Discover is the one
+ * control, it holds focus when the page opens, and Up and Back reach the bar from it.
+ */
+async function empties() {
+  // The first has nothing at all; the second owns a list with nothing in it, and so has a Saved page of its own.
+  const nobody = PEOPLE.empty;
+  const mine = await fetch(base + "/api/lists", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${issuer.mint(PEOPLE.lister)}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Nothing yet" }),
+  }).then((r) => r.json());
+  for (const [name, path, person] of [["empty-saved", "/saved", nobody], ["empty-later", "/saved/later", nobody], ["empty-list", "/saved/" + mine.list.id, PEOPLE.lister]]) {
+    console.log(`${name} (${path})`);
+    const { page, close } = await open(path, person);
+    try {
+      await page.screenshot({ path: join(out, `${name}.png`) });
+      const start = await page.evaluate(focused);
+      const shape = await page.evaluate(() => {
+        const main = document.querySelector("main");
+        const box = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
+        const empty = main.querySelector(".k-empty");
+        const button = main.querySelector(".k-empty__actions a, .k-empty__actions button");
+        return {
+          title: empty && empty.querySelector(".k-empty__title") && empty.querySelector(".k-empty__title").textContent,
+          prose: empty ? empty.querySelectorAll(".k-empty__body, p").length : 0,
+          controls: main.querySelectorAll("a[href], button").length,
+          box: empty && box(empty),
+          button: button && button.textContent.trim(),
+          inMain: Boolean(button && document.activeElement === button),
+        };
+      });
+      if (!shape.title) { fail(name, "the page draws no empty state"); continue; }
+      if (shape.title !== "Nothing saved yet") fail(name, `the title reads "${shape.title}"`);
+      if (shape.prose > 0) fail(name, "the empty state carries prose under its title");
+      if (shape.controls !== 1 || shape.button !== "Discover") fail(name, `the page holds ${shape.controls} control(s), the button reading "${shape.button}"; wanted Discover alone`);
+      if (!start || !shape.inMain) { fail(name, `focus starts on "${start && start.name}", not on Discover`); continue; }
+      const margin = { x: 48, y: 27 };
+      const b = shape.box;
+      if (b.left < margin.x || b.right > Viewport.width - margin.x || b.bottom > Viewport.height - margin.y) fail(name, "the empty state leaves the television's safe margins");
+      const centre = (b.left + b.right) / 2;
+      if (Math.abs(centre - Viewport.width / 2) > 2) fail(name, `the empty state is centred at ${Math.round(centre)}, not ${Viewport.width / 2}`);
+      const pill = await page.evaluate(() => getComputedStyle(document.activeElement).backgroundColor);
+      if (!/^rgb\(2[45]\d, 2[45]\d, 2[45]\d\)$|^rgb\(255, 255, 255\)$/.test(pill)) fail(name, `the focused Discover is ${pill}, not a light pill`);
+      await page.screenshot({ path: join(out, `${name}-focused.png`) });
+      await page.keyboard.press("ArrowUp");
+      await page.waitForTimeout(KeyMs);
+      const up = await page.evaluate(() => Boolean(document.activeElement && document.activeElement.closest("nav")));
+      await page.keyboard.press("ArrowDown");
+      await page.waitForTimeout(KeyMs);
+      const down = await page.evaluate(() => document.activeElement && document.activeElement.textContent.trim());
+      const used = await page.evaluate(() => window.krystalTv.back());
+      await page.waitForTimeout(KeyMs);
+      const back = await page.evaluate(() => Boolean(document.activeElement && document.activeElement.closest("nav")));
+      if (!up) fail(name, "Up from Discover did not reach the bar");
+      if (down !== "Discover") fail(name, `Down from the bar landed on "${down}", not Discover`);
+      if (!used || !back) fail(name, "Back from Discover did not move focus to the bar");
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(1500);
+      if (!new URL(page.url()).pathname.startsWith("/discover")) fail(name, `OK on Discover opened ${page.url()}`);
+      else pass("empty state: Discover focused and led to; Up and Back reach the bar");
+    } finally {
+      await close();
+    }
+  }
+}
+
+const checks = option("checks", "pages,empty,overlays,back,player,signin").split(",");
 try {
   if (checks.includes("pages")) for (const p of PAGES) if (!pageNames || pageNames.includes(p.name)) await walk(p);
+  if (checks.includes("empty")) await empties();
   if (checks.includes("overlays")) {
     await overlay("save", "/movies/" + encodeURIComponent(films[0].id), ".kc-follow .k-btn");
     await overlay("notifications", "/", '.tv-bar__button[aria-haspopup="dialog"]');

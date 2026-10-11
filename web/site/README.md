@@ -327,7 +327,9 @@ phone. How to run it, what it measures and how to add a page or a phone: `verify
 
 `npm run verify:tv` opens every page in TV mode at a Fire TV's 960×540 against the same scratch site,
 and walks it with the arrow keys from where focus starts: every control on it has to be reached, each
-on screen when it is, and focus never left on nothing. Then an overlay taking focus when OK opens it
+on screen when it is, and focus never left on nothing. Then Saved and a list with nothing on
+them, for people made for the purpose: the empty state's Discover focused, and Up and Back reaching the
+bar from it. Then an overlay taking focus when OK opens it
 and handing it back on Back (Save's lists and the bell's), Back going back a page to the control it
 was left on, Back on Home going to the bar and then being the app's, and
 the player: play focused, OK playing, presses gathered into one skip, slower presses skipping from the
@@ -497,7 +499,9 @@ in a WebView, driven by the remote. `src/tv/` is all of it that is the site's ow
   Focus lifts what it is on: a card grows, rises and takes a hairline and the accent's light while
   the cards around it dim, and a button or a place in the bar turns into a light pill. Nothing says
   whether the server holds a title: a film is watched the same way either way. Profile keeps its
-  sections down the left and the open one on the right, About among them at its own address. The player is the
+  sections down the left and the open one on the right, About among them at its own address. Saved
+  with nothing saved and a list with no titles show krystal-ui's `EmptyState`, "Nothing saved yet" over a
+  Discover button, which takes initial focus (`data-tv-initial`) so a remote has somewhere to land. The player is the
   site's own, with its menus as a panel down the right and its subtitles sized for the distance.
 - **Moving focus** (`src/tv/navigator.js`): every arrow key is taken and focus moves to the nearest
   control that way on screen, from the focused element's rectangle, with the rules the module

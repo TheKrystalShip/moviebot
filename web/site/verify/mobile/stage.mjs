@@ -17,7 +17,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export const VIEWER = { id: "verify-viewer", name: "Phone Check" };
 /** People a view may act as instead of the viewer, by the name views.mjs gives them. */
-export const PEOPLE = { viewer: VIEWER, player: { id: "verify-player", name: "Player Check" } };
+export const PEOPLE = { viewer: VIEWER, player: { id: "verify-player", name: "Player Check" }, empty: { id: "verify-empty", name: "Empty Check" }, lister: { id: "verify-lister", name: "Lister Check" } };
 const OTHERS = [{ id: "verify-ana", name: "Ana" }, { id: "verify-ben", name: "Ben" }];
 
 /** A person's access token, minted by the scratch site's identity provider: what signing in on the site holds. */

@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.17.1] - 2026-10-11
+
+### Fixed
+
+- **An empty Saved, or an empty list, on a television is no longer a blank page.** An account with
+  nothing saved, and a list with no titles, show the empty state the phone's list page uses, "Nothing
+  saved yet" over a Discover button, centred under the bar. Discover takes initial focus, so the first
+  key press lands on the page, and Up and Back still reach the bar from it. `npm run verify:tv` checks
+  the three pages with people who have nothing saved. Site 0.67.1.
+
 ## [3.17.0] - 2026-10-11
 
 ### Added
