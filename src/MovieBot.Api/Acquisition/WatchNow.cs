@@ -411,32 +411,37 @@ public sealed class WatchNowLoader(
         var imdbId = download.Tags.Select(TorrentTags.ReadImdb).FirstOrDefault(i => i is not null) ?? current?.ImdbId ?? "";
 
         // A room holds one thing. A room that has been given something else since it asked for this
-        // is no longer waiting on it, so the download stops naming it.
+        // is no longer waiting on it, so the download stops naming it. An episode the room moved
+        // past is said so, for the hand-off to let go of; a room left holding nothing was not moved
+        // past anything, and whoever left it may come back to the same press.
         var item = new RoomPreparing
         {
             ImdbId = imdbId, Season = watch.Episode?.Season, Episode = watch.Episode?.Episode, Name = "", Stage = "",
         };
         if (!item.SameItem(current))
         {
+            if (watch.Episode is { } passed && (current is not null || sessions.GetOrCreate(room).TitleId is not null))
+                await acquisition.TagAsync(download.Hash, TorrentTags.Passed(passed), ct);
             await acquisition.ClearTagAsync(download.Hash, tag, ct);
             return;
         }
         var name = current!.Name;
 
-        if (download.Tags.Contains(TorrentTags.IngestFailed))
+        // A film is ready when the hand-off marks its torrent; an episode when its own title can
+        // play, since its season's torrent may have been marked for another episode long before.
+        // Asked before the torrent's failure, which is about the torrent and not the episode.
+        var libraryId = watch.Episode is { } episode
+            ? WatchNow.PlayableEpisode(library, imdbId, episode)
+            : download.Tags.Contains(TorrentTags.Watchable)
+                ? download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null)
+                : null;
+        if (libraryId is null && download.Tags.Contains(TorrentTags.IngestFailed))
         {
             await PrepareAsync(room, current with { Stage = PreparingStages.Failed, Problem = "notWatchable", Progress = null }, ct);
             await acquisition.ClearTagAsync(download.Hash, tag, ct);
             return;
         }
 
-        // A film is ready when the hand-off marks its torrent; an episode when its own title can
-        // play, since its season's torrent may have been marked for another episode long before.
-        var libraryId = watch.Episode is { } episode
-            ? WatchNow.PlayableEpisode(library, imdbId, episode)
-            : download.Tags.Contains(TorrentTags.Watchable)
-                ? download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null)
-                : null;
         if (libraryId is not null && library.Get(libraryId) is not null)
         {
             var requester = download.Tags.Select(TorrentTags.ReadRequester).FirstOrDefault(r => r is not null);

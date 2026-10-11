@@ -132,7 +132,9 @@ and does nothing that would be.
   closing stretch — the last chapter when that is the credits, else the last two minutes — next is
   offered over the film. Each sends intent (`Next`, `Previous`) and the server puts the episode on, or
   fetches it into the room at the quality of the one playing for somebody who may download; a
-  refusal is said over the film.
+  refusal is said over the film. **One episode is asked for at a time** (`view.stepping`): from a
+  press of Next, Previous or an episode in the menu, the buttons offer no second press until the
+  room's state moves on or the step is refused, since each press of one fetches what is not here.
 - **Skipping an intro or a recap is a button over the film, and it moves the room.** The manifest's
   `markers` name the stretches, and while the playhead is inside one the button asks the room to seek
   to its end, as the scrub bar does, so everyone skips together. It is offered only when playback

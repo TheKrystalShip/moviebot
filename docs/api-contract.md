@@ -788,7 +788,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `Knock` | `(sessionId) → bool` | asks to be let into a room private to this viewer. `true` is no need to ask, so `Join` now; otherwise the room is told who is asking and this connection is answered with `KnockAnswered`. The asking ends with the connection |
 | `SetOpen` | `(open: bool)` | opens the room to anybody holding `cinema:watch`, or closes it to anybody not already let in |
 | `Answer` | `(userId, admit: bool)` | lets somebody asking in, or tells them they are not |
-| `Next` | `()` | the episode after what the room holds, put on, or fetched into the room at the quality of the one playing for somebody holding `cinema:download`; a `HubException` when there is none to put on |
+| `Next` | `()` | the episode after what the room holds, put on, or fetched into the room at the quality of the one playing for somebody holding `cinema:download`; a `HubException` when there is none to put on. One step is taken in a room at a time: a `Next`, `Previous` or `PlayEpisode` that arrives while another is being taken is dropped, and answers as done |
 | `Previous` | `()` | the episode before, the same way |
 | `PlayEpisode` | `(season, number)` | an episode of the show the room holds, the same way |
 | `LoadTitle` | `(titleId, startSeconds: double?) → SessionStatePush` | from `startSeconds`, held to the transcode head, or from 0 when null; a playing room keeps playing, a paused one stays paused. Both arguments are always sent, null for no start |

@@ -4,6 +4,32 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.18.0] - 2026-10-11
+
+### Changed
+
+- **An episode a room moves past stops downloading when only that room asked for it.** Every pick of
+  a show's episode says on its torrent why it is fetched: the room waiting on it, or `keep:` for a
+  follow, a device, the next episode fetched ahead or a download asked for outright. A room that
+  moves on from an episode still arriving leaves `passed:` on the torrent, and the hand-off switches
+  the file off unless another room waits on it, something kept it, or its transcode has begun. The
+  episode asked for most recently is the one the torrent client fetches first.
+- **Next, Previous and an episode picked from the menu take one step at a time.** The player offers
+  no second press until the room has moved or the step was refused, and the server drops a step that
+  arrives while another is being taken in the same room. Site 0.67.2.
+
+### Fixed
+
+- **An episode is started once the beginning of its file has arrived**, measured from the file's
+  first byte, rather than once a share of it has arrived anywhere in it; the container's header is at
+  the start, and waiting for it ran out on episodes whose share had arrived elsewhere.
+- **A failure while an episode's file was still arriving is not final.** The episode is tried once
+  more when its file is whole, and the torrent is not marked failed while any episode waits for that.
+- **A torrent marked failed is tried again when somebody asks again.** Asking withdraws
+  `ingest-failed` and the hand-off forgets that torrent's failures, where before the verdict stood
+  until the hand-off restarted; and a room waiting on an episode that can play is loaded whatever the
+  torrent says.
+
 ## [3.17.1] - 2026-10-11
 
 ### Fixed

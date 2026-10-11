@@ -38,6 +38,20 @@ and this directory is where the API calls them.
 - **A room watching a show waits on one episode, not on its torrent.** A season is one torrent and
   another episode of it may be watchable long before the one pressed, so the tag names the episode
   and the room is loaded once that episode's own title can play.
+- **An episode a room moves past is let go of when only that room asked for it.** Every pick of a
+  show's episode says on the torrent why it is fetched: a room's `watch:<room>:sXXeYY`, or
+  `keep:sXXeYY` for any other reason (a follow, a device, the next episode ahead, a download asked
+  for outright), and a torrent fetched whole carries a bare `keep`. When the loader sees that a room
+  now holds something else than the episode it was waiting on, it clears the room's tag and leaves
+  `passed:sXXeYY`; the hand-off, which knows whether the episode's transcode has begun, decides
+  whether the file is switched off (`src/MovieBot.Handoff/CLAUDE.md`). A room left holding nothing
+  was not moved past anything, and leaves no `passed:`.
+- **A room's wait on an episode reads the episode before the torrent.** An episode that can play is
+  loaded whatever else the torrent says; `ingest-failed` is about the torrent, and fails a room only
+  while what it waits on cannot play.
+- **One step is taken in a room at a time** (`Sessions/RoomEpisodes`). A step that arrives while
+  another is under way is dropped: every press in a room moves the same room, and each press of an
+  episode that is not here starts a download.
 - **The next episode is fetched ahead, one and no further** (`Shows/NextEpisodes`), at the quality of
   the one being watched and out of the season's pack, so a season stays one torrent. More than one
   ahead is disk spent for a season's stay on episodes nobody may watch.

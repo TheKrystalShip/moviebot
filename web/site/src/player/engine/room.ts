@@ -97,6 +97,11 @@ export interface RoomView {
    * move the room is a no-op, and the page draws none of them.
    */
   viewOnly: boolean;
+  /**
+   * An episode was asked for and the room has not moved since: Next, Previous and the episodes
+   * offer no second press until it does, since every press of one fetches what is not here.
+   */
+  stepping: boolean;
   /** Why this guest is not watching: never let in, or sent away. Null while they are. */
   guestEnded: GuestRefusal | null;
 }
@@ -189,6 +194,7 @@ export class PlayerRoom {
       saved: false,
       artwork: null,
       viewOnly: environment().guest !== null,
+      stepping: false,
       guestEnded: null
     };
 
@@ -528,7 +534,8 @@ export class PlayerRoom {
     }
 
     this.previous = state;
-    this.set({ state, actor: describeChange(state, previous) });
+    const moved = previous === null || state.epoch !== previous.epoch || state.revision > previous.revision;
+    this.set({ state, actor: describeChange(state, previous), ...(moved ? { stepping: false } : {}) });
     void this.showPresence();
 
     // A room held for its players while this one is playing has not heard it say so, and would
@@ -717,19 +724,27 @@ export class PlayerRoom {
    * The server decides what that is and how it gets there; a refusal is said over the film.
    */
   nextEpisode(): void {
-    if (!this.view.viewOnly) this.ask(this.roomHub?.next());
+    this.step(() => this.roomHub?.next());
   }
 
   previousEpisode(): void {
-    if (!this.view.viewOnly) this.ask(this.roomHub?.previous());
+    this.step(() => this.roomHub?.previous());
   }
 
   playEpisode(season: number, number: number): void {
-    if (!this.view.viewOnly) this.ask(this.roomHub?.playEpisode(season, number));
+    this.step(() => this.roomHub?.playEpisode(season, number));
   }
 
-  private ask(asked: Promise<void> | undefined): void {
-    asked?.catch((error: unknown) => this.notice(hubMessage(error) ?? 'That episode cannot be put on.', 'error'));
+  /** One episode asked for at a time: the next waits for the room to move, or for the refusal. */
+  private step(ask: () => Promise<void> | undefined): void {
+    if (this.view.viewOnly || this.view.stepping) return;
+    const asked = ask();
+    if (asked === undefined) return;
+    this.set({ stepping: true });
+    asked.catch((error: unknown) => {
+      this.set({ stepping: false });
+      this.notice(hubMessage(error) ?? 'That episode cannot be put on.', 'error');
+    });
   }
 
   /** The press the browser was waiting for, which catches this viewer up to the room. */

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Auth;
@@ -75,7 +76,30 @@ public sealed class RoomEpisodes(
         return to is not null && await GoAsync(sessionId, current.Show, to, current.Manifest, person, ct);
     }
 
+    /// <summary>The rooms a step is being taken in, which take no other until it is done.</summary>
+    private readonly ConcurrentDictionary<string, byte> _stepping = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Takes the room to an episode, one step at a time. A step asked for while one is under way is
+    /// dropped and counts as done: every viewer's press moves the same room, and a second press
+    /// before the room has moved is somebody asking for the step already being taken, not for the
+    /// one after it. An episode stepped to that is not here is fetched, so pressing faster than the
+    /// room moves would otherwise start a download per press.
+    /// </summary>
     private async Task<bool> GoAsync(string sessionId, string show, EpisodeIdentity to, Manifest? playing, CinemaPerson person, CancellationToken ct)
+    {
+        if (!_stepping.TryAdd(sessionId, 0)) return true;
+        try
+        {
+            return await StepToAsync(sessionId, show, to, playing, person, ct);
+        }
+        finally
+        {
+            _stepping.TryRemove(sessionId, out _);
+        }
+    }
+
+    private async Task<bool> StepToAsync(string sessionId, string show, EpisodeIdentity to, Manifest? playing, CinemaPerson person, CancellationToken ct)
     {
         var wanted = new EpisodeNumber(to.Season, to.Number);
         if (WatchNow.PlayableEpisode(library, show, wanted) is { } here)

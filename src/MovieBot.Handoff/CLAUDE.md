@@ -88,14 +88,29 @@ title of its own (`<show>-s02e04`, `kind: "show"`, the episode's place in the ma
 - **What is owed is read from the library every pass, never remembered.** An episode is done when its
   title is ready, so a pass after a restart, or after more episodes are picked from the same pack,
   finds exactly what is left. The torrent's `ingest` tag clears once nothing picked is owed.
-- **Episodes go in order, each once enough of its own file has arrived**, under the same ceiling as
-  films. The download is sequential across files, so the first episode arrives first and is
-  watchable while the rest download. Each file's own completeness is what a transcode reading it
-  waits on; the torrent as a whole finishes only with its last episode.
+- **Episodes go in order, each once `StartAtProgress` of its own file has arrived from the file's
+  first byte**, under the same ceiling as films. The client fetches several picked files at once and
+  a file's pieces out of order, and lays each file down whole as zeros first, so a share of the file
+  arrived anywhere says nothing about its header; the arrived run from the start
+  (`ReadableBytesAsync`) does. The episode asked for most recently is the one the client fetches
+  first (`../moviebot-acquire/CLAUDE.md`). Each file's own completeness is what a transcode reading
+  it waits on; the torrent as a whole finishes only with its last episode.
 - **Every episode made is tagged on the torrent**, so a room holding any one of them holds the
   torrent against the tracker's clock. `watchable` goes on with the first.
-- **An episode that fails is not started again by this process**, and the torrent is marked failed
-  only when no episode of it could be made.
+- **An episode that fails on a whole file is not started again by this process; one that fails while
+  its file arrives is tried once more when the file is whole** (`EpisodeFailures`). A source still
+  arriving is not yet the file it will be. The torrent is marked failed only when no episode of it
+  could be made and none waits for its file. A torrent owed a transcode is being tried, so the sweep
+  clears `ingest-failed` from it, and one this process gave up on that is owed again was asked for
+  again: its episodes' failures are forgotten. A restart forgets them all.
+- **An episode a room moved past is let go of here** (`PassedEpisodes`), before anything is started
+  on the pass. The API leaves `passed:sXXeYY` when a room waiting on an episode moves on, and this
+  process switches the file off unless something else wants it: another room waiting on it, a
+  `keep:` for it or a bare `keep`, its transcode in flight or its title on either root, or a file
+  holding another episode too. A transcode reading a file that stops arriving is held behind it for
+  good, which is why the decision is made where the in-flight set is. A torrent whose picks did not
+  all name why (`picks-named` missing) has nothing let go of. A file already whole stays, and the tag
+  is cleared either way. A torrent with every file switched off owes nothing, and its `ingest` goes.
 - **The show is named by the id the tracker filed it under, never by a search.** A show's releases
   carry no year to tell two shows of one name apart, so an episode without an id is titled from its
   release and names no show.

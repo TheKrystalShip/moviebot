@@ -101,7 +101,27 @@ public sealed class HandoffWorker(
     private async Task SweepAsync(CancellationToken ct)
     {
         var downloads = await acquisition.ListAsync(ct);
+
+        // Before anything is started, so an episode a room moved past is not begun on this pass.
+        foreach (var download in downloads.Where(d => d.Tags.Any(t => TorrentTags.ReadPassed(t) is not null)))
+        {
+            if (ct.IsCancellationRequested) return;
+            try
+            {
+                await LetGoAsync(download, ct);
+            }
+            catch (QBittorrentException ex)
+            {
+                logger.LogWarning(ex, "Could not let go of what rooms moved past in {Name}.", download.Name);
+            }
+        }
+
         var tagged = downloads.Where(d => d.Tags.Contains(TorrentTags.NeedsIngest)).ToList();
+
+        // A torrent owed a transcode is being tried, so a verdict that none could be made is not
+        // standing: somebody asked again, or this process stopped after giving it.
+        foreach (var download in tagged.Where(d => d.Tags.Contains(TorrentTags.IngestFailed)))
+            await acquisition.ClearTagAsync(download.Hash, TorrentTags.IngestFailed, ct);
 
         // A show's torrent is many titles, one per episode, and is swept file by file.
         foreach (var download in tagged.Where(IsShow))
@@ -334,14 +354,11 @@ public sealed class HandoffWorker(
     private static bool IsShow(DownloadStatus download) =>
         ReleaseParser.ParseName(download.Name).IsEpisodic;
 
-    /// <summary>
-    /// Episodes whose ingest failed, by download and file, so a pass does not start them again
-    /// every half minute. Held only for this process's life: a restart tries each once more.
-    /// </summary>
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _failedEpisodes = new();
+    /// <summary>The episodes this process could not make, and the torrents it gave up on.</summary>
+    private readonly EpisodeFailures _failures = new();
 
     private static string EpisodeKey(DownloadStatus download, EpisodeFile file) =>
-        $"{download.Hash}/{file.Path}";
+        EpisodeFailures.Key(download.Hash, file.Path);
 
     /// <summary>
     /// Starts the picked episodes of a show's torrent that are not in the library yet, in episode
@@ -354,10 +371,22 @@ public sealed class HandoffWorker(
     /// </summary>
     private async Task SweepShowAsync(DownloadStatus download, CancellationToken ct)
     {
-        var picked = (await acquisition.FilesAsync(download.Hash, ct)).Where(f => f.Priority > 0).ToList();
+        _failures.Owed(download.Hash);
+
+        var files = await acquisition.FilesAsync(download.Hash, ct);
 
         // A torrent whose files the client has not listed yet has nothing to say about them.
-        if (picked.Count == 0) return;
+        if (files.Count == 0) return;
+
+        // Every file switched off, by rooms that moved past what they asked for: nothing of it is
+        // owed, and a torrent owing a transcode is one retention leaves alone.
+        var picked = files.Where(f => f.Priority > 0).ToList();
+        if (picked.Count == 0)
+        {
+            await acquisition.ClearTagAsync(download.Hash, TorrentTags.NeedsIngest, ct);
+            logger.LogInformation("Nothing of {Name} is fetched any more, so nothing of it is owed.", download.Name);
+            return;
+        }
 
         var arrived = picked.ToDictionary(f => f.Name, f => f.Progress, StringComparer.Ordinal);
         var episodes = EpisodeFiles.Map(
@@ -365,8 +394,12 @@ public sealed class HandoffWorker(
 
         var owed = episodes
             .Where(e => !IsReady(LibraryId.ForEpisode(download.Name, e.Episode)))
-            .Where(e => !_failedEpisodes.ContainsKey(EpisodeKey(download, e)))
+            .Where(e => _failures.MayStart(download.Hash, e.Path, arrived.GetValueOrDefault(e.Path)))
             .ToList();
+
+        // An episode waiting for its file to be whole before it is tried again is still owed.
+        if (owed.Count == 0 && episodes.Any(e => _failures.Waiting(download.Hash, e.Path, arrived.GetValueOrDefault(e.Path))))
+            return;
 
         if (owed.Count == 0)
         {
@@ -380,6 +413,7 @@ public sealed class HandoffWorker(
             {
                 logger.LogError("No episode of {Name} could be made watchable.", download.Name);
                 await FailAsync(download, ct);
+                _failures.GaveUp(download.Hash);
             }
 
             return;
@@ -401,6 +435,17 @@ public sealed class HandoffWorker(
                     "{Episode} of {Name} waits: {Running} already transcoding.",
                     episode.Episode, download.Name, _inFlight.Count);
                 return;
+            }
+
+            // What has arrived of a file still arriving need not be its beginning: the client
+            // fetches several files at once and a file's pieces out of order, and the client lays
+            // the whole file down as zeros at the start. The same share of it is asked for again,
+            // counted from its first byte, which is where the container's header is.
+            if (progress < 1)
+            {
+                var source = Path.Combine(Path.GetDirectoryName(download.ContentPath) ?? "", episode.Path);
+                var readable = await acquisition.ReadableBytesAsync(download.Hash, source, ct);
+                if (readable < (long)(_options.StartAtProgress * episode.Size)) continue;
             }
 
             if (!_inFlight.TryAdd(key, 0)) continue;
@@ -431,7 +476,7 @@ public sealed class HandoffWorker(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Could not size {Episode} of {Name} for placement.", file.Episode, download.Name);
-            _failedEpisodes.TryAdd(key, 0);
+            _failures.Failed(download.Hash, file.Path, whole);
             return;
         }
 
@@ -444,6 +489,32 @@ public sealed class HandoffWorker(
         finally
         {
             transcodes.Release(key);
+        }
+    }
+
+    /// <summary>
+    /// Switches off the file of each episode a room moved past that nothing else wants
+    /// (<see cref="PassedEpisodes"/>), and clears each note either way. A file already whole stays
+    /// as it is.
+    /// </summary>
+    private async Task LetGoAsync(DownloadStatus download, CancellationToken ct)
+    {
+        var passed = download.Tags.Select(TorrentTags.ReadPassed).Where(e => e is not null).Select(e => e!.Value).Distinct().ToList();
+        var files = await acquisition.FilesAsync(download.Hash, ct);
+        var episodes = EpisodeFiles.Map(files.Select(f => (f.Name, f.Size)), ReleaseParser.ParseName(download.Name).Episodic);
+
+        foreach (var episode in passed)
+        {
+            var file = episodes.FirstOrDefault(e => e.Episodes.Contains(episode));
+            var started = file is not null && _inFlight.ContainsKey(EpisodeKey(download, file))
+                          || roots.DirectoryOf(LibraryId.ForEpisode(download.Name, episode)) is not null;
+
+            if (PassedEpisodes.LetGo(download.Tags, episode, file, started)
+                && await acquisition.SwitchOffAsync(download.Hash, file!.Path, ct))
+                logger.LogInformation("{Episode} of {Name} is no longer fetched: the room waiting on it moved past it.",
+                    episode, download.Name);
+
+            await acquisition.ClearTagAsync(download.Hash, TorrentTags.Passed(episode), ct);
         }
     }
 
@@ -529,7 +600,7 @@ public sealed class HandoffWorker(
         catch (Exception ex)
         {
             logger.LogError(ex, "Could not ingest {Episode} of {Name}.", file.Episode, download.Name);
-            _failedEpisodes.TryAdd(EpisodeKey(download, file), 0);
+            _failures.Failed(download.Hash, file.Path, whole);
         }
     }
 

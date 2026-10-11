@@ -697,13 +697,13 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
               )}
               {manifest.episode && !viewOnly && (
                 <>
-                  <button type="button" className="mp-icon" disabled={!(around && around.previous)}
+                  <button type="button" className="mp-icon" disabled={!(around && around.previous) || view.stepping}
                     aria-label={around && around.previous ? `Previous episode: ${episodeWords(around.previous)}` : "No previous episode here"}
                     title={around && around.previous ? `Previous episode · ${episodeWords(around.previous)}` : "No previous episode here"}
                     onClick={() => room.previousEpisode()}>
                     <Icon name="skip-back" size={19} />
                   </button>
-                  <button type="button" className="mp-icon" disabled={!next}
+                  <button type="button" className="mp-icon" disabled={!next || view.stepping}
                     aria-label={next ? `Next episode: ${episodeWords(next)}` : "No next episode here"}
                     title={next ? `Next episode · ${episodeWords(next)}` : "No next episode here"}
                     onClick={goNext}>
@@ -734,7 +734,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
         ))}
 
       {manifest && view.ready && next && !(view.state && view.state.preparing) && size !== "tiny" && inClosingStretch(manifest, clock.position) && (
-        <button type="button" className="mp-nextup" onClick={goNext}>
+        <button type="button" className="mp-nextup" disabled={view.stepping} onClick={goNext}>
           <span className="mp-nextup__label">Next episode</span>
           <span className="mp-nextup__name">{episodeWords(next)}</span>
           <Icon name="skip-forward" size={18} />

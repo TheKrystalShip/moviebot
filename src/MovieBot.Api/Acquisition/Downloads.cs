@@ -63,6 +63,12 @@ public sealed class Downloads(
             var episodes = request.Episodes is { Count: > 0 } picked
                 ? picked.Select(e => new EpisodeNumber(e.Season, e.Episode)).ToList()
                 : null;
+
+            // A picked episode no room waits on is fetched for a reason that outlasts any room: a
+            // follow, a device, the next one ahead, a download asked for outright. Each says so,
+            // so a room moving past an episode lets go of only what that room alone asked for.
+            foreach (var episode in episodes ?? [])
+                if (watchRoom is null || episode != watchEpisode) tags.Add(TorrentTags.Keep(episode));
             var result = await acquisition.StartAsync(release, episodes, tags, ct);
             if (!result.Started)
                 return new StartDownloadReply { Outcome = "refused", Refusal = result.Refusal, Release = view };

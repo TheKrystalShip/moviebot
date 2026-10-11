@@ -392,6 +392,8 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
         // The tag goes on before the files are prioritised, so the priority is waited for too.
         await Until(() => fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "E02.720p.mkv") == 7);
         Assert.Equal(0, fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "E03.720p.mkv"));
+        // The room's own pick is the room's alone.
+        Assert.DoesNotContain(TorrentTags.Keep(new EpisodeNumber(1, 2)), fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags);
         await Until(() => Room("show-night").Preparing?.Stage == PreparingStages.Downloading);
         Assert.Equal("Show S01E02", Room("show-night").Preparing!.Name);
 
@@ -430,6 +432,9 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
         sessions.LoadTitle("one-thing", SessionFixture.Heat, new Actor("6001", "Sam"));
         Assert.Null(Room("one-thing").Preparing);
         await Until(() => !fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags.Contains("watch:one-thing:s01e03"));
+
+        // The room moved past the episode, which is said for the hand-off to let go of.
+        Assert.Contains(TorrentTags.Passed(new EpisodeNumber(1, 3)), fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags);
     }
 
     [Fact]
@@ -467,6 +472,112 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
         Assert.Equal(3, (int)around!["next"]!["number"]!);
         Assert.Null(around["next"]!["titleId"]);
     }
+
+    /// <summary>
+    /// Runs <paramref name="test"/> against the show's season torrent held by the client, and puts
+    /// its files and tags back as they were afterwards, since the other tests read them too.
+    /// </summary>
+    private async Task OnTheShowTorrentAsync(Func<Task> test)
+    {
+        if (!fixture.Torrents.Held.ContainsKey(WatchNowFixture.ShowHash))
+        {
+            using var first = await Member().PostAsJsonAsync("/api/watch", new WatchNowRequest
+            {
+                ImdbId = WatchNowFixture.Show, Episodes = [new EpisodePick(1, 3)], Room = "show-held",
+            });
+            await Until(() => fixture.Torrents.Held.TryGetValue(WatchNowFixture.ShowHash, out var held)
+                && held.Tags.Contains("watch:show-held:s01e03"));
+            await Until(() => fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "E03.720p.mkv") == 7);
+        }
+
+        List<(string Path, int Priority)> files;
+        HashSet<string> tags;
+        lock (fixture.Torrents.Held)
+        {
+            files = [.. fixture.Torrents.Files[WatchNowFixture.ShowHash]];
+            tags = [.. fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags];
+        }
+        try
+        {
+            await test();
+        }
+        finally
+        {
+            lock (fixture.Torrents.Held)
+            {
+                fixture.Torrents.Files[WatchNowFixture.ShowHash] = files;
+                var held = fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags;
+                held.Clear();
+                held.UnionWith(tags);
+            }
+        }
+    }
+
+    [Fact]
+    public Task Asking_again_withdraws_the_verdict_and_puts_the_episode_asked_for_first() => OnTheShowTorrentAsync(async () =>
+    {
+        lock (fixture.Torrents.Held)
+        {
+            var files = fixture.Torrents.Files[WatchNowFixture.ShowHash];
+            for (var i = 0; i < files.Count; i++)
+                files[i] = (files[i].Path, files[i].Path.EndsWith("E01.720p.mkv", StringComparison.Ordinal) ? 7 : 0);
+        }
+        fixture.Torrents.Tag(WatchNowFixture.ShowHash, TorrentTags.IngestFailed);
+
+        using var pressed = await Member().PostAsJsonAsync("/api/watch", new WatchNowRequest
+        {
+            ImdbId = WatchNowFixture.Show, Episodes = [new EpisodePick(1, 3)], Room = "show-again",
+        });
+
+        // The hand-off is to try the torrent afresh, so the room is not told it failed first.
+        await Until(() => fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "E03.720p.mkv") == 7);
+        Assert.DoesNotContain(TorrentTags.IngestFailed, fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags);
+
+        // What was at the top and is still arriving goes back to normal: one file is wanted soonest.
+        Assert.Equal(1, fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "E01.720p.mkv"));
+        Assert.Equal(0, fixture.Torrents.PriorityOf(WatchNowFixture.ShowHash, "E02.720p.mkv"));
+    });
+
+    [Fact]
+    public Task An_episode_that_can_play_is_loaded_whatever_the_torrent_says() => OnTheShowTorrentAsync(async () =>
+    {
+        var sessions = fixture.Services.GetRequiredService<SessionStore>();
+        sessions.Enter("failed-but-here", "6001");
+        sessions.Prepare("failed-but-here", new RoomPreparing
+        {
+            ImdbId = WatchNowFixture.Show, Season = 1, Episode = 2, Name = "Show S01E02", Stage = PreparingStages.Downloading,
+        }, new Actor("6001", "Sam"));
+        fixture.AddEpisode("show-s01e02", WatchNowFixture.Show, "Show", 1, 2);
+        fixture.Torrents.Tag(WatchNowFixture.ShowHash, TorrentTags.Watch("failed-but-here", new EpisodeNumber(1, 2)), TorrentTags.IngestFailed);
+
+        await Until(() => Room("failed-but-here").TitleId == "show-s01e02");
+    });
+
+    [Fact]
+    public Task An_episode_asked_for_outright_is_kept_whoever_moves_past_it() => OnTheShowTorrentAsync(async () =>
+    {
+        // The offers are what a pick is resolved against.
+        using var offers = await Member().GetAsync($"/api/shows/{WatchNowFixture.Show}/releases");
+        offers.EnsureSuccessStatusCode();
+
+        using var started = await Member().PostAsJsonAsync("/api/downloads", new StartDownloadRequest
+        {
+            TorrentId = 71, Episodes = [new EpisodePick(1, 1)],
+        });
+        Assert.Equal("started", (await started.Content.ReadFromJsonAsync<StartDownloadReply>())!.Outcome);
+
+        Assert.Contains(TorrentTags.Keep(new EpisodeNumber(1, 1)), fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags);
+    });
+
+    [Fact]
+    public Task A_room_left_holding_nothing_moved_past_nothing() => OnTheShowTorrentAsync(async () =>
+    {
+        // The room's tag names an episode it is not waiting on, and the room holds nothing at all.
+        fixture.Torrents.Tag(WatchNowFixture.ShowHash, TorrentTags.Watch("left-empty", new EpisodeNumber(1, 1)));
+
+        await Until(() => !fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags.Contains("watch:left-empty:s01e01"));
+        Assert.DoesNotContain(TorrentTags.Passed(new EpisodeNumber(1, 1)), fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags);
+    });
 
     [Fact]
     public async Task A_room_id_that_cannot_ride_on_a_tag_is_refused()
