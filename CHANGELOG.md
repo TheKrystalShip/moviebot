@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.24.4] - 2026-10-12
+
+### Changed
+
+- **Discover on a television fetches the posters near the screen, not every tile's.** The mood, franchise
+  and category tiles take krystal-ui 0.26.0, whose `CollectionTile` loads its posters lazily. Opening
+  Discover from the bar in `npm run verify:tv-perf`'s lab fetches 80 files and 6.4 MB rather than 143 and
+  11.8 MB, and the longest frozen frame is 783 ms rather than 1850. Site 0.73.4.
+
 ## [3.24.3] - 2026-10-12
 
 ### Changed
