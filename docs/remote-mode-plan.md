@@ -142,12 +142,12 @@ Gestures, each a shortcut for a control on screen:
   plays or pauses, a double tap at either side skips, gathering further taps, and a sideways sweep
   scrubs, the room moving when the finger lifts. The vertical sweeps are off.
 - The handle drags the drawer: down collapses the remote to its head, up opens it. Dragging belongs
-  to `Drawer` itself, so every drawer on the site closes the same way. The handle takes the look of
-  the assistant dock's resize handle (krystal-ui `.assistant-dock__resize`), laid flat: a 36 by 3 px
-  pill in `--border-strong`, teal while held, starting at the drawer's outer top edge over its border
-  and reaching inward, as the dock's starts at its left edge. Its hit area is the
-  drawer's whole head, not the pill. A drawer has square corners, and its body scrolls rather than the
-  drawer, so nothing clips the pill.
+  to `Drawer` itself, so every drawer on the site closes the same way. The handle is a tab inside the
+  edge it drags by: its long side lies along the edge, its ends are cut at 45 degrees, and no part of it
+  crosses outside the panel. It is `--border-strong` at rest and teal under a pointer or while held. The
+  assistant dock's resize handle (krystal-ui `.assistant-dock__resize`) takes the same tab on the inside
+  of its left edge, so the two are one handle, standing and lying. A drawer has square corners. The tab's
+  hit area is the drawer's whole head.
 - The collapsed head swiped sideways turns remote mode off, with Undo in a toast.
 - A gesture that lands on the TV gives a short vibration where the phone allows one.
 
