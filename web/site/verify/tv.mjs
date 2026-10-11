@@ -1,6 +1,6 @@
 // Krystal Cinema driven by a remote alone: every page in TV mode at the reference television's size,
 // walked with the arrow keys from where focus starts, against the scratch site verify/mobile/scratch.sh
-// serves (staged first, by its run or `node verify/mobile/run.mjs`).
+// serves (staged first, by its run or `node verify/mobile/run.mjs`; an unstaged site stops this run).
 //
 //   node verify/tv.mjs [--checks pages,overlays,back,player,signin] [--pages home,title] [--out dir]
 //
@@ -68,6 +68,16 @@ const titles = await api("/api/titles");
 const films = titles.filter((t) => t.status === "ready" && !t.episode);
 if (films.length === 0) {
   console.error("The scratch library holds no ready film.");
+  process.exit(2);
+}
+// Saved's pages and the Save menu need what staging puts there: the first film on the viewer's Watch
+// later. Without it Saved is an empty page with nothing to focus, and a film's Save is a button that
+// saves on a press rather than a menu.
+const saved = await api("/api/me/saved");
+if (!films[0].film || !saved.includes(films[0].film.imdbId)) {
+  console.error("The scratch library is not staged: the first film is not on the viewer's Watch later. Run\n"
+    + "`node verify/mobile/run.mjs` once after scratch.sh starts, which needs scratch.sh started with\n"
+    + "MOVIEBOT_VERIFY_TMDB_TOKEN_FILE, since saving a title asks the film database about it.");
   process.exit(2);
 }
 /** A film the scratch library holds video for, which the player checks play. */

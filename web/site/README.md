@@ -339,7 +339,9 @@ does, with doors of its own where the check approves or refuses for the person, 
 token, and stops answering; the check sees the code and its QR, approval opening the page asked for,
 the session renewing on its own and surviving a restart, signing out revoking it, a refusal, an expired
 code, a provider that cannot be reached, and a session that ends under a page. `--checks` and
-`--pages` narrow a run.
+`--pages` narrow a run. The site has to be staged first (`node verify/mobile/run.mjs` does it once after
+`scratch.sh` starts, and saving a title needs `scratch.sh` started with a TMDB token); on a site not
+staged the run stops before checking anything, since Saved is then an empty page.
 
 `npm run verify:offline` runs `verify/saving.mjs` and then `verify/offline.mjs`. The first saves a
 title through its page's picker, in a signed-in Chromium reaching the scratch API through a proxy of
