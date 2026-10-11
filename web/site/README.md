@@ -208,7 +208,9 @@ approved account without `cinema:watch` sees one page saying it has no access to
 Krystal Cinema, with Sign out and the account's page. The API checks every action again.
 
 A television signs in with the device authorization grant (RFC 8628) as the device client
-`/api/config` names (`tvClientId`), and never goes to the provider. With nothing held it shows a code
+`/api/config` names (`tvClientId`), and never goes to the provider. It asks for its code with the name the
+TV's owner gave it (`device_name`, from the wrapper's `window.KrystalCinemaTV.deviceName()`), which the
+provider's approval page offers to keep or change. With nothing held it shows a code
 (`src/tv/TvSignIn.jsx`): the address to enter it at, the code itself, a QR code of the address with the
 code in it, drawn by `lean-qr`, which only a television fetches, and the time left on it. It polls the
 token endpoint at the interval it was given, five seconds longer on each `slow_down`, and a code that

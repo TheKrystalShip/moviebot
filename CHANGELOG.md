@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.16.0] - 2026-10-11
+
+### Added
+
+- **A television signs in under its own name.** The TV's code request carries the name its owner gave
+  it, which the provider's approval page offers to keep or change; the name decided travels with the
+  TV's session. Needs tks-auth 4.7.0 for the name to be used, and the TV app 1.1.0 to have one to send.
+  Site 0.66.0.
+
 ## [3.15.0] - 2026-10-11
 
 ### Added

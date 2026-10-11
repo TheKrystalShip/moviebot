@@ -74,11 +74,16 @@ Questions:
   `tv/README.md`), and the app reads it with no permission: on the Xiaomi the page gets
   `Fire TV de Cristina`. Still to read on an API 31 or later Google TV, where the Bluetooth name is
   behind `BLUETOOTH_CONNECT`, to confirm `DEVICE_NAME` is not.
-- How does Cinema learn a screen's name: a claim on the device session's access tokens, or asking the
-  anchor? A rename then reaches Cinema when?
-- Where is a screen renamed after approval: the anchor's own session list, Cinema's Profile on the TV,
-  or both through the anchor?
-- How long may a name be, and what does the anchor refuse in one?
+- Built (tks-auth 4.7.0, site 0.66.0): the site sends the name as `device_name` on
+  `/device_authorization`; the approval page offers it in a field the person may change; the name
+  decided is the device session's, and Cinema reads it as `tks_device_name` on the TV's access tokens
+  (`kgsm-docs/reference/oidc-provider.md`, `session-tokens.md`). The anchor reads it from the session at
+  every refresh, so a rename reaches Cinema with the TV's next access token. Measured end to end on the
+  Xiaomi: the approval page offered `Fire TV de Cristina`, and the TV's token carried it.
+- A name is kept cleaned (no control characters, one space for any run of white space, trimmed) and cut
+  to 64 characters a person sees; it is never refused, since a refusal would refuse the sign-in.
+- Still open: where a screen is renamed after approval. The anchor's account page lists device sessions
+  by name, which makes it the natural place; Cinema's TV Profile would ask the anchor to do it.
 
 ### Step 2: screens
 

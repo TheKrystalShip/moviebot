@@ -40,7 +40,7 @@
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
 import { ErrorResponse, User, UserManager, WebStorageStateStore } from "oidc-client-ts";
 import { isOnline, onReconnect, reached, unreached } from "./connectivity.js";
-import { onTv } from "./tv/tv.js";
+import { deviceName, onTv } from "./tv/tv.js";
 
 const PREFIX = "cinema.oidc.";
 const RETURN_KEY = "cinema:signin-return";
@@ -419,7 +419,8 @@ async function postForm(url, fields) {
 
 /**
  * Asks the provider for a code a person approves on another device: `{ deviceCode, userCode, uri,
- * uriComplete, expiresAt, interval }`, the expiry in milliseconds and the interval in seconds.
+ * uriComplete, expiresAt, interval }`, the expiry in milliseconds and the interval in seconds. The TV's
+ * own name goes with it as `device_name`, which the approval page offers to the person to keep or change.
  */
 export async function requestDeviceCode() {
   let manager;
@@ -431,7 +432,10 @@ export async function requestDeviceCode() {
     throw new DeviceSignInError("unreachable");
   }
   if (!endpoint) throw new DeviceSignInError("misconfigured", "The provider serves no device sign-in.");
-  const answer = await postForm(endpoint, { client_id: manager.settings.client_id, scope: "openid" });
+  const fields = { client_id: manager.settings.client_id, scope: "openid" };
+  const name = deviceName();
+  if (name) fields.device_name = name;
+  const answer = await postForm(endpoint, fields);
   return {
     deviceCode: answer.device_code,
     userCode: answer.user_code,

@@ -33,6 +33,20 @@ function detect() {
 export const onTv = detect();
 
 /**
+ * The name the TV's owner gave it, as the wrapper app reads it from the system's settings
+ * (`window.KrystalCinemaTV.deviceName()`, `tv/README.md`), or null: in a browser, on a wrapper too old
+ * to answer, or on a TV with no name.
+ */
+export function deviceName() {
+  try {
+    const name = window.KrystalCinemaTV && window.KrystalCinemaTV.deviceName();
+    return typeof name === "string" && name.trim() ? name.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Who answers Back and Menu. A handler answers whether it used the key, and the first that does ends
  * it: a higher `rank` first, and among equals the newest. An open overlay outranks everything
  * (`Rank.overlay`, the navigator's), a screen that holds its own state comes next (`Rank.screen`, the
