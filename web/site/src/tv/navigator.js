@@ -18,7 +18,10 @@ import { Rank, back, menu, onBack, onMenu } from "./tv.js";
  *
  * On top of the geometry:
  * - Left and Right stay on the line focus is on: a candidate that shares none of its height is not
- *   that way, so the end of a row is the end of it rather than a jump into the next;
+ *   that way, so the end of a row is the end of it rather than a jump into the next. A side column is
+ *   the exception: from one, with nothing on its line, Left or Right goes to the nearest control that
+ *   way in the page's column, so a section whose few controls sit at its top is reached from any place
+ *   in the column beside it;
  * - a candidate in the area focus is in, a side column (`aside`) or the page's column, comes before
  *   any in the other, so Down at the foot of a short page does not leave it for the side column
  *   while Left from its edge still reaches it;
@@ -116,8 +119,11 @@ function scope() {
   return document.body;
 }
 
-/** The candidate's cost in the arrow's direction from `from`, or null when it is not that way. */
-function cost(from, to, direction) {
+/**
+ * The candidate's cost in the arrow's direction from `from`, or null when it is not that way. Sideways,
+ * a candidate off the line is not that way unless `offLine`.
+ */
+function cost(from, to, direction, offLine = false) {
   const horizontal = direction === "left" || direction === "right";
   let gap;
   switch (direction) {
@@ -131,7 +137,7 @@ function cost(from, to, direction) {
     : [from.left, from.right, to.left, to.right];
   const shared = Math.min(a1, b1) - Math.max(a0, b0);
   // Sideways stays on the line: Right at the end of a row is the end of the row.
-  if (horizontal && shared < -Overlap) return null;
+  if (horizontal && shared < -Overlap && !offLine) return null;
   const aside = shared > 0 ? 0 : -shared;
   const centre = Math.abs((a0 + a1) / 2 - (b0 + b1) / 2);
   return Math.max(0, gap) + aside * AsideWeight + centre * 0.05;
@@ -268,6 +274,13 @@ function move(direction) {
   }
   const origin = rectOf(from);
   const home = areaOf(from);
+  const best = nearestThatWay(region, from, origin, home, direction, false)
+    || (direction !== "up" && direction !== "down" && home && home.tagName === "ASIDE"
+      ? nearestThatWay(region, from, origin, home, direction, true) : null);
+  if (best) focusElement(landing(best, from));
+}
+
+function nearestThatWay(region, from, origin, home, direction, offLine) {
   let best = null;
   let bestCost = Infinity;
   let bestHome = false;
@@ -277,15 +290,16 @@ function move(direction) {
     if (el === from || el.contains(from) || from.contains(el)) continue;
     const r = rectOf(el);
     if (r.width < 1 || r.height < 1) continue;
-    const c = cost(origin, r, direction);
+    const c = cost(origin, r, direction, offLine);
     if (c === null) continue;
     // Anything that way in the area focus is in comes before anything in another.
     const same = areaOf(el) === home;
+    if (offLine && same) continue;
     if (!((same && !bestHome) || (same === bestHome && c < bestCost))) continue;
     if (!usable(el) || isContainer(el) || nested(el, region) || !drawn(el)) continue;
     bestCost = c; best = el; bestHome = same;
   }
-  if (best) focusElement(landing(best, from));
+  return best;
 }
 
 /** The part of the page an element is in: the sidebar, the page's column, or whatever holds it. */

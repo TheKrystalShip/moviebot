@@ -22,7 +22,7 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// </summary>
 public sealed class SessionHub(
     SessionStore sessions, RoomControls controls, RoomDoors doors, RoomEpisodes episodes, ViewerQuality quality,
-    RoomGuests guests, ScreenPresence screens, IOptions<RoomOptions> rooms, IOptions<OidcOptions> oidc, ILogger<SessionHub> logger) : Hub
+    RoomGuests guests, ScreenPresence screens, ScreenPairings pairings, IOptions<RoomOptions> rooms, IOptions<OidcOptions> oidc, ILogger<SessionHub> logger) : Hub
 {
     private const string SessionIdKey = "sessionId";
     private const string ActorKey = "actor";
@@ -206,33 +206,77 @@ public sealed class SessionHub(
 
     /// <summary>
     /// Opens a connection that has an account behind it into its person's groups, and records it as a
-    /// screen when its token says it was minted for the television client. A guest's connection joins
-    /// no person's group.
+    /// screen when its token says it was minted for the television client. Any other connection of an
+    /// anchor session joins that session's group, where the screens paired with it are told. A guest's
+    /// connection joins no person's group.
     /// </summary>
     public override async Task OnConnectedAsync()
     {
-        if (Context.User?.Identities.FirstOrDefault(i => i.AuthenticationType == CinemaSchemes.Bearer) is { } identity
-            && CinemaPerson.From(identity, oidc.Value.ActionsClaim) is { } person)
+        if (Bearer() is { } identity && CinemaPerson.From(identity, oidc.Value.ActionsClaim) is { } person)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, PersonGroups.Everything(person.UserId));
             if (ScreenIdentity.Of(identity, oidc.Value.TvClientId) is { } screen)
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, PersonGroups.Screen(person.UserId, screen.Id));
                 await screens.ConnectedAsync(person.UserId, screen, Context.ConnectionId);
-            else
-                await Groups.AddToGroupAsync(Context.ConnectionId, PersonGroups.Viewers(person.UserId));
+            }
+            else if (SessionClaims.SidOf(identity) is { } sid)
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, PersonGroups.Phone(person.UserId, sid));
+                pairings.PhoneSeen(person.UserId, sid);
+            }
         }
 
         await base.OnConnectedAsync();
     }
 
     /// <summary>
-    /// The screens of the person this connection's token names, as they stand. Only their own: the
-    /// account is the token's, and no argument names another.
+    /// The screens this connection's session is paired with, as they stand. Only its own person's: the
+    /// account and the session are the token's, and no argument names another. A screen, and a
+    /// connection that belongs to no session, are paired with none.
     /// </summary>
-    public Task<List<ScreenView>> Screens() => screens.OfAsync(Person("Sign in to see your screens.").UserId);
+    public Task<List<ScreenView>> Screens()
+    {
+        var person = Person("Sign in to see your screens.");
+        return Phone() is { } phone ? screens.PairedWithAsync(person.UserId, phone) : Task.FromResult(new List<ScreenView>());
+    }
+
+    /// <summary>
+    /// A code for this screen to show, which pairs a phone of its person's with it until it runs out.
+    /// Only a screen is given one: the token decides, and nothing the page sends.
+    /// </summary>
+    public PairingCodeView PairingCode()
+    {
+        var (person, screen) = Screen("Only a television shows a pairing code.");
+        return screens.CodeFor(person.UserId, screen.Id);
+    }
+
+    /// <summary>The phones paired with this screen, oldest first. Only a screen asks.</summary>
+    public Task<List<PairedPhone>> Phones()
+    {
+        var (person, screen) = Screen("Only a television has phones paired with it.");
+        return screens.PhonesOfAsync(person.UserId, screen.Id);
+    }
+
+    /// <summary>
+    /// Ends a pairing of this connection's session: from a screen, with the phone <paramref name="id"/>
+    /// names; from a phone, with the screen it names. Only the caller's own person's pairings are reached.
+    /// </summary>
+    public Task Unpair(string id)
+    {
+        var person = Person("Sign in to unpair.");
+        if (Bearer() is { } identity && ScreenIdentity.Of(identity, oidc.Value.TvClientId) is { } screen)
+            return screens.UnpairAsync(person.UserId, id, screen.Id);
+        return Phone() is { } phone
+            ? screens.UnpairAsync(person.UserId, phone, id)
+            : throw new HubException("This sign-in is paired with nothing.");
+    }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         await screens.DisconnectedAsync(Context.ConnectionId);
+        if (Bearer() is { } identity && CinemaPerson.From(identity, oidc.Value.ActionsClaim) is { } person && Phone() is { } phone)
+            pairings.PhoneSeen(person.UserId, phone);
         guests.Remove(Context.ConnectionId);
 
         if (Context.Items.TryGetValue(KnockingKey, out var knocked) && knocked is string knockedAt)
@@ -276,10 +320,25 @@ public sealed class SessionHub(
             : throw new HubException("Join a session first.");
 
     private CinemaPerson Person(string refusal = "Sign in to change the room.") =>
-        Context.User?.Identities.FirstOrDefault(i => i.AuthenticationType == CinemaSchemes.Bearer) is { } identity
-        && CinemaPerson.From(identity, oidc.Value.ActionsClaim) is { } person
+        Bearer() is { } identity && CinemaPerson.From(identity, oidc.Value.ActionsClaim) is { } person
             ? person
             : throw new HubException(refusal);
+
+    private System.Security.Claims.ClaimsIdentity? Bearer() =>
+        Context.User?.Identities.FirstOrDefault(i => i.AuthenticationType == CinemaSchemes.Bearer);
+
+    /// <summary>The person and the screen this connection is, or a refusal for any connection that is no screen.</summary>
+    private (CinemaPerson Person, ScreenIdentity Screen) Screen(string refusal)
+    {
+        var person = Person(refusal);
+        return ScreenIdentity.Of(Bearer()!, oidc.Value.TvClientId) is { } screen
+            ? (person, screen)
+            : throw new HubException(refusal);
+    }
+
+    /// <summary>The anchor session of a connection that is not a screen, or null for a screen or one that belongs to none.</summary>
+    private string? Phone() =>
+        Bearer() is { } identity && ScreenIdentity.Of(identity, oidc.Value.TvClientId) is null ? SessionClaims.SidOf(identity) : null;
 
     /// <summary>
     /// Who is acting in the room this connection joined. Only <see cref="Join"/> records one, and only

@@ -58,6 +58,9 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET /api/me/follows` | `FollowView[]` — the shows the token's person follows, newest follow first: `{imdbId, title, posterUrl?, since, autoDownload, nextEpisode?}`. `nextEpisode` is `{season, episode, name?, airDate}`, the episode the film database expects next |
 | `PUT /api/me/follows/{imdbId}` | `FollowView` for `{autoDownload}` — follows the show, or changes `autoDownload` of a follow that exists, which keeps its `since`. `400` for an id that is not an IMDb id, `404` when the film database has no show under it, `409` when the show has ended or been cancelled, `503` when the database cannot be asked and nothing is kept |
 | `DELETE /api/me/follows/{imdbId}` | `204` — stops following; also when the person did not |
+| `GET /api/me/screens` | `ScreenView[]` — the television screens this session is paired with, oldest pairing first, connected or not (Screens, under Hub) |
+| `POST /api/me/screens` | `ScreenView` for `{code}` — pairs this session with the screen that showed the code, and answers that screen; pairing again is no change. `404` for a code no screen showed, `410` for one that has run out, `403` for a screen of another person's, `400` for a television's token or one that belongs to no session |
+| `DELETE /api/me/screens/{id}` | `204` — ends this session's pairing with the screen `id` names; also when there was none |
 
 What is recorded comes from the rooms: when a room that is **playing** a film is paused, seeked or
 given another film, or somebody leaves it, each person who was watching is credited with where it got
@@ -796,7 +799,10 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `Pause` | `(atSeconds) → SessionStatePush` | |
 | `Seek` | `(toSeconds) → SessionStatePush` | may be clamped |
 | `ServerTime` | `() → DateTimeOffset` | for clock-offset estimation |
-| `Screens` | `() → ScreenView[]` | the television screens of the person the token names, connected or not, with the room each is in and what it holds (Screens, below). Never another person's; a guest is refused |
+| `Screens` | `() → ScreenView[]` | the television screens this connection's session is paired with, connected or not, with the room each is in and what it holds (Screens, below). Empty for a screen and for a connection that belongs to no session; a guest is refused |
+| `PairingCode` | `() → PairingCodeView` | a screen's code for a phone to scan: `{path, expiresAt, renewSeconds}`, `path` the site's `/p/<code>`. Only a screen is given one |
+| `Phones` | `() → PairedPhone[]` | the phones paired with this screen, oldest first: `{id, name, pairedAt}`. Only a screen asks |
+| `Unpair` | `(id)` | ends a pairing of this connection's session: from a screen, with the phone `id` names; from any other connection of a session, with the screen it names. Only the caller's own person's pairings are reached; one there is none of is no change |
 | `Buffering` | `(waiting: bool, atSeconds: double)` | this viewer's player has been waiting for the film past a stutter, stopped at `atSeconds`, or is playing again. The roster carries it; when every player in the room is waiting the room is held (`waiting` in the state) where the furthest behind of them stopped, and let go when one plays, somebody arrives, or a waiting one leaves |
 | `ReportQuality` | `(playingHeight: int?, wantedHeight: int?)` | the rung height this viewer plays, and the one its own adaptive choice would pick with nothing holding it back; on change and about every 30 s. Answers nothing and is sent to nobody: the server keeps it per connection for its transcode planner and drops it when the connection leaves. A player that cannot say (native HLS) sends nothing, and is taken to want the tallest rung |
 
@@ -810,9 +816,10 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `TitleChanged` | `Manifest` — the manifest of the title this room holds changed: head, preview sheet, subtitles, status. Sent to every room holding the title, within a couple of seconds of the write |
 | `DoorChanged` | `RoomDoor` = `{open, knocking: [{userId, displayName}], guests?: {expiresAt}}` — sent to the people with an account in the room, never to a guest, when it is opened or closed, when somebody starts or stops asking, and when its guest link is given, taken away or runs out; `knocking` holds each person once, in the order they asked, and `guests` is there while the room has a link, never the link itself |
 | `KnockAnswered` | `bool` — sent to a connection that asked to be let in: `true` when somebody let them in or opened the room, `false` when somebody said no |
-| `ScreenArrived` | `ScreenView` — a screen of this person's connected: first seen, or connected again after having none. Sent to the person's connections that are not screens |
-| `ScreenChanged` | `ScreenView` — a screen of this person's changed name, room, what the room holds or whether the room is paused, or lost its last connection (`connected: false`, no `room`). Sent to the same connections |
-| `ScreenLeft` | `string` — the id of a screen of this person's that is forgotten. Sent to the same connections |
+| `ScreenArrived` | `ScreenView` — a screen paired with this session connected, after having no connection, or was paired with it. Sent to the session's connections that are not screens |
+| `ScreenChanged` | `ScreenView` — a screen paired with this session changed name, room, what the room holds or whether the room is paused, or lost its last connection (`connected: false`, no `room`). Sent to the same connections |
+| `ScreenLeft` | `string` — the id of a screen whose pairing with this session ended. Sent to the same connections |
+| `PhonesChanged` | `PairedPhone[]` — a phone paired with this screen or unpaired from it; the phones paired now. Sent to the screen's connections |
 | `GuestAccessEnded` | `string` — sent to a guest as they are sent away, and their connection is closed after it: `ended` (the link was taken away or ran out) or `unattended` (nobody with an account has been in the room for `Rooms.GuestGrace`) |
 
 ### Screens
@@ -838,14 +845,33 @@ rename made at the anchor reaches the screen's name when that connection next re
 }
 ```
 
-- **Only the owner hears and asks.** Messages go to the group of the screen's own person, and the
-  connections of that group that are not screens receive them. `Screens` answers for the account in
-  the caller's token, and takes no argument naming another.
-- **A screen not connected stays listed** (`connected: false`, no room) until it connects again, a
-  screen of the same name connects under another session, or seven days pass unseen. Forgetting sends
-  `ScreenLeft`; a forgotten screen that connects is known again.
-- **Screens are kept in memory.** A restart drops them, and each reappears when its television
-  connects.
+A **phone** is any other connection or request whose token carries a `sid`: a browser or an installed
+app signed in on a session of its own. It is **paired** with a screen by sending the code the screen
+shows (`POST /api/me/screens`), and stays paired until the phone or the screen unpairs, or a session of
+the two ends. A pairing belongs to the session that scanned, so a browser tab and the installed app on
+one phone are two phones. A token that belongs to no session, as the Activity's does, pairs nothing.
+
+- **A code is short-lived and names its screen and person.** It is sixteen bytes written URL-safe in
+  22 characters: when it runs out, a tag of the screen, and a signature over both and the screen's
+  person under a key derived from `Auth.MediaTicketKey`. Nothing is stored; it pairs for five minutes,
+  and a screen shows a new one every `renewSeconds` (a minute), so the code on screen always has most
+  of its life left and a photo of one pairs nothing once it has run out. A code is checked against the
+  screens known now, so the screen that showed it must have been connected since the API last started.
+- **Only the phones paired with a screen hear it, and only its own person's.** `ScreenArrived`,
+  `ScreenChanged` and `ScreenLeft` go to each paired session's connections that are not screens, and
+  `PhonesChanged` to the screen's own; `Screens`, `Phones` and every route answer for the account and
+  the session in the caller's token, and take no argument naming another person.
+- **Pairings are kept** in the API's database, by the phone's `sid` and the screen's, with the person,
+  the phone's name and when it paired. The phone's name is read from the browser that paired, as
+  "Chrome on Android" or "Safari on iPhone". Cinema hears no revocation, so a session unseen for longer
+  than the provider keeps a session it has not renewed (`Oidc.SessionLifetime`) has ended, and its
+  pairings are forgotten; a session is seen whenever a connection of it opens or closes and whenever it
+  asks for its pairings, and a screen connected now is seen now. A television signed in again under the
+  name of one of the person's screens that is not connected ends that screen's pairings, with
+  `ScreenLeft`: it is the same television, and is paired again by scanning it again.
+- **A screen not connected stays known** (`connected: false`, no room): a paired phone lists it under
+  the name it last had. Screens themselves are kept in memory; a restart drops them, and each reappears
+  when its television connects.
 - A screen's room follows its newest connection's `Join`, and `ScreenChanged` is sent whenever the
   room's title or paused state changes.
 

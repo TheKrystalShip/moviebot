@@ -2,7 +2,7 @@
 // walked with the arrow keys from where focus starts, against the scratch site verify/mobile/scratch.sh
 // serves (staged first, by its run or `node verify/mobile/run.mjs`; an unstaged site stops this run).
 //
-//   node verify/tv.mjs [--checks pages,heads,empty,overlays,back,player,signin] [--pages home,title] [--out dir]
+//   node verify/tv.mjs [--checks pages,heads,empty,overlays,back,player,remote,signin] [--pages home,title] [--out dir]
 //
 // Each page is checked for:
 // - focus starting on a control when it opens, and on screen;
@@ -17,6 +17,9 @@
 // Back going back a page to the control it was left on, Back on Home going to the bar and then
 // being left to the app, and the player: the play button focused, OK playing, presses gathered into
 // one skip, a held key scrubbing and sending one seek, Menu opening the subtitles, and Back leaving.
+// Then a phone, a second browser context of the same person on a session of its own, paired with the
+// television by reading its QR code from the screenshot's pixels at the scale a camera across a room
+// has, unpaired from each side, and told the television's room once it plays and pauses a film.
 // Last, signing in through the test provider's device grant, where the check decides for the person:
 // the code and its QR, approval, a restart, signing out, a refusal, an expired code, a provider that
 // cannot be reached, and a session that ends under a page.
@@ -30,6 +33,7 @@
 // on any failure.
 
 import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
@@ -87,7 +91,7 @@ if (!films[0].film || !saved.includes(films[0].film.imdbId)) {
 /** A film the scratch library holds video for, which the player checks play. */
 const playable = process.env.MOVIEBOT_VERIFY_TV_FILM || "coherence-2013";
 
-const PROFILE_TABS = ["", "/requests", "/following", "/notifications", "/playback", "/subtitles", "/appearance", "/account"];
+const PROFILE_TABS = ["", "/requests", "/following", "/notifications", "/playback", "/remote", "/subtitles", "/appearance", "/account"];
 const PAGES = [
   { name: "home", path: "/" },
   { name: "movies", path: "/movies" },
@@ -118,9 +122,9 @@ const pass = (what) => console.log(`  ✓ ${what}`);
 
 const browser = await chromium.launch({ executablePath: chromePath(), args: ["--autoplay-policy=no-user-gesture-required"] });
 
-async function open(path, person = VIEWER) {
+async function open(path, person = VIEWER, session = { hours: 6, client: TV_CLIENT }) {
   const context = await browser.newContext({ viewport: Viewport, reducedMotion: "reduce" });
-  await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), issuer.planted(person, { hours: 6, client: TV_CLIENT }));
+  await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), issuer.planted(person, session));
   const page = await context.newPage();
   page.on("pageerror", (e) => failures.push(`${path}: page error ${e.message}`));
   await page.goto(base + path + (path.includes("?") ? "&" : "?") + "tv=1", { waitUntil: "load" });
@@ -728,7 +732,184 @@ async function empties() {
   }
 }
 
-const checks = option("checks", "pages,heads,empty,overlays,back,player,signin").split(",");
+/**
+ * How a phone's camera across a room sees the television's page: a 55" set is 1.21 m wide, so a CSS
+ * pixel of its 960-wide page is 1.26 mm; a phone at 3 m with a 67° field of view spans 4 m, analysed
+ * 1920 pixels wide. One page pixel is then 0.6 of a camera pixel. A code is checked decoded from a
+ * screenshot scaled to that, which is the pixel budget a scanner has from the sofa, and nothing of its
+ * optics.
+ */
+const SofaScale = 0.6;
+const PhoneAgent = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36";
+const jsQrPath = createRequire(import.meta.url).resolve("jsqr/dist/jsQR.js");
+
+/** The text of the QR code drawn in `selector`, read from its pixels at `scale`, or null when nothing reads. */
+async function readQr(page, selector, scale) {
+  const shot = await page.locator(selector).screenshot();
+  const reader = await browser.newPage();
+  try {
+    await reader.addScriptTag({ path: jsQrPath });
+    return await reader.evaluate(async ({ png, scale: s }) => {
+      const img = new Image();
+      img.src = "data:image/png;base64," + png;
+      await img.decode();
+      const w = Math.round(img.width * s);
+      const h = Math.round(img.height * s);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const g = canvas.getContext("2d");
+      g.imageSmoothingQuality = "high";
+      g.drawImage(img, 0, 0, w, h);
+      const read = window.jsQR(g.getImageData(0, 0, w, h).data, w, h);
+      return read ? read.data : null;
+    }, { png: shot.toString("base64"), scale });
+  } finally {
+    await reader.close();
+  }
+}
+
+/** A phone of the viewer's, signed in on the site in a session of its own. */
+async function phoneOf(sid) {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 }, userAgent: PhoneAgent, isMobile: true, hasTouch: true, reducedMotion: "reduce",
+  });
+  await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), issuer.planted(VIEWER, { hours: 6, sid }));
+  const page = await context.newPage();
+  page.on("pageerror", (e) => failures.push(`phone: page error ${e.message}`));
+  return { page, close: () => context.close() };
+}
+
+/** The screens the phone's session is paired with, as the API answers it. */
+const pairedWith = (sid) => fetch(base + "/api/me/screens", { headers: { Authorization: `Bearer ${issuer.mint(VIEWER, { sid })}` } })
+  .then((r) => r.json());
+
+/**
+ * Pairing a phone with the television by its QR code: the code drawn in Profile's Remote and read from
+ * its pixels at the sofa's scale, the phone opening it and landing Home paired, with Undo and remote mode
+ * on; the television listing the phone by its browser, the remote reaching its Unpair, and Unpair and
+ * Undo each ending the pairing on both sides; then the code beside the paused player's card, read the
+ * same way, and the paired phone told which room the television is in and that it is paused.
+ */
+async function remote() {
+  console.log("remote");
+  const stamp = Date.now().toString(36);
+  const tvSession = { hours: 6, client: TV_CLIENT, sid: `verify-tv-${stamp}`, device: "Verify TV" };
+  const phoneSid = `verify-phone-${stamp}`;
+  const tv = await open("/profile/remote", VIEWER, tvSession);
+  const phone = await phoneOf(phoneSid);
+  try {
+    await tv.page.waitForSelector(".kc-tvr__qr svg", { timeout: 10000 }).catch(() => {});
+    await tv.page.screenshot({ path: join(out, "remote.png") });
+    const drawn = await tv.page.evaluate(() => {
+      const svg = document.querySelector(".kc-tvr__qr svg");
+      const title = document.querySelector(".kc-tvp__title");
+      return { modules: svg && Number(svg.dataset.modules), width: svg && svg.getBoundingClientRect().width, title: title && title.textContent };
+    });
+    if (!drawn.modules) { fail("remote", "Profile's Remote draws no code"); return; }
+    if (drawn.modules > 33) fail("remote", `the code is ${drawn.modules} modules across, past version 4`);
+    if (!/Verify TV/.test(drawn.title || "")) fail("remote", `the title reads "${drawn.title}", without the television's name`);
+    const url = await readQr(tv.page, ".kc-tvr__code", SofaScale);
+    if (!url || !url.startsWith(base + "/p/")) { fail("remote", `the code read from the sofa's scale is ${JSON.stringify(url)}`); return; }
+    pass(`Profile's Remote draws a ${drawn.modules}-module code ${Math.round(drawn.width)} px wide, read at the sofa's scale: ${url.length} characters`);
+
+    await phone.page.goto(url, { waitUntil: "load" });
+    await phone.page.waitForFunction(() => location.pathname === "/" && document.querySelector(".toast"), null, { timeout: 15000 }).catch(() => {});
+    const landed = await phone.page.evaluate(() => ({
+      path: location.pathname,
+      toast: document.querySelector(".toast__title") && document.querySelector(".toast__title").textContent,
+      undo: document.querySelector(".toast__action") && document.querySelector(".toast__action").textContent,
+      mode: localStorage.getItem("cinema:remote"),
+    }));
+    await phone.page.screenshot({ path: join(out, "remote-phone-paired.png") });
+    if (landed.path !== "/" || landed.toast !== "Paired with Verify TV" || landed.undo !== "Undo" || landed.mode !== "1")
+      fail("remote", `the phone landed on ${landed.path} with "${landed.toast}" (${landed.undo}), remote mode ${landed.mode}`);
+    else pass("the phone pairs at once and lands Home with the toast and Undo, remote mode on");
+
+    await tv.page.waitForSelector(".kc-tvr__phone", { timeout: 5000 }).catch(() => {});
+    const listed = await tv.page.evaluate(() => [...document.querySelectorAll(".kc-tvr__phone")].map((row) => row.textContent));
+    if (listed.length !== 1 || !/Chrome on Android/.test(listed[0]) || !/Paired \d+ \w+/.test(listed[0]))
+      fail("remote", `the television lists ${JSON.stringify(listed)}`);
+    else pass(`the television lists the phone: "${listed[0]}"`);
+
+    // Focus follows the page's first control as its content arrives, so the phone's Unpair takes it, and
+    // its row lifts; Left goes to the section's place in the list and Right comes back.
+    const first = await tv.page.evaluate(focused);
+    const lifted = () => tv.page.evaluate(() => {
+      const row = document.activeElement && document.activeElement.closest(".kc-tvr__phone");
+      return row ? getComputedStyle(row).transform !== "none" : false;
+    });
+    await tv.page.screenshot({ path: join(out, "remote-unpair-focused.png") });
+    const firstLifted = await lifted();
+    const left = await press(tv.page, "ArrowLeft");
+    const right = await press(tv.page, "ArrowRight");
+    if (!first || first.name !== "Unpair" || !first.onScreen || !firstLifted)
+      fail("remote", `focus rests on "${first && first.name}" once the phone is listed${firstLifted ? "" : ", its row not lifted"}`);
+    else if (!left || left.name !== "Remote" || !right || right.name !== "Unpair")
+      fail("remote", `Left from Unpair reached "${left && left.name}" and Right from there "${right && right.name}"`);
+    else pass("Unpair takes focus once the phone is listed, its row lifts, and Left and Right go to Remote and back");
+    await tv.page.keyboard.press("Enter");
+    await tv.page.waitForFunction(() => !document.querySelector(".kc-tvr__phone"), null, { timeout: 5000 }).catch(() => {});
+    const afterUnpair = await tv.page.evaluate(() => ({ rows: document.querySelectorAll(".kc-tvr__phone").length, focused: document.activeElement && document.activeElement !== document.body }));
+    const phoneSees = await pairedWith(phoneSid);
+    if (afterUnpair.rows !== 0 || phoneSees.length !== 0) fail("remote", `Unpair on the television left ${afterUnpair.rows} row(s) and the phone paired with ${phoneSees.length}`);
+    else if (!afterUnpair.focused) fail("remote", "Unpair on the television left focus on nothing");
+    else pass("Unpair on the television ends the pairing for the phone too, and focus stays on a control");
+
+    // Paired again by a fresh scan, and undone from the phone's toast.
+    const again = await readQr(tv.page, ".kc-tvr__code", SofaScale);
+    await phone.page.goto(again, { waitUntil: "load" });
+    await phone.page.waitForSelector(".toast__action", { timeout: 15000 }).catch(() => {});
+    await tv.page.waitForSelector(".kc-tvr__phone", { timeout: 5000 }).catch(() => {});
+    await phone.page.click(".toast__action").catch(() => {});
+    await tv.page.waitForFunction(() => !document.querySelector(".kc-tvr__phone"), null, { timeout: 5000 }).catch(() => {});
+    const undone = await tv.page.evaluate(() => document.querySelectorAll(".kc-tvr__phone").length);
+    await phone.page.waitForFunction(() => localStorage.getItem("cinema:remote") === "0", null, { timeout: 5000 }).catch(() => {});
+    const mode = await phone.page.evaluate(() => localStorage.getItem("cinema:remote"));
+    if (undone !== 0 || (await pairedWith(phoneSid)).length !== 0 || mode !== "0")
+      fail("remote", `Undo left ${undone} row(s) on the television, remote mode ${mode}`);
+    else pass("Undo on the phone ends the pairing, and the television's list empties");
+
+    // Paired once more, then the television plays a film and pauses it: the code beside the card.
+    await phone.page.goto(await readQr(tv.page, ".kc-tvr__code", SofaScale), { waitUntil: "load" });
+    await phone.page.waitForSelector(".toast__action", { timeout: 15000 }).catch(() => {});
+    const room = `verify-remote-${stamp}`;
+    await tv.page.goto(`${base}/r/${room}?title=${encodeURIComponent(playable)}`, { waitUntil: "load" });
+    await tv.page.waitForFunction(() => { const v = document.querySelector("video"); return v && v.readyState >= 3; }, null, { timeout: 30000 }).catch(() => {});
+    await tv.page.keyboard.press("Enter");
+    await tv.page.waitForTimeout(1500);
+    await tv.page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "MediaPlayPause", bubbles: true, cancelable: true })));
+    await tv.page.waitForSelector(".kc-tvr-paused__qr svg", { timeout: 10000 }).catch(() => {});
+    await tv.page.waitForTimeout(700);
+    await tv.page.screenshot({ path: join(out, "remote-paused.png") });
+    const beside = await tv.page.evaluate(() => {
+      const card = document.querySelector(".mp-pausecard__text");
+      const code = document.querySelector(".kc-tvr-paused__figure");
+      if (!card || !code) return null;
+      const a = card.getBoundingClientRect();
+      const b = code.getBoundingClientRect();
+      return { cardMiddle: (a.top + a.bottom) / 2, codeMiddle: (b.top + b.bottom) / 2, right: b.right, overlaps: b.left < a.right };
+    });
+    if (!beside) { fail("remote", "the paused player draws no code beside its card"); return; }
+    if (Math.abs(beside.cardMiddle - beside.codeMiddle) > 2 || beside.overlaps || beside.right > Viewport.width - 47)
+      fail("remote", `the paused code sits at ${Math.round(beside.codeMiddle)} beside a card at ${Math.round(beside.cardMiddle)}${beside.overlaps ? ", over it" : ""}`);
+    const pausedUrl = await readQr(tv.page, ".kc-tvr-paused__qr", SofaScale);
+    if (!pausedUrl || !pausedUrl.startsWith(base + "/p/")) fail("remote", `the paused code read from the sofa's scale is ${JSON.stringify(pausedUrl)}`);
+    else pass("the paused player shows the code beside its card, centred with it, read at the sofa's scale");
+
+    const screens = await pairedWith(phoneSid);
+    const screen = screens.find((s) => s.id === tvSession.sid);
+    if (!screen || screen.room !== room || screen.paused !== true || screen.titleId !== playable)
+      fail("remote", `the phone is told ${JSON.stringify(screens)}`);
+    else pass("the paired phone is told the television's room, its film and that it is paused");
+  } finally {
+    await fetch(base + `/api/me/screens/${tvSession.sid}`, { method: "DELETE", headers: { Authorization: `Bearer ${issuer.mint(VIEWER, { sid: phoneSid })}` } });
+    await phone.close();
+    await tv.close();
+  }
+}
+
+const checks = option("checks", "pages,heads,empty,overlays,back,player,remote,signin").split(",");
 try {
   if (checks.includes("pages")) for (const p of PAGES) if (!pageNames || pageNames.includes(p.name)) await walk(p);
   if (checks.includes("heads")) await heads();
@@ -739,6 +920,7 @@ try {
   }
   if (checks.includes("back")) await backs();
   if (checks.includes("player")) await player();
+  if (checks.includes("remote")) await remote();
   if (checks.includes("signin")) await signIn();
 } finally {
   await browser.close();

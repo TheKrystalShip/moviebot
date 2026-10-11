@@ -9,6 +9,7 @@ import { amplitudeFor, volumeIsSettable } from "./engine/media/volume.ts";
 import { bindShortcuts } from "./engine/media/shortcuts.ts";
 import { Remote } from "./engine/media/remote.ts";
 import { Rank, onBack as onTvBack, onMenu as onTvMenu } from "../tv/tv.js";
+import { PausedCode } from "../tv/TvRemote.jsx";
 import { Cues } from "./Cues.jsx";
 import { GestureHud, useStageGestures } from "./Gestures.jsx";
 import { ScrubBar } from "./ScrubBar.jsx";
@@ -648,6 +649,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
       {/* ── What stands in the middle of the frame ── */}
       {waiting && <div className="mp-spinner" role="status" aria-label="Waiting for the film"><Icon name="loader-circle" size={36} className="mp-spin" /></div>}
       {pauseCard && <PauseCard about={about} />}
+      {pauseCard && tv && !viewOnly && <PausedCode />}
       {roomPaused && !waiting && !pauseCard && <div className="mp-paused" role="status"><Icon name="pause" size={18} />Paused</div>}
       {preparing && <Preparing manifest={manifest} head={view.transcodeHead} />}
       {view.gate && manifest && <JoinGate view={view} others={others} position={clock.position} focused={tv} solo={solo} onJoin={() => { takeScreen(); room.joinPlayback(); }} />}

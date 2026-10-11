@@ -157,6 +157,12 @@ export const api = {
 
   // Shelving a film or a show as anime (`anime`) or with its kind (`general`), against the API's rule.
 
+  // The television screens this session is paired with, pairing with the one whose code it scanned,
+  // and unpairing. The session is the token's: a pairing is this browser's, or this installed app's.
+  screens: () => call("GET", "/api/me/screens"),
+  pairScreen: (code) => call("POST", "/api/me/screens", { code }),
+  unpairScreen: (id) => call("DELETE", `/api/me/screens/${enc(id)}`),
+
   // The shows this person follows, and whether each is fetched when a new episode airs.
   follows: () => call("GET", "/api/me/follows"),
   follow: (imdbId, autoDownload) => call("PUT", `/api/me/follows/${enc(imdbId)}`, { autoDownload }),

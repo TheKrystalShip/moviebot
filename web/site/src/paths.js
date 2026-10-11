@@ -5,7 +5,7 @@
 const seg = encodeURIComponent;
 
 /** The tabs of the profile, in the order they are shown; the first is the page's own address. */
-export const PROFILE_TABS = ["history", "requests", "following", "notifications", "playback", "subtitles", "appearance", "account"];
+export const PROFILE_TABS = ["history", "requests", "following", "notifications", "playback", "remote", "subtitles", "appearance", "account"];
 
 export const homePath = "/";
 export const savedPath = "/saved";
@@ -90,6 +90,9 @@ export const roomPath = (room) => "/r/" + seg(room);
 
 /** A room's guest link, which the API names by its code. */
 export const guestPath = (code) => "/g/" + seg(code);
+
+/** A television's pairing code, which a phone opens by scanning it: `/p/<code>`, as the API names it. */
+export const pairPath = (code) => "/p/" + seg(code);
 
 /** The query flag that plays a room's title from this device, alone, rather than in the room. */
 export const OFFLINE_FLAG = "offline";

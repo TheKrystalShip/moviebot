@@ -259,6 +259,22 @@ internal static class Schema
             PRIMARY KEY (room_id, user_id)
         );
 
+        -- A phone paired with a television screen, each named by its anchor session, with the person
+        -- both belong to and when each was last seen.
+        CREATE TABLE screen_pairings (
+            phone_sid      TEXT NOT NULL,
+            screen_sid     TEXT NOT NULL,
+            user_id        TEXT NOT NULL,
+            phone_name     TEXT NOT NULL,
+            screen_name    TEXT,
+            paired_at      TEXT NOT NULL,
+            phone_seen_at  TEXT NOT NULL,
+            screen_seen_at TEXT NOT NULL,
+            PRIMARY KEY (phone_sid, screen_sid)
+        );
+        CREATE INDEX screen_pairings_screen ON screen_pairings (screen_sid);
+        CREATE INDEX screen_pairings_user ON screen_pairings (user_id);
+
         -- A subtitle fetched from outside. Its WebVTT is a file under the subtitle root.
         CREATE TABLE fetched_subtitles (
             title_id              TEXT NOT NULL,

@@ -24,6 +24,7 @@ const FACES = {
   following: { icon: "tv", label: "Following" },
   notifications: { icon: "bell-ring", label: "Notifications" },
   playback: { icon: "play", label: "Playback" },
+  remote: { icon: "smartphone", label: "Remote" },
   subtitles: { icon: "captions", label: "Subtitles" },
   appearance: { icon: "palette", label: "Appearance" },
   account: { icon: "user-cog", label: "Account" },

@@ -58,7 +58,7 @@ const PROVIDER_TIMEOUT_S = 10;
 export const sessionStore = createStore(null);
 
 /**
- * The signed-in session: `{ token, expiresAt, user: { id, name, username }, actions, stale }`, or
+ * The signed-in session: `{ token, expiresAt, user: { id, name, username, device }, actions, stale }`, or
  * null. `stale` is a session whose token ran out while there was no connection to renew it.
  */
 export function useSession() {
@@ -177,6 +177,8 @@ async function sessionFor(user, { stale = false } = {}) {
       id: claims.sub || profile.sub,
       name: claims.name || profile.name || claims.preferred_username || profile.preferred_username || "Somebody",
       username: claims.preferred_username || profile.preferred_username || null,
+      // A television's name as its session at the provider carries it, which its owner may have changed.
+      device: claims.tks_device_name || null,
     },
     actions: Array.isArray(listed) ? listed : typeof listed === "string" ? [listed] : [],
     stale: !!user.expired,

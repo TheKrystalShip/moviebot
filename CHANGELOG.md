@@ -4,6 +4,35 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.19.0] - 2026-10-11
+
+### Added
+
+- **A phone pairs with a television by scanning its QR code.** The television shows the code in
+  Profile's Remote, with the phones paired with it and Unpair on each, and beside the paused player's
+  card. The code opens `/p/<code>` on the phone, which signs in if it must, pairs that session with the
+  television at once, turns remote mode on and goes Home with a toast carrying Undo. A phone of another
+  person is refused. The code is signed rather than stored, names its screen, person and expiry, lives
+  five minutes and is replaced every minute. Pairings are kept in the database by the phone's and the
+  screen's anchor sessions, end when either side unpairs, and are forgotten once a session has gone
+  unseen for longer than the provider keeps an unrenewed one (`Oidc:SessionLifetime`). Site 0.68.0.
+- `GET`, `POST /api/me/screens` and `DELETE /api/me/screens/{id}` for a phone's pairings; `PairingCode`,
+  `Phones` and `Unpair` on the hub, and `PhonesChanged` to a screen.
+
+### Changed
+
+- **A screen is heard by the phones paired with it, not by every connection of its person.**
+  `ScreenArrived`, `ScreenChanged` and `ScreenLeft` go to the paired sessions alone, `Screens` answers
+  the screens the caller's session is paired with, and `ScreenLeft` means the pairing ended.
+- **Left and Right from a television's side column reach the page beside it** when nothing is on the
+  line focus is on, so a section whose controls sit at its top is reached from any place in the column.
+
+### Upgrading
+
+- The database gains the table `screen_pairings`, declared with the others in `Data/Schema` and not
+  added to a database that already exists: create it with the statement there before starting this
+  version on one.
+
 ## [3.18.1] - 2026-10-11
 
 ### Fixed

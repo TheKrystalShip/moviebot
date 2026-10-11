@@ -28,7 +28,8 @@
   // television as the public device client TvClientId; the API
   // exchanges the Activity's Discord token as ActivityClientId and the bot a Discord user as
   // BotClientId, each a confidential client whose secret is set only in the environment, as
-  // Oidc__ActivityClientSecret and Oidc__BotClientSecret.
+  // Oidc__ActivityClientSecret and Oidc__BotClientSecret. SessionLifetime is the provider's refresh
+  // lifetime: a session unseen here for longer has ended, and a phone's pairing with it is forgotten.
   "Oidc": {
     "Issuer": "",
     "Audience": "cinema",
@@ -37,7 +38,8 @@
     "TvClientId": "cinema-tv",
     "ActivityClientId": "cinema-activity",
     "BotClientId": "cinema-bot",
-    "AdoptIssuer": ""
+    "AdoptIssuer": "",
+    "SessionLifetime": "30.00:00:00"
   },
 
   // The television app built for this site (tv/), served at /tv.apk. App is its path; empty is

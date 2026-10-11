@@ -131,15 +131,51 @@ carrying Undo. A phone of another person is refused; bringing friends in is a fo
 
 Questions:
 
-- Where pairings are kept: in `moviebot.db`, keyed by the phone's `sid` and the screen's `sid`.
-  How does Cinema learn either session has ended, given it hears no revocation? A pairing whose
-  phone signed out is unreachable anyway; one whose screen never connects again is harmless but
-  clutters the phone's list.
-- Does a scan open the installed app (the WebAPK capturing the link) or a browser tab, on Android
-  and on iOS? A browser tab holds a different session from the installed app.
-- How long does a code live, and how often does it rotate?
-- What the phone's camera needs: is the TV's QR readable from a sofa at the size the 960×540 page can
-  give it?
+- Pairings are kept in `moviebot.db` (`screen_pairings`), keyed by the phone's `sid` and the screen's,
+  with the person, the phone's name, when it paired and when each side was last seen. The site's
+  tokens carry `sid` (`kgsm-docs/reference/session-tokens.md`: every application access token but a
+  token exchange's), and so does the television's; the Activity's token comes from a token exchange and
+  carries none, so the Activity pairs nothing, which costs nothing, since a scanned link never opens in
+  Discord. Cinema hears no revocation, but the provider bounds a session nobody renews by its refresh
+  lifetime (30 days on the anchor), and a session renewed is a session used here: a phone with a
+  pairing and every screen hold a hub connection while they are open. So a pairing is forgotten once
+  either side has gone unseen for longer than `Oidc:SessionLifetime`, the anchor's figure, with a screen
+  connected now counting as seen; a phone that signed out is forgotten that way, and so is a television
+  that never connects again. A television signed in again under the name of one of the person's screens
+  that is not connected ends that screen's pairings at once, as `ScreenPresence` forgets the screen
+  itself: it is the same set signed in again, and is paired by scanning it again. Tying pairings to
+  `ScreenPresence`'s seven days alone would end a pairing during a holiday, which the plan rules out.
+- A scan opens whatever the phone's camera hands the link to. On Android an installed WebAPK registers
+  intent filters for its scope (the manifest's `scope` is `/`, so `/p/` is inside it), and a link opened
+  from another app opens the app; whether Android 12 and later route a camera's link to it rather than
+  the browser depends on its links being approved for the app, which needs the real phone to see. On
+  iOS a home-screen app never captures a link: the scan opens Safari, which holds a session of its own.
+  The pairing is with whichever session scanned, and the docs say so: on iOS that is Safari, not the
+  installed app. Not measured: both need a real phone.
+- A code lives five minutes and the screen shows a new one every minute, so the code on screen always
+  has at least four minutes left, enough for a phone that must sign in first (the page keeps the code in
+  its address through the sign-in), and a photo of it pairs nothing once it has run out. Another
+  person's phone is refused whatever the code's age, so the lifetime only bounds the same person's own
+  stale photos. The code is signed, not stored: sixteen bytes (expiry, a four-byte tag of the screen,
+  an eight-byte signature over the expiry, the screen and its person, under a key derived from
+  `Auth:MediaTicketKey` with a label of its own), written in 22 characters. The renewal goes to the
+  television as a span, so a television whose clock is wrong still renews in time.
+- The address is `https://movies.thekrystalship.com/p/` and 22 characters, 58 bytes, which `lean-qr`
+  encodes as version 4 at error correction M, 33 modules (measured). Profile draws it 200 page pixels
+  across and the paused player 128, as the canvas does. On a 55-inch set (1.21 m wide) seen from 3 m by a
+  camera with a 67-degree field analysed 1920 pixels wide, a page pixel is 0.6 of a camera pixel, about
+  3.3 camera pixels per module in Profile and 2.1 beside the paused card. `npm run verify:tv` reads both
+  codes with jsQR from screenshots scaled to that 0.6 and pairs from what it read; scaled further,
+  Profile's still reads at 0.30 and the paused one at 0.45 (measured), so the paused code holds from 3 m
+  on a 55-inch set with a quarter to spare and is at its limit on a 43-inch one. That is pixels alone,
+  with no focus, glare or angle: the sofa needs the real phone.
+- Built (3.19.0, site 0.68.0). The API issues codes to screens alone (`PairingCode`), pairs over
+  `POST /api/me/screens`, unpairs from either side, lists a screen's phones and a phone's screens, and
+  tells a screen's presence to its paired phones alone. The television shows the code in Profile's
+  Remote with its paired phones, and beside the paused card. The phone's landing page pairs, turns
+  remote mode on (`cinema:remote`), goes Home with Undo, and holds a person connection while it has
+  pairings. A phone is named by its browser, as the anchor's account page names a session ("Chrome on
+  Android", "Safari on iPhone"), since its session carries no name.
 
 ### Step 4: the remote in the room
 

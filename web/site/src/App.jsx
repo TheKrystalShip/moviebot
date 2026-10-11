@@ -25,6 +25,8 @@ import { Notify } from "./pages/Notify.jsx";
 import { ListPage, Saved } from "./pages/Saved.jsx";
 import { Profile } from "./pages/Profile.jsx";
 import { ActivityProblem, Dark, NoAccess, SignInReturn, Waiting } from "./pages/SignIn.jsx";
+import { Pairing } from "./pages/Pairing.jsx";
+import { followPairings, forgetPairings } from "./remote.js";
 import { About } from "./pages/About.jsx";
 import { NotFound } from "./pages/NotFound.jsx";
 import { SiteFooter } from "./components/SiteFooter.jsx";
@@ -135,6 +137,12 @@ export function App() {
     startScreenConnection();
     return stopScreenConnection;
   }, [sub]);
+  // A phone or a browser with a television paired hears it while it can reach the server.
+  React.useEffect(() => {
+    if (onTv || inActivity || embedded || !sub || !online) return undefined;
+    void followPairings().catch(() => {});
+    return forgetPairings;
+  }, [sub, online, embedded]);
   // The saves on this device set beside the API's records, and the ones under way carried on.
   useOfflineSync(!embedded && !inActivity && !onTv);
 
@@ -150,6 +158,8 @@ export function App() {
   }, [restored, session, route.view, route.href, embedded, online]);
 
   if (route.view === "guest") return <React.Suspense fallback={<Dark />}><GuestRoom code={route.arg} /></React.Suspense>;
+  // A television's code is scanned by a phone; a television or the Activity opening one has nothing to pair.
+  if (route.view === "pair" && (onTv || inActivity)) return <Away to={homePath} />;
   if (inActivity) {
     if (activity.error) return <ActivityProblem note={activity.error} />;
     if (!activity.ready) return <Dark />;
@@ -185,6 +195,7 @@ export function App() {
   if (restored && !session && !online && !onTv) return <FirstSignIn />;
   if (!restored || !session) return waiting ? <Waiting note={waiting.note} returnTo={route.href} /> : <Dark />;
   if (!can(session, "cinema:watch")) return <><NoAccess onSignOut={leave} /><SignOutDialog /></>;
+  if (route.view === "pair") return <Pairing code={route.arg} />;
   // A room fills the screen: the film is the page, and the way out is its back button. A saved film
   // played from the device (`?offline=1`) is the player's alone; a room opened with no connection
   // says it is out of reach.

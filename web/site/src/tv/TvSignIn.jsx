@@ -2,6 +2,7 @@ import React from "react";
 import { Button } from "@thekrystalship/krystal-ui";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 import { pollDeviceCode, requestDeviceCode } from "../session.js";
+import { Qr } from "./Qr.jsx";
 
 /** The first wait before asking a provider that could not be reached again, and the longest. */
 const RETRY_FIRST_MS = 2000;
@@ -11,8 +12,8 @@ const SLOW_DOWN_S = 5;
 
 /**
  * A television signing in: a code a phone approves at the provider, shown as the code itself, the
- * address to enter it at, a QR code of the address with the code already in it, and the time left on
- * it. Every answer the provider gives has one handling. An expired code is replaced unasked; a poll
+ * address to enter it at, a QR code of the address with the code already in it (`Qr.jsx`), and the
+ * time left on it. Every answer the provider gives has one handling. An expired code is replaced unasked; a poll
  * that fails on the network keeps the code and keeps polling, and says so only if it is still failing
  * when the code runs out; a provider that cannot be reached for a code is asked again on a lengthening
  * wait, with Retry; a refusal waits for New code, since somebody decided it; and a provider that will
@@ -51,7 +52,7 @@ function Code({ code }) {
         <p className="kc-tv-signin__code" aria-label={code.userCode.split("").join(" ")}>{code.userCode}</p>
         <p className="kc-tv-signin__left">{Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}</p>
       </div>
-      <Qr value={code.uriComplete} />
+      <Qr value={code.uriComplete} className="kc-tv-signin__qr" />
     </div>
   );
 }
@@ -66,30 +67,6 @@ function Stopped({ title, action, icon, onAction }) {
     <div className="kc-tv-signin__stopped" ref={ref}>
       <h1>{title}</h1>
       {action && <Button variant="primary" size="lg" icon={icon} onClick={onAction}>{action}</Button>}
-    </div>
-  );
-}
-
-/** A QR code of `value`, drawn as SVG by `lean-qr`, which only a television ever fetches. */
-function Qr({ value }) {
-  const [drawn, setDrawn] = React.useState(null);
-  React.useEffect(() => {
-    let live = true;
-    Promise.all([import("lean-qr"), import("lean-qr/extras/svg")]).then(([{ generate }, { toSvgPath }]) => {
-      if (!live) return;
-      const code = generate(value);
-      setDrawn({ size: code.size, path: toSvgPath(code) });
-    }, () => {});
-    return () => { live = false; };
-  }, [value]);
-  return (
-    <div className="kc-tv-signin__qr">
-      {drawn && (
-        // Four modules of quiet zone on every side, as a scanner expects.
-        <svg viewBox={`-4 -4 ${drawn.size + 8} ${drawn.size + 8}`} shapeRendering="crispEdges" aria-hidden="true">
-          <path d={drawn.path} />
-        </svg>
-      )}
     </div>
   );
 }

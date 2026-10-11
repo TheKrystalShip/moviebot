@@ -52,13 +52,17 @@ export function issuerIn(dir, port) {
   const kid = b64(createHash("sha256").update(jwk.x + jwk.y).digest()).slice(0, 16);
   const url = `http://127.0.0.1:${port}`;
 
-  /** An access token for `person`, holding `actions`, good for `hours`, minted for `client`. */
-  const mint = (person, { actions = EVERYTHING, hours = 6, seconds, client = SITE_CLIENT } = {}) => {
+  /**
+   * An access token for `person`, holding `actions`, good for `hours`, minted for `client`, belonging to
+   * the session `sid` and carrying a device session's `device` name when given.
+   */
+  const mint = (person, { actions = EVERYTHING, hours = 6, seconds, client = SITE_CLIENT, sid, device } = {}) => {
     const now = Math.floor(Date.now() / 1000);
     const header = b64(JSON.stringify({ alg: "ES256", typ: "at+jwt", kid }));
     const body = b64(JSON.stringify({
       iss: url, aud: "cinema", sub: person.id, name: person.name, preferred_username: person.id,
       client_id: client, tks_actions: actions, iat: now, nbf: now, exp: now + (seconds ?? hours * 3600),
+      ...(sid ? { sid } : {}), ...(device ? { tks_device_name: device } : {}),
     }));
     const signature = sign("sha256", Buffer.from(`${header}.${body}`), { key, dsaEncoding: "ieee-p1363" });
     return `${header}.${body}.${b64(signature)}`;
@@ -109,12 +113,12 @@ function deviceProvider(issuer) {
     const pick = () => letters[randomBytes(1)[0] % letters.length];
     return Array.from({ length: 4 }, pick).join("") + "-" + Array.from({ length: 4 }, pick).join("");
   };
-  /** An access token for a television's person, short as the provider's, and its refresh token. */
-  const pair = (person) => {
+  /** An access token for a television's person, short as the provider's, and its refresh token, in one session. */
+  const pair = (person, sid = "sid-" + secret()) => {
     const refresh = secret();
-    sessions.set(refresh, { person, client: TV_CLIENT });
+    sessions.set(refresh, { person, client: TV_CLIENT, sid });
     return {
-      access_token: issuer.mint(person, { seconds: access, client: TV_CLIENT }),
+      access_token: issuer.mint(person, { seconds: access, client: TV_CLIENT, sid }),
       token_type: "Bearer", expires_in: access, refresh_token: refresh, scope: "openid",
     };
   };
@@ -166,7 +170,7 @@ function deviceProvider(issuer) {
         const session = sessions.get(presented);
         if (!session || session.client !== form.get("client_id")) return error("invalid_grant", "No such session.");
         sessions.delete(presented);
-        return { status: 200, body: pair(session.person) };
+        return { status: 200, body: pair(session.person, session.sid) };
       }
       return error("unsupported_grant_type", "The grants served are the device code and the refresh token.");
     },

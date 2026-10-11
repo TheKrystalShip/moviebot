@@ -11,6 +11,8 @@ using TheKrystalShip.MovieBot.Acquire.Search;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Core;
+using TheKrystalShip.MovieBot.Api.Sessions;
+using System.Net.Http.Json;
 
 namespace TheKrystalShip.MovieBot.Tests;
 
@@ -275,6 +277,34 @@ public class SessionFixture : WebApplicationFactory<Program>
     /// </summary>
     public Task<HubConnection> ConnectScreenAsync(string userId, string sid, string? deviceName = null, string clientId = "cinema-tv") =>
         ConnectWithAsync(() => Issuer.Mint(userId, "Someone", clientId: clientId, sid: sid, deviceName: deviceName));
+
+    /// <summary>
+    /// A hub connection of a phone: the site's token for the anchor session <paramref name="sid"/>. In no
+    /// room; it hears the screens that session is paired with.
+    /// </summary>
+    public Task<HubConnection> ConnectPhoneAsync(string userId, string sid, string displayName = "Someone") =>
+        ConnectWithAsync(() => Issuer.Mint(userId, displayName, sid: sid));
+
+    /// <summary>A client signed in as a phone: the site's token for the anchor session <paramref name="sid"/>.</summary>
+    public HttpClient CreatePhoneClient(string userId, string sid, string? userAgent = null, string? clientId = null)
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+            "Bearer", Issuer.Mint(userId, "Someone", clientId: clientId, sid: sid));
+        if (userAgent is not null) client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", userAgent);
+        return client;
+    }
+
+    /// <summary>
+    /// Pairs the phone of session <paramref name="phoneSid"/> with the screen on <paramref name="screen"/>,
+    /// as a scan of the code it shows would, and answers the response.
+    /// </summary>
+    public async Task<HttpResponseMessage> PairAsync(HubConnection screen, string userId, string phoneSid, string? userAgent = null)
+    {
+        var code = await screen.InvokeAsync<PairingCodeView>("PairingCode");
+        return await CreatePhoneClient(userId, phoneSid, userAgent)
+            .PostAsJsonAsync("/api/me/screens", new PairRequest(code.Path["/p/".Length..]));
+    }
 
     private async Task<HubConnection> ConnectWithAsync(Func<string> token)
     {

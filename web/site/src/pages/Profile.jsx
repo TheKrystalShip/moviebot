@@ -29,6 +29,9 @@ const SERVER_TABS = new Set(["history", "requests", "following", "notifications"
 /** The tab a profile opened with no connection shows when its address names none it can. */
 const DEVICE_TAB = "playback";
 
+/** The tabs off a television: Remote is a television's, where it shows the code a phone scans. */
+const TABS = PROFILE_TAB_FACES.filter((t) => t.id !== "remote");
+
 /**
  * Who is signed in and everything that is theirs: what they watched, what they asked for and how they
  * like to watch. Their sign-ins are the provider's, on its account page. The tab is in the address, so
@@ -38,17 +41,17 @@ const DEVICE_TAB = "playback";
  * none: a tab that needs the server is never drawn, and the page shows Playback in its place.
  */
 export function Profile({ tab: named, fromDevice = false }) {
-  const asked = named || PROFILE_TABS[0];
+  const asked = TABS.some((t) => t.id === named) ? named : PROFILE_TABS[0];
   const tab = fromDevice && SERVER_TABS.has(asked) ? DEVICE_TAB : asked;
   const session = useSession();
   const user = session && session.user;
   const online = useOnline();
   const tabsRef = React.useRef(null);
-  useDisabledTabs(tabsRef, !online, PROFILE_TAB_FACES.map((t) => SERVER_TABS.has(t.id)));
+  useDisabledTabs(tabsRef, !online, TABS.map((t) => SERVER_TABS.has(t.id)));
 
   React.useEffect(() => {
-    if (tab !== asked) navigate(profilePath(tab), { replace: true });
-  }, [tab, asked]);
+    if (tab !== (named || PROFILE_TABS[0])) navigate(profilePath(tab), { replace: true });
+  }, [tab, named]);
 
   const saved = (
     <a className="kc-row kc-row--link kc-profile__saved" {...linkProps(savedPath)}>
@@ -64,7 +67,7 @@ export function Profile({ tab: named, fromDevice = false }) {
       </PageHead>
       {online ? saved : <Off>{saved}</Off>}
       <div ref={tabsRef} className="kc-profile__tabs">
-        <SubTabs tabs={PROFILE_TAB_FACES} active={tab} onChange={(id) => navigate(profilePath(id), { replace: true })} />
+        <SubTabs tabs={TABS} active={tab} onChange={(id) => navigate(profilePath(id), { replace: true })} />
       </div>
       <TabStage tab={tab} render={(shown) => (
         <div className="kc-profile__panel">
@@ -81,7 +84,7 @@ export function Profile({ tab: named, fromDevice = false }) {
 /**
  * Disables the tabs that need the server while `offline`, both the row of tabs and the phone's
  * picker. krystal-ui's `SubTabs` takes no disabled tab, so they are disabled in place, by the order
- * `PROFILE_TAB_FACES` gives them; React sets no `disabled` of its own on them to undo it.
+ * `TABS` gives them; React sets no `disabled` of its own on them to undo it.
  */
 function useDisabledTabs(ref, offline, needsServer) {
   const key = needsServer.join();

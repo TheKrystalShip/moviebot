@@ -1,7 +1,7 @@
 {
   "name": "krystal-cinema",
   "private": true,
-  "version": "0.67.3",
+  "version": "0.68.0",
   "type": "module",
   "description": "Krystal Cinema: MovieBot's site, served by MovieBot.Api.",
   "scripts": {
@@ -37,6 +37,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^17.7.0",
+    "jsqr": "^1.4.0",
     "playwright-core": "^1.63.0",
     "typescript": "^5.9.3",
     "vite": "^6.0.5"

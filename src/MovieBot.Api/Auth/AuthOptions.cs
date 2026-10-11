@@ -71,6 +71,13 @@ public sealed class OidcOptions
     /// </summary>
     public string AdoptIssuer { get; set; } = "";
 
+    /// <summary>
+    /// How long the provider keeps a session it has not renewed: its refresh lifetime. Cinema hears no
+    /// revocation, so a session unseen here for longer than this has ended, and what is kept against it
+    /// (a phone's pairing with a screen) is forgotten.
+    /// </summary>
+    public TimeSpan SessionLifetime { get; set; } = TimeSpan.FromDays(30);
+
     /// <summary>Whether the exchange for the Activity can be made: it needs the client's secret.</summary>
     public bool ExchangesForActivity => ActivityClientId.Length > 0 && ActivityClientSecret.Length > 0;
 

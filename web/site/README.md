@@ -51,6 +51,7 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glanc
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from. A room waiting on a Watch now shows the film being found, arriving and starting, and plays it on its own |
 | `/embed/` | Where the Discord Activity opens: it signs in through Discord, then goes to the player when the call's room holds something or is private to the viewer, and to Home otherwise |
 | `/g/<code>` | A room's guest link: the film it holds and a name to watch it as, then the player with nothing that moves the room and no way back to the site. Nobody signs in |
+| `/p/<code>` | A television's pairing code, opened by scanning the QR code it shows: signed in first when the phone holds no session, it pairs this browser's session with the television at once, with nothing to confirm, turns remote mode on, and goes Home with a toast saying so that carries Undo; a code that pairs nothing goes Home with the reason. On a television and in the Activity it goes Home |
 
 Every page that sorts opens in the order the person last picked on it, wherever they picked it: the
 site, the Activity and the television read the same orders, which the API keeps per account
@@ -524,13 +525,23 @@ in a WebView, driven by the remote. `src/tv/` is all of it that is the site's ow
   goes back a page. On a page with the bar it first moves focus up into the bar; on Home, from the
   bar, it is the app's, and so it is on the sign-in code.
 - **The television's connection** (`src/tv/screen.js`): while a television is signed in it holds one
-  hub connection that belongs to its person and to no room, built as a room's is (`buildHubConnection`
-  in `hub.ts`). The server knows a television as a screen for as long as a connection signed in through
+  hub connection that belongs to its person and to no room (`src/personConnection.js`), built as a
+  room's is (`buildHubConnection` in `hub.ts`). The server knows a television as a screen for as long as a connection signed in through
   the television client is open (`docs/api-contract.md`, "Screens"), and a room's connection exists
   only while a room is open, so this one makes the television present on every page. It never joins a
   room and reports neither buffering nor quality. It is opened on sign-in, retried on a timer when it
   cannot connect, and closed on sign-out. The screen's name is read when it connects, so a rename made
-  at the provider shows on the next reconnect.
+  at the provider shows on the next reconnect. It is what asks for the pairing code and is told the
+  phones paired with the television.
+- **Pairing a phone** (`src/tv/TvRemote.jsx`): Profile's Remote, between Playback and Subtitles and
+  on a television alone, shows the television's name beside its title, a QR code of the address a
+  phone opens to pair with it (`/p/<code>`, drawn by `src/tv/Qr.jsx`), and the phones paired with it,
+  each named by its browser with the day it paired and Unpair, the row's one control, which focus
+  lifts with it. The paused player shows the same code beside its paused card, centred in the same box,
+  under the word Remote. The code comes from the television's own connection, which alone is given one,
+  and is replaced on the span the server gives, so the one on screen always has most of its life left
+  (`docs/api-contract.md`, "Screens"). It is a version 4 code at error correction M, 33 modules across:
+  200 pixels of the page in Profile and 128 beside the paused card.
 - **Signing in** is a code approved on a phone: "Signing in" above.
 - **Typing** is Fire OS's keyboard, which OK on a field raises, with its own QR code for typing on a
   phone. A submitted search moves focus off the field, which closes the keyboard over the results.
@@ -544,6 +555,18 @@ in a WebView, driven by the remote. `src/tv/` is all of it that is the site's ow
   link to copy). Nothing is blurred behind anything, for the WebView's frame budget.
 
 How the player answers the remote: `src/player/CLAUDE.md`.
+
+## Driving a television
+
+A phone pairs with a television by scanning the code it shows (`/p/<code>`, Pages above), and the
+pairing belongs to the session that scanned: a browser tab and the installed app are two phones, and
+on iOS, where a home-screen app never opens a scanned link, the scan pairs Safari. While its session
+has a television paired, the site holds a hub connection of the person's (`src/remote.js`, on
+`src/personConnection.js`), on which the server tells it each paired television arriving, changing room
+and leaving; with none paired it holds nothing, and it asks again whenever somebody signs in or the
+connection comes back. Remote mode, whether this device is driving its television now, is the device's
+own, kept under `cinema:remote` across the app closing: pairing turns it on, and undoing the last
+pairing turns it off.
 
 ## Notifications
 

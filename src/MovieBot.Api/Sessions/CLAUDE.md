@@ -107,22 +107,39 @@ name it gave itself, holding the link, and no record anywhere is keyed by one.
 ## Screens
 
 A screen is a hub connection signed in through the television client (`Oidc:TvClientId`) with a `sid`
-in its token (`ScreenIdentity`). `ScreenPresence` keeps screens by person and `sid`, in memory; the wire
-is `docs/api-contract.md`, "Screens".
+in its token (`ScreenIdentity`); a phone is any other connection or request of a session
+(`SessionClaims.SidOf`). `ScreenPresence` keeps screens by person and `sid`, in memory, and
+`ScreenPairings` keeps which phones are paired with which screens in the database; the wire is
+`docs/api-contract.md`, "Screens".
 
-- **The token decides what a screen is and whose.** The person is the token's `sub`, the screen the
-  `sid`, the name `tks_device_name`; a page names none of them. A guest's connection has no account and
-  joins no person's group.
-- **Every message to a person's connections is addressed from the screen's own owner**
-  (`PersonGroups.Viewers`), and `Screens` answers only for the caller's own account. A new message about
-  a screen takes its group from the screen, never from an argument.
+- **The token decides what a screen is, what a phone is, and whose.** The person is the token's `sub`,
+  the screen or the phone the `sid`, the screen's name `tks_device_name`; a page names none of them.
+  A guest's connection has no account and joins no person's group, and a token of no session (the
+  Activity's) is no phone.
+- **A screen is heard by the phones paired with it and nobody else.** Every message about a screen goes
+  to each paired phone's group (`PersonGroups.Phone`, the screen's own person and the phone's `sid`) and
+  every message about its phones to the screen's group (`PersonGroups.Screen`); `Screens`, `Phones` and
+  `/api/me/screens` answer for the caller's own account and session. A new message about a screen takes
+  its groups from the screen's own person and its pairings, never from an argument, and every
+  `ScreenPairings` read and write names the person.
+- **A pairing is made by a code only the screen was shown, and the code is a capability, not a
+  record.** `PairingCodes` signs the expiry, a tag of the screen and the screen's person with a key
+  derived from `Auth:MediaTicketKey` under a label of its own, so nothing is stored and a code is
+  checked against the screens known now: an unknown or altered code, one that ran out, and a screen of
+  another person's are told apart, and only the last needs the signature to hold. `PairingCode`,
+  `Phones` and a screen's `Unpair` refuse anything but a screen.
 - **Connected, room and contents are measured, not remembered.** Connected is whether a hub connection
   of the screen is open; the room is the room of its newest `Join`; the title and paused state are read
   from the room when a view is built. `RoomControls` calls `ScreenPresence.RoomChangedAsync` after every
-  push of a room's state, so a change made through HTTP reaches the person's phones like one made on the
+  push of a room's state, so a change made through HTTP reaches the paired phones like one made on the
   hub.
-- **Forgetting loses nothing.** A screen not connected is dropped when a screen of the same name connects
-  under another session or after `ScreenPresence.Retention`, and a screen that connects is known again.
+- **Forgetting a screen loses nothing; ending a pairing is for good.** A screen not connected is
+  dropped from memory when a screen of the same name connects under another session or after
+  `ScreenPresence.Retention`, and a screen that connects is known again; a paired phone lists one not
+  in memory under its kept name. A pairing ends when either side unpairs, when a television of the
+  same name signs in again while its old screen is not connected, or when a session of it has gone
+  unseen for longer than `Oidc:SessionLifetime`, the provider's own bound on a session nobody renews.
+  Cinema hears no revocation, and that bound is what lets it say a session has ended without guessing.
 
 ## Keeping a room
 

@@ -7,15 +7,22 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 
 /// <summary>
 /// The hub groups a person's own connections are in. A group is named by the account the token names,
-/// so a message sent to one reaches that person and nobody else.
+/// and a session's group by the account and the session, so a message sent to one reaches that person
+/// and nobody else.
 /// </summary>
 public static class PersonGroups
 {
     /// <summary>Every connection of the person's that has an account behind it: screens and the rest.</summary>
     public static string Everything(string userId) => "person:" + userId;
 
-    /// <summary>The person's connections that are not screens: where their screens' presence is told.</summary>
-    public static string Viewers(string userId) => "person-viewers:" + userId;
+    /// <summary>
+    /// The connections of one of the person's sessions that is not a screen: a phone, where the screens
+    /// paired with it are told.
+    /// </summary>
+    public static string Phone(string userId, string sid) => $"phone:{userId}:{sid}";
+
+    /// <summary>The connections of one of the person's screens, where the phones paired with it are told.</summary>
+    public static string Screen(string userId, string sid) => $"screen:{userId}:{sid}";
 }
 
 /// <summary>A screen as a person's other connections see it.</summary>
@@ -43,14 +50,16 @@ public readonly record struct ScreenIdentity(string Id, string? Name)
 }
 
 /// <summary>
-/// Which screens each person has, whether they are connected, and what room each is in.
+/// Which screens each person has, whether they are connected, what room each is in, and the phones
+/// paired with each.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Screens live in memory.</b> A screen is a live connection, so a restart drops every one and each
-/// reappears when its television reconnects. Nothing here is a status the hub connection did not
-/// measure: connected is whether a connection of the screen is open, the room is the room its newest
-/// connection joined, and what the room holds is read from the room when it is asked for.
+/// <b>Screens live in memory; pairings are kept.</b> A screen is a live connection, so a restart drops
+/// every one and each reappears when its television reconnects. Nothing here is a status the hub
+/// connection did not measure: connected is whether a connection of the screen is open, the room is the
+/// room its newest connection joined, and what the room holds is read from the room when it is asked
+/// for. Which phones are paired with a screen is <see cref="ScreenPairings"/>, in the database.
 /// </para>
 /// <para>
 /// <b>A screen is told apart by its anchor session.</b> A television signed in again is a new session
@@ -59,21 +68,30 @@ public readonly record struct ScreenIdentity(string Id, string? Name)
 /// a screen that connects again is known again.
 /// </para>
 /// <para>
-/// <b>Only the owner is told.</b> Every message goes to the group named by the screen's own owner
-/// (<see cref="PersonGroups.Viewers"/>), and the list a person asks for is the one filed under their
-/// own token's account, so a screen is never reachable under anyone else's.
+/// <b>Only the phones paired with a screen are told about it, and only its owner's.</b> Every message
+/// about a screen goes to the group of each phone the screen's own person paired with it
+/// (<see cref="PersonGroups.Phone"/>), and every message about its phones to the screen's own group
+/// (<see cref="PersonGroups.Screen"/>), so a screen is never reachable under anyone else's account and
+/// never heard by a phone nobody paired.
+/// </para>
+/// <para>
+/// <b>A pairing is made by a code only the screen was shown</b> (<see cref="PairingCodes"/>), checked
+/// against the screens known now: a code names its screen by a tag and is signed for the screen's
+/// person, so a phone of anybody else is refused, and a code that ran out pairs nothing.
 /// </para>
 /// </remarks>
 public sealed class ScreenPresence(
-    SessionStore sessions, TitleLibrary library, IHubContext<SessionHub> hub, TimeProvider clock)
+    SessionStore sessions, TitleLibrary library, ScreenPairings pairings, PairingCodes codes,
+    IHubContext<SessionHub> hub, TimeProvider clock)
 {
     /// <summary>How long a screen that is not connected is remembered.</summary>
     public static readonly TimeSpan Retention = TimeSpan.FromDays(7);
 
-    private sealed class Entry(string userId, string id)
+    private sealed class Entry(string userId, string id, byte[] tag)
     {
         public string UserId { get; } = userId;
         public string Id { get; } = id;
+        public byte[] Tag { get; } = tag;
         public string? Name;
         public DateTimeOffset LastSeen;
         public ScreenView? Told;
@@ -87,23 +105,27 @@ public sealed class ScreenPresence(
     private readonly Dictionary<string, Entry> _byConnection = [];
     private long _order;
 
-    /// <summary>A connection of a screen opened. Tells the person's other connections.</summary>
+    /// <summary>
+    /// A connection of a screen opened. Ends the pairings of a television signed in again under this
+    /// one's name, and tells the phones paired with it.
+    /// </summary>
     public async Task ConnectedAsync(string userId, ScreenIdentity screen, string connectionId)
     {
         await _gate.WaitAsync();
         try
         {
             var now = clock.GetUtcNow();
-            var forgotten = Forget(userId, screen, now);
+            Forget(userId, screen, now);
 
             if (!_screens.TryGetValue((userId, screen.Id), out var entry))
-                _screens[(userId, screen.Id)] = entry = new Entry(userId, screen.Id);
+                _screens[(userId, screen.Id)] = entry = new Entry(userId, screen.Id, codes.Tag(screen.Id));
             entry.Name = screen.Name ?? entry.Name;
             entry.LastSeen = now;
             entry.Connections[connectionId] = (null, ++_order);
             _byConnection[connectionId] = entry;
 
-            foreach (var id in forgotten) await SendAsync(userId, "ScreenLeft", id);
+            foreach (var ended in pairings.ScreenSeen(userId, screen.Id, screen.Name, Connected(userId)))
+                await hub.Clients.Group(PersonGroups.Phone(userId, ended.PhoneId)).SendAsync("ScreenLeft", ended.ScreenId);
             await AnnounceAsync(entry, arrived: true);
         }
         finally { _gate.Release(); }
@@ -131,14 +153,15 @@ public sealed class ScreenPresence(
             if (!_byConnection.Remove(connectionId, out var entry)) return;
             entry.Connections.Remove(connectionId);
             entry.LastSeen = clock.GetUtcNow();
+            pairings.ScreenSeen(entry.UserId, entry.Id, null, Connected(entry.UserId));
             await AnnounceAsync(entry, arrived: false);
         }
         finally { _gate.Release(); }
     }
 
     /// <summary>
-    /// A room's state changed. Every screen in it is told again when what it shows of the room is not
-    /// what the person was last told.
+    /// A room's state changed. The phones paired with every screen in it are told again when what the
+    /// screen shows of the room is not what they were last told.
     /// </summary>
     public async Task RoomChangedAsync(string sessionId)
     {
@@ -152,37 +175,102 @@ public sealed class ScreenPresence(
         finally { _gate.Release(); }
     }
 
-    /// <summary>The screens of one person, as they stand. A person is only ever handed their own.</summary>
-    public async Task<List<ScreenView>> OfAsync(string userId)
+    /// <summary>
+    /// The screens a phone is paired with, as they stand: those not known now as not connected, under the
+    /// name they last had. A phone is only ever handed its own person's.
+    /// </summary>
+    public async Task<List<ScreenView>> PairedWithAsync(string userId, string phoneId)
     {
         await _gate.WaitAsync();
         try
         {
-            foreach (var id in Forget(userId, null, clock.GetUtcNow())) await SendAsync(userId, "ScreenLeft", id);
+            Forget(userId, null, clock.GetUtcNow());
+            pairings.PhoneSeen(userId, phoneId);
             var views = new List<ScreenView>();
-            foreach (var entry in _screens.Values.Where(e => e.UserId == userId).ToList())
-                views.Add(ViewOf(entry));
+            foreach (var row in pairings.OfPhone(userId, phoneId, Connected(userId)))
+                views.Add(_screens.TryGetValue((userId, row.ScreenId), out var entry)
+                    ? ViewOf(entry)
+                    : new ScreenView(row.ScreenId, row.ScreenName, false, null, null, null, null));
             return views;
         }
         finally { _gate.Release(); }
     }
 
+    /// <summary>The phones paired with one of the person's screens, oldest first.</summary>
+    public async Task<List<PairedPhone>> PhonesOfAsync(string userId, string screenId)
+    {
+        await _gate.WaitAsync();
+        try { return Phones(userId, screenId); }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>A code for one of the person's screens to show.</summary>
+    public PairingCodeView CodeFor(string userId, string screenId) => codes.Issue(userId, screenId);
+
+    /// <summary>
+    /// Pairs a phone with the screen that showed <paramref name="code"/>, and answers the screen as the
+    /// phone now sees it, or why the code paired nothing. The phone's other connections hear the screen
+    /// arrive, and the screen hears its phones change.
+    /// </summary>
+    public async Task<(ScreenView? Screen, PairingRefusal? Refused)> PairAsync(
+        string userId, string phoneId, string phoneName, string code)
+    {
+        if (PairingCodes.Open(code) is not { } opened) return (null, PairingRefusal.Unknown);
+
+        await _gate.WaitAsync();
+        try
+        {
+            var entry = _screens.Values.FirstOrDefault(e => e.Tag.AsSpan().SequenceEqual(opened.Tag)
+                && codes.Signed(opened, e.UserId, e.Id));
+            if (entry is null) return (null, PairingRefusal.Unknown);
+            if (codes.Expired(opened)) return (null, PairingRefusal.Expired);
+            if (entry.UserId != userId) return (null, PairingRefusal.AnotherPerson);
+
+            pairings.Pair(userId, phoneId, phoneName, entry.Id, entry.Name);
+            var view = ViewOf(entry);
+            await hub.Clients.Group(PersonGroups.Phone(userId, phoneId)).SendAsync("ScreenArrived", view);
+            await hub.Clients.Group(PersonGroups.Screen(userId, entry.Id)).SendAsync("PhonesChanged", Phones(userId, entry.Id));
+            return (view, null);
+        }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>
+    /// Ends a pairing, from either side. The phone hears the screen leave, and the screen hears its
+    /// phones change. Ending one there is none of does nothing.
+    /// </summary>
+    public async Task UnpairAsync(string userId, string phoneId, string screenId)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            if (!pairings.Unpair(userId, phoneId, screenId)) return;
+            await hub.Clients.Group(PersonGroups.Phone(userId, phoneId)).SendAsync("ScreenLeft", screenId);
+            await hub.Clients.Group(PersonGroups.Screen(userId, screenId)).SendAsync("PhonesChanged", Phones(userId, screenId));
+        }
+        finally { _gate.Release(); }
+    }
+
+    private List<PairedPhone> Phones(string userId, string screenId) =>
+        [.. pairings.OfScreen(userId, screenId, Connected(userId)).Select(row => new PairedPhone(row.PhoneId, row.PhoneName, row.PairedAt))];
+
+    /// <summary>The person's screens with a connection open now.</summary>
+    private HashSet<string> Connected(string userId) =>
+        [.. _screens.Values.Where(e => e.UserId == userId && e.Connections.Count > 0).Select(e => e.Id)];
+
     /// <summary>
     /// Drops what the person's screens no longer need to be shown: those unseen for <see cref="Retention"/>,
     /// and those not connected that carry the name of a screen arriving under another session.
     /// </summary>
-    private List<string> Forget(string userId, ScreenIdentity? arriving, DateTimeOffset now)
+    private void Forget(string userId, ScreenIdentity? arriving, DateTimeOffset now)
     {
-        var gone = new List<string>();
         foreach (var entry in _screens.Values.Where(e => e.UserId == userId && e.Connections.Count == 0 && e.Id != arriving?.Id).ToList())
         {
             var superseded = arriving?.Name is { } name
                 && string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase);
             if (!superseded && now - entry.LastSeen < Retention) continue;
             _screens.Remove((userId, entry.Id));
-            gone.Add(entry.Id);
         }
-        return gone;
     }
 
     private static string? RoomOf(Entry entry)
@@ -204,15 +292,14 @@ public sealed class ScreenPresence(
             manifest is null ? null : manifest.Film?.Display ?? manifest.Title, state?.Paused);
     }
 
+    /// <summary>Tells the phones paired with a screen what it shows now, when that is not what they were last told.</summary>
     private async Task AnnounceAsync(Entry entry, bool arrived)
     {
         var view = ViewOf(entry);
         var message = arrived && entry.Told is not { Connected: true } ? "ScreenArrived" : "ScreenChanged";
         if (view == entry.Told) return;
         entry.Told = view;
-        await SendAsync(entry.UserId, message, view);
+        foreach (var phone in pairings.OfScreen(entry.UserId, entry.Id, Connected(entry.UserId)))
+            await hub.Clients.Group(PersonGroups.Phone(entry.UserId, phone.PhoneId)).SendAsync(message, view);
     }
-
-    private Task SendAsync(string userId, string method, object payload) =>
-        hub.Clients.Group(PersonGroups.Viewers(userId)).SendAsync(method, payload);
 }

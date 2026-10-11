@@ -4,7 +4,7 @@
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
 import {
   ANIME, PROFILE_TABS, aboutPath, discoverFilmPath, discoverPath, discoverShowPath, guestPath, homePath, libraryPath,
-  listPath, moviePath, notifyPath, profilePath, roomPath, savedPath, signInPath, tvPath,
+  listPath, moviePath, notifyPath, pairPath, profilePath, roomPath, savedPath, signInPath, tvPath,
 } from "./paths.js";
 
 const decode = (s) => {
@@ -46,9 +46,9 @@ function arrived(segments, search) {
  * `notfound` and keeps the address as typed.
  *
  *   view      which page: home, movies, movie, tv, show, anime, anime-films, discover, discover-film,
- *             discover-show, saved, list, notify, profile, about, signin, room, guest, embed, notfound
+ *             discover-show, saved, list, notify, profile, about, signin, room, guest, pair, embed, notfound
  *   category  `anime` for a shelf or a title's page under Anime; null everywhere else
- *   arg       the id the path carries: a title, a show, a film, a list or a room
+ *   arg       the id the path carries: a title, a show, a film, a list, a room or a code
  *   season    the season a show's path names, or null for the show's own choice
  *   tab       the profile tab the path names, or null for the first
  *   segments  the canonical path, decoded, one entry per level
@@ -113,6 +113,9 @@ function parse(href) {
       break;
     case "g":
       route = rest[0] ? shaped("guest", guestPath(rest[0]), { arg: rest[0] }) : shaped("home", homePath);
+      break;
+    case "p":
+      route = rest[0] ? shaped("pair", pairPath(rest[0]), { arg: rest[0] }) : shaped("home", homePath);
       break;
     case "embed":
       return { ...shaped("embed", url.pathname), query: url.searchParams, href: url.pathname + url.search, segments };

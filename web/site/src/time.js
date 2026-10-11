@@ -47,6 +47,13 @@ export function since(iso) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/** An instant as the day it fell on: "11 October", with the year when it is not this one. */
+export function dayOf(iso, now = new Date()) {
+  const at = new Date(iso);
+  return at.toLocaleDateString("en-GB", at.getFullYear() === now.getFullYear()
+    ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" });
+}
+
 /** A calendar day from the API, "2026-10-08", the way a person says it: "Wed 8 Oct". */
 export function airDay(date) {
   const [year, month, day] = String(date).slice(0, 10).split("-").map(Number);

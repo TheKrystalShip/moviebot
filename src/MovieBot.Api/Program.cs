@@ -67,8 +67,11 @@ builder.Services.AddSingleton<ViewerQuality>();
 builder.Services.AddSingleton<RoomControls>();
 builder.Services.AddSingleton<RoomDoors>();
 
-// The television screens each person has: connected or not, the room each is in and what it holds.
+// The television screens each person has: connected or not, the room each is in and what it holds,
+// and the phones paired with each.
 builder.Services.AddSingleton<ScreenPresence>();
+builder.Services.AddSingleton<ScreenPairings>();
+builder.Services.AddSingleton<PairingCodes>();
 
 // The guests watching each room on its link, and the pass that sends them away once the link has run
 // out or nobody with an account is left in the room with them.
@@ -446,6 +449,7 @@ app.MapGet("/api/sessions/{sessionId}/around", (string sessionId, HttpContext co
 
 app.MapRooms();
 app.MapGuests();
+app.MapPairings();
 app.MapActivitySignIn();
 
 app.MapMedia();
