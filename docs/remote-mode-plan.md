@@ -143,8 +143,9 @@ Gestures, each a shortcut for a control on screen:
   scrubs, the room moving when the finger lifts. The vertical sweeps are off.
 - The handle drags the drawer: down collapses the remote to its head, up opens it. Dragging belongs
   to `Drawer` itself, so every drawer on the site closes the same way. The handle takes the look of
-  the assistant dock's resize handle (krystal-ui `.assistant-dock__resize`), laid flat on the drawer's
-  top edge, across its border: a 3 px pill in `--border-strong`, teal while held. Its hit area is the
+  the assistant dock's resize handle (krystal-ui `.assistant-dock__resize`), laid flat: a 36 by 3 px
+  pill in `--border-strong`, teal while held, starting at the drawer's outer top edge over its border
+  and reaching inward, as the dock's starts at its left edge. Its hit area is the
   drawer's whole head, not the pill. A drawer has square corners, and its body scrolls rather than the
   drawer, so nothing clips the pill.
 - The collapsed head swiped sideways turns remote mode off, with Undo in a toast.
