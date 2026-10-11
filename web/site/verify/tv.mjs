@@ -2,15 +2,17 @@
 // walked with the arrow keys from where focus starts, against the scratch site verify/mobile/scratch.sh
 // serves (staged first, by its run or `node verify/mobile/run.mjs`; an unstaged site stops this run).
 //
-//   node verify/tv.mjs [--checks pages,empty,overlays,back,player,signin] [--pages home,title] [--out dir]
+//   node verify/tv.mjs [--checks pages,heads,empty,overlays,back,player,signin] [--pages home,title] [--out dir]
 //
 // Each page is checked for:
 // - focus starting on a control when it opens, and on screen;
 // - every control on it reached from there with arrows alone (Menu into a card's own controls and
 //   Back out of them counted too), and each one on screen when it is reached;
 // - focus never falling to nothing after a key.
-// Then Saved and a list with nothing on them, for a person with nothing saved: the empty state's one
-// Discover button focused, the page centred inside the margins, Up and Back reaching the bar from it.
+// Then a list's page headed by the list's name, visible, with its count of titles; and Saved and a
+// list with nothing on them, for a person with nothing saved: the empty state's one
+// Discover button focused, the empty list headed by its name without a count, the page centred inside
+// the margins, Up and Back reaching the bar from it.
 // Then what the keys do: an overlay taking focus when it opens and handing it back when it closes,
 // Back going back a page to the control it was left on, Back on Home going to the bar and then
 // being left to the app, and the player: the play button focused, OK playing, presses gathered into
@@ -604,6 +606,59 @@ async function signIn() {
 }
 
 /**
+ * A list page's heading: the list's name as the page's h1, drawn with a size, inside the screen, in a
+ * colour that reads on the canvas; and the count of titles beside it only when there is a title.
+ */
+async function checkHead(name, page, expected, counted) {
+  const head = await page.evaluate(() => {
+    const h = document.querySelector("main h1");
+    if (!h) return null;
+    const r = h.getBoundingClientRect();
+    const colour = getComputedStyle(h).color.match(/[\d.]+/g).map(Number);
+    let opacity = colour.length > 3 ? colour[3] : 1;
+    for (let el = h; el; el = el.parentElement) opacity *= Number(getComputedStyle(el).opacity);
+    const facts = document.querySelector("main .kc-tvsv__head .kc-tvsv__facts");
+    return {
+      text: h.textContent, width: r.width, height: r.height, left: r.left, top: r.top, right: r.right, bottom: r.bottom,
+      visibility: getComputedStyle(h).visibility, opacity, facts: facts && facts.textContent,
+    };
+  });
+  if (!head) return fail(name, "the page draws no heading");
+  if (head.text !== expected) fail(name, `the heading reads "${head.text}", not "${expected}"`);
+  if (head.width < 1 || head.height < 1 || head.visibility !== "visible") fail(name, "the heading has no size or is hidden");
+  if (head.left < 0 || head.top < 0 || head.right > Viewport.width || head.bottom > Viewport.height) fail(name, "the heading is outside the screen");
+  if (head.opacity < 0.9) fail(name, `the heading is drawn at ${head.opacity.toFixed(2)} opacity`);
+  if (counted && !/^\d+ titles?$/.test(head.facts || "")) fail(name, `the heading's count reads "${head.facts}"`);
+  if (!counted && head.facts) fail(name, `an empty list shows "${head.facts}" beside its name`);
+}
+
+/** A list with titles, as a person sees it: Watch later and one of their own, each headed by its name. */
+async function heads() {
+  const made = await fetch(base + "/api/lists", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Friday night" }),
+  }).then((r) => r.json());
+  await fetch(base + `/api/lists/${made.list.id}/entries/${films[0].film.imdbId}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: "film" }),
+  });
+  for (const [name, path, expected] of [["head-later", "/saved/later", "Watch later"], ["head-list", "/saved/" + made.list.id, "Friday night"]]) {
+    console.log(`${name} (${path})`);
+    const { page, close } = await open(path);
+    try {
+      await page.screenshot({ path: join(out, `${name}.png`) });
+      const before = failures.length;
+      await checkHead(name, page, expected, true);
+      if (failures.length === before) pass("list heading: its name, visible, with the count of titles");
+    } finally {
+      await close();
+    }
+  }
+}
+
+/**
  * Saved and a list with nothing on them, as a person with nothing saved sees them: Discover is the one
  * control, it holds focus when the page opens, and Up and Back reach the bar from it.
  */
@@ -615,11 +670,13 @@ async function empties() {
     headers: { Authorization: `Bearer ${issuer.mint(PEOPLE.lister)}`, "Content-Type": "application/json" },
     body: JSON.stringify({ name: "Nothing yet" }),
   }).then((r) => r.json());
+  const headed = { "empty-later": "Watch later", "empty-list": "Nothing yet" };
   for (const [name, path, person] of [["empty-saved", "/saved", nobody], ["empty-later", "/saved/later", nobody], ["empty-list", "/saved/" + mine.list.id, PEOPLE.lister]]) {
     console.log(`${name} (${path})`);
     const { page, close } = await open(path, person);
     try {
       await page.screenshot({ path: join(out, `${name}.png`) });
+      if (headed[name]) await checkHead(name, page, headed[name], false);
       const start = await page.evaluate(focused);
       const shape = await page.evaluate(() => {
         const main = document.querySelector("main");
@@ -671,9 +728,10 @@ async function empties() {
   }
 }
 
-const checks = option("checks", "pages,empty,overlays,back,player,signin").split(",");
+const checks = option("checks", "pages,heads,empty,overlays,back,player,signin").split(",");
 try {
   if (checks.includes("pages")) for (const p of PAGES) if (!pageNames || pageNames.includes(p.name)) await walk(p);
+  if (checks.includes("heads")) await heads();
   if (checks.includes("empty")) await empties();
   if (checks.includes("overlays")) {
     await overlay("save", "/movies/" + encodeURIComponent(films[0].id), ".kc-follow .k-btn");

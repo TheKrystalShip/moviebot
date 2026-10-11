@@ -185,6 +185,7 @@
 .kc-tvsv__list:focus-visible :is(.kc-tvsv__name, .kc-tvsv__facts) { transform: translateY(12px); }
 .kc-tvsv__list :is(.kc-tvsv__name, .kc-tvsv__facts) { transition: transform var(--d-base) var(--ease-out); }
 .kc-tvsv__head { padding: 0 var(--tv-margin-x) 8px; display: flex; flex-direction: column; gap: 6px; }
+.kc-tvsv__title { margin: 0; font-size: var(--text-3xl); line-height: 1.05; font-weight: var(--w-bold); }
 .kc-tvsv__grid {
   display: flex; flex-wrap: wrap; gap: 22px var(--tv-gap);
   padding: 16px var(--tv-margin-x) 0;

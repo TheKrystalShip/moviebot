@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.18.1] - 2026-10-11
+
+### Fixed
+
+- **A list's page on a television is headed by the list's name.** The page read the name from the
+  wrong place in the API's answer and drew an empty heading; it reads the list from the answer's
+  `list`, and the heading is a class of the site's own, in the size Profile's title has, instead of
+  the spotlight's title class. A list with no titles shows its name and no count; the count of
+  titles shows once there is one. `verify:tv` checks a list's name is visible and an empty list
+  carries no count. Site 0.67.3.
+
 ## [3.18.0] - 2026-10-11
 
 ### Changed

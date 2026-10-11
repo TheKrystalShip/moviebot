@@ -94,14 +94,14 @@ export function TvList({ id }) {
   const [sort] = useSort(SORTED.list, LIST_SORTS);
   if (list.error && !list.data) return <div className="kc-tv-page kc-tv-pad"><Failed error={list.error} onRetry={list.reload} /></div>;
   if (!list.data) return <div className="kc-tv-page" />;
-  const l = list.data;
+  const l = list.data.list;
   const order = LIST_SORTS.find((s) => s.value === sort.key) || LIST_SORTS[0];
-  const entries = [...l.entries].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
+  const entries = [...list.data.entries].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
   return (
     <div className={"kc-tv-page kc-tvsv kc-tvsv--list" + (entries.length === 0 ? " kc-tvsv--none" : "")}>
       <div className="kc-tvsv__head">
-        <h1 className="tv-spot__title">{l.name}</h1>
-        <span className="kc-tvsv__facts">{titles(entries.length)}</span>
+        <h1 className="kc-tvsv__title">{l.name}</h1>
+        {entries.length > 0 && <span className="kc-tvsv__facts">{titles(entries.length)}</span>}
       </div>
       {entries.length === 0 && <Nothing />}
       <div className="kc-tvsv__grid">
