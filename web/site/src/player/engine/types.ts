@@ -408,6 +408,8 @@ export interface ViewerPreferences {
   skipIntros?: boolean;
   /** How subtitles are drawn; absent, or a field of it absent, for the player's own look. */
   subtitleStyle?: SubtitleStyle | null;
+  /** Where this record stands in the order the API kept this person's writes; absent on a read. */
+  revision?: number | null;
 }
 
 /**
@@ -420,6 +422,8 @@ export interface FilmTracks {
   subtitleId?: string | null;
   subtitleOff?: boolean;
   audioId?: string | null;
+  /** Where this record stands in the order the API kept this person's writes to the film; see `session/ordered.ts`. */
+  revision?: number | null;
 }
 
 /** What a request to change a film's tracks names: what it leaves out is kept. */

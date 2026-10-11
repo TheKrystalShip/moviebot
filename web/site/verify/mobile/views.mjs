@@ -68,6 +68,23 @@ export const VIEWS = [
   { name: "remote-strip", remote: ["living"], path: () => "/", ready: ".kc-remote-strip .kc-dl-head__name", act: (page) => page.waitForTimeout(800) },
   { name: "remote-open", remote: ["living"], path: () => "/", ready: ".kc-remote-strip", act: openRemote },
   { name: "remote-episode", remote: ["kitchen"], path: () => "/", ready: ".kc-remote-strip", act: openRemote },
+  // The television's own settings, the player's menus aimed at it: Subtitles, its style editor and Quality.
+  {
+    name: "remote-subtitles", remote: ["living"], path: () => "/", ready: ".kc-remote-strip",
+    act: async (page) => { await openRemote(page); await tap('.kc-remote .mp-menu-button[title="Subtitles"]', ".mp-aimed.mp-menu")(page); await page.waitForTimeout(600); },
+  },
+  {
+    name: "remote-style", remote: ["living"], path: () => "/", ready: ".kc-remote-strip",
+    act: async (page) => {
+      await openRemote(page);
+      await tap('.kc-remote .mp-menu-button[title="Subtitles"]', ".mp-aimed.mp-menu")(page);
+      await tap(".mp-aimed .mp-option:has(.lucide-type)", ".mp-aimed.is-styling")(page);
+    },
+  },
+  {
+    name: "remote-quality", remote: ["living"], path: () => "/", ready: ".kc-remote-strip",
+    act: async (page) => { await openRemote(page); await tap('.kc-remote .mp-menu-button[title="Quality"]', ".mp-aimed.mp-menu")(page); },
+  },
   {
     name: "remote-episodes", remote: ["kitchen"], path: () => "/", ready: ".kc-remote-strip",
     act: async (page) => { await openRemote(page); await tap('.kc-remote .mp-controls button[aria-label^="Episodes"]', ".mp-episodes .kc-episode")(page); await page.waitForTimeout(600); },

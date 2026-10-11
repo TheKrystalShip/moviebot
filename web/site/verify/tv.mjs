@@ -1647,6 +1647,15 @@ async function settingsUi() {
     await put("/api/me/preferences", { ...before, qualityHeight: null, subtitleStyle: null });
     await put(`/api/me/tracks/${DualFilm}`, { subtitleOff: true, audioId: "a0" });
 
+    let delayEchoes = false;
+    await tv.page.routeWebSocket(/\/hub\/session/, (ws) => {
+      const server = ws.connectToServer();
+      ws.onMessage((m) => server.send(m));
+      server.onMessage((m) => {
+        if (delayEchoes && typeof m === "string" && m.includes("PreferencesChanged")) setTimeout(() => ws.send(m), 1500);
+        else ws.send(m);
+      });
+    });
     await tv.page.goto(`${base}/r/${room}?title=${DualFilm}&tv=1`, { waitUntil: "load" });
     await tv.page.waitForFunction(() => { const v = document.querySelector("video"); return v && v.readyState >= 3; }, null, { timeout: 30000 }).catch(() => {});
     await tv.page.keyboard.press("Enter");
@@ -1793,6 +1802,35 @@ async function settingsUi() {
     await shot("settings-21-after-tv-menu.png");
     if (!phoneSubtitle || !phoneAuto) fail("settings", `after the TV's own menus the phone says ${await label("Subtitles")} and ${await label("Quality")}`);
     else pass("a track and a quality chosen in the TV's own menus move the phone's labels");
+
+    // Two quick choices in the TV's own menu: each is echoed back by the API, and the first never shows after the second.
+    await tv.page.evaluate(() => {
+      window.__quality = [];
+      const read = () => [...document.querySelectorAll(".mp-menu-button")].map((b) => b.getAttribute("aria-label")).find((l) => l && l.startsWith("Quality"));
+      new MutationObserver(() => { const l = read(); if (l && window.__quality[window.__quality.length - 1] !== l) window.__quality.push(l); })
+        .observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["aria-label"] });
+      const l = read(); if (l) window.__quality.push(l);
+    });
+    // The API's preferences pushes reach the television a second and a half late, so both choices are made before either echo.
+    delayEchoes = true;
+    await tv.page.locator('.mp-menu-button[title="Quality"]').dispatchEvent("click");
+    await tv.page.locator('.mp-menu .mp-option[title="818p"], .mp-popover .mp-option[title="818p"]').first().dispatchEvent("click");
+    await tv.page.locator('.mp-menu-button[title="Quality"]').dispatchEvent("click");
+    await tv.page.locator('.mp-menu .mp-option[title="546p"], .mp-popover .mp-option[title="546p"]').first().dispatchEvent("click");
+    await tv.page.waitForTimeout(5000);
+    delayEchoes = false;
+    const history = await tv.page.evaluate(() => window.__quality);
+    // The setting a label names, apart from the height playing: "Auto · 818p" is Auto, "Up to 818p · 546p" is 818.
+    const setting = (l) => { const m = /^Quality: (?:Up to )?(Auto|\d+)/.exec(l); return m ? m[1] : l; };
+    const chosen = history.map(setting);
+    const lastFirst = chosen.lastIndexOf("818");
+    const firstSecond = chosen.indexOf("546");
+    if (chosen[chosen.length - 1] !== "546" || lastFirst > firstSecond || (await mine("/api/me/preferences")).qualityHeight !== 546)
+      fail("settings", `two quick quality choices on the TV showed ${JSON.stringify(history)}, the API holds ${(await mine("/api/me/preferences")).qualityHeight}`);
+    else pass(`two quick quality choices on the TV showed ${JSON.stringify(history)}: the first never shows after the second, and the API holds 546`);
+    await phone.waitForTimeout(500);
+    if ((await label("Quality")) !== "Quality: 546p") fail("settings", `the phone says ${await label("Quality")} after the TV chose 546p`);
+    else pass("and the phone's label follows the last choice");
 
     const after = { tv: counts("tv", "StateChanged", "ParticipantsChanged"), phone: counts("phone", "StateChanged", "ParticipantsChanged") };
     if (after.tv !== quiet.tv || after.phone !== quiet.phone)

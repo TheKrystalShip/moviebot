@@ -9,6 +9,7 @@ import { startingTracks } from './media/tracks';
 import { describeChange } from './session/changes';
 import { SessionHub, type ConnectionStatus, type Timeline } from './session/hub';
 import { LocalTimeline } from './session/local';
+import { Ordered } from './session/ordered';
 import { SyncController } from './session/sync';
 import type {
   Actor, FilmTracks, GuestRefusal, Manifest, Participant, RoomDoor, SeekClamped, SessionState, SessionStatePush, SubtitleSearch,
@@ -139,6 +140,9 @@ export class PlayerRoom {
   private disposed = false;
   private styleSave: ReturnType<typeof setTimeout> | null = null;
   private styleSampleLapse: ReturnType<typeof setTimeout> | null = null;
+  /** The API's pushes, applied in the order its writes were kept: one stream for preferences, one per film for tracks. */
+  private readonly preferencesOrder = new Ordered<ViewerPreferences>((preferences) => this.applyPreferences(preferences));
+  private readonly tracksOrder = new Map<string, Ordered<FilmTracks>>();
   /** The film as the device holds it, for the title this viewer holds, or null. */
   private copy: DeviceCopy | null = null;
   private progressTimer: number | null = null;
@@ -294,8 +298,8 @@ export class PlayerRoom {
         this.set({ entry: 'private', door: null });
       },
       onGuestEnded: (reason) => this.endGuest(reason),
-      onPreferences: (preferences) => this.preferencesChanged(preferences),
-      onTracks: (tracks) => this.tracksChanged(tracks),
+      onPreferences: (preferences) => this.preferencesOrder.heard(preferences),
+      onTracks: (tracks) => this.tracksOrderOf(tracks.titleId).heard(tracks),
       onStatus: (status) => {
         this.set({ connection: status });
         // Nothing is derived forward from a room that cannot be heard from. Its anchor runs
@@ -845,14 +849,27 @@ export class PlayerRoom {
       if (choice.subtitleOff === true) prefs.setSubtitleTrack(manifest.id, null);
       return;
     }
-    void api.setTracks(manifest.id, choice).catch(() => this.notice('Your track choice could not be saved.', 'error'));
+    const done = this.tracksOrderOf(manifest.id).writing();
+    api.setTracks(manifest.id, choice).then(done, () => {
+      done(null);
+      this.notice('Your track choice could not be saved.', 'error');
+    });
+  }
+
+  private tracksOrderOf(titleId: string): Ordered<FilmTracks> {
+    let order = this.tracksOrder.get(titleId);
+    if (order === undefined) {
+      order = new Ordered<FilmTracks>((tracks) => this.applyTracks(tracks));
+      this.tracksOrder.set(titleId, order);
+    }
+    return order;
   }
 
   /**
    * The tracks this person watches a film with changed on another device (or this one, echoed): the
    * film this viewer holds follows, and any other film reads them when it starts.
    */
-  private tracksChanged(tracks: FilmTracks): void {
+  private applyTracks(tracks: FilmTracks): void {
     if (this.view.manifest?.id !== tracks.titleId) return;
     if (tracks.subtitleOff === true) {
       if (this.view.subtitleId !== null) this.applySubtitle(null);
@@ -873,7 +890,7 @@ export class PlayerRoom {
    * the one held, so what a save writes back is current; a style being chosen here is left alone
    * until it is saved, and a style that arrives from elsewhere shows its sample line for a few seconds.
    */
-  private preferencesChanged(preferences: ViewerPreferences): void {
+  private applyPreferences(preferences: ViewerPreferences): void {
     const before = this.view.preferences;
     const choosingStyle = this.styleSave !== null;
     const next = choosingStyle ? { ...preferences, subtitleStyle: before.subtitleStyle } : preferences;
@@ -898,7 +915,15 @@ export class PlayerRoom {
   private async savePreferences(preferences: ViewerPreferences): Promise<void> {
     const guest = environment().guest;
     if (guest !== null) guest.keepPreferences(preferences);
-    else await api.setPreferences(preferences);
+    else {
+      const done = this.preferencesOrder.writing();
+      try {
+        done(await api.setPreferences(preferences));
+      } catch (error) {
+        done(null);
+        throw error;
+      }
+    }
   }
 
   /**

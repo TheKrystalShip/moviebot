@@ -12,6 +12,7 @@
 
 import { createStore, toast, useStore } from "@thekrystalship/krystal-ui";
 import { api } from "./api.js";
+import { Ordered } from "./player/engine/session/ordered.ts";
 
 /** How long a style change waits for the next before it is sent, so a slider dragged across its range is one write. */
 const StyleSettleMs = 250;
@@ -49,17 +50,47 @@ export function followFilm(id) {
   if (id) void refreshSettings();
 }
 
-/** The API says how the person watches changed: the record replaces the one held, except a style being chosen here. */
-export function heardPreferences(preferences) {
+/**
+ * The pushes, applied in the order the API kept the writes (`session/ordered.ts`): the record replaces the
+ * one held, except a style being chosen here, and the tracks are kept when they are the film the room holds.
+ */
+const preferencesOrder = new Ordered((preferences) => {
   settingsStore.setState((held) => ({
     ...held,
     preferences: styleSave === null || !held.preferences ? preferences : { ...preferences, subtitleStyle: held.preferences.subtitleStyle },
   }));
+});
+const tracksOrders = new Map();
+function tracksOrder(film) {
+  if (!tracksOrders.has(film)) {
+    tracksOrders.set(film, new Ordered((tracks) => {
+      if (tracks.titleId === titleId) settingsStore.setState((held) => ({ ...held, tracks }));
+    }));
+  }
+  return tracksOrders.get(film);
 }
 
-/** The API says the tracks of a film changed: kept when it is the film the room holds. */
+/** The API says how the person watches changed. */
+export function heardPreferences(preferences) {
+  preferencesOrder.heard(preferences);
+}
+
+/** The API says the tracks of a film changed. */
 export function heardTracks(tracks) {
-  if (tracks.titleId === titleId) settingsStore.setState((held) => ({ ...held, tracks }));
+  tracksOrder(tracks.titleId).heard(tracks);
+}
+
+/** A write to the API, held against the pushes until it has answered, and reported to `order`. */
+async function writeThrough(order, send) {
+  const done = order.writing();
+  try {
+    const answer = await send();
+    done(answer);
+    return answer;
+  } catch (error) {
+    done(null);
+    throw error;
+  }
 }
 
 /** Lets go of what was read, for a remote that ended. */
@@ -107,16 +138,16 @@ export const settingsCommands = {
       ...held,
       tracks: { ...(held.tracks || { titleId: film }), titleId: film, subtitleId: id === null ? undefined : id, subtitleOff: id === null },
     }));
-    return writing(() => api.setTracks(film, id === null ? { subtitleOff: true } : { subtitleId: id }));
+    return writing(() => writeThrough(tracksOrder(film), () => api.setTracks(film, id === null ? { subtitleOff: true } : { subtitleId: id })));
   },
   chooseAudio: (film, id) => {
     settingsStore.setState((held) => ({ ...held, tracks: { ...(held.tracks || { titleId: film }), titleId: film, audioId: id } }));
-    return writing(() => api.setTracks(film, { audioId: id }));
+    return writing(() => writeThrough(tracksOrder(film), () => api.setTracks(film, { audioId: id })));
   },
   chooseQuality: async (height) => {
     const held = await preferencesNow();
     settingsStore.setState((s) => ({ ...s, preferences: { ...held, qualityHeight: height } }));
-    return writing(() => api.setPreferences({ ...held, qualityHeight: height }));
+    return writing(() => writeThrough(preferencesOrder, () => api.setPreferences({ ...held, qualityHeight: height })));
   },
   /**
    * The look of subtitles: shown at once, sent once the choosing pauses. Every send carries the whole
@@ -128,7 +159,7 @@ export const settingsCommands = {
     styleSave = window.setTimeout(() => {
       styleSave = null;
       const held = settingsStore.getState().preferences;
-      if (held) writing(() => api.setPreferences(held)).catch((error) => toast.fromError(error, "The TV did not take that"));
+      if (held) writing(() => writeThrough(preferencesOrder, () => api.setPreferences(held))).catch((error) => toast.fromError(error, "The TV did not take that"));
     }, StyleSettleMs);
   },
 };

@@ -15,6 +15,12 @@ public sealed record FilmTracks
     public string? SubtitleId { get; init; }
     public bool SubtitleOff { get; init; }
     public string? AudioId { get; init; }
+
+    /// <summary>
+    /// Where this record stands in the order the person's writes to this film were kept, on what a write
+    /// answers and what a push carries; absent on a read.
+    /// </summary>
+    public long? Revision { get; init; }
 }
 
 /// <summary>
@@ -75,7 +81,7 @@ public sealed class TrackStore(CinemaDatabase database)
                 + "VALUES ($user, $title, $subtitle, $off, $audio)",
                 ("$user", userId), ("$title", titleId), ("$subtitle", after.SubtitleId), ("$off", after.SubtitleOff),
                 ("$audio", after.AudioId));
-            return after;
+            return after with { Revision = Revisions.Next($"t:{userId}:{titleId}") };
         });
 
     private static FilmTracks? Read(Microsoft.Data.Sqlite.SqliteConnection c, string userId, string titleId) =>

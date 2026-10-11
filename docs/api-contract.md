@@ -825,8 +825,8 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `ScreenArrived` | `ScreenView` — a screen paired with this session connected, after having no connection, or was paired with it. Sent to the session's connections that are not screens |
 | `ScreenChanged` | `ScreenView` — a screen paired with this session changed name, room, what the room holds or whether the room is paused, or lost its last connection (`connected: false`, no `room`). Sent to the same connections |
 | `Watch` | `{room, titleId?, startSeconds?}` — sent to a screen's own connections when a remote of it called `WatchOnScreen`; the screen navigates to `/r/<room>`, with `?title=` and `&at=` as the site's Watch writes them |
-| `PreferencesChanged` | `ViewerPreferences` — how this person watches changed (`PUT /api/me/preferences`): the whole record. Sent to every connection of the person's that has an account behind it, a playing player's and a phone's remote among them, and to nobody else's: not another person's, not a guest's, and never into the room |
-| `TracksChanged` | `FilmTracks` — the subtitle or audio track this person watches a film with changed (`PUT /api/me/tracks/{titleId}`): that film's tracks as they now stand. Sent to the same connections as `PreferencesChanged`; a player holding that film applies it, any other connection ignores it |
+| `PreferencesChanged` | `ViewerPreferences` — how this person watches changed (`PUT /api/me/preferences`): the whole record, with `revision`. Sent to every connection of the person's that has an account behind it, a playing player's and a phone's remote among them, and to nobody else's: not another person's, not a guest's, and never into the room |
+| `TracksChanged` | `FilmTracks` — the subtitle or audio track this person watches a film with changed (`PUT /api/me/tracks/{titleId}`): that film's tracks as they now stand, with `revision`. Sent to the same connections as `PreferencesChanged`; a player holding that film applies it, any other connection ignores it |
 | `ScreenLeft` | `string` — the id of a screen whose pairing with this session ended. Sent to the same connections |
 | `RemotesChanged` | `int` — a remote of this screen joined it, left it or was dropped; how many drive it now. Sent to the screen's own connections and never into the room: a remote stays out of `ParticipantsChanged` |
 | `PhonesChanged` | `PairedPhone[]` — a phone paired with this screen or unpaired from it; the phones paired now. Sent to the screen's connections |
@@ -1001,6 +1001,18 @@ does for an open one.
    since a timeline nobody can follow only sends each player, once it has the film again, to a
    place it has not fetched. Report where the playhead stopped, and say so again if a held room
    reaches a player that is playing.
+
+## Revisions of a person's settings
+
+A write to `/api/me/preferences` or `/api/me/tracks/{titleId}` answers with the record carrying a `revision`,
+and the push of that write carries the same number; a read carries none and a request never names one. The
+numbers are stamped inside the transaction that keeps the write, so they follow the order the database kept
+the writes in, and they only rise: each is at least the clock in milliseconds and one past the last of its
+stream. One stream is a person's preferences and another a person's tracks for one film; numbers of
+different streams are not comparable. A device applies a push only when it is newer than the last record it
+applied or its own write was answered with, and holds a push that arrives while one of its own writes is in
+flight until that write has answered (`player/engine/session/ordered.ts`), so an echo of a write that is
+older than the device's latest never shows.
 
 ## Shared versus local
 

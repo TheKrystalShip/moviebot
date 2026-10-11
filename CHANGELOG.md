@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.24.1] - 2026-10-11
+
+### Fixed
+
+- **A stale echo no longer shows after a newer choice.** Choosing 720 then 1080 in a moment showed 720 again
+  when the first write's push landed. Every write to `/api/me/preferences` and `/api/me/tracks/{titleId}`
+  is now stamped with a `revision` that follows the order the database kept the writes in (answered and
+  pushed), and a player or a phone's remote applies a push only when it is newer than what it holds, holding
+  one that arrives during its own write until that write has answered. Measured in `npm run verify:tv` with
+  the television's pushes delayed: the quality label showed 818, 546, 818, 546 before and 818, 546 after.
+  Site 0.73.1.
+
 ## [3.24.0] - 2026-10-11
 
 ### Added

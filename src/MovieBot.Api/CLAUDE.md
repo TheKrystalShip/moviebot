@@ -149,7 +149,9 @@ film onto a device is `Offline/CLAUDE.md`.
   film, so it is held to what a picture can be, never to one film's rungs. A change is pushed to
   `PersonGroups.Everything(person)` (`PreferencesChanged`, `TracksChanged`): the person's every connection
   with an account, a playing player's and a phone's remote among them, and never the room's groups, so no
-  room state, roster or `StateChanged` moves for it. A guest has no account and keeps their choices in
+  room state, roster or `StateChanged` moves for it. Each write is stamped with a `revision` inside the
+  transaction that keeps it (`People/Revisions`), one stream per person for preferences and one per person
+  and film for tracks, so a device can drop a push older than what it holds. A guest has no account and keeps their choices in
   their own browser.
 - **A followed show is watched by `Shows/FollowWatcher`, and what it announces is kept.** A follow
   starts from a baseline, the latest episode already due, so only later episodes are news. An episode

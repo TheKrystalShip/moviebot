@@ -238,4 +238,53 @@ public sealed class TrackTests(SessionFixture fixture) : IClassFixture<SessionFi
         }
         Assert.True(await bobHears.Quiet());
     }
+
+    [Fact]
+    public async Task Every_write_is_stamped_with_a_revision_that_rises_and_a_read_has_none()
+    {
+        var ann = Unique("tr-ann-");
+        var phone = await fixture.ConnectPhoneAsync(ann, Unique("phone-"));
+        var tracksHeard = new Heard<FilmTracks>(phone, "TracksChanged");
+        var preferencesHeard = new Heard<ViewerPreferences>(phone, "PreferencesChanged");
+        var client = As(ann);
+
+        var answers = new List<long?>();
+        foreach (var choice in new[] { "s0", "s1", "s0", "s1" })
+        {
+            using var put = await client.PutAsJsonAsync(Route(), new TrackChoice { SubtitleId = choice });
+            answers.Add((await put.Content.ReadFromJsonAsync<FilmTracks>())?.Revision);
+        }
+        var pushed = new List<long?>();
+        for (var i = 0; i < 4; i++) pushed.Add((await tracksHeard.Next()).Revision);
+
+        Assert.All(answers, r => Assert.NotNull(r));
+        Assert.Equal(answers.Order(), answers);
+        Assert.Equal(answers.Distinct().Count(), answers.Count);
+        Assert.Equal(answers, pushed);
+        Assert.Null((await Read(client))?.Revision);
+
+        var heights = new List<long?>();
+        foreach (var height in new[] { 720, 1080, 480 })
+        {
+            using var put = await client.PutAsJsonAsync("/api/me/preferences", new ViewerPreferences { QualityHeight = height });
+            heights.Add((await put.Content.ReadFromJsonAsync<ViewerPreferences>())?.Revision);
+        }
+        var heightsPushed = new List<long?>();
+        for (var i = 0; i < 3; i++) heightsPushed.Add((await preferencesHeard.Next()).Revision);
+        Assert.All(heights, r => Assert.NotNull(r));
+        Assert.Equal(heights.Order(), heights);
+        Assert.Equal(heights.Distinct().Count(), heights.Count);
+        Assert.Equal(heights, heightsPushed);
+        Assert.Null((await client.GetFromJsonAsync<ViewerPreferences>("/api/me/preferences"))?.Revision);
+    }
+
+    [Fact]
+    public async Task A_revision_a_request_names_is_not_taken()
+    {
+        var client = As(Unique("tr-"));
+
+        using var put = await client.PutAsJsonAsync("/api/me/preferences", new ViewerPreferences { QualityHeight = 720, Revision = 1 });
+
+        Assert.True((await put.Content.ReadFromJsonAsync<ViewerPreferences>())?.Revision > 1);
+    }
 }

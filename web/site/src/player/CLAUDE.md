@@ -291,7 +291,9 @@ and does nothing that would be.
   kept as the film's choice nor turns subtitles off. A track another device just fetched may not have
   reached this copy of the film's list, so the subtitle list is read again once before a subtitle id is
   refused. A push for another film is ignored (that film reads the record when it starts), a style
-  being chosen on this device is left alone until it is saved, and a style that arrives from another
+  being chosen on this device is left alone until it is saved, a push older than the last record this
+  device applied or was answered with is dropped and one that arrives during its own write is held until
+  that write answers (`session/ordered.ts`, on the `revision` the API stamps), and a style that arrives from another
   device shows the sample line over the film for four seconds after the last one. The stream keeps the
   track choices it was given and moves them with every choice after, so one made while the film is
   loading is the one the load ends on.

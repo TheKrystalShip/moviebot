@@ -33,6 +33,12 @@ public sealed record ViewerPreferences
     /// <summary>How subtitles are drawn for this person, or null for the player's own look.</summary>
     public SubtitleStyle? SubtitleStyle { get; init; }
 
+    /// <summary>
+    /// Where this record stands in the order the person's writes were kept, on what a write answers and
+    /// what a push carries; absent on a read. Never stored, and never taken from a request.
+    /// </summary>
+    public long? Revision { get; init; }
+
     /// <summary>The tallest picture a height may name: 8K.</summary>
     public const int MaxHeight = 4320;
 
@@ -57,6 +63,7 @@ public sealed record ViewerPreferences
         SubtitleLanguage = string.IsNullOrWhiteSpace(SubtitleLanguage) ? null : SubtitleLanguage.Trim(),
         AudioLanguage = string.IsNullOrWhiteSpace(AudioLanguage) ? null : AudioLanguage.Trim(),
         SubtitleStyle = SubtitleStyle?.Normalised(),
+        Revision = null,
     };
 }
 
@@ -149,16 +156,20 @@ public sealed class PreferenceStore(CinemaDatabase database)
     {
         var stored = preferences.Normalised();
         var style = stored.SubtitleStyle;
-        database.Write(c => c.Execute(
-            $"INSERT OR REPLACE INTO viewer_preferences (user_id, {Columns}) VALUES "
-            + "($user, $subtitle, $audio, $quality, $offline, $skip, $size, $font, $bold, $text, $edge, $edgeColor, "
-            + "$background, $opacity, $position)",
-            ("$user", userId), ("$subtitle", stored.SubtitleLanguage), ("$audio", stored.AudioLanguage),
-            ("$quality", stored.QualityHeight), ("$offline", stored.OfflineQualityHeight), ("$skip", stored.SkipIntros),
-            ("$size", style?.Size), ("$font", style?.Font), ("$bold", style?.Bold), ("$text", style?.TextColor),
-            ("$edge", style?.Edge), ("$edgeColor", style?.EdgeColor), ("$background", style?.BackgroundColor),
-            ("$opacity", style?.BackgroundOpacity), ("$position", style?.Position)));
-        return stored;
+        var revision = database.Write(c =>
+        {
+            c.Execute(
+                $"INSERT OR REPLACE INTO viewer_preferences (user_id, {Columns}) VALUES "
+                + "($user, $subtitle, $audio, $quality, $offline, $skip, $size, $font, $bold, $text, $edge, $edgeColor, "
+                + "$background, $opacity, $position)",
+                ("$user", userId), ("$subtitle", stored.SubtitleLanguage), ("$audio", stored.AudioLanguage),
+                ("$quality", stored.QualityHeight), ("$offline", stored.OfflineQualityHeight), ("$skip", stored.SkipIntros),
+                ("$size", style?.Size), ("$font", style?.Font), ("$bold", style?.Bold), ("$text", style?.TextColor),
+                ("$edge", style?.Edge), ("$edgeColor", style?.EdgeColor), ("$background", style?.BackgroundColor),
+                ("$opacity", style?.BackgroundOpacity), ("$position", style?.Position));
+            return Revisions.Next("p:" + userId);
+        });
+        return stored with { Revision = revision };
     }
 
     private static ViewerPreferences Row(SqliteDataReader r)
