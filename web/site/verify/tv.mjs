@@ -1175,6 +1175,38 @@ async function remoteUi() {
       else pass(`at ${dpr}x the strip stands flush on the tab bar (${geo.stripBottom}) and its row has ${geo.above}px above and ${geo.below}px below`);
     }
 
+    // Nothing interactive sits under the strip, and every page scrolls clear of it.
+    const label = process.env.CLEARANCE_LABEL || "after";
+    const under = () => phone.evaluate(() => {
+      const strip = document.querySelector(".kc-remote-strip").getBoundingClientRect();
+      const main = document.querySelector(".app__main");
+      const last = main ? [...main.querySelectorAll("*")].filter((e) => e.getBoundingClientRect().height > 0).reduce((a, e) => (e.getBoundingClientRect().bottom > a ? e.getBoundingClientRect().bottom : a), 0) : 0;
+      const field = document.querySelector(".assistant-dock--open textarea, .assistant-dock--open input, .assistant-dock textarea");
+      const f = field ? field.getBoundingClientRect() : null;
+      return { stripTop: strip.top, last, field: f && { top: f.top, bottom: f.bottom } };
+    });
+    const scrollEnd = () => phone.evaluate(() => { const m = document.querySelector(".app__main"); if (m) m.scrollTop = m.scrollHeight; });
+    for (const [name, path, film] of [["home", "/", null], ["movies", "/movies", null], ["discover", "/discover", null], ["profile", "/profile", null], ["title", `/movies/${playable}`, "Coherence"]]) {
+      if (film) await goTo(path, film);
+      else { await phone.evaluate((to) => { history.pushState({}, "", to); window.dispatchEvent(new PopStateEvent("popstate")); }, path); await phone.waitForTimeout(1500); }
+      await scrollEnd();
+      await phone.waitForTimeout(400);
+      const m = await under();
+      await shot(`clearance-${label}-${name}.png`);
+      if (m.last > m.stripTop + 0.5) fail("remoteui", `the end of ${name} is at ${Math.round(m.last)} under the strip, which starts at ${Math.round(m.stripTop)}`);
+      else pass(`the end of ${name} scrolls clear of the strip (${Math.round(m.last)} against ${Math.round(m.stripTop)})`);
+    }
+    await phone.locator(".tabbar__tab", { hasText: "Assistant" }).click();
+    await phone.waitForSelector(".assistant-dock--open", { timeout: 8000 });
+    await phone.waitForTimeout(800);
+    const assistant = await under();
+    await shot(`clearance-${label}-assistant.png`);
+    if (!assistant.field) fail("remoteui", "the assistant drew no input to measure");
+    else if (assistant.field.bottom > assistant.stripTop + 0.5) fail("remoteui", `the assistant's input ends at ${Math.round(assistant.field.bottom)} under the strip, which starts at ${Math.round(assistant.stripTop)}`);
+    else pass(`the assistant's input stands clear of the strip (${Math.round(assistant.field.bottom)} against ${Math.round(assistant.stripTop)})`);
+    await phone.locator(".tabbar__tab", { hasText: "Home" }).click();
+    await phone.waitForTimeout(800);
+
     // A tap opens the drawer.
     const open1 = await centre(".kc-remote-strip__open");
     await finger.tap(open1.x, open1.y);

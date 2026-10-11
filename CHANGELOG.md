@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.23.2] - 2026-10-11
+
+### Fixed
+
+- **The collapsed remote no longer covers the assistant's input.** The strip takes room above the tab bar,
+  so everything that leaves room for the bar leaves room for the strip too: the page column's bottom
+  padding, the assistant dock's bottom edge and the toasts' all add `--remote-strip-inset`, the strip's
+  measured height (plus the pixel by which the bar is taller than the inset krystal-ui reserves for it),
+  set while the strip is shown and followed as it resizes. Measured with the strip let down: the assistant's
+  input ends above the strip, and the last element of Home, Movies, Discover, Profile and a title page
+  scrolls clear of it. Site 0.72.2.
+
 ## [3.23.1] - 2026-10-11
 
 ### Fixed

@@ -30,11 +30,17 @@
 }
 @media (prefers-reduced-motion: reduce) { .kc-drawer.kc-remote-strip { transition: none; } }
 
-/* Pages end above the strip, and the toasts stand on it. */
-body.has-remote-strip .app__main {
-  padding-bottom: calc(var(--tabbar-h, 0px) + env(safe-area-inset-bottom, 0px) + 80px);
+/* The strip takes room above the tab bar, which the page, the assistant dock and the toasts leave as they
+   leave the bar's (`--remote-strip-inset` is its measured height). */
+@media (max-width: 768px) {
+  body.has-remote-strip .app--tabbed .app__main {
+    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--remote-strip-inset, 0px));
+  }
+  body.has-remote-strip .app--tabbed .assistant-dock {
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--remote-strip-inset, 0px));
+  }
 }
-body.has-remote-strip .toasts { bottom: calc(84px + 80px + env(safe-area-inset-bottom, 0px)); }
+body.has-remote-strip .toasts { bottom: calc(84px + var(--remote-strip-inset, 0px) + env(safe-area-inset-bottom, 0px)); }
 body.has-drawer .toasts { top: calc(16px + env(safe-area-inset-top, 0px)); bottom: auto; }
 
 /* The open drawer: the TV's name opens the picker, the switch turns remote mode off. */

@@ -194,15 +194,28 @@ function Strip({ screen, onOpen }) {
     document.body.classList.add("has-remote-strip");
     const bar = document.querySelector(".tabbar");
     const place = () => {
+      const node = stripRef.current;
+      if (!node) return;
       const top = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect().top : document.documentElement.clientHeight;
-      if (stripRef.current) stripRef.current.style.setProperty("--remote-strip-bottom", `${document.documentElement.clientHeight - top}px`);
+      node.style.setProperty("--remote-strip-bottom", `${document.documentElement.clientHeight - top}px`);
+      // What the strip takes above the tab bar is room the page and the assistant leave, as the bar's own is.
+      // The inset the page and the dock leave for the bar is its nominal height (`--tabbar-h` and the safe
+      // area); the bar itself is as tall as it measures, its border included, and the strip stands on it.
+      const shell = document.querySelector(".app--tabbed");
+      const nominal = bar && shell ? parseFloat(getComputedStyle(shell).getPropertyValue("--tabbar-h")) + parseFloat(getComputedStyle(bar).paddingBottom) : 0;
+      const shortfall = bar && nominal ? Math.max(0, bar.getBoundingClientRect().height - nominal) : 0;
+      document.body.style.setProperty("--remote-strip-inset", `${node.offsetHeight + shortfall}px`);
     };
     place();
     window.addEventListener("resize", place);
-    const observer = bar && typeof ResizeObserver === "function" ? new ResizeObserver(place) : null;
-    if (observer) observer.observe(bar);
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(place) : null;
+    if (observer) {
+      if (bar) observer.observe(bar);
+      observer.observe(stripRef.current);
+    }
     return () => {
       document.body.classList.remove("has-remote-strip");
+      document.body.style.removeProperty("--remote-strip-inset");
       window.removeEventListener("resize", place);
       if (observer) observer.disconnect();
     };
