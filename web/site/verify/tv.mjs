@@ -1040,6 +1040,27 @@ function fingerOn(cdp) {
   };
 }
 
+/** The colours of the pixel rows of a thin screenshot, top to bottom, as [r, g, b]. */
+async function readRows(png) {
+  const reader = await browser.newPage();
+  try {
+    return await reader.evaluate(async (data) => {
+      const img = new Image();
+      img.src = "data:image/png;base64," + data;
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.width; c.height = img.height;
+      const g = c.getContext("2d");
+      g.drawImage(img, 0, 0);
+      const rows = [];
+      for (let y = 0; y < img.height; y += 1) rows.push([...g.getImageData(1, y, 1, 1).data].slice(0, 3));
+      return rows;
+    }, png);
+  } finally {
+    await reader.close();
+  }
+}
+
 /**
  * The phone's remote as a person uses it: the site itself on a phone paired with the television, the
  * strip let down over the tab bar, the drawer it opens, the film driven by buttons and by a finger on the
@@ -1125,7 +1146,34 @@ async function remoteUi() {
     });
     if (stripFacts.eyebrow !== "Verify TV" || !stripFacts.name || stripFacts.label !== "Open the remote: Verify TV" || stripFacts.pause !== "Play" || stripFacts.gap !== 0)
       fail("remoteui", `the strip says ${JSON.stringify(stripFacts)}`);
+    else if (/\(\d{4}\)/.test(stripFacts.name)) fail("remoteui", `the strip names the film with its year: ${stripFacts.name}`);
     else pass(`the strip stands on the tab bar naming the TV and what it holds (${stripFacts.name}), with Play for the paused film`);
+
+    // The strip sits flush on the tab bar and is as far under its handle as above the bar, at the pixel ratios
+    // phones have: measured from the rects and from the screenshot's pixel rows.
+    for (const dpr of [1, 2, 2.625, 3]) {
+      const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: dpr, userAgent: PhoneAgent, isMobile: true, hasTouch: true, bypassCSP: true });
+      await context.addInitScript(({ key, value }) => { localStorage.setItem(key, value); localStorage.setItem("cinema:remote", "1"); }, issuer.planted(VIEWER, { hours: 6, sid: phoneSid }));
+      const page = await context.newPage();
+      await page.goto(`${base}/`, { waitUntil: "load" });
+      await page.waitForSelector(".kc-remote-strip .kc-dl-head__name", { timeout: 15000 });
+      await page.waitForTimeout(500);
+      const geo = await page.evaluate(() => {
+        const s = document.querySelector(".kc-remote-strip").getBoundingClientRect();
+        const b = document.querySelector(".tabbar").getBoundingClientRect();
+        const row = document.querySelector(".kc-remote-strip__open").getBoundingClientRect();
+        return { stripBottom: s.bottom, tabTop: b.top, above: row.top - s.top, below: s.bottom - row.bottom, x: 24 };
+      });
+      const shotPng = await page.screenshot({ clip: { x: 20, y: geo.tabTop - 4, width: 4, height: 8 } });
+      const rows = await readRows(shotPng.toString("base64"));
+      await context.close();
+      const bad = Math.abs(geo.stripBottom - geo.tabTop) > 0.01 || Math.abs(geo.above - geo.below) > 1.01;
+      // Every pixel row of the four CSS pixels above the bar is the strip's own colour: no stripe of the page shows between them.
+      const above = rows.slice(0, Math.round(4 * dpr));
+      const seam = above.every((c) => c.every((v, i) => Math.abs(v - above[0][i]) <= 2));
+      if (bad || !seam) fail("remoteui", `at ${dpr}x the strip's bottom is ${geo.stripBottom} and the bar's top ${geo.tabTop}; gaps above ${geo.above} and below ${geo.below} the row; seam ${JSON.stringify(rows)}`);
+      else pass(`at ${dpr}x the strip stands flush on the tab bar (${geo.stripBottom}) and its row has ${geo.above}px above and ${geo.below}px below`);
+    }
 
     // A tap opens the drawer.
     const open1 = await centre(".kc-remote-strip__open");
@@ -1143,6 +1191,14 @@ async function remoteUi() {
         scrub: Boolean(d.querySelector(".mp-scrub")), controls, still: Boolean(d.querySelector(".kc-remote__still img")),
       };
     });
+    const gaps = await phone.evaluate(() => {
+      const d = document.querySelector(".kc-remote").getBoundingClientRect();
+      const toggle = document.querySelector(".kc-remote .k-toggle").getBoundingClientRect();
+      const play = document.querySelector(".kc-remote .mp-controls .mp-play").getBoundingClientRect();
+      return { above: Math.round((toggle.top - d.top) * 10) / 10, below: Math.round((d.bottom - play.bottom) * 10) / 10 };
+    });
+    if (Math.abs(gaps.above - gaps.below) > 2) fail("remoteui", `the open drawer has ${gaps.above}px above its head and ${gaps.below}px under its controls`);
+    else pass(`the open drawer has ${gaps.above}px above its head and ${gaps.below}px under its controls`);
     const labels = drawer.controls.map((c) => c.label);
     const small = drawer.controls.filter((c) => c.w < 44 || c.h < 44).map((c) => c.label);
     if (drawer.tv !== "Verify TV" || drawer.mode !== "true" || !drawer.scrub || !drawer.still || small.length > 0
@@ -1371,6 +1427,13 @@ async function remoteUi() {
     await phone.waitForSelector(".mp-episodes .kc-episode", { timeout: 10000 }).catch(() => {});
     await phone.waitForTimeout(800);
     await shot("remoteui-08-episodes.png");
+    await phone.click('.mp-menu .kc-drawer__back[aria-label="Back to the remote"]');
+    const episodesBack = await until(() => phone.evaluate(() => !document.querySelector(".mp-menu") && Boolean(document.querySelector(".kc-remote .mp-controls"))));
+    if (!episodesBack) fail("remoteui", "the episodes list's back button did not return to the remote");
+    else pass("the episodes list has a back button, which returns to the remote");
+    await phone.click('.kc-remote .mp-controls button[aria-label^="Episodes"]');
+    await phone.waitForSelector(".mp-episodes .kc-episode", { timeout: 10000 });
+
     const list = await phone.evaluate(() => ({
       count: document.querySelectorAll(".mp-episodes .kc-episode").length,
       current: document.querySelector(".mp-episodes .kc-episode.is-current .kc-episode__title")?.textContent,
@@ -1418,6 +1481,12 @@ async function remoteUi() {
     if (rows.length !== 3 || !byName["Verify TV"]?.on || byName["Bedroom TV"]?.detail !== "Nothing playing" || byName["Office TV"]?.detail !== "Off" || !byName["Office TV"]?.off)
       fail("remoteui", `the picker lists ${JSON.stringify(rows)}`);
     else pass("the picker lists the paired televisions: the one driven, one with nothing playing, one off and not to be chosen");
+    await phone.click('.kc-drawer__back[aria-label="Back to the remote"]');
+    const backToRemote = await until(() => phone.evaluate(() => Boolean(document.querySelector(".kc-remote .kc-remote__tv")) && !document.querySelector(".k-optlist")));
+    if (!backToRemote) fail("remoteui", "the picker's back button did not return to the remote");
+    else pass("the TV picker has a back button, which returns to the remote");
+    await phone.click(".kc-remote__tv");
+    await phone.waitForSelector(".k-optlist", { timeout: 5000 });
     await phone.locator(".k-optlist__row", { hasText: "Bedroom TV" }).click();
     await phone.waitForSelector(".kc-remote .k-empty", { timeout: 5000 }).catch(() => {});
     await phone.waitForSelector(".kc-remote .kc-continue", { timeout: 10000 }).catch(() => {});

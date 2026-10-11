@@ -1,5 +1,4 @@
 import { Button, Icon, useStore } from "@thekrystalship/krystal-ui";
-import { filmName } from "../api.js";
 import { stillSources } from "../remoteFilm.js";
 import { replaceStore } from "../remoteWatch.js";
 import { timeLeft } from "../time.js";
@@ -27,7 +26,9 @@ export function ReplaceSheet() {
   const { screen, target, film, position, playing, answer } = ask;
   const tv = screen.name || "TV";
   const manifest = film && film.manifest;
-  const name = manifest ? (manifest.episode && film.around && film.around.current && film.around.current.name) || filmName(manifest) : playing || "";
+  const name = manifest
+    ? (manifest.episode && film.around && film.around.current && film.around.current.name) || (manifest.film && manifest.film.name) || manifest.title
+    : playing || "";
   const art = manifest ? stillSources(manifest)[0] : null;
   const fraction = manifest && manifest.durationSeconds > 0 ? Math.min(1, (position ?? 0) / manifest.durationSeconds) : 0;
   const close = () => answer(false);

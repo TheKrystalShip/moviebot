@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.23.1] - 2026-10-11
+
+### Fixed
+
+- **The collapsed remote stands flush on the tab bar.** Its bottom was the bar's height plus a pixel
+  worked out in CSS, which a bar's border and a phone's fractional pixels moved; it is now placed from
+  the bar's measured top (and follows its resizing). Measured at 1x, 2x, 2.625x and 3x from the rects
+  and the screenshot's pixel rows.
+- **The strip and the open drawer have equal space above and below their content.** The strip's row is
+  12px from its top edge and from the bar; the open drawer's head and its controls are as far from the
+  edges as each other.
+- **A way back from every screen inside the remote.** The TV picker and the Episodes list carry the
+  drawer's own back button ("Back to the remote"), as the subtitle style editor's does, and choosing a
+  television returns to the remote. The back button's hit area is 44px.
+- **A film is named without its year** on the strip, the drawer and the question before it is replaced
+  (the year stands in the eyebrow, as the player's top bar has it). Site 0.72.1.
+
 ## [3.23.0] - 2026-10-11
 
 ### Added

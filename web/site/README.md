@@ -601,7 +601,7 @@ let down above the tab bar as its strip (the still, the television's name, what 
 tapping the strip or pushing it up opens it, pulling its handle down (`Drawer`'s `onPull`) collapses it
 again, and swiping the strip sideways turns remote mode off with Undo in a toast, unpairing nothing.
 Open, its head names the television, which opens the picker (an option list, "Nothing playing" or "Off"
-for one that is not connected), and holds the Remote switch. Below are the still, what plays, and the
+for one that is not connected), and holds the Remote switch. The picker and the Episodes list carry the drawer's back button, which returns to the remote. Below are the still, what plays, and the
 player's scrub bar (with its preview) and controls: Play or Pause, back and forward ten seconds, and for an
 episode previous, next and Episodes, the player's own list aimed at the television. A film has no
 episode controls. With nothing playing it shows "Nothing playing" and Continue watching, each card Watch

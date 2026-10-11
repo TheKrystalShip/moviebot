@@ -83,7 +83,7 @@ function describe(room, film) {
   }
   const minutes = Math.round(manifest.durationSeconds / 60);
   const length = minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m`;
-  return { eyebrow: [manifest.film && manifest.film.year, length].filter(Boolean).join(" · "), name: filmName(manifest), playing: true };
+  return { eyebrow: [manifest.film && manifest.film.year, length].filter(Boolean).join(" · "), name: manifest.film && manifest.film.name ? manifest.film.name : manifest.title, playing: true };
 }
 
 /**
@@ -186,14 +186,30 @@ function Strip({ screen, onOpen }) {
   const tv = screen.name || "TV";
 
   const gestures = useStripGestures(onOpen, () => turnOff(tv));
+  const stripRef = React.useRef(null);
 
-  React.useEffect(() => {
+  // It stands on the tab bar wherever the bar's top is, measured rather than computed from the bar's height:
+  // the bar's border, its safe-area inset and a phone's fractional pixels all move that edge.
+  React.useLayoutEffect(() => {
     document.body.classList.add("has-remote-strip");
-    return () => document.body.classList.remove("has-remote-strip");
+    const bar = document.querySelector(".tabbar");
+    const place = () => {
+      const top = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect().top : document.documentElement.clientHeight;
+      if (stripRef.current) stripRef.current.style.setProperty("--remote-strip-bottom", `${document.documentElement.clientHeight - top}px`);
+    };
+    place();
+    window.addEventListener("resize", place);
+    const observer = bar && typeof ResizeObserver === "function" ? new ResizeObserver(place) : null;
+    if (observer) observer.observe(bar);
+    return () => {
+      document.body.classList.remove("has-remote-strip");
+      window.removeEventListener("resize", place);
+      if (observer) observer.disconnect();
+    };
   }, []);
 
   return (
-    <div className="kc-drawer kc-remote-strip" data-theme="dark" {...gestures}>
+    <div className="kc-drawer kc-remote-strip" data-theme="dark" {...gestures} ref={(node) => { stripRef.current = node; gestures.ref.current = node; }}>
       <div className="kc-drawer__grabber" />
       <div className="kc-dl-head">
         <button type="button" className="kc-remote-strip__open" aria-label={`Open the remote: ${tv}`} onClick={onOpen}>
@@ -229,7 +245,7 @@ function TvPicker({ screen, onDone }) {
       : null,
   }));
   return (
-    <Drawer theme="dark" title="TVs" onClose={onDone}>
+    <Drawer theme="dark" title="TVs" back={{ label: "Back to the remote", onClick: onDone }} onClose={onDone}>
       <div style={{ padding: "0 10px 6px" }}>
         <OptionList options={options} value={screen.id} label="TV to control" onChange={(id) => { chooseScreen(id); onDone(); }} />
       </div>

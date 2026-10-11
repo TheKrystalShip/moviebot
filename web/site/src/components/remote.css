@@ -6,13 +6,14 @@
 /* The strip: a drawer's head by itself, standing on the tab bar. */
 .kc-drawer.kc-remote-strip {
   --remote-strip-h: 72px;
-  z-index: 60; max-height: none; overflow: visible; padding: 0 8px 8px; animation: none;
-  bottom: calc(var(--tabbar-h, 56px) + 1px + env(safe-area-inset-bottom, 0px));
+  z-index: 60; max-height: none; overflow: visible; padding: 0 8px; animation: none;
+  bottom: var(--remote-strip-bottom, 0px);
   box-shadow: var(--shadow-pop); touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
   transition: transform 180ms var(--ease-out), opacity 180ms var(--ease-out);
 }
 .kc-remote-strip.is-held { cursor: grabbing; transition: none; }
-.kc-remote-strip .kc-dl-head { padding: 4px 8px 6px; border-bottom: none; }
+/* The tab takes the top 6px; the row is as far under the strip's top edge (its border included) as above the bar. */
+.kc-remote-strip .kc-dl-head { padding: 11px 8px 12px; border-bottom: none; }
 .kc-remote-strip__open {
   flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 0; border: none;
   background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
@@ -57,7 +58,9 @@ body.has-drawer .toasts { top: calc(16px + env(safe-area-inset-top, 0px)); botto
 
 /* The player's bottom controls, in the drawer rather than over a film. */
 .mp-frame.kc-remote__frame { position: relative; inset: auto; overflow: visible; background: transparent; }
-.kc-remote__frame .mp-bottom { position: relative; padding: 0 8px 6px; }
+.kc-remote__frame .mp-bottom { position: relative; padding: 0 8px; }
+/* As far under the controls as the head is under the edge. */
+.kc-drawer.kc-remote { padding-bottom: max(13px, env(safe-area-inset-bottom, 0px)); }
 
 /* The idle drawer. */
 .kc-remote .k-empty { padding: 14px 20px 18px; }

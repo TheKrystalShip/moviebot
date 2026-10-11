@@ -91,7 +91,8 @@ export function Menu({ kind, view, room, sheet, position, styling, onStyling, on
           : kind === "episodes" ? <EpisodeOptions view={view} room={room} onClose={onClose} />
             : <QualityOptions view={view} room={room} onClose={onClose} />;
   const title = editing ? "Subtitle style" : MenuTitles[kind];
-  const back = editing ? { label: "Back to subtitles", onClick: () => onStyling(false) } : null;
+  const back = editing ? { label: "Back to subtitles", onClick: () => onStyling(false) }
+    : aimedAt ? { label: "Back to the remote", onClick: onClose } : null;
   if (sheet) {
     return (
       <Drawer contained={contained} theme={contained ? undefined : "dark"} role="menu" title={title} back={back} onClose={onClose}

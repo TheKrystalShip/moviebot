@@ -37,6 +37,8 @@
   display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: -4px 0 -4px -6px;
   border: none; border-radius: 999px; background: transparent; color: var(--fg-2); cursor: pointer;
 }
+.kc-drawer__back { position: relative; }
+.kc-drawer__back::after { content: ""; position: absolute; inset: -10px; }
 .kc-drawer__back:hover { background: var(--surface-2); color: var(--fg-1); }
 @keyframes kc-drawer-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .kc-drawer { animation: none; } .kc-drawer__grabber { transition: none; } }
