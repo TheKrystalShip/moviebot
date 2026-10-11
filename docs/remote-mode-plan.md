@@ -386,9 +386,10 @@ Answers:
   once. A film not in the library is asked for through `POST /api/watch` with the phone's room first.
   `WatchOnScreen` is refused when the screen is not connected or is already in a room; `ChooseOnScreen`
   when it is in none.
-- Still to measure on the Xiaomi: whether a message reaches the TV app once it is behind the Fire TV
-  launcher. If it does not, the screen's report carries whether its app is in front, so a phone never
-  takes silence for a TV that played.
+- A message reaches the TV app behind the Fire TV launcher: measured on the Xiaomi (Fire OS 8.1.8.2),
+  the screen stayed connected and a message to its group arrived within 25 ms at one, five and fifteen
+  minutes in the background, the page's timers and socket running throughout. Not measured: a TV that
+  sleeps on its own, or Fire OS ending the app; the phone's "the TV did not answer" covers both.
 
 ## 5. Testing
 
