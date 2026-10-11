@@ -66,9 +66,14 @@ device session. Crosses into tks-auth and the wrapper, which ships under its own
 
 Questions:
 
-- Does Fire OS fill `Settings.Global.DEVICE_NAME`, and with what? Read on the Xiaomi
-  (`adb shell settings get global device_name`). If it is empty, what is the fallback: `Build.MODEL`
-  is `AFTBR92D74` on that TV, which nobody would call it.
+- Fire OS fills `Settings.Global.DEVICE_NAME` with the name set under Settings, My Fire TV: on the
+  Xiaomi it reads `Fire TV de Cristina`, the same as its Bluetooth name (measured over `adb`, Fire OS
+  8.1.8.2, API 30). It is the owner's own wording and often carries a person's name, which is one more
+  reason the approval page lets it be edited. `Build.MODEL` is `AFTBR92D74`, no name at all.
+- That the app itself reads it: the shell cannot stand in for an app's permissions (`settings` and
+  `content` both demand privileges of their own), so the wrapper's debug build reads it with
+  `Settings.Global.getString` and logs it. Also read on an API 31 or later Google TV, where the
+  Bluetooth name is behind `BLUETOOTH_CONNECT`, to confirm `DEVICE_NAME` is not.
 - How does Cinema learn a screen's name: a claim on the device session's access tokens, or asking the
   anchor? A rename then reaches Cinema when?
 - Where is a screen renamed after approval: the anchor's own session list, Cinema's Profile on the TV,
