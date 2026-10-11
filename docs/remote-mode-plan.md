@@ -147,11 +147,13 @@ Questions:
   `ScreenPresence`'s seven days alone would end a pairing during a holiday, which the plan rules out.
 - A scan opens whatever the phone's camera hands the link to. On Android an installed WebAPK registers
   intent filters for its scope (the manifest's `scope` is `/`, so `/p/` is inside it), and a link opened
-  from another app opens the app; whether Android 12 and later route a camera's link to it rather than
-  the browser depends on its links being approved for the app, which needs the real phone to see. On
-  iOS a home-screen app never captures a link: the scan opens Safari, which holds a session of its own.
-  The pairing is with whichever session scanned, and the docs say so: on iOS that is Safari, not the
-  installed app. Not measured: both need a real phone.
+  from another app opens the app. Measured on an Android phone with the site installed from Samsung
+  Internet: the camera opened the link in the browser, which handed it to the installed app at once, and
+  the phone paired with Profile's code; one pairing was made, named `Samsung Internet on Android`, and
+  its session was seen again after pairing. On iOS a home-screen app never captures a link: the scan
+  opens Safari, which holds a session of its own. The pairing is with whichever session scanned, and the
+  docs say so: on iOS that is Safari, not the installed app. Not measured: iOS, and Android Chrome's
+  WebAPK.
 - A code lives five minutes and the screen shows a new one every minute, so the code on screen always
   has at least four minutes left, enough for a phone that must sign in first (the page keeps the code in
   its address through the sign-in), and a photo of it pairs nothing once it has run out. Another
