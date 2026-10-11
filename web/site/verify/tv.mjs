@@ -850,11 +850,15 @@ async function remote() {
     else pass("Unpair takes focus once the phone is listed, its row lifts, and Left and Right go to Remote and back");
     await tv.page.keyboard.press("Enter");
     await tv.page.waitForFunction(() => !document.querySelector(".kc-tvr__phone"), null, { timeout: 5000 }).catch(() => {});
-    const afterUnpair = await tv.page.evaluate(() => ({ rows: document.querySelectorAll(".kc-tvr__phone").length, focused: document.activeElement && document.activeElement !== document.body }));
+    await tv.page.waitForTimeout(300);
+    const afterUnpair = await tv.page.evaluate(() => ({
+      rows: document.querySelectorAll(".kc-tvr__phone").length,
+      focused: document.activeElement && document.activeElement !== document.body ? document.activeElement.textContent.trim() : null,
+    }));
     const phoneSees = await pairedWith(phoneSid);
     if (afterUnpair.rows !== 0 || phoneSees.length !== 0) fail("remote", `Unpair on the television left ${afterUnpair.rows} row(s) and the phone paired with ${phoneSees.length}`);
-    else if (!afterUnpair.focused) fail("remote", "Unpair on the television left focus on nothing");
-    else pass("Unpair on the television ends the pairing for the phone too, and focus stays on a control");
+    else if (afterUnpair.focused !== "Remote") fail("remote", `unpairing the last phone left focus on "${afterUnpair.focused}", not the section's place in the list`);
+    else pass("Unpair on the television ends the pairing for the phone too, and focus goes back to Remote in the list");
 
     // Paired again by a fresh scan, and undone from the phone's toast.
     const again = await readQr(tv.page, ".kc-tvr__code", SofaScale);

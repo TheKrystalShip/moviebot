@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.19.1] - 2026-10-11
+
+### Fixed
+
+- **Unpairing a television's last phone leaves focus on Remote.** Focus that loses its element lands
+  on the nearest control as before, and when that is in the side column it lands on the section's own
+  place there, as entering the column does; it went to whichever place in the list sat nearest, and OK
+  there opened another section. Measured on the Fire TV, where it landed on Requests. Site 0.68.1.
+
 ## [3.19.0] - 2026-10-11
 
 ### Added

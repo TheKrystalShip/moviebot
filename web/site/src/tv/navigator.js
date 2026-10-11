@@ -32,7 +32,8 @@ import { Rank, back, menu, onBack, onMenu } from "./tv.js";
  * - entering a side column or a navigation landmark from outside lands on the item marked as the
  *   current page;
  * - focus is never left on nothing: when the focused element goes away, the nearest candidate to where
- *   it was takes it;
+ *   it was takes it, and when that is in a side column or a navigation landmark, focus lands there as
+ *   entering it does, on the item marked as the current page;
  * - a page that is shown puts focus on its first control outside navigation, or, when the page was
  *   come back to, on the control that was focused when it was left; until a key is pressed or focus
  *   goes anywhere else, focus follows that choice as the page's content arrives, since what is first
@@ -432,8 +433,8 @@ function settle() {
   }
   opener = null;
   const region = scope();
-  const target = last ? nearestTo(last.rect, region) : null;
-  if (target) focusElement(target);
+  const nearest = last ? nearestTo(last.rect, region) : null;
+  if (nearest) focusElement(landing(nearest, last.el));
 }
 
 let pending = false;
