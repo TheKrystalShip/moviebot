@@ -147,7 +147,8 @@ Gestures, each a shortcut for a control on screen:
   crosses outside the panel. It is `--border-strong` at rest and teal under a pointer or while held. The
   assistant dock's resize handle (krystal-ui `.assistant-dock__resize`) takes the same tab on the inside
   of its left edge, so the two are one handle, standing and lying. A drawer has square corners. The tab's
-  hit area is the drawer's whole head.
+  hit area is the drawer's whole head. The download sheet's drawer (`.kc-dl-drawer`,
+  `components/download.css`) sets its own corners and handle size, and takes the same tab and corners.
 - The collapsed head swiped sideways turns remote mode off, with Undo in a toast.
 - A gesture that lands on the TV gives a short vibration where the phone allows one.
 
