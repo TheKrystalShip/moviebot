@@ -39,7 +39,7 @@ without scanning again.
 | Volume | Not on the remote. A page can only scale the video under the TV's own volume, which the remote and CEC hold |
 | Lock-screen media controls on the phone | None. Android shows them only for a page actually playing sound |
 | Which surfaces carry the remote | The phone. The protocol names no surface, so a desktop tab is the same messages under another layout |
-| The design | The canvas https://claude.ai/artifact/12BZT8yRQ7ZbCu79YDud1g, drawn with the site's own stylesheets |
+| The design | Locked: the canvas https://claude.ai/artifact/12BZT8yRQ7ZbCu79YDud1g, drawn with the site's own stylesheets. Each step builds what it draws |
 | What the remote is made of | Components the site already has: the `Drawer`, the download sheet's head and option list, the player's scrub bar, control row, episodes list and subtitle style editor, `EmptyState`, `Rail` and the Continue watching card. Nothing is redrawn for the remote |
 | Confirming a pairing | None. Scanning pairs at once and opens the remote; a toast says so and carries Undo. Pairing is undone as easily as it is made, and the scan already says what the person meant |
 | Gestures | Shortcuts for controls already on screen, never the only way to anything. The picture takes the player's touch handling (tap the middle, double-tap a side, sweep sideways to scrub, the room moving on release) with its vertical sweeps off. Pulling the drawer down by its handle collapses it to its strip; swiping the strip sideways turns remote mode off, with Undo in a toast. A gesture that lands on the TV gives a short vibration where the phone allows one |
