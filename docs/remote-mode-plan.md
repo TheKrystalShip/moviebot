@@ -273,8 +273,9 @@ on, it sits let down above the tab bar as its head: the episode's still, the scr
 and Pause. Pushed up, or tapped, it opens: the screen's name (choosing among several screens) and the
 Remote switch in its head; the still with the player's Skip intro; the title; and at the bottom the
 player's own scrub bar and control row (Play or Pause, back and forward ten seconds, previous and next
-episode, Episodes, Subtitles and Quality). Episodes and Subtitles open the player's own drawers,
-aimed at the TV. With remote mode on, a title's main button is Watch on TV, with Watch beside it.
+episode, Episodes, Subtitles, Audio and Quality). Audio is there only when the film has more than one
+audio track, as in the player. Episodes, Subtitles, Audio and Quality open the player's own drawers,
+aimed at the TV, each marking what the TV reports it has chosen (canvas boards 19 to 22). With remote mode on, a title's main button is Watch on TV, with Watch beside it.
 
 Gestures, each a shortcut for a control on screen:
 
@@ -330,15 +331,64 @@ Questions:
 
 ### Step 6: commands to the screen alone
 
-Some of what the remote changes is the TV's own and never the room's: subtitle language, size and
-background, the audio track and quality. These go to the screen's connection alone. So does Watch on
-TV when the TV is not in the player, which takes it there.
+Some of what the remote changes is the TV's own and never the room's: the subtitle track and how
+subtitles look, the audio track and quality. These go to the screen's person connection alone, never
+through `RoomControls`, the room's state or its groups. So does Watch on TV when the TV is not in the
+player, which takes it there. Three messages carry it: the phone sends `ChooseOnScreen(choice)` and
+`WatchOnScreen(room, titleId, start)` on its remote connection (`[RemoteAllowed]`), neither naming a
+screen or a person: the screen is the remote's binding and the person the token's, and the pairing is
+checked again on every act. The server sends the screen `Choose` and `Watch`. The screen sends
+`ReportChoices(report)` back, refused from anything but a screen.
 
-Questions:
+Decided:
 
-- Which of these the TV's player can already take from outside the remote's keys, and what it
-  answers when it cannot (a language the film has no subtitles in).
-- Does the phone show the TV's current choices, which means the screen reports them back?
+- A choice from the phone is saved as the account's default, as the TV's own menus save it: subtitle
+  style and quality follow the person to every device, the subtitle and audio track stay the TV's, per
+  title.
+- The remote's control row has Audio, shown only when the film has more than one audio track.
+- Subtitles are chosen by track, never by language: a film can carry several tracks in one language.
+  A language only decides which track a film starts on, which stays in Profile's Playback.
+- A command has no answer of its own. The screen's next report is the answer, and the phone says the TV
+  did not answer when none comes within a few seconds.
+- The TV applies and saves a choice itself, so it stays the one writer of its settings, as today, and a
+  change of style shows on the TV at once. While style changes keep arriving the TV shows its sample
+  line, and lets it lapse a few seconds after the last.
+- The phone picks the room id for Watch on TV, as the site's Watch does, so a double press opens one
+  room.
+
+Answers:
+
+- Nothing outside the player's own menus can set any of these today: the player's room lives inside
+  the `Player` component, and preferences and per-title tracks are read once when a film starts. The
+  seam is a small engine module holding the active player room, registered on start and cleared on
+  dispose, that applies a choice and publishes the report; `screen.js` hands it `Choose` and navigates on
+  `Watch`. The screen's person connection carries both because it is open on every page, which the
+  room connection, open only in the player, is not.
+- The player's own setters trust their input: an unknown subtitle id turns subtitles off and is kept as
+  the title's choice, and an unknown audio id is kept the same way. The checks go inside those setters,
+  so the player's menus are covered as well as the remote: a choice must name the film the TV has
+  loaded, the player must be ready, a subtitle or audio id must be one the manifest lists (a subtitle
+  the TV does not know yet is looked for once in a fresh manifest, since one just fetched reaches the TV
+  a moment later), a quality must be Auto or one of the film's own rungs, and a style is held to the
+  API's ranges. A choice that fails applies nothing and the report stays as it was; the TV shows no
+  notice over a film people are watching.
+- The phone shows the TV's current choices, so the screen reports them: the title, the subtitle and
+  audio ids, the chosen quality and the height playing. It is sent when it changes, a second after the
+  last change, when the screen connects, and when it gains its first paired phone, and only while it has
+  one. It rides on `ScreenView` to the paired phones alone, and is never in the room's state, the roster,
+  a log line or the database. Without it the phone's labels would be guesses: the tracks live in the
+  TV's storage and the height playing is a measurement only the TV has.
+- Watch on TV: a TV in no room is sent `WatchOnScreen` and opens the room's address with the title and
+  start, as the site's Watch does, so its Back returns to where it was, and the remote follows it in. A
+  TV in a room holding nothing gets `LoadTitle`. A TV already on that title is left alone. A TV
+  mid-film asks first on the phone; in the closing stretch (the last chapter when it is the credits,
+  else the last two minutes, `inClosingStretch`, moved to a module the phone shares) it replaces at
+  once. A film not in the library is asked for through `POST /api/watch` with the phone's room first.
+  `WatchOnScreen` is refused when the screen is not connected or is already in a room; `ChooseOnScreen`
+  when it is in none.
+- Still to measure on the Xiaomi: whether a message reaches the TV app once it is behind the Fire TV
+  launcher. If it does not, the screen's report carries whether its app is in front, so a phone never
+  takes silence for a TV that played.
 
 ## 5. Testing
 
