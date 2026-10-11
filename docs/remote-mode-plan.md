@@ -82,8 +82,9 @@ Questions:
   Xiaomi: the approval page offered `Fire TV de Cristina`, and the TV's token carried it.
 - A name is kept cleaned (no control characters, one space for any run of white space, trimmed) and cut
   to 64 characters a person sees; it is never refused, since a refusal would refuse the sign-in.
-- Still open: where a screen is renamed after approval. The anchor's account page lists device sessions
-  by name, which makes it the natural place; Cinema's TV Profile would ask the anchor to do it.
+- A screen is renamed on the anchor's account page (tks-auth 4.8.0, `POST /account/sessions/name`), and
+  the TV carries the new name from its next refresh. Measured live: a device renamed there carried the new
+  name on the next token it was issued.
 
 ### Step 2: screens
 
