@@ -26,8 +26,7 @@
 //   killed     the TCP connections of the browser to the API destroyed by the kernel (ss -K), at once.
 //
 // What this cannot say is how a phone's operating system treats a page for two hours: whether it closes
-// the socket, freezes the page or discards it. docs/remote-mode-plan.md, "Step 4", lists what is measured
-// on a real phone.
+// the socket, freezes the page or discards it. verify/resumePhone.mjs measures that on a real phone.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";

@@ -1,5 +1,5 @@
 // How quickly a real phone's remote is live again after the phone was away: the part of
-// docs/remote-mode-plan.md, "Step 4", that headless Chromium cannot say. The phone's Chrome is reached
+// verify/resume.mjs that headless Chromium cannot say. The phone's Chrome is reached
 // over USB debugging; a tab on the site's origin holds the site's own remote modules (verify/remoteProbe.js)
 // and, once the page is hidden and shown again, presses play or pause every 100 ms until the room accepts
 // one, keeping what it saw. Nothing needs the laptop at the moment the phone comes back.

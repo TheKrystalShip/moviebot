@@ -184,8 +184,7 @@ the download sheet's, is the handle: pulled down it follows the finger, and let 
 enough it calls `onPull`, which closes it unless a drawer passes its own, and otherwise it settles
 back open. The head takes no scrolling of its own, so a pull never starts the browser's pull to
 refresh, and a drawer's body scrolls as it does anywhere and passes nothing to the page behind. The
-distance and speed are named at the top of `src/components/Drawer.jsx`; `docs/remote-mode-plan.md`
-(Step 5) gives their reasons.
+distance and speed are named, with their reasons, at the top of `src/components/Drawer.jsx`.
 
 ## Signing in
 
