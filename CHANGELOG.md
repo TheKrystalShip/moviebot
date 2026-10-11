@@ -4,6 +4,34 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.20.0] - 2026-10-11
+
+### Added
+
+- **A paired phone drives its television's room as a remote.** `JoinAsRemote(screenId)` on the hub
+  makes a phone's connection a remote of a screen it is paired with, in the room that screen is in,
+  decided by the server from the token and the pairing and checked again on every act. It plays,
+  pauses, seeks, loads a title and moves between episodes like any member, and is in nothing a room
+  counts: not the roster, the head count, `/health`'s `watching`, the hold, the transcode plan or the
+  watch record. `Buffering`, `ReportQuality`, the door and the other ways into a room refuse it
+  (`RemoteGate`, `[RemoteAllowed]`). It follows its screen from room to room (`RemoteMoved`) and is in
+  none while the screen is, and unpairing from either side drops it. An act names the person alone.
+  Site 0.69.0: `remoteRoom.js` holds the connection and the room's commands, and `remote.js` drives the
+  first connected paired screen while remote mode is on (`useRemoteMode`, `useRemoteRoom`,
+  `chooseScreen`).
+- `node verify/resume.mjs` measures how quickly a phone's remote is live again after its page was away,
+  and `node verify/resumePhone.mjs` does the same on a real phone's Chrome over USB debugging.
+  `npm run verify:tv` drives a room from a phone with nothing on screen.
+
+### Changed
+
+- **A page that comes back replaces its dead sockets at once.** A person connection (a phone's, a
+  television's) that is not connected when the page becomes visible, is restored from the cache or the
+  network returns is replaced immediately, and one that says it is connected is asked for the server's
+  clock and replaced when two seconds pass unanswered. A phone offline for 45 s waited 26 s for
+  SignalR's reconnect schedule once the network was back; it is live again in about a tenth of a second.
+  Site 0.69.0.
+
 ## [3.19.1] - 2026-10-11
 
 ### Fixed

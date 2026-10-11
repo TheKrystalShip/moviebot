@@ -175,6 +175,12 @@ public sealed class ScreenPairings(CinemaDatabase database, IOptions<OidcOptions
             "DELETE FROM screen_pairings WHERE user_id = $user AND phone_sid = $phone AND screen_sid = $screen",
             ("$user", userId), ("$phone", phoneId), ("$screen", screenId)) > 0);
 
+    /// <summary>Whether this phone is paired with this screen now, for the person both belong to.</summary>
+    public bool Paired(string userId, string phoneId, string screenId) =>
+        database.Read(c => c.Query(
+            "SELECT 1 FROM screen_pairings WHERE user_id = $user AND phone_sid = $phone AND screen_sid = $screen",
+            _ => 1, ("$user", userId), ("$phone", phoneId), ("$screen", screenId))).Count > 0;
+
     /// <summary>The screens a phone is paired with, oldest pairing first.</summary>
     public List<Row> OfPhone(string userId, string phoneId, IReadOnlySet<string> connectedScreens) =>
         Live(userId, connectedScreens, "phone_sid = $id", phoneId);

@@ -10,28 +10,73 @@
  * Remote mode is the device's own: on says this phone is driving its screen now, and it is kept across
  * the app closing under `cinema:remote` ("1" or "0", as krystal-ui's `useStoredFlag` reads it). Turning
  * it off unpairs nothing, and a pairing turns it on.
+ *
+ * While remote mode is on and a paired screen is connected, the phone is a remote of that screen
+ * (`remoteRoom.js`): in the room the screen is in, wherever it goes. With remote mode off, or no screen
+ * connected, it holds no room connection.
  */
 
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
 import { api } from "./api.js";
 import { holdPersonConnection } from "./personConnection.js";
+import { holdRemoteRoom, releaseRemoteRoom } from "./remoteRoom.js";
 
 /** Where remote mode is kept on the device. */
 export const REMOTE_MODE_KEY = "cinema:remote";
+
+function storedMode() {
+  try {
+    return localStorage.getItem(REMOTE_MODE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+const modeStore = createStore(storedMode());
 
 /** Turns remote mode on or off on this device. */
 export function setRemoteMode(on) {
   try {
     localStorage.setItem(REMOTE_MODE_KEY, on ? "1" : "0");
   } catch {
-    // Storage refused: remote mode lasts as long as nothing reads it again.
+    // Storage refused: remote mode lasts as long as the page does.
   }
+  modeStore.setState(on);
+}
+
+/** Whether this device is driving its screen, and a way to change it. */
+export function useRemoteMode() {
+  return [useStore(modeStore), setRemoteMode];
 }
 
 /** The screens this session is paired with, as the server last told them, or null before it has. */
 const pairedStore = createStore(null);
 
 let held = null;
+
+/** The screen chosen to be driven, when the person chose among several. */
+let chosen = null;
+
+/** The screen this phone is a remote of: the chosen one while it is connected, else the first that is. */
+function drivenScreen() {
+  const connected = (pairedStore.getState() || []).filter((screen) => screen.connected);
+  return connected.find((screen) => screen.id === chosen) || connected[0] || null;
+}
+
+function drive() {
+  const screen = modeStore.getState() ? drivenScreen() : null;
+  if (screen) holdRemoteRoom(screen.id);
+  else releaseRemoteRoom();
+}
+
+pairedStore.subscribe(drive);
+modeStore.subscribe(drive);
+
+/** Drives this screen rather than the first that is connected, for as long as it is paired and connected. */
+export function chooseScreen(id) {
+  chosen = id;
+  drive();
+}
 
 const put = (screen) => pairedStore.setState((screens) => [...(screens || []).filter((s) => s.id !== screen.id), screen]);
 

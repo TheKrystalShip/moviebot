@@ -188,12 +188,83 @@ moves with it.
 
 Questions:
 
-- What does the room hold that a buffering or quality report from a remote would corrupt today, and
-  does refusing them on the hub cover every path?
-- Every act is recorded with who did it. Does an act from a remote name the person alone, or the
-  person and the phone?
-- How quickly is a phone that comes out of a pocket live again: from unlock to controls that answer,
-  measured on a real phone with the app backgrounded for two hours.
+- A remote reporting buffering or quality would corrupt four things a room holds. `Hold` waits for every
+  member to be waiting: a remote that never waits keeps a room from ever being held, and one that waits
+  holds it for nobody. `WantedHeights` gives a viewer that has reported nothing the tallest rung, so a
+  phone that plays nothing would raise the room's rung on a transcoding host. The roster, the head count,
+  `/health`'s `watching`, the room listing and the presence the bot draws would count somebody watching
+  nothing, and `Attended` would keep a guest link alive on them. `Viewers` and `Watched` would credit a
+  person with a film they only paused from a sofa. Refusing the two reports on the hub covers every path:
+  `Buffering` and `ReportQuality` are hub methods alone (no route takes a connection or either report),
+  and the remote is never added to `Participants` or `ViewerQuality`, so even a report that reached the
+  store would find no one to attach to (`SetBuffering` and `Report` ignore a connection that never
+  joined). The remote is absent by construction, not filtered out, so a counter added later cannot
+  forget it. Measured by the hub tests: with a remote attached the roster stays at one, `/health`'s
+  `watching` is unchanged, a room whose only player waits is held, the wanted heights are the
+  television's alone, and every span of the watch record names the television's person once.
+- An act of a remote names the person alone. The room's shared state is small by rule, and `Actor` is
+  written into every push and every kept room; a phone's name there would reach every other member and
+  the restart's copy for a distinction nothing in a room uses. The screen is the person's own, so the
+  room says "You paused" on the television of the person who paused from the phone, which is true. The
+  phone is named where a name costs nothing and is read by nobody who watches: the log line of the act
+  (`via <connection> remote`). `Actor.Via` is the assistant's client acting for a person and stays that.
+- A phone out of a pocket is live again within one press of the page being back, in every case headless
+  Chromium can make. `node verify/resume.mjs` pairs a hub client standing in for the television with a
+  headless phone page running the site's own remote modules, takes the page away, brings it back, and
+  presses play or pause every 100 ms until the room accepts one (the remote's own `live`, the press that
+  landed, and when the television heard it):
+
+  | The page was | Before the page woke the connection | After |
+  |---|---|---|
+  | script stopped 5 s (`Debugger.pause`; a headless page is never hidden, and `Page.setWebLifecycleState` froze nothing: timers kept ticking) | landed at once | landed at once |
+  | script stopped 45 s, past the server's 30 s `ClientTimeoutInterval` | first press refused, second landed at 108 ms | the same, 108 ms |
+  | network off 45 s (`Network.emulateNetworkConditions`) | 26 309 ms and 259 presses: SignalR's reconnect schedule (now, 2 s, 10 s, 30 s) had run out while offline, and the next try was due 26 s after the network came back | 107 ms: the `online` event replaces the connection |
+  | network off 90 s | not measured before | 105 ms |
+  | sockets destroyed by the kernel (`ss -K`) | a new socket within a millisecond; landed at 4 ms | the same |
+
+  Against the live anchor and hotbox, a headless phone (the agent account, its own session with a
+  refresh token) and the Fire TV as the screen: the page's script stopped for 330 s, past the 300 s life
+  of an access token, then resumed. The remote was live again at 113 ms and a command landed at 118 ms,
+  the refresh grant included, with or without the page being told it was visible; the television's
+  player followed. A headless page on the same LAN as hotbox has no radio to wake and no carrier to
+  cross, so this is the floor.
+
+  Two things follow. A phone's sockets that died while it slept are replaced at once rather than on the
+  client's schedule: a page that returns (visible again, restored from the cache, or the network back)
+  replaces a connection that is not connected, and asks one that says it is for the server's clock,
+  replacing it when two seconds pass unanswered (`personConnection.js`). And the remote's `live` goes
+  false the moment a connection is lost and being retried (`reconnecting`), so nothing is derived forward
+  from a room that cannot be heard from. What is not measured: that headless pages are never hidden,
+  throttled or discarded, that loopback has no round trips (a reconnect on a real link costs about four:
+  negotiate, the socket, the SignalR handshake and `JoinAsRemote`, and a fresh access token first when
+  the held one ran out, which the anchor's refresh adds), and what a phone's operating system does to a
+  backgrounded page's sockets over two hours. Those are the real phone's.
+- Still to measure on the real Android phone, after two hours away. The tab is the site's own remote
+  modules on a blank page of the origin, so it needs no remote screen of its own (Step 5). With the
+  phone's Chrome (the browser, not the installed app, whose storage is separate) signed in to the site
+  and paired with the television by scanning its code, the television in a room with a film paused, and
+  USB debugging on:
+  1. `adb forward tcp:9222 localabstract:chrome_devtools_remote`, then
+     `node verify/resumePhone.mjs arm` from `web/site`. It opens `https://movies.thekrystalship.com/api/config`
+     in Chrome, makes the phone a remote and prints that it is armed. Unplug nothing else; unplug the
+     cable if the phone should sleep as it does in a pocket.
+  2. Lock the phone and leave it for two hours, off charge and on its usual connection.
+  3. Unlock it and leave Chrome on that tab. The page presses play or pause on the television every
+     100 ms from the moment it is shown until the room accepts one, which toggles the film once.
+  4. Plug in, `adb forward` again, and `node verify/resumePhone.mjs read`. The figures are `awayMs`,
+     `timeline` (when the remote reported itself connected again, from the page being shown), `refused`
+     (what the presses that failed were told) and `landedMs` (the first press the room accepted).
+     "The tab has no result" means Chrome discarded or reloaded it while the phone was away, which is
+     the other answer worth having: the remote then comes back only by the page loading again.
+  Run it again with the access token fresh (an hour away) to separate the token's renewal from the
+  socket's. Only one Playwright client may be attached to the phone's Chrome at a time.
+- Built (3.20.0, site 0.69.0). `JoinAsRemote(screenId)` makes a paired phone's connection a remote of
+  that screen, and `RemoteMoved` carries it between rooms. `ScreenPresence` holds the remotes beside the
+  screens and moves them under its own gate; `SessionHub.SessionId` asks a remote's screen for its room
+  on every act. `RemoteGate` and `[RemoteAllowed]` close every other hub method to a remote, as guests'
+  are. The site's `remoteRoom.js` holds the connection (on `personConnection.js`, the room player's
+  token and reconnect), `RevisionGate` is the player's revision rule written once, and `remote.js`
+  drives the first connected paired screen while remote mode is on.
 
 ### Step 5: the phone's remote
 

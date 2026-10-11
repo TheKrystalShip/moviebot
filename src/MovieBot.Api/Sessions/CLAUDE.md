@@ -141,6 +141,46 @@ in its token (`ScreenIdentity`); a phone is any other connection or request of a
   unseen for longer than `Oidc:SessionLifetime`, the provider's own bound on a session nobody renews.
   Cinema hears no revocation, and that bound is what lets it say a session has ended without guessing.
 
+## Remotes
+
+A remote is a phone's hub connection that drives the room one of its paired screens is in
+(`JoinAsRemote`, `RoomRemotes.cs`). It moves the film like any member, through `RoomControls`, and is a
+participant of no kind.
+
+- **The server decides it, from the token and the pairing.** The connection must be a phone (a `sid`,
+  not a screen), the page names only the screen it wants, and `ScreenPairings.Paired` must hold for the
+  token's person, the phone's `sid` and that screen. The pairing is read again on every act, so one that
+  ended is refused at once, whatever the connection still holds.
+- **A remote binds to the screen, so its room is asked, never held.** `ScreenPresence.RoomOfRemote`
+  answers the room the screen is in now, and every method that moves a room resolves it through
+  `SessionHub.SessionId`. `ScreenPresence` moves a remote between the rooms' groups in the same place,
+  and under the same gate, that it works out a screen's room (`FollowAsync`, called ahead of every
+  announcement), and tells the remote with `RemoteMoved`. A move cannot be missed by a push in flight,
+  because the room a remote acts on is looked up per act and the group it hears is changed under the gate.
+- **A remote is absent from what a room counts, by construction.** It is never added to `Participants`,
+  `ViewerQuality` or the roster, so nothing filters it out and no new counter has to remember to. What
+  its being there would corrupt:
+  - *the hold* (`SessionStore.Hold`): a member who never waits keeps a room from being held, and one
+    that waits holds it for nobody;
+  - *the transcode plan* (`WantedHeights`): a viewer who has reported nothing wants the tallest rung,
+    so a phone that plays nothing would raise the room's rung;
+  - *the roster, the head count, `/health`'s `watching` and the presence the bot draws*: they would
+    count somebody who is watching nothing, and `Attended` would keep a guest link alive on one;
+  - *the watch record* (`Viewers`, `Watched`): it would credit a person with a film they only paused
+    from a sofa.
+  Buffering and quality are hub methods alone (no route takes either), and `RemoteGate` refuses them,
+  the door (`Knock`, `SetOpen`, `Answer`) and the other ways in (`Join`, `JoinAsGuest`) to a remote. It
+  refuses every method not marked `[RemoteAllowed]`, as `GuestGate` does for guests, and the tests walk
+  the hub's methods for the list.
+- **An act of a remote names the person alone.** `Actor` is the person's id and name, which is what
+  the room shows ("You paused" on the screen of the person it is); the phone is named in the log
+  (`via <connection> remote`) and nowhere in shared state. A device in `Actor` would be written into
+  every push and every kept room, and shown to every other member, for a distinction nothing in a room
+  uses.
+- **A pairing ending ends the remote.** `ScreenPresence` drops the remotes of a pairing it ends
+  (unpaired from either side, or a television signed in again under the same name) out of the room's
+  group and forgets them; a disconnect forgets the connection's.
+
 ## Keeping a room
 
 A room is the only thing in the system that exists nowhere else. The films are on disk and the

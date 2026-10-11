@@ -530,7 +530,9 @@ in a WebView, driven by the remote. `src/tv/` is all of it that is the site's ow
   the television client is open (`docs/api-contract.md`, "Screens"), and a room's connection exists
   only while a room is open, so this one makes the television present on every page. It never joins a
   room and reports neither buffering nor quality. It is opened on sign-in, retried on a timer when it
-  cannot connect, and closed on sign-out. The screen's name is read when it connects, so a rename made
+  cannot connect, replaced at once when the page returns (visible again, restored from the cache or the
+  network back) and its socket is dead or does not answer the server's clock within two seconds, and
+  closed on sign-out. The screen's name is read when it connects, so a rename made
   at the provider shows on the next reconnect. It is what asks for the pairing code and is told the
   phones paired with the television.
 - **Pairing a phone** (`src/tv/TvRemote.jsx`): Profile's Remote, between Playback and Subtitles and
@@ -567,6 +569,18 @@ and leaving; with none paired it holds nothing, and it asks again whenever someb
 connection comes back. Remote mode, whether this device is driving its television now, is the device's
 own, kept under `cinema:remote` across the app closing: pairing turns it on, and undoing the last
 pairing turns it off.
+
+While remote mode is on and a paired television is connected, the phone is a remote of it
+(`src/remoteRoom.js`, driven by `src/remote.js`): a room connection of its own, made a remote with
+`JoinAsRemote`, that is in the room the television is in and moves to the next when the television opens
+another, or into none when it leaves its rooms. Its state is applied by the player's own rules
+(`RevisionGate`, `ServerClock`, `derivePosition`), `useRemoteRoom` gives a component the screen driven,
+whether the room can be heard from and its state, `remotePosition` where the room is now, and
+`roomCommands` are the intents it sends (`play`, `pause`, `seek`, `skip`, `loadTitle`, `next`,
+`previous`, `playEpisode`). It reports no buffering and no quality and is in nobody's roster. With
+several televisions connected the first is driven, and `chooseScreen` drives another. `useRemoteMode`
+is the switch's state. `npm run verify:tv` drives a room from a phone with nothing on screen, and
+`node verify/resume.mjs` measures how quickly such a phone is live again after its page was away.
 
 ## Notifications
 

@@ -788,6 +788,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 |---|---|---|
 | `Join` | `(sessionId) → JoinReply` | call first; everything else but `Knock` throws until you are in. The viewer is the connection's token: its `sub` and `name`. `{admitted: true, push, door}` puts them in the room, and a room there is none of is made, open, with them let in; `{admitted: false}` is a room private to them, and says nothing else about it (Who may come in, below) |
 | `JoinAsGuest` | `(name: string?) → JoinReply` | a guest link's `Join`: the link names the room. `{admitted: true, push, you}` puts the guest in, `you` the `Participant` the room has them as (`guest: true`, an id of the connection's, `name` cleaned of control and formatting characters and held to 32, "Guest" when empty); calling it again on the same connection keeps them who they were. `{admitted: false, refused}` says why not: `ended` (the link is no longer the room's), `unattended` (nobody with an account is in the room, nor has been within `Rooms.GuestGrace`) or `full` (`Rooms.GuestsPerRoom`). A connection that is no guest is refused |
+| `JoinAsRemote` | `(screenId) → JoinReply` | a paired phone's `Join`: the connection becomes a **remote** of the screen `screenId` names (Screens, below), in the room that screen is in now. `{admitted: true, push}` is the room's state; `push` is absent while the screen is in no room, and the remote is put in one when the screen joins it. A `HubException` when the connection is no phone (a screen, a token of no session, a guest, a connection with no account), when the phone is not paired with that screen, or when the connection is in a room. Calling it again on the connection changes the screen it drives |
 | `Knock` | `(sessionId) → bool` | asks to be let into a room private to this viewer. `true` is no need to ask, so `Join` now; otherwise the room is told who is asking and this connection is answered with `KnockAnswered`. The asking ends with the connection |
 | `SetOpen` | `(open: bool)` | opens the room to anybody holding `cinema:watch`, or closes it to anybody not already let in |
 | `Answer` | `(userId, admit: bool)` | lets somebody asking in, or tells them they are not |
@@ -816,6 +817,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `TitleChanged` | `Manifest` — the manifest of the title this room holds changed: head, preview sheet, subtitles, status. Sent to every room holding the title, within a couple of seconds of the write |
 | `DoorChanged` | `RoomDoor` = `{open, knocking: [{userId, displayName}], guests?: {expiresAt}}` — sent to the people with an account in the room, never to a guest, when it is opened or closed, when somebody starts or stops asking, and when its guest link is given, taken away or runs out; `knocking` holds each person once, in the order they asked, and `guests` is there while the room has a link, never the link itself |
 | `KnockAnswered` | `bool` — sent to a connection that asked to be let in: `true` when somebody let them in or opened the room, `false` when somebody said no |
+| `RemoteMoved` | `JoinReply` — sent to a remote when its screen's room changes: `push` is the state of the room the screen is in now, absent when the screen has left its rooms or disconnected. The remote is already out of the room it was in and in the new one when it is sent; the state it carries settles the comparison (rule 1, below) whatever revision it holds |
 | `ScreenArrived` | `ScreenView` — a screen paired with this session connected, after having no connection, or was paired with it. Sent to the session's connections that are not screens |
 | `ScreenChanged` | `ScreenView` — a screen paired with this session changed name, room, what the room holds or whether the room is paused, or lost its last connection (`connected: false`, no `room`). Sent to the same connections |
 | `ScreenLeft` | `string` — the id of a screen whose pairing with this session ended. Sent to the same connections |
@@ -874,6 +876,28 @@ one phone are two phones. A token that belongs to no session, as the Activity's 
   when its television connects.
 - A screen's room follows its newest connection's `Join`, and `ScreenChanged` is sent whenever the
   room's title or paused state changes.
+
+A **remote** is a phone's connection that drives one of its paired screens' rooms (`JoinAsRemote`). The
+server decides it from the validated token and the pairing, and the page names only the screen it wants:
+the phone's `sid` must be paired with that screen, both of the token's person, checked again on every
+message the remote sends.
+
+- **It binds to the screen, not the room.** A remote's room is the room its screen is in right now,
+  asked each time it acts, so it never moves a room its screen has left. When the screen's newest `Join`
+  is another room the server takes the remote out of the old room's group and into the new one and
+  sends `RemoteMoved`; when the screen's last connection closes, or it has no room connection, the
+  remote is in none (`RemoteMoved` without a `push`) and what it asks is refused until the screen is in
+  one. A screen that is not connected is a remote's screen all the same.
+- **It drives the room as a member does and is in nothing the room counts.** `Play`, `Pause`, `Seek`,
+  `LoadTitle`, `Next`, `Previous` and `PlayEpisode` go through the same place as everybody's, and the
+  room's `StateChanged`, `TitleChanged` and `ParticipantsChanged` reach it. It is not in `Participant[]`,
+  the room's count, `/health`'s `watching` or the room listing, it holds nobody (`waiting` never counts
+  it), it is no viewer anything is recorded for, and it is in no transcode plan. `Buffering`,
+  `ReportQuality`, `Join`, `JoinAsGuest`, `Knock`, `SetOpen` and `Answer` refuse it.
+- **An act of a remote names the person alone.** `updatedBy` is the screen's person, as when they act
+  at the television; no field says it came from a phone.
+- **The pairing ends it.** Unpairing from either side, or a television signed in again under the same
+  name, takes the remote out of the room, and what it asks next is refused. Its own `ScreenLeft` says so.
 
 ### Who may come in
 

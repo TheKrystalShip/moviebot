@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
 using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Sessions;
 
@@ -24,6 +26,12 @@ public static class PersonGroups
     /// <summary>The connections of one of the person's screens, where the phones paired with it are told.</summary>
     public static string Screen(string userId, string sid) => $"screen:{userId}:{sid}";
 }
+
+/// <summary>
+/// What a phone is told when it becomes a remote of a screen: the room the screen is in now, absent while
+/// it is in none.
+/// </summary>
+public sealed record RemoteJoin(string? Room, SessionStatePush? Push);
 
 /// <summary>A screen as a person's other connections see it.</summary>
 /// <param name="Id">The screen's anchor session (<c>sid</c>), stable across token refresh.</param>
@@ -100,7 +108,11 @@ public sealed class ScreenPresence(
         public Dictionary<string, (string? Room, long Order)> Connections { get; } = [];
     }
 
+    /// <summary>A phone's room connection that drives a screen's room, and the room it is in now.</summary>
+    private sealed record Remote(string UserId, string PhoneId, string ScreenId, string? Room);
+
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly ConcurrentDictionary<string, Remote> _remotes = new(StringComparer.Ordinal);
     private readonly Dictionary<(string UserId, string Id), Entry> _screens = [];
     private readonly Dictionary<string, Entry> _byConnection = [];
     private long _order;
@@ -125,7 +137,10 @@ public sealed class ScreenPresence(
             _byConnection[connectionId] = entry;
 
             foreach (var ended in pairings.ScreenSeen(userId, screen.Id, screen.Name, Connected(userId)))
+            {
+                await DropRemotesAsync(userId, ended.PhoneId, ended.ScreenId);
                 await hub.Clients.Group(PersonGroups.Phone(userId, ended.PhoneId)).SendAsync("ScreenLeft", ended.ScreenId);
+            }
             await AnnounceAsync(entry, arrived: true);
         }
         finally { _gate.Release(); }
@@ -150,6 +165,7 @@ public sealed class ScreenPresence(
         await _gate.WaitAsync();
         try
         {
+            _remotes.TryRemove(connectionId, out _);
             if (!_byConnection.Remove(connectionId, out var entry)) return;
             entry.Connections.Remove(connectionId);
             entry.LastSeen = clock.GetUtcNow();
@@ -174,6 +190,80 @@ public sealed class ScreenPresence(
         }
         finally { _gate.Release(); }
     }
+
+    /// <summary>
+    /// Makes a phone's connection a remote of one of the person's screens: it hears the screen's room and
+    /// moves with the screen from room to room. Null when the phone is not paired with the screen. A
+    /// screen in no room, or not connected, leaves the remote in none until it is in one.
+    /// </summary>
+    public async Task<RemoteJoin?> JoinRemoteAsync(string userId, string phoneId, string screenId, string connectionId)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            if (!pairings.Paired(userId, phoneId, screenId)) return null;
+            if (_remotes.TryGetValue(connectionId, out var before) && before.Room is not null)
+                await hub.Groups.RemoveFromGroupAsync(connectionId, RoomGroups.Everyone(before.Room));
+
+            var room = _screens.TryGetValue((userId, screenId), out var entry) ? RoomOf(entry) : null;
+            _remotes[connectionId] = new Remote(userId, phoneId, screenId, room);
+            if (room is not null) await hub.Groups.AddToGroupAsync(connectionId, RoomGroups.Everyone(room));
+            pairings.PhoneSeen(userId, phoneId);
+            return new RemoteJoin(room, StateOf(room));
+        }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>
+    /// The room a remote's screen is in now, checked against the pairing every time it is asked: a
+    /// remote whose pairing has ended, or that is no remote, has none. Null with the reason when the
+    /// screen is in no room.
+    /// </summary>
+    public (string? Room, string? Refusal) RoomOfRemote(string connectionId)
+    {
+        if (!_remotes.TryGetValue(connectionId, out var remote)) return (null, "Join a screen's room first.");
+        if (!pairings.Paired(remote.UserId, remote.PhoneId, remote.ScreenId)) return (null, "This phone is no longer paired with that screen.");
+        return remote.Room is { } room ? (room, null) : (null, "The screen is in no room.");
+    }
+
+    /// <summary>
+    /// Ends every remote a phone holds of a screen whose pairing ended: out of the screen's room, and
+    /// forgotten, so what it asks for next is refused.
+    /// </summary>
+    private async Task DropRemotesAsync(string userId, string phoneId, string screenId)
+    {
+        foreach (var (connectionId, remote) in _remotes.ToList())
+        {
+            if (remote.UserId != userId || remote.PhoneId != phoneId || remote.ScreenId != screenId) continue;
+            _remotes.TryRemove(connectionId, out _);
+            if (remote.Room is not null)
+                await hub.Groups.RemoveFromGroupAsync(connectionId, RoomGroups.Everyone(remote.Room));
+        }
+    }
+
+    /// <summary>
+    /// Moves the remotes of a screen to the room it is in now, and tells each where the room is: out of
+    /// the room they were in, into the new one, or into none when the screen has left its rooms.
+    /// </summary>
+    private async Task FollowAsync(Entry entry)
+    {
+        var room = RoomOf(entry);
+        foreach (var (connectionId, remote) in _remotes.ToList())
+        {
+            if (remote.UserId != entry.UserId || remote.ScreenId != entry.Id || remote.Room == room) continue;
+            if (remote.Room is not null)
+                await hub.Groups.RemoveFromGroupAsync(connectionId, RoomGroups.Everyone(remote.Room));
+            if (room is not null)
+                await hub.Groups.AddToGroupAsync(connectionId, RoomGroups.Everyone(room));
+            _remotes[connectionId] = remote with { Room = room };
+            await hub.Clients.Client(connectionId).SendAsync("RemoteMoved", new JoinReply { Admitted = true, Push = StateOf(room) });
+        }
+    }
+
+    private SessionStatePush? StateOf(string? room) =>
+        room is not null && sessions.Get(room) is { } state
+            ? new SessionStatePush { State = state, ServerTime = DateTimeOffset.UtcNow }
+            : null;
 
     /// <summary>
     /// The screens a phone is paired with, as they stand: those not known now as not connected, under the
@@ -245,6 +335,7 @@ public sealed class ScreenPresence(
         try
         {
             if (!pairings.Unpair(userId, phoneId, screenId)) return;
+            await DropRemotesAsync(userId, phoneId, screenId);
             await hub.Clients.Group(PersonGroups.Phone(userId, phoneId)).SendAsync("ScreenLeft", screenId);
             await hub.Clients.Group(PersonGroups.Screen(userId, screenId)).SendAsync("PhonesChanged", Phones(userId, screenId));
         }
@@ -295,6 +386,7 @@ public sealed class ScreenPresence(
     /// <summary>Tells the phones paired with a screen what it shows now, when that is not what they were last told.</summary>
     private async Task AnnounceAsync(Entry entry, bool arrived)
     {
+        await FollowAsync(entry);
         var view = ViewOf(entry);
         var message = arrived && entry.Told is not { Connected: true } ? "ScreenArrived" : "ScreenChanged";
         if (view == entry.Told) return;

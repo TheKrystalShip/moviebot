@@ -269,8 +269,8 @@ builder.Services.AddHttpClient<TokenExchangeClient>(http => http.Timeout = TimeS
 // Every type that crosses the wire is named in a serializer context, and the two contexts are the
 // only resolver the hub and the endpoints have: nothing is reached by reflection, so a type left
 // out fails in the JIT build the tests run exactly as it would in the native one.
-// A guest's connection may call only the hub methods marked for one.
-builder.Services.AddSignalR(o => o.AddFilter<GuestGate>())
+// A guest's connection may call only the hub methods marked for one, and a remote's only those marked for it.
+builder.Services.AddSignalR(o => { o.AddFilter<GuestGate>(); o.AddFilter<RemoteGate>(); })
     .AddJsonProtocol(o =>
     {
         o.PayloadSerializerOptions.TypeInfoResolver = ApiJson.Resolver;

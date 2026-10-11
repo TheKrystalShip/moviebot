@@ -2,7 +2,7 @@
 // walked with the arrow keys from where focus starts, against the scratch site verify/mobile/scratch.sh
 // serves (staged first, by its run or `node verify/mobile/run.mjs`; an unstaged site stops this run).
 //
-//   node verify/tv.mjs [--checks pages,heads,empty,overlays,back,player,remote,signin] [--pages home,title] [--out dir]
+//   node verify/tv.mjs [--checks pages,heads,empty,overlays,back,player,remote,driving,signin] [--pages home,title] [--out dir]
 //
 // Each page is checked for:
 // - focus starting on a control when it opens, and on screen;
@@ -20,6 +20,9 @@
 // Then a phone, a second browser context of the same person on a session of its own, paired with the
 // television by reading its QR code from the screenshot's pixels at the scale a camera across a room
 // has, unpaired from each side, and told the television's room once it plays and pauses a film.
+// Then the phone driving the film: the site's own remote modules on a blank page of a phone paired with
+// the television, which play, pause and seek the room and move the television's player, stay out of the
+// room's roster, follow the television into another room, and lose the room when the television leaves.
 // Last, signing in through the test provider's device grant, where the check decides for the person:
 // the code and its QR, approval, a restart, signing out, a refusal, an expired code, a provider that
 // cannot be reached, and a session that ends under a page.
@@ -37,6 +40,7 @@ import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
+import { probeScript } from "./probeBundle.mjs";
 import { PEOPLE, VIEWER, memberToken } from "./mobile/stage.mjs";
 import { TV_CLIENT, issuerIn } from "./issuer.mjs";
 
@@ -913,7 +917,109 @@ async function remote() {
   }
 }
 
-const checks = option("checks", "pages,heads,empty,overlays,back,player,remote,signin").split(",");
+/**
+ * A phone with nothing on screen driving the television's room. The television plays a film and pauses it
+ * to show its code, which is read and paired through the API; the phone's remote modules then hold a room
+ * connection as a remote of that screen. Its play, pause and seek move the television's player, the room's
+ * roster holds the television's person once, the television opening another room carries the remote to it,
+ * and the television leaving rooms leaves it in none.
+ */
+async function driving() {
+  console.log("driving");
+  const stamp = Date.now().toString(36);
+  const tvSession = { hours: 6, client: TV_CLIENT, sid: `verify-drive-tv-${stamp}`, device: "Verify TV" };
+  const phoneSid = `verify-drive-phone-${stamp}`;
+  const first = `verify-drive-a-${stamp}`;
+  const second = `verify-drive-b-${stamp}`;
+  const tv = await open("/profile/remote", VIEWER, tvSession);
+  const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: PhoneAgent, isMobile: true, hasTouch: true, bypassCSP: true });
+  await phoneContext.addInitScript(({ key, value }) => localStorage.setItem(key, value), issuer.planted(VIEWER, { hours: 6, sid: phoneSid }));
+  const phone = await phoneContext.newPage();
+  phone.on("pageerror", (e) => { failures.push(`driving: phone page error ${e.message}`); if (process.env.DEBUG_PROBE) console.log("pageerror", e.message); });
+  phone.on("console", (m) => { if (process.env.DEBUG_PROBE) console.log("phone console", m.type(), m.text()); });
+  const phoneAuth = { Authorization: `Bearer ${issuer.mint(VIEWER, { sid: phoneSid })}` };
+  const video = (page, read) => page.evaluate(read, null);
+  const tvPaused = () => video(tv.page, () => { const v = document.querySelector("video"); return v ? v.paused : null; });
+  const tvTime = () => video(tv.page, () => { const v = document.querySelector("video"); return v ? v.currentTime : null; });
+  const roster = async (room) => (await (await fetch(`${base}/api/sessions/${room}/participants`, { headers: { Authorization: `Bearer ${token}` } })).json());
+  const loaded = (page) => page.waitForFunction(() => { const v = document.querySelector("video"); return v && v.readyState >= 3; }, null, { timeout: 30000 }).catch(() => {});
+  try {
+    await tv.page.goto(`${base}/r/${first}?title=${encodeURIComponent(playable)}&tv=1`, { waitUntil: "load" });
+    await loaded(tv.page);
+    await tv.page.keyboard.press("Enter");
+    await tv.page.waitForTimeout(1500);
+    await tv.page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "MediaPlayPause", bubbles: true, cancelable: true })));
+    await tv.page.waitForSelector(".kc-tvr-paused__qr svg", { timeout: 10000 }).catch(() => {});
+    await tv.page.waitForTimeout(700);
+    const url = await readQr(tv.page, ".kc-tvr-paused__qr", SofaScale);
+    if (!url) { fail("driving", "the paused player drew no code to pair with"); return; }
+    const paired = await fetch(base + "/api/me/screens", {
+      method: "POST", headers: { ...phoneAuth, "Content-Type": "application/json", "User-Agent": PhoneAgent },
+      body: JSON.stringify({ code: new URL(url).pathname.slice("/p/".length) }),
+    });
+    if (!paired.ok) { fail("driving", `pairing from the television's code answered ${paired.status}`); return; }
+
+    await phone.goto(base + "/api/config", { waitUntil: "load" });
+    await phone.addScriptTag({ content: await probeScript(), type: "module" });
+    await phone.waitForFunction(() => window.__phone, null, { timeout: 10000 });
+    await phone.evaluate(() => window.__phone.start());
+    const live = await until(() => phone.evaluate(() => { const r = window.__phone.room(); return r.live && r.state !== null; }), 10000);
+    const held = await phone.evaluate(() => window.__phone.room());
+    if (!live || held.state.sessionId !== first || held.state.titleId !== playable || held.state.paused !== true)
+      fail("driving", `the remote holds ${JSON.stringify(held)}, not the paused room ${first}`);
+    else pass("the phone is a remote of the television, in its paused room, holding its state");
+
+    const people = await roster(first);
+    if (people.length !== 1) fail("driving", `the room's roster is ${JSON.stringify(people)} with a remote attached, not the television's person alone`);
+    else pass("the roster holds the television's person alone with the remote attached");
+
+    await phone.evaluate(() => window.__phone.commands.play());
+    const played = await until(async () => (await tvPaused()) === false, 6000);
+    if (!played) fail("driving", "the remote's play did not start the television's player");
+    else pass("the remote's play starts the television's player");
+
+    await phone.evaluate(() => window.__phone.commands.seek(60));
+    const sought = await until(async () => Math.abs((await tvTime()) - 61) < 8, 6000);
+    if (!sought) fail("driving", `the remote's seek to 60 left the television at ${await tvTime()}`);
+    else pass("the remote's seek moves the television's player");
+
+    await phone.evaluate(() => window.__phone.commands.skip(-15));
+    const skipped = await until(async () => { const at = await tvTime(); return at > 40 && at < 52; }, 6000);
+    if (!skipped) fail("driving", `the remote's back fifteen left the television at ${await tvTime()}`);
+    else pass("the remote's back fifteen moves the television's player back");
+
+    await phone.evaluate(() => window.__phone.commands.pause());
+    const stopped = await until(async () => (await tvPaused()) === true, 6000);
+    if (!stopped) fail("driving", "the remote's pause did not stop the television's player");
+    else pass("the remote's pause stops the television's player");
+
+    // The television opens another room: the remote is carried to it, and acts on it.
+    await tv.page.goto(`${base}/r/${second}?title=${encodeURIComponent(playable)}&tv=1`, { waitUntil: "load" });
+    await loaded(tv.page);
+    const followed = await until(() => phone.evaluate((room) => window.__phone.room().state?.sessionId === room, second), 10000);
+    if (!followed) fail("driving", `the remote did not follow the television into ${second}: ${JSON.stringify(await phone.evaluate(() => window.__phone.room()))}`);
+    else {
+      await phone.evaluate(() => window.__phone.commands.play());
+      const movedOn = await until(async () => (await tvPaused()) === false, 6000);
+      const leftBehind = (await roster(first)).length === 0;
+      if (!movedOn || !leftBehind) fail("driving", `after following, play moved the television: ${movedOn}; the first room is empty: ${leftBehind}`);
+      else pass("the remote follows the television into another room and drives that one");
+    }
+
+    // The television leaves rooms for Home: the remote is in none, and refuses to act on a room that is not there.
+    await tv.page.goto(`${base}/?tv=1`, { waitUntil: "load" });
+    const emptied = await until(() => phone.evaluate(() => window.__phone.room().state === null), 10000);
+    const refused = await phone.evaluate(() => window.__phone.commands.play().then(() => null, (e) => e.message));
+    if (!emptied || !refused) fail("driving", `the television left its room and the remote holds ${emptied ? "no room, and play was accepted" : "a room"}`);
+    else pass(`the remote leaves with the television, and play is refused ("${refused}")`);
+  } finally {
+    await fetch(base + `/api/me/screens/${tvSession.sid}`, { method: "DELETE", headers: phoneAuth });
+    await phoneContext.close();
+    await tv.close();
+  }
+}
+
+const checks = option("checks", "pages,heads,empty,overlays,back,player,remote,driving,signin").split(",");
 try {
   if (checks.includes("pages")) for (const p of PAGES) if (!pageNames || pageNames.includes(p.name)) await walk(p);
   if (checks.includes("heads")) await heads();
@@ -925,6 +1031,7 @@ try {
   if (checks.includes("back")) await backs();
   if (checks.includes("player")) await player();
   if (checks.includes("remote")) await remote();
+  if (checks.includes("driving")) await driving();
   if (checks.includes("signin")) await signIn();
 } finally {
   await browser.close();

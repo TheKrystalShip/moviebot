@@ -1,5 +1,6 @@
 import type { SessionState, SessionStatePush } from '../types';
 import { derivePosition } from './hub';
+import { RevisionGate } from './revision';
 import type { ServerClock } from './clock';
 
 /** Position difference at which applying remote state seeks rather than leaves the playhead. */
@@ -44,9 +45,7 @@ export interface SyncHooks {
  * revision gating, echo suppression, and correction of the drift that accumulates regardless.
  */
 export class SyncController {
-  private lastRevision = -1;
-  /** Which run of the room the revision above belongs to. */
-  private epoch: string | null = null;
+  private readonly revisions = new RevisionGate();
   /** Whether the room can be heard from. Nothing is extrapolated from a state nothing confirms. */
   private live = false;
   /** Where this client's own write put the playhead, so the resulting seek is not republished. */
@@ -181,17 +180,8 @@ export class SyncController {
   applyPush(push: SessionStatePush, resync = false): void {
     const state = push.state;
 
-    // Revisions only count within one run of a room. A room the server has forgotten and built
-    // again starts from zero, and measuring it against the run before discards everything it
-    // says for as long as this page stays open.
-    if (state.epoch !== this.epoch) {
-      this.epoch = state.epoch;
-      this.lastRevision = -1;
-    }
+    if (!this.revisions.admits(state, resync)) return;
 
-    if (!resync && state.revision <= this.lastRevision) return;
-
-    this.lastRevision = state.revision;
     this.latest = state;
     this.assumedPaused = state.paused;
     this.hooks.onState(state);

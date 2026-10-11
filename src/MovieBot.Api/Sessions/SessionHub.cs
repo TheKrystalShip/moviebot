@@ -19,6 +19,10 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// A connection opened on a room's guest link watches that room and nothing more: it joins with
 /// <see cref="JoinAsGuest"/>, and every method not marked <see cref="GuestAllowedAttribute"/> refuses
 /// it (<see cref="GuestGate"/>).
+///
+/// A paired phone drives its screen's room with <see cref="JoinAsRemote"/>: it moves the film like any
+/// member and is in nothing the room counts, and every method not marked
+/// <see cref="RemoteAllowedAttribute"/> refuses it (<see cref="RemoteGate"/>).
 /// </summary>
 public sealed class SessionHub(
     SessionStore sessions, RoomControls controls, RoomDoors doors, RoomEpisodes episodes, ViewerQuality quality,
@@ -110,6 +114,31 @@ public sealed class SessionHub(
     }
 
     /// <summary>
+    /// Makes this connection a remote of the screen <paramref name="screenId"/> names, which one of this
+    /// person's phones may only do for a screen it is paired with. The remote is in the screen's room
+    /// as it stands and moves with the screen to the next; the answer is the room's state, absent while
+    /// the screen is in none. It is no participant: the roster, the head count, the hold, the watch
+    /// record and the transcode plan never see it, and it reports nothing a player reports.
+    /// </summary>
+    [RemoteAllowed]
+    public async Task<JoinReply> JoinAsRemote(string screenId)
+    {
+        var person = Person("Sign in to drive a screen.");
+        var phone = Phone() ?? throw new HubException("Only a phone paired with a screen drives it.");
+        if (Context.Items.ContainsKey(SessionIdKey)) throw new HubException("This connection is in a room.");
+
+        var joined = await screens.JoinRemoteAsync(person.UserId, phone, screenId, Context.ConnectionId)
+            ?? throw new HubException("This phone is not paired with that screen.");
+        Context.Items[RemoteGate.ItemKey] = screenId;
+        Context.Items[ActorKey] = person.Actor;
+
+        logger.LogInformation(
+            "{DisplayName}'s phone became a remote of screen {ScreenId} (connection {Connection}, room {Room})",
+            person.DisplayName, screenId, Context.ConnectionId[..6], joined.Room ?? "none");
+        return new JoinReply { Admitted = true, Push = joined.Push };
+    }
+
+    /// <summary>
     /// Asks to be let into a room that is private to this person. True when there is no need to ask
     /// and the room can be joined now; otherwise the page is answered with <c>KnockAnswered</c> once
     /// somebody in the room decides, and stops asking when it closes.
@@ -134,6 +163,7 @@ public sealed class SessionHub(
     /// Puts a film on for the room, from <paramref name="startSeconds"/> or from the beginning when it
     /// is null. A hub call carries every argument its method has, so a client with no start sends null.
     /// </summary>
+    [RemoteAllowed]
     public Task<SessionStatePush> LoadTitle(string titleId, double? startSeconds) =>
         Mutate("load", actor => sessions.LoadTitle(SessionId(), titleId, actor, startSeconds));
 
@@ -141,6 +171,7 @@ public sealed class SessionHub(
     /// Moves the room to the episode after what it holds, deciding on the server whether that loads it
     /// or fetches it. Refused when there is nothing after it that this person can put on.
     /// </summary>
+    [RemoteAllowed]
     public async Task Next()
     {
         if (!await episodes.NextAsync(SessionId(), Person(), Context.ConnectionAborted))
@@ -148,6 +179,7 @@ public sealed class SessionHub(
     }
 
     /// <summary>Moves the room to the episode before what it holds.</summary>
+    [RemoteAllowed]
     public async Task Previous()
     {
         if (!await episodes.PreviousAsync(SessionId(), Person(), Context.ConnectionAborted))
@@ -155,18 +187,22 @@ public sealed class SessionHub(
     }
 
     /// <summary>Puts an episode of the show the room holds on for the room.</summary>
+    [RemoteAllowed]
     public async Task PlayEpisode(int season, int number)
     {
         if (!await episodes.PlayAsync(SessionId(), season, number, Person(), Context.ConnectionAborted))
             throw new HubException("That episode cannot be put on.");
     }
 
+    [RemoteAllowed]
     public Task<SessionStatePush> Play(double atSeconds) =>
         Mutate("play", actor => sessions.Play(SessionId(), atSeconds, actor));
 
+    [RemoteAllowed]
     public Task<SessionStatePush> Pause(double atSeconds) =>
         Mutate("pause", actor => sessions.Pause(SessionId(), atSeconds, actor));
 
+    [RemoteAllowed]
     public Task<SessionStatePush> Seek(double toSeconds) =>
         Mutate("seek", actor => sessions.Seek(SessionId(), toSeconds, actor));
 
@@ -202,6 +238,7 @@ public sealed class SessionHub(
     /// from that offset, so a viewer whose machine is a minute fast must not drag the room with it.
     /// </summary>
     [GuestAllowed]
+    [RemoteAllowed]
     public DateTimeOffset ServerTime() => DateTimeOffset.UtcNow;
 
     /// <summary>
@@ -235,6 +272,7 @@ public sealed class SessionHub(
     /// account and the session are the token's, and no argument names another. A screen, and a
     /// connection that belongs to no session, are paired with none.
     /// </summary>
+    [RemoteAllowed]
     public Task<List<ScreenView>> Screens()
     {
         var person = Person("Sign in to see your screens.");
@@ -262,6 +300,7 @@ public sealed class SessionHub(
     /// Ends a pairing of this connection's session: from a screen, with the phone <paramref name="id"/>
     /// names; from a phone, with the screen it names. Only the caller's own person's pairings are reached.
     /// </summary>
+    [RemoteAllowed]
     public Task Unpair(string id)
     {
         var person = Person("Sign in to unpair.");
@@ -301,7 +340,7 @@ public sealed class SessionHub(
         string intent, Func<Actor, MutationResult> mutation)
     {
         var change = await controls.ApplyAsync(
-            SessionId(), intent, CurrentActor(), mutation, via: Context.ConnectionId[..6]);
+            SessionId(), intent, CurrentActor(), mutation, via: Via());
 
         // The clamp notice goes only to whoever asked, because only they need to be told why
         // they did not land where they clicked.
@@ -314,10 +353,26 @@ public sealed class SessionHub(
     private static SessionStatePush Push(SessionState state) =>
         new() { State = state, ServerTime = DateTimeOffset.UtcNow };
 
-    private string SessionId() =>
-        Context.Items.TryGetValue(SessionIdKey, out var value) && value is string sessionId
+    /// <summary>
+    /// The room this connection moves: the one it joined, or for a remote the room its screen is in
+    /// right now, asked each time so a remote never acts on a room its screen has left.
+    /// </summary>
+    private string SessionId()
+    {
+        if (Context.Items.ContainsKey(RemoteGate.ItemKey))
+        {
+            var (room, refusal) = screens.RoomOfRemote(Context.ConnectionId);
+            return room ?? throw new HubException(refusal);
+        }
+
+        return Context.Items.TryGetValue(SessionIdKey, out var value) && value is string sessionId
             ? sessionId
             : throw new HubException("Join a session first.");
+    }
+
+    /// <summary>The connection as the log names it, with what kind of door it is.</summary>
+    private string Via() =>
+        Context.Items.ContainsKey(RemoteGate.ItemKey) ? Context.ConnectionId[..6] + " remote" : Context.ConnectionId[..6];
 
     private CinemaPerson Person(string refusal = "Sign in to change the room.") =>
         Bearer() is { } identity && CinemaPerson.From(identity, oidc.Value.ActionsClaim) is { } person
