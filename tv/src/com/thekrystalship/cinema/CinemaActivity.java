@@ -13,8 +13,9 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 /**
- * Krystal Cinema on a television: the site in a full-screen WebView, and nothing of the app's own
- * that the page can reach.
+ * Krystal Cinema on a television: the site in a full-screen WebView. The one thing of the app's own
+ * the page can reach is {@code window.KrystalCinemaTV} ({@link Television}), which answers the TV's
+ * name and nothing else.
  *
  * The app tells the site it is on a television by its mark in the user agent, and hands it the two
  * keys a page never receives, Back and Menu, as {@code window.krystalTv.back()} and
@@ -48,6 +49,7 @@ public final class CinemaActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setUserAgentString(settings.getUserAgentString() + " KrystalCinemaTV/" + Built.VERSION);
         web.setWebViewClient(new Client());
+        web.addJavascriptInterface(new Television(getApplicationContext()), "KrystalCinemaTV");
         setContentView(web);
         web.loadUrl(server.start());
         web.requestFocus();

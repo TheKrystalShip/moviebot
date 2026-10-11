@@ -2,14 +2,18 @@
 
 The site in an app a television launches from its home screen and drives with the remote. It is a
 single Java activity holding a full-screen WebView (`src/com/thekrystalship/cinema/`), with no
-dependencies and nothing of its own the page can reach. Everything a person sees is the site's TV
-design (`web/site/README.md`, "On a television"); the app adds four things.
+dependencies. Everything a person sees is the site's TV design (`web/site/README.md`, "On a
+television"); the app adds five things.
 
 - **The TV mark.** `KrystalCinemaTV/<version>` is appended to the WebView's user agent, which is how
   the site knows to draw its TV design.
 - **Back and Menu.** A page never receives either key, so the activity hands them over when they are
   let go, as `window.krystalTv.back()` and `window.krystalTv.menu()`; a Back the page did not use
   finishes the activity. Fire OS's keyboard takes Back for itself while it is up.
+- **The TV's name.** `window.KrystalCinemaTV.deviceName()` answers the name the TV's owner gave it
+  in the system's settings (`Settings.Global.DEVICE_NAME`; on a Fire TV, My Fire TV), trimmed, or
+  `null` when it has none. It is read on every call, so a rename is seen at once. It is the one thing
+  of the app's own the page can reach, and it asks nothing in return.
 - **One origin.** The site's origin is the app's whole world: navigation to any other is refused,
   since a page off the site has no remote handling, and a TV's own browser, where it has one (Silk on
   Fire TV), is driven by an on-screen cursor rather than the remote's focus. `Server` holds the origin and everything that needs it

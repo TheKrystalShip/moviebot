@@ -5,6 +5,13 @@ tagged `tv-v<version>`; the newest heading here is the version `build.sh` builds
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-10-11
+
+### Added
+
+- **The TV's name for the page**: `window.KrystalCinemaTV.deviceName()` answers the name the TV's
+  owner set in its settings, or `null`, so the site can offer it when it signs the TV in.
+
 ## [1.0.0] - 2026-10-06
 
 ### Added
