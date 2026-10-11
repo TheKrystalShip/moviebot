@@ -67,6 +67,9 @@ builder.Services.AddSingleton<ViewerQuality>();
 builder.Services.AddSingleton<RoomControls>();
 builder.Services.AddSingleton<RoomDoors>();
 
+// The television screens each person has: connected or not, the room each is in and what it holds.
+builder.Services.AddSingleton<ScreenPresence>();
+
 // The guests watching each room on its link, and the pass that sends them away once the link has run
 // out or nobody with an account is left in the room with them.
 builder.Services.AddSingleton<RoomGuests>();

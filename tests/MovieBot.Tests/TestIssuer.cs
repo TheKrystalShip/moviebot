@@ -46,15 +46,18 @@ public sealed class TestIssuer
     /// <summary>A Cinema access token as tks-auth mints one, with whatever a test changes.</summary>
     public string Mint(
         string sub, string name = "Someone", IEnumerable<string>? actions = null, string audience = "cinema",
-        string issuer = Issuer, string type = "at+jwt", string? actor = null, TimeSpan? lifetime = null, bool rsa = false)
+        string issuer = Issuer, string type = "at+jwt", string? actor = null, TimeSpan? lifetime = null, bool rsa = false,
+        string? clientId = null, string? sid = null, string? deviceName = null)
     {
         var claims = new Dictionary<string, object>
         {
             ["sub"] = sub,
             ["name"] = name,
-            ["client_id"] = actor ?? "cinema-site",
+            ["client_id"] = clientId ?? actor ?? "cinema-site",
             ["tks_actions"] = (actions ?? Everything).ToArray(),
         };
+        if (sid is not null) claims["sid"] = sid;
+        if (deviceName is not null) claims["tks_device_name"] = deviceName;
         if (actor is not null) claims["act"] = new Dictionary<string, object> { ["sub"] = actor };
 
         var now = DateTime.UtcNow;

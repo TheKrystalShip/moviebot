@@ -50,6 +50,8 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 [JsonSerializable(typeof(HealthReport))]
 [JsonSerializable(typeof(ClientConfig))]
 [JsonSerializable(typeof(ErrorReply))]
+[JsonSerializable(typeof(Sessions.ScreenView))]
+[JsonSerializable(typeof(List<Sessions.ScreenView>))]
 [JsonSerializable(typeof(MediaTicketReply))]
 [JsonSerializable(typeof(ActivitySignInRequest))]
 [JsonSerializable(typeof(ActivitySignInReply))]

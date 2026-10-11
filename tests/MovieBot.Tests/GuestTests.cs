@@ -139,7 +139,8 @@ public sealed class GuestTests(GuestFixture fixture) : IClassFixture<GuestFixtur
     /// <summary>Every method the hub answers, which is every one a client can name.</summary>
     private static IEnumerable<MethodInfo> HubMethods() =>
         typeof(SessionHub).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Where(m => !m.IsSpecialName && m.Name != nameof(SessionHub.OnDisconnectedAsync));
+            .Where(m => !m.IsSpecialName && m.Name != nameof(SessionHub.OnConnectedAsync)
+                        && m.Name != nameof(SessionHub.OnDisconnectedAsync));
 
     /// <summary>The methods a guest may call; every other one is closed to them.</summary>
     private static readonly string[] OpenToGuests = ["JoinAsGuest", "ReportQuality", "ServerTime"];

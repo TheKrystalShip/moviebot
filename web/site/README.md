@@ -516,6 +516,14 @@ in a WebView, driven by the remote. `src/tv/` is all of it that is the site's ow
 - **Back** closes an open overlay first, then whatever a screen holds of its own (the player's), then
   goes back a page. On a page with the bar it first moves focus up into the bar; on Home, from the
   bar, it is the app's, and so it is on the sign-in code.
+- **The television's connection** (`src/tv/screen.js`): while a television is signed in it holds one
+  hub connection that belongs to its person and to no room, built as a room's is (`buildHubConnection`
+  in `hub.ts`). The server knows a television as a screen for as long as a connection signed in through
+  the television client is open (`docs/api-contract.md`, "Screens"), and a room's connection exists
+  only while a room is open, so this one makes the television present on every page. It never joins a
+  room and reports neither buffering nor quality. It is opened on sign-in, retried on a timer when it
+  cannot connect, and closed on sign-out. The screen's name is read when it connects, so a rename made
+  at the provider shows on the next reconnect.
 - **Signing in** is a code approved on a phone: "Signing in" above.
 - **Typing** is Fire OS's keyboard, which OK on a field raises, with its own QR code for typing on a
   phone. A submitted search moves focus off the field, which closes the keyboard over the results.

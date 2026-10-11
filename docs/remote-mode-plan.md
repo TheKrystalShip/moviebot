@@ -94,12 +94,32 @@ holds. Paired phones hear a screen arrive, leave and change room.
 
 Questions:
 
-- One hub (`/hub/session`) carrying a person's channel beside the rooms, or a second hub? Measure what
-  a second connection costs a phone on reconnect.
-- How long after the TV app closes or the TV sleeps does the server see the screen gone, and is that
-  short enough that the phone does not offer a dead TV?
-- A TV signed in twice (the app reinstalled, a new device session) leaves an old screen behind. How is
-  it told apart and forgotten?
+- One hub carries a person's channel beside the rooms. A connection with an account joins its person's
+  groups when it opens (`OnConnectedAsync`) and the rooms' groups when it joins a room, so a phone's
+  reconnect is the one it already makes. A second hub would be a second connection and a second token
+  refresh on every phone and TV for nothing the first cannot carry. Not measured: no reason to build a
+  second connection to time it against.
+- The server sees a screen gone when its connection closes. A clean close (the app closing, the page
+  unloading) is seen at once. An abrupt loss (power, Wi-Fi, a sleeping TV) is seen when the server has
+  heard nothing from the client for SignalR's `ClientTimeoutInterval`, 30 s; the API sets neither it nor
+  `KeepAliveInterval` (15 s), and the site's client sets neither, so the defaults hold, and nginx's
+  `proxy_read_timeout` on `/hub/` is an hour and never the limit. A phone can offer a dead TV for up to
+  half a minute after it dies; read from the settings. Measured on the Xiaomi: the app killed is seen within a
+  second, since Android closes its sockets, and the TV on Home, in a room and gone all read correctly on
+  the live API.
+- A television signed in again is a new anchor session, so it is a new screen by its `sid`. The old one
+  stays as not connected, and is forgotten when a screen of the same name connects (a reinstalled app
+  keeps the TV's name) or after seven days unseen, which sends `ScreenLeft`. Forgetting loses nothing: a
+  screen that connects is known again. Cinema hears no revocation, so a session ended at the anchor is
+  forgotten the same way.
+- Screens are kept in memory. A restart drops them and they reappear when their televisions connect.
+- The television holds a hub connection that belongs to its person and to no room whenever it is signed
+  in (`web/site/src/tv/screen.js`), so it is a screen on Home, on a film's page and everywhere else; it
+  never calls `Join`. The room connection the player opens is a separate connection, and the screen's
+  room is the room of its newest `Join`. The other surfaces open a person connection when pairing gives
+  them something to hear.
+- That connection is long-lived, so a rename made at the anchor reaches the screen's name when the
+  connection next reconnects, and not before.
 
 ### Step 3: pairing by QR
 

@@ -796,6 +796,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `Pause` | `(atSeconds) → SessionStatePush` | |
 | `Seek` | `(toSeconds) → SessionStatePush` | may be clamped |
 | `ServerTime` | `() → DateTimeOffset` | for clock-offset estimation |
+| `Screens` | `() → ScreenView[]` | the television screens of the person the token names, connected or not, with the room each is in and what it holds (Screens, below). Never another person's; a guest is refused |
 | `Buffering` | `(waiting: bool, atSeconds: double)` | this viewer's player has been waiting for the film past a stutter, stopped at `atSeconds`, or is playing again. The roster carries it; when every player in the room is waiting the room is held (`waiting` in the state) where the furthest behind of them stopped, and let go when one plays, somebody arrives, or a waiting one leaves |
 | `ReportQuality` | `(playingHeight: int?, wantedHeight: int?)` | the rung height this viewer plays, and the one its own adaptive choice would pick with nothing holding it back; on change and about every 30 s. Answers nothing and is sent to nobody: the server keeps it per connection for its transcode planner and drops it when the connection leaves. A player that cannot say (native HLS) sends nothing, and is taken to want the tallest rung |
 
@@ -809,7 +810,44 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `TitleChanged` | `Manifest` — the manifest of the title this room holds changed: head, preview sheet, subtitles, status. Sent to every room holding the title, within a couple of seconds of the write |
 | `DoorChanged` | `RoomDoor` = `{open, knocking: [{userId, displayName}], guests?: {expiresAt}}` — sent to the people with an account in the room, never to a guest, when it is opened or closed, when somebody starts or stops asking, and when its guest link is given, taken away or runs out; `knocking` holds each person once, in the order they asked, and `guests` is there while the room has a link, never the link itself |
 | `KnockAnswered` | `bool` — sent to a connection that asked to be let in: `true` when somebody let them in or opened the room, `false` when somebody said no |
+| `ScreenArrived` | `ScreenView` — a screen of this person's connected: first seen, or connected again after having none. Sent to the person's connections that are not screens |
+| `ScreenChanged` | `ScreenView` — a screen of this person's changed name, room, what the room holds or whether the room is paused, or lost its last connection (`connected: false`, no `room`). Sent to the same connections |
+| `ScreenLeft` | `string` — the id of a screen of this person's that is forgotten. Sent to the same connections |
 | `GuestAccessEnded` | `string` — sent to a guest as they are sent away, and their connection is closed after it: `ended` (the link was taken away or ran out) or `unattended` (nobody with an account has been in the room for `Rooms.GuestGrace`) |
+
+### Screens
+
+Every hub connection whose token names a person joins that person's group; a guest's joins none. A
+connection is a **screen** when its token's `client_id` is the television client (`Oidc.TvClientId`,
+`tvClientId` on `/api/config`) and the token carries a `sid`, the anchor session; the server decides it
+from the validated token and nothing the page sends. A screen is its `sid`, which survives token
+refresh, so a television signed in again is a new screen. The name is the token's `tks_device_name`,
+read each time a connection opens. A television holds a connection for as long as it is signed in, so a
+rename made at the anchor reaches the screen's name when that connection next reconnects.
+
+```jsonc
+// ScreenView
+{
+  "id": "sid-…",            // the anchor session
+  "name": "Living room",    // absent when the device session has none
+  "connected": true,        // a hub connection of the screen is open now
+  "room": "abc",            // the room its newest connection joined; absent when it is in none
+  "titleId": "heat-1995",   // what that room holds; absent when it holds nothing
+  "title": "Heat (1995)",   // the title's name as the library lists it
+  "paused": true            // whether that room is paused
+}
+```
+
+- **Only the owner hears and asks.** Messages go to the group of the screen's own person, and the
+  connections of that group that are not screens receive them. `Screens` answers for the account in
+  the caller's token, and takes no argument naming another.
+- **A screen not connected stays listed** (`connected: false`, no room) until it connects again, a
+  screen of the same name connects under another session, or seven days pass unseen. Forgetting sends
+  `ScreenLeft`; a forgotten screen that connects is known again.
+- **Screens are kept in memory.** A restart drops them, and each reappears when its television
+  connects.
+- A screen's room follows its newest connection's `Join`, and `ScreenChanged` is sent whenever the
+  room's title or paused state changes.
 
 ### Who may come in
 

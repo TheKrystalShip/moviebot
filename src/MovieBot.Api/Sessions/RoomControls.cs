@@ -23,6 +23,7 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 public sealed class RoomControls(
     SessionStore sessions,
     IHubContext<SessionHub> hub,
+    ScreenPresence screens,
     ILogger<RoomControls> logger)
 {
     /// <summary>
@@ -60,6 +61,7 @@ public sealed class RoomControls(
             sessions.Participants(sessionId).Count, actor.Via is { } client ? $"{via ?? "http"} from {client}" : via ?? "http");
 
         await hub.Clients.Group(RoomGroups.Everyone(sessionId)).SendAsync("StateChanged", push, ct);
+        await screens.RoomChangedAsync(sessionId);
 
         return new RoomChange(push, result.Clamped);
     }
@@ -74,6 +76,7 @@ public sealed class RoomControls(
         if (sessions.SetPreparing(sessionId, preparing) is not { } result) return;
         await hub.Clients.Group(RoomGroups.Everyone(sessionId)).SendAsync("StateChanged",
             new SessionStatePush { State = result.State, ServerTime = DateTimeOffset.UtcNow }, ct);
+        await screens.RoomChangedAsync(sessionId);
     }
 
     /// <summary>
@@ -90,6 +93,7 @@ public sealed class RoomControls(
             sessionId, state.Waiting ? "held for its players" : "let go", state.PositionSeconds, state.Revision);
         await hub.Clients.Group(RoomGroups.Everyone(sessionId)).SendAsync("StateChanged",
             new SessionStatePush { State = state, ServerTime = DateTimeOffset.UtcNow }, ct);
+        await screens.RoomChangedAsync(sessionId);
     }
 }
 

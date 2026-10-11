@@ -266,14 +266,24 @@ public class SessionFixture : WebApplicationFactory<Program>
     /// A hub connection in no room yet: somebody at a room's door, signed in through the client
     /// <paramref name="via"/> names, or the site's.
     /// </summary>
-    public async Task<HubConnection> ConnectOutsideAsync(string userId, string displayName, string? via = null)
+    public Task<HubConnection> ConnectOutsideAsync(string userId, string displayName, string? via = null) =>
+        ConnectWithAsync(() => TokenFor(userId, displayName, via: via));
+
+    /// <summary>
+    /// A hub connection signed in as a television: the TV client's token for an anchor session
+    /// <paramref name="sid"/>, carrying <paramref name="deviceName"/> when given. In no room yet.
+    /// </summary>
+    public Task<HubConnection> ConnectScreenAsync(string userId, string sid, string? deviceName = null, string clientId = "cinema-tv") =>
+        ConnectWithAsync(() => Issuer.Mint(userId, "Someone", clientId: clientId, sid: sid, deviceName: deviceName));
+
+    private async Task<HubConnection> ConnectWithAsync(Func<string> token)
     {
         var connection = new HubConnectionBuilder()
             .WithUrl(new Uri(Server.BaseAddress, "/hub/session"), o =>
             {
                 o.HttpMessageHandlerFactory = _ => Server.CreateHandler();
                 o.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
-                o.AccessTokenProvider = () => Task.FromResult<string?>(TokenFor(userId, displayName, via: via));
+                o.AccessTokenProvider = () => Task.FromResult<string?>(token());
             })
             // The player reads enums as the strings the server writes, so this client does too.
             .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(

@@ -16,6 +16,20 @@ export function derivePosition(state: SessionState, serverNowMs: number): number
   return Math.max(0, state.positionSeconds + elapsed);
 }
 
+/**
+ * A connection to the hub, not yet started. The WebSocket transport cannot set headers, so SignalR
+ * puts the token on the query string itself; the server reads it from there for hub routes only and
+ * admits the connection on it when it opens. A reconnect asks for a fresh token. Every connection to
+ * the hub is built here, a room's and a television's own alike.
+ */
+export function buildHubConnection(hubUrl: string, freshToken: () => Promise<string | null>): HubConnection {
+  return new HubConnectionBuilder()
+    .withUrl(hubUrl, { accessTokenFactory: async () => (await freshToken()) ?? '' })
+    .withAutomaticReconnect()
+    .configureLogging(LogLevel.Warning)
+    .build();
+}
+
 export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 
 export interface HubHandlers {
@@ -69,16 +83,7 @@ export class SessionHub implements Timeline {
     private readonly sessionId: string,
     private readonly handlers: HubHandlers
   ) {
-    this.connection = new HubConnectionBuilder()
-      // The WebSocket transport cannot set headers, so SignalR puts the token on the query
-      // string itself. The server reads it from there for hub routes only, and admits the
-      // connection on it when it opens; a reconnect asks for a fresh one.
-      .withUrl(environment().hubUrl(), {
-        accessTokenFactory: async () => (await environment().freshToken()) ?? ''
-      })
-      .withAutomaticReconnect()
-      .configureLogging(LogLevel.Warning)
-      .build();
+    this.connection = buildHubConnection(environment().hubUrl(), () => environment().freshToken());
 
     this.connection.on('StateChanged', (push: SessionStatePush) => this.handlers.onState(push));
     this.connection.on('SeekClamped', (clamp: SeekClamped) => this.handlers.onSeekClamped(clamp));

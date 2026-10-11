@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.17.0] - 2026-10-11
+
+### Added
+
+- **The server knows each person's television screens.** A hub connection signed in through the
+  television client with an anchor session is a screen; the server keeps its name, whether it is
+  connected, the room it is in and what that room holds. A person's other connections ask for them
+  (`Screens`) and hear a screen arrive, change and leave (`ScreenArrived`, `ScreenChanged`,
+  `ScreenLeft`), and nobody else does. Every connection with an account joins its person's group; a
+  guest's joins none. The television holds a connection of its own,
+  in no room, for as long as it is signed in, so it is a screen outside a room too. Site 0.67.0.
+
 ## [3.16.0] - 2026-10-11
 
 ### Added

@@ -22,7 +22,7 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// </summary>
 public sealed class SessionHub(
     SessionStore sessions, RoomControls controls, RoomDoors doors, RoomEpisodes episodes, ViewerQuality quality,
-    RoomGuests guests, IOptions<RoomOptions> rooms, IOptions<OidcOptions> oidc, ILogger<SessionHub> logger) : Hub
+    RoomGuests guests, ScreenPresence screens, IOptions<RoomOptions> rooms, IOptions<OidcOptions> oidc, ILogger<SessionHub> logger) : Hub
 {
     private const string SessionIdKey = "sessionId";
     private const string ActorKey = "actor";
@@ -56,6 +56,7 @@ public sealed class SessionHub(
 
         await Groups.AddToGroupAsync(Context.ConnectionId, RoomGroups.Everyone(sessionId));
         await Groups.AddToGroupAsync(Context.ConnectionId, RoomGroups.Members(sessionId));
+        await screens.JoinedAsync(Context.ConnectionId, sessionId);
 
         var participants = sessions.Join(sessionId, Context.ConnectionId,
             new Participant { UserId = actor.UserId, DisplayName = actor.DisplayName });
@@ -203,8 +204,35 @@ public sealed class SessionHub(
     [GuestAllowed]
     public DateTimeOffset ServerTime() => DateTimeOffset.UtcNow;
 
+    /// <summary>
+    /// Opens a connection that has an account behind it into its person's groups, and records it as a
+    /// screen when its token says it was minted for the television client. A guest's connection joins
+    /// no person's group.
+    /// </summary>
+    public override async Task OnConnectedAsync()
+    {
+        if (Context.User?.Identities.FirstOrDefault(i => i.AuthenticationType == CinemaSchemes.Bearer) is { } identity
+            && CinemaPerson.From(identity, oidc.Value.ActionsClaim) is { } person)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, PersonGroups.Everything(person.UserId));
+            if (ScreenIdentity.Of(identity, oidc.Value.TvClientId) is { } screen)
+                await screens.ConnectedAsync(person.UserId, screen, Context.ConnectionId);
+            else
+                await Groups.AddToGroupAsync(Context.ConnectionId, PersonGroups.Viewers(person.UserId));
+        }
+
+        await base.OnConnectedAsync();
+    }
+
+    /// <summary>
+    /// The screens of the person this connection's token names, as they stand. Only their own: the
+    /// account is the token's, and no argument names another.
+    /// </summary>
+    public Task<List<ScreenView>> Screens() => screens.OfAsync(Person("Sign in to see your screens.").UserId);
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        await screens.DisconnectedAsync(Context.ConnectionId);
         guests.Remove(Context.ConnectionId);
 
         if (Context.Items.TryGetValue(KnockingKey, out var knocked) && knocked is string knockedAt)

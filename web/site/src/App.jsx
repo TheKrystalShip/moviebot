@@ -35,6 +35,7 @@ import { CallBar } from "./components/CallBar.jsx";
 import { activityRoom, inActivity } from "./discord/launch.js";
 import { api } from "./api.js";
 import { onTv } from "./tv/tv.js";
+import { startScreenConnection, stopScreenConnection } from "./tv/screen.js";
 import { TvFrame } from "./tv/TvFrame.jsx";
 import { TvSignIn } from "./tv/TvSignIn.jsx";
 
@@ -128,6 +129,12 @@ export function App() {
   React.useEffect(() => {
     if (sub && online && !embedded && !inActivity) void sendProgress();
   }, [sub, online, embedded]);
+  // A television is a screen to the server for as long as it is signed in, in a room or not.
+  React.useEffect(() => {
+    if (!onTv || !sub) return undefined;
+    startScreenConnection();
+    return stopScreenConnection;
+  }, [sub]);
   // The saves on this device set beside the API's records, and the ones under way carried on.
   useOfflineSync(!embedded && !inActivity && !onTv);
 

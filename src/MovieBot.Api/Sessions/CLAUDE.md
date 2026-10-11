@@ -104,6 +104,26 @@ name it gave itself, holding the link, and no record anywhere is keyed by one.
   in the room would be the library streamed to whoever holds it. A room takes `Rooms:GuestsPerRoom`
   guests at once.
 
+## Screens
+
+A screen is a hub connection signed in through the television client (`Oidc:TvClientId`) with a `sid`
+in its token (`ScreenIdentity`). `ScreenPresence` keeps screens by person and `sid`, in memory; the wire
+is `docs/api-contract.md`, "Screens".
+
+- **The token decides what a screen is and whose.** The person is the token's `sub`, the screen the
+  `sid`, the name `tks_device_name`; a page names none of them. A guest's connection has no account and
+  joins no person's group.
+- **Every message to a person's connections is addressed from the screen's own owner**
+  (`PersonGroups.Viewers`), and `Screens` answers only for the caller's own account. A new message about
+  a screen takes its group from the screen, never from an argument.
+- **Connected, room and contents are measured, not remembered.** Connected is whether a hub connection
+  of the screen is open; the room is the room of its newest `Join`; the title and paused state are read
+  from the room when a view is built. `RoomControls` calls `ScreenPresence.RoomChangedAsync` after every
+  push of a room's state, so a change made through HTTP reaches the person's phones like one made on the
+  hub.
+- **Forgetting loses nothing.** A screen not connected is dropped when a screen of the same name connects
+  under another session or after `ScreenPresence.Retention`, and a screen that connects is known again.
+
 ## Keeping a room
 
 A room is the only thing in the system that exists nowhere else. The films are on disk and the
