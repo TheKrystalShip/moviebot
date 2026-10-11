@@ -349,6 +349,8 @@ Questions:
   Previous; the picker with a television off; and the idle drawer's card taking a second television into a
   room. Not measured: a real thumb, whether a vibration is felt, iOS Safari's reading of `touch-action:
   none` on the strip.
+- A paused television shows a phone glyph while a remote drives it (3.23.0): the screen is told the count of
+  remotes on its own group (`RemotesChanged`), so the roster, the head count and the room stay as they were.
 - Built (3.22.0, site 0.71.0). `RemoteDrawer.jsx` is the strip and the drawer, `remoteFilm.js` what the
   television holds, `remoteWatch.js` Watch on TV with `ReplaceSheet.jsx`; `WatchOnScreen` and `Watch` are
   on the hub (`ScreenPresence.WatchAsync`) and `screen.js` navigates the television.

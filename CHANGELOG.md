@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.23.0] - 2026-10-11
+
+### Added
+
+- **A paused television shows a phone glyph while a remote drives it**, beside who is watching. The
+  screen is told how many remotes drive it (`RemotesChanged`, and `Remotes` when it connects) on its own
+  group, never in the room's roster. Measured in `npm run verify:tv`: it appears when the phone joins as a
+  remote, goes while the film plays and when the phone leaves, and returns when it rejoins. Site 0.72.0.
+
 ## [3.22.0] - 2026-10-11
 
 ### Added

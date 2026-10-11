@@ -435,6 +435,39 @@ public sealed class RemoteTests(SessionFixture fixture) : IClassFixture<SessionF
     }
 
     [Fact]
+    public async Task A_screen_is_told_how_many_remotes_drive_it_and_the_room_is_not()
+    {
+        var (tv, tvSid, _, phone, _, _) = await Setup();
+        var told = new Heard<int>(tv, "RemotesChanged");
+        var roster = new Heard<List<Participant>>(tv, "ParticipantsChanged");
+        Assert.Equal(0, await tv.InvokeAsync<int>("Remotes"));
+
+        await phone.InvokeAsync<JoinReply>("JoinAsRemote", tvSid);
+        Assert.Equal(1, await told.Next());
+        Assert.Equal(1, await tv.InvokeAsync<int>("Remotes"));
+
+        await phone.InvokeAsync("Unpair", tvSid);
+        Assert.Equal(0, await told.Until(n => n == 0));
+        Assert.Equal(0, await tv.InvokeAsync<int>("Remotes"));
+        Assert.True(roster.Silent);
+    }
+
+    [Fact]
+    public async Task A_screen_is_told_when_a_remote_disconnects_and_only_a_screen_may_ask()
+    {
+        var (tv, tvSid, _, phone, _, person) = await Setup();
+        var told = new Heard<int>(tv, "RemotesChanged");
+        await phone.InvokeAsync<JoinReply>("JoinAsRemote", tvSid);
+        Assert.Equal(1, await told.Next());
+
+        await phone.StopAsync();
+        Assert.Equal(0, await told.Next());
+
+        var another = await fixture.ConnectPhoneAsync(person, Unique("phone-"));
+        await Assert.ThrowsAsync<HubException>(() => another.InvokeAsync<int>("Remotes"));
+    }
+
+    [Fact]
     public void Only_the_methods_marked_for_remotes_are_open_to_them()
     {
         var methods = typeof(SessionHub).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)

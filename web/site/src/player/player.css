@@ -646,3 +646,6 @@
   .mp-pausecard__story { font-size: 13px; -webkit-line-clamp: 2; }
   .mp-pausecard__stars { display: none; }
 }
+
+/* The phone glyph a paused television shows while a remote drives it, beside who is watching. */
+.mp-top__remote { display: inline-flex; color: var(--krystal-teal); }

@@ -1151,6 +1151,31 @@ async function remoteUi() {
     else pass(`the drawer opens with the TV, the switch, the still, the scrub bar and ${labels.length} controls, each at least 44px`);
     if (labels.some((l) => /^(Subtitles|Audio|Quality)/.test(l))) fail("remoteui", `the control row has a button that belongs to the next step: ${labels}`);
 
+    // The television shows a phone glyph while it is paused and a remote drives it, and not otherwise.
+    const glyph = () => tv.page.evaluate(() => Boolean(document.querySelector(".mp-top__remote")));
+    const shownPaused = await until(async () => (await tvPaused()) === true && (await glyph()), 6000);
+    if (!shownPaused) fail("remoteui", `the paused television shows no phone glyph with a remote attached (paused ${await tvPaused()})`);
+    else {
+      await tv.page.screenshot({ path: join(out, "remoteui-09-tv-mark.png") });
+      pass("the paused television shows the phone glyph while a remote drives it");
+    }
+    await phone.click('.kc-remote .mp-controls button[aria-label="Play"]');
+    const goneWhilePlaying = await until(async () => (await tvPaused()) === false && !(await glyph()), 6000);
+    await phone.click('.kc-remote .mp-controls button[aria-label="Pause"]');
+    const backWhenPaused = await until(async () => (await tvPaused()) === true && (await glyph()), 6000);
+    if (!goneWhilePlaying || !backWhenPaused) fail("remoteui", `the glyph while playing gone ${goneWhilePlaying}, back when paused ${backWhenPaused}`);
+    else pass("the glyph is shown only while the television is paused");
+    await phone.click(".kc-remote .k-toggle");
+    const leftGone = await until(async () => !(await glyph()), 6000);
+    await phone.waitForSelector(".toast__action", { timeout: 5000 });
+    await phone.click(".toast__action");
+    const rejoined = await until(async () => await glyph(), 8000);
+    if (!leftGone || !rejoined) fail("remoteui", `the glyph goes when the remote leaves ${leftGone} and returns when it rejoins ${rejoined}`);
+    else pass("the glyph goes when the phone leaves as a remote and returns when it rejoins");
+    const reopen = await centre(".kc-remote-strip__open");
+    await finger.tap(reopen.x, reopen.y);
+    await phone.waitForSelector(".kc-remote .mp-scrub", { timeout: 10000 });
+
     // Buttons move the television.
     await phone.click('.kc-remote .mp-controls button[aria-label="Play"]');
     const playing = await until(async () => (await tvPaused()) === false);

@@ -612,6 +612,9 @@ release, vertical sweeps do nothing; a gesture the television took vibrates the 
 (`player/stretches.js`). `remoteFilm.js` reads what the television holds (manifest, the episodes either
 side, the preview sheet) for the drawer.
 
+A television draws a phone glyph beside who is watching while it is paused and a remote drives it
+(`tv/screen.js` hears `RemotesChanged`; the room's roster is untouched).
+
 A toast sits at the top of the screen while any drawer is open (`body.has-drawer`) and above the strip
 while it is let down, so a toast is never under the thing it is about.
 

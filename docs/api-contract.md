@@ -803,6 +803,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `ServerTime` | `() → DateTimeOffset` | for clock-offset estimation |
 | `Screens` | `() → ScreenView[]` | the television screens this connection's session is paired with, connected or not, with the room each is in and what it holds (Screens, below). Empty for a screen and for a connection that belongs to no session; a guest is refused |
 | `PairingCode` | `() → PairingCodeView` | a screen's code for a phone to scan: `{path, expiresAt, renewSeconds}`, `path` the site's `/p/<code>`. Only a screen is given one |
+| `Remotes` | `() → int` | how many remotes drive this screen now. Only a screen asks |
 | `Phones` | `() → PairedPhone[]` | the phones paired with this screen, oldest first: `{id, name, pairedAt}`. Only a screen asks |
 | `Unpair` | `(id)` | ends a pairing of this connection's session: from a screen, with the phone `id` names; from any other connection of a session, with the screen it names. Only the caller's own person's pairings are reached; one there is none of is no change |
 | `Buffering` | `(waiting: bool, atSeconds: double)` | this viewer's player has been waiting for the film past a stutter, stopped at `atSeconds`, or is playing again. The roster carries it; when every player in the room is waiting the room is held (`waiting` in the state) where the furthest behind of them stopped, and let go when one plays, somebody arrives, or a waiting one leaves |
@@ -823,6 +824,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `ScreenChanged` | `ScreenView` — a screen paired with this session changed name, room, what the room holds or whether the room is paused, or lost its last connection (`connected: false`, no `room`). Sent to the same connections |
 | `Watch` | `{room, titleId?, startSeconds?}` — sent to a screen's own connections when a remote of it called `WatchOnScreen`; the screen navigates to `/r/<room>`, with `?title=` and `&at=` as the site's Watch writes them |
 | `ScreenLeft` | `string` — the id of a screen whose pairing with this session ended. Sent to the same connections |
+| `RemotesChanged` | `int` — a remote of this screen joined it, left it or was dropped; how many drive it now. Sent to the screen's own connections and never into the room: a remote stays out of `ParticipantsChanged` |
 | `PhonesChanged` | `PairedPhone[]` — a phone paired with this screen or unpaired from it; the phones paired now. Sent to the screen's connections |
 | `GuestAccessEnded` | `string` — sent to a guest as they are sent away, and their connection is closed after it: `ended` (the link was taken away or ran out) or `unattended` (nobody with an account has been in the room for `Rooms.GuestGrace`) |
 

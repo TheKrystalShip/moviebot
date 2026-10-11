@@ -10,6 +10,7 @@ import { bindShortcuts } from "./engine/media/shortcuts.ts";
 import { Remote } from "./engine/media/remote.ts";
 import { Rank, onBack as onTvBack, onMenu as onTvMenu } from "../tv/tv.js";
 import { PausedCode } from "../tv/TvRemote.jsx";
+import { useRemoteAttached } from "../tv/screen.js";
 import { Cues } from "./Cues.jsx";
 import { GestureHud, useStageGestures } from "./Gestures.jsx";
 import { ScrubBar } from "./ScrubBar.jsx";
@@ -325,6 +326,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   // A television is driven by its remote (`engine/media/remote.ts`): the volume is the set's own, the
   // screen is already whole, and nobody across the room is handed a link to copy.
   const tv = environment().tv;
+  const remoteAttached = useRemoteAttached();
   const playRef = React.useRef(null);
   const [remoteHud, setRemoteHud] = React.useState(null);
   const [remoteScrub, setRemoteScrub] = React.useState(null);
@@ -567,6 +569,9 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
           </div>
           {!solo && (
             <div className="mp-top__room">
+              {tv && remoteAttached && clock.paused && (
+                <span className="mp-top__remote" role="img" aria-label="A remote is attached"><Icon name="smartphone" size={18} /></span>
+              )}
               <div className="mp-avatars">{everyone.map((p) => <Avatar key={p.userId} person={p} />)}</div>
               {size === "wide" && <span className="mp-top__count">{everyone.length > 1 ? `${everyone.length} watching` : "Just you"}</span>}
               {size !== "tiny" && !tv && !viewOnly && <InviteButton open={invite}

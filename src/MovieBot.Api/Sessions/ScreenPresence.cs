@@ -172,7 +172,7 @@ public sealed class ScreenPresence(
         await _gate.WaitAsync();
         try
         {
-            _remotes.TryRemove(connectionId, out _);
+            if (_remotes.TryRemove(connectionId, out var gone)) await TellRemotesAsync(gone.UserId, gone.ScreenId);
             if (!_byConnection.Remove(connectionId, out var entry)) return;
             entry.Connections.Remove(connectionId);
             entry.LastSeen = clock.GetUtcNow();
@@ -209,13 +209,16 @@ public sealed class ScreenPresence(
         try
         {
             if (!pairings.Paired(userId, phoneId, screenId)) return null;
-            if (_remotes.TryGetValue(connectionId, out var before) && before.Room is not null)
+            _remotes.TryGetValue(connectionId, out var before);
+            if (before?.Room is not null)
                 await hub.Groups.RemoveFromGroupAsync(connectionId, RoomGroups.Everyone(before.Room));
 
             var room = _screens.TryGetValue((userId, screenId), out var entry) ? RoomOf(entry) : null;
             _remotes[connectionId] = new Remote(userId, phoneId, screenId, room);
             if (room is not null) await hub.Groups.AddToGroupAsync(connectionId, RoomGroups.Everyone(room));
             pairings.PhoneSeen(userId, phoneId);
+            if (before is not null && before.ScreenId != screenId) await TellRemotesAsync(userId, before.ScreenId);
+            await TellRemotesAsync(userId, screenId);
             return new RemoteJoin(room, StateOf(room));
         }
         finally { _gate.Release(); }
@@ -276,7 +279,19 @@ public sealed class ScreenPresence(
             if (remote.Room is not null)
                 await hub.Groups.RemoveFromGroupAsync(connectionId, RoomGroups.Everyone(remote.Room));
         }
+        await TellRemotesAsync(userId, screenId);
     }
+
+    /// <summary>How many remotes drive a screen now.</summary>
+    public int RemotesOf(string userId, string screenId) =>
+        _remotes.Values.Count(r => r.UserId == userId && r.ScreenId == screenId);
+
+    /// <summary>
+    /// Tells a screen how many remotes drive it, which it shows while it is paused. The count goes to the
+    /// screen's own group and never into the room, whose roster and head count a remote is absent from.
+    /// </summary>
+    private Task TellRemotesAsync(string userId, string screenId) =>
+        hub.Clients.Group(PersonGroups.Screen(userId, screenId)).SendAsync("RemotesChanged", RemotesOf(userId, screenId));
 
     /// <summary>
     /// Moves the remotes of a screen to the room it is in now, and tells each where the room is: out of

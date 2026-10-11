@@ -21,8 +21,8 @@ import { holdPersonConnection } from "../personConnection.js";
 import { roomPath } from "../paths.js";
 import { navigate } from "../router.js";
 
-/** Whether the connection is open now, and the phones paired with this television, null until told. */
-const screenStore = createStore({ open: false, phones: null });
+/** Whether the connection is open now, the phones paired with this television (null until told) and how many remotes drive it. */
+const screenStore = createStore({ open: false, phones: null, remotes: 0 });
 
 let held = null;
 
@@ -40,12 +40,14 @@ export function startScreenConnection() {
   held = holdPersonConnection({
     listen: (connection) => {
       connection.on("PhonesChanged", (phones) => screenStore.setState((s) => ({ ...s, phones })));
+      connection.on("RemotesChanged", (remotes) => screenStore.setState((s) => ({ ...s, remotes })));
       // A phone put a film on the television while it was in no room: it opens the room, as the site's Watch does.
       connection.on("Watch", ({ room, titleId, startSeconds }) => navigate(watchAddress(room, titleId, startSeconds)));
     },
     opened: (connection) => {
       screenStore.setState((s) => ({ ...s, open: true }));
       connection.invoke("Phones").then((phones) => screenStore.setState((s) => ({ ...s, phones })), () => {});
+      connection.invoke("Remotes").then((remotes) => screenStore.setState((s) => ({ ...s, remotes })), () => {});
     },
     closed: () => screenStore.setState((s) => ({ ...s, open: false })),
   });
@@ -56,12 +58,17 @@ export function stopScreenConnection() {
   if (!held) return;
   held.stop();
   held = null;
-  screenStore.setState({ open: false, phones: null });
+  screenStore.setState({ open: false, phones: null, remotes: 0 });
 }
 
 /** The phones paired with this television, oldest first, or null while it has not been told. */
 export function usePairedPhones() {
   return useStore(screenStore, (s) => s.phones);
+}
+
+/** Whether a phone is driving this television as a remote now. */
+export function useRemoteAttached() {
+  return useStore(screenStore, (s) => s.remotes > 0);
 }
 
 /** Ends a phone's pairing with this television. */

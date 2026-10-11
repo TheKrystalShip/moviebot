@@ -304,6 +304,13 @@ public sealed class SessionHub(
         return screens.CodeFor(person.UserId, screen.Id);
     }
 
+    /// <summary>How many remotes drive this screen now. Only a screen asks.</summary>
+    public int Remotes()
+    {
+        var (person, screen) = Screen("Only a television has remotes.");
+        return screens.RemotesOf(person.UserId, screen.Id);
+    }
+
     /// <summary>The phones paired with this screen, oldest first. Only a screen asks.</summary>
     public Task<List<PairedPhone>> Phones()
     {
