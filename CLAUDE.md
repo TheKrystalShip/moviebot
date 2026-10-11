@@ -81,6 +81,8 @@ service needs to start — a new required setting, a new path, a new device — 
 guide. Pushing a tag `v<version>` that matches the newest CHANGELOG heading (`scripts/version.sh`)
 runs `.github/workflows/release.yml`, which builds on Ubuntu 22.04 because the native binaries take
 the build machine's glibc as their floor. `scripts/package-release.sh` builds the same archive here.
+Before a version is tagged, the site passes `npm run verify:tv-perf` in `web/site` against its
+baseline (`web/site/verify/tvperf/README.md`).
 
 ## Conventions
 

@@ -19,6 +19,7 @@ npm run verify:mobile  # every page on iPhones and Galaxies, against a scratch s
 npm run verify:pull    # a drawer pulled by its head with real touch events, against a scratch site (verify/mobile/pull.mjs)
 npm run verify:pwa     # installable, and the service worker keeps only what it may (verify/pwa.mjs)
 npm run verify:tv      # every page driven by a remote's keys alone, against a scratch site (verify/tv.mjs)
+npm run verify:tv-perf # how a remote's presses feel, timed at a television's pace against a baseline (verify/tvperf/)
 npm run verify:offline # Download of a whole film and of one still being made, and the installed app with no connection and with the API down, against a scratch site (verify/saving.mjs, verify/growing.mjs, verify/offline.mjs)
 ```
 
@@ -356,6 +357,14 @@ code, a provider that cannot be reached, and a session that ends under a page. `
 `--pages` narrow a run. The site has to be staged first (`node verify/mobile/run.mjs` does it once after
 `scratch.sh` starts, and saving a title needs `scratch.sh` started with a TMDB token); on a site not
 staged the run stops before checking anything, since Saved is then an empty page.
+
+`npm run verify:tv-perf` times what a remote does, the way the reference television draws it: the
+walks in `verify/tvperf/walks.mjs` from pages loaded cold, each key measured for how long it goes
+unanswered, how long the screen stands still and how many times the page rearranges before it
+settles. The lab runs Chromium against the same scratch site at the television's page, pixel ratio
+and pace, and fails on a step past `verify/tvperf/baseline.json`; a release passes it. With
+`--target tv` the same walks run on the television itself over adb. How to run it, what each measure
+is and how the lab is fitted to the television: `verify/tvperf/README.md`.
 
 `npm run verify:offline` runs `verify/saving.mjs` and then `verify/offline.mjs`. The first saves a
 title through its page's picker, in a signed-in Chromium reaching the scratch API through a proxy of
