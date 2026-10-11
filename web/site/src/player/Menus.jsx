@@ -1,7 +1,7 @@
 import React from "react";
 import { Icon } from "@thekrystalship/krystal-ui";
-import { api } from "./engine/api.ts";
-import { environment } from "./engine/environment.ts";
+import { api } from "../api.js";
+import { useCan } from "../session.js";
 import { formatTime } from "./engine/format.ts";
 import { SubtitleStyleEditor } from "./SubtitleStyleEditor.jsx";
 import { EpisodeRow } from "../components/EpisodeRow.jsx";
@@ -62,11 +62,27 @@ export const hasEpisodes = (view) => Boolean(view.manifest && view.manifest.epis
 export const episodeValue = (view) => `S${view.manifest.episode.season} · E${view.manifest.episode.number}`;
 
 /**
+ * One button of the control row that opens a menu, naming the choice it is set to.
+ */
+export function MenuButton({ kind, icon, value, open, compact, onClick }) {
+  return (
+    <button type="button" className={"mp-menu-button" + (open ? " is-open" : "") + (compact ? " is-icon" : "")}
+      aria-haspopup="true" aria-expanded={open} aria-label={`${MenuTitles[kind]}: ${value}`} title={MenuTitles[kind]} onClick={onClick}>
+      <Icon name={icon} size={18} />
+      {!compact && <span className="mp-menu-button__value">{value}</span>}
+    </button>
+  );
+}
+
+/**
  * One menu over the film: a popover above the control bar where the frame is wide, a sheet from
  * the bottom edge where it is not. Every menu but two holds this viewer's own choice; the chapters
  * and the episodes move the whole room, like the scrub bar.
+ *
+ * A phone's remote draws the same menu over the page rather than inside a frame (`contained` false) and
+ * names the screen it is aimed at (`aimedAt`).
  */
-export function Menu({ kind, view, room, sheet, position, styling, onStyling, onClose }) {
+export function Menu({ kind, view, room, sheet, position, styling, onStyling, onClose, contained = true, aimedAt = null }) {
   const editing = kind === "subs" && styling;
   const body = editing ? <SubtitleStyleEditor style={view.preferences.subtitleStyle} onChange={(style) => room.setSubtitleStyle(style)} />
     : kind === "subs" ? <SubtitleOptions view={view} room={room} onStyle={() => onStyling(true)} />
@@ -78,7 +94,9 @@ export function Menu({ kind, view, room, sheet, position, styling, onStyling, on
   const back = editing ? { label: "Back to subtitles", onClick: () => onStyling(false) } : null;
   if (sheet) {
     return (
-      <Drawer contained role="menu" title={title} back={back} onClose={onClose} className={"mp-menu" + (editing ? " is-styling" : "")}>
+      <Drawer contained={contained} theme={contained ? undefined : "dark"} role="menu" title={title} back={back} onClose={onClose}
+        action={aimedAt && <span className="mp-menu__aim"><Icon name="tv" size={13} />{aimedAt}</span>}
+        className={"mp-menu" + (editing ? " is-styling" : "") + (contained ? "" : " mp-aimed")}>
         {body}
       </Drawer>
     );
@@ -135,7 +153,7 @@ function EpisodeOptions({ view, room, onClose }) {
   const list = React.useRef(null);
   const marks = useDownloadMarks();
   const saving = useOffersSaving();
-  const mayFetch = environment().holds("cinema:download");
+  const mayFetch = useCan("cinema:download");
 
   React.useEffect(() => {
     let live = true;

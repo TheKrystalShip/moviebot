@@ -13,12 +13,13 @@ import { PausedCode } from "../tv/TvRemote.jsx";
 import { Cues } from "./Cues.jsx";
 import { GestureHud, useStageGestures } from "./Gestures.jsx";
 import { ScrubBar } from "./ScrubBar.jsx";
+import { SkipLabels, inClosingStretch, useSkipOffer } from "./stretches.js";
 import { Volume } from "./Volume.jsx";
 import { ago } from "../time.js";
 import { Drawer } from "../components/Drawer.jsx";
 import { AboutButton, AboutPanel, PauseCard, useAbout, usePausedLong } from "./About.jsx";
 import {
-  Menu, MenuTitles, audioValue, episodeValue, hasEpisodes, hasQualityChoice, qualityValue, subtitleValue,
+  Menu, MenuButton, MenuTitles, audioValue, episodeValue, hasEpisodes, hasQualityChoice, qualityValue, subtitleValue,
 } from "./Menus.jsx";
 
 const SkipSeconds = 10;
@@ -137,58 +138,6 @@ function useAround(view) {
     return () => { live = false; };
   }, [key, view.sessionId]);
   return around;
-}
-
-/**
- * The stretch at the end of an episode where its next is offered in front of everything: from the
- * last chapter when the last chapter is the credits, else the last two minutes.
- */
-function inClosingStretch(manifest, position) {
-  const duration = manifest.durationSeconds;
-  const chapters = manifest.chapters || [];
-  const last = chapters.length > 1 ? chapters[chapters.length - 1] : null;
-  const from = last && last.startSeconds >= duration * 0.85 ? last.startSeconds : duration - 120;
-  return duration > 0 && position >= from;
-}
-
-/** A playhead this close to a stretch's start got there by playing; further in, somebody seeked. */
-const EnterSlackSeconds = 2;
-
-const SkipLabels = { intro: "Skip intro", recap: "Skip recap" };
-
-/**
- * The marker this viewer is offered to skip, or null. A stretch is offered only when playback
- * entered it by playing through, and once skipped it is not offered again. With the viewer's
- * preference on and nobody else in the room, entering a stretch skips it.
- */
-function useSkipOffer(room, view, position, alone) {
-  const markers = view.manifest && view.manifest.markers;
-  const titleId = view.state && view.state.titleId;
-  const auto = Boolean(view.preferences && view.preferences.skipIntros);
-  const stretch = React.useRef({ titleId: null, index: -1, offered: false, handled: new Set() });
-  const [offer, setOffer] = React.useState(-1);
-
-  const skip = React.useCallback((index) => {
-    const s = stretch.current;
-    s.handled.add(index);
-    s.offered = false;
-    setOffer(-1);
-    room.seek(markers[index].endSeconds);
-  }, [room, markers]);
-
-  React.useEffect(() => {
-    if (stretch.current.titleId !== titleId) stretch.current = { titleId, index: -1, offered: false, handled: new Set() };
-    const s = stretch.current;
-    const index = view.ready && markers ? markers.findIndex((m) => position >= m.startSeconds && position < m.endSeconds) : -1;
-    if (index !== s.index) {
-      s.index = index;
-      s.offered = index >= 0 && !s.handled.has(index) && position <= markers[index].startSeconds + EnterSlackSeconds;
-      if (s.offered && auto && alone) { skip(index); return; }
-    }
-    setOffer(s.offered ? index : -1);
-  }, [position, markers, titleId, view.ready, auto, alone, skip]);
-
-  return offer >= 0 && markers && markers[offer] ? { marker: markers[offer], skip: () => skip(offer) } : null;
 }
 
 /** The chapter a moment is in, or null for a film that records none. */
@@ -562,7 +511,10 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
 
   const everyone = solo ? [] : people(view);
   const others = view.identity ? everyone.filter((p) => p.userId !== view.identity.userId) : everyone;
-  const skipOffer = useSkipOffer(room, view, clock.position, others.length === 0);
+  const skipOffer = useSkipOffer((seconds) => room.seek(seconds), {
+    markers: manifest && manifest.markers, titleId: view.state && view.state.titleId, ready: view.ready,
+    auto: Boolean(view.preferences && view.preferences.skipIntros),
+  }, clock.position, others.length === 0);
   const titleHeld = view.state &&(view.state.titleId ?? null) !== null;
   const duration = manifest ? manifest.durationSeconds : 0;
   const preparing = manifest && !view.ready && !view.unplayable && !view.gate && !view.fatal;
@@ -759,16 +711,6 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
       {invite && <InvitePanel view={view} room={room} everyone={everyone} compact={compact} />}
       {info && offersAbout && <AboutPanel about={about} sheet={sheet} onClose={() => setInfo(false)} />}
     </div>
-  );
-}
-
-function MenuButton({ kind, icon, value, open, compact, onClick }) {
-  return (
-    <button type="button" className={"mp-menu-button" + (open ? " is-open" : "") + (compact ? " is-icon" : "")}
-      aria-haspopup="true" aria-expanded={open} aria-label={`${MenuTitles[kind]}: ${value}`} title={MenuTitles[kind]} onClick={onClick}>
-      <Icon name={icon} size={18} />
-      {!compact && <span className="mp-menu-button__value">{value}</span>}
-    </button>
   );
 }
 

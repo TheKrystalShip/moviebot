@@ -18,17 +18,31 @@
 import React from "react";
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
 import { holdPersonConnection } from "../personConnection.js";
+import { roomPath } from "../paths.js";
+import { navigate } from "../router.js";
 
 /** Whether the connection is open now, and the phones paired with this television, null until told. */
 const screenStore = createStore({ open: false, phones: null });
 
 let held = null;
 
+/** A room's address with the film to put on in it and where to start, as the site's Watch writes it. */
+function watchAddress(room, titleId, startSeconds) {
+  const query = [];
+  if (titleId) query.push(`title=${encodeURIComponent(titleId)}`);
+  if (titleId && startSeconds > 0) query.push(`at=${Math.floor(startSeconds)}`);
+  return roomPath(room) + (query.length ? "?" + query.join("&") : "");
+}
+
 /** Opens the connection and keeps it open until `stopScreenConnection`. Opening it again does nothing. */
 export function startScreenConnection() {
   if (held) return;
   held = holdPersonConnection({
-    listen: (connection) => connection.on("PhonesChanged", (phones) => screenStore.setState((s) => ({ ...s, phones }))),
+    listen: (connection) => {
+      connection.on("PhonesChanged", (phones) => screenStore.setState((s) => ({ ...s, phones })));
+      // A phone put a film on the television while it was in no room: it opens the room, as the site's Watch does.
+      connection.on("Watch", ({ room, titleId, startSeconds }) => navigate(watchAddress(room, titleId, startSeconds)));
+    },
     opened: (connection) => {
       screenStore.setState((s) => ({ ...s, open: true }));
       connection.invoke("Phones").then((phones) => screenStore.setState((s) => ({ ...s, phones })), () => {});

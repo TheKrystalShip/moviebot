@@ -40,3 +40,6 @@
 .kc-drawer__back:hover { background: var(--surface-2); color: var(--fg-1); }
 @keyframes kc-drawer-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .kc-drawer { animation: none; } .kc-drawer__grabber { transition: none; } }
+
+/* While a drawer is open the toasts sit at the top of the screen, clear of it. */
+body.has-drawer .toasts { top: calc(16px + env(safe-area-inset-top, 0px)); bottom: auto; }

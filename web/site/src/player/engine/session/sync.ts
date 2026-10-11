@@ -297,6 +297,17 @@ export class SyncController {
     const state = this.latest;
     if (state === null || !this.playerReady) return;
 
+    // A paused room does not move, so a playhead that is not where it stopped missed a seek: one that
+    // arrived while another was running is not applied (`applyToPlayer`), and nothing else would bring
+    // it back.
+    if (this.live && state.paused && !this.video.seeking) {
+      const stopped = this.targetFor(state);
+      if (Math.abs(stopped - this.video.currentTime) > SnapSeconds) {
+        this.applySeek(stopped);
+        return;
+      }
+    }
+
     // Nothing is corrected while the film cannot play forward. A playhead that is not moving
     // because it is waiting for data drifts from the room by definition, and seeking it to catch
     // up throws away the buffer it was waiting for — which is the same stall again, further

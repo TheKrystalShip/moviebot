@@ -7,6 +7,7 @@ import { navigate } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, WatchButton } from "../components/Film.jsx";
+import { WatchOnTvActions, useDriving } from "../components/WatchOnTv.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, Keywords, Tagline, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { DownloadButton, useOffersSaving } from "../components/DownloadButton.jsx";
@@ -34,6 +35,7 @@ export function Title({ id, category = null, fromDevice = false }) {
   const session = useSession();
   const me = session && session.user;
   const saving = useOffersSaving();
+  const driving = useDriving();
   // A film still being made is downloaded as it is made, which fetches onto the server.
   const fetching = useCan("cinema:download") && !fromDevice;
 
@@ -114,7 +116,11 @@ export function Title({ id, category = null, fromDevice = false }) {
             {d ? <Credits film={d} /> : film.starring && <Credits film={{ directors: [], writers: [], cast: film.starring.split(", ").map((name) => ({ name })) }} />}
 
             <div className="kc-actions">
-              {m.status !== "failed" && (
+              {m.status !== "failed" && driving && (
+                <WatchOnTvActions titleId={m.id} sessionId={room && room.sessionId} at={progress && progress.positionSeconds}
+                  target={{ name: (d && d.title) || filmName(m), meta: [film.year || (d && d.year), clock(m.durationSeconds)].filter(Boolean).join(" · "), art: backdrop }} />
+              )}
+              {m.status !== "failed" && !driving && (
                 <WatchButton variant="primary" size="xl" icon={room ? "users" : "play"}
                   titleId={m.id} sessionId={room && room.sessionId} at={progress && progress.positionSeconds}>
                   {room ? `Join the room (${room.participants})` : progress ? "Resume" : "Watch"}

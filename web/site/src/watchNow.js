@@ -8,26 +8,34 @@ import { navigate } from "./router.js";
 import { activityRoom } from "./discord/launch.js";
 
 /**
- * Starts watching and goes to the room; false when it could not start, which is said. In the Discord
- * Activity the room is the call's.
+ * Asks the API to start watching `request` and answers its reply, or null when it could not start,
+ * which is said. In the Discord Activity the room is the call's; the caller names the room otherwise, or
+ * leaves it for the API to make.
  */
-export async function watchNow(request, { limit } = {}) {
+export async function startWatching(request, { limit } = {}) {
   try {
     const reply = await api.watchNow(activityRoom ? { ...request, room: activityRoom } : request);
     if (reply.outcome === "full") {
       toast.info(`The server is preparing ${limit ? `${limit} films` : "as many films as it can"} for people watching right now. Try again in a few minutes.`);
-      return false;
+      return null;
     }
     if (!reply.room) {
       toast.error("That could not be started.");
-      return false;
+      return null;
     }
-    navigate(`/r/${encodeURIComponent(reply.room)}` + (reply.libraryId ? `?title=${encodeURIComponent(reply.libraryId)}` : ""));
-    return true;
+    return reply;
   } catch (error) {
     toast.fromError(error, "That could not be started");
-    return false;
+    return null;
   }
+}
+
+/** Starts watching and goes to the room; false when it could not start, which is said. */
+export async function watchNow(request, options) {
+  const reply = await startWatching(request, options);
+  if (!reply) return false;
+  navigate(`/r/${encodeURIComponent(reply.room)}` + (reply.libraryId ? `?title=${encodeURIComponent(reply.libraryId)}` : ""));
+  return true;
 }
 
 /** The release Watch now picks by default for a film: 1080p where it is offered. */
@@ -57,21 +65,29 @@ export function openingEpisode(show) {
 }
 
 /**
- * Watches a show's first episode while it arrives, at 720p out of whatever the tracker offers for its
- * season; says so when the tracker has nothing of that season to watch.
+ * What Watch now asks for to start a show's first episode while it arrives: at 720p out of whatever the
+ * tracker offers for its season. Null, with the reason said, when the tracker has nothing of that season
+ * to watch or the show has no episode to start.
  */
-export async function watchOpening(show) {
+export async function openingRequest(show) {
   const opening = openingEpisode(show);
-  if (!opening) return;
+  if (!opening) return null;
   try {
     const offers = await api.showReleases(show.imdbId);
     const picked = episodeRelease(offers, opening.season, opening.number);
     if (!picked) {
       toast.info(`The tracker has nothing of ${show.title} Season ${opening.season} to watch yet.`);
-      return;
+      return null;
     }
-    await watchNow({ imdbId: show.imdbId, torrentId: picked.torrentId, episodes: [{ season: opening.season, episode: opening.number }] });
+    return { imdbId: show.imdbId, torrentId: picked.torrentId, episodes: [{ season: opening.season, episode: opening.number }] };
   } catch (error) {
     toast.fromError(error, "That could not be started");
+    return null;
   }
+}
+
+/** Watches a show's first episode while it arrives. */
+export async function watchOpening(show) {
+  const request = await openingRequest(show);
+  if (request) await watchNow(request);
 }

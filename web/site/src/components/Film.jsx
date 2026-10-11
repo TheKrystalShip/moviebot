@@ -8,6 +8,7 @@ import { isAnime, moviePath, playSavedPath, roomPath, showPath } from "../paths.
 import { linkProps, navigate } from "../router.js";
 import { clock, timeLeft } from "../time.js";
 import { watchNow } from "../watchNow.js";
+import { watchOnTv } from "../remoteWatch.js";
 import { activityRoom } from "../discord/launch.js";
 
 /**
@@ -46,22 +47,39 @@ export function WatchButton({ titleId, sessionId, at, children, ...props }) {
   return <Button {...props} {...useWatchLink(titleId, sessionId, at)}>{children}</Button>;
 }
 
-/** A film started and not finished: its artwork, how far in, how much is left, and a way back into it. */
-export function ContinueCard({ title, progress, remainingSeconds, room }) {
+/**
+ * A film started and not finished: its artwork, how far in, how much is left, and a way back into it.
+ * `onTv` is the card on the phone's remote: choosing it puts the film on the television, from where
+ * this person got to, and the glyph on it is the television's.
+ */
+export function ContinueCard({ title, progress, remainingSeconds, room, onTv = false }) {
   const art = (title.details && title.details.backdropUrl) || posterUrl(title);
   const fraction = progress.durationSeconds > 0 ? Math.min(1, progress.positionSeconds / progress.durationSeconds) : 0;
   const link = useWatchLink(title.id, room && room.sessionId, progress.positionSeconds);
-  return (
-    <a className="kc-continue" {...(link.disabled ? { "aria-disabled": "true" } : link)}>
+  const [starting, setStarting] = React.useState(false);
+  const body = (
+    <>
       <div className="kc-poster-art kc-poster-art--wide">
         {art ? <img src={art} alt="" loading="lazy" /> : <span className="kc-poster-art__name">{filmName(title)}</span>}
-        <span className="kc-continue__play"><Icon name="play" size={16} /></span>
+        <span className="kc-continue__play"><Icon name={onTv ? "tv" : "play"} size={16} /></span>
         <span className="kc-bar"><span style={{ width: `${Math.round(fraction * 100)}%` }} /></span>
       </div>
       <span className="kc-poster__name">{filmName(title)}</span>
       <span className="kc-poster__note">{timeLeft(remainingSeconds)}</span>
-    </a>
+    </>
   );
+  if (onTv) {
+    const start = async () => {
+      setStarting(true);
+      await watchOnTv({
+        titleId: title.id, startSeconds: progress.positionSeconds > 0 ? progress.positionSeconds : null,
+        name: filmName(title), meta: remainingSeconds > 0 ? timeLeft(remainingSeconds) : null, art,
+      });
+      setStarting(false);
+    };
+    return <button type="button" className="kc-continue" disabled={starting} aria-label={`Watch on TV: ${filmName(title)}`} onClick={start}>{body}</button>;
+  }
+  return <a className="kc-continue" {...(link.disabled ? { "aria-disabled": "true" } : link)}>{body}</a>;
 }
 
 /**
@@ -69,7 +87,7 @@ export function ContinueCard({ title, progress, remainingSeconds, room }) {
  * with no `titleId`): its still, else the show's backdrop, the show's name and its place in it.
  * Choosing it is Watch now, which fetches it into a room and goes there.
  */
-export function NextEpisodeCard({ progress, show }) {
+export function NextEpisodeCard({ progress, show, onTv = false }) {
   const [starting, setStarting] = React.useState(false);
   const online = useOnline();
   const details = show && show.details;
@@ -78,16 +96,18 @@ export function NextEpisodeCard({ progress, show }) {
   const start = async () => {
     if (starting) return;
     setStarting(true);
-    const started = await watchNow({
-      imdbId: progress.showImdbId, episodes: [{ season: progress.episode.season, episode: progress.episode.number }],
-    });
-    if (!started) setStarting(false);
+    const request = { imdbId: progress.showImdbId, episodes: [{ season: progress.episode.season, episode: progress.episode.number }] };
+    const started = onTv
+      ? await watchOnTv({ request, name, meta: progress.episodeName || null, art })
+      : await watchNow(request);
+    if (!started || onTv) setStarting(false);
   };
   return (
-    <button type="button" className="kc-continue" disabled={starting || !online} onClick={start}>
+    <button type="button" className="kc-continue" disabled={starting || !online} onClick={start}
+      aria-label={onTv ? `Watch on TV: ${name}` : undefined}>
       <div className="kc-poster-art kc-poster-art--wide">
         {art ? <img src={art} alt="" loading="lazy" /> : <span className="kc-poster-art__name">{name}</span>}
-        <span className="kc-continue__play"><Icon name="play" size={16} /></span>
+        <span className="kc-continue__play"><Icon name={onTv ? "tv" : "play"} size={16} /></span>
       </div>
       <span className="kc-poster__name">{name}</span>
       <span className="kc-poster__note">

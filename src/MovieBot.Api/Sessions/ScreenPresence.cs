@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
+using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Core;
@@ -43,6 +44,12 @@ public sealed record RemoteJoin(string? Room, SessionStatePush? Push);
 /// <param name="Paused">Whether that room is paused.</param>
 public sealed record ScreenView(
     string Id, string? Name, bool Connected, string? Room, string? TitleId, string? Title, bool? Paused);
+
+/// <summary>
+/// What a screen is told to open: the room to go into, the film to put on in it when the phone knows
+/// one, and where to start. The film is absent for a room already waiting on one being fetched.
+/// </summary>
+public sealed record ScreenWatch(string Room, string? TitleId, double? StartSeconds);
 
 /// <summary>
 /// What the token of a hub connection says it is: a screen when it was minted for the television
@@ -224,6 +231,36 @@ public sealed class ScreenPresence(
         if (!_remotes.TryGetValue(connectionId, out var remote)) return (null, "Join a screen's room first.");
         if (!pairings.Paired(remote.UserId, remote.PhoneId, remote.ScreenId)) return (null, "This phone is no longer paired with that screen.");
         return remote.Room is { } room ? (room, null) : (null, "The screen is in no room.");
+    }
+
+    /// <summary>
+    /// Tells the screen a remote drives to open a room, which it does by navigating to the room's address
+    /// as a Watch on the television itself does. The screen is the remote's binding, the person the
+    /// remote's and the pairing is checked again, so the page names only the room and the film. Null when
+    /// the screen was told, else why not: the connection is no remote, its pairing ended, the screen is not
+    /// connected, or it is already in a room (the room it holds is changed through that room, with
+    /// <c>LoadTitle</c>).
+    /// </summary>
+    public async Task<string?> WatchAsync(string connectionId, string room, string? titleId, double? startSeconds)
+    {
+        if (!TorrentTags.IsRoomId(room)) return "That is not a room.";
+        if (titleId is not null && library.Get(titleId) is null) return "That film is not in the library.";
+        if (startSeconds is { } at && (!double.IsFinite(at) || at < 0)) return "That is not a place in the film.";
+
+        await _gate.WaitAsync();
+        try
+        {
+            if (!_remotes.TryGetValue(connectionId, out var remote)) return "Join a screen's room first.";
+            if (!pairings.Paired(remote.UserId, remote.PhoneId, remote.ScreenId)) return "This phone is no longer paired with that screen.";
+            if (!_screens.TryGetValue((remote.UserId, remote.ScreenId), out var entry) || entry.Connections.Count == 0)
+                return "The screen is not connected.";
+            if (RoomOf(entry) is not null) return "The screen is already in a room.";
+
+            await hub.Clients.Group(PersonGroups.Screen(remote.UserId, remote.ScreenId))
+                .SendAsync("Watch", new ScreenWatch(room, titleId, startSeconds));
+            return null;
+        }
+        finally { _gate.Release(); }
     }
 
     /// <summary>

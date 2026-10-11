@@ -331,6 +331,109 @@ public sealed class RemoteTests(SessionFixture fixture) : IClassFixture<SessionF
         await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync<SessionStatePush>("Pause", 1.0));
     }
 
+    /// <summary>A screen that holds a hub connection and no room, a phone paired with it, and the phone a remote of it.</summary>
+    private async Task<(HubConnection Tv, string TvSid, HubConnection Phone, string Person)> Idle()
+    {
+        var person = Unique("rp-");
+        var tvSid = Unique("tv-");
+        var phoneSid = Unique("phone-");
+        var tv = await fixture.ConnectScreenAsync(person, tvSid, "Living room");
+        var phone = await fixture.ConnectPhoneAsync(person, phoneSid);
+        using (var paired = await fixture.PairAsync(tv, person, phoneSid)) paired.EnsureSuccessStatusCode();
+        await phone.InvokeAsync<JoinReply>("JoinAsRemote", tvSid);
+        return (tv, tvSid, phone, person);
+    }
+
+    [Fact]
+    public async Task Watch_on_screen_tells_a_screen_in_no_room_where_to_go_and_what_to_put_on()
+    {
+        var (tv, _, phone, _) = await Idle();
+        var told = new Heard<ScreenWatch>(tv, "Watch");
+        var room = Unique("watch-room-");
+
+        await phone.InvokeAsync("WatchOnScreen", room, SessionFixture.Heat, 90.0);
+
+        var watch = await told.Next();
+        Assert.Equal(room, watch.Room);
+        Assert.Equal(SessionFixture.Heat, watch.TitleId);
+        Assert.Equal(90.0, watch.StartSeconds);
+    }
+
+    [Fact]
+    public async Task Watch_on_screen_without_a_film_names_a_room_that_is_waiting_on_one()
+    {
+        var (tv, _, phone, _) = await Idle();
+        var told = new Heard<ScreenWatch>(tv, "Watch");
+        var room = Unique("watch-room-");
+
+        await phone.InvokeAsync("WatchOnScreen", room, null, null);
+
+        var watch = await told.Next();
+        Assert.Equal(room, watch.Room);
+        Assert.Null(watch.TitleId);
+        Assert.Null(watch.StartSeconds);
+    }
+
+    [Fact]
+    public async Task Watch_on_screen_reaches_the_screen_of_the_remote_alone()
+    {
+        var (_, _, phone, person) = await Idle();
+        var otherTv = await fixture.ConnectScreenAsync(person, Unique("tv-"), "Bedroom");
+        var another = await fixture.ConnectScreenAsync(Unique("rp-other-"), Unique("tv-"), "Elsewhere");
+        var heardByOther = new Heard<ScreenWatch>(otherTv, "Watch");
+        var heardByAnother = new Heard<ScreenWatch>(another, "Watch");
+
+        await phone.InvokeAsync("WatchOnScreen", Unique("watch-room-"), SessionFixture.Heat, null);
+        await Task.Delay(300);
+
+        Assert.True(heardByOther.Silent);
+        Assert.True(heardByAnother.Silent);
+    }
+
+    [Fact]
+    public async Task Watch_on_screen_is_refused_for_a_screen_in_a_room_one_not_connected_and_a_pairing_that_ended()
+    {
+        var (tv, tvSid, _, phone, phoneSid, person) = await Setup();
+        await phone.InvokeAsync<JoinReply>("JoinAsRemote", tvSid);
+        var inARoom = await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync("WatchOnScreen", Unique("watch-room-"), SessionFixture.Heat, null));
+        Assert.Contains("already in a room", inARoom.Message);
+
+        var (idleTv, _, idlePhone, _) = await Idle();
+        await idleTv.StopAsync();
+        var gone = await Assert.ThrowsAsync<HubException>(() => idlePhone.InvokeAsync("WatchOnScreen", Unique("watch-room-"), SessionFixture.Heat, null));
+        Assert.Contains("not connected", gone.Message);
+
+        var (_, idleSid, secondPhone, _) = await Idle();
+        await secondPhone.InvokeAsync("Unpair", idleSid);
+        var unpaired = await Assert.ThrowsAsync<HubException>(() => secondPhone.InvokeAsync("WatchOnScreen", Unique("watch-room-"), SessionFixture.Heat, null));
+        Assert.Contains("Join a screen's room first", unpaired.Message);
+    }
+
+    [Fact]
+    public async Task Watch_on_screen_is_refused_for_a_bad_room_an_unknown_film_and_a_start_that_is_not_a_place()
+    {
+        var (_, _, phone, _) = await Idle();
+
+        foreach (var (room, title, start) in new (string, string?, double?)[]
+        {
+            ("not a room!", SessionFixture.Heat, null),
+            (Unique("watch-room-"), "no-such-film-1999", null),
+            (Unique("watch-room-"), SessionFixture.Heat, -5.0),
+        })
+            await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync("WatchOnScreen", room, title, start));
+    }
+
+    [Fact]
+    public async Task Watch_on_screen_is_refused_a_television_a_phone_that_is_no_remote_a_guest_and_a_connection_with_no_account()
+    {
+        var (tv, _, _, person) = await Idle();
+        var notRemote = await fixture.ConnectPhoneAsync(person, Unique("phone-"));
+        var noSession = await fixture.ConnectOutsideAsync(person, "Alice");
+
+        foreach (var connection in new[] { tv, notRemote, noSession })
+            await Assert.ThrowsAsync<HubException>(() => connection.InvokeAsync("WatchOnScreen", Unique("watch-room-"), SessionFixture.Heat, null));
+    }
+
     [Fact]
     public void Only_the_methods_marked_for_remotes_are_open_to_them()
     {
@@ -338,7 +441,7 @@ public sealed class RemoteTests(SessionFixture fixture) : IClassFixture<SessionF
             .Where(m => !m.IsSpecialName && m.Name != nameof(SessionHub.OnConnectedAsync) && m.Name != nameof(SessionHub.OnDisconnectedAsync));
 
         Assert.Equal(
-            ["JoinAsRemote", "LoadTitle", "Next", "Pause", "Play", "PlayEpisode", "Previous", "Screens", "Seek", "ServerTime", "Unpair"],
+            ["JoinAsRemote", "LoadTitle", "Next", "Pause", "Play", "PlayEpisode", "Previous", "Screens", "Seek", "ServerTime", "Unpair", "WatchOnScreen"],
             methods.Where(m => m.IsDefined(typeof(RemoteAllowedAttribute))).Select(m => m.Name).Order(StringComparer.Ordinal));
     }
 }

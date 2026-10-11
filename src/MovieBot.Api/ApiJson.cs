@@ -51,6 +51,7 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
 [JsonSerializable(typeof(ClientConfig))]
 [JsonSerializable(typeof(ErrorReply))]
 [JsonSerializable(typeof(Sessions.ScreenView))]
+[JsonSerializable(typeof(Sessions.ScreenWatch))]
 [JsonSerializable(typeof(List<Sessions.ScreenView>))]
 [JsonSerializable(typeof(Sessions.PairingCodeView))]
 [JsonSerializable(typeof(Sessions.PairedPhone))]

@@ -66,6 +66,47 @@ async function described(api, token, timeoutMs = 90000) {
   }
 }
 
+/**
+ * Three televisions of the viewer's, each a hub connection signed in through the television client: one
+ * playing a film part way through, one on an episode, and one in no room. A phone is paired with some of
+ * them by `pair`, which asks each television for the code it would show and sends it as the phone's
+ * session, and let go of with `unpair`.
+ */
+export async function televisions(api, issuer, film, episode) {
+  const make = async (name, sid) => connect(api, issuer.mint(VIEWER, { client: "cinema-tv", sid, device: name }));
+  const tvs = {
+    living: { name: "Living room TV", sid: "verify-tv-living", hub: null },
+    kitchen: { name: "Kitchen TV", sid: "verify-tv-kitchen", hub: null },
+    bedroom: { name: "Bedroom TV", sid: "verify-tv-bedroom", hub: null },
+  };
+  for (const tv of Object.values(tvs)) tv.hub = await make(tv.name, tv.sid);
+  await tvs.living.hub.invoke("Join", "verify-tv-living-room");
+  await tvs.living.hub.invoke("LoadTitle", film.id, Math.floor(film.durationSeconds * 0.3));
+  await tvs.living.hub.invoke("Play", Math.floor(film.durationSeconds * 0.3));
+  await wait(800);
+  await tvs.living.hub.invoke("Pause", Math.floor(film.durationSeconds * 0.3) + 1);
+  if (episode) {
+    await tvs.kitchen.hub.invoke("Join", "verify-tv-kitchen-room");
+    await tvs.kitchen.hub.invoke("LoadTitle", episode.id, 120);
+    await tvs.kitchen.hub.invoke("Play", 120);
+  }
+  return {
+    tvs,
+    /** Pairs the phone session `sid` with the named televisions. */
+    async pair(sid, names) {
+      for (const name of names) {
+        const issued = await tvs[name].hub.invoke("PairingCode");
+        await call(api, issuer.mint(VIEWER, { sid }), "POST", "/api/me/screens", { code: issued.path.slice("/p/".length) });
+      }
+    },
+    /** Ends the phone session's pairings with the named televisions. */
+    async unpair(sid, names) {
+      for (const name of names) await call(api, issuer.mint(VIEWER, { sid }), "DELETE", `/api/me/screens/${tvs[name].sid}`).catch(() => {});
+    },
+    async close() { await Promise.all(Object.values(tvs).map((tv) => tv.hub.stop())); },
+  };
+}
+
 export async function stage(api, issuer, { tmdb = true } = {}) {
   const token = memberToken(issuer, VIEWER);
   const titles = tmdb ? await described(api, token) : await call(api, token, "GET", "/api/titles");
@@ -98,10 +139,17 @@ export async function stage(api, issuer, { tmdb = true } = {}) {
   await call(api, ana, "PUT", `/api/lists/${theirs.list.id}/members/${VIEWER.id}`, { role: "editor" });
   await save(token, theirs.list.id, named[0]);
 
+  const episode = ready.find((t) => t.episode);
+  const screens = await televisions(api, issuer, ready[5], episode);
   return {
     token,
     list: theirs.list.id,
     film: ready[0],
-    async close() { await Promise.all(rooms.map((hub) => hub.stop())); },
+    /** The film the living room television holds, which no other view has played. */
+    onTv: ready[5],
+    other: ready[7],
+    episode,
+    screens,
+    async close() { await screens.close(); await Promise.all(rooms.map((hub) => hub.stop())); },
   };
 }

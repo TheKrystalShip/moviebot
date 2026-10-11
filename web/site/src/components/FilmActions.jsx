@@ -7,6 +7,9 @@ import { useCan } from "../session.js";
 import { wishWords } from "../pages/Discover.jsx";
 import { clock } from "../time.js";
 import { defaultOffer, watchNow } from "../watchNow.js";
+import { setRemoteMode } from "../remote.js";
+import { watchOnTv } from "../remoteWatch.js";
+import { useDriving } from "./WatchOnTv.jsx";
 import { DownloadButton, useOffersSaving } from "./DownloadButton.jsx";
 import { waitersWords } from "./TitleCards.jsx";
 import { SaveButton } from "./SaveButton.jsx";
@@ -25,6 +28,7 @@ export function FilmActions({ imdbId, film, state, compact = false, children }) 
   const wishing = useCan("cinema:wish");
   const saving = useOffersSaving();
   const online = useOnline();
+  const driving = useDriving();
   const [working, setBusy] = React.useState(false);
   const busy = working || !online;
 
@@ -42,6 +46,19 @@ export function FilmActions({ imdbId, film, state, compact = false, children }) 
     setBusy(true);
     const started = await watchNow({ imdbId, torrentId: arriving ? undefined : offer && offer.torrentId }, { limit: a.streams.limit });
     if (!started) setBusy(false);
+  };
+
+  const watchOnTelevision = async () => {
+    if (full && !arriving) {
+      toast.info(`The server is preparing ${a.streams.limit} films for people watching right now. Try again in a few minutes.`);
+      return;
+    }
+    setBusy(true);
+    await watchOnTv({
+      request: { imdbId, torrentId: arriving ? undefined : offer && offer.torrentId }, limit: a.streams.limit,
+      name, meta: film.runtimeMinutes ? clock(film.runtimeMinutes * 60) : null, art: film.backdropUrl || film.posterUrl,
+    });
+    setBusy(false);
   };
 
   const wait = async () => {
@@ -79,7 +96,19 @@ export function FilmActions({ imdbId, film, state, compact = false, children }) 
         <span className="kc-note">The tracker has it, but nothing this server takes. {a.emptyExplanation}</span>
       )}
 
-      {a && downloading && (arriving || offer) && (
+      {a && downloading && (arriving || offer) && driving && (
+        <>
+          <Button variant="primary" size="xl" icon="tv" className={full && !arriving ? "is-dim" : undefined}
+            disabled={busy} onClick={watchOnTelevision}>
+            Watch on TV
+          </Button>
+          <Button variant="secondary" size="xl" icon="smartphone" className={full && !arriving ? "is-dim" : undefined}
+            disabled={busy} onClick={() => { setRemoteMode(false); void watch(); }}>
+            Watch
+          </Button>
+        </>
+      )}
+      {a && downloading && (arriving || offer) && !driving && (
         <Button variant="primary" size="xl" icon="play" className={full && !arriving ? "is-dim" : undefined}
           disabled={busy} onClick={watch}>
           Watch

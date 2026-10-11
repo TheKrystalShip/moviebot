@@ -177,6 +177,12 @@ participant of no kind.
   (`via <connection> remote`) and nowhere in shared state. A device in `Actor` would be written into
   every push and every kept room, and shown to every other member, for a distinction nothing in a room
   uses.
+- **A remote opens a room on a screen that is in none, and nothing else does it** (`WatchOnScreen`,
+  `ScreenPresence.WatchAsync`). The screen is the remote's binding, the person the pairing's, and both
+  are read again on the call: the page names a room and a title and nobody. It is refused unless the
+  screen is connected and in no room, since a screen in one is moved through that room, where the hold,
+  the watch record and the roster already see it. The message goes to the screen's own group and carries
+  no state: what the screen shows is the room it then joins.
 - **A pairing ending ends the remote.** `ScreenPresence` drops the remotes of a pairing it ends
   (unpaired from either side, or a television signed in again under the same name) out of the room's
   group and forgets them; a disconnect forgets the connection's.

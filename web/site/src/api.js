@@ -76,6 +76,8 @@ function keptPosition(entries) {
 export const api = {
   titles: () => call("GET", "/api/titles"),
   title: (id) => call("GET", `/api/titles/${enc(id)}`),
+  // The episode a room holds and the ones either side, which a remote's previous and next name.
+  around: (sessionId) => call("GET", `/api/sessions/${enc(sessionId)}/around`),
   film: (imdbId) => call("GET", `/api/films/${enc(imdbId)}`),
   // The films and shows the film database counts as trending this week, whether here or not.
   popular: () => call("GET", "/api/popular"),

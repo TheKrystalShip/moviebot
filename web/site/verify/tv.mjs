@@ -2,7 +2,7 @@
 // walked with the arrow keys from where focus starts, against the scratch site verify/mobile/scratch.sh
 // serves (staged first, by its run or `node verify/mobile/run.mjs`; an unstaged site stops this run).
 //
-//   node verify/tv.mjs [--checks pages,heads,empty,overlays,back,player,remote,driving,signin] [--pages home,title] [--out dir]
+//   node verify/tv.mjs [--checks pages,heads,empty,overlays,back,player,remote,driving,remoteui,signin] [--pages home,title] [--out dir]
 //
 // Each page is checked for:
 // - focus starting on a control when it opens, and on screen;
@@ -459,7 +459,7 @@ async function openSignedOut(path, planted) {
 const codeOn = (page, timeout = 8000) =>
   page.locator(".kc-tv-signin__code").textContent({ timeout }).catch(() => null);
 const focusedText = (page) => page.evaluate(() => document.activeElement && document.activeElement.textContent.trim());
-const until = async (what, timeout) => {
+const until = async (what, timeout = 8000) => {
   const end = Date.now() + timeout;
   while (Date.now() < end) {
     if (await what()) return true;
@@ -1019,7 +1019,404 @@ async function driving() {
   }
 }
 
-const checks = option("checks", "pages,heads,empty,overlays,back,player,remote,driving,signin").split(",");
+
+/** A finger on a phone page, as the browser's own input pipeline gets one (a synthesized scroll gesture scrolls nothing). */
+function fingerOn(cdp) {
+  const send = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y, id: 1 }] });
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  return {
+    async tap(x, y) { await send("touchStart", x, y); await wait(40); await send("touchEnd", x, y); },
+    /** Presses at `from`, moves in steps of `stepMs`, calls `during` at the end, then lifts unless told not to. */
+    async drag(from, to, { steps = 10, stepMs = 16, during = null, lift = true } = {}) {
+      await send("touchStart", from.x, from.y);
+      for (let i = 1; i <= steps; i += 1) {
+        await send("touchMove", from.x + ((to.x - from.x) * i) / steps, from.y + ((to.y - from.y) * i) / steps);
+        await wait(stepMs);
+      }
+      if (during) await during();
+      if (lift) await send("touchEnd", to.x, to.y);
+    },
+    async lift() { await send("touchEnd", 0, 0); },
+  };
+}
+
+/**
+ * The phone's remote as a person uses it: the site itself on a phone paired with the television, the
+ * strip let down over the tab bar, the drawer it opens, the film driven by buttons and by a finger on the
+ * still, the drawer pulled down and its strip swiped away and brought back, a title put on the television
+ * from its page (the television on Home, then mid-film), and the idle drawer's Continue watching.
+ */
+async function remoteUi() {
+  console.log("remoteui");
+  const stamp = Date.now().toString(36);
+  const tvSession = { hours: 6, client: TV_CLIENT, sid: `verify-ui-tv-${stamp}`, device: "Verify TV" };
+  const phoneSid = `verify-ui-phone-${stamp}`;
+  const first = `verify-ui-a-${stamp}`;
+  const tv = await open("/profile/remote", VIEWER, tvSession);
+  const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: PhoneAgent, isMobile: true, hasTouch: true, bypassCSP: true });
+  await phoneContext.addInitScript(({ key, value }) => {
+    localStorage.setItem(key, value);
+    if (localStorage.getItem("cinema:remote") === null) localStorage.setItem("cinema:remote", "1");
+  }, issuer.planted(VIEWER, { hours: 6, sid: phoneSid }));
+  const phone = await phoneContext.newPage();
+  phone.on("pageerror", (e) => failures.push(`remoteui: phone page error ${e.message}`));
+  phone.on("console", (m) => { if (process.env.DEBUG_PROBE) console.log("phone console", m.type(), m.text()); });
+  const cdp = await phoneContext.newCDPSession(phone);
+  const finger = fingerOn(cdp);
+  const phoneAuth = { Authorization: `Bearer ${issuer.mint(VIEWER, { sid: phoneSid })}` };
+  const tvVideo = (read) => tv.page.evaluate(read).catch(() => null);
+  const tvPaused = () => tvVideo(() => { const v = document.querySelector("video"); return v ? v.paused : null; });
+  const tvTime = () => tvVideo(() => { const v = document.querySelector("video"); return v ? v.currentTime : null; });
+  const tvAddress = () => tv.page.evaluate(() => location.pathname + location.search);
+  const loaded = (page) => page.waitForFunction(() => { const v = document.querySelector("video"); return v && v.readyState >= 3; }, null, { timeout: 30000 }).catch(() => {});
+  const centre = async (selector) => {
+    const box = await phone.locator(selector).first().boundingBox();
+    if (!box) throw new Error(`no ${selector} on the phone`);
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2, box };
+  };
+  const shot = (name) => phone.screenshot({ path: join(out, name) });
+  const stripName = () => phone.evaluate(() => document.querySelector(".kc-remote-strip .kc-dl-head__name")?.textContent || "");
+  const goTo = async (path, name) => {
+    await phone.evaluate((to) => { history.pushState({}, "", to); window.dispatchEvent(new PopStateEvent("popstate")); }, path);
+    await phone.waitForFunction((film) => { const h = document.querySelector(".kc-title h1"); return h && h.textContent.includes(film); }, name, { timeout: 10000 });
+    await phone.waitForTimeout(600);
+  };
+  const closeRemote = async () => { await phone.keyboard.press("Escape"); await phone.waitForSelector(".kc-remote-strip", { timeout: 5000 }); };
+  const openedControls = async () => {
+    const strip = await centre(".kc-remote-strip__open");
+    await finger.tap(strip.x, strip.y);
+    await phone.waitForSelector(".kc-remote .mp-controls", { timeout: 10000 });
+    await phone.waitForTimeout(1200);
+    return phone.evaluate(() => [...document.querySelectorAll(".kc-remote .mp-controls button")].map((b) => b.getAttribute("aria-label")));
+  };
+  const watchOnTvButton = () => phone.locator(".kc-title .kc-actions .k-btn", { hasText: "Watch on TV" }).last();
+  try {
+    await tv.page.goto(`${base}/r/${first}?title=${encodeURIComponent(playable)}&tv=1`, { waitUntil: "load" });
+    await loaded(tv.page);
+    await tv.page.keyboard.press("Enter");
+    await tv.page.waitForTimeout(1500);
+    await tv.page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "MediaPlayPause", bubbles: true, cancelable: true })));
+    await tv.page.waitForSelector(".kc-tvr-paused__qr svg", { timeout: 10000 }).catch(() => {});
+    await tv.page.waitForTimeout(700);
+    const url = await readQr(tv.page, ".kc-tvr-paused__qr", SofaScale);
+    if (!url) { fail("remoteui", "the paused player drew no code to pair with"); return; }
+    const paired = await fetch(base + "/api/me/screens", {
+      method: "POST", headers: { ...phoneAuth, "Content-Type": "application/json", "User-Agent": PhoneAgent },
+      body: JSON.stringify({ code: new URL(url).pathname.slice("/p/".length) }),
+    });
+    if (!paired.ok) { fail("remoteui", `pairing from the television's code answered ${paired.status}`); return; }
+
+    // The strip, over the tab bar.
+    await phone.goto(`${base}/`, { waitUntil: "load" });
+    const strip = await phone.waitForSelector(".kc-remote-strip", { timeout: 15000 }).catch(() => null);
+    if (!strip) { fail("remoteui", "the phone paired with a connected television drew no strip"); return; }
+    await phone.waitForFunction(() => document.querySelector(".kc-remote-strip .kc-dl-head__name")?.textContent, null, { timeout: 10000 }).catch(() => {});
+    await phone.waitForTimeout(600);
+    await shot("remoteui-04-strip.png");
+    const stripFacts = await phone.evaluate(() => {
+      const el = document.querySelector(".kc-remote-strip");
+      const bar = document.querySelector(".tabbar");
+      const r = el.getBoundingClientRect();
+      return {
+        eyebrow: el.querySelector(".kc-dl-head__eyebrow")?.textContent, name: el.querySelector(".kc-dl-head__name")?.textContent,
+        label: el.querySelector(".kc-remote-strip__open")?.getAttribute("aria-label"), pause: el.querySelector(".mp-play")?.getAttribute("aria-label"),
+        gap: bar ? Math.round(bar.getBoundingClientRect().top - r.bottom) : null,
+      };
+    });
+    if (stripFacts.eyebrow !== "Verify TV" || !stripFacts.name || stripFacts.label !== "Open the remote: Verify TV" || stripFacts.pause !== "Play" || stripFacts.gap !== 0)
+      fail("remoteui", `the strip says ${JSON.stringify(stripFacts)}`);
+    else pass(`the strip stands on the tab bar naming the TV and what it holds (${stripFacts.name}), with Play for the paused film`);
+
+    // A tap opens the drawer.
+    const open1 = await centre(".kc-remote-strip__open");
+    await finger.tap(open1.x, open1.y);
+    const opened = await phone.waitForSelector(".kc-remote", { timeout: 5000 }).catch(() => null);
+    if (!opened) { fail("remoteui", "a tap on the strip did not open the remote"); return; }
+    await phone.waitForSelector(".kc-remote .mp-scrub", { timeout: 10000 }).catch(() => {});
+    await phone.waitForTimeout(700);
+    await shot("remoteui-05-open.png");
+    const drawer = await phone.evaluate(() => {
+      const d = document.querySelector(".kc-remote");
+      const controls = [...d.querySelectorAll(".mp-controls button")].map((b) => ({ label: b.getAttribute("aria-label"), w: Math.round(b.getBoundingClientRect().width), h: Math.round(b.getBoundingClientRect().height) }));
+      return {
+        tv: d.querySelector(".kc-remote__tv")?.textContent, mode: d.querySelector(".k-toggle")?.getAttribute("aria-checked"),
+        scrub: Boolean(d.querySelector(".mp-scrub")), controls, still: Boolean(d.querySelector(".kc-remote__still img")),
+      };
+    });
+    const labels = drawer.controls.map((c) => c.label);
+    const small = drawer.controls.filter((c) => c.w < 44 || c.h < 44).map((c) => c.label);
+    if (drawer.tv !== "Verify TV" || drawer.mode !== "true" || !drawer.scrub || !drawer.still || small.length > 0
+      || !labels.includes("Play") || !labels.includes("Back 10 seconds") || !labels.includes("Forward 10 seconds"))
+      fail("remoteui", `the open drawer holds ${JSON.stringify(drawer)}`);
+    else pass(`the drawer opens with the TV, the switch, the still, the scrub bar and ${labels.length} controls, each at least 44px`);
+    if (labels.some((l) => /^(Subtitles|Audio|Quality)/.test(l))) fail("remoteui", `the control row has a button that belongs to the next step: ${labels}`);
+
+    // Buttons move the television.
+    await phone.click('.kc-remote .mp-controls button[aria-label="Play"]');
+    const playing = await until(async () => (await tvPaused()) === false);
+    await phone.click('.kc-remote .mp-controls button[aria-label="Pause"]');
+    const stopped = await until(async () => (await tvPaused()) === true);
+    const before = await tvTime();
+    await phone.click('.kc-remote .mp-controls button[aria-label="Forward 10 seconds"]');
+    const forward = await until(async () => (await tvTime()) - before >= 9);
+    await phone.click('.kc-remote .mp-controls button[aria-label="Back 10 seconds"]');
+    const back = await until(async () => Math.abs((await tvTime()) - before) < 2);
+    if (!playing || !stopped || !forward || !back) fail("remoteui", `buttons: play ${playing}, pause ${stopped}, forward ${forward}, back ${back} (from ${before} to ${await tvTime()})`);
+    else pass("Play, Pause, Forward and Back 10 seconds move the television's player");
+
+    // A finger on the still, as on the film.
+    const still = await centre(".kc-remote__still");
+    await finger.tap(still.x, still.y);
+    const tapped = await until(async () => (await tvPaused()) === false);
+    await finger.tap(still.x, still.y);
+    const tappedAgain = await until(async () => (await tvPaused()) === true);
+    if (!tapped || !tappedAgain) fail("remoteui", `a tap in the middle of the still: play ${tapped}, pause ${tappedAgain}`);
+    else pass("a tap in the middle of the still plays, and another pauses");
+    const base0 = await tvTime();
+    const right = { x: still.box.x + still.box.width * 0.85, y: still.y };
+    await finger.tap(right.x, right.y);
+    await new Promise((r) => setTimeout(r, 90));
+    await finger.tap(right.x, right.y);
+    const skipped = await until(async () => Math.abs((await tvTime()) - base0 - 10) < 2, 4000);
+    if (!skipped) fail("remoteui", `a double tap at the right left the television at ${await tvTime()} from ${base0}`);
+    else pass("a double tap at the right of the still skips ten seconds, once, when the taps stop");
+    // A sweep sideways scrubs and the room moves when the finger lifts.
+    const from = await tvTime();
+    await finger.drag({ x: still.box.x + still.box.width * 0.3, y: still.y }, { x: still.box.x + still.box.width * 0.7, y: still.y }, {
+      lift: false,
+      during: async () => {
+        await phone.waitForTimeout(300);
+        await shot("remoteui-06-scrub.png");
+        const preview = await phone.evaluate(() => Boolean(document.querySelector(".kc-remote .mp-scrub__preview")));
+        const held = await tvTime();
+        if (!preview) fail("remoteui", "sweeping the still showed no preview on the scrub bar");
+        if (Math.abs(held - from) > 1) fail("remoteui", `the television moved to ${held} before the finger lifted (from ${from})`);
+      },
+    });
+    await finger.lift();
+    const swept = await until(async () => (await tvTime()) - from > 100);
+    if (!swept) fail("remoteui", `a sweep across the still left the television at ${await tvTime()} from ${from}`);
+    else pass("a sweep across the still scrubs, the television moving only when the finger lifts");
+    let level = false;
+    await finger.drag({ x: still.box.x + still.box.width * 0.85, y: still.y + 40 }, { x: still.box.x + still.box.width * 0.85, y: still.y - 40 }, {
+      during: async () => { level = await phone.evaluate(() => Boolean(document.querySelector(".mp-gesture-level"))); },
+    });
+    if (level) fail("remoteui", "a vertical sweep drew a volume or brightness level");
+    else pass("vertical sweeps on the still draw no level: the TV's volume is not the remote's");
+
+    // Pulling the handle down collapses to the strip.
+    const top = await centre(".kc-remote .kc-drawer__top");
+    await finger.drag({ x: top.x - 120, y: top.y }, { x: top.x - 120, y: top.y + 150 }, { steps: 10, stepMs: 20, during: async () => { await shot("remoteui-15-pulling.png"); } });
+    const collapsed = await until(() => phone.evaluate(() => !document.querySelector(".kc-remote") && Boolean(document.querySelector(".kc-remote-strip"))));
+    if (!collapsed) fail("remoteui", "pulling the handle down did not leave the strip");
+    else pass("pulling the handle down collapses the remote to its strip");
+    // Pushing the strip up opens it again.
+    const strip2 = await centre(".kc-remote-strip__open");
+    await finger.drag({ x: strip2.x, y: strip2.y }, { x: strip2.x, y: strip2.y - 80 });
+    const pushed = await until(() => phone.evaluate(() => Boolean(document.querySelector(".kc-remote"))));
+    if (!pushed) fail("remoteui", "pushing the strip up did not open the remote");
+    else pass("pushing the strip up opens the remote");
+    // Collapse again, then swipe the strip away.
+    const top2 = await centre(".kc-remote .kc-drawer__top");
+    await finger.drag({ x: top2.x - 120, y: top2.y }, { x: top2.x - 120, y: top2.y + 150 });
+    await phone.waitForSelector(".kc-remote-strip", { timeout: 5000 }).catch(() => {});
+    const strip3 = await centre(".kc-remote-strip__open");
+    await finger.drag({ x: strip3.x - 60, y: strip3.y }, { x: strip3.x + 60, y: strip3.y }, { lift: false, steps: 6, during: async () => { await shot("remoteui-16-swiping.png"); } });
+    await finger.drag({ x: strip3.x + 60, y: strip3.y }, { x: strip3.x + 150, y: strip3.y }, { steps: 3 }).catch(() => {});
+    const away = await until(() => phone.evaluate(() => localStorage.getItem("cinema:remote") === "0" && !document.querySelector(".kc-remote-strip")));
+    await phone.waitForSelector(".toast__action", { timeout: 5000 }).catch(() => {});
+    await phone.waitForTimeout(300);
+    await shot("remoteui-17-off.png");
+    const toast = await phone.evaluate(() => ({ title: document.querySelector(".toast__title")?.textContent, undo: document.querySelector(".toast__action")?.textContent }));
+    if (!away || toast.title !== "Remote off · Verify TV" || toast.undo !== "Undo") fail("remoteui", `swiping the strip away: off ${away}, toast ${JSON.stringify(toast)}`);
+    else pass("swiping the strip sideways turns remote mode off with an Undo toast");
+    const stillPaired = (await pairedWith(phoneSid)).length;
+    await phone.click(".toast__action");
+    const back2 = await until(() => phone.evaluate(() => localStorage.getItem("cinema:remote") === "1" && Boolean(document.querySelector(".kc-remote-strip"))));
+    if (!back2 || stillPaired !== 1) fail("remoteui", `Undo: remote mode back ${back2}, pairings before it ${stillPaired}`);
+    else pass("nothing is unpaired, and Undo brings the strip back");
+
+    // Watch on TV from a page, the television on Home. Only the first film has video in the scratch library;
+    // the others are titles the television holds without playing.
+    await tv.page.goto(`${base}/?tv=1`, { waitUntil: "load" });
+    await until(async () => /Nothing playing/.test(await stripName()));
+    const film = playable;
+    const filmName = /^coherence/.test(playable) ? "Coherence" : playable;
+    await goTo(`/movies/${film}`, filmName);
+    await phone.evaluate(() => document.querySelector(".kc-title .kc-actions").scrollIntoView({ block: "center" }));
+    await phone.waitForTimeout(300);
+    await shot("remoteui-10-film.png");
+    const buttons = await phone.evaluate(() => [...document.querySelectorAll(".kc-title .kc-actions .k-btn")].map((b) => b.textContent.trim()));
+    if (buttons[0] !== "Watch on TV" || buttons[1] !== "Watch") fail("remoteui", `the film page's buttons are ${JSON.stringify(buttons)}`);
+    else pass(`the film page's main button is Watch on TV with Watch beside it (${buttons.join(", ")})`);
+    await watchOnTvButton().click();
+    const into = await until(async () => /^\/r\//.test(await tv.page.evaluate(() => location.pathname)), 12000);
+    await loaded(tv.page);
+    const onTv = await until(async () => new RegExp(filmName).test(await stripName()), 5000);
+    const playingFilm = await until(async () => (await tvPaused()) === false, 12000);
+    if (!playingFilm) await tv.page.screenshot({ path: join(out, "remoteui-tv-not-playing.png") });
+    if (!into || !onTv || !playingFilm) fail("remoteui", `Watch on TV with the television on Home: in a room ${into}, holding the title ${onTv}, playing ${playingFilm} (${await tvAddress()})`);
+    else pass("Watch on TV with the television on Home takes it into a room that plays the title");
+    const room1 = await tv.page.evaluate(() => location.pathname);
+    await tv.page.goBack({ waitUntil: "load" }).catch(() => {});
+    const returned = (await tv.page.evaluate(() => location.pathname)) === "/";
+    if (!returned) fail("remoteui", "Back on the television did not return to the page it was on");
+    else pass("Back on the television returns to the page it was on");
+    await tv.page.goto(`${base}${room1}?tv=1`, { waitUntil: "load" });
+    await loaded(tv.page);
+    await until(async () => new RegExp(filmName).test(await stripName()));
+
+    // The same title again leaves the television alone; another title asks first.
+    const filmTime = await tvTime();
+    await watchOnTvButton().click();
+    await phone.waitForTimeout(1200);
+    const noSheet = await phone.evaluate(() => !document.querySelector(".kc-dl-sheet"));
+    const shownRemote = await phone.evaluate(() => Boolean(document.querySelector(".kc-remote")));
+    if (!noSheet || !shownRemote || Math.abs((await tvTime()) - filmTime) > 5) fail("remoteui", `Watch on TV for the title already playing: asked ${!noSheet}, remote shown ${shownRemote}, television moved to ${await tvTime()} from ${filmTime}`);
+    else pass("Watch on TV for the title already on the television leaves it alone and shows its remote");
+    await phone.keyboard.press("Escape");
+    await phone.waitForSelector(".kc-remote-strip", { timeout: 5000 });
+    const heat = "heat-1995";
+    await goTo(`/movies/${heat}`, "Heat");
+    await watchOnTvButton().click();
+    const sheet = await phone.waitForSelector(".kc-dl-sheet", { timeout: 5000 }).catch(() => null);
+    await phone.waitForTimeout(500);
+    await shot("remoteui-11-replace.png");
+    if (!sheet) fail("remoteui", "Watch on TV over a film part way through did not ask");
+    else {
+      const asked = await phone.evaluate(() => ({
+        title: document.querySelector(".kc-dl-sheet .kc-dl-head__name")?.textContent,
+        names: [...document.querySelectorAll(".kc-replace__name")].map((n) => n.textContent),
+        buttons: [...document.querySelectorAll(".kc-dl-sheet .kc-dl-foot .k-btn")].map((b) => b.textContent.trim()),
+      }));
+      if (asked.title !== "Watch on TV" || asked.names.length !== 2 || !new RegExp(filmName).test(asked.names[0]) || !/Heat/.test(asked.names[1]) || asked.buttons[1] !== "Keep watching")
+        fail("remoteui", `the question says ${JSON.stringify(asked)}`);
+      else pass(`Watch on TV over a film part way through asks first: ${asked.names.join(" -> ")}`);
+      await phone.click(".kc-dl-sheet >> text=Keep watching");
+      await phone.waitForTimeout(800);
+      const stillThere = new RegExp(filmName).test(await stripName());
+      if (!stillThere) fail("remoteui", "Keep watching changed what the television plays");
+      else pass("Keep watching leaves the television as it was");
+      await watchOnTvButton().click();
+      await phone.waitForSelector(".kc-dl-sheet", { timeout: 5000 });
+      await phone.click(".kc-dl-sheet .kc-dl-foot .k-btn >> nth=0");
+      const replaced = await until(async () => /Heat/.test(await stripName()), 10000);
+      if (!replaced) fail("remoteui", "Watch on the question did not put the title on the television");
+      else pass("Watch on the question puts the title on the television in its room");
+    }
+
+    // The film that plays is put back, and in its closing stretch the next title replaces it at once: the
+    // scrub bar is tapped near its end, and the drawer put away.
+    await goTo(`/movies/${film}`, filmName);
+    await watchOnTvButton().click();
+    await phone.waitForSelector(".kc-dl-sheet", { timeout: 5000 });
+    await phone.click(".kc-dl-sheet .kc-dl-foot .k-btn >> nth=0");
+    await until(async () => new RegExp(filmName).test(await stripName()), 10000);
+    await loaded(tv.page);
+    const opener = await centre(".kc-remote-strip__open");
+    await finger.tap(opener.x, opener.y);
+    await phone.waitForSelector(".kc-remote .mp-scrub", { timeout: 10000 });
+    await phone.waitForTimeout(500);
+    const bar = await centre(".kc-remote .mp-scrub");
+    await finger.tap(bar.box.x + bar.box.width * 0.985, bar.y);
+    const ending = await until(async () => (await tvTime()) > (await tvVideo(() => document.querySelector("video").duration)) - 120);
+    await phone.keyboard.press("Escape");
+    await phone.waitForSelector(".kc-remote-strip", { timeout: 5000 });
+    await goTo(`/movies/${heat}`, "Heat");
+    await watchOnTvButton().click();
+    const swapped = await until(async () => /Heat/.test(await stripName()), 10000);
+    const asked2 = await phone.evaluate(() => Boolean(document.querySelector(".kc-dl-sheet")));
+    if (!ending || !swapped || asked2) fail("remoteui", `in the closing stretch: reached it ${ending}, replaced ${swapped}, asked ${asked2}`);
+    else pass("Watch on TV in the closing stretch of what plays replaces it without asking");
+
+    // A film has no episode controls; an episode has them, and the player's own episodes list aimed at the television.
+    const filmControls = await openedControls();
+    await closeRemote();
+    if (filmControls.some((l) => /episode/i.test(l))) fail("remoteui", `a film's remote has episode controls: ${filmControls}`);
+    else pass("a film's remote shows no episode controls");
+    const show = "superstore-s01e02";
+    await tv.page.goto(`${base}/r/${first}?title=${show}&tv=1`, { waitUntil: "load" });
+    await until(async () => /Superstore/.test(await stripName()) || /Pilot|Superstore/.test(await stripName()), 10000);
+    const episodeControls = await openedControls();
+    await shot("remoteui-05-episode.png");
+    const wanted = ["Previous episode: S1 · E1", "Next episode: S1 · E3", "Episodes: S1 · E2"];
+    if (!wanted.every((w) => episodeControls.some((l) => l.startsWith(w)))) fail("remoteui", `an episode's remote has ${JSON.stringify(episodeControls)}`);
+    else pass("an episode's remote has previous and next episode and Episodes, each naming where it goes");
+    await phone.click('.kc-remote .mp-controls button[aria-label^="Episodes"]');
+    await phone.waitForSelector(".mp-episodes .kc-episode", { timeout: 10000 }).catch(() => {});
+    await phone.waitForTimeout(800);
+    await shot("remoteui-08-episodes.png");
+    const list = await phone.evaluate(() => ({
+      count: document.querySelectorAll(".mp-episodes .kc-episode").length,
+      current: document.querySelector(".mp-episodes .kc-episode.is-current .kc-episode__title")?.textContent,
+      aim: document.querySelector(".mp-menu__aim")?.textContent,
+    }));
+    if (list.count < 6 || !list.current || list.aim !== "Verify TV") fail("remoteui", `the episodes list shows ${JSON.stringify(list)}`);
+    else pass(`the episodes list is the player's, aimed at the TV (${list.aim}), with ${list.count} episodes and "${list.current}" marked`);
+    await phone.locator(".mp-episodes .kc-episode").nth(3).click();
+    const fourth = await until(async () => (await tv.page.evaluate(() => document.title + location.search + document.body.innerText)).includes("Superstore") && /S1 · E4|E4/.test(await phone.evaluate(() => document.querySelector('.kc-remote .mp-controls button[aria-label^="Episodes"]')?.getAttribute("aria-label") || "")), 10000);
+    if (!fourth) fail("remoteui", "choosing an episode in the list did not put it on the television");
+    else pass("choosing an episode puts it on the television");
+    await phone.click('.kc-remote .mp-controls button[aria-label^="Next episode"]');
+    const fifth = await until(async () => (await phone.evaluate(() => document.querySelector('.kc-remote .mp-controls button[aria-label^="Episodes"]')?.getAttribute("aria-label") || "")).includes("E5"), 10000);
+    await phone.waitForTimeout(1000);
+    await phone.click('.kc-remote .mp-controls button[aria-label^="Previous episode"]');
+    const fourthAgain = await until(async () => (await phone.evaluate(() => document.querySelector('.kc-remote .mp-controls button[aria-label^="Episodes"]')?.getAttribute("aria-label") || "")).includes("E4"), 10000);
+    if (!fifth || !fourthAgain) fail("remoteui", `Next episode reached E5 ${fifth}, Previous episode back to E4 ${fourthAgain}`);
+    else pass("Next episode and Previous episode move the television by an episode each");
+    await closeRemote();
+
+    // Several televisions: the picker, with one off; then the idle drawer of a television on Home.
+    const second = await open("/profile/remote", VIEWER, { hours: 6, client: TV_CLIENT, sid: `verify-ui-tv2-${stamp}`, device: "Bedroom TV" });
+    const third = await open("/profile/remote", VIEWER, { hours: 6, client: TV_CLIENT, sid: `verify-ui-tv3-${stamp}`, device: "Office TV" });
+    for (const other of [second, third]) {
+      const code = await readQr(other.page, ".kc-tvr__code", SofaScale);
+      const response = code && await fetch(base + "/api/me/screens", {
+        method: "POST", headers: { ...phoneAuth, "Content-Type": "application/json", "User-Agent": PhoneAgent },
+        body: JSON.stringify({ code: new URL(code).pathname.slice("/p/".length) }),
+      });
+      if (!response || !response.ok) { fail("remoteui", "a second television could not be paired"); return; }
+    }
+    await third.close();
+    await until(async () => (await pairedWith(phoneSid)).filter((s) => !s.connected).length === 1, 40000);
+    const open2 = await centre(".kc-remote-strip__open");
+    await finger.tap(open2.x, open2.y);
+    await phone.waitForSelector(".kc-remote", { timeout: 5000 });
+    await phone.click(".kc-remote__tv");
+    await phone.waitForSelector(".k-optlist", { timeout: 5000 });
+    await phone.waitForTimeout(600);
+    await shot("remoteui-12-screens.png");
+    const rows = await phone.evaluate(() => [...document.querySelectorAll(".k-optlist__row")].map((r) => ({
+      label: r.querySelector(".k-optlist__label")?.textContent, detail: r.querySelector(".k-optlist__detail")?.textContent, off: r.classList.contains("is-disabled"), on: r.classList.contains("is-on"),
+    })));
+    const byName = Object.fromEntries(rows.map((r) => [r.label, r]));
+    if (rows.length !== 3 || !byName["Verify TV"]?.on || byName["Bedroom TV"]?.detail !== "Nothing playing" || byName["Office TV"]?.detail !== "Off" || !byName["Office TV"]?.off)
+      fail("remoteui", `the picker lists ${JSON.stringify(rows)}`);
+    else pass("the picker lists the paired televisions: the one driven, one with nothing playing, one off and not to be chosen");
+    await phone.locator(".k-optlist__row", { hasText: "Bedroom TV" }).click();
+    await phone.waitForSelector(".kc-remote .k-empty", { timeout: 5000 }).catch(() => {});
+    await phone.waitForSelector(".kc-remote .kc-continue", { timeout: 10000 }).catch(() => {});
+    await phone.waitForTimeout(800);
+    await shot("remoteui-13-idle.png");
+    const idle = await phone.evaluate(() => ({
+      tv: document.querySelector(".kc-remote__tv")?.textContent, title: document.querySelector(".kc-remote .k-empty__title")?.textContent,
+      cards: document.querySelectorAll(".kc-remote .kc-continue").length, glyph: Boolean(document.querySelector(".kc-remote .kc-continue__play .lucide-tv")),
+    }));
+    if (idle.tv !== "Bedroom TV" || idle.title !== "Nothing playing" || idle.cards === 0 || !idle.glyph) fail("remoteui", `the idle drawer shows ${JSON.stringify(idle)}`);
+    else pass(`the idle drawer says Nothing playing and offers Continue watching (${idle.cards}), each card with the TV glyph`);
+    await phone.locator(".kc-remote .kc-continue").first().click();
+    const wentIn = await until(async () => /^\/r\//.test(await second.page.evaluate(() => location.pathname)), 12000);
+    if (!wentIn) fail("remoteui", "a Continue watching card on the idle drawer did not take the second television into a room");
+    else pass("a Continue watching card on the idle drawer is Watch on TV for that television");
+    await second.close();
+  } finally {
+    await fetch(base + `/api/me/screens/${tvSession.sid}`, { method: "DELETE", headers: phoneAuth });
+    await phoneContext.close();
+    await tv.close();
+  }
+}
+
+const checks = option("checks", "pages,heads,empty,overlays,back,player,remote,driving,remoteui,signin").split(",");
 try {
   if (checks.includes("pages")) for (const p of PAGES) if (!pageNames || pageNames.includes(p.name)) await walk(p);
   if (checks.includes("heads")) await heads();
@@ -1032,6 +1429,7 @@ try {
   if (checks.includes("player")) await player();
   if (checks.includes("remote")) await remote();
   if (checks.includes("driving")) await driving();
+  if (checks.includes("remoteui")) await remoteUi();
   if (checks.includes("signin")) await signIn();
 } finally {
   await browser.close();

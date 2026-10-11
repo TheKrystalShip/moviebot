@@ -19,7 +19,7 @@ import { chromium, devices as descriptors, webkit } from "playwright-core";
 import { DEFAULT_DEVICES, DEVICES } from "./devices.mjs";
 import { VIEWS } from "./views.mjs";
 import { inspect, unroll } from "./inspect.mjs";
-import { PEOPLE, VIEWER, memberToken, stage } from "./stage.mjs";
+import { PEOPLE, VIEWER, memberToken, stage, televisions } from "./stage.mjs";
 import { issuerIn } from "../issuer.mjs";
 
 const args = process.argv.slice(2);
@@ -84,9 +84,13 @@ async function browserFor(engine) {
 async function look(browser, device, view, staged) {
   const { defaultBrowserType, ...descriptor } = descriptors[DEVICES[device].descriptor];
   const context = await browser.newContext(descriptor);
+  // A view that drives a television is a phone paired with some of them, remote mode on.
+  const phoneSid = view.remote ? `verify-phone-${device}-${view.name}` : undefined;
+  if (view.remote) await staged.screens.pair(phoneSid, view.remote);
   if (!view.signedOut) {
     const person = PEOPLE[view.person || "viewer"];
-    await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), issuer.planted(person));
+    await context.addInitScript(({ key, value }) => localStorage.setItem(key, value), issuer.planted(person, phoneSid ? { sid: phoneSid } : {}));
+    if (view.remote) await context.addInitScript(() => localStorage.setItem("cinema:remote", "1"));
   }
   const page = await context.newPage();
   const errors = [];
@@ -114,6 +118,7 @@ async function look(browser, device, view, staged) {
   }
   result.faults.push(...errors.map((e) => `the page raised: ${e}`));
   await context.close();
+  if (view.remote) await staged.screens.unpair(phoneSid, view.remote);
   return result;
 }
 
@@ -156,7 +161,14 @@ const staged = flag("no-stage")
   : await stage(base, issuer);
 if (flag("no-stage")) {
   const titles = await (await fetch(base + "/api/titles", { headers: { Authorization: `Bearer ${staged.token}` } })).json();
-  staged.film = titles.find((t) => t.status === "ready") || titles[0];
+  const ready = titles.filter((t) => t.status === "ready");
+  staged.film = ready[0] || titles[0];
+  staged.onTv = ready[5];
+  staged.other = ready[7];
+  staged.episode = ready.find((t) => t.episode);
+  staged.screens = await televisions(base, issuer, staged.onTv, staged.episode);
+  const closed = staged.close;
+  staged.close = async () => { await staged.screens.close(); await closed(); };
 }
 
 const results = [];

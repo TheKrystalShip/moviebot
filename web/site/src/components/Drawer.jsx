@@ -110,6 +110,23 @@ function usePull(onPull) {
   };
 }
 
+let open = 0;
+
+/**
+ * Marks the page while a drawer is open, so what else sits at the bottom of the screen (the toasts)
+ * moves clear of it.
+ */
+function useOpenMark() {
+  React.useEffect(() => {
+    open += 1;
+    document.body.classList.add("has-drawer");
+    return () => {
+      open -= 1;
+      if (open === 0) document.body.classList.remove("has-drawer");
+    };
+  }, []);
+}
+
 /**
  * A drawer from the bottom edge, the full width of the screen, over a scrim: a phone's way of
  * opening a menu or a list. A press on the scrim, or Escape, closes it.
@@ -118,11 +135,15 @@ function usePull(onPull) {
  * the handle: pulled down it follows the finger, and let go far enough or fast enough it calls
  * `onPull`, which closes the drawer unless a drawer chooses otherwise by passing its own.
  *
+ * `theme` sets the colour theme the drawer is drawn in whatever the site's is, as the player's pages do:
+ * what is drawn from the player's controls is light on dark.
+ *
  * `contained` draws it inside the nearest positioned ancestor rather than over the page, which is
  * how the player keeps its menus inside its own frame (the frame is the screen on a phone, and the
  * Activity's whole view in Discord). Otherwise it is portalled over the page and the tab bar.
  */
-export function Drawer({ title, back, action, head, onClose, onPull, contained = false, label, className = "", role = "dialog", children }) {
+export function Drawer({ title, back, action, head, onClose, onPull, contained = false, theme, label, className = "", role = "dialog", children }) {
+  useOpenMark();
   React.useEffect(() => {
     const escape = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", escape);
@@ -135,7 +156,7 @@ export function Drawer({ title, back, action, head, onClose, onPull, contained =
     <>
       <div ref={pull.scrim} className={"kc-drawer-scrim" + (contained ? " is-contained" : "")} onClick={onClose} />
       <div ref={pull.panel} className={"kc-drawer" + (contained ? " is-contained" : "") + (className ? " " + className : "")}
-        role={role} aria-label={label || (typeof title === "string" ? title : undefined)}>
+        role={role} aria-label={label || (typeof title === "string" ? title : undefined)} data-theme={theme}>
         <div className="kc-drawer__top" {...pull.head}>
           <div className="kc-drawer__grabber" />
           {head || ((title || back || action) && (

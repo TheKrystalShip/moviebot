@@ -14,7 +14,10 @@ import { FollowButton } from "../components/FollowButton.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { DownloadMark, SeasonDownload, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
 import { EpisodeRow } from "../components/EpisodeRow.jsx";
-import { episodeRelease, openingEpisode, watchNow, watchOpening } from "../watchNow.js";
+import { episodeRelease, openingEpisode, openingRequest, watchNow, watchOpening } from "../watchNow.js";
+import { WatchOnTvActions, useDriving } from "../components/WatchOnTv.jsx";
+import { watchOnTv } from "../remoteWatch.js";
+import { setRemoteMode } from "../remote.js";
 import { useKeptShow } from "../offline/hooks.js";
 import { refreshShow } from "../offline/shows.js";
 import { Unreachable } from "./Offline.jsx";
@@ -53,6 +56,7 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
   const me = session && session.user;
   const online = useOnline();
   const saving = useOffersSaving();
+  const driving = useDriving();
   const sub = me && me.id;
   React.useEffect(() => {
     if (!fromDevice && fetched.data) void refreshShow(sub, fetched.data);
@@ -98,6 +102,12 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
     await watchOpening(s);
     setStarting(false);
   };
+  const watchFirstOnTv = async () => {
+    setStarting(true);
+    const request = await openingRequest(s);
+    if (request) await watchOnTv({ request, name: `${s.title} · ${episodeCode({ season: opening.season, number: opening.number })}`, art: s.backdropUrl || s.posterUrl });
+    setStarting(false);
+  };
   const years = s.firstYear ? `${s.firstYear}–${s.inProduction ? "" : s.lastYear || ""}` : null;
   const episodeCount = seasons.reduce((n, x) => n + x.episodes.length, 0);
 
@@ -141,13 +151,24 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
             <Credits film={{ creators: s.creators, personIds: s.personIds, cast: s.cast }} />
 
             <div className="kc-actions">
-              {play && (
+              {play && driving && (
+                <WatchOnTvActions titleId={play.titleId} sessionId={room && room.sessionId} at={play.positionSeconds}
+                  target={{ name: `${s.title} · ${episodeCode({ season: play.season, number: play.episode })}`, art: s.backdropUrl || s.posterUrl }} />
+              )}
+              {play && !driving && (
                 <WatchButton variant="primary" size="xl" icon={room ? "users" : "play"}
                   titleId={play.titleId} sessionId={room && room.sessionId} at={play.positionSeconds}>
                   {room ? `Join the room (${room.participants})` : resume ? "Resume" : "Watch"}
                 </WatchButton>
               )}
-              {!play && opening && (
+              {!play && opening && driving && (
+                <>
+                  <Button variant="primary" size="xl" icon="tv" disabled={starting || !online} onClick={watchFirstOnTv}>Watch on TV</Button>
+                  <Button variant="secondary" size="xl" icon="smartphone" disabled={starting || !online}
+                    onClick={() => { setRemoteMode(false); void watchFirst(); }}>Watch</Button>
+                </>
+              )}
+              {!play && opening && !driving && (
                 <Button variant="primary" size="xl" icon="play" disabled={starting || !online} onClick={watchFirst}>Watch</Button>
               )}
               {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}

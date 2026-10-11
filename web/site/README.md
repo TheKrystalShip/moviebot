@@ -594,6 +594,38 @@ several televisions connected the first is driven, and `chooseScreen` drives ano
 is the switch's state. `npm run verify:tv` drives a room from a phone with nothing on screen, and
 `node verify/resume.mjs` measures how quickly such a phone is live again after its page was away.
 
+The remote is a `Drawer` (`components/RemoteDrawer.jsx`), drawn by the site's own components and nothing
+redrawn: the download sheet's head, the player's scrub bar and control row, its episodes menu, `EmptyState`,
+`Rail` and the Continue watching card. While remote mode is on and a paired television is connected it is
+let down above the tab bar as its strip (the still, the television's name, what plays, Play or Pause);
+tapping the strip or pushing it up opens it, pulling its handle down (`Drawer`'s `onPull`) collapses it
+again, and swiping the strip sideways turns remote mode off with Undo in a toast, unpairing nothing.
+Open, its head names the television, which opens the picker (an option list, "Nothing playing" or "Off"
+for one that is not connected), and holds the Remote switch. Below are the still, what plays, and the
+player's scrub bar (with its preview) and controls: Play or Pause, back and forward ten seconds, and for an
+episode previous, next and Episodes, the player's own list aimed at the television. A film has no
+episode controls. With nothing playing it shows "Nothing playing" and Continue watching, each card Watch
+on TV. The still takes the player's touch handling (`player/Gestures.jsx` with `levels: false`): a tap in
+the middle plays or pauses, a double tap at a side skips, a sweep sideways scrubs and the room moves on
+release, vertical sweeps do nothing; a gesture the television took vibrates the phone where
+`navigator.vibrate` exists. Skip intro stands on the still when the player would offer it
+(`player/stretches.js`). `remoteFilm.js` reads what the television holds (manifest, the episodes either
+side, the preview sheet) for the drawer.
+
+A toast sits at the top of the screen while any drawer is open (`body.has-drawer`) and above the strip
+while it is let down, so a toast is never under the thing it is about.
+
+With remote mode on and a television connected, a title's main button is Watch on TV (`remoteWatch.js`)
+and Watch with the phone glyph beside it, which turns remote mode off and plays on the phone. What the
+television is doing decides how a title gets there: in no room, the phone picks the room and calls
+`WatchOnScreen`, the television navigates to the room's address as the site's Watch writes it (so its Back
+returns), and the phone takes the screen's next announcement showing that room and title as the answer
+and says the TV did not answer when none comes in a few seconds; in a room holding nothing, `LoadTitle`;
+already on the title, nothing; mid-film, the phone asks first (`components/ReplaceSheet.jsx`), and in the
+closing stretch (`inClosingStretch`) it replaces at once. A title put on plays: a film arriving in a
+paused room is played once the remote hears the room hold it. A film the library lacks goes through Watch
+now with the television's room, or the phone's own for a television in none.
+
 ## Notifications
 
 The bell lists what the API told this person (`src/notifications.js`, read every minute and whenever

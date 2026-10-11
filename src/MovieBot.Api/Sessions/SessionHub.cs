@@ -139,6 +139,21 @@ public sealed class SessionHub(
     }
 
     /// <summary>
+    /// Tells the screen this remote drives to open <paramref name="room"/>, with <paramref name="titleId"/>
+    /// on from <paramref name="startSeconds"/> where the phone knows the film, for a screen that is in no
+    /// room. The screen is the remote's binding and the person the token's; a screen in a room is moved
+    /// through that room instead.
+    /// </summary>
+    [RemoteAllowed]
+    public async Task WatchOnScreen(string room, string? titleId, double? startSeconds)
+    {
+        Person("Sign in to drive a screen.");
+        if (!Context.Items.ContainsKey(RemoteGate.ItemKey)) throw new HubException("Only a remote puts a film on its screen.");
+        if (await screens.WatchAsync(Context.ConnectionId, room, titleId, startSeconds) is { } refusal)
+            throw new HubException(refusal);
+    }
+
+    /// <summary>
     /// Asks to be let into a room that is private to this person. True when there is no need to ask
     /// and the room can be joined now; otherwise the page is answered with <c>KnockAnswered</c> once
     /// somebody in the room decides, and stops asking when it closes.

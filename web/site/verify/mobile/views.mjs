@@ -31,6 +31,14 @@ const scrollTo = (fraction) => async (page) => {
   await page.waitForTimeout(400);
 };
 
+/** Opens the remote drawer by tapping its strip. */
+const openRemote = async (page) => {
+  await page.waitForSelector(".kc-remote-strip", { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelector(".kc-remote-strip .kc-dl-head__name")?.textContent, null, { timeout: 10000 });
+  await tap(".kc-remote-strip__open", ".kc-remote")(page);
+  await page.waitForTimeout(800);
+};
+
 export const VIEWS = [
   { name: "home", path: () => "/", ready: ".showcase-card", full: true },
   { name: "home-middle", path: () => "/", ready: ".showcase-card", act: scrollTo(0.5) },
@@ -56,6 +64,31 @@ export const VIEWS = [
   { name: "profile-playback", path: () => "/profile/playback", ready: ".kc-page", full: true },
   { name: "about", path: () => "/about", ready: ".kc-about", full: true },
   { name: "assistant", path: () => "/", ready: ".tabbar", act: tap(".tabbar__tab:nth-child(4)", ".assistant-dock--open") },
+  // The phone as a remote: paired with the staged televisions (stage.mjs), remote mode on.
+  { name: "remote-strip", remote: ["living"], path: () => "/", ready: ".kc-remote-strip .kc-dl-head__name", act: (page) => page.waitForTimeout(800) },
+  { name: "remote-open", remote: ["living"], path: () => "/", ready: ".kc-remote-strip", act: openRemote },
+  { name: "remote-episode", remote: ["kitchen"], path: () => "/", ready: ".kc-remote-strip", act: openRemote },
+  {
+    name: "remote-episodes", remote: ["kitchen"], path: () => "/", ready: ".kc-remote-strip",
+    act: async (page) => { await openRemote(page); await tap('.kc-remote .mp-controls button[aria-label^="Episodes"]', ".mp-episodes .kc-episode")(page); await page.waitForTimeout(600); },
+  },
+  {
+    name: "remote-screens", remote: ["living", "bedroom"], path: () => "/", ready: ".kc-remote-strip",
+    act: async (page) => { await openRemote(page); await tap(".kc-remote__tv", ".k-optlist")(page); },
+  },
+  {
+    name: "remote-idle", remote: ["bedroom"], path: () => "/", ready: ".kc-remote-strip",
+    act: async (page) => { await openRemote(page); await page.waitForSelector(".kc-remote .kc-continue", { timeout: 10000 }); await page.waitForTimeout(600); },
+  },
+  { name: "remote-film", remote: ["living"], path: (s) => "/movies/" + encodeURIComponent(s.other.id), ready: ".kc-title .kc-actions .k-btn", full: true },
+  {
+    name: "remote-replace", remote: ["living"], path: (s) => "/movies/" + encodeURIComponent(s.other.id), ready: ".kc-title .kc-actions .k-btn",
+    act: async (page) => {
+      await page.waitForSelector(".kc-remote-strip .kc-dl-head__name", { timeout: 10000 });
+      await page.waitForTimeout(800);
+      await tap(".kc-title .kc-actions .k-btn--primary", ".kc-dl-sheet")(page);
+    },
+  },
   {
     name: "player", person: "player", path: (s) => `/r/verify-player?title=${encodeURIComponent(s.film.id)}`, ready: "video",
     act: async (page) => {

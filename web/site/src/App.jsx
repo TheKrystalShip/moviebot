@@ -34,6 +34,8 @@ import { BellNavItem } from "./components/Bell.jsx";
 import { PageStage } from "./components/PageStage.jsx";
 import { Trail } from "./components/Trail.jsx";
 import { CallBar } from "./components/CallBar.jsx";
+import { RemoteDrawer } from "./components/RemoteDrawer.jsx";
+import { ReplaceSheet } from "./components/ReplaceSheet.jsx";
 import { activityRoom, inActivity } from "./discord/launch.js";
 import { api } from "./api.js";
 import { onTv } from "./tv/tv.js";
@@ -294,6 +296,8 @@ function Frame({ session, route }) {
         <PageStage route={route} render={(r) => <Reachable route={r} />} above={(r) => <Trail route={r} />} onShown={toTop} />
         <SiteFooter />
       </AppShell>
+      {!inActivity && <RemoteDrawer />}
+      {!inActivity && <ReplaceSheet />}
       <Toasts />
       <SignOutDialog />
     </>

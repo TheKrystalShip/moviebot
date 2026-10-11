@@ -13,6 +13,7 @@
  * `remote.js` decides which screen is driven and when; this holds the connection and the commands.
  */
 
+import React from "react";
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
 import { holdPersonConnection } from "./personConnection.js";
 import { ServerClock } from "./player/engine/session/clock.ts";
@@ -20,6 +21,7 @@ import { derivePosition } from "./player/engine/session/hub.ts";
 import { RevisionGate } from "./player/engine/session/revision.ts";
 
 const ProbeMs = 30_000;
+const PositionTickMs = 250;
 
 const nothing = { screenId: null, live: false, state: null };
 
@@ -107,10 +109,31 @@ export function currentRemoteRoom() {
   return roomStore.getState();
 }
 
+/** Calls `listener` whenever the screen driven, whether the room can be heard from or the room's state changes. Returns the way to stop. */
+export function subscribeRemoteRoom(listener) {
+  return roomStore.subscribe(listener);
+}
+
 /** Where the room is now, derived from its anchor and the server's clock, or null while it holds no state. */
 export function remotePosition() {
   const { state, live } = roomStore.getState();
   return state && live ? derivePosition(state, clock.now()) : state ? state.positionSeconds : null;
+}
+
+/**
+ * Where the room is now, redrawn every quarter of a second while the film plays and can be heard from.
+ * A paused room, or one that cannot be heard from, is the place it was last known to be at.
+ */
+export function useRemotePosition() {
+  const { state, live } = useStore(roomStore, (room) => room);
+  const [, redraw] = React.useReducer((n) => n + 1, 0);
+  const running = Boolean(state && live && !state.paused);
+  React.useEffect(() => {
+    if (!running) return undefined;
+    const timer = window.setInterval(redraw, PositionTickMs);
+    return () => window.clearInterval(timer);
+  }, [running]);
+  return remotePosition();
 }
 
 function send(method, ...args) {
@@ -124,6 +147,10 @@ function here() {
   return at;
 }
 
+/** How long a skip is taken from where the last one was heading, rather than from where the room has got to. */
+const SkipChainMs = 1500;
+let heading = null;
+
 /**
  * What a remote asks of the room. Each is intent, answered by the state the server decided, which the
  * room's push brings back like everybody's. A position the room is at is the derived one, so a pause
@@ -133,10 +160,22 @@ export const roomCommands = {
   play: async () => send("Play", here()),
   pause: async () => send("Pause", here()),
   seek: (toSeconds) => send("Seek", Math.max(0, toSeconds)),
-  /** Moves the room by `bySeconds` from where it is now, forward or back. */
-  skip: async (bySeconds) => send("Seek", Math.max(0, here() + bySeconds)),
+  /**
+   * Moves the room by `bySeconds` from where it is now, forward or back. A skip pressed again before the
+   * room has answered the last is measured from where that one was going: the room's own position is a
+   * round trip behind, and measuring from it would make the second press undo the first.
+   */
+  skip: async (bySeconds) => {
+    const now = Date.now();
+    const from = heading && now < heading.until ? heading.to : here();
+    const to = Math.max(0, from + bySeconds);
+    heading = { to, until: now + SkipChainMs };
+    return send("Seek", to);
+  },
   loadTitle: (titleId, startSeconds = null) => send("LoadTitle", titleId, startSeconds),
   next: () => send("Next"),
   previous: () => send("Previous"),
   playEpisode: (season, number) => send("PlayEpisode", season, number),
+  /** Tells a screen that is in no room to open `room`, with `titleId` on from `startSeconds` where there is one. */
+  watchOnScreen: (room, titleId = null, startSeconds = null) => send("WatchOnScreen", room, titleId, startSeconds),
 };

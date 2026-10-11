@@ -4,6 +4,36 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.22.0] - 2026-10-11
+
+### Added
+
+- **The phone's remote.** While remote mode is on and a paired television is connected, a drawer is let
+  down above the tab bar as its strip (the still, the television's name, what plays, Play or Pause);
+  tapping it or pushing it up opens it, pulling its handle down collapses it, and swiping it sideways
+  turns remote mode off with Undo. Open, it names the television (which opens a picker of the paired ones,
+  "Off" for one not connected), holds the Remote switch and shows the still with Skip intro, what plays, and
+  the player's own scrub bar with its preview and its controls: Play or Pause, back and forward ten
+  seconds, and for an episode previous, next and Episodes, the player's list aimed at the television. The
+  still takes the player's touch handling (tap, double tap, sideways sweep; vertical sweeps off) and a
+  gesture the television took vibrates the phone. With nothing playing it offers Continue watching, each
+  card Watch on TV. Measured with real touch events (`npm run verify:tv`, check `remoteui`); a real
+  thumb and iOS Safari are not.
+- **Watch on TV.** With remote mode on a title's main button is Watch on TV, with Watch (phone glyph)
+  beside it, which turns remote mode off. `WatchOnScreen(room, titleId, startSeconds)` on a remote's
+  connection tells a television in no room to open the room, as the site's Watch writes the address, so
+  its Back returns; a television in a room holding nothing is loaded, one already on the title is left
+  alone, one mid-film is asked about first on the phone and one in the closing stretch is replaced at
+  once. A title put on plays. A film the library lacks goes through Watch now with the television's room.
+  The phone says the television did not answer when its next announcement does not show the room.
+
+### Fixed
+
+- **A paused room whose second seek arrived during the first stayed where the first left it.** The
+  player dropped a seek that arrived while another was running, and a paused room has no drift
+  correction. A paused playhead not where the room stopped is now seeked there. A skip pressed again
+  before the room answers the last is measured from where that one was going. Site 0.71.0.
+
 ## [3.21.0] - 2026-10-11
 
 ### Changed

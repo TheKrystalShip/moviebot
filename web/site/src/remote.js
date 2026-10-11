@@ -55,12 +55,16 @@ const pairedStore = createStore(null);
 let held = null;
 
 /** The screen chosen to be driven, when the person chose among several. */
-let chosen = null;
+const chosenStore = createStore(null);
 
 /** The screen this phone is a remote of: the chosen one while it is connected, else the first that is. */
-function drivenScreen() {
-  const connected = (pairedStore.getState() || []).filter((screen) => screen.connected);
+function drivenIn(screens, chosen) {
+  const connected = (screens || []).filter((screen) => screen.connected);
   return connected.find((screen) => screen.id === chosen) || connected[0] || null;
+}
+
+function drivenScreen() {
+  return drivenIn(pairedStore.getState(), chosenStore.getState());
 }
 
 function drive() {
@@ -74,8 +78,51 @@ modeStore.subscribe(drive);
 
 /** Drives this screen rather than the first that is connected, for as long as it is paired and connected. */
 export function chooseScreen(id) {
-  chosen = id;
+  chosenStore.setState(id);
   drive();
+}
+
+/** The screen this phone drives now, and whether it is the remote of any: remote mode on and a paired screen connected. */
+export function useDrivenScreen() {
+  const screens = useStore(pairedStore, (s) => s);
+  const chosen = useStore(chosenStore, (id) => id);
+  const on = useStore(modeStore, (m) => m);
+  return on ? drivenIn(screens, chosen) : null;
+}
+
+/** The same, once, for code that is not a component. */
+export function currentDrivenScreen() {
+  return modeStore.getState() ? drivenScreen() : null;
+}
+
+/** Whether the remote's drawer is open, rather than let down as its strip. */
+const openStore = createStore(false);
+
+export function setRemoteOpen(open) {
+  openStore.setState(open);
+}
+
+export function useRemoteOpen() {
+  return [useStore(openStore, (o) => o), setRemoteOpen];
+}
+
+/**
+ * Resolves true when a screen of the person's (`id`) is shown as `matches` says, now or within `ms`, else
+ * false: the answer a phone takes for a command the screen carries out itself is the screen's next
+ * announcement of how it stands.
+ */
+export function whenScreen(id, matches, ms) {
+  const shown = () => (pairedStore.getState() || []).some((screen) => screen.id === id && matches(screen));
+  if (shown()) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const done = (answer) => {
+      window.clearTimeout(timer);
+      stop();
+      resolve(answer);
+    };
+    const stop = pairedStore.subscribe(() => { if (shown()) done(true); });
+    const timer = window.setTimeout(() => done(false), ms);
+  });
 }
 
 const put = (screen) => pairedStore.setState((screens) => [...(screens || []).filter((s) => s.id !== screen.id), screen]);
@@ -125,6 +172,7 @@ export async function pair(code) {
   put(screen);
   hold();
   setRemoteMode(true);
+  setRemoteOpen(true);
   return screen;
 }
 

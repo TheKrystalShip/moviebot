@@ -165,6 +165,8 @@ and does nothing that would be.
   letting go lands, and nothing moves until it does. A sweep up or down at the right is this
   viewer's volume, and at the left how bright the picture is drawn. Before the film is in the
   element a touch only shows or hides what is over the frame.
+  The phone's remote reads the same gestures on its still with `levels: false`, which makes the
+  vertical sweeps nothing, and shares `stretches.js` (the closing stretch, the skip offer) with the player.
 - **A remote on a television** (`engine/media/remote.ts`, `Environment.tv`). The first press of OK,
   Up or Down while the controls are away only brings them back, since waking the screen should not
   move the room; the play button holds focus once the film is ready, so OK plays from the first

@@ -275,7 +275,8 @@ Remote switch in its head; the still with the player's Skip intro; the title; an
 player's own scrub bar and control row (Play or Pause, back and forward ten seconds, previous and next
 episode, Episodes, Subtitles, Audio and Quality). Audio is there only when the film has more than one
 audio track, as in the player. Episodes, Subtitles, Audio and Quality open the player's own drawers,
-aimed at the TV, each marking what the TV reports it has chosen (canvas boards 19 to 22). With remote mode on, a title's main button is Watch on TV, with Watch beside it.
+aimed at the TV, each marking what the TV reports it has chosen (canvas boards 19 to 22); Subtitles, Audio
+and Quality are Step 6's. With remote mode on, a title's main button is Watch on TV, with Watch beside it.
 
 Gestures, each a shortcut for a control on screen:
 
@@ -327,18 +328,40 @@ Questions:
   128px close; 60px at 0.75px/ms closes and at 0.375px/ms stays open; 10px at 0.6px/ms stays open.
   Not measured: what a real thumb's speed and travel are, which decides whether 0.5px/ms and the
   percentage feel right. The constants are named at the top of `Drawer.jsx` for the phone to settle.
-- Where does a toast sit while the drawer is open, given a phone's toasts sit just above the tab bar?
+- A toast sits at the top of the screen while a drawer is open (canvas board 3), set by `body.has-drawer`,
+  which every `Drawer` raises while it is mounted, so the toast is never under the drawer it reports on.
+  While the strip is let down the toasts stand above it, and with no drawer they sit where they always did.
+- A rapid second seek that reached the television while its first was still running was dropped, and a
+  paused room has no drift correction, so the television stayed where the first left it (forward ten then
+  back ten, measured: the room said 1.4 s and the player 11.4 s). The player's drift check now seeks a paused
+  playhead to where the room stopped. A skip pressed again before the room answers the last is measured
+  from where that one was going, since the room's position is a round trip behind.
+- Measured with real touch events in Chromium, a phone context against the scratch site and a television
+  context in a room (`npm run verify:tv`, check `remoteui`): the strip standing on the tab bar; a tap
+  opening the drawer; Play, Pause and the ten-second buttons moving the television; a tap in the middle of
+  the still, a double tap at the right (one skip when the taps stop) and a sweep (the preview on the scrub
+  bar, the television moving only when the finger lifts); a vertical sweep drawing nothing; the handle
+  pulled down collapsing to the strip and the strip pushed up opening it; the strip swiped away turning
+  remote mode off with Undo and unpairing nothing; Watch on TV with the television on Home (it navigates
+  into a room and plays, its Back returning), on its own title (left alone, the remote shown), mid-film
+  (the question, Keep watching and Watch) and in the closing stretch (at once); a film with no episode
+  controls and an episode with them, its list marking the episode playing, choosing an episode, Next and
+  Previous; the picker with a television off; and the idle drawer's card taking a second television into a
+  room. Not measured: a real thumb, whether a vibration is felt, iOS Safari's reading of `touch-action:
+  none` on the strip.
+- Built (3.22.0, site 0.71.0). `RemoteDrawer.jsx` is the strip and the drawer, `remoteFilm.js` what the
+  television holds, `remoteWatch.js` Watch on TV with `ReplaceSheet.jsx`; `WatchOnScreen` and `Watch` are
+  on the hub (`ScreenPresence.WatchAsync`) and `screen.js` navigates the television.
 
 ### Step 6: commands to the screen alone
 
 Some of what the remote changes is the TV's own and never the room's: the subtitle track and how
 subtitles look, the audio track and quality. These go to the screen's person connection alone, never
-through `RoomControls`, the room's state or its groups. So does Watch on TV when the TV is not in the
-player, which takes it there. Three messages carry it: the phone sends `ChooseOnScreen(choice)` and
-`WatchOnScreen(room, titleId, start)` on its remote connection (`[RemoteAllowed]`), neither naming a
-screen or a person: the screen is the remote's binding and the person the token's, and the pairing is
-checked again on every act. The server sends the screen `Choose` and `Watch`. The screen sends
-`ReportChoices(report)` back, refused from anything but a screen.
+through `RoomControls`, the room's state or its groups. Two messages carry it: the phone sends
+`ChooseOnScreen(choice)` on its remote connection (`[RemoteAllowed]`), naming neither a screen nor a
+person: the screen is the remote's binding and the person the token's, and the pairing is checked again on
+every act. The server sends the screen `Choose`. The screen sends `ReportChoices(report)` back, refused
+from anything but a screen.
 
 Decided:
 
@@ -353,16 +376,14 @@ Decided:
 - The TV applies and saves a choice itself, so it stays the one writer of its settings, as today, and a
   change of style shows on the TV at once. While style changes keep arriving the TV shows its sample
   line, and lets it lapse a few seconds after the last.
-- The phone picks the room id for Watch on TV, as the site's Watch does, so a double press opens one
-  room.
 
 Answers:
 
 - Nothing outside the player's own menus can set any of these today: the player's room lives inside
   the `Player` component, and preferences and per-title tracks are read once when a film starts. The
   seam is a small engine module holding the active player room, registered on start and cleared on
-  dispose, that applies a choice and publishes the report; `screen.js` hands it `Choose` and navigates on
-  `Watch`. The screen's person connection carries both because it is open on every page, which the
+  dispose, that applies a choice and publishes the report; `screen.js` hands it `Choose`. The screen's person
+  connection carries it because it is open on every page, which the
   room connection, open only in the player, is not.
 - The player's own setters trust their input: an unknown subtitle id turns subtitles off and is kept as
   the title's choice, and an unknown audio id is kept the same way. The checks go inside those setters,
@@ -378,14 +399,7 @@ Answers:
   one. It rides on `ScreenView` to the paired phones alone, and is never in the room's state, the roster,
   a log line or the database. Without it the phone's labels would be guesses: the tracks live in the
   TV's storage and the height playing is a measurement only the TV has.
-- Watch on TV: a TV in no room is sent `WatchOnScreen` and opens the room's address with the title and
-  start, as the site's Watch does, so its Back returns to where it was, and the remote follows it in. A
-  TV in a room holding nothing gets `LoadTitle`. A TV already on that title is left alone. A TV
-  mid-film asks first on the phone; in the closing stretch (the last chapter when it is the credits,
-  else the last two minutes, `inClosingStretch`, moved to a module the phone shares) it replaces at
-  once. A film not in the library is asked for through `POST /api/watch` with the phone's room first.
-  `WatchOnScreen` is refused when the screen is not connected or is already in a room; `ChooseOnScreen`
-  when it is in none.
+- `ChooseOnScreen` is refused when the screen is in no room.
 - A message reaches the TV app behind the Fire TV launcher: measured on the Xiaomi (Fire OS 8.1.8.2),
   the screen stayed connected and a message to its group arrived within 25 ms at one, five and fifteen
   minutes in the background, the page's timers and socket running throughout. Not measured: a TV that

@@ -41,6 +41,9 @@ function signed(seconds) {
  * one, and at the left how bright the picture is drawn; both are this viewer's own and move nobody
  * else.
  *
+ * A surface that has no volume or brightness of its own, the phone's remote, passes `levels: false`
+ * and has its vertical sweeps read as nothing.
+ *
  * Where the film is not this viewer's to move (`seekable` false, a guest's), a tap anywhere only
  * shows or hides the controls, and only the sweeps up and down are read.
  *
@@ -140,6 +143,8 @@ export function useStageGestures(props) {
           t.axis = p.duration > 0 && p.seekable !== false ? "seek" : "none";
           t.from = p.position;
           if (t.axis === "seek") p.onHold(true);
+        } else if (p.levels === false) {
+          t.axis = "none";
         } else if (t.zone === "right" && p.volumeSettable) {
           t.axis = "volume";
           t.from = p.volume;
