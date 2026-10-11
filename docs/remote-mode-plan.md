@@ -355,57 +355,52 @@ Questions:
   television holds, `remoteWatch.js` Watch on TV with `ReplaceSheet.jsx`; `WatchOnScreen` and `Watch` are
   on the hub (`ScreenPresence.WatchAsync`) and `screen.js` navigates the television.
 
-### Step 6: commands to the screen alone
+### Step 6: the TV's own settings, held by the API
 
-Some of what the remote changes is the TV's own and never the room's: the subtitle track and how
-subtitles look, the audio track and quality. These go to the screen's person connection alone, never
-through `RoomControls`, the room's state or its groups. Two messages carry it: the phone sends
-`ChooseOnScreen(choice)` on its remote connection (`[RemoteAllowed]`), naming neither a screen nor a
-person: the screen is the remote's binding and the person the token's, and the pairing is checked again on
-every act. The server sends the screen `Choose`. The screen sends `ReportChoices(report)` back, refused
-from anything but a screen.
+Some of what the remote changes is never the room's: the subtitle track, how subtitles look, the audio
+track and quality. Each is a record the API holds, and the phone and the TV read the same one. The phone
+writes it, the API checks it against the film and keeps it, and pushes the change to the person's
+connections; a TV playing that film applies what the API now holds. The TV's own menus write the same
+way. The TV reports nothing back, so the phone and the TV cannot disagree.
 
 Decided:
 
-- A choice from the phone is saved as the account's default, as the TV's own menus save it: subtitle
-  style and quality follow the person to every device, the subtitle and audio track stay the TV's, per
-  title.
+- Subtitle style and quality are the account's preferences (`/api/me/preferences`), as they are today: a
+  change from the phone or the TV is the account's default.
+- The subtitle track and the audio track are kept per person and per film in `moviebot.db`, in place of
+  each device's own storage, and every device the person watches that film on uses them. Two of the
+  person's devices on the same film share its tracks.
+- The quality the remote shows is the setting, Auto or a fixed height, never the height playing: that is
+  a measurement only the TV's player has.
+- Subtitles are chosen by track, never by language: a film can carry several tracks in one language. A
+  language only decides which track a film starts on when the person has chosen none for it, which stays
+  in Profile's Playback.
 - The remote's control row has Audio, shown only when the film has more than one audio track.
-- Subtitles are chosen by track, never by language: a film can carry several tracks in one language.
-  A language only decides which track a film starts on, which stays in Profile's Playback.
-- A command has no answer of its own. The screen's next report is the answer, and the phone says the TV
-  did not answer when none comes within a few seconds.
-- The TV applies and saves a choice itself, so it stays the one writer of its settings, as today, and a
-  change of style shows on the TV at once. While style changes keep arriving the TV shows its sample
-  line, and lets it lapse a few seconds after the last.
+- The API refuses what the film does not have: a subtitle or audio id its manifest does not list, a
+  quality that is neither Auto nor one of its rungs, a style outside the ranges `Preferences` keeps. The
+  player's own setters check what arrives the same way, since today an unknown subtitle id turns
+  subtitles off and is kept as the film's choice, and an unknown audio id is kept likewise.
+- While style changes keep arriving the TV shows its sample line, and lets it lapse a few seconds after
+  the last.
 
 Answers:
 
-- Nothing outside the player's own menus can set any of these today: the player's room lives inside
-  the `Player` component, and preferences and per-title tracks are read once when a film starts. The
-  seam is a small engine module holding the active player room, registered on start and cleared on
-  dispose, that applies a choice and publishes the report; `screen.js` hands it `Choose`. The screen's person
-  connection carries it because it is open on every page, which the
-  room connection, open only in the player, is not.
-- The player's own setters trust their input: an unknown subtitle id turns subtitles off and is kept as
-  the title's choice, and an unknown audio id is kept the same way. The checks go inside those setters,
-  so the player's menus are covered as well as the remote: a choice must name the film the TV has
-  loaded, the player must be ready, a subtitle or audio id must be one the manifest lists (a subtitle
-  the TV does not know yet is looked for once in a fresh manifest, since one just fetched reaches the TV
-  a moment later), a quality must be Auto or one of the film's own rungs, and a style is held to the
-  API's ranges. A choice that fails applies nothing and the report stays as it was; the TV shows no
-  notice over a film people are watching.
-- The phone shows the TV's current choices, so the screen reports them: the title, the subtitle and
-  audio ids, the chosen quality and the height playing. It is sent when it changes, a second after the
-  last change, when the screen connects, and when it gains its first paired phone, and only while it has
-  one. It rides on `ScreenView` to the paired phones alone, and is never in the room's state, the roster,
-  a log line or the database. Without it the phone's labels would be guesses: the tracks live in the
-  TV's storage and the height playing is a measurement only the TV has.
-- `ChooseOnScreen` is refused when the screen is in no room.
+- Nothing outside the player's own menus changes these on a playing TV today: the player's room lives
+  inside the `Player` component, and preferences and per-film tracks are read once when a film starts.
+  The seam is a small engine module holding the active player room, registered on start and cleared on
+  dispose, that applies a change the API pushes for the film it has loaded.
 - A message reaches the TV app behind the Fire TV launcher: measured on the Xiaomi (Fire OS 8.1.8.2),
   the screen stayed connected and a message to its group arrived within 25 ms at one, five and fifteen
   minutes in the background, the page's timers and socket running throughout. Not measured: a TV that
-  sleeps on its own, or Fire OS ending the app; the phone's "the TV did not answer" covers both.
+  sleeps on its own, or Fire OS ending the app.
+
+Questions:
+
+- Where the push goes: the person's group reaches every device showing the film, which per-person
+  tracks call for; whether anything should reach only the screen.
+- What a guest keeps: a guest has no account, so whether their tracks stay in their own storage.
+- How a phone's label learns the current state when it opens the remote: read from the API's records
+  for the person and the film, with the push keeping it current.
 
 ## 5. Testing
 
