@@ -22,8 +22,8 @@
 
 /* The sheet. On a phone the drawer reaches nearly to the top, its body scrolling between a fixed head
    and foot. */
-.kc-drawer.kc-dl-drawer { max-height: calc(100% - 52px); padding: 0; overflow: hidden; background: var(--surface-1); border-radius: 12px 12px 0 0; }
-.kc-dl-drawer .kc-drawer__grabber { width: 40px; height: 5px; margin: 8px auto 0; }
+.kc-drawer.kc-dl-drawer { max-height: calc(100% - 52px); padding: 0; overflow: hidden; background: var(--surface-1); }
+.kc-dl-drawer .kc-drawer__top { min-height: 0; padding-top: 0; }
 .kc-dl-head { flex-shrink: 0; display: flex; gap: 12px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-subtle); }
 .kc-dl-head__still {
   flex-shrink: 0; width: 72px; aspect-ratio: 16 / 9; object-fit: cover;

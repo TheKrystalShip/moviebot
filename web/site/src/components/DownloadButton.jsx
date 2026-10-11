@@ -493,7 +493,7 @@ function Sheet({ head, eyebrow, tone, sub, onClose, canClose = true, foot, class
     );
   }
   return (
-    <Drawer onClose={close} label={label} className={"kc-dl-sheet kc-dl-drawer " + className}>
+    <Drawer onClose={close} label={label} className={"kc-dl-sheet kc-dl-drawer " + className} head={(
       <div className="kc-dl-head">
         {head.still && <img className={"kc-dl-head__still" + (head.portrait ? " is-portrait" : "")} src={head.still} alt="" />}
         {top}
@@ -501,6 +501,7 @@ function Sheet({ head, eyebrow, tone, sub, onClose, canClose = true, foot, class
           <Icon name="x" size={18} />
         </button>
       </div>
+    )}>
       <div className="kc-dl-body">{children}</div>
       {foot && <div className="kc-dl-foot">{foot}</div>}
     </Drawer>
@@ -781,7 +782,7 @@ function RemoveSheet({ titleId, head, standing, onClose, onKeep }) {
     );
   }
   return (
-    <Drawer onClose={() => { if (!busy) onClose(); }} label="Remove download" role="alertdialog" className="kc-dl-sheet kc-dl-drawer kc-dl-remove">
+    <Drawer onClose={() => { if (!busy) onClose(); }} label="Remove download" role="alertdialog" className="kc-dl-sheet kc-dl-drawer kc-dl-remove" head={(
       <div className="kc-dl-head kc-dl-head--remove">
         <span className="kc-dl-remove__icon"><Icon name="trash-2" size={20} /></span>
         <span className="kc-dl-head__text">
@@ -789,6 +790,7 @@ function RemoveSheet({ titleId, head, standing, onClose, onKeep }) {
           {what}
         </span>
       </div>
+    )}>
       <div className="kc-dl-foot">{foot}</div>
     </Drawer>
   );

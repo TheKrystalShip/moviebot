@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.21.0] - 2026-10-11
+
+### Changed
+
+- **Every drawer on the site is pulled down by its head.** `Drawer`'s head, the tab, the title and
+  its actions (or a `head` of its own, as the download sheet's), follows the finger down and, let go
+  past 30% of the drawer's height (between 40px and 120px) or at 0.5px/ms, calls `onPull`, which
+  closes it unless the drawer passes its own; shorter, it settles back open. The head holds
+  `touch-action: none` and the drawer `overscroll-behavior: contain`, so a pull starts no browser
+  scroll or pull to refresh and a body's scrolling passes nothing on. Reduced motion settles at once.
+  Drawers have square corners, are fully opaque (they were 96%, letting the page show through), and
+  wear a 40x6 tab along the inside of the top edge, `--border-strong` at rest and teal under a pointer
+  or while held; the download sheet's drawer takes the same tab and corners. The assistant dock's
+  resize handle is the same tab, standing, from krystal-ui 0.25.0. Measured with real touch events
+  in Chromium (`npm run verify:pull`); the thumb's own speed and the phones' pull to refresh are not
+  measured. Site 0.70.0.
+
 ## [3.20.0] - 2026-10-11
 
 ### Added

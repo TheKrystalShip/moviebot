@@ -16,6 +16,7 @@ npm run build      # -> dist/; scripts/build-player.sh installs it into the API'
 npm run verify     # the player in a real browser, against a running API and dev server
 npm run verify:routes  # every address, cold and by its flows, against a scratch site (verify/routes.mjs)
 npm run verify:mobile  # every page on iPhones and Galaxies, against a scratch site (verify/mobile/)
+npm run verify:pull    # a drawer pulled by its head with real touch events, against a scratch site (verify/mobile/pull.mjs)
 npm run verify:pwa     # installable, and the service worker keeps only what it may (verify/pwa.mjs)
 npm run verify:tv      # every page driven by a remote's keys alone, against a scratch site (verify/tv.mjs)
 npm run verify:offline # Download of a whole film and of one still being made, and the installed app with no connection and with the API down, against a scratch site (verify/saving.mjs, verify/growing.mjs, verify/offline.mjs)
@@ -174,6 +175,17 @@ which opens the dock above the bar rather than a page, and Me (`/profile`, lit o
 view. The tab of the page already open scrolls it back to its top. The
 pages no tab names are linked from the footer every page ends with. A television has neither and
 gets around by its own bar (below).
+
+Every menu, list and sheet a phone opens from the bottom edge is a `Drawer`: square-cornered, fully
+opaque, with a tab lying along the inside of its top edge, the same tab the assistant dock's resize
+handle stands as along the inside of its left edge (`--border-strong` at rest, teal under a pointer or
+while held). The drawer's whole head, the tab, its title and its actions, or a `head` of its own as
+the download sheet's, is the handle: pulled down it follows the finger, and let go far enough or fast
+enough it calls `onPull`, which closes it unless a drawer passes its own, and otherwise it settles
+back open. The head takes no scrolling of its own, so a pull never starts the browser's pull to
+refresh, and a drawer's body scrolls as it does anywhere and passes nothing to the page behind. The
+distance and speed are named at the top of `src/components/Drawer.jsx`; `docs/remote-mode-plan.md`
+(Step 5) gives their reasons.
 
 ## Signing in
 

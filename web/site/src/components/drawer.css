@@ -1,16 +1,32 @@
-/* ── Drawer ── a menu or list from the bottom edge, the full width of the screen. */
-.kc-drawer-scrim { position: fixed; inset: 0; z-index: 80; background: rgba(0, 0, 0, 0.45); }
+/* ── Drawer ── a menu or list from the bottom edge, the full width of the screen. Square-cornered; its
+   head, tab and all, is the handle it is pulled down by. */
+.kc-drawer-scrim { position: fixed; inset: 0; z-index: 80; background: rgba(0, 0, 0, 0.45); touch-action: none; }
 .kc-drawer {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 81; max-height: 75%; overflow-y: auto;
   box-sizing: border-box; display: flex; flex-direction: column;
-  background: color-mix(in srgb, var(--surface-1) 96%, transparent); border-top: 1px solid var(--border-strong);
-  border-radius: var(--r-sm) var(--r-sm) 0 0; padding: 8px 8px max(10px, env(safe-area-inset-bottom, 0px)); color: var(--fg-1);
+  background: var(--surface-1); border-top: 1px solid var(--border-strong);
+  border-radius: 0; padding: 0 8px max(10px, env(safe-area-inset-bottom, 0px)); color: var(--fg-1);
   animation: kc-drawer-in 180ms var(--ease-out);
 }
+/* A drawer and what scrolls inside it keep their scroll to themselves: a pull at the top of a list
+   never moves the page behind, and never starts the browser's pull to refresh. */
+.kc-drawer, .kc-drawer * { overscroll-behavior: contain; }
 /* Inside a frame of its own (the player), over that frame alone. */
 .kc-drawer-scrim.is-contained { position: absolute; z-index: 6; }
 .kc-drawer.is-contained { position: absolute; z-index: 7; }
-.kc-drawer__grabber { flex-shrink: 0; width: 36px; height: 4px; border-radius: 999px; background: var(--surface-3); margin: 0 auto 6px; }
+/* The head: the whole of it takes a pull, so the browser is told it takes no pan of its own. */
+.kc-drawer__top { position: relative; flex-shrink: 0; min-height: 28px; padding-top: 8px; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.kc-drawer__top.is-held { cursor: grabbing; }
+.kc-drawer__top button, .kc-drawer__top a { cursor: pointer; }
+/* The tab: on the inside of the top edge, its long side along the edge, its ends cut at 45 degrees,
+   none of it outside the drawer. Teal under a pointer or a finger. */
+.kc-drawer__grabber {
+  position: absolute; top: 0; left: 50%; width: 40px; height: 6px; margin-left: -20px;
+  background: var(--border-strong); clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 100%, 6px 100%);
+  transition: background var(--d-fast); pointer-events: none;
+}
+.kc-drawer__top.is-held .kc-drawer__grabber { background: var(--krystal-teal); }
+@media (hover: hover) { .kc-drawer__top:hover .kc-drawer__grabber { background: var(--krystal-teal); } }
 .kc-drawer__head {
   flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 4px 10px 8px;
   font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); font-weight: 600;
@@ -23,4 +39,4 @@
 }
 .kc-drawer__back:hover { background: var(--surface-2); color: var(--fg-1); }
 @keyframes kc-drawer-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .kc-drawer { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .kc-drawer { animation: none; } .kc-drawer__grabber { transition: none; } }

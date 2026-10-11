@@ -288,16 +288,44 @@ Gestures, each a shortcut for a control on screen:
   assistant dock's resize handle (krystal-ui `.assistant-dock__resize`) takes the same tab on the inside
   of its left edge, so the two are one handle, standing and lying. A drawer has square corners. The tab's
   hit area is the drawer's whole head. The download sheet's drawer (`.kc-dl-drawer`,
-  `components/download.css`) sets its own corners and handle size, and takes the same tab and corners.
+  `components/download.css`) takes the same tab and corners, and its own head is the drawer's head.
 - The collapsed head swiped sideways turns remote mode off, with Undo in a toast.
 - A gesture that lands on the TV gives a short vibration where the phone allows one.
 
 Questions:
 
-- Dragging a drawer must not start the browser's pull to refresh, and the sideways swipe must not take
-  a page's vertical scroll. What `touch-action` and `overscroll-behavior` hold both on Android Chrome
-  and iOS Safari?
-- How far, or how fast, does a drag have to go before the drawer settles collapsed, and the head away?
+- The head holds `touch-action: none` and the scrim too; the drawer and everything in it hold
+  `overscroll-behavior: contain`; a drawer's body keeps the browser's own vertical scrolling. A pull
+  is the head's alone, so it is never a scroll: with no pan allowed from a touch that starts on the
+  head, the browser starts neither a scroll nor a pull to refresh there, and the pointer events arrive
+  to the end (`Drawer`'s `usePull`). A list inside the drawer scrolls under the finger as it does
+  anywhere, and `contain` stops it passing what is left over to the page behind or to the browser's
+  own pull to refresh and rubber band. The sideways swipe on the collapsed head takes the same
+  pointer events, since a head that allows no pan sends every direction to the page's script and none
+  to its scroll. Measured in Chromium with a Galaxy's descriptor and real touch events
+  (`npm run verify:pull`, dispatched through CDP, since synthesized scroll gestures scroll nothing):
+  a pull by the head reaches its end with no `pointercancel`, while the same drag on a row of the
+  drawer's list is taken over by the browser for scrolling (the control that shows the check can
+  fail); a long body scrolls up and back under a finger and a further sweep down at its top neither
+  closes the drawer nor moves the page. Not measured: Chrome's pull to refresh itself and iOS
+  Safari's rubber band, which headless Chromium and Playwright's WebKit do not draw, and iOS
+  Safari's reading of `overscroll-behavior` and `touch-action: none` on a head (documented as
+  supported there). Those are the real phones'.
+- A pull settles the drawer away when it has travelled 30% of the drawer's height, never under 40px
+  and never over 120px, or when it is let go moving down at 0.5px per millisecond or faster over the
+  last 100ms with at least 16px behind it. The percentage makes a short sheet ask for a deliberate
+  pull and the cap keeps a sheet at three quarters of the screen from asking for most of a thumb's
+  reach; the floor keeps a twitch from closing one; the speed is a deliberate flick, and the distance
+  beside it keeps a brush from counting. A press that has
+  not moved 6px is a tap, and one that moves sideways first is not a pull. Shorter, it settles back
+  open in 180ms; the scrim fades with the pull. `Drawer`'s `onPull` is what a pull does once
+  qualified, which closes the drawer unless the drawer passes its own (the remote's collapse to its
+  head), and a drawer that stays (a download sheet that is busy refuses to close) comes back to
+  rest. Reduced motion has it follow the finger and then hand over or settle at once. Measured with
+  the same rig, which times each event itself: on a 585px drawer, slow pulls of 112px stay open and
+  128px close; 60px at 0.75px/ms closes and at 0.375px/ms stays open; 10px at 0.6px/ms stays open.
+  Not measured: what a real thumb's speed and travel are, which decides whether 0.5px/ms and the
+  percentage feel right. The constants are named at the top of `Drawer.jsx` for the phone to settle.
 - Where does a toast sit while the drawer is open, given a phone's toasts sit just above the tab bar?
 
 ### Step 6: commands to the screen alone
