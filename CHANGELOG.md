@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.23.3] - 2026-10-11
+
+### Fixed
+
+- **A phone's Assistant shows no resize handle.** The site takes krystal-ui 0.25.1, whose dock hides its
+  resize tab at phone widths, where the dock is the whole screen and there is nothing to drag. Wider, the
+  dock keeps the handle. Site 0.72.3.
+
 ## [3.23.2] - 2026-10-11
 
 ### Fixed
