@@ -408,11 +408,12 @@ function Remote({ screen, onCollapse }) {
                         </button>
                       </>
                     )}
-                    <span className="mp-controls__gap" />
-                    {offersEpisodes && <MenuButton kind="episodes" icon="list-video" value={episodeValue({ manifest })} open={menu === "episodes"} compact onClick={() => setMenu("episodes")} />}
-                    {tvView && <MenuButton kind="subs" icon="captions" value={subtitleValue(tvView)} open={menu === "subs"} compact onClick={() => setMenu("subs")} />}
-                    {tvView && manifest.audio.length > 1 && <MenuButton kind="audio" icon="audio-lines" value={audioValue(tvView)} open={menu === "audio"} compact onClick={() => setMenu("audio")} />}
-                    {tvView && hasQualityChoice(tvView) && <MenuButton kind="quality" icon="gauge" value={qualityValue(tvView)} open={menu === "quality"} compact onClick={() => setMenu("quality")} />}
+                    <span className="kc-remote__menus">
+                      {offersEpisodes && <MenuButton kind="episodes" icon="list-video" value={episodeValue({ manifest })} open={menu === "episodes"} compact onClick={() => setMenu("episodes")} />}
+                      {tvView && <MenuButton kind="subs" icon="captions" value={subtitleValue(tvView)} open={menu === "subs"} compact onClick={() => setMenu("subs")} />}
+                      {tvView && manifest.audio.length > 1 && <MenuButton kind="audio" icon="audio-lines" value={audioValue(tvView)} open={menu === "audio"} compact onClick={() => setMenu("audio")} />}
+                      {tvView && hasQualityChoice(tvView) && <MenuButton kind="quality" icon="gauge" value={qualityValue(tvView)} open={menu === "quality"} compact onClick={() => setMenu("quality")} />}
+                    </span>
                   </div>
                 </div>
               </div>

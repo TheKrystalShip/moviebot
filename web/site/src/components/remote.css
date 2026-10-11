@@ -65,6 +65,10 @@ body.has-drawer .toasts { top: calc(16px + env(safe-area-inset-top, 0px)); botto
 /* The player's bottom controls, in the drawer rather than over a film. */
 .mp-frame.kc-remote__frame { position: relative; inset: auto; overflow: visible; background: transparent; }
 .kc-remote__frame .mp-bottom { position: relative; padding: 0 8px; }
+/* The row is play, the ten-second skips and the episode steps, then the menus; a phone too narrow for all of
+   them at a thumb's width puts the menus together on a second line, and never clips or scrolls them. */
+.kc-remote .mp-controls { flex-wrap: wrap; row-gap: 2px; }
+.kc-remote__menus { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; }
 /* As far under the controls as the head is under the edge. */
 .kc-drawer.kc-remote { padding-bottom: max(13px, env(safe-area-inset-bottom, 0px)); }
 

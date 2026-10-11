@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.24.2] - 2026-10-12
+
+### Fixed
+
+- **The remote's control row no longer overflows a phone.** An episode of a film with several audio tracks
+  and rungs has nine controls (Play, back and forward ten seconds, previous and next episode, Episodes,
+  Subtitles, Audio and Quality), which at a thumb's 44px is wider than 360, 390 and 412px phones: the last
+  buttons ran outside the drawer and the row scrolled sideways. The menu buttons now stand together and move
+  to a second line when the row cannot hold them, never clipped or scrolled, each still 44px. Measured in
+  `npm run verify:tv` (check `row`) at the three widths; every remote view was run on three iPhones and a
+  Galaxy (44 views, 0 faults). Site 0.73.2.
+
 ## [3.24.1] - 2026-10-11
 
 ### Fixed

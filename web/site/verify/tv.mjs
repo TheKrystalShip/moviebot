@@ -2,7 +2,7 @@
 // walked with the arrow keys from where focus starts, against the scratch site verify/mobile/scratch.sh
 // serves (staged first, by its run or `node verify/mobile/run.mjs`; an unstaged site stops this run).
 //
-//   node verify/tv.mjs [--checks pages,heads,empty,overlays,back,player,remote,driving,remoteui,settings,signin] [--pages home,title] [--out dir]
+//   node verify/tv.mjs [--checks pages,heads,empty,overlays,back,player,remote,driving,remoteui,settings,row,signin] [--pages home,title] [--out dir]
 //
 // Each page is checked for:
 // - focus starting on a control when it opens, and on screen;
@@ -29,6 +29,8 @@
 // the quality label), the television's own menus moving the phone's labels, and the room's revision
 // and roster standing still throughout. The film has two audio tracks and two subtitle tracks, which
 // the check puts in the scratch library when it is not there.
+// Then the widest row the remote draws, an episode of a film with several audio tracks, at 360, 390 and
+// 412px: nine controls, none clipped, wrapped or scrolled sideways.
 // Last, signing in through the test provider's device grant, where the check decides for the person:
 // the code and its QR, approval, a restart, signing out, a refusal, an expired code, a provider that
 // cannot be reached, and a session that ends under a page.
@@ -1854,7 +1856,112 @@ async function settingsUi() {
   }
 }
 
-const checks = option("checks", "pages,heads,empty,overlays,back,player,remote,driving,remoteui,settings,signin").split(",");
+/** An episode with a second audio track and a second rung, for the widest control row the remote draws. */
+const DualEpisode = "dual-episode-s01e99";
+
+async function stageDualEpisode() {
+  if ((await api("/api/titles")).some((t) => t.id === DualEpisode)) return;
+  const { execFileSync } = await import("node:child_process");
+  const { existsSync: exists, renameSync, writeFileSync } = await import("node:fs");
+  const episode = titles.find((t) => t.id === "superstore-s01e02");
+  if (!episode) throw new Error("The scratch library holds no superstore-s01e02, the episode the remote checks play.");
+  const source = ["media", "cold"].map((root) => join(dir, "library", root, episode.id)).find((d) => exists(d));
+  const target = join(dir, "library", "media", DualEpisode);
+  execFileSync("cp", ["-al", source, target]);
+  execFileSync("cp", ["-al", join(target, "a0"), join(target, "a1")]);
+  execFileSync("cp", ["-al", join(target, "v0"), join(target, "v1")]);
+  const manifest = JSON.parse(readFileSync(join(source, "manifest.json"), "utf8"));
+  manifest.id = DualEpisode;
+  const rung = manifest.video.renditions[0];
+  manifest.video.renditions = [rung, { ...rung, name: "half", uri: "v1/index.m3u8", height: Math.round((rung.height || manifest.video.height) / 2), width: Math.round((rung.width || manifest.video.width) / 2), bitrateKbps: Math.round(rung.bitrateKbps / 2) }];
+  manifest.episode = { ...manifest.episode, number: 99 };
+  delete manifest.master;
+  manifest.audio = [
+    { ...manifest.audio[0], default: true },
+    { ...manifest.audio[0], id: "a1", language: "spa", label: "Español", default: false, uri: "a1/index.m3u8" },
+  ];
+  writeFileSync(join(target, "manifest.json.tmp"), JSON.stringify(manifest));
+  renameSync(join(target, "manifest.json.tmp"), join(target, "manifest.json"));
+  if (!(await until(async () => (await api("/api/titles")).some((t) => t.id === DualEpisode), 30000)))
+    throw new Error(`${DualEpisode} never appeared in the scratch library's listing.`);
+}
+
+/**
+ * The remote's control row for an episode of a film with several audio tracks: Play, back and forward,
+ * previous, next, Episodes, Subtitles, Audio and Quality. At each phone width every control is at least 44px
+ * and inside the drawer, the row does not scroll sideways, and it is at most two lines, the four menu buttons
+ * together on one of them.
+ */
+async function rowWidths() {
+  console.log("row");
+  await stageDualEpisode();
+  const stamp = Date.now().toString(36);
+  const tvSession = { hours: 6, client: TV_CLIENT, sid: `verify-row-tv-${stamp}`, device: "Verify TV" };
+  const phoneSid = `verify-row-phone-${stamp}`;
+  const tv = await open("/profile/remote", VIEWER, tvSession);
+  const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, userAgent: PhoneAgent, isMobile: true, hasTouch: true, bypassCSP: true });
+  await phoneContext.addInitScript(({ key, value }) => {
+    localStorage.setItem(key, value);
+    if (localStorage.getItem("cinema:remote") === null) localStorage.setItem("cinema:remote", "1");
+  }, issuer.planted(VIEWER, { hours: 6, sid: phoneSid }));
+  const phone = await phoneContext.newPage();
+  phone.on("pageerror", (e) => failures.push(`row: phone page error ${e.message}`));
+  const phoneAuth = { Authorization: `Bearer ${issuer.mint(VIEWER, { sid: phoneSid })}` };
+  try {
+    await tv.page.goto(`${base}/r/verify-row-${stamp}?title=${encodeURIComponent(playable)}&tv=1`, { waitUntil: "load" });
+    await tv.page.waitForFunction(() => { const v = document.querySelector("video"); return v && v.readyState >= 3; }, null, { timeout: 30000 }).catch(() => {});
+    await tv.page.keyboard.press("Enter");
+    await tv.page.waitForTimeout(1500);
+    await tv.page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "MediaPlayPause", bubbles: true, cancelable: true })));
+    await tv.page.waitForSelector(".kc-tvr-paused__qr svg", { timeout: 10000 }).catch(() => {});
+    await tv.page.waitForTimeout(700);
+    const url = (await tv.page.locator(".kc-tvr-paused__qr").count()) ? await readQr(tv.page, ".kc-tvr-paused__qr", SofaScale) : null;
+    if (!url) { await tv.page.screenshot({ path: join(out, "row-tv.png") }); fail("row", "the paused player drew no code to pair with"); return; }
+    const paired = await fetch(base + "/api/me/screens", {
+      method: "POST", headers: { ...phoneAuth, "Content-Type": "application/json", "User-Agent": PhoneAgent },
+      body: JSON.stringify({ code: new URL(url).pathname.slice("/p/".length) }),
+    });
+    if (!paired.ok) { fail("row", `pairing answered ${paired.status}`); return; }
+    // The television then goes to the episode, which the scratch library holds no segments of: the remote
+    // draws what the room holds, and nothing needs to play.
+    await tv.page.goto(`${base}/r/verify-row-${stamp}?title=${DualEpisode}&tv=1`, { waitUntil: "load" });
+    await phone.goto(`${base}/`, { waitUntil: "load" });
+    await phone.waitForSelector(".kc-remote-strip", { timeout: 15000 });
+    await until(async () => /Superstore/.test(await phone.evaluate(() => document.querySelector(".kc-remote-strip .kc-dl-head__name")?.textContent || "")), 15000);
+    await phone.waitForTimeout(1500);
+    await phone.locator(".kc-remote-strip__open").click();
+    await phone.waitForSelector(".kc-remote .mp-controls .mp-menu-button", { timeout: 15000 });
+    await phone.waitForTimeout(1500);
+    for (const width of [360, 390, 412]) {
+      await phone.setViewportSize({ width, height: 844 });
+      await phone.waitForTimeout(600);
+      const row = await phone.evaluate(() => {
+        const controls = document.querySelector(".kc-remote .mp-controls");
+        const drawer = document.querySelector(".kc-remote").getBoundingClientRect();
+        const buttons = [...controls.querySelectorAll("button")].map((b) => { const r = b.getBoundingClientRect(); return { label: b.getAttribute("aria-label"), left: r.left, right: r.right, top: r.top, w: r.width, h: r.height }; });
+        return { buttons, scrolls: controls.scrollWidth > controls.clientWidth + 1, drawer: { left: drawer.left, right: drawer.right }, doc: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+      });
+      await phone.screenshot({ path: join(out, `row-${width}.png`) });
+      const labels = row.buttons.map((b) => b.label.split(":")[0]);
+      const small = row.buttons.filter((b) => b.w < 43.5 || b.h < 43.5).map((b) => `${b.label} ${Math.round(b.w)}x${Math.round(b.h)}`);
+      const lines = new Set(row.buttons.map((b) => Math.round(b.top))).size;
+      const menuLines = new Set(row.buttons.filter((b) => /^(Episodes|Subtitles|Audio track|Quality)/.test(b.label)).map((b) => Math.round(b.top))).size;
+      const outside = row.buttons.filter((b) => b.left < row.drawer.left - 0.5 || b.right > row.drawer.right + 0.5).map((b) => b.label);
+      const nine = ["Play", "Back 10 seconds", "Forward 10 seconds", "Previous episode", "Next episode", "Episodes", "Subtitles", "Audio track", "Quality"];
+      if (!nine.every((n) => labels.some((l) => l.startsWith(n)))) fail("row", `at ${width}px the row holds ${JSON.stringify(labels)}`);
+      else if (small.length || lines > 2 || menuLines !== 1 || outside.length || row.scrolls || row.doc)
+        fail("row", `at ${width}px: under 44px ${JSON.stringify(small)}, ${lines} lines (menus on ${menuLines}), outside the drawer ${JSON.stringify(outside)}, row scrolls ${row.scrolls}, page scrolls ${row.doc}`);
+      else pass(`at ${width}px the nine controls sit on ${lines} line${lines > 1 ? "s" : ""} inside the drawer, the menus together, each at least 44px, with no sideways scroll`);
+    }
+  } finally {
+    await fetch(base + `/api/me/screens/${tvSession.sid}`, { method: "DELETE", headers: phoneAuth });
+    await phoneContext.close();
+    await tv.close();
+  }
+}
+
+
+const checks = option("checks", "pages,heads,empty,overlays,back,player,remote,driving,remoteui,settings,row,signin").split(",");
 try {
   if (checks.includes("pages")) for (const p of PAGES) if (!pageNames || pageNames.includes(p.name)) await walk(p);
   if (checks.includes("heads")) await heads();
@@ -1869,6 +1976,7 @@ try {
   if (checks.includes("driving")) await driving();
   if (checks.includes("remoteui")) await remoteUi();
   if (checks.includes("settings")) await settingsUi();
+  if (checks.includes("row")) await rowWidths();
   if (checks.includes("signin")) await signIn();
 } finally {
   await browser.close();
