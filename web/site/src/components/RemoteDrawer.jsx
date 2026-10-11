@@ -382,38 +382,40 @@ function Remote({ screen, onCollapse }) {
                 <div className="mp-bottom">
                   <ScrubBar duration={duration} position={at} ready={state && state.transcodeHead != null ? state.transcodeHead : null}
                     buffered={0} thumbnails={thumbnails} chapters={manifest.chapters} onSeek={seek} onHold={setHeld} swipe={swipe} readOnly={!live} />
-                  <div className="mp-controls">
-                    <button type="button" className="mp-play" aria-label={paused ? "Play" : "Pause"} disabled={!live} onClick={toggle}>
-                      <Icon name={paused ? "play" : "pause"} size={18} />
-                    </button>
-                    <button type="button" className="mp-icon" disabled={!live} aria-label={`Back ${SkipSeconds} seconds`}
-                      onClick={() => run(() => roomCommands.skip(-SkipSeconds))}>
-                      <Icon name="rotate-ccw" size={19} />
-                    </button>
-                    <button type="button" className="mp-icon" disabled={!live} aria-label={`Forward ${SkipSeconds} seconds`}
-                      onClick={() => run(() => roomCommands.skip(SkipSeconds))}>
-                      <Icon name="rotate-cw" size={19} />
-                    </button>
-                    {manifest.episode && (
-                      <>
+                  <div className="kc-remote__rows">
+                    <div className="mp-controls kc-remote__row">
+                      <button type="button" className="mp-icon" disabled={!live} aria-label={`Back ${SkipSeconds} seconds`}
+                        onClick={() => run(() => roomCommands.skip(-SkipSeconds))}>
+                        <Icon name="rotate-ccw" size={19} />
+                      </button>
+                      {manifest.episode && (
                         <button type="button" className="mp-icon" disabled={!live || !previous || stepping}
                           aria-label={previous ? `Previous episode: ${words(previous)}` : "No previous episode here"}
                           onClick={() => step(roomCommands.previous)}>
                           <Icon name="skip-back" size={19} />
                         </button>
+                      )}
+                      <button type="button" className="mp-play" aria-label={paused ? "Play" : "Pause"} disabled={!live} onClick={toggle}>
+                        <Icon name={paused ? "play" : "pause"} size={18} />
+                      </button>
+                      {manifest.episode && (
                         <button type="button" className="mp-icon" disabled={!live || !next || stepping}
                           aria-label={next ? `Next episode: ${words(next)}` : "No next episode here"}
                           onClick={() => step(roomCommands.next)}>
                           <Icon name="skip-forward" size={19} />
                         </button>
-                      </>
-                    )}
-                    <span className="kc-remote__menus">
-                      {offersEpisodes && <MenuButton kind="episodes" icon="list-video" value={episodeValue({ manifest })} open={menu === "episodes"} compact onClick={() => setMenu("episodes")} />}
-                      {tvView && <MenuButton kind="subs" icon="captions" value={subtitleValue(tvView)} open={menu === "subs"} compact onClick={() => setMenu("subs")} />}
-                      {tvView && manifest.audio.length > 1 && <MenuButton kind="audio" icon="audio-lines" value={audioValue(tvView)} open={menu === "audio"} compact onClick={() => setMenu("audio")} />}
-                      {tvView && hasQualityChoice(tvView) && <MenuButton kind="quality" icon="gauge" value={qualityValue(tvView)} open={menu === "quality"} compact onClick={() => setMenu("quality")} />}
-                    </span>
+                      )}
+                      <button type="button" className="mp-icon" disabled={!live} aria-label={`Forward ${SkipSeconds} seconds`}
+                        onClick={() => run(() => roomCommands.skip(SkipSeconds))}>
+                        <Icon name="rotate-cw" size={19} />
+                      </button>
+                    </div>
+                    <div className="mp-controls kc-remote__row">
+                    {offersEpisodes && <MenuButton kind="episodes" icon="list-video" value={episodeValue({ manifest })} open={menu === "episodes"} compact onClick={() => setMenu("episodes")} />}
+                    {tvView && <MenuButton kind="subs" icon="captions" value={subtitleValue(tvView)} open={menu === "subs"} compact onClick={() => setMenu("subs")} />}
+                    {tvView && manifest.audio.length > 1 && <MenuButton kind="audio" icon="audio-lines" value={audioValue(tvView)} open={menu === "audio"} compact onClick={() => setMenu("audio")} />}
+                    {tvView && hasQualityChoice(tvView) && <MenuButton kind="quality" icon="gauge" value={qualityValue(tvView)} open={menu === "quality"} compact onClick={() => setMenu("quality")} />}
+                    </div>
                   </div>
                 </div>
               </div>

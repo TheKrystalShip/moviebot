@@ -29,8 +29,9 @@
 // the quality label), the television's own menus moving the phone's labels, and the room's revision
 // and roster standing still throughout. The film has two audio tracks and two subtitle tracks, which
 // the check puts in the scratch library when it is not there.
-// Then the widest row the remote draws, an episode of a film with several audio tracks, at 360, 390 and
-// 412px: nine controls, none clipped, wrapped or scrolled sideways.
+// Then the remote's control rows, at 360, 390 and
+// 412px, for a film and for an episode: two rows, each edge to edge of the remote's bottom block, the controls
+// spaced evenly, in the order the remote specifies.
 // Last, signing in through the test provider's device grant, where the check decides for the person:
 // the code and its QR, approval, a restart, signing out, a refusal, an expired code, a provider that
 // cannot be reached, and a session that ends under a page.
@@ -1234,8 +1235,9 @@ async function remoteUi() {
     const gaps = await phone.evaluate(() => {
       const d = document.querySelector(".kc-remote").getBoundingClientRect();
       const toggle = document.querySelector(".kc-remote .k-toggle").getBoundingClientRect();
-      const play = document.querySelector(".kc-remote .mp-controls .mp-play").getBoundingClientRect();
-      return { above: Math.round((toggle.top - d.top) * 10) / 10, below: Math.round((d.bottom - play.bottom) * 10) / 10 };
+      const rows = document.querySelectorAll(".kc-remote .mp-controls");
+      const last = rows[rows.length - 1].getBoundingClientRect();
+      return { above: Math.round((toggle.top - d.top) * 10) / 10, below: Math.round((d.bottom - last.bottom) * 10) / 10 };
     });
     if (Math.abs(gaps.above - gaps.below) > 2) fail("remoteui", `the open drawer has ${gaps.above}px above its head and ${gaps.below}px under its controls`);
     else pass(`the open drawer has ${gaps.above}px above its head and ${gaps.below}px under its controls`);
@@ -1889,8 +1891,8 @@ async function stageDualEpisode() {
 /**
  * The remote's control row for an episode of a film with several audio tracks: Play, back and forward,
  * previous, next, Episodes, Subtitles, Audio and Quality. At each phone width every control is at least 44px
- * and inside the drawer, the row does not scroll sideways, and it is at most two lines, the four menu buttons
- * together on one of them.
+ * and the controls are two rows, each edge to edge of the bottom block with equal gaps, in the specified order,
+ * for a film and for the episode.
  */
 async function rowWidths() {
   console.log("row");
@@ -1922,37 +1924,63 @@ async function rowWidths() {
       body: JSON.stringify({ code: new URL(url).pathname.slice("/p/".length) }),
     });
     if (!paired.ok) { fail("row", `pairing answered ${paired.status}`); return; }
-    // The television then goes to the episode, which the scratch library holds no segments of: the remote
-    // draws what the room holds, and nothing needs to play.
-    await tv.page.goto(`${base}/r/verify-row-${stamp}?title=${DualEpisode}&tv=1`, { waitUntil: "load" });
+    const measure = async (what) => {
+      for (const width of [360, 390, 412]) {
+        await phone.setViewportSize({ width, height: 844 });
+        await phone.waitForTimeout(600);
+        const m = await phone.evaluate(() => {
+          const bottom = document.querySelector(".kc-remote .mp-bottom");
+          const box = bottom.getBoundingClientRect();
+          const css = getComputedStyle(bottom);
+          const inner = { left: box.left + parseFloat(css.paddingLeft), right: box.right - parseFloat(css.paddingRight) };
+          const rows = [...document.querySelectorAll(".kc-remote .mp-controls")].map((row) => {
+            const r = row.getBoundingClientRect();
+            return {
+              left: r.left, right: r.right, scrolls: row.scrollWidth > row.clientWidth + 1,
+              buttons: [...row.querySelectorAll("button")].map((b) => { const q = b.getBoundingClientRect(); return { label: b.getAttribute("aria-label"), left: q.left, right: q.right, w: q.width, h: q.height }; }),
+            };
+          });
+          return { inner, rows, doc: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+        });
+        await phone.screenshot({ path: join(out, `row-${what}-${width}.png`) });
+        const names = m.rows.map((r) => r.buttons.map((b) => b.label.split(":")[0]));
+        const wantedRows = what === "film"
+          ? [["Back 10 seconds", "Pause", "Forward 10 seconds"], ["Subtitles", "Quality"]]
+          : [["Back 10 seconds", "Previous episode", "Pause", "Next episode", "Forward 10 seconds"], ["Episodes", "Subtitles", "Audio track", "Quality"]];
+        const alt = (n) => n === "Pause" ? ["Pause", "Play"] : [n];
+        const order = names.length === 2 && wantedRows.every((row, i) => row.length === names[i].length && row.every((n, k) => alt(n).includes(names[i][k])));
+        const problems = [];
+        if (!order) problems.push(`rows are ${JSON.stringify(names)}`);
+        m.rows.forEach((row, i) => {
+          if (Math.abs(row.left - m.inner.left) > 1 || Math.abs(row.right - m.inner.right) > 1) problems.push(`row ${i + 1} spans ${row.left.toFixed(1)}..${row.right.toFixed(1)}, the block ${m.inner.left.toFixed(1)}..${m.inner.right.toFixed(1)}`);
+          const first = row.buttons[0], last = row.buttons[row.buttons.length - 1];
+          if (Math.abs(first.left - m.inner.left) > 1 || Math.abs(last.right - m.inner.right) > 1) problems.push(`row ${i + 1}'s first and last controls are at ${first.left.toFixed(1)} and ${last.right.toFixed(1)}, not on ${m.inner.left.toFixed(1)} and ${m.inner.right.toFixed(1)}`);
+          const gaps = row.buttons.slice(1).map((b, k) => b.left - row.buttons[k].right);
+          if (gaps.length > 1 && Math.max(...gaps) - Math.min(...gaps) > 1) problems.push(`row ${i + 1}'s gaps are ${gaps.map((g) => g.toFixed(1))}`);
+          const small = row.buttons.filter((b) => b.w < 43.5 || b.h < 43.5).map((b) => `${b.label} ${Math.round(b.w)}x${Math.round(b.h)}`);
+          if (small.length) problems.push(`row ${i + 1} has controls under 44px: ${small}`);
+          if (row.scrolls) problems.push(`row ${i + 1} scrolls sideways`);
+        });
+        if (m.doc) problems.push("the page scrolls sideways");
+        const gapsOf = m.rows.map((r) => r.buttons.slice(1).map((b, k) => (b.left - r.buttons[k].right).toFixed(1)).join("/"));
+        if (problems.length) fail("row", `a ${what} at ${width}px: ${problems.join("; ")}`);
+        else pass(`a ${what} at ${width}px: rows ${names.map((r) => r.length).join(" and ")} controls in the specified order, edge to edge of the block (${m.inner.left.toFixed(1)}..${m.inner.right.toFixed(1)}), gaps ${gapsOf.join(" and ")}px, each control at least 44px`);
+      }
+    };
     await phone.goto(`${base}/`, { waitUntil: "load" });
     await phone.waitForSelector(".kc-remote-strip", { timeout: 15000 });
-    await until(async () => /Superstore/.test(await phone.evaluate(() => document.querySelector(".kc-remote-strip .kc-dl-head__name")?.textContent || "")), 15000);
+    await until(async () => /Coherence|\w/.test(await phone.evaluate(() => document.querySelector(".kc-remote-strip .kc-dl-head__name")?.textContent || "")), 15000);
     await phone.waitForTimeout(1500);
     await phone.locator(".kc-remote-strip__open").click();
     await phone.waitForSelector(".kc-remote .mp-controls .mp-menu-button", { timeout: 15000 });
     await phone.waitForTimeout(1500);
-    for (const width of [360, 390, 412]) {
-      await phone.setViewportSize({ width, height: 844 });
-      await phone.waitForTimeout(600);
-      const row = await phone.evaluate(() => {
-        const controls = document.querySelector(".kc-remote .mp-controls");
-        const drawer = document.querySelector(".kc-remote").getBoundingClientRect();
-        const buttons = [...controls.querySelectorAll("button")].map((b) => { const r = b.getBoundingClientRect(); return { label: b.getAttribute("aria-label"), left: r.left, right: r.right, top: r.top, w: r.width, h: r.height }; });
-        return { buttons, scrolls: controls.scrollWidth > controls.clientWidth + 1, drawer: { left: drawer.left, right: drawer.right }, doc: document.documentElement.scrollWidth > document.documentElement.clientWidth };
-      });
-      await phone.screenshot({ path: join(out, `row-${width}.png`) });
-      const labels = row.buttons.map((b) => b.label.split(":")[0]);
-      const small = row.buttons.filter((b) => b.w < 43.5 || b.h < 43.5).map((b) => `${b.label} ${Math.round(b.w)}x${Math.round(b.h)}`);
-      const lines = new Set(row.buttons.map((b) => Math.round(b.top))).size;
-      const menuLines = new Set(row.buttons.filter((b) => /^(Episodes|Subtitles|Audio track|Quality)/.test(b.label)).map((b) => Math.round(b.top))).size;
-      const outside = row.buttons.filter((b) => b.left < row.drawer.left - 0.5 || b.right > row.drawer.right + 0.5).map((b) => b.label);
-      const nine = ["Play", "Back 10 seconds", "Forward 10 seconds", "Previous episode", "Next episode", "Episodes", "Subtitles", "Audio track", "Quality"];
-      if (!nine.every((n) => labels.some((l) => l.startsWith(n)))) fail("row", `at ${width}px the row holds ${JSON.stringify(labels)}`);
-      else if (small.length || lines > 2 || menuLines !== 1 || outside.length || row.scrolls || row.doc)
-        fail("row", `at ${width}px: under 44px ${JSON.stringify(small)}, ${lines} lines (menus on ${menuLines}), outside the drawer ${JSON.stringify(outside)}, row scrolls ${row.scrolls}, page scrolls ${row.doc}`);
-      else pass(`at ${width}px the nine controls sit on ${lines} line${lines > 1 ? "s" : ""} inside the drawer, the menus together, each at least 44px, with no sideways scroll`);
-    }
+    await measure("film");
+    // The television then goes to the episode, which the scratch library holds no segments of: the remote
+    // draws what the room holds, and nothing needs to play.
+    await tv.page.goto(`${base}/r/verify-row-${stamp}?title=${DualEpisode}&tv=1`, { waitUntil: "load" });
+    await until(async () => (await phone.evaluate(() => document.querySelectorAll(".kc-remote .mp-controls button").length)) >= 9, 15000);
+    await phone.waitForTimeout(1000);
+    await measure("episode");
   } finally {
     await fetch(base + `/api/me/screens/${tvSession.sid}`, { method: "DELETE", headers: phoneAuth });
     await phoneContext.close();

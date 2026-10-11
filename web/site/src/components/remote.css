@@ -65,10 +65,11 @@ body.has-drawer .toasts { top: calc(16px + env(safe-area-inset-top, 0px)); botto
 /* The player's bottom controls, in the drawer rather than over a film. */
 .mp-frame.kc-remote__frame { position: relative; inset: auto; overflow: visible; background: transparent; }
 .kc-remote__frame .mp-bottom { position: relative; padding: 0 8px; }
-/* The row is play, the ten-second skips and the episode steps, then the menus; a phone too narrow for all of
-   them at a thumb's width puts the menus together on a second line, and never clips or scrolls them. */
-.kc-remote .mp-controls { flex-wrap: wrap; row-gap: 2px; }
-.kc-remote__menus { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; }
+/* The controls are two rows, each as wide as the bottom block, its first and last control on the block's edges and
+   the gaps between its controls equal: the skips, the episode steps and Play above; Episodes, Subtitles, Audio and
+   Quality below. Every control keeps its size, at every phone width. */
+.kc-remote__rows { display: flex; flex-direction: column; gap: 2px; }
+.kc-remote .mp-controls.kc-remote__row { justify-content: space-between; gap: 0; width: 100%; }
 /* As far under the controls as the head is under the edge. */
 .kc-drawer.kc-remote { padding-bottom: max(13px, env(safe-area-inset-bottom, 0px)); }
 

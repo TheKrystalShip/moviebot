@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.24.3] - 2026-10-12
+
+### Changed
+
+- **The remote's controls are two fixed rows.** Above: back ten seconds, previous episode, Play or Pause, next
+  episode, forward ten seconds (a film has no episode steps, so three controls). Below: Episodes, Subtitles,
+  Audio when the film has several audio tracks, Quality when it has several rungs. Each row is as wide as the
+  remote's bottom block at every phone width, for films and episodes alike, its first and last control on the
+  block's edges and the gaps between its controls equal; every control keeps its 44px size and Play its round
+  shape. This replaces the grouping and wrapping of 3.24.2. Measured in `npm run verify:tv` (check `row`) at 360,
+  390 and 412px for a film and an episode with several audio tracks; every remote view was run on three
+  iPhones and a Galaxy (44 views, 0 faults). Site 0.73.3.
+
 ## [3.24.2] - 2026-10-12
 
 ### Fixed

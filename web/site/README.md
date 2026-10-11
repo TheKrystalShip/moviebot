@@ -604,8 +604,9 @@ for one that is not connected), and holds the Remote switch. The picker and the 
 player's scrub bar (with its preview) and controls: Play or Pause, back and forward ten seconds, and for an
 episode previous, next and Episodes, the player's own list aimed at the television. A film has no
 episode controls. Subtitles, Audio (only a film with more than one audio track) and Quality follow, each the
-player's own menu aimed at the television (below). The four menu buttons stand together and take a second line when the row cannot hold nine controls at 44px (an
-episode of a film with several audio tracks and rungs, on any phone), never clipped or scrolled sideways. With nothing playing it shows "Nothing playing" and Continue watching, each card Watch
+player's own menu aimed at the television (below). The controls are two rows, each as wide as the bottom block with equal gaps between its
+controls and its first and last on the block's edges, at every phone width, for a film and an episode alike: back, previous episode, Play or Pause, next
+episode and forward (a film has no episode steps) above, and Episodes, Subtitles, Audio and Quality below, each control keeping its 44px size. With nothing playing it shows "Nothing playing" and Continue watching, each card Watch
 on TV. The still takes the player's touch handling (`player/Gestures.jsx` with `levels: false`): a tap in
 the middle plays or pauses, a double tap at a side skips, a sweep sideways scrubs and the room moves on
 release, vertical sweeps do nothing; a gesture the television took vibrates the phone where
