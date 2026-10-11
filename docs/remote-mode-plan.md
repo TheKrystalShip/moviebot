@@ -31,14 +31,18 @@ without scanning again.
 | How a phone finds a TV | A QR code on the TV, and nothing else. A scan proves the phone can see the screen and works whatever network the phone is on. Matching by network is a follow-up |
 | How long a pairing lasts | Until somebody ends it. It survives the phone app closing, the phone sleeping and the TV app closing; it ends when the phone or the TV unpairs, or when either session ends. There is no idle expiry |
 | Pairing and remote mode | Separate. A pairing says this phone may drive that screen; remote mode is a toggle on the phone saying it is driving it now. Turning remote mode off unpairs nothing, and turning it back on needs no scan. The toggle's state is kept across the app closing |
-| Watching on the phone | Any time. Remote mode never locks the phone to the TV: in remote mode a title's main button is Play on TV, with Watch here beside it, which turns remote mode off and plays on the phone |
+| Watching on the phone | Any time. Remote mode never locks the phone to the TV: in remote mode a title's main button is Watch on TV, with Watch and the phone glyph beside it, which turns remote mode off and plays on the phone |
 | What the remote binds to | The screen, not the room. When the TV leaves a room and opens another, the remote follows it |
-| What the remote does while the TV plays nothing | Play on TV from the phone's own pages. There is no touch D-pad and no keyboard for the TV's fields: the physical remote does the first, and browsing on the phone replaces the second |
-| Play on TV over a playing film | Asks on the phone first while the TV is mid-film; replaces at once when the TV is idle or near the end |
-| What the TV shows | A small mark while a remote is attached |
+| What the remote does while the TV plays nothing | Watch on TV from the phone's own pages. There is no touch D-pad and no keyboard for the TV's fields: the physical remote does the first, and browsing on the phone replaces the second |
+| Watch on TV over a playing film | Asks on the phone first while the TV is mid-film; replaces at once when the TV is idle or near the end |
+| What the TV shows | The pairing code beside the paused player's info card, centred in the same box; and, while paused with a remote attached, a phone glyph beside who is watching. Nothing while a film plays |
 | Volume | Not on the remote. A page can only scale the video under the TV's own volume, which the remote and CEC hold |
 | Lock-screen media controls on the phone | None. Android shows them only for a page actually playing sound |
 | Which surfaces carry the remote | The phone. The protocol names no surface, so a desktop tab is the same messages under another layout |
+| The design | The canvas https://claude.ai/artifact/12BZT8yRQ7ZbCu79YDud1g, drawn with the site's own stylesheets |
+| What the remote is made of | Components the site already has: the `Drawer`, the download sheet's head and option list, the player's scrub bar, control row, episodes list and subtitle style editor, `EmptyState`, `Rail` and the Continue watching card. Nothing is redrawn for the remote |
+| Confirming a pairing | None. Scanning pairs at once and opens the remote; a toast says so and carries Undo. Pairing is undone as easily as it is made, and the scan already says what the person meant |
+| Gestures | Shortcuts for controls already on screen, never the only way to anything. The picture takes the player's touch handling (tap the middle, double-tap a side, sweep sideways to scrub, the room moving on release) with its vertical sweeps off. Pulling the drawer down by its handle collapses it to its strip; swiping the strip sideways turns remote mode off, with Undo in a toast. A gesture that lands on the TV gives a short vibration where the phone allows one |
 
 ## 3. What stands
 
@@ -89,10 +93,10 @@ Questions:
 ### Step 3: pairing by QR
 
 The TV shows a QR code in two places: a Remote entry in its Profile, which also lists the phones
-paired to it with Unpair on each, and the paused player's panel. The code is short-lived and rotates,
+paired to it with Unpair on each, and the paused player, beside its info card. The code is short-lived and rotates,
 so a photo of it opens nothing later. Scanning it opens a page of the site on the phone, which signs in
-if it must, and pairs that phone's session with that screen for good. A phone of another person is
-refused; bringing friends in is a follow-up.
+if it must, pairs that phone's session with that screen for good and opens the remote, with a toast
+carrying Undo. A phone of another person is refused; bringing friends in is a follow-up.
 
 Questions:
 
@@ -124,25 +128,37 @@ Questions:
 
 ### Step 5: the phone's remote
 
-While one of the person's paired screens is connected, the tab bar carries a strip naming the screen
-and what it shows; tapping it opens the remote. The remote: artwork, title and episode, the scrub bar
-with elapsed and remaining time, Play or Pause, back and forward ten seconds, Skip intro when the TV
-offers it, previous and next episode, and the show's seasons and episodes. With remote mode on, a
-title's main button is Play on TV, with Watch here beside it. With several screens connected, the
-strip picks one.
+The remote is a `Drawer`. While one of the person's paired screens is connected and remote mode is
+on, it sits let down above the tab bar as its head: the episode's still, the screen's name, the title
+and Pause. Pushed up, or tapped, it opens: the screen's name (choosing among several screens) and the
+Remote switch in its head; the still with the player's Skip intro; the title; and at the bottom the
+player's own scrub bar and control row (Play or Pause, back and forward ten seconds, previous and next
+episode, Episodes, Subtitles and Quality). Episodes and Subtitles open the player's own drawers,
+aimed at the TV. With remote mode on, a title's main button is Watch on TV, with Watch beside it.
+
+Gestures, each a shortcut for a control on screen:
+
+- The still answers a finger as the player's film does (`player/Gestures.jsx`): a tap in the middle
+  plays or pauses, a double tap at either side skips, gathering further taps, and a sideways sweep
+  scrubs, the room moving when the finger lifts. The vertical sweeps are off.
+- The handle drags the drawer: down collapses the remote to its head, up opens it. Dragging belongs
+  to `Drawer` itself, so every drawer on the site closes the same way.
+- The collapsed head swiped sideways turns remote mode off, with Undo in a toast.
+- A gesture that lands on the TV gives a short vibration where the phone allows one.
 
 Questions:
 
-- The design, drawn on a canvas as the TV's was, before it is built.
-- Where remote mode is toggled: the strip, the remote, or both.
-- Does the scrub bar move the room on release only, as holding Left or Right does on the TV?
+- Dragging a drawer must not start the browser's pull to refresh, and the sideways swipe must not take
+  a page's vertical scroll. What `touch-action` and `overscroll-behavior` hold both on Android Chrome
+  and iOS Safari?
+- How far, or how fast, does a drag have to go before the drawer settles collapsed, and the head away?
+- Where does a toast sit while the drawer is open, given a phone's toasts sit just above the tab bar?
 
 ### Step 6: commands to the screen alone
 
 Some of what the remote changes is the TV's own and never the room's: subtitle language, size and
-background, the audio track and quality. These go to the screen's connection alone. So does Play on
-TV when the TV is not in the player, which takes it there. While a remote is attached the TV shows
-a small mark.
+background, the audio track and quality. These go to the screen's connection alone. So does Watch on
+TV when the TV is not in the player, which takes it there.
 
 Questions:
 
