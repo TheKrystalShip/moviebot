@@ -51,7 +51,7 @@ The reference device is the user's Xiaomi TV running Fire TV, reached over the L
 | Leaving soon | Not a page on any surface. The library clock runs internally and nobody sees it, since Discover reaches any film and it plays within minutes |
 | The primary button | Dark text on the accent, which holds contrast from a sofa |
 | How focus looks | A lift with a hairline: the focused card grows by about 15% and casts a deep shadow, a 1 px white edge sits on it with a faint glow of the accent, and its neighbours dim. A focused button or tab becomes a white pill with dark text, with the same shadow and glow. No outline and no underline |
-| The phone channel | Out of scope; see section 6 |
+| The phone as a remote | Its own plan, `docs/remote-mode-plan.md` |
 | Where the wrapper lives | `moviebot/tv/`, its own version clock, tagged `tv-v<version>`. That prefix keeps it out of `release.yml`, which fires on `v*` |
 | Building the wrapper | On hotrod: a JDK and Android's command-line tools under the user's home, no Android Studio and no Gradle. Installed on the TV with `adb` over the LAN once developer options are on, or fetched from the site with Downloader |
 
@@ -189,10 +189,3 @@ app id: moving a TV between them is uninstalling, and signing in again. It needs
 
 These requirements are as understood when this was written and are checked against each store's
 current rules before anything is submitted.
-
-**The phone channel.** Every open copy of the site joins the API's hub under its person, and a TV
-announces itself as a screen. A phone signed in as the same person then gets Play on TV for a title,
-a keyboard for a focused field on the TV (sending the field's whole text rather than keystrokes), and
-joining the TV's room as a remote that plays no video. The room's QR on the TV lets people on the
-sofa join the same way. Only the same person's sessions see each other, checked by the server on every
-message.

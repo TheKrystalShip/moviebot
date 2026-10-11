@@ -1,0 +1,170 @@
+# Remote mode for Krystal Cinema
+
+A plan, not canon. What it settles moves into the docs beside the code it governs
+(`docs/api-contract.md`, `web/site/README.md`, `tv/README.md`, and for the anchor's half
+`tks-auth/src/Auth.Anchor/CLAUDE.md` and `kgsm-docs/systems/moviebot/sign-in.md`) when it lands, and
+its section here is struck. When the last step lands, this file is deleted.
+
+Each step below is taken through a deep dive before it is built: the questions listed under it are
+answered, by measurement where they can be, and the answers are written into the step before code is
+written.
+
+## 1. What this is for
+
+A phone drives the film on a TV running the Cinema app: pause, seek, skip, the next episode, the TV's
+own subtitles and audio, and putting a different film on, browsed on the phone rather than with a
+D-pad. The phone becomes the browser and the TV the screen.
+
+The case it is built around: a film night, the phone scans the TV once, a film goes on, the phone goes
+in a pocket for two hours and comes out at the end to put the next one on, and the remote still works
+without scanning again.
+
+## 2. Decisions
+
+| Decision | Outcome |
+|---|---|
+| What a remote is | A phone that joins the TV's room as a remote: it drives the room's shared timeline through the hub like any member, and plays no video. Most of the control surface already exists (`SessionHub`: `Play`, `Pause`, `Seek`, `LoadTitle`, `Next`, `Previous`, `PlayEpisode`) |
+| Whose screens a phone sees | Only its own person's. The server checks it on every message |
+| What a screen is | A connection signed in through the `cinema-tv` client, decided by the server from the token, never by what the page says. Its identity is its anchor session (`sid`), which survives token refresh |
+| More than one TV per person | Yes. Every screen has a name, and a phone paired to several picks one |
+| Where a screen's name comes from | The anchor. The wrapper reads the TV's own name and hands it to the page; the page sends it with the device authorization; the anchor shows it, editable, on the approval page and keeps it on the device session |
+| How a phone finds a TV | A QR code on the TV, and nothing else. A scan proves the phone can see the screen and works whatever network the phone is on. Matching by network is a follow-up |
+| How long a pairing lasts | Until somebody ends it. It survives the phone app closing, the phone sleeping and the TV app closing; it ends when the phone or the TV unpairs, or when either session ends. There is no idle expiry |
+| Pairing and remote mode | Separate. A pairing says this phone may drive that screen; remote mode is a toggle on the phone saying it is driving it now. Turning remote mode off unpairs nothing, and turning it back on needs no scan. The toggle's state is kept across the app closing |
+| Watching on the phone | Any time. Remote mode never locks the phone to the TV: in remote mode a title's main button is Play on TV, with Watch here beside it, which turns remote mode off and plays on the phone |
+| What the remote binds to | The screen, not the room. When the TV leaves a room and opens another, the remote follows it |
+| What the remote does while the TV plays nothing | Play on TV from the phone's own pages. There is no touch D-pad and no keyboard for the TV's fields: the physical remote does the first, and browsing on the phone replaces the second |
+| Play on TV over a playing film | Asks on the phone first while the TV is mid-film; replaces at once when the TV is idle or near the end |
+| What the TV shows | A small mark while a remote is attached |
+| Volume | Not on the remote. A page can only scale the video under the TV's own volume, which the remote and CEC hold |
+| Lock-screen media controls on the phone | None. Android shows them only for a page actually playing sound |
+| Which surfaces carry the remote | The phone. The protocol names no surface, so a desktop tab is the same messages under another layout |
+
+## 3. What stands
+
+| Piece | Authority |
+|---|---|
+| Rooms, the shared timeline, the hub and who may come in | `docs/api-contract.md` "Hub" |
+| Per-viewer settings (subtitles, audio, quality) that are never the room's | `README.md`, `web/site/src/player/CLAUDE.md` |
+| The TV's design, its navigator, Back and Menu | `docs/tv-mode-plan.md`, `web/site/README.md` "On a television" |
+| The TV's sign-in through the device grant, the `cinema-tv` client | `web/site/README.md` "Signing in", `tks-auth/src/Auth.Anchor/CLAUDE.md` "The device grant" |
+| A token's `sid` | `kgsm-docs/reference/session-tokens.md` |
+| The wrapper and its bridge, `window.krystalTv` | `tv/README.md` |
+
+## 4. Steps
+
+### Step 1: naming a screen
+
+The wrapper reads the name the TV's owner gave it and hands it to the page through `window.krystalTv`;
+the page sends it as an extension parameter on `/device_authorization` (RFC 8628 allows them); the
+anchor's `/device` page shows it in an editable field beside Approve and keeps what is approved on the
+device session. Crosses into tks-auth and the wrapper, which ships under its own `tv-v*` clock.
+
+Questions:
+
+- Does Fire OS fill `Settings.Global.DEVICE_NAME`, and with what? Read on the Xiaomi
+  (`adb shell settings get global device_name`). If it is empty, what is the fallback: `Build.MODEL`
+  is `AFTBR92D74` on that TV, which nobody would call it.
+- How does Cinema learn a screen's name: a claim on the device session's access tokens, or asking the
+  anchor? A rename then reaches Cinema when?
+- Where is a screen renamed after approval: the anchor's own session list, Cinema's Profile on the TV,
+  or both through the anchor?
+- How long may a name be, and what does the anchor refuse in one?
+
+### Step 2: screens
+
+Every open copy of the site joins a hub group of its own person. A `cinema-tv` connection is a screen:
+the server keeps, per screen, its name, whether it is connected, the room it is in, and what that room
+holds. Paired phones hear a screen arrive, leave and change room.
+
+Questions:
+
+- One hub (`/hub/session`) carrying a person's channel beside the rooms, or a second hub? Measure what
+  a second connection costs a phone on reconnect.
+- How long after the TV app closes or the TV sleeps does the server see the screen gone, and is that
+  short enough that the phone does not offer a dead TV?
+- A TV signed in twice (the app reinstalled, a new device session) leaves an old screen behind. How is
+  it told apart and forgotten?
+
+### Step 3: pairing by QR
+
+The TV shows a QR code in two places: a Remote entry in its Profile, which also lists the phones
+paired to it with Unpair on each, and the paused player's panel. The code is short-lived and rotates,
+so a photo of it opens nothing later. Scanning it opens a page of the site on the phone, which signs in
+if it must, and pairs that phone's session with that screen for good. A phone of another person is
+refused; bringing friends in is a follow-up.
+
+Questions:
+
+- Where pairings are kept: in `moviebot.db`, keyed by the phone's `sid` and the screen's `sid`.
+  How does Cinema learn either session has ended, given it hears no revocation? A pairing whose
+  phone signed out is unreachable anyway; one whose screen never connects again is harmless but
+  clutters the phone's list.
+- Does a scan open the installed app (the WebAPK capturing the link) or a browser tab, on Android
+  and on iOS? A browser tab holds a different session from the installed app.
+- How long does a code live, and how often does it rotate?
+- What the phone's camera needs: is the TV's QR readable from a sofa at the size the 960×540 page can
+  give it?
+
+### Step 4: the remote in the room
+
+A remote joins the screen's room as a participant of its own kind. It drives the room as any member
+does. It is not in `ParticipantsChanged`, the room's head count, `/health`'s `watching` or anybody's
+progress, and it never reports buffering or quality. When its screen moves to another room, the remote
+moves with it.
+
+Questions:
+
+- What does the room hold that a buffering or quality report from a remote would corrupt today, and
+  does refusing them on the hub cover every path?
+- Every act is recorded with who did it. Does an act from a remote name the person alone, or the
+  person and the phone?
+- How quickly is a phone that comes out of a pocket live again: from unlock to controls that answer,
+  measured on a real phone with the app backgrounded for two hours.
+
+### Step 5: the phone's remote
+
+While one of the person's paired screens is connected, the tab bar carries a strip naming the screen
+and what it shows; tapping it opens the remote. The remote: artwork, title and episode, the scrub bar
+with elapsed and remaining time, Play or Pause, back and forward ten seconds, Skip intro when the TV
+offers it, previous and next episode, and the show's seasons and episodes. With remote mode on, a
+title's main button is Play on TV, with Watch here beside it. With several screens connected, the
+strip picks one.
+
+Questions:
+
+- The design, drawn on a canvas as the TV's was, before it is built.
+- Where remote mode is toggled: the strip, the remote, or both.
+- Does the scrub bar move the room on release only, as holding Left or Right does on the TV?
+
+### Step 6: commands to the screen alone
+
+Some of what the remote changes is the TV's own and never the room's: subtitle language, size and
+background, the audio track and quality. These go to the screen's connection alone. So does Play on
+TV when the TV is not in the player, which takes it there. While a remote is attached the TV shows
+a small mark.
+
+Questions:
+
+- Which of these the TV's player can already take from outside the remote's keys, and what it
+  answers when it cannot (a language the film has no subtitles in).
+- Does the phone show the TV's current choices, which means the screen reports them back?
+
+## 5. Testing
+
+- **`npm run verify:tv`** grows a second browser context: the TV at 960×540 with the TV mark, and a
+  phone context paired to it, driving one room.
+- **The hub's integration tests** drive a screen and a remote as real SignalR clients, as the session
+  tests already do.
+- **The Xiaomi and a real phone** for what only devices show: the QR scanned from the sofa, the scan
+  opening the installed app, and the remote coming back after the phone has slept.
+
+## 6. Follow-up, not in this plan
+
+- **Matching by network.** A phone on the same public address as a screen is offered it without a
+  scan. Home Wi-Fi clients reach the site through the router's public address, so a phone at home and
+  the TV look the same to the server; a phone on mobile data or a VPN does not.
+- **Friends on the sofa.** A QR that brings another person's phone into the TV's room as a remote,
+  driving the room but not the TV's own settings, and crediting them as watching.
+- **A room's playlist.** What plays after the current film, for everybody in the room.
+- **A desktop tab as a remote.** The same messages under the desktop's layout.
