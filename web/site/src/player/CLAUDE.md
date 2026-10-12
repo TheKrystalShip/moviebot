@@ -167,19 +167,23 @@ and does nothing that would be.
   element a touch only shows or hides what is over the frame.
   The phone's remote reads the same gestures on its still with `levels: false`, which makes the
   vertical sweeps nothing, and shares `stretches.js` (the closing stretch, the skip offer) with the player.
-- **A remote on a television** (`engine/media/remote.ts`, `Environment.tv`). The first press of OK,
-  Up or Down while the controls are away only brings them back, since waking the screen should not
-  move the room; the play button holds focus once the film is ready, so OK plays from the first
-  press after. Left and Right skip by the buttons' step while the controls are away or the scrub bar
-  holds focus, and a skip gives the bar focus, so presses however slow go on skipping; with the
-  controls up anywhere else the arrows move focus among them. Presses are gathered into one skip as
-  taps are, for the same reason. Every press holds the controls up afresh, and they wait longer on a
-  television than anywhere else before going, since a remote reaches a control one press at a time.
+- **A remote on a television** (`engine/media/remote.ts`, `Environment.tv`), answered the way the big
+  streaming apps answer one. While the controls are away, OK plays or pauses and leaves focus on the
+  play button, Up and Down only bring the controls back, and Left and Right skip by the buttons' step
+  and bring the controls back with the scrub bar seeking, so presses however slow go on skipping. With
+  the controls up the arrows move focus among them, and Down from the scrub bar goes back to the control
+  focus came up from, or to play. Focus on the scrub bar moves nothing: OK there starts seeking, Left and
+  Right then skip, and OK, Back, Up or Down stop it, sending a skip still being gathered at once. A
+  focused bar lights its knob alone, and a seeking one grows it; a skip being gathered previews where
+  it lands on the bar, frame and time. The play button holds focus once the film is ready, so OK plays
+  from the first press. Presses are gathered into one skip as taps are, for the same reason. Every press
+  among the controls holds them up afresh, and they wait longer on a television than anywhere else
+  before going, since a remote reaches a control one press at a time.
   Holding Left or Right scrubs: the bar previews where letting go
   lands, faster the longer the key is held, and one seek is sent when it comes up, as a drag sends one.
   A held key is a keydown for a key that has not come up, since a Fire TV marks no repeat as one.
   Rewind and Fast-forward skip wherever focus is, and the media keys act directly. Back closes a
-  menu, then puts the controls away, then leaves the room; Menu opens the subtitles. A television
+  menu, then stops the scrub bar seeking, then puts the controls away, then leaves the room; Menu opens the subtitles. A television
   has no volume, full screen, invite, about or back button in the player, and none of a phone's
   landscape or gestures. There a menu is a panel down the right edge, a focused control is a light pill, and
   subtitles nobody has sized are drawn large enough to read from across a room.

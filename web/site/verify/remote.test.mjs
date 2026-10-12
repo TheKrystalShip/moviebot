@@ -1,5 +1,6 @@
-// The player's remote: presses gathered into one skip, a held key scrubbing and seeking once on release,
-// and the first press while the controls are away only bringing them back.
+// The player's remote: OK playing and pausing while the controls are away, the scrub bar moving the film
+// only while it seeks, presses gathered into one skip, and a held key scrubbing and seeking once on
+// release.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -23,13 +24,20 @@ function fakeClock() {
   };
 }
 
-function player({ shown = false, scrubFocused = false, position = 600, duration = 7200 } = {}) {
+function player({ shown = false, onBar = false, seeking = false, position = 600, duration = 7200 } = {}) {
   const calls = [];
-  const state = { shown, scrubFocused, position, duration };
+  const state = { shown, onBar, seeking, position, duration };
   const hooks = {
     shown: () => state.shown,
     reveal: () => { calls.push(['reveal']); state.shown = true; },
-    scrubFocused: () => state.scrubFocused,
+    onBar: () => state.onBar,
+    seeking: () => state.seeking,
+    setSeeking: (on) => {
+      calls.push(['setSeeking', on]);
+      state.seeking = on;
+      if (on) { state.shown = true; state.onBar = true; }
+    },
+    below: () => { calls.push(['below']); state.onBar = false; },
     position: () => state.position,
     duration: () => state.duration,
     togglePlay: () => calls.push(['togglePlay']),
@@ -45,15 +53,25 @@ function player({ shown = false, scrubFocused = false, position = 600, duration 
 
 const only = (calls, name) => calls.filter((c) => c[0] === name);
 
-test('OK with the controls away brings them back and does nothing else', () => {
+test('OK with the controls away plays or pauses; with them up it is the focused control\'s', () => {
   const clock = fakeClock();
   const p = player();
   const remote = new Remote(p.hooks, clock);
   assert.equal(remote.keydown('Enter'), true);
-  assert.deepEqual(p.calls, [['reveal']]);
-  // With the controls up, OK is the focused control's, and the player lets it pass.
+  assert.deepEqual(p.calls, [['togglePlay']]);
+  p.state.shown = true;
   clock.advance(500);
   assert.equal(remote.keydown('Enter'), false);
+});
+
+test('Up and Down with the controls away only bring them back', () => {
+  const clock = fakeClock();
+  const p = player();
+  const remote = new Remote(p.hooks, clock);
+  assert.equal(remote.keydown('ArrowUp'), true);
+  assert.deepEqual(p.calls, [['reveal']]);
+  clock.advance(500);
+  assert.equal(remote.keydown('ArrowUp'), false, 'with them up, the navigator moves focus');
 });
 
 test('presses that follow each other are one skip, sent once they stop', () => {
@@ -71,17 +89,70 @@ test('presses that follow each other are one skip, sent once they stop', () => {
   assert.deepEqual(only(p.calls, 'gathering').at(-1), ['gathering', null]);
 });
 
-test('Left and Right move focus among the controls when they are up, but skip from the scrub bar', () => {
+test('Left and Right move focus among the controls, and on the scrub bar move nothing until OK', () => {
   const clock = fakeClock();
   const p = player({ shown: true });
   const remote = new Remote(p.hooks, clock);
   assert.equal(remote.keydown('ArrowLeft'), false);
   remote.keyup('ArrowLeft');
-  p.state.scrubFocused = true;
+  p.state.onBar = true;
+  clock.advance(500);
+  assert.equal(remote.keydown('ArrowLeft'), true, 'the bar keeps the key');
+  remote.keyup('ArrowLeft');
+  clock.advance(SkipSettleMs);
+  assert.deepEqual(only(p.calls, 'skipBy'), [], 'and moves nothing');
+  assert.equal(remote.keydown('Enter'), true);
+  assert.deepEqual(only(p.calls, 'setSeeking'), [['setSeeking', true]]);
   clock.advance(500);
   assert.equal(remote.keydown('ArrowLeft'), true);
+  remote.keyup('ArrowLeft');
   clock.advance(SkipSettleMs);
   assert.deepEqual(only(p.calls, 'skipBy'), [['skipBy', -SkipSeconds]]);
+});
+
+test('Left or Right with the controls away skips and brings the bar up seeking, which goes on skipping', () => {
+  const clock = fakeClock();
+  const p = player();
+  const remote = new Remote(p.hooks, clock);
+  assert.equal(remote.keydown('ArrowRight'), true);
+  remote.keyup('ArrowRight');
+  assert.deepEqual(only(p.calls, 'setSeeking'), [['setSeeking', true]]);
+  clock.advance(SkipSettleMs + 300);
+  assert.equal(remote.keydown('ArrowRight'), true);
+  remote.keyup('ArrowRight');
+  clock.advance(SkipSettleMs);
+  assert.deepEqual(only(p.calls, 'skipBy'), [['skipBy', SkipSeconds], ['skipBy', SkipSeconds]]);
+});
+
+test('OK, Up and Down stop seeking, and a skip being gathered is sent at once', () => {
+  for (const key of ['Enter', 'ArrowUp', 'ArrowDown']) {
+    const clock = fakeClock();
+    const p = player({ shown: true, onBar: true, seeking: true });
+    const remote = new Remote(p.hooks, clock);
+    remote.keydown('ArrowRight');
+    remote.keyup('ArrowRight');
+    clock.advance(100);
+    remote.keydown(key);
+    assert.deepEqual(only(p.calls, 'skipBy'), [['skipBy', SkipSeconds]], `${key} sends the skip`);
+    assert.deepEqual(only(p.calls, 'setSeeking').at(-1), ['setSeeking', false], `${key} stops seeking`);
+    clock.advance(SkipSettleMs);
+    assert.equal(only(p.calls, 'skipBy').length, 1, 'and nothing is sent twice');
+  }
+  const clock = fakeClock();
+  const p = player({ shown: true, onBar: true, seeking: true });
+  const remote = new Remote(p.hooks, clock);
+  assert.equal(remote.stopSeeking(), true, 'Back stops seeking');
+  assert.equal(remote.stopSeeking(), false, 'and is left to the player when nothing seeks');
+});
+
+test('Down from the scrub bar goes to the controls the player chooses', () => {
+  const clock = fakeClock();
+  const p = player({ shown: true, onBar: true });
+  const remote = new Remote(p.hooks, clock);
+  assert.equal(remote.keydown('ArrowDown'), true);
+  assert.deepEqual(only(p.calls, 'below'), [['below']]);
+  clock.advance(500);
+  assert.equal(remote.keydown('ArrowDown'), false, 'below the bar the navigator moves focus');
 });
 
 test('Rewind and Fast-forward skip wherever focus is', () => {

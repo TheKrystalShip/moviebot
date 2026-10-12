@@ -3,9 +3,12 @@
 // its `expect`: an element's name as focus.mjs gives it (`bar/Movies`, `row/Continue watching/0`,
 // `hero/*`), with `*` for anything, a list of names any of which will do, or `=<n>` for wherever focus
 // came to rest after the walk's step n. A step that opens a page
-// says `open`, and may name the page it should land on as `path`. A step whose flags (focus moving twice
+// says `open`, and may name the page it should land on as `path`. In the player a step may also expect
+// the film: `paused`, `shown` (the controls up), `seeking` (the scrub bar moving the film) and `moved`
+// (the film jumped). A step that is only `wait` presses nothing and lets that many ms pass. A step whose flags (focus moving twice
 // for one press, ending against the arrow) are expected says `allow`. A walk marked `optional` runs
-// only when --only names it.
+// only when --only names it. `start` may be a function, called for each run; `stepMs` is how long
+// each step of the walk is watched at the least.
 //
 // The rows are production's, and change under a walk (Watching now comes and goes with the rooms), so
 // a walk names rows by `*` and by `=<n>` rather than by title.
@@ -102,6 +105,38 @@ export const WALKS = {
       { key: "Down", expect: "row/*/0" }, { key: "Up", expect: "row/*/3", note: "back to the card it left" },
       { key: "Up" }, { key: "Up" }, { key: "Up" }, { key: "Up" }, { key: "Up" },
       { key: "Up", expect: "bar/Movies" },
+    ],
+  },
+  player: {
+    about: "The player on the scratch site (--scratch): OK, the controls, and the scrub bar",
+    optional: true,
+    start: () => `/r/verify-focus-${Date.now().toString(36)}?title=coherence-2013`,
+    settle: 15000,
+    stepMs: 2200,
+    ready: "player/Play",
+    steps: [
+      { key: "OK", paused: false, expect: "player/Pause", note: "play" },
+      { wait: 8000 },
+      { key: "OK", paused: true, shown: true, expect: "player/Play", note: "OK pauses while the controls are away" },
+      { key: "OK", paused: false, expect: "player/Pause" },
+      { wait: 8000 },
+      { key: "Right", moved: true, shown: true, seeking: true, expect: "player/Seek", note: "a skip opens the bar seeking" },
+      { key: "Right", moved: true, seeking: true, expect: "player/Seek", note: "and goes on skipping" },
+      { key: "OK", moved: false, seeking: false, expect: "player/Seek", note: "OK ends seeking" },
+      { key: "Right", moved: false, expect: "player/Seek", note: "the bar alone does not move the film" },
+      { key: "Left", moved: false, expect: "player/Seek" },
+      { key: "Down", moved: false, expect: "player/Pause" },
+      { key: "Right", moved: false, expect: "player/Back 10 seconds" },
+      { key: "Up", moved: false, expect: "player/Seek" },
+      { key: "Down", moved: false, expect: "player/Back 10 seconds", note: "back to where it came up from" },
+      { key: "Right", moved: false, expect: "player/Forward 10 seconds" },
+      { key: "Right", moved: false },
+      { key: "Up", moved: false, expect: "player/Seek" },
+      { key: "OK", moved: false, seeking: true, expect: "player/Seek", note: "OK on the bar seeks" },
+      { key: "Left", moved: true, seeking: true, expect: "player/Seek" },
+      { key: "Back", moved: false, seeking: false, shown: true, expect: "player/Seek", note: "Back ends seeking" },
+      { key: "Back", shown: false, note: "then puts the controls away" },
+      { key: "Up", shown: true, moved: false },
     ],
   },
 };

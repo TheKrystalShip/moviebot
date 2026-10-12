@@ -46,8 +46,11 @@ function frameStyle(strip, url, at, width) {
  *
  * A read-only bar is a guest's: it shows where the film is and previews what it is pointed at, and
  * moves nothing.
+ *
+ * `seeking` is a remote's: the bar is moving the film with Left and Right (`engine/media/remote.ts`),
+ * which its knob shows.
  */
-export function ScrubBar({ duration, position, ready, buffered, thumbnails, chapters, onSeek, onHold, swipe = null, thin = false, readOnly = false }) {
+export function ScrubBar({ duration, position, ready, buffered, thumbnails, chapters, onSeek, onHold, swipe = null, thin = false, readOnly = false, seeking = false }) {
   const barRef = React.useRef(null);
   const [hover, setHover] = React.useState(null);
   const [held, setDrag] = React.useState(null);
@@ -107,7 +110,7 @@ export function ScrubBar({ duration, position, ready, buffered, thumbnails, chap
   };
 
   const bar = (
-    <div ref={barRef} className={"mp-scrub" + (pointed !== null ? " is-pointed" : "") + (drag !== null ? " is-dragging" : "") + (readOnly ? " is-readonly" : "")}
+    <div ref={barRef} className={"mp-scrub" + (pointed !== null ? " is-pointed" : "") + (drag !== null ? " is-dragging" : "") + (readOnly ? " is-readonly" : "") + (seeking ? " is-seeking" : "")}
       role="slider" tabIndex={readOnly ? -1 : 0} aria-readonly={readOnly || undefined}
       aria-label={readOnly ? "Position" : "Seek"} aria-valuemin={0} aria-valuemax={Math.round(duration)}
       aria-valuenow={Math.round(shown)} aria-valuetext={`${formatTime(shown)} of ${formatTime(duration)}`}

@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.28.0] - 2026-10-12
+
+### Changed
+
+- **A television's remote drives the player the way the big streaming apps do.** While the controls
+  are away, OK pauses or plays and leaves focus on play, and Left or Right skips and brings the scrub
+  bar up seeking, with a preview of where the skip lands, so the presses after go on skipping. With
+  the controls up, focus on the scrub bar no longer moves the film: OK there starts seeking, Left and
+  Right then skip, and OK, Back, Up or Down stop it. Down from the scrub bar goes back to the control
+  focus came up from, or to play, rather than to whichever button sat under the bar's middle. A
+  focused scrub bar lights its knob alone instead of an outline round the whole bar, and a seeking one
+  grows it. Site 0.77.0.
+
 ## [3.27.2] - 2026-10-12
 
 ### Fixed

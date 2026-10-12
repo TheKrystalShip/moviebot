@@ -15,8 +15,10 @@
 // the margins, Up and Back reaching the bar from it.
 // Then what the keys do: an overlay taking focus when it opens and handing it back when it closes,
 // Back going back a page to the control it was left on, Back on Home going to the bar and then
-// being left to the app, and the player: the play button focused, OK playing, presses gathered into
-// one skip, a held key scrubbing and sending one seek, Menu opening the subtitles, and Back leaving.
+// being left to the app, and the player: the play button focused, OK playing, OK with the controls away
+// pausing, presses gathered into one skip that brings the scrub bar up seeking, the bar moving the film
+// only while it seeks, a held key scrubbing and sending one seek, Menu opening the subtitles, and Back
+// leaving.
 // Then a phone, a second browser context of the same person on a session of its own, paired with the
 // television by reading its QR code from the screenshot's pixels at the scale a camera across a room
 // has, unpaired from each side, and told the television's room once it plays and pauses a film.
@@ -375,12 +377,27 @@ async function player() {
     if (await paused()) { fail("player", "OK on play did not start the film"); return; }
     pass("play is focused, and OK plays");
 
+    // With the controls away OK pauses, and leaves focus on play so the next OK plays again.
+    await page.waitForTimeout(6800);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(800);
+    const onPlay = await page.evaluate(() => document.activeElement && document.activeElement.classList.contains("mp-play"));
+    if (!(await paused()) || !onPlay) fail("player", `OK with the controls away ${await paused() ? "paused, but left focus off play" : "did not pause"}`);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(1200);
+    if (await paused()) fail("player", "OK on play after a pause did not play");
+    else if (onPlay) pass("OK with the controls away pauses, and OK again plays");
+
     await page.waitForTimeout(6800);
     if (await shown()) fail("player", "the controls did not go away while the film played");
     const before = await time();
     await page.keyboard.press("ArrowRight");
-    if (!(await shown()) && await page.evaluate(() => document.querySelector(".mp-scrub-row__hint") !== null)) fail("player", "a skip scrubbed");
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(100);
+    const seekingBar = await page.evaluate(() => Boolean(document.querySelector(".mp-scrub.is-seeking")) && document.activeElement === document.querySelector(".mp-scrub"));
+    const previewing = await page.evaluate(() => document.querySelector(".mp-scrub__preview") !== null);
+    if (!seekingBar || !previewing) fail("player", `a skip with the controls away ${seekingBar ? "showed no preview of where it lands" : "did not bring the scrub bar up seeking"}`);
+    else pass("a skip with the controls away brings the scrub bar up seeking, with where it lands");
+    await page.waitForTimeout(50);
     await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(1300);
     const jumped = (await time()) - before;
@@ -398,6 +415,30 @@ async function player() {
     const onBar = await page.evaluate(() => document.activeElement && document.activeElement.classList.contains("mp-scrub"));
     if (slowJump < 18 || slowJump > 26 || !onBar) fail("player", `two slow presses of Right moved the film ${slowJump.toFixed(1)}s${onBar ? "" : ", and left focus off the scrub bar"}`);
     else pass(`two slow presses of Right are two skips, from the scrub bar (${slowJump.toFixed(1)}s)`);
+
+    // The bar moves the film only while it seeks: OK stops seeking, and Right then moves nothing; OK
+    // seeks again, and Back stops it without leaving the room.
+    const seekingNow = () => page.evaluate(() => Boolean(document.querySelector(".mp-scrub.is-seeking")));
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(300);
+    const still = await time();
+    await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(1300);
+    const idleMove = (await time()) - still;
+    const barStill = !(await seekingNow()) && idleMove < 3;
+    if (!barStill) fail("player", `the scrub bar moved the film ${idleMove.toFixed(1)}s without seeking`);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(300);
+    const from = await time();
+    await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(1300);
+    const seekMove = (await time()) - from;
+    if (!(await seekingNow()) || seekMove < 9) fail("player", `OK on the scrub bar did not seek (the film moved ${seekMove.toFixed(1)}s)`);
+    await page.evaluate(() => window.krystalTv.back());
+    await page.waitForTimeout(400);
+    const backStopped = !(await seekingNow()) && /\/r\//.test(page.url()) && await shown();
+    if (!backStopped) fail("player", "Back while the scrub bar seeks did not stop it, in the room with the controls up");
+    if (barStill && seekMove >= 9 && backStopped) pass("the scrub bar moves the film only while it seeks, which OK starts and OK or Back stops");
 
     await page.waitForTimeout(6800);
     await page.keyboard.press("ArrowUp");
@@ -455,8 +496,15 @@ async function player() {
     if (!(await paused())) fail("player", "Play/Pause did not pause");
     else pass("Play/Pause pauses");
 
+    // A scrub leaves the bar seeking, which the first Back stops; the next leaves the paused film.
+    const stillSeeking = await page.evaluate(() => Boolean(document.querySelector(".mp-scrub.is-seeking")));
     await page.evaluate(() => window.krystalTv.back());
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(stillSeeking ? 400 : 1500);
+    if (stillSeeking) {
+      if (!/\/r\//.test(page.url())) fail("player", "Back while the bar was seeking left the room");
+      await page.evaluate(() => window.krystalTv.back());
+      await page.waitForTimeout(1500);
+    }
     if (/\/r\//.test(page.url())) fail("player", "Back on a paused film did not leave the room");
     else pass("Back leaves the room");
   } finally {
@@ -858,22 +906,25 @@ async function remote() {
       fail("remote", `the television lists ${JSON.stringify(listed)}`);
     else pass(`the television lists the phone: "${listed[0]}"`);
 
-    // Focus follows the page's first control as its content arrives, so the phone's Unpair takes it, and
-    // its row lifts; Left goes to the section's place in the list and Right comes back.
+    // The profile opens on its section's place in the list; Right goes to the phone's Unpair, whose row
+    // lifts, and Left comes back.
     const first = await tv.page.evaluate(focused);
     const lifted = () => tv.page.evaluate(() => {
       const row = document.activeElement && document.activeElement.closest(".kc-tvr__phone");
       return row ? getComputedStyle(row).transform !== "none" : false;
     });
+    const into = await press(tv.page, "ArrowRight");
     await tv.page.screenshot({ path: join(out, "remote-unpair-focused.png") });
-    const firstLifted = await lifted();
+    const intoLifted = await lifted();
     const left = await press(tv.page, "ArrowLeft");
     const right = await press(tv.page, "ArrowRight");
-    if (!first || first.name !== "Unpair" || !first.onScreen || !firstLifted)
-      fail("remote", `focus rests on "${first && first.name}" once the phone is listed${firstLifted ? "" : ", its row not lifted"}`);
+    if (!first || first.name !== "Remote")
+      fail("remote", `focus rests on "${first && first.name}" once the phone is listed, not Remote in the list`);
+    else if (!into || into.name !== "Unpair" || !into.onScreen || !intoLifted)
+      fail("remote", `Right from Remote reached "${into && into.name}"${intoLifted ? "" : ", its row not lifted"}`);
     else if (!left || left.name !== "Remote" || !right || right.name !== "Unpair")
       fail("remote", `Left from Unpair reached "${left && left.name}" and Right from there "${right && right.name}"`);
-    else pass("Unpair takes focus once the phone is listed, its row lifts, and Left and Right go to Remote and back");
+    else pass("focus rests on Remote in the list, Right reaches Unpair and lifts its row, and Left comes back");
     await tv.page.keyboard.press("Enter");
     await tv.page.waitForFunction(() => !document.querySelector(".kc-tvr__phone"), null, { timeout: 5000 }).catch(() => {});
     await tv.page.waitForTimeout(300);

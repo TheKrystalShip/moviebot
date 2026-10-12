@@ -620,6 +620,12 @@
   color: var(--fg-4);
 }
 :root[data-tv] .mp-cue { font-size: var(--cue-size, max(26px, 4.8cqh)); }
+/* The scrub bar with focus lights its knob alone, and grows it while it seeks. Where a skip or a scrub
+   lands is the preview over the bar; the words a pointer's drag is given are not a remote's. */
+:root[data-tv] .mp-scrub:focus-visible { box-shadow: none; }
+:root[data-tv] .mp-scrub:focus-visible .mp-scrub__knob { width: 20px; height: 20px; box-shadow: 0 0 0 4px var(--krystal-teal), var(--glow-accent); }
+:root[data-tv] .mp-scrub.is-seeking .mp-scrub__knob { width: 26px; height: 26px; box-shadow: 0 0 0 6px var(--krystal-teal), var(--glow-accent); }
+:root[data-tv] .mp-scrub-row__hint { display: none; }
 
 @keyframes mp-spin { to { transform: rotate(360deg); } }
 @keyframes mp-rise { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }

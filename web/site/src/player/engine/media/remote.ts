@@ -1,17 +1,17 @@
 /**
- * A television remote in the player.
+ * A television remote in the player, which answers the keys the way the big streaming apps do.
  *
- * A remote has arrows, OK, Back, Menu and the media keys, and every one of them reaches somebody
- * sitting across a room from the controls, so the first press of OK or an arrow while the controls
- * are away only brings them back: waking the screen never moves the room.
+ * While the controls are away, OK plays or pauses, Up and Down bring the controls back, and Left and
+ * Right skip and bring them back with the scrub bar seeking, so the presses after go on skipping.
  *
- * Left and Right skip while the controls are away, and while the scrub bar holds focus, which a skip
- * gives it; with the controls up anywhere else they move focus among them, which the page's
- * navigator does. Rewind and
- * Fast-forward skip wherever focus is. A press skips by `SkipSeconds`, and presses that follow each
- * other are gathered into one skip, sent once when they stop, for the reason the gestures gather
- * taps: a second seek asked before the first is answered is measured from a playhead that has not
- * moved yet.
+ * With the controls up the arrows move focus among them, which the page's navigator does, and Down
+ * from the scrub bar goes where the player says (`below`). Focus on the scrub bar alone moves nothing:
+ * OK there starts seeking, and while it seeks Left and Right skip; OK again, Back, Up or Down stop it.
+ * Rewind and Fast-forward skip wherever focus is.
+ *
+ * A press skips by `SkipSeconds`, and presses that follow each other are gathered into one skip, sent
+ * once when they stop or when seeking stops, for the reason the gestures gather taps: a second seek
+ * asked before the first is answered is measured from a playhead that has not moved yet.
  *
  * Holding the key scrubs instead. The bar previews where letting go lands, moving faster the longer
  * the key is held, and the room is sent one seek when the key comes up, as a drag on the bar sends
@@ -25,8 +25,14 @@ export interface RemoteHooks {
   shown(): boolean;
   /** Brings the controls back and puts focus on them. */
   reveal(): void;
-  /** Whether the scrub bar holds focus, where Left and Right skip with the controls up. */
-  scrubFocused(): boolean;
+  /** Whether the scrub bar holds focus. */
+  onBar(): boolean;
+  /** Whether the scrub bar is seeking, where Left and Right skip with the controls up. */
+  seeking(): boolean;
+  /** Starts or stops seeking; starting brings the controls back with focus on the scrub bar. */
+  setSeeking(on: boolean): void;
+  /** Down from the scrub bar: focus goes to the controls under it. */
+  below(): void;
   /** Where the film is now, which a scrub starts from. */
   position(): number;
   duration(): number;
@@ -106,16 +112,36 @@ export class Remote {
       case 'MediaPlay': this.hooks.play(); return true;
       case 'MediaPause': this.hooks.pause(); return true;
       case 'Enter':
+        if (!this.hooks.shown()) {
+          if (!held) this.hooks.togglePlay();
+          return true;
+        }
+        if (!this.hooks.onBar() || this.scrub) return false;
+        if (!held) this.setSeeking(!this.hooks.seeking());
+        return true;
       case 'ArrowUp':
       case 'ArrowDown':
-        if (this.hooks.shown()) return false;
-        if (!held) this.hooks.reveal();
-        return true;
+        if (!this.hooks.shown()) {
+          if (!held) this.hooks.reveal();
+          return true;
+        }
+        if (this.scrub) return true;
+        if (this.hooks.seeking()) this.setSeeking(false);
+        if (key === 'ArrowDown' && this.hooks.onBar()) {
+          this.hooks.below();
+          return true;
+        }
+        return false;
     }
 
     const skip = SkipKeys[key];
     if (!skip) return false;
-    if (!skip.always && this.hooks.shown() && !this.hooks.scrubFocused() && !this.scrub) return false;
+    if (!skip.always && !this.scrub && this.hooks.shown()) {
+      if (!this.hooks.onBar()) return false;
+      // The scrub bar holds Left and Right whether or not it is seeking, so they never walk off it.
+      if (!this.hooks.seeking()) return true;
+    }
+    if (!skip.always && !this.hooks.shown()) this.hooks.setSeeking(true);
 
     if (this.scrub) {
       if (key === this.scrub.key) this.advance(now);
@@ -138,6 +164,21 @@ export class Remote {
     this.hooks.scrubbing(null);
     this.hooks.seek(to);
     return true;
+  }
+
+  /** Stops seeking, sending the skip being gathered at once. Answers whether it was seeking. */
+  stopSeeking(): boolean {
+    if (!this.hooks.seeking()) return false;
+    this.setSeeking(false);
+    return true;
+  }
+
+  private setSeeking(on: boolean): void {
+    if (!on && this.settleTimer !== null) {
+      this.clock.clearTimeout(this.settleTimer);
+      this.send();
+    }
+    this.hooks.setSeeking(on);
   }
 
   /** Drops whatever is being gathered or scrubbed, sending nothing. */
@@ -172,6 +213,7 @@ export class Remote {
     this.gathered = 0;
     this.hooks.gathering(null);
     this.scrub = { key, direction, at: start, since: now, tick: now };
+    if (!this.hooks.seeking()) this.hooks.setSeeking(true);
     this.hooks.scrubbing(start);
   }
 

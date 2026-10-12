@@ -1,6 +1,6 @@
 // Where focus goes on the reference television, key by key, against where it should go.
 //
-//   node verify/tvfocus/focus.mjs --serial <host:port> [--only walk,walk] [--shots] [--out dir] [--cdp-keys]
+//   node verify/tvfocus/focus.mjs --serial <host:port> [--only walk,walk] [--shots] [--out dir] [--cdp-keys] [--scratch]
 //
 // It drives the debug build of tv/ on the production site with the remote's own keys, sent over adb as
 // key events, so every key takes the path a person's press takes: the arrows and OK reach the page as
@@ -15,6 +15,14 @@
 // Whatever the expectation, a step is flagged when focus ends against the arrow (Down landing above
 // where it was), when it passes through somewhere else on the way (it moved twice for one press), or
 // when it ends on nothing.
+//
+// In the player a step also records the film: whether it is paused, where it is, whether the controls are
+// up and whether the scrub bar is seeking, and a step may expect any of them (`paused`, `shown`,
+// `seeking`, and `moved`, whether the film jumped rather than played on).
+//
+// --scratch drives the scratch site verify/mobile/scratch.sh serves instead of production, reached by the
+// television through `adb reverse` with a session planted the way the lab plants one: what the player
+// walk needs, since it plays a film, and the way to measure a local build before it is deployed.
 //
 // With --shots each step is also a picture: the screen after the key, with where focus was outlined in
 // red, where it went in green, and where it should have gone, when that is elsewhere, in yellow.
@@ -41,8 +49,25 @@ const dir = process.env.MOVIEBOT_VERIFY_DIR || join(homedir(), ".cache", "movieb
 const out = opt("out") || join(dir, "tvfocus", new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19));
 mkdirSync(out, { recursive: true });
 const Debug = "com.thekrystalship.cinema.debug";
-const origin = "https://movies.thekrystalship.com";
 const adb = (...a) => execFileSync("adb", ["-s", serial, ...a], { encoding: "utf8" }).trim();
+let origin = "https://movies.thekrystalship.com";
+let staged = null;
+let planted = null;
+let scratchPort = null;
+if (flag("scratch")) {
+  const { readFileSync } = await import("node:fs");
+  const { VIEWER, stage } = await import("../mobile/stage.mjs");
+  const { TV_CLIENT, issuerIn } = await import("../issuer.mjs");
+  const site = Object.fromEntries(readFileSync(join(dir, "api.env"), "utf8").split("\n").filter(Boolean)
+    .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]));
+  scratchPort = site.PORT;
+  origin = `http://127.0.0.1:${site.PORT}`;
+  const issuer = issuerIn(dir, Number(site.ISSUER_PORT));
+  staged = await stage(origin, issuer);
+  planted = issuer.planted(VIEWER, { hours: 6, client: TV_CLIENT });
+  adb("reverse", "tcp:" + site.PORT, "tcp:" + site.PORT);
+  adb("reverse", "tcp:" + site.ISSUER_PORT, "tcp:" + site.ISSUER_PORT);
+}
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** The remote's keys: Android key codes over adb, page keys over DevTools. */
@@ -60,6 +85,7 @@ const ARROW = { Up: "up", Down: "down", Left: "left", Right: "right" };
  * - `row/<row title>/<n>`: the n-th card or tile of a row, from 0;
  * - `side/<label>`: a side column, such as the profile's sections;
  * - `dialog/<label>`: inside an open dialog or menu;
+ * - `player/<label>`: the player's controls (`player/Seek` is the scrub bar);
  * - `main/<label>`: anything else on the page; `none` is nothing focused.
  */
 const recorder = () => {
@@ -82,6 +108,7 @@ const recorder = () => {
     const overlay = el.closest('[role="dialog"], [role="menu"], [aria-modal="true"]');
     if (overlay) return { ...base, id: "dialog/" + base.label };
     if (el.closest(".tv-bar")) return { ...base, id: "bar/" + base.label };
+    if (el.closest(".mp-frame")) return { ...base, id: "player/" + base.label };
     const row = el.closest(".tv-row");
     if (row) {
       const head = row.querySelector(".tv-row__head");
@@ -94,7 +121,16 @@ const recorder = () => {
     if (el.closest("aside")) return { ...base, id: "side/" + base.label };
     return { ...base, id: "main/" + base.label };
   };
-  const F = window.__focus = { log: [], keys: [], where, now: () => ({ ...where(document.activeElement), path: location.pathname }) };
+  // The film, in the player: paused, where it is, whether the controls are up and the bar is seeking.
+  const film = () => {
+    const v = document.querySelector(".mp-frame video");
+    if (!v) return null;
+    return {
+      paused: v.paused, at: Math.round(v.currentTime * 10) / 10, t: performance.now(),
+      shown: !!document.querySelector(".mp-stage.is-shown"), seeking: !!document.querySelector(".mp-scrub.is-seeking"),
+    };
+  };
+  const F = window.__focus = { log: [], keys: [], where, film, now: () => ({ ...where(document.activeElement), path: location.pathname, film: film() }) };
   document.addEventListener("focusin", (e) => F.log.push({ t: performance.now(), path: location.pathname, ...where(e.target) }));
   // When each key arrived: the page's own keys as they come, Back and Menu as the wrapper asks the page.
   addEventListener("keydown", (e) => F.keys.push({ t: performance.now(), key: e.key }), true);
@@ -170,6 +206,7 @@ const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
 const context = browser.contexts()[0];
 let page = context.pages().find((p) => p.url().startsWith("http"));
 for (let i = 0; i < 40 && !page; i++) { await wait(250); page = context.pages().find((p) => p.url().startsWith("http")); }
+if (planted) await context.addInitScript(({ key, value }) => { localStorage.setItem(key, value); }, planted);
 await context.addInitScript(recorder);
 const cdp = await context.newCDPSession(page);
 
@@ -215,7 +252,7 @@ try {
   for (const [name, walk] of Object.entries(WALKS)) {
     if (only ? !only.includes(name) : walk.optional) continue;
     console.log(`\n${name}${walk.about ? " — " + walk.about : ""}`);
-    await page.goto(origin + walk.start, { waitUntil: "commit" });
+    await page.goto(origin + (typeof walk.start === "function" ? walk.start() : walk.start), { waitUntil: "commit" });
     await page.waitForFunction(() => window.__focus && document.activeElement && document.activeElement !== document.body, null, { timeout: 15000 }).catch(() => {});
     await settled(0, { quiet: 1500, min: walk.settle || 4000, max: 15000 });
     if (walk.ready) {
@@ -227,12 +264,18 @@ try {
     }
     for (let i = 0; i < walk.steps.length; i++) {
       const step = walk.steps[i];
+      if (step.wait) {
+        await wait(step.wait);
+        continue;
+      }
       const before = await page.evaluate(() => {
         window.__focus.prev = document.activeElement;
         return { ...window.__focus.now(), t: performance.now() };
       });
       await press(step.key);
-      await settled(before.t, step.open ? { quiet: 1200, min: 2500, max: 10000 } : {});
+      // A walk in the player waits longer for each step: a skip is sent once presses stop, and the
+      // film moves when the room answers.
+      await settled(before.t, step.open ? { quiet: 1200, min: 2500, max: 10000 } : { min: walk.stepMs || 900 });
       const after = await page.evaluate((t) => {
         const F = window.__focus;
         const key = F.keys.find((k) => k.t >= t);
@@ -254,7 +297,17 @@ try {
       const expect = typeof step.expect === "string" && step.expect.startsWith("=")
         ? (results.find((r) => r.walk === name && r.step === Number(step.expect.slice(1))) || { to: { id: "?" } }).to.id
         : step.expect;
-      const ok = expect ? matches(expect, to.id) : null;
+      // The film's own expectations: a jump is a move of the playhead more than playing on explains.
+      const filmMisses = [];
+      if (before.film && to.film) {
+        const played = before.film.paused ? 0 : (to.film.t - before.film.t) / 1000;
+        to.film.moved = Math.abs(to.film.at - before.film.at - played) > 4;
+        for (const k of ["paused", "shown", "seeking", "moved"]) {
+          if (k in step && step[k] !== to.film[k]) filmMisses.push(`${k} ${to.film[k]}, expected ${step[k]}`);
+        }
+      }
+      const judged = expect || ["paused", "shown", "seeking", "moved"].some((k) => k in step);
+      const ok = judged ? (!expect || matches(expect, to.id)) && filmMisses.length === 0 : null;
       const pathOk = step.path ? to.path === step.path : true;
       const bad = ok === false || !pathOk || (flags.length > 0 && !step.allow);
       if (bad) failures++;
@@ -271,13 +324,15 @@ try {
       const verdict = bad ? (ok === false || !pathOk ? "MISS" : "FLAG") : ok ? "ok  " : "    ";
       const moved = before.path !== to.path ? `  [${before.path} -> ${to.path}]` : "";
       const why = [
-        ok === false ? `expected ${[expect].flat().join(" | ")}` : "",
+        ok === false && expect && !matches(expect, to.id) ? `expected ${[expect].flat().join(" | ")}` : "",
+        ...filmMisses,
         !pathOk ? `expected page ${step.path}` : "",
         via.length ? `via ${via.join(" > ")}` : "",
         drifted ? "focus moved by itself before the key" : "",
         ...flags.filter((f) => f !== "moved more than once"),
       ].filter(Boolean).join("; ");
-      console.log(`  ${verdict} ${step.key.padEnd(5)} ${before.id.slice(0, 40).padEnd(40)} -> ${to.id}${moved}${why ? "   " + why : ""}${step.note ? `   (${step.note})` : ""}`);
+      const f = to.film ? `  [${to.film.paused ? "paused" : "playing"} ${to.film.at}s${to.film.shown ? " shown" : ""}${to.film.seeking ? " seeking" : ""}${to.film.moved ? " JUMPED" : ""}]` : "";
+      console.log(`  ${verdict} ${step.key.padEnd(5)} ${before.id.slice(0, 40).padEnd(40)} -> ${to.id}${f}${moved}${why ? "   " + why : ""}${step.note ? `   (${step.note})` : ""}`);
     }
   }
 } finally {
@@ -287,6 +342,8 @@ try {
   try { adb("forward", "--remove", `tcp:${port}`); } catch { /* gone with the app */ }
   adb("shell", "am", "force-stop", Debug);
   adb("shell", "am", "start", "-n", "com.thekrystalship.cinema/.CinemaActivity");
+  if (staged) await staged.close();
+  if (scratchPort) { try { adb("reverse", "--remove-all"); } catch { /* nothing reversed */ } }
   console.log(`\n${failures} step(s) missed or flagged. Results: ${join(out, "results.json")}`);
 }
 process.exit(failures > 0 ? 1 : 0);

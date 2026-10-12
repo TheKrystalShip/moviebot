@@ -333,6 +333,12 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   const playRef = React.useRef(null);
   const [remoteHud, setRemoteHud] = React.useState(null);
   const [remoteScrub, setRemoteScrub] = React.useState(null);
+  // Whether the scrub bar is seeking: only then do Left and Right move the film from it. Read by the
+  // remote as the keys arrive, so it is kept in a ref as well as drawn.
+  const [seeking, setSeekingDrawn] = React.useState(false);
+  const seekingRef = React.useRef(false);
+  const setSeeking = React.useCallback((on) => { seekingRef.current = on; setSeekingDrawn(on); }, []);
+  React.useEffect(() => { if (!shown) setSeeking(false); }, [shown, setSeeking]);
   const live = React.useRef(null);
   live.current = {
     shown, active, paused: clock.paused, position: clock.position,
@@ -386,41 +392,64 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   React.useEffect(() => {
     if (!tv) return undefined;
     const frame = frameRef.current;
-    // A skip or a scrub brings the bar up with focus on it, so the next press of Left or Right goes on
-    // moving the film however slowly it comes, and Down reaches the buttons.
-    const toBar = () => {
-      const bar = frame.querySelector(".mp-scrub");
-      if (bar && document.activeElement !== bar) bar.focus({ focusVisible: true });
+    const bar = () => frame.querySelector(".mp-scrub");
+    const onBar = () => Boolean(document.activeElement && document.activeElement === bar());
+    const toPlay = () => { if (playRef.current) playRef.current.focus({ focusVisible: true }); };
+    // The control under the bar that focus last left it for, where Down from the bar goes back to.
+    let underBar = null;
+    const remember = (e) => {
+      if (e.target instanceof HTMLElement && e.target.closest(".mp-controls")) underBar = e.target;
+      // Focus leaving the bar ends its seeking.
+      if (seekingRef.current && e.target !== bar()) setSeeking(false);
     };
+    document.addEventListener("focusin", remember);
     const remote = new Remote({
       shown: () => live.current.shown,
       reveal: () => {
         wake();
         const focused = document.activeElement;
-        if (playRef.current && (!focused || focused === document.body || !frame.contains(focused))) {
-          playRef.current.focus({ focusVisible: true });
-        }
+        if (!focused || focused === document.body || !frame.contains(focused)) toPlay();
       },
-      scrubFocused: () => Boolean(document.activeElement && document.activeElement.classList.contains("mp-scrub")),
+      onBar,
+      seeking: () => seekingRef.current,
+      setSeeking: (on) => {
+        if (on) {
+          wake();
+          const scrub = bar();
+          if (scrub && document.activeElement !== scrub) scrub.focus({ focusVisible: true });
+        }
+        setSeeking(on);
+      },
+      below: () => {
+        if (underBar && underBar.isConnected && frame.contains(underBar) && !underBar.disabled) underBar.focus({ focusVisible: true });
+        else toPlay();
+      },
       position: () => live.current.position,
       duration: () => live.current.duration,
-      togglePlay: () => { room.togglePlay(); wake(); },
+      // OK or play-pause with the controls away leaves focus on play, so the next OK answers it again.
+      togglePlay: () => { const away = !live.current.shown; room.togglePlay(); wake(); if (away) toPlay(); },
       play: () => { if (live.current.paused) room.togglePlay(); wake(); },
       pause: () => { if (!live.current.paused) room.togglePlay(); wake(); },
-      skipBy: (seconds) => { room.seekBy(seconds); wake(); toBar(); },
-      gathering: (seconds) => setRemoteHud(seconds === null ? null
-        : { kind: "skip", side: seconds < 0 ? "left" : "right", seconds, key: Date.now() }),
-      scrubbing: (at) => { setRemoteScrub(at); if (at !== null) { wake(); toBar(); } },
+      skipBy: (seconds) => { room.seekBy(seconds); wake(); },
+      // A skip being gathered previews where it lands on the bar, frame and time, as a held key does.
+      gathering: (seconds) => {
+        setRemoteHud(seconds === null ? null : { kind: "skip", side: seconds < 0 ? "left" : "right", seconds, key: Date.now() });
+        setRemoteScrub(seconds === null ? null
+          : Math.min(live.current.duration, Math.max(0, live.current.position + seconds)));
+        if (seconds !== null) wake();
+      },
+      scrubbing: (at) => { setRemoteScrub(at); if (at !== null) wake(); },
       seek: (seconds) => room.seek(seconds),
     });
     const typing = (target) => target instanceof HTMLElement
       && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
     const down = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
-      if (remote.keydown(e.key, e.repeat)) { e.preventDefault(); e.stopPropagation(); return; }
-      // A press the remote leaves to the browser walks focus among the controls, and somebody walking
-      // them is reaching for one.
-      if (live.current.shown && NavigationKeys.has(e.key)) wake();
+      // Any press among the controls up, whether the remote takes it or leaves it to the browser to walk
+      // focus, is somebody reaching for one, and holds them up afresh.
+      const taken = remote.keydown(e.key, e.repeat);
+      if (live.current.shown && (taken || NavigationKeys.has(e.key))) wake();
+      if (taken) { e.preventDefault(); e.stopPropagation(); }
     };
     const up = (e) => {
       if (remote.keyup(e.key)) { e.preventDefault(); e.stopPropagation(); }
@@ -430,6 +459,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
     const offBack = onTvBack(() => {
       const now = live.current;
       if (now.open) { closeAll(); return true; }
+      if (remote.stopSeeking()) { wake(); return true; }
       if (now.active && !now.paused) {
         window.clearTimeout(idleTimer.current);
         setActive(false);
@@ -448,12 +478,13 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
     }, Rank.screen);
     return () => {
       remote.dispose();
+      document.removeEventListener("focusin", remember);
       window.removeEventListener("keydown", down, true);
       window.removeEventListener("keyup", up, true);
       offBack();
       offMenu();
     };
-  }, [tv, room, wake, closeAll, onBack, frameRef]);
+  }, [tv, room, wake, closeAll, onBack, frameRef, setSeeking]);
 
   // On a television the play button takes focus once the film is ready, so OK answers from the first
   // press, unless somebody has already pressed a key in the player: until then, whatever focus found
@@ -645,7 +676,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
           <div className="mp-bottom">
             <ScrubBar duration={duration} position={clock.position} ready={view.transcodeHead} buffered={clock.buffered}
               thumbnails={view.thumbnails} chapters={manifest.chapters} onSeek={(s) => room.seek(s)} onHold={hold} swipe={swipe}
-              readOnly={viewOnly} />
+              readOnly={viewOnly} seeking={seeking} />
             <div className="mp-controls">
               {!viewOnly && (
                 <>

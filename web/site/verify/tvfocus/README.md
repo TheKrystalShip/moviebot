@@ -18,7 +18,14 @@ arrive, and the harness waits for it before it measures anything.
 npm run verify:tv-focus -- --serial <tv>:5555                          # every walk not marked optional
 npm run verify:tv-focus -- --serial <tv>:5555 --only profile-back --shots
 npm run verify:tv-focus -- --serial <tv>:5555 --cdp-keys               # keys typed over DevTools
+npm run verify:tv-focus -- --serial <tv>:5555 --scratch --only player  # the player, on the scratch site
 ```
+
+`--scratch` drives the scratch site (`../mobile/scratch.sh`, running) instead of production: the
+television reaches it through `adb reverse`, signed in with a planted session. The player walk needs it,
+since it plays a film, and it measures a local build before anything is deployed. In the player each
+step also records the film: paused or playing, where it is, whether the controls are up and whether
+the scrub bar is seeking, and whether the film jumped rather than played on, which a walk can expect.
 
 Each step prints one line: `ok` when focus came to rest where expected, `MISS` when it did not, `FLAG`
 when there was no expectation but focus ended on nothing, ended against the arrow (judged by where
