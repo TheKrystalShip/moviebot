@@ -1,7 +1,7 @@
 {
   "name": "krystal-cinema",
   "private": true,
-  "version": "0.77.0",
+  "version": "0.78.0",
   "type": "module",
   "description": "Krystal Cinema: MovieBot's site, served by MovieBot.Api.",
   "scripts": {
@@ -13,6 +13,7 @@
     "verify": "node verify/run.mjs",
     "verify:routes": "node verify/routes.mjs",
     "verify:mobile": "node verify/mobile/run.mjs",
+    "verify:phone-player": "node verify/mobile/player.mjs",
     "verify:pull": "node verify/mobile/pull.mjs",
     "verify:pwa": "node verify/pwa.mjs",
     "verify:tv": "node verify/tv.mjs",

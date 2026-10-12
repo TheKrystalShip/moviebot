@@ -44,6 +44,11 @@ function signed(seconds) {
  * A surface that has no volume or brightness of its own, the phone's remote, passes `levels: false`
  * and has its vertical sweeps read as nothing.
  *
+ * The player passes `middlePlays: false` and `sweepSeeks: false`, as the big streaming apps read a
+ * finger: a tap anywhere only shows or hides the controls, play and pause being the large button in
+ * their middle, and the film is moved from its scrub bar and by two taps at a side, never by a sweep
+ * across the picture, which a hand resting on the screen makes without meaning to.
+ *
  * Where the film is not this viewer's to move (`seekable` false, a guest's), a tap anywhere only
  * shows or hides the controls, and only the sweeps up and down are read.
  *
@@ -105,7 +110,11 @@ export function useStageGestures(props) {
           return;
         }
       }
-      if (zone === "middle") { latest.current.onTogglePlay(); return; }
+      if (zone === "middle") {
+        if (latest.current.middlePlays === false) latest.current.onToggleControls();
+        else latest.current.onTogglePlay();
+        return;
+      }
       // A tap at the side waits to learn whether it is the first of two.
       pendingTap.current = {
         side: zone, at: now,
@@ -140,7 +149,7 @@ export function useStageGestures(props) {
       if (t.axis === null) {
         if (Math.hypot(dx, dy) < SwipeSlopPx) return;
         if (Math.abs(dx) > Math.abs(dy)) {
-          t.axis = p.duration > 0 && p.seekable !== false ? "seek" : "none";
+          t.axis = p.duration > 0 && p.seekable !== false && p.sweepSeeks !== false ? "seek" : "none";
           t.from = p.position;
           if (t.axis === "seek") p.onHold(true);
         } else if (p.levels === false) {

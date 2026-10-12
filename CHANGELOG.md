@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.29.0] - 2026-10-13
+
+### Changed
+
+- **A phone's player answers a finger the way the big streaming apps do.** A tap anywhere on the film
+  shows or hides the controls and never pauses it; play and pause is a large button in the middle of
+  the film with the skips either side, and pressing it leaves the controls up a moment. The film moves
+  from the scrub bar and by two taps at a side, no longer by a sweep across the picture. The row under
+  the bar is Lock, Episodes, Audio & Subtitles (one menu for both), Settings (Chapters and Quality) and
+  Next episode, with no volume button. The bar ends with the time left and thickens under the thumb,
+  every control in the top bar is a thumb wide, and Invite is an icon. Lock puts the controls away and
+  ignores touches until Unlock. Site 0.78.0.
+
 ## [3.28.0] - 2026-10-12
 
 ### Changed

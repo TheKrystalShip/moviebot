@@ -37,8 +37,8 @@
 }
 
 /* Everything over the film fades together when nobody is reaching for it. */
-.mp-top, .mp-bottom, .mp-tiny { transition: opacity 200ms var(--ease-out); }
-.mp-stage.is-idle .mp-top, .mp-stage.is-idle .mp-bottom, .mp-stage.is-idle .mp-tiny,
+.mp-top, .mp-bottom, .mp-tiny, .mp-centre { transition: opacity 200ms var(--ease-out); }
+.mp-stage.is-idle .mp-top, .mp-stage.is-idle .mp-bottom, .mp-stage.is-idle .mp-tiny, .mp-stage.is-idle .mp-centre,
 .mp-stage.is-idle .mp-shade { opacity: 0; pointer-events: none; }
 
 /* ── Top bar ── */
@@ -574,6 +574,34 @@
   .mp-menu-button { height: 44px; }
   .mp-scrub { height: 44px; }
   .mp-volume__track { display: none; }
+}
+
+/* ── A phone: play and pause the large button in the middle of the film with the skips either side,
+   every control a thumb wide, and a bar that thickens under the thumb. `is-touch` rather than a
+   pointer query, which a television's WebView answers as a phone does. ── */
+.mp-centre {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3;
+  display: flex; align-items: center; gap: clamp(28px, 9vw, 64px);
+}
+.mp-centre__play, .mp-centre__skip {
+  display: inline-flex; align-items: center; justify-content: center; border: none; cursor: pointer;
+  border-radius: 999px; color: #fff; -webkit-tap-highlight-color: transparent;
+}
+.mp-centre__play { width: 72px; height: 72px; background: rgba(255, 255, 255, 0.16); }
+.mp-centre__skip { width: 56px; height: 56px; background: transparent; }
+.mp-centre__play:active, .mp-centre__skip:active { background: rgba(255, 255, 255, 0.28); }
+.mp-stage.is-touch .mp-round { width: 44px; height: 44px; }
+.mp-stage.is-touch .mp-scrub__track { height: 6px; }
+.mp-stage.is-touch .mp-scrub.is-pointed .mp-scrub__track, .mp-stage.is-touch .mp-scrub.is-dragging .mp-scrub__track { height: 10px; }
+.mp-stage.is-touch .mp-scrub__knob { width: 18px; height: 18px; }
+.mp-stage.is-touch .mp-scrub.is-dragging .mp-scrub__knob { width: 28px; height: 28px; }
+.mp-stage.is-touch .mp-menu-button:not(.is-icon) { gap: 8px; }
+/* Locked: nothing but the way out, shown by a tap. */
+.mp-unlock {
+  position: absolute; left: 50%; bottom: 32px; transform: translateX(-50%); z-index: 6;
+  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: 999px;
+  border: 1px solid var(--border-strong); background: rgba(17, 22, 29, 0.85); color: #fff;
+  font-size: 14px; font-weight: 600; cursor: pointer;
 }
 
 /* ── Tiny: one row ── */

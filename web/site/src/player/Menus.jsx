@@ -52,7 +52,10 @@ export function qualityValue(view) {
 /** Whether there is anything to choose between. One rung is no choice at all. */
 export const hasQualityChoice = (view) => view.qualityLevels.length > 1;
 
-export const MenuTitles = { subs: "Subtitles", audio: "Audio track", quality: "Quality", chapters: "Chapters", episodes: "Episodes" };
+export const MenuTitles = {
+  subs: "Subtitles", audio: "Audio track", quality: "Quality", chapters: "Chapters", episodes: "Episodes",
+  listen: "Audio & Subtitles", settings: "Settings",
+};
 
 /** Whether the film has a season to move around in: an episode, in a room, for somebody who may move it. */
 export const hasEpisodes = (view) => Boolean(view.manifest && view.manifest.episode && view.manifest.film
@@ -62,14 +65,16 @@ export const hasEpisodes = (view) => Boolean(view.manifest && view.manifest.epis
 export const episodeValue = (view) => `S${view.manifest.episode.season} · E${view.manifest.episode.number}`;
 
 /**
- * One button of the control row that opens a menu, naming the choice it is set to.
+ * One button of the control row that opens a menu, naming the choice it is set to, or with no `value`
+ * the menu itself, as a phone's row does.
  */
-export function MenuButton({ kind, icon, value, open, compact, onClick }) {
+export function MenuButton({ kind, icon, value = null, open, compact, onClick }) {
   return (
     <button type="button" className={"mp-menu-button" + (open ? " is-open" : "") + (compact ? " is-icon" : "")}
-      aria-haspopup="true" aria-expanded={open} aria-label={`${MenuTitles[kind]}: ${value}`} title={MenuTitles[kind]} onClick={onClick}>
+      aria-haspopup="true" aria-expanded={open} aria-label={value === null ? MenuTitles[kind] : `${MenuTitles[kind]}: ${value}`}
+      title={MenuTitles[kind]} onClick={onClick}>
       <Icon name={icon} size={18} />
-      {!compact && <span className="mp-menu-button__value">{value}</span>}
+      {!compact && <span className="mp-menu-button__value">{value === null ? MenuTitles[kind] : value}</span>}
     </button>
   );
 }
@@ -81,10 +86,27 @@ export function MenuButton({ kind, icon, value, open, compact, onClick }) {
  *
  * A phone's remote draws the same menu over the page rather than inside a frame (`contained` false) and
  * names the screen it is aimed at (`aimedAt`).
+ *
+ * A phone's player has two menus of its own, as the big streaming apps have: Audio & Subtitles
+ * (`listen`), the audio tracks over the subtitles, and Settings, whose `settings` entries each open
+ * their own menu through `onPick`.
  */
-export function Menu({ kind, view, room, sheet, position, styling, onStyling, onClose, contained = true, aimedAt = null }) {
-  const editing = kind === "subs" && styling;
+export function Menu({ kind, view, room, sheet, position, styling, onStyling, onClose, contained = true, aimedAt = null, settings = [], onPick }) {
+  const editing = (kind === "subs" || kind === "listen") && styling;
   const body = editing ? <SubtitleStyleEditor style={view.preferences.subtitleStyle} onChange={(style) => room.setSubtitleStyle(style)} />
+    : kind === "listen" ? (
+      <>
+        {view.manifest.audio.length > 1 && (
+          <>
+            <div className="mp-menu__section">{MenuTitles.audio}</div>
+            <AudioOptions view={view} room={room} onClose={onClose} />
+            <div className="mp-menu__section">{MenuTitles.subs}</div>
+          </>
+        )}
+        <SubtitleOptions view={view} room={room} onStyle={() => onStyling(true)} />
+      </>
+    )
+    : kind === "settings" ? <SettingsOptions entries={settings} onPick={onPick} />
     : kind === "subs" ? <SubtitleOptions view={view} room={room} onStyle={() => onStyling(true)} />
       : kind === "audio" ? <AudioOptions view={view} room={room} onClose={onClose} />
         : kind === "chapters" ? <ChapterOptions view={view} room={room} position={position} onClose={onClose} />
@@ -103,7 +125,7 @@ export function Menu({ kind, view, room, sheet, position, styling, onStyling, on
     );
   }
   return (
-    <div className={"mp-popover" + (kind === "subs" ? " mp-popover--wide" : kind === "episodes" ? " mp-popover--episodes" : "") + " mp-menu"} role="menu" aria-label={title}>
+    <div className={"mp-popover" + (kind === "subs" || kind === "listen" ? " mp-popover--wide" : kind === "episodes" ? " mp-popover--episodes" : "") + " mp-menu"} role="menu" aria-label={title}>
       <div className="mp-menu__head">
         {back && (
           <button type="button" className="mp-menu__back" aria-label={back.label} onClick={back.onClick}>
@@ -216,6 +238,21 @@ function Option({ on, label, sub, disabled, readOnly = false, onPick, children }
       className={"mp-option" + (on ? " is-on" : "")} onClick={onPick}>
       {body}
     </button>
+  );
+}
+
+/** Settings: each entry the name of a menu and what it is set to, opening that menu. */
+function SettingsOptions({ entries, onPick }) {
+  return (
+    <div className="mp-menu__list">
+      {entries.map(({ kind, icon, value }) => (
+        <button key={kind} type="button" role="menuitem" className="mp-option" onClick={() => onPick(kind)}>
+          <span className="mp-option__check"><Icon name={icon} size={16} /></span>
+          <span className="mp-option__text"><span className="mp-option__label">{MenuTitles[kind]}</span></span>
+          <span className="mp-option__value">{value}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 

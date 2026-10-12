@@ -47,10 +47,12 @@ function frameStyle(strip, url, at, width) {
  * A read-only bar is a guest's: it shows where the film is and previews what it is pointed at, and
  * moves nothing.
  *
+ * With `remaining` the bar ends with the time left rather than the film's length, as a phone's does.
+ *
  * `seeking` is a remote's: the bar is moving the film with Left and Right (`engine/media/remote.ts`),
  * which its knob shows.
  */
-export function ScrubBar({ duration, position, ready, buffered, thumbnails, chapters, onSeek, onHold, swipe = null, thin = false, readOnly = false, seeking = false }) {
+export function ScrubBar({ duration, position, ready, buffered, thumbnails, chapters, onSeek, onHold, swipe = null, thin = false, readOnly = false, seeking = false, remaining = false }) {
   const barRef = React.useRef(null);
   const [hover, setHover] = React.useState(null);
   const [held, setDrag] = React.useState(null);
@@ -144,7 +146,7 @@ export function ScrubBar({ duration, position, ready, buffered, thumbnails, chap
       <div className="mp-scrub-row__line">
         <span className="mp-scrub-row__time">{formatTime(shown)}</span>
         {bar}
-        <span className="mp-scrub-row__time">{formatTime(duration)}</span>
+        <span className="mp-scrub-row__time">{remaining ? `−${formatTime(Math.max(0, duration - shown))}` : formatTime(duration)}</span>
       </div>
       {drag !== null && (
         <span className="mp-scrub-row__hint">

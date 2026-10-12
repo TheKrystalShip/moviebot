@@ -35,6 +35,14 @@ A run's output is under `~/.cache/moviebot-verify/runs/<time>/`: `<device>/<view
 `<device>/<view>-full.png` (the whole page), `sheets/<view>.png`, and `report.json`. It exits 1 when
 any view has a fault.
 
+## The player under a finger
+
+`npm run verify:phone-player` (`player.mjs`) plays the scratch library's film on a phone held sideways
+and touches it: what each tap, double tap and sweep does to the film and the controls, the layout of
+the controls sideways and upright, and the lock. It holds them to the way the big streaming apps answer
+a touch, and exits 1 on a miss; a screenshot of each step lands in
+`~/.cache/moviebot-verify/phone-player/<time>/`. `--device` names another Chromium phone.
+
 ## The scratch site
 
 The checkout's `media/` is hard-linked into a library of the harness's own, so nothing a run does

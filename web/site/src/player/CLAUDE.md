@@ -154,19 +154,30 @@ and does nothing that would be.
   compact one (an Activity at its default size, a phone) has icons and menus as sheets from the bottom
   edge; a tiny one (a popped-out Activity, small in both directions) is one row with an overflow menu.
   Width alone does not make a frame tiny: a phone held upright is as narrow as a popped-out view, and
-  is compact, keeping its way back and its invite. A mouse click on the film plays or pauses it.
-- **A finger on the film is read as gestures** (`Gestures.jsx`), in three columns. A tap in the
-  middle plays or pauses the room; a tap at either side shows or hides the controls, and waits a
-  moment first to learn whether it is the first of two. Two taps at a side skip back or forward by
-  the same step as the buttons, and each further tap while the skip is gathering adds a step; the
-  skip goes to the room once, when the taps stop, because a second seek asked before the first is
-  answered is measured from a playhead that has not moved. A sweep sideways anywhere is the scrub
-  bar under the thumb: the width of the frame is the length of the film, the bar previews where
-  letting go lands, and nothing moves until it does. A sweep up or down at the right is this
-  viewer's volume, and at the left how bright the picture is drawn. Before the film is in the
-  element a touch only shows or hides what is over the frame.
-  The phone's remote reads the same gestures on its still with `levels: false`, which makes the
-  vertical sweeps nothing, and shares `stretches.js` (the closing stretch, the skip offer) with the player.
+  is compact, keeping its way back and its invite. The one thing the device decides is a touch screen's
+  own controls (below). A mouse click on the film plays or pauses it.
+- **A finger on the film is read the way the big streaming apps read it** (`Gestures.jsx`). A tap
+  anywhere shows or hides the controls, at a side after a moment, to learn whether it is the first of
+  two. Two taps at a side skip back or forward by the same step as the buttons, and each further tap
+  while the skip is gathering adds a step; the skip goes to the room once, when the taps stop, because a
+  second seek asked before the first is answered is measured from a playhead that has not moved. The
+  film is moved from the scrub bar and by those taps, never by a sweep across the picture, which a
+  hand resting on the screen makes without meaning to. A sweep up or down at the right is this
+  viewer's volume, and at the left how bright the picture is drawn. The click a browser makes of a
+  touch on the bare film is cancelled, since it would land on whatever the touch brought up under the
+  finger. Before the film is in the element a touch only shows or hides what is over the frame.
+  The phone's remote reads gestures on its still too, where a tap in the middle plays or pauses and a
+  sweep sideways scrubs, there being no controls over it to reach; it passes `levels: false`, which
+  makes the vertical sweeps nothing, and shares `stretches.js` (the closing stretch, the skip offer)
+  with the player.
+- **A phone's controls** (a touch screen, `is-touch`: a television's WebView answers a pointer query as
+  a phone does, so the frame is marked rather than queried). Play and pause is a large button in the
+  middle of the film with the skips either side of it, and pressing it holds the controls up a moment.
+  The row under the bar is Lock, then Episodes, Audio & Subtitles (the audio tracks over the
+  subtitles), Settings (Chapters and Quality, each opening its own menu) and Next episode; there is no
+  volume button, the phone's own keys being the volume. The bar ends with the time left and thickens
+  under the thumb, every control is a thumb wide, and Invite is an icon. Lock puts every control away
+  and reads no touch on the film: a tap shows only Unlock.
 - **A remote on a television** (`engine/media/remote.ts`, `Environment.tv`), answered the way the big
   streaming apps answer one. While the controls are away, OK plays or pauses and leaves focus on the
   play button, Up and Down only bring the controls back, and Left and Right skip by the buttons' step

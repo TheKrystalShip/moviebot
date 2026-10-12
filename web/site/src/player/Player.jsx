@@ -244,6 +244,9 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   const [info, setInfo] = React.useState(false);
   const [held, setHeld] = React.useState(0);
   const [active, setActive] = React.useState(true);
+  // A phone's screen locked against a hand resting on it: no touch reaches the film or the controls,
+  // and a tap shows only the way to unlock.
+  const [locked, setLocked] = React.useState(false);
   const [announcement, setAnnouncement] = React.useState(null);
   const [clock, setClock] = React.useState({ position: 0, buffered: 0, paused: true });
   const [volume, setVolume] = React.useState(() => ({ position: prefs.volume(), muted: prefs.muted() }));
@@ -324,7 +327,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   }, []);
   React.useEffect(() => { wake(); return () => window.clearTimeout(idleTimer.current); }, [wake]);
   const hold = React.useCallback((on) => setHeld((n) => Math.max(0, n + (on ? 1 : -1))), []);
-  const shown = active || held > 0 || menu !== null || overflow || invite || info || clock.paused || !view.ready;
+  const shown = !locked && (active || held > 0 || menu !== null || overflow || invite || info || clock.paused || !view.ready);
 
   // A television is driven by its remote (`engine/media/remote.ts`): the volume is the set's own, the
   // screen is already whole, and nobody across the room is handed a link to copy.
@@ -520,6 +523,8 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
     volumeSettable: settable,
     brightness,
     seekable: !viewOnly,
+    middlePlays: false,
+    sweepSeeks: false,
     onTogglePlay: () => room.togglePlay(),
     onToggleControls: toggleControls,
     onSeek: (s) => room.seek(s),
@@ -533,6 +538,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   // hides what is over the frame.
   const pressStage = (e) => {
     if (e.target !== e.currentTarget) return;
+    if (locked) { wake(); return; }
     if (menu !== null || overflow || invite || info) { closeAll(); return; }
     if (e.pointerType === "mouse") { if (!viewOnly) room.togglePlay(); wake(); return; }
     if (view.ready) gestures.onPointerDown(e);
@@ -560,6 +566,20 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   const waiting = !view.fatal && !view.unplayable && !view.gate && !preparing
     && ((titleHeld && !manifest) || view.catchingUp || view.stalled);
   const sheet = compact;
+  // A phone's play and pause is the large button in the middle of the film, the skips either side of
+  // it, as the big streaming apps draw them; its row under the bar opens menus.
+  const centred = phone && Boolean(manifest) && view.ready && !view.gate && !viewOnly && size !== "tiny" && !locked;
+  const settings = manifest ? [
+    (manifest.chapters || []).length > 1
+      ? { kind: "chapters", icon: "list", value: (chapterAt(manifest.chapters, clock.position) || {}).title || MenuTitles.chapters } : null,
+    hasQualityChoice(view) ? { kind: "quality", icon: "gauge", value: qualityValue(view) } : null,
+  ].filter(Boolean) : [];
+  const lock = () => {
+    closeAll();
+    window.clearTimeout(idleTimer.current);
+    setActive(false);
+    setLocked(true);
+  };
   const swipe = remoteScrub ?? (gestures.hud && gestures.hud.kind === "seek" ? gestures.hud.at : null);
   // A room left paused a moment says what is playing over the left of the film, while nothing else is open over it.
   const pausedLong = usePausedLong(Boolean(view.ready && clock.paused));
@@ -584,9 +604,13 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
 
   return (
     <div className={"mp-stage" + (shown ? " is-shown" : " is-idle") + (view.ready ? " is-playing-film" : "")
+      + (phone ? " is-touch" : "") + (locked ? " is-locked" : "")
       + (info && offersAbout && !sheet ? " has-about" : "")} style={frameStyle}
       onPointerDown={pressStage} onPointerMove={moveOnStage} onPointerUp={liftFromStage}
-      onPointerCancel={(e) => { if (e.pointerType !== "mouse") gestures.onPointerCancel(e); }}>
+      onPointerCancel={(e) => { if (e.pointerType !== "mouse") gestures.onPointerCancel(e); }}
+      // A touch on the bare film is the gestures' alone: the click a browser makes of it afterwards would
+      // land on whatever the touch just brought up under the finger, such as the play button.
+      onTouchEnd={(e) => { if (e.target === e.currentTarget && e.cancelable) e.preventDefault(); }}>
       {brightness < 1 && <div className="mp-dim" style={{ opacity: 1 - brightness }} aria-hidden="true" />}
       <div className="mp-backdrop" aria-hidden="true" />
       <div className="mp-shade" aria-hidden="true" />
@@ -611,7 +635,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
               )}
               <div className="mp-avatars">{everyone.map((p) => <Avatar key={p.userId} person={p} />)}</div>
               {size === "wide" && <span className="mp-top__count">{everyone.length > 1 ? `${everyone.length} watching` : "Just you"}</span>}
-              {size !== "tiny" && !tv && !viewOnly && <InviteButton open={invite}
+              {size !== "tiny" && !tv && !viewOnly && <InviteButton open={invite} icon={phone}
                 onToggle={() => { setMenu(null); setOverflow(false); setInfo(false); setInvite((o) => !o); }} />}
             </div>
           )}
@@ -641,7 +665,25 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
       )}
 
       {/* ── What stands in the middle of the frame ── */}
-      {waiting && <div className="mp-spinner" role="status" aria-label="Waiting for the film"><Icon name="loader-circle" size={36} className="mp-spin" /></div>}
+      {waiting && !centred && <div className="mp-spinner" role="status" aria-label="Waiting for the film"><Icon name="loader-circle" size={36} className="mp-spin" /></div>}
+      {centred && (
+        <div className="mp-centre">
+          <button type="button" className="mp-centre__skip" aria-label={`Back ${SkipSeconds} seconds`} onClick={() => { room.seekBy(-SkipSeconds); wake(); }}>
+            <Icon name="rotate-ccw" size={28} />
+          </button>
+          <button ref={playRef} type="button" className="mp-centre__play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => { room.togglePlay(); wake(); }}>
+            {waiting ? <Icon name="loader-circle" size={32} className="mp-spin" /> : <Icon name={clock.paused ? "play" : "pause"} size={32} />}
+          </button>
+          <button type="button" className="mp-centre__skip" aria-label={`Forward ${SkipSeconds} seconds`} onClick={() => { room.seekBy(SkipSeconds); wake(); }}>
+            <Icon name="rotate-cw" size={28} />
+          </button>
+        </div>
+      )}
+      {locked && active && (
+        <button type="button" className="mp-unlock" aria-label="Unlock" onClick={() => { setLocked(false); wake(); }}>
+          <Icon name="lock-open" size={18} />Unlock
+        </button>
+      )}
       {pauseCard && <PauseCard about={about} />}
       {pauseCard && tv && !viewOnly && <PausedCode />}
       {roomPaused && !waiting && !pauseCard && <div className="mp-paused" role="status"><Icon name="pause" size={18} />Paused</div>}
@@ -676,11 +718,34 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
           <div className="mp-bottom">
             <ScrubBar duration={duration} position={clock.position} ready={view.transcodeHead} buffered={clock.buffered}
               thumbnails={view.thumbnails} chapters={manifest.chapters} onSeek={(s) => room.seek(s)} onHold={hold} swipe={swipe}
-              readOnly={viewOnly} seeking={seeking} />
+              readOnly={viewOnly} seeking={seeking} remaining={phone} />
+            {phone ? (
+              <div className="mp-controls">
+                <button type="button" className={"mp-menu-button" + (compact ? " is-icon" : "")} aria-label="Lock" title="Lock" onClick={lock}>
+                  <Icon name="lock" size={18} />
+                  {!compact && <span className="mp-menu-button__value">Lock</span>}
+                </button>
+                <span className="mp-controls__gap" />
+                {hasEpisodes(view) && (
+                  <MenuButton kind="episodes" icon="list-video" open={menu === "episodes"} compact={compact} onClick={() => openMenu("episodes")} />
+                )}
+                <MenuButton kind="listen" icon="captions" open={menu === "listen"} compact={compact} onClick={() => openMenu("listen")} />
+                {settings.length > 0 && (
+                  <MenuButton kind="settings" icon="settings" open={menu === "settings"} compact={compact} onClick={() => openMenu("settings")} />
+                )}
+                {manifest.episode && !viewOnly && next && (
+                  <button type="button" className={"mp-menu-button" + (compact ? " is-icon" : "")} disabled={view.stepping}
+                    aria-label={`Next episode: ${episodeWords(next)}`} title={`Next episode · ${episodeWords(next)}`} onClick={goNext}>
+                    <Icon name="skip-forward" size={18} />
+                    {!compact && <span className="mp-menu-button__value">Next episode</span>}
+                  </button>
+                )}
+              </div>
+            ) : (
             <div className="mp-controls">
               {!viewOnly && (
                 <>
-                  <button ref={playRef} type="button" className="mp-play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => room.togglePlay()}>
+                  <button ref={playRef} type="button" className="mp-play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => { room.togglePlay(); wake(); }}>
                     <Icon name={clock.paused ? "play" : "pause"} size={compact ? 18 : 20} />
                   </button>
                   <button type="button" className="mp-icon" aria-label={`Back ${SkipSeconds} seconds`} title={`Back ${SkipSeconds} seconds (j)`} onClick={() => room.seekBy(-SkipSeconds)}>
@@ -726,6 +791,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
                 </button>
               )}
             </div>
+            )}
           </div>
         ))}
 
@@ -745,7 +811,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
       )}
 
       {menu !== null && manifest && <Menu kind={menu} view={view} room={room} sheet={sheet} position={clock.position}
-        styling={styling} onStyling={setStyling} onClose={() => setMenu(null)} />}
+        styling={styling} onStyling={setStyling} onClose={() => setMenu(null)} settings={settings} onPick={setMenu} />}
       {overflow && manifest && (
         <Overflow view={view} volume={volume} onVolume={changeVolume} onNudge={nudgeVolume}
           onPick={(kind) => { setOverflow(false); setMenu(kind); }} onClose={() => setOverflow(false)} />
@@ -827,7 +893,15 @@ function CopyLink({ link, className, label = "Copy room link" }) {
 }
 
 /** Opens the panel that hands the room to somebody else and says who may come in. */
-function InviteButton({ open, onToggle }) {
+/** Invite, a word beside its icon, or on a phone the icon alone. */
+function InviteButton({ open, onToggle, icon = false }) {
+  if (icon) {
+    return (
+      <button type="button" className={"mp-round" + (open ? " is-open" : "")} aria-expanded={open} aria-label="Invite" title="Invite" onClick={onToggle}>
+        <Icon name="user-plus" size={18} />
+      </button>
+    );
+  }
   return (
     <button type="button" className={"mp-invite" + (open ? " is-open" : "")} aria-expanded={open} onClick={onToggle}>
       <Icon name="user-plus" size={17} />Invite
