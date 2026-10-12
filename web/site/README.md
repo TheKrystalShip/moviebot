@@ -21,6 +21,7 @@ npm run verify:pwa     # installable, and the service worker keeps only what it 
 npm run verify:tv      # every page driven by a remote's keys alone, against a scratch site (verify/tv.mjs)
 npm run verify:tv-perf # how a remote's presses feel, timed at a television's pace against a baseline (verify/tvperf/)
 npm run verify:stage   # nothing of a page being prepared out of sight is seen or reachable, against a scratch site (verify/stage.mjs)
+npm run verify:tv-sweep # every key press on the reference television, timed and traced, for finding stutters (verify/tvsweep/)
 npm run verify:offline # Download of a whole film and of one still being made, and the installed app with no connection and with the API down, against a scratch site (verify/saving.mjs, verify/growing.mjs, verify/offline.mjs)
 ```
 
@@ -375,6 +376,14 @@ settles. The lab runs Chromium against the same scratch site at the television's
 and pace, and fails on a step past `verify/tvperf/baseline.json`; a release passes it. With
 `--target tv` the same walks run on the television itself over adb. How to run it, what each measure
 is and how the lab is fitted to the television: `verify/tvperf/README.md`.
+
+`npm run verify:tv-sweep` times every key press of a walk on the reference television itself, over
+adb, against the production site or (`--scratch`) the scratch site through `adb reverse`: how long
+focus takes to move, how many frames miss the panel's budget, and with `--trace` where the main thread,
+the GPU and image decoding spent the time. It is the workbench for finding why the television
+stutters, with ablations that switch one thing off to measure what it costs; `verify:tv-perf` stays the
+gate. How to run and read it: `verify/tvsweep/README.md`. The work in progress and its baselines:
+`docs/tv-performance-plan.md`.
 
 `npm run verify:stage` moves between Home and Discover on a desktop and on a phone, holding back one
 read the page navigated to waits on so it sits out of sight with the rest of it drawn, and records

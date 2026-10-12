@@ -18,6 +18,7 @@
     "verify:tv": "node verify/tv.mjs",
     "verify:tv-perf": "node verify/tvperf/run.mjs",
     "verify:stage": "node verify/stage.mjs",
+    "verify:tv-sweep": "node verify/tvsweep/sweep.mjs",
     "verify:offline": "node verify/saving.mjs && node verify/growing.mjs && node verify/offline.mjs",
     "verify:device": "node verify/device.mjs",
     "preview": "vite preview"
