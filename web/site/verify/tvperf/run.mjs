@@ -267,7 +267,16 @@ async function television() {
   const Debug = "com.thekrystalship.cinema.debug";
   const adb = (...a) => execFileSync("adb", ["-s", serial, ...a], { encoding: "utf8" }).trim();
   try { execFileSync("adb", ["connect", serial], { encoding: "utf8" }); } catch { /* answered below */ }
-  if (adb("get-state") !== "device") { console.error(`${serial} is not an authorized adb device.`); process.exit(2); }
+  const state = () => { try { return adb("get-state"); } catch { return "offline"; } };
+  if (state() !== "device") {
+    // A television that slept keeps a dead connection until adb is asked to make it again.
+    try { execFileSync("adb", ["reconnect", "offline"], { stdio: "ignore" }); } catch { /* answered below */ }
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  if (state() !== "device") {
+    console.error(`${serial} is not an authorized adb device: is the television on, and its debugging prompt accepted?`);
+    process.exit(2);
+  }
   if (!adb("shell", "pm", "list", "packages", Debug).includes(Debug)) {
     console.error(`${serial} has no debug build: tv/build.sh --debug --install.`);
     process.exit(2);

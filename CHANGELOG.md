@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.24.5] - 2026-10-12
+
+### Changed
+
+- **Discover's tiles fetch their posters within half a screen of being seen.** The site takes krystal-ui
+  0.26.1. On the reference television the browser's own lazy loading reached nearly all of Discover, a page
+  under four screens tall; tiles further down and along a rail now wait until they near the screen. Site
+  0.73.5.
+
 ## [3.24.4] - 2026-10-12
 
 ### Changed
