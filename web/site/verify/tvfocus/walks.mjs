@@ -1,13 +1,14 @@
 // What the focus walk presses, and where focus should go. A walk opens `start`, checks the focus it
 // opened on against `ready`, then presses each step's `key` and checks where focus came to rest against
 // its `expect`: an element's name as focus.mjs gives it (`bar/Movies`, `row/Continue watching/0`,
-// `hero/*`), with `*` for anything, or a list of names any of which will do. A step that opens a page
+// `hero/*`), with `*` for anything, a list of names any of which will do, or `=<n>` for wherever focus
+// came to rest after the walk's step n. A step that opens a page
 // says `open`, and may name the page it should land on as `path`. A step whose flags (focus moving twice
 // for one press, ending against the arrow) are expected says `allow`. A walk marked `optional` runs
 // only when --only names it.
 //
-// Row names and counts are production's library, so a walk names the first rows it relies on with `*`
-// where the library decides.
+// The rows are production's, and change under a walk (Watching now comes and goes with the rooms), so
+// a walk names rows by `*` and by `=<n>` rather than by title.
 
 const right = (n) => Array.from({ length: n }, () => ({ key: "Right" }));
 
@@ -17,10 +18,10 @@ export const WALKS = {
     start: "/",
     ready: "hero/*",
     steps: [
-      { key: "Down", expect: "row/Continue watching/0" }, { key: "Down", expect: "row/Watch later/0" },
-      { key: "Down", expect: "row/Recently added/0" }, { key: "Down", expect: "row/Anticipated/0" },
-      { key: "Up", expect: "row/Recently added/0" }, { key: "Up", expect: "row/Watch later/0" },
-      { key: "Up", expect: "row/Continue watching/0" }, { key: "Up", expect: "hero/*" },
+      { key: "Down", expect: "row/*/0" }, { key: "Down", expect: "row/*/0" },
+      { key: "Down", expect: "row/*/0" }, { key: "Down", expect: "row/*/0" },
+      { key: "Up", expect: "=3" }, { key: "Up", expect: "=2" },
+      { key: "Up", expect: "=1" }, { key: "Up", expect: "hero/*" },
       { key: "Up", expect: "bar/Home" }, { key: "Down", expect: "hero/*" },
     ],
   },
@@ -41,7 +42,8 @@ export const WALKS = {
     start: "/",
     steps: [
       { key: "Up" }, ...right(7),
-      { key: "OK", open: true, path: "/profile" },
+      { key: "OK", open: true, path: "/profile", expect: "side/*History" },
+      { key: "Right", expect: "main/*" },
       { key: "Left", expect: "side/*History" },
       { key: "Right", expect: "main/*" },
       { key: "Back", open: true, path: "/", expect: "bar/Profile" },
@@ -52,9 +54,20 @@ export const WALKS = {
     start: "/",
     steps: [
       { key: "Down" }, { key: "Down" }, { key: "Up" }, { key: "Up" }, { key: "Up", expect: "bar/Home" }, ...right(7),
-      { key: "OK", open: true, path: "/profile" },
+      { key: "OK", open: true, path: "/profile", expect: "side/*History" },
       { key: "Back", open: true, path: "/", expect: "bar/Profile" },
       { key: "Down", expect: "hero/*" },
+    ],
+  },
+  "bar-down": {
+    about: "Down out of the bar from items far from the page's first control, and from Back deep in the rows",
+    start: "/",
+    steps: [
+      { key: "Up", expect: "bar/Home" }, ...right(3), { key: "Down", expect: "hero/*", note: "from TV Shows" },
+      { key: "Up", expect: "bar/Home" }, ...right(7), { key: "Down", expect: "hero/*", note: "from Profile" },
+      { key: "Down", expect: "row/*/0" }, { key: "Down" }, { key: "Down", expect: "row/*/0" },
+      { key: "Back", expect: "bar/Home" },
+      { key: "Down", expect: "=17", note: "back to where the page was left" },
     ],
   },
   "bar-to-pages": {

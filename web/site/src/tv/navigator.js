@@ -31,11 +31,16 @@ import { Rank, back, menu, onBack, onMenu } from "./tv.js";
  *   lands there;
  * - entering a side column or a navigation landmark from outside lands on the item marked as the
  *   current page;
+ * - Down from above the page's column, out of the bar, goes into the page on the control last focused
+ *   on it, or on its first, rather than on whatever sits under the bar's item;
  * - focus is never left on nothing: when the focused element goes away, the nearest candidate to where
  *   it was takes it, and when that is in a side column or a navigation landmark, focus lands there as
- *   entering it does, on the item marked as the current page;
- * - a page that is shown puts focus on its first control outside navigation, or, when the page was
- *   come back to, on the control that was focused when it was left; until a key is pressed or focus
+ *   entering it does, on the item marked as the current page. While the next page is being prepared
+ *   out of sight, focus waits for it instead of landing on the page being left;
+ * - a page that is shown puts focus on its first control outside navigation (or the one marked
+ *   `data-tv-initial`), or, when the page was come back to, on the control it was left by: a control
+ *   outside the page that is not a place in the navigation, such as the bar's profile button, or else
+ *   the control on the page that was focused last; until a key is pressed or focus
  *   goes anywhere else, focus follows that choice as the page's content arrives, since what is first
  *   changes as it does;
  * - a submitted search moves focus off its field to the form's submit button, which closes the
@@ -144,14 +149,14 @@ function cost(from, to, direction, offLine = false) {
 }
 
 /**
- * The nearest ancestor that scrolls sideways and only sideways: a row. A page's column that also
- * scrolls sideways, because something on it is too wide, is still a column.
+ * The nearest ancestor that scrolls sideways and only sideways: a row, whether or not it holds enough
+ * to scroll, so a short row remembers its card as a long one does. A page's column that also scrolls
+ * sideways, because something on it is too wide, is still a column.
  */
 function rowOf(el) {
   for (let node = el.parentElement; node && node !== document.body; node = node.parentElement) {
     const style = getComputedStyle(node);
-    if (/(auto|scroll)/.test(style.overflowX) && !/(auto|scroll)/.test(style.overflowY)
-      && node.scrollWidth > node.clientWidth + 1) return node;
+    if (/(auto|scroll)/.test(style.overflowX) && !/(auto|scroll)/.test(style.overflowY)) return node;
   }
   return null;
 }
@@ -280,6 +285,17 @@ function move(direction) {
     focusInitial(region);
     return;
   }
+  // Down from above the page, out of the bar, goes into the page where it was left, or where it starts,
+  // whatever happens to sit under the bar's item.
+  const main = document.querySelector("main");
+  if (direction === "down" && region === document.body && main && !main.contains(from) && rectOf(from).bottom <= rectOf(main).top + rectOf(main).height / 2) {
+    const memory = pageMemory.get(window.location.href);
+    const target = (memory && memory.main && find(memory.main, main, () => true)) || initialIn(main);
+    if (target) {
+      focusElement(target);
+      return;
+    }
+  }
   const origin = rectOf(from);
   const home = areaOf(from);
   const best = nearestThatWay(region, from, origin, home, direction, false)
@@ -368,8 +384,15 @@ function remember(event) {
   const row = rowOf(el);
   if (row) rowMemory.set(row, el);
   const main = document.querySelector("main");
-  if (main && main.contains(el)) {
-    pageMemory.set(window.location.href, describe(el, main));
+  if (!main) return;
+  const href = window.location.href;
+  if (main.contains(el)) pageMemory.set(href, { main: describe(el, main), away: null });
+  else if (!el.closest(Overlay)) {
+    // A control outside the page that is not a place in the navigation, such as the profile's button,
+    // is where the page is come back to after what it opened; a place in the navigation leads to a
+    // page of its own, and coming back from that returns to the page's content.
+    const memory = pageMemory.get(href) || { main: null, away: null };
+    pageMemory.set(href, { ...memory, away: el.closest("nav") ? null : describe(el, document.body) });
   }
 }
 
@@ -385,15 +408,21 @@ function describe(el, main) {
 const label = (el) => (el.getAttribute("aria-label") || el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 80);
 
 /**
- * The control a page was left on: the one with its link and name, else its name, else the one in its
- * place. What names an element is read first and only a match is measured, since a page coming back
- * asks again on every change while it loads.
+ * The control a page was left on: the control outside the page it was left by, when it was, else the
+ * one on the page with its link and name, else its name, else the one in its place. What names an
+ * element is read first and only a match is measured, since a page coming back asks again on every
+ * change while it loads.
  */
 function recall(main) {
   const memory = pageMemory.get(window.location.href);
   if (!memory) return null;
-  const all = [...main.querySelectorAll(Focusable)];
-  const ok = (el) => !!el && isCandidate(el, main);
+  return (memory.away && find(memory.away, document.body, (el) => !main.contains(el)))
+    || (memory.main && find(memory.main, main, () => true));
+}
+
+function find(memory, within, where) {
+  const all = [...within.querySelectorAll(Focusable)];
+  const ok = (el) => !!el && where(el) && isCandidate(el, within);
   return all.find((el) => memory.href && el.getAttribute("href") === memory.href && label(el) === memory.label && ok(el))
     || all.find((el) => label(el) === memory.label && ok(el))
     || (ok(all[memory.index]) ? all[memory.index] : null);
@@ -438,6 +467,9 @@ function settle() {
     return;
   }
   if (active && active !== document.body) return;
+  // Focus lost while the next page is prepared out of sight, as the bar going with the address does,
+  // waits for that page, which puts focus on it once shown, rather than landing on the page being left.
+  if (!overlay && preparing()) return;
   if (!overlay && opener && opener.isConnected && drawn(opener)) {
     focusElement(opener);
     opener = null;
@@ -447,6 +479,12 @@ function settle() {
   const region = scope();
   const nearest = last ? nearestTo(last.rect, region) : null;
   if (nearest) focusElement(landing(nearest, last.el));
+}
+
+/** Whether the page's column is preparing the next page out of sight: it says so, `data-tv-preparing`. */
+function preparing() {
+  const main = document.querySelector("main");
+  return !!main && main.hasAttribute("data-tv-preparing");
 }
 
 let pending = false;

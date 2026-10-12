@@ -49,9 +49,15 @@ export function TvFrame({ session, route, held = false }) {
   const [scrolled, setScrolled] = React.useState(false);
   const [away, setAway] = React.useState(false);
 
+  // The page shown, which lags the route while the next page is prepared out of sight. The column says
+  // so, so focus lost meanwhile, as the bar going with the address takes it, waits for the next page.
+  const routeKey = React.useRef(route.key);
+  routeKey.current = route.key;
+  const [shownKey, setShownKey] = React.useState(route.key);
   const shown = React.useCallback(() => {
     if (mainRef.current) mainRef.current.scrollTop = 0;
     setScrolled(false);
+    setShownKey(routeKey.current);
     pageShown(mainRef.current);
   }, []);
   React.useEffect(() => { pageShown(mainRef.current); }, []);
@@ -106,7 +112,8 @@ export function TvFrame({ session, route, held = false }) {
             </>} />
         </div>
       )}
-      <main className={"kc-tv-main" + (barred && inBar ? " is-under-bar" : "")} ref={mainRef} data-tv-line="230">
+      <main className={"kc-tv-main" + (barred && inBar ? " is-under-bar" : "")} ref={mainRef} data-tv-line="230"
+        data-tv-preparing={route.key !== shownKey ? "" : undefined}>
         <div ref={topRef} className="kc-tv-top-mark" style={{ height: BAR_SCROLL }} aria-hidden="true" />
         <BarAway.Provider value={setAway}>
           <Pages route={route} session={session} onShown={shown} />

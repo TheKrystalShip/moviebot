@@ -233,7 +233,16 @@ try {
       });
       await press(step.key);
       await settled(before.t, step.open ? { quiet: 1200, min: 2500, max: 10000 } : {});
-      const after = await page.evaluate((t) => ({ now: window.__focus.now(), passed: window.__focus.log.filter((e) => e.t >= t) }), before.t);
+      const after = await page.evaluate((t) => {
+        const F = window.__focus;
+        const key = F.keys.find((k) => k.t >= t);
+        const at = key ? key.t : t;
+        return { now: F.now(), drift: F.log.filter((e) => e.t >= t && e.t < at), passed: F.log.filter((e) => e.t >= at) };
+      }, before.t);
+      // Focus that moved on its own between sending the key and its arrival, as Home's slides turning
+      // takes it to the same place on the next slide, is where the key found it, not where the key took it.
+      const drifted = after.drift.length > 0 ? after.drift[after.drift.length - 1] : null;
+      if (drifted) Object.assign(before, { id: drifted.id, label: drifted.label, rect: drifted.rect, pos: drifted.pos, path: drifted.path });
       const to = after.now;
       // Every element focus rested on between the key and the end, the end itself left out.
       const via = after.passed.slice(0, -1).filter((e, j, a) => e.id !== to.id && (j === 0 || e.id !== a[j - 1].id)).map((e) => e.id);
@@ -241,13 +250,17 @@ try {
       if (to.id === "none") flags.push("focus on nothing");
       if (ARROW[step.key] && to.path === before.path && to.id !== before.id && !along(ARROW[step.key], before.pos, to.pos)) flags.push("against the arrow");
       if (via.length > 0) flags.push("moved more than once");
-      const ok = step.expect ? matches(step.expect, to.id) : null;
+      // `=<n>`: wherever focus came to rest after this walk's step n.
+      const expect = typeof step.expect === "string" && step.expect.startsWith("=")
+        ? (results.find((r) => r.walk === name && r.step === Number(step.expect.slice(1))) || { to: { id: "?" } }).to.id
+        : step.expect;
+      const ok = expect ? matches(expect, to.id) : null;
       const pathOk = step.path ? to.path === step.path : true;
       const bad = ok === false || !pathOk || (flags.length > 0 && !step.allow);
       if (bad) failures++;
-      const record = { walk: name, step: i + 1, key: step.key, note: step.note, from: before, to, via, expect: step.expect, path: step.path, ok, pathOk, flags };
+      const record = { walk: name, step: i + 1, key: step.key, note: step.note, from: before, drifted: !!drifted, to, via, expect, path: step.path, ok, pathOk, flags };
       if (shots) {
-        await page.evaluate((e) => window.__focus.mark(e), step.expect && !ok ? [step.expect].flat()[0] : null);
+        await page.evaluate((e) => window.__focus.mark(e), expect && !ok ? [expect].flat()[0] : null);
         const file = `${name}-${String(i + 1).padStart(2, "0")}-${step.key}.jpg`;
         const shot = await cdp.send("Page.captureScreenshot", { format: "jpeg", quality: 70, clip: { x: 0, y: 0, width: 960, height: 540, scale: 0.5 } });
         writeFileSync(join(out, file), Buffer.from(shot.data, "base64"));
@@ -258,9 +271,10 @@ try {
       const verdict = bad ? (ok === false || !pathOk ? "MISS" : "FLAG") : ok ? "ok  " : "    ";
       const moved = before.path !== to.path ? `  [${before.path} -> ${to.path}]` : "";
       const why = [
-        ok === false ? `expected ${[step.expect].flat().join(" | ")}` : "",
+        ok === false ? `expected ${[expect].flat().join(" | ")}` : "",
         !pathOk ? `expected page ${step.path}` : "",
         via.length ? `via ${via.join(" > ")}` : "",
+        drifted ? "focus moved by itself before the key" : "",
         ...flags.filter((f) => f !== "moved more than once"),
       ].filter(Boolean).join("; ");
       console.log(`  ${verdict} ${step.key.padEnd(5)} ${before.id.slice(0, 40).padEnd(40)} -> ${to.id}${moved}${why ? "   " + why : ""}${step.note ? `   (${step.note})` : ""}`);

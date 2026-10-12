@@ -22,8 +22,8 @@ const SECTIONS = PROFILE_TAB_FACES.filter((t) => t.id !== "notifications");
  * Appearance, Account and About — with Sign out under them, and the open section on the right. The
  * page is the screen's height and never scrolls: the open section scrolls inside its panel, under its
  * title, so neither the title nor the list can be carried off the screen by a long section. The
- * section is in the address, as on every surface; About keeps its own, `/about`, and is drawn here
- * with focus on its place in the list, since it holds nothing to press.
+ * section is in the address, as on every surface; About keeps its own, `/about`. The page opens with
+ * focus on the open section's place in the list, and Right goes into the section.
  */
 export function TvProfile({ tab: named, about = false }) {
   const session = useSession();
@@ -44,7 +44,7 @@ export function TvProfile({ tab: named, about = false }) {
         <nav className="kc-tvp__nav" aria-label="Profile">
           {SECTIONS.map((t) => (
             <button key={t.id} type="button" className="tv-pill kc-tvp__item" aria-current={!about && t.id === tab ? "page" : undefined}
-              onClick={() => navigate(profilePath(t.id), { replace: true })}>
+              data-tv-initial={!about && t.id === tab ? "" : undefined} onClick={() => navigate(profilePath(t.id), { replace: true })}>
               <Icon name={t.icon} size={18} />{t.label}
             </button>
           ))}

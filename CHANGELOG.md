@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.27.2] - 2026-10-12
+
+### Fixed
+
+- **On a television, focus goes where the remote points.** The profile opens on its list of sections,
+  on the one open, and Back from it returns to the bar's profile button it was opened from, without
+  focus passing through the page being left on the way. Down out of the bar goes into the page where
+  it was left, or where it starts, rather than onto whatever card sits under the bar's item. A row
+  too short to scroll remembers its card as a long one does, so coming back into it lands on the card
+  it was left on. Site 0.76.2.
+
 ## [3.27.1] - 2026-10-12
 
 ### Fixed
