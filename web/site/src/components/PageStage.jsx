@@ -1,6 +1,7 @@
 import React from "react";
 import { PageKey } from "../crumbs.js";
 import { LoadTracker } from "../data.js";
+import { holdSplash } from "../splash.js";
 
 /** The longest a page waits out of sight for its reads before it is shown as it stands. */
 const READY_CAP_MS = 500;
@@ -21,11 +22,15 @@ const READY_CAP_MS = 500;
  * same page given new words, and is drawn in place. Both pages are children of one keyed list, so the
  * page prepared out of sight is the one shown, never mounted a second time.
  *
+ * The first page is prepared the same way under the splash (`splash.js`), which it holds until its
+ * first reads are answered and its artwork has decoded; the splash's own cap stands in for
+ * `READY_CAP_MS`.
+ *
  * `above(route)` draws what sits over the stage once, for the route of the page shown, so it never
  * runs ahead of the page it describes while the next is being prepared.
  */
 export function PageStage({ route, render, above, onShown }) {
-  const stage = useStage(route.key, route, route.path + "?" + route.query.toString(), onShown);
+  const stage = useStage(route.key, route, route.path + "?" + route.query.toString(), onShown, true);
   const page = (entry, tracker) => (
     <PageKey.Provider value={entry.key}><LoadTracker.Provider value={tracker}>{render(entry.value)}</LoadTracker.Provider></PageKey.Provider>
   );
@@ -50,15 +55,35 @@ export function TabStage({ tab, render }) {
  * key is mounted out of sight with a tracker of its own and promoted once its reads are answered and
  * its artwork has decoded, or after `READY_CAP_MS`, whichever is first.
  */
-function useStage(key, value, revision, onShown) {
-  const [shown, setShown] = React.useState({ key, value });
+function useStage(key, value, revision, onShown, first = false) {
+  const [shown, setShown] = React.useState(() => ({ key, value, tracker: first ? makeTracker() : null }));
   const [incoming, setIncoming] = React.useState(null);
   const [entering, setEntering] = React.useState(null);
   const box = React.useRef(null);
+  const shownBox = React.useRef(null);
+
+  // The first entry holds the splash from its commit until its reads are answered and its artwork has
+  // decoded. Idle is asked after the page's own effects, which are the ones that start its reads.
+  const release = React.useRef(null);
+  React.useLayoutEffect(() => {
+    if (!shown.tracker) return undefined;
+    release.current = holdSplash();
+    return () => release.current();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  React.useEffect(() => {
+    if (!shown.tracker) return undefined;
+    let live = true;
+    shown.tracker.whenIdle(() => {
+      if (live) artworkDecoded(shownBox.current).then(release.current);
+    });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   React.useEffect(() => {
     if (key === shown.key) {
-      setShown({ key, value });
+      setShown((prev) => ({ ...prev, key, value }));
       setIncoming(null);
     } else {
       setIncoming({ key, value, tracker: makeTracker() });
@@ -89,7 +114,7 @@ function useStage(key, value, revision, onShown) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entering]);
 
-  return { shown, incoming, entering, box, settle: () => setEntering(null) };
+  return { shown, incoming, entering, box, shownBox, settle: () => setEntering(null) };
 }
 
 /**
@@ -97,11 +122,11 @@ function useStage(key, value, revision, onShown) {
  * one shown, never mounted a second time. `settled` is the tracker the shown entry reads under.
  */
 function Staged({ stage, draw, settled }) {
-  const { shown, incoming, entering, box, settle } = stage;
+  const { shown, incoming, entering, box, shownBox, settle } = stage;
   const entries = [
-    <div key={shown.key} className={"kc-stage__page" + (entering === shown.key ? " is-entering" : "")}
+    <div key={shown.key} ref={shownBox} className={"kc-stage__page" + (entering === shown.key ? " is-entering" : "")}
       onAnimationEnd={(e) => { if (e.target === e.currentTarget) settle(); }}>
-      {draw(shown, settled)}
+      {draw(shown, shown.tracker || settled)}
     </div>,
   ];
   if (incoming) {
@@ -141,10 +166,13 @@ function makeTracker() {
   };
 }
 
-/** Every image in the first screenful of a page, decoded or failed, so artwork does not pop in. */
+/**
+ * Every image in the first screen of a page, decoded or failed, so artwork does not pop in. The screen
+ * is both ways: a row's cards past its right edge are lazy, and load only when the row is scrolled.
+ */
 function artworkDecoded(root) {
   if (!root) return Promise.resolve();
-  const fold = window.innerHeight;
-  const images = [...root.querySelectorAll("img")].filter((img) => !img.complete && img.getBoundingClientRect().top < fold);
+  const inView = (r) => r.width > 0 && r.top < window.innerHeight && r.bottom > 0 && r.left < window.innerWidth && r.right > 0;
+  const images = [...root.querySelectorAll("img")].filter((img) => !img.complete && inView(img.getBoundingClientRect()));
   return Promise.all(images.map((img) => img.decode().catch(() => {}))).then(() => {});
 }

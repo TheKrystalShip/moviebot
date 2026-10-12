@@ -58,7 +58,9 @@ function render(source, w, h, out) {
 
 const icon = (name) => resolve(OUT, "icons", name);
 
-// The favicon is the vector itself, and the 32px PNG is for the browsers that take no SVG.
+// The favicon is the vector itself, and the 32px PNG is for the browsers that take no SVG. index.html
+// draws the same vector inline as the splash, which has to be drawn before any file can arrive, so a
+// change to the mark is copied there by hand.
 mkdirSync(resolve(OUT, "icons"), { recursive: true });
 writeFileSync(icon("icon.svg"), MARK + "\n");
 render(MARK, 32, 32, icon("icon-32.png"));

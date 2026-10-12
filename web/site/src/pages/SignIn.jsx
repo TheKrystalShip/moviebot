@@ -3,11 +3,18 @@ import { Button } from "@thekrystalship/krystal-ui";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 import { beginSignIn, completeSignIn } from "../session.js";
 import { navigate } from "../router.js";
+import { holdSplash } from "../splash.js";
 
 const UNREACHABLE = "The sign-in service is not answering. Try again in a moment.";
 
-/** Nothing to show yet: the page before a session is known, or while the browser leaves for the provider. */
-export const Dark = () => <div style={{ position: "fixed", inset: 0, background: "#000" }} />;
+/**
+ * Nothing to show yet: the page before a session is known, or while the browser leaves for the
+ * provider. It keeps the splash up (`splash.js`), and is its canvas once the splash has gone.
+ */
+export function Dark() {
+  React.useLayoutEffect(() => holdSplash(), []);
+  return <div style={{ position: "fixed", inset: 0, background: "#0B0F14" }} />;
+}
 
 /**
  * Where the provider sends the browser back: the code is redeemed and the page that was asked for

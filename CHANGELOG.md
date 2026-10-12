@@ -4,6 +4,30 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.26.0] - 2026-10-12
+
+### Added
+
+- **The site opens on a splash.** The mark on the canvas is drawn with the page's first bytes, the same
+  drawing as the iOS launch screens, the installed app's launch screen and the television app's
+  background, so it takes over from them unseen. It stays while the session is restored and the first
+  page is prepared beneath it, until the page's first reads are answered and the artwork on its first
+  screen has decoded, then fades; it is gone three seconds after opening whatever is still coming. On the
+  reference television, opening Home draws something at 288 ms rather than 1824, and the page is seen
+  arriving once rather than rearranging six times.
+
+### Changed
+
+- **The top of Home and of Discover arrives with its page.** Its slides are chosen and described in the
+  same pass as the page's other reads, not two drawings later, and the first slide is one of the reads a
+  page waits for before it is shown. Every slide is laid out once it is described and turned to once its
+  artwork has arrived, so a later slide no longer makes the top taller under the rows. The artwork of the
+  slides after the first is fetched behind what is on screen.
+- **A page navigated to waits only for the artwork it shows.** A row's cards past its right edge, which
+  load only when the row is scrolled, no longer hold the page to the half-second cap.
+- The dark screen before a session is known is the canvas colour rather than black.
+- Site 0.75.0.
+
 ## [3.25.1] - 2026-10-12
 
 ### Changed

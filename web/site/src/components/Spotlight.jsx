@@ -1,4 +1,5 @@
 import { Button, CarouselPager, Icon, Skeleton, useCarousel } from "@thekrystalship/krystal-ui";
+import { readySlides } from "../heroes.js";
 import { discoverFilmPath, moviePath, showPath } from "../paths.js";
 import { linkProps } from "../router.js";
 import { WatchButton } from "./Film.jsx";
@@ -12,30 +13,32 @@ export const SLIDE_MS = 8000;
 /**
  * The top of Home and of Discover: one title large over its artwork, with why it is here, its facts,
  * its story and what can be done with it, turning to the next of `slides` (`heroes.js`) by itself.
- * Every slide is laid in the same place, so the top is as tall as its tallest slide and nothing below
- * it moves as it turns; the artwork fades from one to the next. `more` follows each slide's actions.
- * `where` joins a title from the film database with the library when it is drawn.
+ * Every slide described is laid in the same place, so the top is as tall as its tallest slide and
+ * nothing below it moves as it turns or as later slides' artwork arrives; it turns among those whose
+ * artwork has (`readySlides`), and the artwork fades from one to the next. `more` follows each slide's
+ * actions. `where` joins a title from the film database with the library when it is drawn.
  */
 export function Spotlight({ slides, more, where }) {
-  const carousel = useCarousel({ count: slides ? slides.length : 0, interval: SLIDE_MS });
+  const turning = readySlides(slides);
+  const carousel = useCarousel({ count: turning.length, interval: SLIDE_MS });
   if (!slides) return <Skeleton w="100%" h={380} r={6} />;
   if (slides.length === 0) return null;
   const shown = carousel.index;
   return (
     <section className="kc-featured kc-spotlight" aria-label="Featured" {...carousel.rootProps}>
-      {slides.map((s, i) => s.spot.art && (
+      {turning.map((s, i) => s.spot.art && (
         <div key={s.key} className={"kc-featured__art" + (i === shown ? " is-shown" : "")} style={{ backgroundImage: `url("${s.spot.art}")` }} />
       ))}
       <div className="kc-featured__scrim" />
       <div className="kc-spotlight__slides" aria-live={carousel.running ? "off" : "polite"}>
         {slides.map((s, i) => (
           <div key={s.key} className={"kc-featured__body" + (i === shown ? " is-shown" : "")} aria-roledescription="slide"
-            aria-label={`${i + 1} of ${slides.length}`} aria-hidden={i === shown ? undefined : "true"} inert={i === shown ? undefined : ""}>
+            aria-label={`${i + 1} of ${turning.length}`} aria-hidden={i === shown ? undefined : "true"} inert={i === shown ? undefined : ""}>
             <Slide slide={s} more={more} where={where} />
           </div>
         ))}
       </div>
-      <CarouselPager carousel={carousel} className="kc-spotlight__pager" labels={slides.map((s) => `Show ${s.spot.title}`)} />
+      <CarouselPager carousel={carousel} className="kc-spotlight__pager" labels={turning.map((s) => `Show ${s.spot.title}`)} />
     </section>
   );
 }

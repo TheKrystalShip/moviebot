@@ -5,19 +5,22 @@ import { linkProps } from "../router.js";
 import { watchLink } from "../components/Film.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { SLIDE_MS } from "../components/Spotlight.jsx";
+import { readySlides } from "../heroes.js";
 import { SpotFacts, SpotStage } from "./spot.jsx";
 import { startFilm } from "./pages/TvFilm.jsx";
 
 /**
- * The top of Home and of Discover on a television: one of `slides` (`heroes.js`) large over its
- * artwork, turning to the next by itself while it is on the screen. A press starts the slide's time
- * over, and focus stays on the same action as the slide turns, so OK chooses what is on the screen.
+ * The top of Home and of Discover on a television: one of `slides` (`heroes.js`) whose artwork has
+ * arrived, large over it, turning to the next by itself while it is on the screen. A press starts the
+ * slide's time over, and focus stays on the same action as the slide turns, so OK chooses what is on
+ * the screen.
  *
  * The slides hold still while focus is on the page below them. With `store`, a page's spotlight
  * (`useSpotlight`), the artwork is the page's stage, and they hold still while focus is in its rows. `initial` puts the page's first focus on the first
  * action; `more` follows each slide's actions. `className` and `rest` go on the slides' section.
  */
-export function TvHero({ slides, store, initial = false, more, className, ...rest }) {
+export function TvHero({ slides: laid, store, initial = false, more, className, ...rest }) {
+  const slides = readySlides(laid);
   const idle = React.useMemo(() => createStore({ row: -1 }), []);
   const inRows = useStore(store || idle, (s) => s.row >= 0);
   const section = React.useRef(null);

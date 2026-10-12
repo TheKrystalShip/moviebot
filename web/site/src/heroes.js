@@ -8,7 +8,7 @@
 
 import React from "react";
 import { api } from "./api.js";
-import { useLoad } from "./data.js";
+import { LoadTracker, useLoad } from "./data.js";
 import { since } from "./time.js";
 import { filmSpot, showSpot, showViewSpot, titleSpot } from "./spots.js";
 import { waitersWords } from "./components/TitleCards.jsx";
@@ -17,36 +17,71 @@ import { waitersWords } from "./components/TitleCards.jsx";
 export const MOST_SLIDES = 6;
 
 /**
- * The candidates described, each with its `spot` (`spots.js`), in the order given. A candidate the film
- * database cannot describe is left out, and one is shown only once its artwork has arrived, so a slide
- * never turns to a blank. The slides only grow: one is handed back once every candidate before it is
- * ready or left out, so the slide on screen never moves.
+ * The candidates described, each with its `spot` (`spots.js`), in the order given, and `ready` once its
+ * artwork has arrived. A candidate the film database cannot describe is left out. The slides only grow:
+ * one is handed back once every candidate before it is described or left out, so the slide on screen
+ * never moves, and every one described is laid out at once, so a top as tall as its tallest slide has
+ * its height before it is shown. Only the ready ones are turned to (`readySlides`), so a slide never
+ * turns to a blank. Until the first is ready, or all are known with none to show, there is nothing to
+ * hand back (`null`).
+ *
+ * The first slide is one of the page's first reads (`LoadTracker`): a page prepared out of sight, and
+ * the first page under the splash, is shown with its top in place, and the slides after it arrive
+ * while it is up. They are described from the commit that names them, before it is drawn, so the
+ * page's first reads are not a frame apart from the next.
  */
 export function useSlides(candidates) {
-  const [done, setDone] = React.useState({});
+  const [described, setDescribed] = React.useState({});
+  const [arrived, setArrived] = React.useState({});
   const ids = candidates ? candidates.map((c) => c.key).join("|") : "";
+  const tracker = React.useContext(LoadTracker);
+  const answered = React.useRef(null);
+  const slides = [];
+  for (const c of candidates || []) {
+    if (!(c.key in described)) break;
+    if (described[c.key]) slides.push({ ...c, spot: described[c.key], ready: !!arrived[c.key] });
+  }
+  const settled = !!candidates && candidates.every((c) => c.key in described && (!described[c.key] || arrived[c.key]));
+  const shown = !!candidates && (readySlides(slides).length > 0 || settled);
 
   React.useEffect(() => {
+    if (!tracker) return undefined;
+    tracker.begin();
+    let open = true;
+    answered.current = () => { if (open) { open = false; tracker.end(); } };
+    return answered.current;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  React.useEffect(() => {
+    if (shown && answered.current) answered.current();
+  }, [shown]);
+
+  React.useLayoutEffect(() => {
     if (!candidates) return undefined;
     let live = true;
-    candidates.forEach((c) => {
-      const settle = (spot) => { if (live) setDone((prev) => ({ ...prev, [c.key]: spot })); };
-      describe(c)
-        .then((spot) => (spot && spot.art ? artArrives(spot.art).then(() => spot) : spot))
-        .then(settle, () => settle(null));
+    candidates.forEach((c, i) => {
+      const arrive = () => { if (live) setArrived((prev) => ({ ...prev, [c.key]: true })); };
+      describe(c).then((spot) => {
+        if (!live) return;
+        setDescribed((prev) => ({ ...prev, [c.key]: spot }));
+        if (spot && spot.art) artArrives(spot.art, i === 0).then(arrive);
+        else arrive();
+      }, () => { if (live) setDescribed((prev) => ({ ...prev, [c.key]: null })); });
     });
     return () => { live = false; };
     // The candidates are fixed once given; their keys say when they are not.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids]);
 
-  if (!candidates) return null;
-  const slides = [];
-  for (const c of candidates) {
-    if (!(c.key in done)) break;
-    if (done[c.key]) slides.push({ ...c, spot: done[c.key] });
-  }
-  return slides;
+  return shown ? slides : null;
+}
+
+/** The slides that can be turned to: those from the first whose artwork has arrived, up to one that has not. */
+export function readySlides(slides) {
+  if (!slides) return [];
+  const i = slides.findIndex((s) => !s.ready);
+  return i < 0 ? slides : slides.slice(0, i);
 }
 
 function describe(c) {
@@ -57,8 +92,10 @@ function describe(c) {
   return api.film(c.imdbId).then((f) => filmSpot(f, c.eyebrow));
 }
 
-function artArrives(src) {
+/** The artwork decoded; a slide not shown first fetches it behind what is on screen. */
+function artArrives(src, first) {
   const image = new Image();
+  if (!first) image.fetchPriority = "low";
   image.src = src;
   return image.decode().catch(() => undefined);
 }
@@ -78,20 +115,18 @@ export function useHomeSlides({ library, shows, rooms, waitedOn }) {
   const films = useLoad(() => api.discoverShelf("trending-films").catch(() => null), []);
   const showsWeek = useLoad(() => api.discoverShelf("trending-shows").catch(() => null), []);
   const soon = useLoad(() => api.discoverShelf("coming-soon").catch(() => null), []);
-  const [candidates, setCandidates] = React.useState(null);
+  const chosen = React.useRef(null);
 
   const settled = library && shows && rooms && waitedOn
     && !popularHere.loading && !films.loading && !showsWeek.loading && !soon.loading;
-
-  React.useEffect(() => {
-    if (!settled || candidates) return;
-    setCandidates(homeCandidates({
+  if (settled && !chosen.current) {
+    chosen.current = homeCandidates({
       library, shows, rooms, waitedOn,
       popularHere: popularHere.data, films: films.data, showsWeek: showsWeek.data, soon: soon.data,
-    }));
-  }, [settled, candidates, library, shows, rooms, waitedOn, popularHere.data, films.data, showsWeek.data, soon.data]);
+    });
+  }
 
-  return useSlides(candidates);
+  return useSlides(chosen.current);
 }
 
 function homeCandidates({ library, shows, rooms, waitedOn, popularHere, films, showsWeek, soon }) {

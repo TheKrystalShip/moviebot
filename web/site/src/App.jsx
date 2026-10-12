@@ -32,6 +32,7 @@ import { NotFound } from "./pages/NotFound.jsx";
 import { SiteFooter } from "./components/SiteFooter.jsx";
 import { BellNavItem } from "./components/Bell.jsx";
 import { PageStage } from "./components/PageStage.jsx";
+import { settleSplash } from "./splash.js";
 import { Trail } from "./components/Trail.jsx";
 import { CallBar } from "./components/CallBar.jsx";
 import { RemoteDrawer } from "./components/RemoteDrawer.jsx";
@@ -118,6 +119,9 @@ export function App() {
   // history, so the player's way back is this page, navigated to.
   const browsed = React.useRef(homePath);
   if (route.view !== "room" && route.view !== "embed") browsed.current = route.href;
+
+  // Whatever this draws is on screen once committed, and lets the splash go unless it holds it.
+  React.useEffect(() => settleSplash());
 
   const [waiting, setWaiting] = React.useState(null);
   // The last session held, which a television keeps its page drawn under while it signs in again.
