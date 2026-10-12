@@ -98,13 +98,12 @@ function nested(el, scope) {
   return card !== null && card !== scope && scope.contains(card);
 }
 
+function isCandidate(el, scope) {
+  return usable(el) && !isContainer(el) && !nested(el, scope) && drawn(el);
+}
+
 function candidates(scope) {
-  const found = [];
-  for (const el of scope.querySelectorAll(Focusable)) {
-    if (!usable(el) || isContainer(el) || nested(el, scope) || !drawn(el)) continue;
-    found.push(el);
-  }
-  return found;
+  return [...scope.querySelectorAll(Focusable)].filter((el) => isCandidate(el, scope));
 }
 
 function topOverlay() {
@@ -239,12 +238,20 @@ const SideMargin = 16;
 const ComfortMargin = 60;
 
 /** The first control of a region outside its navigation, preferring one marked `data-tv-initial`. */
+/**
+ * Where focus starts in `region`: the first candidate marked `data-tv-initial`, else the first outside
+ * navigation, else the first. Each is looked for in document order and the search stops at it, since
+ * a page following its content (`follow`) asks again on every change while it loads.
+ */
 function initialIn(region) {
-  const all = candidates(region);
-  return all.find((el) => el.hasAttribute("data-tv-initial"))
-    || all.find((el) => !el.closest("nav"))
-    || all[0]
-    || null;
+  for (const el of region.querySelectorAll("[data-tv-initial]")) if (el.matches(Focusable) && isCandidate(el, region)) return el;
+  let first = null;
+  for (const el of region.querySelectorAll(Focusable)) {
+    if (!isCandidate(el, region)) continue;
+    if (!el.closest("nav")) return el;
+    first ??= el;
+  }
+  return first;
 }
 
 function focusInitial(within) {
@@ -377,14 +384,19 @@ function describe(el, main) {
 
 const label = (el) => (el.getAttribute("aria-label") || el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 80);
 
+/**
+ * The control a page was left on: the one with its link and name, else its name, else the one in its
+ * place. What names an element is read first and only a match is measured, since a page coming back
+ * asks again on every change while it loads.
+ */
 function recall(main) {
   const memory = pageMemory.get(window.location.href);
   if (!memory) return null;
-  const all = candidates(main);
-  const placed = [...main.querySelectorAll(Focusable)][memory.index];
-  return all.find((el) => memory.href && el.getAttribute("href") === memory.href && label(el) === memory.label)
-    || all.find((el) => label(el) === memory.label)
-    || (placed && all.includes(placed) ? placed : null);
+  const all = [...main.querySelectorAll(Focusable)];
+  const ok = (el) => !!el && isCandidate(el, main);
+  return all.find((el) => memory.href && el.getAttribute("href") === memory.href && label(el) === memory.label && ok(el))
+    || all.find((el) => label(el) === memory.label && ok(el))
+    || (ok(all[memory.index]) ? all[memory.index] : null);
 }
 
 /**

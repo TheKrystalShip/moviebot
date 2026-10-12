@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.25.1] - 2026-10-12
+
+### Changed
+
+- **A television page's first focus is found without measuring the whole page.** Until a key is pressed, a
+  page's focus follows its first control as its content arrives, and every change asked again: each time,
+  every control on the page was measured for whether it is drawn. Now the controls are looked at in order
+  and the first that qualifies is taken, and a page come back to measures only the controls that carry the
+  name it was left on. Where focus lands is unchanged (`npm run verify:tv`). In `npm run verify:tv-perf`'s
+  lab, opening Discover blocks the page for 956 ms rather than 1131 and loading it for 817 rather than 1113.
+  Site 0.74.1.
+
 ## [3.25.0] - 2026-10-12
 
 ### Changed
