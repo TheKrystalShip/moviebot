@@ -19,6 +19,10 @@
 #   MOVIEBOT_VERIFY_PORT        the API's port                 (8299)
 #   MOVIEBOT_VERIFY_TMDB_TOKEN_FILE  a file holding a TMDB read token; without one, films carry no
 #                                    ratings, genres or backdrops
+#
+# The film database's artwork comes through artwork.mjs on the port after the issuer's, which keeps each
+# image the first time it is fetched and serves the kept bytes on every start after, so what a page
+# fetches stays what the TV performance baseline measured.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -70,17 +74,20 @@ fi
 # shellcheck disable=SC1091
 source "$dir/keys.env"
 issuer_port=$((port + 1))
+artwork_port=$((port + 2))
 printf 'PORT=%s\nISSUER_PORT=%s\n' "$port" "$issuer_port" > "$dir/api.env"
 
 # The identity provider the scratch API trusts, standing in for tks-auth; the checks mint tokens with
 # its key (verify/issuer.mjs). It goes when the API does.
 node "$site/verify/issuer.mjs" serve "$dir" "$issuer_port" &
 issuer_pid=$!
-trap 'kill "$issuer_pid" 2>/dev/null' EXIT
+node "$here/artwork.mjs" "$dir" "$artwork_port" &
+artwork_pid=$!
+trap 'kill "$issuer_pid" "$artwork_pid" 2>/dev/null' EXIT
 
 tmdb=()
 if [[ -n "${MOVIEBOT_VERIFY_TMDB_TOKEN_FILE:-}" ]]; then
-  tmdb=("Tmdb__ReadAccessToken=$(cat "$MOVIEBOT_VERIFY_TMDB_TOKEN_FILE")")
+  tmdb=("Tmdb__ReadAccessToken=$(cat "$MOVIEBOT_VERIFY_TMDB_TOKEN_FILE")" "Tmdb__ImageBaseUrl=http://127.0.0.1:$artwork_port/t/p")
 fi
 
 echo "Scratch Krystal Cinema on http://127.0.0.1:$port: $i films, $cold_count of them on the cold root."

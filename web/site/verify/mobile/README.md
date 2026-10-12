@@ -42,7 +42,11 @@ reaches a library people use: the first few films go on a cold root and the rest
 the way a host with both disks holds them. A hard link costs nothing and the API replaces a manifest
 rather than editing it, so the source library is never written to; it does mean the harness directory
 and `media/` share a filesystem. The state directory is new on every start. The film database is asked
-through a token read from a file, and what it says is kept between runs.
+through a token read from a file, and what it says is kept between runs. Its artwork comes through
+`artwork.mjs`, which fetches each image once into `~/.cache/moviebot-verify/artwork/` and serves those
+bytes on every start after: the database's image store can answer the same image with a JPEG half again
+as heavy from one day to the next, and `verify:tv-perf` counts what a page fetches. Deleting that
+directory fetches the artwork afresh, which moves the TV performance baseline's `kb` with it.
 
 `stage.mjs` then puts in what a person would see: the viewer partway through three films, two others
 watching in rooms of their own, a Watch later with a note on one film, a list of the viewer's shared with Ben, and one of Ana's the viewer may add
