@@ -26,6 +26,9 @@ import {
 const SkipSeconds = 10;
 /** Controls stay this long after the last sign of somebody reaching for them. */
 const IdleMs = 2800;
+/** A remote walks focus one press at a time from across a room, so a television holds them longer. */
+const TvIdleMs = 6000;
+const NavigationKeys = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter"]);
 const AnnouncementMs = 2800;
 const PositionTickMs = 250;
 
@@ -317,7 +320,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   const wake = React.useCallback(() => {
     setActive(true);
     if (idleTimer.current !== null) window.clearTimeout(idleTimer.current);
-    idleTimer.current = window.setTimeout(() => setActive(false), IdleMs);
+    idleTimer.current = window.setTimeout(() => setActive(false), environment().tv ? TvIdleMs : IdleMs);
   }, []);
   React.useEffect(() => { wake(); return () => window.clearTimeout(idleTimer.current); }, [wake]);
   const hold = React.useCallback((on) => setHeld((n) => Math.max(0, n + (on ? 1 : -1))), []);
@@ -414,7 +417,10 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
       && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
     const down = (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
-      if (remote.keydown(e.key, e.repeat)) { e.preventDefault(); e.stopPropagation(); }
+      if (remote.keydown(e.key, e.repeat)) { e.preventDefault(); e.stopPropagation(); return; }
+      // A press the remote leaves to the browser walks focus among the controls, and somebody walking
+      // them is reaching for one.
+      if (live.current.shown && NavigationKeys.has(e.key)) wake();
     };
     const up = (e) => {
       if (remote.keyup(e.key)) { e.preventDefault(); e.stopPropagation(); }

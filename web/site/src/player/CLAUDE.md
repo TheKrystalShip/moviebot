@@ -173,7 +173,9 @@ and does nothing that would be.
   press after. Left and Right skip by the buttons' step while the controls are away or the scrub bar
   holds focus, and a skip gives the bar focus, so presses however slow go on skipping; with the
   controls up anywhere else the arrows move focus among them. Presses are gathered into one skip as
-  taps are, for the same reason. Holding Left or Right scrubs: the bar previews where letting go
+  taps are, for the same reason. Every press holds the controls up afresh, and they wait longer on a
+  television than anywhere else before going, since a remote reaches a control one press at a time.
+  Holding Left or Right scrubs: the bar previews where letting go
   lands, faster the longer the key is held, and one seek is sent when it comes up, as a drag sends one.
   A held key is a keydown for a key that has not come up, since a Fire TV marks no repeat as one.
   Rewind and Fast-forward skip wherever focus is, and the media keys act directly. Back closes a

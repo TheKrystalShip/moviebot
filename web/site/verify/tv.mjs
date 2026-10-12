@@ -375,7 +375,7 @@ async function player() {
     if (await paused()) { fail("player", "OK on play did not start the film"); return; }
     pass("play is focused, and OK plays");
 
-    await page.waitForTimeout(3500);
+    await page.waitForTimeout(6800);
     if (await shown()) fail("player", "the controls did not go away while the film played");
     const before = await time();
     await page.keyboard.press("ArrowRight");
@@ -388,7 +388,7 @@ async function player() {
     else pass(`two presses of Right are one skip (${jumped.toFixed(1)}s)`);
 
     // Pressed slower than presses are gathered: two skips, the second from the bar the first focused.
-    await page.waitForTimeout(3500);
+    await page.waitForTimeout(6800);
     const slow = await time();
     await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(900);
@@ -399,11 +399,24 @@ async function player() {
     if (slowJump < 18 || slowJump > 26 || !onBar) fail("player", `two slow presses of Right moved the film ${slowJump.toFixed(1)}s${onBar ? "" : ", and left focus off the scrub bar"}`);
     else pass(`two slow presses of Right are two skips, from the scrub bar (${slowJump.toFixed(1)}s)`);
 
-    await page.waitForTimeout(3500);
+    await page.waitForTimeout(6800);
     await page.keyboard.press("ArrowUp");
     await page.waitForTimeout(300);
     if (!(await shown())) fail("player", "Up with the controls away did not bring them back");
     else pass("Up brings the controls back");
+
+    // Walked slowly, a press at a time for longer than the controls stay unattended, they stay.
+    await page.keyboard.press("ArrowDown");
+    const walked = await time();
+    for (let i = 0; i < 4; i++) {
+      await page.waitForTimeout(2500);
+      await page.keyboard.press(i % 2 ? "ArrowLeft" : "ArrowRight");
+    }
+    await page.waitForTimeout(300);
+    const walkMoved = Math.abs((await time()) - walked - 10.3);
+    if (!(await shown())) fail("player", "the controls went away while focus was being walked among them");
+    else if (walkMoved > 3) fail("player", "walking focus among the controls moved the film");
+    else pass("walking focus among the controls keeps them up");
 
     await page.keyboard.press("ContextMenu");
     await page.waitForTimeout(500);
@@ -419,7 +432,7 @@ async function player() {
     if (await page.evaluate(() => document.querySelector('.mp-menu[role="menu"]') !== null)) fail("player", "Back did not close the subtitles");
 
     // Held: the first press, then repeats every 50 ms with no keyup between, then one keyup.
-    await page.waitForTimeout(3500);
+    await page.waitForTimeout(6800);
     const held = await time();
     await page.keyboard.down("ArrowRight");
     let previewed = false;

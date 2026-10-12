@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.27.1] - 2026-10-12
+
+### Fixed
+
+- **On a television the player's controls stay up while a remote walks them.** Every press of OK or
+  an arrow among the controls holds them up afresh, and they wait six seconds before going rather
+  than under three, so reaching the subtitles a press at a time no longer has them go mid-walk and
+  turn the next Left or Right into a skip that moves the room. Site 0.76.1.
+
 ## [3.27.0] - 2026-10-12
 
 ### Changed
