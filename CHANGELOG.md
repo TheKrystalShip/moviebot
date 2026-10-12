@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.26.1] - 2026-10-12
+
+### Fixed
+
+- **Moving between Home and Discover no longer shows both tops at once.** A page navigated to is
+  prepared out of sight, and the slide shown at its top made itself visible inside it, so for a moment
+  its words and actions were drawn over the page being left, and its actions could be reached with Tab.
+  The page being prepared is transparent and `inert` as well as hidden, which nothing inside it can
+  undo. `npm run verify:stage` records every frame of those moves on a desktop and a phone and fails on
+  anything of the page being prepared that is seen or reachable. Site 0.75.1.
+
 ## [3.26.0] - 2026-10-12
 
 ### Added

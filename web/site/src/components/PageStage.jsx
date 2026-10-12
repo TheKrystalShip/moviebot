@@ -131,7 +131,7 @@ function Staged({ stage, draw, settled }) {
   ];
   if (incoming) {
     entries.push(
-      <div key={incoming.key} ref={box} className="kc-stage__page is-incoming" aria-hidden="true">
+      <div key={incoming.key} ref={box} className="kc-stage__page is-incoming" aria-hidden="true" inert="">
         {draw(incoming, incoming.tracker)}
       </div>,
     );

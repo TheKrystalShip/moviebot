@@ -20,6 +20,7 @@ npm run verify:pull    # a drawer pulled by its head with real touch events, aga
 npm run verify:pwa     # installable, and the service worker keeps only what it may (verify/pwa.mjs)
 npm run verify:tv      # every page driven by a remote's keys alone, against a scratch site (verify/tv.mjs)
 npm run verify:tv-perf # how a remote's presses feel, timed at a television's pace against a baseline (verify/tvperf/)
+npm run verify:stage   # nothing of a page being prepared out of sight is seen or reachable, against a scratch site (verify/stage.mjs)
 npm run verify:offline # Download of a whole film and of one still being made, and the installed app with no connection and with the API down, against a scratch site (verify/saving.mjs, verify/growing.mjs, verify/offline.mjs)
 ```
 
@@ -374,6 +375,12 @@ settles. The lab runs Chromium against the same scratch site at the television's
 and pace, and fails on a step past `verify/tvperf/baseline.json`; a release passes it. With
 `--target tv` the same walks run on the television itself over adb. How to run it, what each measure
 is and how the lab is fitted to the television: `verify/tvperf/README.md`.
+
+`npm run verify:stage` moves between Home and Discover on a desktop and on a phone, holding back one
+read the page navigated to waits on so it sits out of sight with the rest of it drawn, and records
+every frame until it is shown. It fails on a frame where anything inside that page is drawn, or a
+control in it could take focus, and on a move where the page was never seen out of sight with the
+slide at its top ready, since that move looked at nothing.
 
 `npm run verify:offline` runs `verify/saving.mjs` and then `verify/offline.mjs`. The first saves a
 title through its page's picker, in a signed-in Chromium reaching the scratch API through a proxy of

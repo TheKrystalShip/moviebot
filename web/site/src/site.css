@@ -48,11 +48,13 @@ button { font-family: inherit; }
 @media (max-width: 720px) { .kc-callbar { padding: 12px 16px 0; } }
 
 /* ── Moving between pages (PageStage) ── the page navigated to is laid out at the column's width
-   out of sight, then fades in rising a few pixels in place of the one it replaces. */
+   out of sight, then fades in rising a few pixels in place of the one it replaces. Out of sight is
+   hidden, which leaves it unpainted, and transparent, which nothing inside it can undo as a part of it
+   made visible undoes hidden; it is `inert` as well, so nothing in it takes focus or a press. */
 .kc-stage { position: relative; width: 100%; min-width: 0; }
 .kc-stage__page.is-incoming {
   position: absolute; top: 0; left: 0; right: 0;
-  visibility: hidden; pointer-events: none;
+  visibility: hidden; opacity: 0; pointer-events: none;
 }
 .kc-stage__page.is-entering { animation: kc-page-in 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 @keyframes kc-page-in {
