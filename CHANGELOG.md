@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.26.4] - 2026-10-12
+
+### Changed
+
+- **Moving down through Discover on a television stalls less.** The posters inside its mood, franchise
+  and browse tiles are square-cornered there (krystal-ui 0.26.5): drawing an image with rounded
+  corners at the panel's resolution was the most expensive part of the tiles. On the reference Fire TV
+  the worst stall moving through Discover is 100 to 140 ms rather than 237 to 253. Site 0.75.4.
+
 ## [3.26.3] - 2026-10-12
 
 ### Changed
