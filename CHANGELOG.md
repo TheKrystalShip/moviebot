@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.26.3] - 2026-10-12
+
+### Changed
+
+- **Moving between a television's page and its bar is smooth.** With focus in the bar the page steps
+  back under a veil of the canvas that fades in, rather than the page itself fading, which carried
+  the whole page as one layer at the panel's resolution through the fade; it looks the same. Every
+  card in a row is rendered and asks for its picture a quarter of a screen ahead (krystal-ui 0.26.4).
+  On the reference Fire TV the worst stall going into or out of the bar is 80 to 100 ms rather than
+  220, the sweep's 26 moves miss a frame budget 22 to 26 times rather than 33 to 38, and opening
+  Discover, Movies, TV Shows, Home, a film and coming back takes 2.9 s to focus rather than 3.9.
+- **A television's Home holds its top's place while the top's slides are described,** so its rows
+  never move under it as the page arrives, and none of them asks for pictures from where they first
+  stood. Site 0.75.3.
+
 ## [3.26.2] - 2026-10-12
 
 ### Changed

@@ -185,9 +185,12 @@ export function TvHome() {
 
   return (
     <div className="kc-tv-page kc-tvh" ref={pageRef}>
-      {slides && slides.length > 0
-        ? <TvHero slides={slides} store={store} initial className="kc-tvh__hero" data-tv-top="" />
-        : <SpotStage store={store} />}
+      {/* The top's place is held while its slides are described, so the rows never move under it. */}
+      {slides === null
+        ? <div className="kc-tvh__hero" aria-hidden="true" />
+        : slides.length > 0
+          ? <TvHero slides={slides} store={store} initial className="kc-tvh__hero" data-tv-top="" />
+          : <SpotStage store={store} />}
 
       <div className="kc-tvh__rows" ref={regionRef}>
         {rows.map((r) => <div key={r.key} className="kc-tvh__row" data-spot-row="">{r}</div>)}

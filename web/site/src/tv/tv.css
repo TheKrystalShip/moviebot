@@ -19,9 +19,16 @@
 /* Nothing is blurred behind anything: the WebView pays for it on every frame. */
 :root[data-tv] * { backdrop-filter: none; -webkit-backdrop-filter: none; }
 
-/* With focus in the bar the page steps back, its artwork with it. */
-.kc-tv-main > * { transition: opacity var(--d-slow) var(--ease-out); }
-.kc-tv-main.is-under-bar > * { opacity: var(--tv-dim); }
+/* With focus in the bar the page steps back, its artwork with it: a veil of the canvas over the page
+   fades in, which on the canvas looks as the page at --tv-dim does. The veil is one flat colour, so
+   fading it repaints nothing; fading the page itself would carry all of it as one layer at the
+   panel's resolution for every frame of the fade. */
+.kc-tv-main::after {
+  content: ""; position: fixed; inset: 0; z-index: 5; pointer-events: none;
+  background: var(--canvas); opacity: 0;
+  transition: opacity var(--d-slow) var(--ease-out);
+}
+.kc-tv-main.is-under-bar::after { opacity: calc(1 - var(--tv-dim)); }
 
 /* A page is shown at once: an entering page's slide would carry the fixed backdrop with it. */
 :root[data-tv] .kc-stage__page.is-entering { animation: none; }
