@@ -49,8 +49,8 @@ export function WatchButton({ titleId, sessionId, at, children, ...props }) {
 
 /**
  * A film started and not finished: its artwork, how far in, how much is left, and a way back into it.
- * `onTv` is the card on the phone's remote: choosing it puts the film on the television, from where
- * this person got to, and the glyph on it is the television's.
+ * `onTv` is the card on a phone driving a television, on its remote and on Home: choosing it puts the
+ * film on the television, from where this person got to, and the glyph on it is the television's.
  */
 export function ContinueCard({ title, progress, remainingSeconds, room, onTv = false }) {
   const art = (title.details && title.details.backdropUrl) || posterUrl(title);

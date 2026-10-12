@@ -18,6 +18,7 @@ import { BellButton } from "../components/Bell.jsx";
 import { SavedCard } from "./Saved.jsx";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 import { inActivity } from "../discord/launch.js";
+import { useDriving } from "../components/WatchOnTv.jsx";
 
 const RECENT_DAYS = 14;
 /** How many of the films downloaded last the top turns through when there is no connection. */
@@ -108,6 +109,8 @@ function ServerHome() {
   // other rooms are not offered.
   const rooms = useLoad(() => (inActivity ? Promise.resolve([]) : api.rooms()), [], { every: 15000 });
   const marks = useDownloadMarks();
+  // While the phone drives a television, carrying on with something puts it on the television.
+  const driving = useDriving();
   const progress = useLoad(() => api.progress().catch(() => []), []);
   const showList = useLoad(() => api.shows().catch(() => []), []);
   const later = useLoad(() => api.list("later").catch(() => null), []);
@@ -167,12 +170,13 @@ function ServerHome() {
         <Rail
           variant="wide" icon="history" title="Continue watching" count={continuing.length}
           items={continuing} itemKey={continueKey}
-          renderItem={(p) => !p.titleId ? <NextEpisodeCard progress={p} show={showOf.get(p.showImdbId)} /> : (
+          renderItem={(p) => !p.titleId ? <NextEpisodeCard progress={p} show={showOf.get(p.showImdbId)} onTv={driving} /> : (
             <ContinueCard
               title={byId.get(p.titleId)}
               progress={p}
               remainingSeconds={p.remainingSeconds}
-              room={watching.find((r) => r.titleId === p.titleId)} />
+              room={watching.find((r) => r.titleId === p.titleId)}
+              onTv={driving} />
           )} />
       )}
 

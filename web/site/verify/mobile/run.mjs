@@ -101,7 +101,7 @@ async function look(browser, device, view, staged) {
     await page.waitForSelector(view.ready, { timeout: 20000 });
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(1200);
-    if (view.act) await view.act(page);
+    if (view.act) await view.act(page, staged);
     const shot = join(out, device, view.name + ".png");
     await page.screenshot({ path: shot });
     result.screen = relative(out, shot);

@@ -1,8 +1,9 @@
 // Every view the harness looks at: each page, and each state of a page a person reaches by tapping
-// something (a tab, a popover, the assistant). A view names where it goes, given what staging
-// put in the library, what it does once there, and whether one tall screenshot of it makes sense. A
-// view acts as the staged viewer unless it names another `person` (stage.mjs), which keeps a view
-// that changes something — playing a film — out of what the others see.
+// something (a tab, a popover, the assistant). A view names where it goes, given what staging put in
+// the library, what it does once there (given the page and the staging, whose televisions it may
+// listen to), and whether one tall screenshot of it makes sense. A view acts as the staged viewer
+// unless it names another `person` (stage.mjs), which keeps a view that changes something — playing a
+// film — out of what the others see.
 //
 // Add a view here when a page or a state is added to the site, and it is looked at on every phone.
 
@@ -96,6 +97,32 @@ export const VIEWS = [
   {
     name: "remote-idle", remote: ["bedroom"], path: () => "/", ready: ".kc-remote-strip",
     act: async (page) => { await openRemote(page); await page.waitForSelector(".kc-remote .kc-continue", { timeout: 10000 }); await page.waitForTimeout(600); },
+  },
+  {
+    // Home's Continue watching while the phone drives a television in no room: a card carries the
+    // television's glyph, and choosing it tells the television to open the film, with the phone left on Home.
+    name: "remote-home", remote: ["bedroom"], path: () => "/", ready: ".kc-home .kc-continue",
+    act: async (page, staged) => {
+      const tv = staged.screens.tvs.bedroom.hub;
+      let told = null;
+      const heard = (watch) => { told = watch; };
+      tv.on("Watch", heard);
+      try {
+        await page.waitForSelector(".kc-remote-strip .kc-dl-head__name", { timeout: 10000 });
+        const card = page.locator(".kc-home .kc-continue").first();
+        const label = await card.getAttribute("aria-label");
+        if (!label || !label.startsWith("Watch on TV")) throw new Error(`Home's Continue watching card is "${label}", not Watch on TV`);
+        await card.click();
+        const until = Date.now() + 5000;
+        while (!told && Date.now() < until) await page.waitForTimeout(100);
+        if (!told) throw new Error("choosing Home's Continue watching card told the television nothing");
+        if (!told.titleId) throw new Error(`the television was told ${JSON.stringify(told)}, with no film`);
+        const path = await page.evaluate(() => location.pathname);
+        if (path !== "/") throw new Error(`choosing the card took the phone to ${path}`);
+      } finally {
+        tv.off("Watch", heard);
+      }
+    },
   },
   { name: "remote-film", remote: ["living"], path: (s) => "/movies/" + encodeURIComponent(s.other.id), ready: ".kc-title .kc-actions .k-btn", full: true },
   {
