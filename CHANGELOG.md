@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.26.2] - 2026-10-12
+
+### Changed
+
+- **Moving through the rows on a television is smooth.** Focus there is lit by the glow alone, drawn at
+  once: a focused card, tile, button, face, list or phone keeps its lift and its glow without the
+  drop shadow under it, which the television's GPU painted again on every frame of the lift
+  (krystal-ui 0.26.2). On the reference Fire TV, Home's and Movies' rows miss a frame budget 31 to 41
+  times over 28 moves rather than 99 to 103. Site 0.75.2.
+
 ## [3.26.1] - 2026-10-12
 
 ### Fixed
