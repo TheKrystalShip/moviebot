@@ -14,13 +14,25 @@ import React from "react";
  */
 export const LoadTracker = React.createContext(null);
 
-export function useLoad(load, deps, { every } = {}) {
-  const [state, setState] = React.useState({ data: null, error: null, loading: true });
+/**
+ * One read for a page: `load` is asked when the page mounts and again when `deps` change, every
+ * `every` milliseconds when given, and on `reload`. `known` is an answer the page already holds, from
+ * a read that carried it: the read starts answered with it and asks nothing until a reload or new deps.
+ */
+export function useLoad(load, deps, { every, known } = {}) {
+  const [state, setState] = React.useState(() => known != null
+    ? { data: known, error: null, loading: false }
+    : { data: null, error: null, loading: true });
   const [tick, setTick] = React.useState(0);
   const tracker = React.useContext(LoadTracker);
   const first = React.useRef(true);
 
   React.useEffect(() => {
+    // What the page already holds is the first answer; a reload or other deps ask again.
+    if (first.current && known != null) {
+      first.current = false;
+      return undefined;
+    }
     let live = true;
     let pending = first.current && tracker ? tracker : null;
     first.current = false;

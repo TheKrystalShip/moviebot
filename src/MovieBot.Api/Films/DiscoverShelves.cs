@@ -191,6 +191,18 @@ public sealed record DiscoverIndexView
     public required List<string> ShowGenres { get; init; }
 
     public required List<LanguageOptionView> Languages { get; init; }
+
+    /// <summary>
+    /// The spotlight's shelf and the first rows' shelves, each as <c>/api/discover/shelves/{id}</c>
+    /// answers it, those answered in time; a page asks for any other by that route.
+    /// </summary>
+    public List<ShelfView> Shelves { get; init; } = new();
+
+    /// <summary>
+    /// The spotlight's films, its shelf's first films the viewer has not watched, each as
+    /// <c>/api/films/{imdbId}</c> answers it, those described in time; a page asks for any other by that route.
+    /// </summary>
+    public List<FilmView> Films { get; init; } = new();
 }
 
 /// <summary>What <c>/api/discover/shelves/{id}</c> answers: one shelf and its titles, in its order.</summary>

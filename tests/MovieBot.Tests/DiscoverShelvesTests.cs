@@ -62,6 +62,26 @@ public sealed class DiscoverShelvesTests(SessionFixture fixture) : IClassFixture
     }
 
     [Fact]
+    public async Task The_index_carries_the_spotlight_s_shelf_and_films_and_the_first_rows_as_their_own_routes_answer_them()
+    {
+        var index = await Get<DiscoverIndexView>("/api/discover");
+
+        var first = new[] { index.Spotlight }.Concat(RowShelves(index).Take(3)).Distinct().Order().ToList();
+        Assert.Equal(first, index.Shelves.Select(s => s.Id).Order());
+        foreach (var carried in index.Shelves)
+        {
+            var own = await Get<ShelfView>($"/api/discover/shelves/{carried.Id}");
+            Assert.Equal(own.Titles.Select(t => (t.ImdbId, t.Watched)), carried.Titles.Select(t => (t.ImdbId, t.Watched)));
+        }
+
+        var lead = index.Shelves.Single(s => s.Id == index.Spotlight);
+        var picks = lead.Titles.Where(t => t.Kind == "film" && !t.Watched).Take(4).Select(t => t.ImdbId).Order().ToList();
+        Assert.Equal(picks, index.Films.Select(f => f.ImdbId).Order());
+        foreach (var film in index.Films)
+            Assert.Equal((await Get<FilmView>($"/api/films/{film.ImdbId}")).Title, film.Title);
+    }
+
+    [Fact]
     public async Task A_series_tile_has_its_posters_and_follows_the_person_through_it()
     {
         Finished("d9", SessionFixture.Heat);

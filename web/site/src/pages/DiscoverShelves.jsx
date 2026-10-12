@@ -87,10 +87,11 @@ function ShelfTile({ head, series, size = "md" }) {
 /** The page's rows, in the order `/api/discover` gives them. */
 export function DiscoverRows({ index, where }) {
   const sections = new Map(index.sections.map((s) => [s.id, s]));
+  const kept = new Map((index.shelves || []).map((s) => [s.id, s]));
   return (
     <>
       {index.rows.map((row, i) => {
-        if (row.kind === "shelf") return <LazyShelf key={row.shelf.id} head={row.shelf} where={where} />;
+        if (row.kind === "shelf") return <LazyShelf key={row.shelf.id} head={row.shelf} kept={kept.get(row.shelf.id)} where={where} />;
         if (row.kind === "browse") return <BrowseGrid key="browse" sections={index.sections} />;
         const section = sections.get(row.kind);
         return section ? <TileRail key={row.kind} section={section} /> : <React.Fragment key={i} />;
@@ -129,12 +130,13 @@ function BrowseGrid({ sections }) {
 }
 
 /**
- * One shelf's rail, asked for once it nears the screen, so a page of many shelves asks only for what is
- * looked at. A shelf with nothing on it, or that could not be answered, is left out.
+ * One shelf's rail, drawn at once from what the index carried for it, else asked for once it nears the
+ * screen, so a page of many shelves asks only for what is looked at. A shelf with nothing on it, or that
+ * could not be answered, is left out.
  */
-function LazyShelf({ head, where }) {
+function LazyShelf({ head, kept, where }) {
   const ref = React.useRef(null);
-  const [near, setNear] = React.useState(false);
+  const [near, setNear] = React.useState(!!kept);
   React.useEffect(() => {
     const el = ref.current;
     if (!el || near) return undefined;
@@ -151,13 +153,13 @@ function LazyShelf({ head, where }) {
 
   return (
     <div ref={ref} className="kc-lazy-shelf">
-      {near ? <ShelfRail head={head} where={where} /> : <RailSkeleton />}
+      {near ? <ShelfRail head={head} kept={kept} where={where} /> : <RailSkeleton />}
     </div>
   );
 }
 
-function ShelfRail({ head, where }) {
-  const shelf = useLoad(() => api.discoverShelf(head.id), [head.id]);
+function ShelfRail({ head, kept, where }) {
+  const shelf = useLoad(() => api.discoverShelf(head.id), [head.id], { known: kept });
   if (!shelf.data) return shelf.error ? null : <RailSkeleton />;
   const titles = shelf.data.titles;
   if (titles.length === 0) return null;

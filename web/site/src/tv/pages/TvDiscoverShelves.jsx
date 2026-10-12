@@ -34,10 +34,13 @@ function TvShelfTile({ head, series, ...rest }) {
     : <CollectionTile variant="fan" name={head.title} icon={head.icon} posters={head.posters || []} caption={head.total ? `${head.total} titles` : null} {...link} />;
 }
 
-/** A shelf's row of posters, asked for once it nears the screen; one with nothing on it is left out. */
-function TvShelfRow({ head, where }) {
+/**
+ * A shelf's row of posters, drawn at once from what the index carried for it, else asked for once it
+ * nears the screen; one with nothing on it is left out.
+ */
+function TvShelfRow({ head, kept, where }) {
   const ref = React.useRef(null);
-  const [near, setNear] = React.useState(false);
+  const [near, setNear] = React.useState(!!kept);
   React.useEffect(() => {
     const el = ref.current;
     if (!el || near) return undefined;
@@ -51,11 +54,11 @@ function TvShelfRow({ head, where }) {
     watcher.observe(el);
     return () => watcher.disconnect();
   }, [near]);
-  return <div ref={ref} className="kc-tvd__lazy">{near && <TvShelfCards head={head} where={where} />}</div>;
+  return <div ref={ref} className="kc-tvd__lazy">{near && <TvShelfCards head={head} kept={kept} where={where} />}</div>;
 }
 
-function TvShelfCards({ head, where }) {
-  const shelf = useLoad(() => api.discoverShelf(head.id), [head.id]);
+function TvShelfCards({ head, kept, where }) {
+  const shelf = useLoad(() => api.discoverShelf(head.id), [head.id], { known: kept });
   const titles = shelf.data ? shelf.data.titles : [];
   if (titles.length === 0) return null;
   return (
@@ -71,12 +74,13 @@ function TvShelfCards({ head, where }) {
 /** The page's rows on a television, in the order `/api/discover` gives them. */
 export function TvDiscoverFront({ index, where }) {
   const sections = new Map(index.sections.map((s) => [s.id, s]));
+  const kept = new Map((index.shelves || []).map((s) => [s.id, s]));
   return (
     <>
       <TvDiscoverSpotlight index={index} where={where} />
       <div className="kc-tvd__rows">
         {index.rows.map((row) => {
-          if (row.kind === "shelf") return <TvShelfRow key={row.shelf.id} head={row.shelf} where={where} />;
+          if (row.kind === "shelf") return <TvShelfRow key={row.shelf.id} head={row.shelf} kept={kept.get(row.shelf.id)} where={where} />;
           if (row.kind === "browse") {
             return (
               <TvRow key="browse" icon="compass" title="Browse" count={index.sections.length}>

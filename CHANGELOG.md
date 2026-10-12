@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.25.0] - 2026-10-12
+
+### Changed
+
+- **Discover's first screen comes in one answer.** `/api/discover` carries `shelves`, the spotlight's shelf
+  and the first three shelf rows' as their own route answers them, and `films`, the spotlight's films as
+  `/api/films/{imdbId}` answers them, each when it answers within 400 ms; the page draws from them and asks
+  for any other by its route. The spotlight's shelf, its films and the first rows were each asked for after
+  the index arrived and drawn, and the spotlight's shelf twice; on a television each wave was drawn before
+  the next was asked for. In `npm run verify:tv-perf`'s lab, opening Discover from the bar is ready at
+  2.5 s rather than 5.1, with 37 requests and 3.0 MB rather than 80 and 6.4 MB, and its layout shift is
+  0.27 rather than 0.57. On a computer the first rows draw at once in the same way. Site 0.74.0.
+
 ## [3.24.5] - 2026-10-12
 
 ### Changed

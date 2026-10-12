@@ -53,6 +53,7 @@ function describe(c) {
   if (c.title) return Promise.resolve(titleSpot(c.title, c.eyebrow));
   if (c.show) return Promise.resolve(showSpot(c.show, c.eyebrow));
   if (c.kind === "show") return api.show(c.imdbId).then((s) => showViewSpot(s, c.eyebrow));
+  if (c.film) return Promise.resolve(filmSpot(c.film, c.eyebrow));
   return api.film(c.imdbId).then((f) => filmSpot(f, c.eyebrow));
 }
 
@@ -162,7 +163,8 @@ const DISCOVER_SLIDES = 4;
  * `where` is the page's join with the library.
  */
 export function useDiscoverSlides(index, where) {
-  const shelf = useLoad(() => api.discoverShelf(index.spotlight).catch(() => null), [index.spotlight]);
+  const kept = (index.shelves || []).find((s) => s.id === index.spotlight);
+  const shelf = useLoad(() => api.discoverShelf(index.spotlight).catch(() => null), [index.spotlight], { known: kept });
   const candidates = React.useMemo(() => {
     if (shelf.loading) return null;
     if (!shelf.data) return [];
@@ -170,7 +172,8 @@ export function useDiscoverSlides(index, where) {
     const lead = picks.length ? new Date().getDate() % picks.length : 0;
     return [...picks.slice(lead), ...picks.slice(0, lead)].map((t) => {
       const w = where(t);
-      return { key: "spot:" + t.imdbId, eyebrow: shelf.data.title, icon: shelf.data.icon, kind: "film", imdbId: t.imdbId, found: t, here: w.here };
+      const film = (index.films || []).find((f) => f.imdbId === t.imdbId);
+      return { key: "spot:" + t.imdbId, eyebrow: shelf.data.title, icon: shelf.data.icon, kind: "film", imdbId: t.imdbId, found: t, here: w.here, film };
     });
     // `where` is joined once, when the shelf answers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
