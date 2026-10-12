@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.27.0] - 2026-10-12
+
+### Changed
+
+- **Download is offered on phones and tablets only.** A computer's browser shows no Download on a
+  film's or a show's page, no Downloaded filter in the library and no Download quality in Playback:
+  people new to the site took Download beside Watch for the way to watch a film. A phone or a tablet
+  is told apart by its main pointer being a finger, so a tablet with a keyboard and trackpad keeps
+  Download and a laptop with a touch screen does not. A television never offered it. Site 0.76.0.
+
 ## [3.26.5] - 2026-10-12
 
 ### Fixed

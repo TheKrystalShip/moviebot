@@ -1,9 +1,10 @@
-// Download, end to end in a real Chromium: a title downloaded through its page's sheet, the page closed
-// mid-download and the download carried on by the next page from what was on disk (by `Range`, with
-// `If-Range`), pausing and resuming from the sheet, every file on the device byte for byte the
-// server's (each track the concatenation of its playlist's files on disk), the API told the save is
-// complete, a device without room refused before a byte moves, and a save the API no longer lists
-// removed from the device when the connection comes back.
+// Download, end to end in a real Chromium as a landscape tablet (a finger for a pointer, 1280 wide): a
+// computer offered no Download on a film's page nor a Download quality; then a title downloaded
+// through its page's sheet, the page closed mid-download and the download carried on by the next page
+// from what was on disk (by `Range`, with `If-Range`), pausing and resuming from the sheet, every file
+// on the device byte for byte the server's (each track the concatenation of its playlist's files on
+// disk), the API told the save is complete, a device without room refused before a byte moves, and a
+// save the API no longer lists removed from the device when the connection comes back.
 //
 //   node verify/saving.mjs
 //
@@ -183,7 +184,7 @@ async function tab(context) {
 
 // Signed in, the worker installed and in control, nothing saved.
 for (const record of (await call("GET", "/api/me/offline")).body || []) await call("DELETE", `/api/me/offline/${record.id}`);
-const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, hasTouch: true });
 {
   const page = await context.newPage();
   await page.goto(base + "/manifest.webmanifest");
@@ -192,6 +193,25 @@ const context = await browser.newContext({ viewport: { width: 1280, height: 900 
   await page.goto(base + "/", { waitUntil: "load" });
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.close();
+}
+
+// A computer is offered no Download: a film's page has Watch and nothing to download it with, and
+// Playback has no Download quality.
+{
+  const computer = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await computer.newPage();
+  await p.goto(base + "/manifest.webmanifest");
+  await p.evaluate(({ key, value }) => localStorage.setItem(key, value), issuer.planted(VIEWER));
+  await p.goto(base + `/movies/${TITLE}`, { waitUntil: "load" });
+  await p.locator(".kc-tt .kc-actions .k-btn--primary").first().waitFor({ timeout: 15000 });
+  await p.waitForTimeout(1500);
+  const offered = await p.locator(".kc-tt .kc-actions button", { hasText: /^(Download|Queued|Paused|Waiting|Not downloaded)/ }).count();
+  check(offered === 0, `a computer's film page offers no Download (${offered} found)`);
+  await p.goto(base + "/profile/playback", { waitUntil: "load" });
+  await p.locator(".kc-heights").first().waitFor({ timeout: 15000 });
+  const quality = await p.getByText("Download quality").count();
+  check(quality === 0, "a computer's Playback has no Download quality");
+  await computer.close();
 }
 
 // The picker, and the save started from it.
@@ -220,8 +240,8 @@ const picker = await page.evaluate(() => {
 });
 check(picker.options.length === OFFER.rungs.length && picker.options.every(([, size]) => /^[\d.]+ [KMG]?B$/.test(size)),
   `the sheet lists every rung with its size (${picker.options.map(([v, s]) => `${v} ${s}`).join("; ")})`);
-const stepDown = OFFER.rungs[Math.min(1, OFFER.rungs.length - 1)].rendition;
-check(picker.chosen === stepDown, `a desktop's default is the step-down (${picker.chosen}, wanted ${stepDown})`);
+const smallest = OFFER.rungs[OFFER.rungs.length - 1].rendition;
+check(picker.chosen === smallest, `a tablet's default is the smallest (${picker.chosen}, wanted ${smallest})`);
 check(picker.audio.length >= 1, `the default audio is picked (${picker.audio.join(", ")})`);
 check(/free/.test(picker.space || "") && /^Download · [\d.]+ [KMG]?B$/.test(picker.start || ""),
   `the sheet says what is free and what the download takes (${picker.space}; ${picker.start})`);
@@ -357,7 +377,7 @@ await page.screenshot({ path: join(shots, "film-downloaded.png") });
 
 // A device without room is refused before anything moves.
 {
-  const small = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const small = await browser.newContext({ viewport: { width: 1280, height: 900 }, hasTouch: true });
   await small.addInitScript(() => {
     const estimate = navigator.storage.estimate.bind(navigator.storage);
     navigator.storage.estimate = async () => ({ ...(await estimate()), quota: 1_000_000, usage: 0 });

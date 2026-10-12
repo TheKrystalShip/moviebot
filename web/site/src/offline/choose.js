@@ -27,10 +27,13 @@ export function sameLanguage(track, wanted) {
   return !!track && !!wanted && primaryLanguage(track) === primaryLanguage(wanted);
 }
 
-/** Whether this is a phone or a tablet: a touch screen and no mouse. */
+/**
+ * Whether this is a phone or a tablet: its main pointer is a finger, whatever is attached beside it, so
+ * a tablet with a keyboard and trackpad is one and a laptop with a touch screen is not.
+ */
 export function handheld() {
   if (typeof window === "undefined" || !window.matchMedia) return false;
-  return window.matchMedia("(pointer: coarse)").matches && !window.matchMedia("(any-pointer: fine)").matches;
+  return window.matchMedia("(pointer: coarse)").matches;
 }
 
 /**

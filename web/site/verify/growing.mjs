@@ -1,10 +1,11 @@
-// Download of a film the server is still making, end to end in a real Chromium: Download on the page
-// of a film being transcoded asks for its quality alone, the server answers the want as ready at
-// once, the device downloads what has been made, waits, and carries on from what it holds once the
-// film is whole (by `Range`, with `If-Range` naming the validator its bytes arrived under); every
-// track ends byte for byte the server's, the API is told the save is complete, and the want is gone.
-// With the page out of view a notification says how far the download has got, another says it is
-// downloaded, and the first closes once the page is in view again. The show page offers Download season.
+// Download of a film the server is still making, end to end in a real Chromium as a landscape tablet:
+// Download on the page of a film being transcoded asks for its quality alone, the server answers the
+// want as ready at once, the device downloads what has been made, waits, and carries on from what it
+// holds once the film is whole (by `Range`, with `If-Range` naming the validator its bytes arrived
+// under); every track ends byte for byte the server's, the API is told the save is complete, and the
+// want is gone. With the page out of view a notification says how far the download has got, another
+// says it is downloaded, and the first closes once the page is in view again. The show page offers
+// Download season.
 //
 //   node verify/growing.mjs
 //
@@ -213,7 +214,7 @@ const tracksHeld = (state) => !!state && state.meta.files.filter((f) => f.role =
   .every((f) => state.sizes[f.name] === f.bytes);
 
 const browser = await chromium.launch({ executablePath: chromePath() });
-const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, hasTouch: true });
 await context.grantPermissions(["notifications"], { origin: base });
 for (const record of (await call("GET", "/api/me/offline")).body || []) await call("DELETE", `/api/me/offline/${record.id}`);
 for (const want of (await call("GET", "/api/me/offline/wants")).body || []) await call("DELETE", `/api/me/offline/wants/${want.id}`);
@@ -247,8 +248,8 @@ const picker = await page.evaluate(() => ({
   languages: [...document.querySelectorAll(".kc-dl-pick select")].map((s) => s.getAttribute("aria-label")),
   original: document.querySelector('.kc-dl-pick select[aria-label="Audio language"] option[value=""]')?.textContent,
 }));
-check(picker.lists === 1 && picker.options.join() === "1080,720,480" && picker.chosen === "720" && /^Download( · ~[\d.]+[KMGT]?B)?$/.test(picker.start),
-  `the sheet asks for its quality, 720p on a desktop (${picker.options.join(", ")}; ${picker.chosen}; ${picker.start})`);
+check(picker.lists === 1 && picker.options.join() === "1080,720,480" && picker.chosen === "480" && /^Download( · ~[\d.]+[KMGT]?B)?$/.test(picker.start),
+  `the sheet asks for its quality, 480p on a tablet (${picker.options.join(", ")}; ${picker.chosen}; ${picker.start})`);
 check(picker.languages.join() === "Audio language,Subtitle language" && picker.original === "Original",
   `and an audio and a subtitle language, the original first (${picker.languages.join(", ")}; ${picker.original})`);
 // Subtitles in Spanish: the save takes the title's Spanish subtitles as the server lists them.
@@ -274,7 +275,7 @@ const kept = first ? first.meta.files.filter((f) => f.role === "subtitle").map((
 check(spanish.length > 0 && spanish.every((id) => kept.includes(id)),
   `the download takes the Spanish subtitles asked for (${kept.join(", ") || "none"})`);
 check(first && first.meta.quality.height === manifest.video.renditions.find((r) => r.uri.startsWith(first.meta.quality.rendition)).height,
-  `the rung is the one 720p picks (${first && first.meta.quality.label})`);
+  `the rung is the one 480p picks (${first && first.meta.quality.label})`);
 await page.screenshot({ path: join(shots, "growing.png") });
 
 // The page out of view: a notification says what is downloading and how far it has got.

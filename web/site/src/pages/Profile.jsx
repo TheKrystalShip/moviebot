@@ -11,6 +11,7 @@ import { PROFILE_TABS, moviePath, profilePath, savedPath, showPath } from "../pa
 import { useOnline } from "../connectivity.js";
 import { keptPreferences } from "../offline/preferences.js";
 import { offlineSupported } from "../offline/store.js";
+import { handheld } from "../offline/choose.js";
 import { Off } from "./Offline.jsx";
 import { linkProps, navigate } from "../router.js";
 import { ago, airDay } from "../time.js";
@@ -434,8 +435,8 @@ function Playback() {
         <SettingsRow icon="skip-forward" title="Skip intros and recaps automatically">
           <Toggle on={Boolean(preferences.skipIntros)} label="Skip intros and recaps automatically" onChange={(on) => change({ skipIntros: on })} />
         </SettingsRow>
-        {offlineSupported() && can(session, "cinema:offline") && (
-          <SettingsRow icon="hard-drive-download" title="Download quality" sub="Auto downloads the smallest on a phone or tablet.">
+        {handheld() && offlineSupported() && can(session, "cinema:offline") && (
+          <SettingsRow icon="hard-drive-download" title="Download quality" sub="Auto downloads the smallest.">
             <Heights label="Download quality" options={OFFLINE_QUALITIES} value={preferences.offlineQualityHeight}
               onChange={(height) => change({ offlineQualityHeight: height })} />
           </SettingsRow>

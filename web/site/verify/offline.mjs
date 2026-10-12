@@ -1,11 +1,11 @@
-// The site with no connection, in a real Chromium: the installed app opened cold in a second tab with
-// the network cut, drawing the same pages from what is downloaded — Home, the Library, a downloaded
-// film's page and a show's page drawn whole from the show kept on the device — with nothing saying it
-// is offline, every place and control that needs the server disabled, and Discover, the assistant and
-// the pages only the server can give saying they are out of reach; then the same with the network up
-// and the API not answering (blocked, and a gateway's 502 for an API that is down), which has to read
-// the same; a session whose token ran out offline still standing; a device with nothing held saying a
-// first sign-in needs a connection; and the connection coming back.
+// The site with no connection, in a real Chromium as a landscape tablet: the installed app opened cold
+// in a second tab with the network cut, drawing the same pages from what is downloaded — Home, the
+// Library, a downloaded film's page and a show's page drawn whole from the show kept on the device —
+// with nothing saying it is offline, every place and control that needs the server disabled, and
+// Discover, the assistant and the pages only the server can give saying they are out of reach; then the
+// same with the network up and the API not answering (blocked, and a gateway's 502 for an API that is
+// down), which has to read the same; a session whose token ran out offline still standing; a device
+// with nothing held saying a first sign-in needs a connection; and the connection coming back.
 //
 //   node verify/offline.mjs
 //
@@ -159,7 +159,7 @@ const browser = await chromium.launch({ executablePath: chromePath() });
  * person got to in the film logged on the device, and the show kept by the site.
  */
 async function prepared() {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, hasTouch: true });
   const planted = issuer.planted(VIEWER, { refresh: "verify-offline-refresh" });
   const page = await context.newPage();
   // The session is put in storage once, from a file of the origin's that is not a page, so a check

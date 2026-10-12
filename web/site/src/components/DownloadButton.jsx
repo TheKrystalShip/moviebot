@@ -44,11 +44,13 @@ function hlsPlays() {
 }
 
 /**
- * Whether this page offers Download: to somebody who holds `cinema:offline`, in a browser that has
- * the Origin Private File System and plays through hls.js, never on a television.
+ * Whether this page offers Download: to somebody who holds `cinema:offline`, on a phone or a tablet
+ * (`handheld`) whose browser has the Origin Private File System and plays through hls.js, never on a
+ * computer or a television. Somebody new to the site takes Download beside Watch for the way to watch
+ * a film, and a phone or tablet carried somewhere without a connection is what downloading is for.
  */
 export function useOffersSaving() {
-  const may = useCan("cinema:offline") && !onTv && offlineSupported();
+  const may = useCan("cinema:offline") && !onTv && handheld() && offlineSupported();
   const [plays, setPlays] = React.useState(false);
   React.useEffect(() => {
     if (!may) return undefined;

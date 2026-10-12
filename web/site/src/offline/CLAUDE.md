@@ -180,8 +180,7 @@ The page posts it when the worker finishes, and `sync.js` posts it again for any
 ## What is picked (`choose.js`)
 
 The download sheet's defaults: the rung is the person's `offlineQualityHeight` matched to the widest rung no
-wider than that height at 16:9 (`rungFor`), else the smallest on a phone or a tablet (a coarse pointer
-and no fine one) and the step-down anywhere else; the audio in the person's language, else the
+wider than that height at 16:9 (`rungFor`), else the smallest on a phone or a tablet (a coarse main pointer) and the step-down anywhere else; the audio in the person's language, else the
 title's default; the text subtitles in the person's subtitle language and the forced ones in each
 picked audio language. `deviceName()` is what this device is called on the API's records: the browser,
 the system and a mark kept in localStorage, so saving a title again from here replaces this device's
