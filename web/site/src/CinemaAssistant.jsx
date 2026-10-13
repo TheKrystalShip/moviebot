@@ -6,7 +6,12 @@ import { linkProps } from "./router.js";
 // The assistant, behind /assistant on the same origin, spoken to as the signed-in person. One client
 // for the life of the page: the chat asks for it by the assistant's id on every render.
 const BASE = "/assistant";
-const client = createAssistantClient({ baseUrl: BASE, getToken: () => freshToken() });
+const client = createAssistantClient({
+  baseUrl: BASE,
+  getToken: () => freshToken(),
+  // A token the assistant refused is renewed once and the call sent again, where the call may be sent twice.
+  renewToken: () => freshToken({ refused: true }),
+});
 const clientFor = () => client;
 
 const HOST = { id: "cinema", name: "the assistant", title: "the assistant" };

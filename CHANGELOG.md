@@ -4,6 +4,28 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.33.0] - 2026-10-13
+
+### Added
+
+- **Pictures and text files in a message to the assistant** (krystal-ui 0.29.0). `+` at the composer's
+  left opens the picker, and a file pasted into or dropped on the composer is taken too. A picture is
+  shrunk in the browser to 2048 pixels on its longer side, under about 3 MB, and is never refused for
+  its size; each file uploads as it is attached, with its progress on its chip. A sent message shows
+  its pictures as thumbnails that open full size, and its files as chips.
+
+### Fixed
+
+- **Confirming what the assistant proposes** sends the proposal's `handle`, as the wire contract names
+  it.
+- **The assistant's lists arrive as lists**: the conversations kept on the assistant join the ones on
+  this device, and the slash commands and the memory page fill.
+- **A turn whose connection drops is picked up again** from the last frame it delivered, and a token
+  the assistant refuses is renewed once and the call sent again where it may be sent twice.
+- The chat page makes no `POST /assistant/events/attach`, which nothing here serves.
+
+Site 0.81.0.
+
 ## [3.32.1] - 2026-10-13
 
 ### Changed

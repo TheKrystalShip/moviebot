@@ -64,7 +64,7 @@ export const VIEWS = [
   { name: "profile-requests", path: () => "/profile/requests", ready: ".kc-page", full: true },
   { name: "profile-playback", path: () => "/profile/playback", ready: ".kc-page", full: true },
   { name: "about", path: () => "/about", ready: ".kc-about", full: true },
-  { name: "assistant", path: () => "/", ready: ".tabbar", act: tap(".tabbar__tab:nth-child(4)", ".assistant-dock--open") },
+  { name: "assistant", path: () => "/chat", ready: ".chat-page" },
   // The phone as a remote: paired with the staged televisions (stage.mjs), remote mode on.
   { name: "remote-strip", remote: ["living"], path: () => "/", ready: ".kc-remote-strip .kc-dl-head__name", act: (page) => page.waitForTimeout(800) },
   { name: "remote-open", remote: ["living"], path: () => "/", ready: ".kc-remote-strip", act: openRemote },
