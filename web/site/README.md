@@ -17,6 +17,7 @@ npm run verify     # the player in a real browser, against a running API and dev
 npm run verify:routes  # every address, cold and by its flows, against a scratch site (verify/routes.mjs)
 npm run verify:mobile  # every page on iPhones and Galaxies, against a scratch site (verify/mobile/)
 npm run verify:pull    # a drawer pulled by its head with real touch events, against a scratch site (verify/mobile/pull.mjs)
+npm run verify:dock    # the phone's remote dock grown and shrunk by a finger, against a scratch site (verify/mobile/dock.mjs)
 npm run verify:pwa     # installable, and the service worker keeps only what it may (verify/pwa.mjs)
 npm run verify:tv      # every page driven by a remote's keys alone, against a scratch site (verify/tv.mjs)
 npm run verify:tv-perf # how a remote's presses feel, timed at a television's pace against a baseline (verify/tvperf/)
@@ -627,14 +628,20 @@ several televisions connected the first is driven, and `chooseScreen` drives ano
 is the switch's state. `npm run verify:tv` drives a room from a phone with nothing on screen, and
 `node verify/resume.mjs` measures how quickly such a phone is live again after its page was away.
 
-The remote is a `Drawer` (`components/RemoteDrawer.jsx`), drawn by the site's own components and nothing
-redrawn: the download sheet's head, the player's scrub bar and control row, its episodes menu, `EmptyState`,
-`Rail` and the Continue watching card. While remote mode is on and a paired television is connected it is
-let down above the tab bar as its strip (the still, the television's name, what plays, Play or Pause);
-tapping the strip or pushing it up opens it, pulling its handle down (`Drawer`'s `onPull`) collapses it
-again, and swiping the strip sideways turns remote mode off with Undo in a toast, unpairing nothing.
-Open, its head names the television, which opens the picker (an option list, "Nothing playing" or "Off"
-for one that is not connected), and holds the Remote switch. The picker and the Episodes list carry the drawer's back button, which returns to the remote. Below are the still, what plays, and the
+The remote is one dock (`components/RemoteDock.jsx`), drawn by the site's own components and nothing
+redrawn: the drawer's tab and head, the download sheet's head, the player's scrub bar and control row, its
+episodes menu, `EmptyState`, `Rail` and the Continue watching card. While remote mode is on and a paired
+television is connected it stands on the tab bar, its bottom edge on the bar's top at every height, and the
+tab bar stays uncovered and live. Collapsed it is one row (the still, the television's name, what plays,
+Play or Pause). A finger moves its top edge and its height follows: pushing the row up grows it, and as it
+grows the row fades out and the open remote fades in, uncovered from its head down, over a scrim that
+darkens with it. Pulling the open remote's head down shrinks it the same way, as does pulling its body down
+while the body is scrolled to its top. Let go, it settles open or collapsed by how far or how fast the
+finger went; a tap on the row opens it, and the scrim, Escape or a tab collapse it. Swiping the collapsed
+row sideways turns remote mode off with Undo in a toast, unpairing nothing. `npm run verify:dock` holds
+the dock to this under a finger.
+The open remote's head names the television, which opens the picker (an option list, "Nothing playing" or "Off"
+for one that is not connected), and holds the Remote switch. The picker and the Episodes list are drawers over the dock, each with a back button that returns to the remote. Below are the still, what plays, and the
 player's scrub bar (with its preview) and controls: Play or Pause, back and forward ten seconds, and for an
 episode previous, next and Episodes, the player's own list aimed at the television. A film has no
 episode controls. Subtitles, Audio (only a film with more than one audio track) and Quality follow, each the
@@ -646,7 +653,7 @@ the middle plays or pauses, a double tap at a side skips, a sweep sideways scrub
 release, vertical sweeps do nothing; a gesture the television took vibrates the phone where
 `navigator.vibrate` exists. Skip intro stands on the still when the player would offer it
 (`player/stretches.js`). `remoteFilm.js` reads what the television holds (manifest, the episodes either
-side, the preview sheet) for the drawer.
+side, the preview sheet) for the dock.
 
 The television's own settings are the API's, never the room's: the subtitle track, how subtitles look,
 the audio track and quality. The remote's Subtitles, Audio and Quality buttons open the player's own menus
@@ -668,8 +675,8 @@ follow. Nothing here is in the room's state or roster.
 A television draws a phone glyph beside who is watching while it is paused and a remote drives it
 (`tv/screen.js` hears `RemotesChanged`; the room's roster is untouched).
 
-A toast sits at the top of the screen while any drawer is open (`body.has-drawer`) and above the strip
-while it is let down, so a toast is never under the thing it is about.
+A toast sits at the top of the screen while any drawer or the open remote dock is open (`body.has-drawer`,
+`body.has-remote-open`) and above the collapsed dock otherwise, so a toast is never under the thing it is about.
 
 With remote mode on and a television connected, a title's main button is Watch on TV (`remoteWatch.js`)
 and Watch with the phone glyph beside it, which turns remote mode off and plays on the phone. What the

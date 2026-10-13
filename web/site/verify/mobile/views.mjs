@@ -32,11 +32,11 @@ const scrollTo = (fraction) => async (page) => {
   await page.waitForTimeout(400);
 };
 
-/** Opens the remote drawer by tapping its strip. */
+/** Opens the remote dock by tapping its collapsed row. */
 const openRemote = async (page) => {
   await page.waitForSelector(".kc-remote-strip", { timeout: 15000 });
   await page.waitForFunction(() => document.querySelector(".kc-remote-strip .kc-dl-head__name")?.textContent, null, { timeout: 10000 });
-  await tap(".kc-remote-strip__open", ".kc-remote")(page);
+  await tap(".kc-remote-strip__open", ".kc-remote-dock.is-open")(page);
   await page.waitForTimeout(800);
 };
 

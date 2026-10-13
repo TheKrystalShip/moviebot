@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.30.0] - 2026-10-13
+
+### Changed
+
+- **A phone's remote is one dock that a finger grows and shrinks.** It stands on the tab bar at every
+  height, and the tab bar stays uncovered and live while it is open. Pushing the collapsed row up raises
+  the dock's top edge with the finger, the row fading into the open remote as it grows over a scrim that
+  darkens with it; pulling the open remote's head down, or its body while scrolled to the top, lowers it
+  the same way. Let go, it settles open or collapsed by distance or speed. A tab tapped while it is open
+  goes to its page and collapses the dock. `npm run verify:dock` measures it under a finger. Site 0.79.0.
+
 ## [3.29.0] - 2026-10-13
 
 ### Changed

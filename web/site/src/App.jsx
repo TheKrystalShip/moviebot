@@ -35,7 +35,7 @@ import { PageStage } from "./components/PageStage.jsx";
 import { settleSplash } from "./splash.js";
 import { Trail } from "./components/Trail.jsx";
 import { CallBar } from "./components/CallBar.jsx";
-import { RemoteDrawer } from "./components/RemoteDrawer.jsx";
+import { RemoteDock } from "./components/RemoteDock.jsx";
 import { ReplaceSheet } from "./components/ReplaceSheet.jsx";
 import { activityRoom, inActivity } from "./discord/launch.js";
 import { api } from "./api.js";
@@ -300,7 +300,7 @@ function Frame({ session, route }) {
         <PageStage route={route} render={(r) => <Reachable route={r} />} above={(r) => <Trail route={r} />} onShown={toTop} />
         <SiteFooter />
       </AppShell>
-      {!inActivity && <RemoteDrawer />}
+      {!inActivity && <RemoteDock />}
       {!inActivity && <ReplaceSheet />}
       <Toasts />
       <SignOutDialog />

@@ -95,7 +95,7 @@ export function currentDrivenScreen() {
   return modeStore.getState() ? drivenScreen() : null;
 }
 
-/** Whether the remote's drawer is open, rather than let down as its strip. */
+/** Whether the remote's dock is open, rather than collapsed to its row. */
 const openStore = createStore(false);
 
 export function setRemoteOpen(open) {

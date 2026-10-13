@@ -1,18 +1,43 @@
-/* ── The phone's remote ── the strip let down above the tab bar, the drawer it opens, the TV picker, the
-   question before a film is replaced and the Watch on TV controls. Everything in them is drawn by the
-   site's own components (Drawer, the download sheet's head, the player's scrub bar and control row, the
-   episodes list, EmptyState, Rail); the rules here place them. */
+/* ── The phone's remote ── the dock standing on the tab bar, the TV picker, the question before a film is
+   replaced and the Watch on TV controls. Everything in them is drawn by the site's own components (the drawer's
+   tab and head, the download sheet's head, the player's scrub bar and control row, the episodes list,
+   EmptyState, Rail); the rules here place them. */
 
-/* The strip: a drawer's head by itself, standing on the tab bar. */
-.kc-drawer.kc-remote-strip {
-  --remote-strip-h: 72px;
-  z-index: 60; max-height: none; overflow: visible; padding: 0 8px; animation: none;
-  bottom: var(--remote-strip-bottom, 0px);
+/* How far the dock is open, 0 to 1, which its height and its scrim move with (RemoteDock.jsx sets both). */
+@property --dock-p { syntax: "<number>"; inherits: true; initial-value: 0; }
+
+/* The dock: its bottom edge on the tab bar's top, its height set by RemoteDock.jsx. It holds the collapsed row and,
+   while it is open or opening, the open remote over it; the row gives way to the remote as the dock grows. */
+.kc-remote-dock {
+  position: fixed; left: 0; right: 0; bottom: var(--remote-strip-bottom, 0px); z-index: 60;
+  box-sizing: border-box; overflow: hidden; padding: 0 8px;
+  background: var(--surface-1); border-top: 1px solid var(--border-strong); color: var(--fg-1);
   box-shadow: var(--shadow-pop); touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab;
-  transition: transform 180ms var(--ease-out), opacity 180ms var(--ease-out);
 }
-.kc-remote-strip.is-held { cursor: grabbing; transition: none; }
-/* The tab takes the top 6px; the row is as far under the strip's top edge (its border included) as above the bar. */
+.kc-remote-dock, .kc-remote-dock * { overscroll-behavior: contain; }
+.kc-remote-dock.is-held { cursor: grabbing; }
+.kc-remote-dock > .kc-drawer__grabber { z-index: 2; }
+.kc-remote-dock.is-held > .kc-drawer__grabber { background: var(--krystal-teal); }
+@media (hover: hover) {
+  .kc-remote-dock:not(.is-open):hover > .kc-drawer__grabber,
+  .kc-remote-dock:has(.kc-drawer__top:hover) > .kc-drawer__grabber { background: var(--krystal-teal); }
+}
+@media (min-width: 769px) { .kc-remote-dock { left: auto; right: 24px; width: 420px; } }
+
+/* Over the page above the tab bar, darker the further the dock is open; it takes a tap only while the dock is open. */
+.kc-remote-scrim {
+  position: fixed; left: 0; right: 0; top: 0; bottom: var(--remote-strip-bottom, 0px); z-index: 59;
+  background: rgba(0, 0, 0, 0.45); opacity: var(--dock-p); pointer-events: none; touch-action: none;
+}
+body.has-remote-open .kc-remote-scrim { pointer-events: auto; }
+
+/* The collapsed row: gone by the time the dock is a quarter open, rising a little as it goes. The tab takes the
+   top 6px; the row is as far under the dock's top edge (its border included) as above the bar. */
+.kc-remote-strip {
+  position: absolute; top: 0; left: 8px; right: 8px;
+  opacity: calc(1 - var(--dock-p) * 4); transform: translateY(calc(var(--dock-p) * -12px));
+}
+.kc-remote-dock.is-open .kc-remote-strip { pointer-events: none; }
 .kc-remote-strip .kc-dl-head { padding: 11px 8px 12px; border-bottom: none; }
 .kc-remote-strip__open {
   flex: 1; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 0; border: none;
@@ -24,14 +49,19 @@
 .kc-remote__nostill {
   display: flex; align-items: center; justify-content: center; background: var(--surface-2); color: var(--fg-3);
 }
-@media (min-width: 769px) {
-  .kc-drawer.kc-remote-strip { bottom: 0; left: auto; right: 24px; width: 420px; }
-  .kc-drawer.kc-remote { left: auto; right: 24px; width: 420px; }
-}
-@media (prefers-reduced-motion: reduce) { .kc-drawer.kc-remote-strip { transition: none; } }
 
-/* The strip takes room above the tab bar, which the page, the assistant dock and the toasts leave as they
-   leave the bar's (`--remote-strip-inset` is its measured height). */
+/* The open remote: as tall as the dock open, its top under the dock's top edge, so growing the dock uncovers it
+   from the head down. It comes in as the row goes. */
+.kc-remote {
+  position: absolute; top: 0; left: 8px; right: 8px; height: var(--dock-open-h, 0px);
+  box-sizing: border-box; display: flex; flex-direction: column; padding-bottom: 13px;
+  opacity: calc((var(--dock-p) - 0.15) * 3);
+}
+.kc-remote-dock:not(.is-open) .kc-remote { pointer-events: none; }
+.kc-remote__body { flex: 1; min-height: 0; overflow-y: auto; touch-action: pan-x pan-y; cursor: auto; }
+
+/* The dock takes room above the tab bar, which the page, the assistant dock and the toasts leave as they leave the
+   bar's (`--remote-strip-inset` is the collapsed dock's measured height). */
 @media (max-width: 768px) {
   body.has-remote-strip .app--tabbed .app__main {
     padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--remote-strip-inset, 0px));
@@ -41,9 +71,10 @@
   }
 }
 body.has-remote-strip .toasts { bottom: calc(84px + var(--remote-strip-inset, 0px) + env(safe-area-inset-bottom, 0px)); }
-body.has-drawer .toasts { top: calc(16px + env(safe-area-inset-top, 0px)); bottom: auto; }
+/* While a drawer or the open dock covers the bottom of the screen the toasts sit at the top, clear of it. */
+body.has-drawer .toasts, body.has-remote-open .toasts { top: calc(16px + env(safe-area-inset-top, 0px)); bottom: auto; }
 
-/* The open drawer: the TV's name opens the picker, the switch turns remote mode off. */
+/* The open remote's head: the TV's name opens the picker, the switch turns remote mode off. */
 .kc-remote .kc-drawer__title { overflow: visible; }
 .kc-remote__tv {
   display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin: -12px 0; padding: 0 4px 0 0; border: none;
@@ -62,7 +93,7 @@ body.has-drawer .toasts { top: calc(16px + env(safe-area-inset-top, 0px)); botto
 .kc-remote__film { padding: 12px 10px 4px; }
 .kc-remote__bare { aspect-ratio: 16 / 9; }
 
-/* The player's bottom controls, in the drawer rather than over a film. */
+/* The player's bottom controls, in the remote rather than over a film. */
 .mp-frame.kc-remote__frame { position: relative; inset: auto; overflow: visible; background: transparent; }
 .kc-remote__frame .mp-bottom { position: relative; padding: 0 8px; }
 /* The controls are two rows, each as wide as the bottom block, its first and last control on the block's edges and
@@ -70,10 +101,8 @@ body.has-drawer .toasts { top: calc(16px + env(safe-area-inset-top, 0px)); botto
    Quality below. Every control keeps its size, at every phone width. */
 .kc-remote__rows { display: flex; flex-direction: column; gap: 2px; }
 .kc-remote .mp-controls.kc-remote__row { justify-content: space-between; gap: 0; width: 100%; }
-/* As far under the controls as the head is under the edge. */
-.kc-drawer.kc-remote { padding-bottom: max(13px, env(safe-area-inset-bottom, 0px)); }
 
-/* The idle drawer. */
+/* The idle remote. */
 .kc-remote .k-empty { padding: 14px 20px 18px; }
 .kc-remote .rail { margin: 0 2px 6px; }
 .kc-continue__tv { position: absolute; right: 8px; bottom: 14px; }

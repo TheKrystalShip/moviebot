@@ -29,7 +29,7 @@ What the headless runs cannot say and no real device has shown yet:
 - A scan on iOS, and on an Android phone with the app installed from Chrome rather than Samsung
   Internet.
 - A phone's remote coming back after hours in a pocket (`web/site/verify/resumePhone.mjs` measures it).
-- iOS Safari's handling of the drawer's pull and the strip's sideways swipe, and whether a vibration
+- iOS Safari's handling of the dock's push and pull and its sideways swipe, and whether a vibration
   is felt.
 - A television that sleeps on its own, or whose app Fire OS ends, while a phone drives it.
 - `Settings.Global.DEVICE_NAME` on an API 31 or later Google TV.
