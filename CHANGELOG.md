@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.30.1] - 2026-10-13
+
+### Fixed
+
+- **A television draws no scrollbar.** The page's column, and the Profile panel's, scroll only as focus
+  moves, so the WebView's own scrollbar no longer flashes down the right edge while a page loads or
+  under the splash. Site 0.79.1.
+
 ## [3.30.0] - 2026-10-13
 
 ### Changed

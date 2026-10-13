@@ -60,7 +60,7 @@ export function TvProfile({ tab: named, about = false }) {
           {about ? "About" : face.label}
           {!about && tab === "remote" && <TvRemoteName name={user && user.device} />}
         </h1>
-        <div className="kc-tvp__body">
+        <div className="kc-tvp__body" data-tv-column="">
           {about ? <About head={false} />
             : <TabStage tab={tab} render={(shown) => (shown === "remote" ? <TvRemote /> : panel(shown, session))} />}
         </div>

@@ -112,7 +112,7 @@ export function TvFrame({ session, route, held = false }) {
             </>} />
         </div>
       )}
-      <main className={"kc-tv-main" + (barred && inBar ? " is-under-bar" : "")} ref={mainRef} data-tv-line="230"
+      <main className={"kc-tv-main" + (barred && inBar ? " is-under-bar" : "")} ref={mainRef} data-tv-column="" data-tv-line="230"
         data-tv-preparing={route.key !== shownKey ? "" : undefined}>
         <div ref={topRef} className="kc-tv-top-mark" style={{ height: BAR_SCROLL }} aria-hidden="true" />
         <BarAway.Provider value={setAway}>

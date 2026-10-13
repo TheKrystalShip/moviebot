@@ -4,15 +4,15 @@
 
 :root[data-tv] body { overflow: hidden; background: var(--canvas); }
 
-/* The page column fills the screen and is what scrolls. */
+/* The page column fills the screen and is what scrolls, moved by the navigator as focus moves
+   (`data-tv-column`). It clips rather than scrolls by overflow: the TV's WebView draws its overlay
+   scrollbar on any `auto` scroller as the page's height changes, the splash's included, whatever
+   `scrollbar-width` or `::-webkit-scrollbar` say, and draws none on a `hidden` one. */
 .kc-tv-main {
   position: fixed;
   inset: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: none;
+  overflow: hidden;
 }
-.kc-tv-main::-webkit-scrollbar { display: none; }
 /* The column's top, which the bar watches leave the screen: it takes no room of the page's. */
 .kc-tv-top-mark { position: absolute; top: 0; left: 0; width: 1px; pointer-events: none; }
 
@@ -233,11 +233,11 @@
 .kc-tvp__title { flex: none; margin: 0 0 4px; font-size: var(--text-3xl); font-weight: var(--w-bold); }
 /* Room inside the scrolling body for a lifted control's growth and glow, which its edges would clip;
    the negative margin keeps the content where it would sit without it. */
+/* It is a column as the page's is, clipping and moved by the navigator. */
 .kc-tvp__body {
-  flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none;
+  flex: 1; min-height: 0; overflow: hidden;
   margin: 0 -20px; padding: 12px 20px var(--tv-margin-y);
 }
-.kc-tvp__body::-webkit-scrollbar { display: none; }
 /* The panels are the site's own; on a television their grids are rows of posters that wrap. */
 .kc-tvp__panel .kc-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 

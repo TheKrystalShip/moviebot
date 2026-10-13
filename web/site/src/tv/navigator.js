@@ -180,11 +180,15 @@ function reduceMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** The nearest ancestor that scrolls up and down: the page's column, a menu's list. */
+/**
+ * The nearest ancestor that scrolls up and down: the page's column, a menu's list. A column marked
+ * `data-tv-column` is one whatever its overflow: it clips with `overflow: hidden`, so the WebView
+ * draws it no scrollbar, and is scrolled from here alone.
+ */
 function columnOf(el) {
   for (let node = el.parentElement; node && node !== document.body; node = node.parentElement) {
-    const style = getComputedStyle(node);
-    if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 1) return node;
+    const scrolls = node.hasAttribute("data-tv-column") || /(auto|scroll)/.test(getComputedStyle(node).overflowY);
+    if (scrolls && node.scrollHeight > node.clientHeight + 1) return node;
   }
   return null;
 }
