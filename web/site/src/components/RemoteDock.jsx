@@ -198,18 +198,20 @@ function useDock(open, setOpen, onAway) {
   };
   React.useEffect(() => () => clearTimeout(timer.current), []);
 
-  // It stands on the tab bar wherever the bar's top is, measured rather than computed from the bar's height:
-  // the bar's border, its safe-area inset and a phone's fractional pixels all move that edge. The room the
-  // page, the assistant and the toasts leave above the bar is the collapsed row's, however far the dock is
-  // open. The inset the page and the assistant dock leave for the bar is its nominal height (`--tabbar-h`
-  // and the safe area); the bar itself is as tall as it measures, its border included, and the dock stands on it.
+  // It stands on the tab bar, and the bar stands on the viewport's bottom, so the dock's bottom is the bar's
+  // measured height: the bar's border, its safe-area inset and a phone's fractional pixels all move its top
+  // edge, and a phone's viewport is often a fractional number of CSS pixels, which `clientHeight` rounds. The
+  // room the page, the assistant and the toasts leave above the bar is the collapsed row's, however far the
+  // dock is open. The inset the page and the assistant dock leave for the bar is its nominal height
+  // (`--tabbar-h` and the safe area); the bar itself is as tall as it measures, its border included, and the
+  // dock stands on it.
   const placed = React.useRef(false);
   React.useLayoutEffect(() => {
     document.body.classList.add("has-remote-strip");
     const bar = document.querySelector(".tabbar");
     const place = () => {
-      const top = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect().top : document.documentElement.clientHeight;
-      document.body.style.setProperty("--remote-strip-bottom", `${document.documentElement.clientHeight - top}px`);
+      const standing = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect().height : 0;
+      document.body.style.setProperty("--remote-strip-bottom", `${standing}px`);
       measure();
       const shell = document.querySelector(".app--tabbed");
       const nominal = bar && shell ? parseFloat(getComputedStyle(shell).getPropertyValue("--tabbar-h")) + parseFloat(getComputedStyle(bar).paddingBottom) : 0;

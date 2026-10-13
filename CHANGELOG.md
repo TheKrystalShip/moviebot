@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.30.2] - 2026-10-13
+
+### Fixed
+
+- **A phone's remote dock stands flush under the assistant.** The dock takes its place from the tab
+  bar's measured height, so on a phone whose screen is a fractional number of CSS pixels tall no line
+  of the page shows between the assistant and the collapsed remote. Site 0.79.2.
+
 ## [3.30.1] - 2026-10-13
 
 ### Fixed
