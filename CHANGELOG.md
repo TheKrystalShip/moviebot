@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.30.3] - 2026-10-13
+
+### Fixed
+
+- **The assistant's dock shows one line at each edge.** The chat in the dock draws no frame of its
+  own (krystal-ui 0.26.6), so its bottom edge no longer doubles the remote dock's or the tab bar's
+  line. Site 0.79.3.
+
 ## [3.30.2] - 2026-10-13
 
 ### Fixed
