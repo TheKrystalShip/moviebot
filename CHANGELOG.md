@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.32.1] - 2026-10-13
+
+### Changed
+
+- **The assistant takes `TheKrystalShip.Agent.Plugin` 1.0.0-dev.17**, which reads an upload to 8 MB
+  whatever the host's own request limit. The site will shrink every picture to 2048 pixels on its
+  longer side before it uploads it, a megabyte or so. Assistant 3.5.1.
+
 ## [3.32.0] - 2026-10-13
 
 ### Added
