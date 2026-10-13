@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.33.2] - 2026-10-14
+
+### Fixed
+
+- **On an Android phone, *File* opens the phone's file browser** (krystal-ui 0.29.2): Chrome there shows
+  the camera and photos for an ordinary file picker, and the file browser only for the File System
+  Access picker, which *File* now is. Inside the Discord Activity it stays the ordinary picker. Site 0.81.2.
+
 ## [3.33.1] - 2026-10-14
 
 ### Fixed
