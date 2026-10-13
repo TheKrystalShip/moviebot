@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.33.1] - 2026-10-14
+
+### Fixed
+
+- **A phone can attach a text file to a message.** `+` opens *Picture*, the phone's photos and camera,
+  and *File*, its file browser; one picker for both offered only photos and the camera on Android
+  (krystal-ui 0.29.1). Site 0.81.1.
+
 ## [3.33.0] - 2026-10-13
 
 ### Added
