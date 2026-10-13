@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.32.0] - 2026-10-13
+
+### Added
+
+- **The assistant takes pictures and text files attached to a message** (`TheKrystalShip.Agent.Plugin`
+  1.0.0-dev.15): `/assistant/attachments` uploads one, `/assistant/attachments/limits` says what a
+  message may carry, a turn names its uploads, and a conversation's attachments read back. Both nginx
+  halves, and the release's example, let that one location take up to 8 MB; every other route keeps
+  its 1 MB. The site offers nothing to attach yet. Assistant 3.5.0.
+
 ## [3.31.0] - 2026-10-13
 
 ### Changed
