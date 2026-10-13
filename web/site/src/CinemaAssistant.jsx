@@ -73,12 +73,18 @@ function TitleCards({ msg }) {
   );
 }
 
-export function CinemaAssistant({ session, docked, dock, onClose, onExpand }) {
+/**
+ * The assistant, in the dock beside a page when `docked` (a wide screen), and as a page of its own
+ * otherwise (`pages/Assistant.jsx`).
+ */
+export function CinemaAssistant({ session, docked = false, dock, onClose, onExpand }) {
   const user = session && session.user;
   return (
     <Chat
       user={user ? { name: user.name, display: user.name, userId: user.id, displayName: user.name } : null}
       docked={docked}
+      layout={docked ? "panel" : "page"}
+      pageClass={docked ? "" : "chat-page--framed"}
       showPin={!!dock && dock.desktop}
       pinned={dock && dock.pinned}
       pinDisabled={!!dock && !dock.canPush}

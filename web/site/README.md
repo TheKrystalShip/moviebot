@@ -52,6 +52,7 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glanc
 | `/notify` | The films the signed-in person is waiting on, as poster cards marked Out now with the release once one is, each with Stop waiting; and finding a film by name in the catalogue, as `/discover`'s result cards, to wait on from its page |
 | `/profile`, `/profile/<tab>` | The signed-in person; History, the first tab, has no segment: History (each film a poster card with how far the person got along its foot, when they watched it, Resume, and a way to remove it), Requests (the films they wait on, each a poster card), Following (each followed show a poster card with its next episode, whether new episodes are downloaded, switched on the card, and Unfollow), Notifications, Playback (audio language, quality, skipping intros and recaps automatically, and the quality Download picks on a phone or a tablet that can download, its choices under its words on a phone), Subtitles (the language a film starts in, and how subtitles look with a preview of them), Appearance (the theme) and Account (who is signed in, and a link to the account's page at the provider, where it is managed); every tab one column at the page's width; signing out |
 | `/about` | What the site is, and where its film details come from |
+| `/chat` | The assistant, as the page a phone's Assistant tab opens; a wide screen has it in the dock beside every other page (below) |
 | `/signin` | Where the identity provider sends the browser back with its code; opened on its own, it goes to the provider |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from. A room waiting on a Watch now shows the film being found, arriving and starting, and plays it on its own |
 | `/embed/` | Where the Discord Activity opens: it signs in through Discord, then goes to the player when the call's room holds something or is private to the viewer, and to Home otherwise |
@@ -182,9 +183,8 @@ library. They need the browser's leave to notify, which the first Download on a 
 
 Wide screens get around by the sidebar, which has Discover and Saved under Home. A phone has
 krystal-ui's `TabBar` along its bottom edge instead, and no drawer: Home (lit on `/`),
-Library (lit under `/movies`, `/tv` and `/anime`), Discover (lit under `/discover`), Assistant,
-which opens the dock above the bar rather than a page, and Me (`/profile`, lit on `/notify` and
-`/saved` too), whose page leads to Saved. What each page lights is one table in `App.jsx`, by the route's
+Library (lit under `/movies`, `/tv` and `/anime`), Discover (lit under `/discover`), Assistant
+(`/chat`), and Me (`/profile`, lit on `/notify` and `/saved` too), whose page leads to Saved. What each page lights is one table in `App.jsx`, by the route's
 view. The tab of the page already open scrolls it back to its top. The
 pages no tab names are linked from the footer every page ends with. A television has neither and
 gets around by its own bar (below).
@@ -495,7 +495,7 @@ with what needs the server dimmed and out of reach.
 - **What needs the server** is drawn dimmed and does nothing: Discover, Saved and Notify me in the
   sidebar, Discover and Assistant in the tab bar, the bell, Profile's History, Requests, Following and
   Notifications, Save, Follow, Notify, Discover's search, the assistant's button, and every other
-  control that asks the server. Discover, the assistant's dock and every page the device cannot draw
+  control that asks the server. Discover, the assistant and every page the device cannot draw
   (a film not downloaded, Saved, a list, Notify me, a room), reached by an address, Back or a push,
   say "You're offline" and that the place is not available offline, and lead to the library.
 - **What is kept for it.** Beside the downloads themselves, the device keeps an account's preferences
@@ -708,13 +708,20 @@ it defaults to the scratch site and takes a deployed origin as readily.
 
 ## The assistant
 
-The dock holds krystal-ui's `Chat`, talking at `/assistant` to the plugin of the assistant harness as
-the signed-in person, over the assistant wire contract (`tks-assistant/docs/wire-contract.md`). Replies
+The assistant is krystal-ui's `Chat` (`CinemaAssistant.jsx`), talking at `/assistant` to the plugin of
+the assistant harness as the signed-in person, over the assistant wire contract
+(`tks-assistant/docs/wire-contract.md`). A phone has it as a page, `/chat`, among the tab bar's
+(`pages/Assistant.jsx`), drawn in the chat's page layout: on the page's own background, filling the
+column down to the tab bar or the remote dock, a way back to an empty conversation in its header, the
+conversations in a sheet, the opening suggestions as chips over a one-row composer, and the tab bar
+and the remote dock giving their room to the keyboard while the person writes. A wide screen has it
+in the dock beside whatever page is open, and as a page at `/chat` with no dock beside it. Its address
+is not `/assistant`, which is the plugin's on the same origin. Replies
 stream; the microphone sends a voice note to the plugin's `/speech/transcribe` and the transcript returns
 to the composer. A `question` frame is drawn as a form of choices and the answers go as the next turn,
 which is how the taste survey runs. A `titles` result is drawn under the reply that names it, one card
 for each title the reply names: poster, name, year, and *In library* and *Watched* where they hold,
-leading to the title's page. The dock holds no room controls and no buttons for what a title's page does.
+leading to the title's page. The assistant holds no room controls and no buttons for what a title's page does.
 
 ## Rules
 

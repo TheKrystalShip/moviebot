@@ -3,7 +3,7 @@
 
 import { createStore, useStore } from "@thekrystalship/krystal-ui";
 import {
-  ANIME, PROFILE_TABS, aboutPath, discoverFilmPath, discoverPath, discoverShowPath, guestPath, homePath, libraryPath,
+  ANIME, PROFILE_TABS, aboutPath, chatPath, discoverFilmPath, discoverPath, discoverShowPath, guestPath, homePath, libraryPath,
   listPath, moviePath, notifyPath, pairPath, profilePath, roomPath, savedPath, signInPath, tvPath,
 } from "./paths.js";
 
@@ -46,7 +46,8 @@ function arrived(segments, search) {
  * `notfound` and keeps the address as typed.
  *
  *   view      which page: home, movies, movie, tv, show, anime, anime-films, discover, discover-film,
- *             discover-show, saved, list, notify, profile, about, signin, room, guest, pair, embed, notfound
+ *             discover-show, saved, list, notify, profile, about, chat, signin, room, guest, pair, embed,
+ *             notfound
  *   category  `anime` for a shelf or a title's page under Anime; null everywhere else
  *   arg       the id the path carries: a title, a show, a film, a list, a room or a code
  *   season    the season a show's path names, or null for the show's own choice
@@ -107,6 +108,7 @@ function parse(href) {
     }
     case "notify": route = shaped("notify", notifyPath); break;
     case "about": route = shaped("about", aboutPath); break;
+    case "chat": route = shaped("chat", chatPath); break;
     case "signin": route = shaped("signin", signInPath); break;
     case "r":
       route = rest[0] ? shaped("room", roomPath(rest[0]), { arg: rest[0] }) : shaped("home", homePath);

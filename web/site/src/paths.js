@@ -11,6 +11,8 @@ export const homePath = "/";
 export const savedPath = "/saved";
 export const notifyPath = "/notify";
 export const aboutPath = "/about";
+/** The assistant's page. Not `/assistant`, which is the assistant's own service on the same origin. */
+export const chatPath = "/chat";
 /** Where the provider sends the browser back with a code. */
 export const signInPath = "/signin";
 

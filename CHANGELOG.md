@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.31.0] - 2026-10-13
+
+### Changed
+
+- **On a phone the assistant is a page, `/chat`, among the tab bar's.** It opens, leaves, reloads and
+  answers Back as every page does, and fills the screen down to the tab bar or the remote dock. It is
+  drawn in krystal-ui 0.27.0's page layout: on the page's own background, so a black theme is black
+  edge to edge; a way back to an empty conversation in its header and the conversations in a sheet;
+  the opening suggestions as chips over a one-row composer, with Thinking and Read aloud behind the
+  options beside the microphone; and the tab bar and the remote dock giving their room to the
+  keyboard while typing. A wide screen keeps the dock beside every page, and has the assistant as a
+  page at `/chat` with no dock beside it. Site 0.80.0.
+- **A sideways swipe neither opens nor closes the assistant.**
+
 ## [3.30.3] - 2026-10-13
 
 ### Fixed

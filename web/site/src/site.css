@@ -66,6 +66,12 @@ button { font-family: inherit; }
   @keyframes kc-page-fade { from { opacity: 0; } to { opacity: 1; } }
 }
 
+/* The assistant's page fills the column: the column, its stage and the page are one flex column down to
+   the chat, whose thread scrolls inside it while the column stays still. */
+.app__main:has(.kc-chat-page) > .kc-stage,
+.kc-stage__page:has(> .kc-chat-page) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.kc-chat-page { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
 .kc-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .kc-head__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .kc-head h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }

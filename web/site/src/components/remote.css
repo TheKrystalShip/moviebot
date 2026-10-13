@@ -70,6 +70,11 @@ body.has-remote-open .kc-remote-scrim { pointer-events: auto; }
     bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--remote-strip-inset, 0px));
   }
 }
+/* While a person writes in the assistant, the keyboard takes the dock's room as it takes the tab bar's. */
+@media (max-width: 768px) {
+  body.chat-typing .kc-remote-dock, body.chat-typing .kc-remote-scrim { display: none; }
+  body.chat-typing.has-remote-strip .app--tabbed .app__main { padding-bottom: env(keyboard-inset-height, 0px); }
+}
 body.has-remote-strip .toasts { bottom: calc(84px + var(--remote-strip-inset, 0px) + env(safe-area-inset-bottom, 0px)); }
 /* While a drawer or the open dock covers the bottom of the screen the toasts sit at the top, clear of it. */
 body.has-drawer .toasts, body.has-remote-open .toasts { top: calc(16px + env(safe-area-inset-top, 0px)); bottom: auto; }

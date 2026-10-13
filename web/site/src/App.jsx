@@ -1,7 +1,7 @@
 import React from "react";
 import {
   AppShell, Dock, DockFab, NavItem, Sidebar, SidebarAccount, SidebarGroup, TabBar, Toasts,
-  useDock, useEdgeSwipe, useStoredFlag,
+  useDock, useStoredFlag,
 } from "@thekrystalship/krystal-ui";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 import { beginSignIn, can, restore, sessionEnded, useSession } from "./session.js";
@@ -9,10 +9,11 @@ import { leave } from "./leave.js";
 import { goBack, navigate, useRoute } from "./router.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { PLACES } from "./nav.js";
-import { ANIME, OFFLINE_FLAG, discoverPath, homePath, libraryPath, moviePath, profilePath, roomPath } from "./paths.js";
+import { ANIME, OFFLINE_FLAG, chatPath, discoverPath, homePath, libraryPath, moviePath, profilePath, roomPath } from "./paths.js";
 import { useOnline } from "./connectivity.js";
 import { sendProgress } from "./offline/progress.js";
 import { useOfflineSync } from "./offline/sync.js";
+import { Assistant } from "./pages/Assistant.jsx";
 import { FirstSignIn, Off, Unreachable } from "./pages/Offline.jsx";
 import { SignOutDialog } from "./components/SignOutDialog.jsx";
 import { Home } from "./pages/Home.jsx";
@@ -57,12 +58,12 @@ const HOME = ["home", "discover", "saved"].map(place);
 const LIBRARY = ["movies", "tv", "anime"].map(place);
 const WAITING = ["notify"].map(place);
 
-// A phone's way around: a tab for each place. The assistant's tab opens the dock rather than a page.
+// A phone's way around: a tab for each place, the assistant's page among them.
 const TABS = [
   { ...place("home") },
   { id: "library", path: PLACES.movies.path, icon: "clapperboard", label: "Library" },
   { ...place("discover") },
-  { id: "assistant", icon: "bot", label: "Assistant" },
+  { id: "assistant", path: chatPath, icon: "bot", label: "Assistant" },
   { id: "me", path: PLACES.profile.path, icon: "user", label: "Me" },
 ];
 
@@ -83,6 +84,7 @@ const LIT = {
   notify: { item: "notify", tab: "me" },
   saved: { item: "saved", tab: "me" },
   list: { item: "saved", tab: "me" },
+  chat: { tab: "assistant" },
 };
 
 // The places that need the server, drawn disabled with no connection. Every other place draws what the
@@ -223,8 +225,6 @@ function Frame({ session, route }) {
   const online = useOnline();
   const [collapsed, setCollapsed] = useStoredFlag("cinema:sidebar:collapsed");
   const dock = useDock({ storageKey: "cinema:dock" });
-  // A phone has the tab bar and no drawer, so only the right edge's swipe, the dock's, is taken.
-  useEdgeSwipe(false, noDrawer, dock.open, dock.setOpen);
   const mainRef = React.useRef(null);
   useDiscoverKey(route.view === "discover");
 
@@ -240,18 +240,18 @@ function Frame({ session, route }) {
     ? <NavItem key={n.id} icon={n.icon} label={n.label} active={lit.item === n.id} onClick={() => go(n.path)} />
     : <Off key={n.id}><NavItem icon={n.icon} label={n.label} /></Off>);
   useOfflineTabs(!online, TABS.map((t) => NEEDS_SERVER.has(t.id)));
-  // A tab leaves the dock for its page. The tab of the page already open takes it back to its top.
-  const tab = (t) => t.path
-    ? {
-      id: t.id, icon: t.icon, label: t.label,
-      active: !dock.open && lit.tab === t.id && (online || !NEEDS_SERVER.has(t.id)),
-      onClick: () => {
-        dock.setOpen(false);
-        if (route.path === t.path && mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
-        else go(t.path);
-      },
-    }
-    : { id: t.id, icon: t.icon, label: t.label, active: dock.open, onClick: () => dock.setOpen(true) };
+  // A tab goes to its page. The tab of the page already open takes it back to its top.
+  const tab = (t) => ({
+    id: t.id, icon: t.icon, label: t.label,
+    active: lit.tab === t.id && (online || !NEEDS_SERVER.has(t.id)),
+    onClick: () => {
+      if (route.path === t.path && mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
+      else go(t.path);
+    },
+  });
+  // The dock is the assistant beside a page, on a screen wide enough to have one. A phone reaches the
+  // assistant by its tab, as a page; the assistant's own page has no dock beside it.
+  const docked = dock.desktop && route.view !== "chat";
 
   return (
     <>
@@ -259,7 +259,7 @@ function Frame({ session, route }) {
         collapsed={dock.desktop && collapsed}
         drawerOpen={false}
         onDrawer={noDrawer}
-        dockPush={dock.pushing ? dock.width : 0}
+        dockPush={docked && dock.pushing ? dock.width : 0}
         mainRef={mainRef}
         sidebar={
           <Sidebar
@@ -287,7 +287,7 @@ function Frame({ session, route }) {
             {can(session, "cinema:wish") && <SidebarGroup>{WAITING.map(item)}</SidebarGroup>}
           </Sidebar>
         }
-        aside={<>
+        aside={docked && <>
           <Dock dock={dock}>
             {dock.open && (online
               ? <CinemaAssistant session={session} docked dock={dock} onClose={() => dock.setOpen(false)} />
@@ -298,7 +298,7 @@ function Frame({ session, route }) {
         tabBar={<TabBar items={TABS.map(tab)} />}>
         {inActivity && <CallBar />}
         <PageStage route={route} render={(r) => <Reachable route={r} />} above={(r) => <Trail route={r} />} onShown={toTop} />
-        <SiteFooter />
+        {route.view !== "chat" && <SiteFooter />}
       </AppShell>
       {!inActivity && <RemoteDock />}
       {!inActivity && <ReplaceSheet />}
@@ -440,13 +440,17 @@ function Page({ route, fromDevice }) {
     case "notfound": return <NotFound />;
     default: break;
   }
-  if (fromDevice) return <Unreachable place={route.view === "discover" || route.view === "discover-film" ? "discover" : null} />;
+  if (fromDevice) {
+    const place = route.view === "discover" || route.view === "discover-film" ? "discover" : route.view === "chat" ? "assistant" : null;
+    return <Unreachable place={place} />;
+  }
   switch (route.view) {
     case "discover-film": return <CatalogueFilm key={route.arg} imdbId={route.arg} />;
     case "discover": return <Discover query={route.query} />;
     case "saved": return <Saved />;
     case "list": return <ListPage key={route.arg} id={route.arg} />;
     case "notify": return <Notify />;
+    case "chat": return <Assistant />;
     default: return <NotFound />;
   }
 }
