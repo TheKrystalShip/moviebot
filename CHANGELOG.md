@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.33.3] - 2026-10-14
+
+### Changed
+
+- **A file the assistant cannot read says what to send instead** (krystal-ui 0.29.4): a PDF, an office
+  document, a recording, a video or an archive each with its own sentence, and anything else that the
+  assistant cannot read it. Site 0.81.3.
+
 ## [3.33.2] - 2026-10-14
 
 ### Fixed
