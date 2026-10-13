@@ -12,9 +12,9 @@ its image decoding at the panel's resolution, which no CPU throttling on this ma
 
 - The reference television on adb (`cinema-reference-tv` in the operator's notes): the debug build of
   `tv/` installed (`tv/build.sh --debug --install`), signed in on the production site.
-- The television awake: `verify/tvsweep/awake.sh <host:port> [hours]` in the background holds it awake
-  without pressing anything and restores its own settings when stopped. A step with no frames was
-  taken with the panel asleep and is reported `INVALID`.
+- Nothing to keep the television awake: every television harness wakes it as it starts and holds it
+  awake while it runs (`verify/awake.mjs`), then restores its own settings. A step with no frames was
+  taken with the panel dark all the same and is reported `INVALID`.
 - For `--scratch`, the scratch site (`verify/mobile/scratch.sh`): the television reaches it through
   `adb reverse` with a session planted the way the lab plants one, so a local build is measured on the
   television before anything is published or deployed. The scratch library is not production's, so

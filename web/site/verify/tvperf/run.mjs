@@ -30,7 +30,7 @@
 // Exits 1 on a regression, a step that lands somewhere other than its `to`, or an over-budget step
 // under `--strict`; 2 when the target cannot be reached.
 
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -39,6 +39,7 @@ import { WALKS, Keys } from "./walks.mjs";
 import { Metrics, measure, median, slowest } from "./measure.mjs";
 import { VIEWER, stage } from "../mobile/stage.mjs";
 import { TV_CLIENT, issuerIn } from "../issuer.mjs";
+import { awake } from "../awake.mjs";
 
 const args = process.argv.slice(2);
 const option = (name, fallback) => {
@@ -265,18 +266,7 @@ async function television() {
   if (!serial) { console.error("A television run needs --serial <host:port> or ADB_SERIAL."); process.exit(2); }
   const origin = option("origin", "https://movies.thekrystalship.com").replace(/\/$/, "");
   const Debug = "com.thekrystalship.cinema.debug";
-  const adb = (...a) => execFileSync("adb", ["-s", serial, ...a], { encoding: "utf8" }).trim();
-  try { execFileSync("adb", ["connect", serial], { encoding: "utf8" }); } catch { /* answered below */ }
-  const state = () => { try { return adb("get-state"); } catch { return "offline"; } };
-  if (state() !== "device") {
-    // A television that slept keeps a dead connection until adb is asked to make it again.
-    try { execFileSync("adb", ["reconnect", "offline"], { stdio: "ignore" }); } catch { /* answered below */ }
-    await new Promise((r) => setTimeout(r, 3000));
-  }
-  if (state() !== "device") {
-    console.error(`${serial} is not an authorized adb device: is the television on, and its debugging prompt accepted?`);
-    process.exit(2);
-  }
+  const adb = await awake(serial, dir);
   if (!adb("shell", "pm", "list", "packages", Debug).includes(Debug)) {
     console.error(`${serial} has no debug build: tv/build.sh --debug --install.`);
     process.exit(2);

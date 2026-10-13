@@ -9,8 +9,8 @@ The same walks run on two targets:
 - **The lab** (`--target lab`, the default): Chromium on this machine against the scratch site, drawn
   the way the reference television draws and slowed to its pace. Each step is the median of three
   runs, compared with `baseline.json`, and a regression fails the run. It is what a release passes.
-- **The television** (`--target tv`): the reference television itself over adb, on its own site. It is
-  run when something feels slow, and before a release of the TV app, and it is what the lab is
+- **The television** (`--target tv`): the reference television itself over adb, on its own site, woken
+  and held awake for the run (`../awake.mjs`). It is run when something feels slow, and before a release of the TV app, and it is what the lab is
   calibrated against. It is reported, never gated.
 
 ## Running it

@@ -30,12 +30,13 @@
 // Output goes to `~/.cache/moviebot-verify/tvfocus/<time>/`: results.json, and with --shots one JPEG
 // per step. Exit code 1 when a step missed its expectation or was flagged.
 
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { WALKS } from "./walks.mjs";
+import { awake } from "../awake.mjs";
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes("--" + n);
@@ -48,8 +49,8 @@ const cdpKeys = flag("cdp-keys");
 const dir = process.env.MOVIEBOT_VERIFY_DIR || join(homedir(), ".cache", "moviebot-verify");
 const out = opt("out") || join(dir, "tvfocus", new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19));
 mkdirSync(out, { recursive: true });
+const adb = await awake(serial, dir);
 const Debug = "com.thekrystalship.cinema.debug";
-const adb = (...a) => execFileSync("adb", ["-s", serial, ...a], { encoding: "utf8" }).trim();
 let origin = "https://movies.thekrystalship.com";
 let staged = null;
 let planted = null;

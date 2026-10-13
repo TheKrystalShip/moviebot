@@ -8,7 +8,8 @@ resting place with where the walk says it should go. It is the tool for finding 
 ## What it needs
 
 The same television as `verify:tv-sweep` (`../tvsweep/README.md`): the debug build of `tv/` installed
-and signed in on the production site, on adb, and awake. The keys go in over adb as the remote's own key
+and signed in on the production site, and on adb; the harness wakes it and holds it awake for the run
+(`verify/awake.mjs`). The keys go in over adb as the remote's own key
 events, so Back and Menu take the wrapper app's path into the page. Each one takes most of a second to
 arrive, and the harness waits for it before it measures anything.
 

@@ -15,7 +15,8 @@ deleted.
 - **The release gate is `npm run verify:tv-perf`** in the lab, against `verify/tvperf/baseline.json`.
   It catches regressions in load time, layout and downloads, which the workbench does not; it cannot
   see GPU cost. Run it before every deploy.
-- **The television has to stay awake**: `verify/tvsweep/awake.sh <tv> [hours]` in the background.
+- **The television stays awake by itself**: each harness wakes it and holds it awake for the run
+  (`verify/awake.mjs`).
 - **Two runs of each**, baseline and change, before believing a difference: the same walk on the same
   build varies by a few frames.
 - Raw `results.json` of the runs below are kept on the development machine in

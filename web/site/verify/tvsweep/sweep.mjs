@@ -30,8 +30,8 @@
 //   `w=`, for example from a patched build on the scratch site).
 //
 // Tracing roughly doubles what the television's CPU spends, so a trace says where time goes and an
-// untraced run says how long it takes. A step with no frames at all was taken with the panel asleep
-// and is reported INVALID rather than fast: keep the television awake (README.md).
+// untraced run says how long it takes. A step with no frames at all was taken with the panel dark
+// and is reported INVALID rather than fast.
 
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -40,6 +40,7 @@ import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { WALKS } from "./walks.mjs";
 import { analyse } from "./trace.mjs";
+import { awake } from "../awake.mjs";
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes("--" + n);
@@ -50,8 +51,8 @@ const only = opt("only") ? opt("only").split(",") : null;
 const dir = process.env.MOVIEBOT_VERIFY_DIR || join(homedir(), ".cache", "moviebot-verify");
 const out = opt("out") || join(dir, "tvsweep", new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19));
 mkdirSync(out, { recursive: true });
+const adb = await awake(serial, dir);
 const Debug = "com.thekrystalship.cinema.debug";
-const adb = (...a) => execFileSync("adb", ["-s", serial, ...a], { encoding: "utf8" }).trim();
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const KEYS = { Up: "ArrowUp", Down: "ArrowDown", Left: "ArrowLeft", Right: "ArrowRight", Back: "Escape", OK: "Enter" };
 
