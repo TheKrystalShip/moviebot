@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, Skeleton } from "@thekrystalship/krystal-ui";
+import { Icon, Pill, Skeleton } from "@thekrystalship/krystal-ui";
 import { discoverPersonPath } from "../paths.js";
 import { linkProps } from "../router.js";
 
@@ -44,7 +44,7 @@ export function Keywords({ names }) {
   return (
     <section className="kc-section">
       <h2>Keywords</h2>
-      <div className="kc-keywords">{names.map((k) => <span key={k} className="kc-keyword">{k}</span>)}</div>
+      <div className="kc-keywords">{names.map((k) => <Pill key={k} tone="muted">{k}</Pill>)}</div>
     </section>
   );
 }

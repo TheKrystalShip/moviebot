@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon } from "@thekrystalship/krystal-ui";
+import { Button, CardScreen, Icon, Notice } from "@thekrystalship/krystal-ui";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 import { probe } from "../connectivity.js";
 import { libraryPath } from "../paths.js";
@@ -59,13 +59,9 @@ export function FirstSignIn() {
     probe().finally(() => setBusy(false));
   };
   return (
-    <div className="kc-signin">
-      <div className="kc-signin__card">
-        <img src={markUrl} width="48" height="48" alt="" />
-        <h1>Krystal Cinema</h1>
-        <span className="kc-note">Signing in needs a connection.</span>
-        <Button variant="primary" size="xl" wide icon="refresh-cw" busy={busy} onClick={retry}>Try again</Button>
-      </div>
-    </div>
+    <CardScreen mark={markUrl} wordmark="Krystal Cinema">
+      <Notice>Signing in needs a connection.</Notice>
+      <Button variant="primary" size="xl" wide icon="refresh-cw" busy={busy} onClick={retry}>Try again</Button>
+    </CardScreen>
   );
 }

@@ -392,7 +392,7 @@ async function walk(context, label) {
   const cold = await tab(context);
   await cold.goto(base + "/", { waitUntil: "domcontentloaded" });
   await settle(cold, 2500);
-  const text = await cold.locator(".kc-signin").textContent().catch(() => "");
+  const text = await cold.locator(".k-cardscreen").textContent().catch(() => "");
   check(cold.url().startsWith(base) && /Signing in needs a connection/.test(text), `a device with no session says a first sign-in needs a connection (${where(cold)})`);
   await cold.screenshot({ path: join(shots, "offline-first-sign-in.png") });
   await cold.close();

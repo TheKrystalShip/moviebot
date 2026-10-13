@@ -1,6 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Icon, Pill } from "@thekrystalship/krystal-ui";
 import { profilePath } from "../paths.js";
 import { navigate } from "../router.js";
 import { ago } from "../time.js";
@@ -25,7 +25,7 @@ export function BellNavItem() {
           aria-label={"Notifications" + (unread > 0 ? `, ${unread} unread` : "")} aria-haspopup="dialog" aria-expanded={open}>
           <Icon name="bell" size={16} />
           <span className="nav-item__label">Notifications</span>
-          {unread > 0 && <span className="nav-item__badge kc-bell-item__badge">{unread}</span>}
+          {unread > 0 && <Pill tone="accent" className="nav-item__badge kc-bell-item__badge">{unread}</Pill>}
         </div>
       )}
     </Bell>

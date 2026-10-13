@@ -1,5 +1,5 @@
 import React from "react";
-import { Button } from "@thekrystalship/krystal-ui";
+import { Button, CardScreen, Notice } from "@thekrystalship/krystal-ui";
 import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
 import { beginSignIn, completeSignIn } from "../session.js";
 import { navigate } from "../router.js";
@@ -54,16 +54,12 @@ export function Waiting({ note, returnTo }) {
 
   const shown = failed || note;
   return (
-    <div className="kc-signin">
-      <div className="kc-signin__card">
-        <img src={markUrl} width="48" height="48" alt="" />
-        <h1>Krystal Cinema</h1>
-        {shown && <span className="kc-note kc-note--danger">{shown}</span>}
-        <Button variant="primary" size="xl" wide icon="log-in" busy={busy} onClick={start}>
-          {busy ? "Signing in…" : "Sign in"}
-        </Button>
-      </div>
-    </div>
+    <CardScreen mark={markUrl} wordmark="Krystal Cinema">
+      {shown && <Notice tone="danger">{shown}</Notice>}
+      <Button variant="primary" size="xl" wide icon="log-in" busy={busy} onClick={start}>
+        {busy ? "Signing in…" : "Sign in"}
+      </Button>
+    </CardScreen>
   );
 }
 
@@ -73,14 +69,10 @@ export function Waiting({ note, returnTo }) {
  */
 export function NoAccess({ onSignOut }) {
   return (
-    <div className="kc-signin">
-      <div className="kc-signin__card">
-        <img src={markUrl} width="48" height="48" alt="" />
-        <h1>Krystal Cinema</h1>
-        <p>Your account has no access to Krystal Cinema yet.</p>
-        {onSignOut && <Button variant="outline" size="xl" wide icon="log-out" onClick={onSignOut}>Sign out</Button>}
-      </div>
-    </div>
+    <CardScreen mark={markUrl} wordmark="Krystal Cinema">
+      <Notice>Your account has no access to Krystal Cinema yet.</Notice>
+      {onSignOut && <Button variant="outline" size="xl" wide icon="log-out" onClick={onSignOut}>Sign out</Button>}
+    </CardScreen>
   );
 }
 
@@ -90,12 +82,8 @@ export function NoAccess({ onSignOut }) {
  */
 export function ActivityProblem({ note }) {
   return (
-    <div className="kc-signin">
-      <div className="kc-signin__card">
-        <img src={markUrl} width="48" height="48" alt="" />
-        <h1>Krystal Cinema</h1>
-        <span className="kc-note kc-note--danger">{note}</span>
-      </div>
-    </div>
+    <CardScreen mark={markUrl} wordmark="Krystal Cinema">
+      <Notice tone="danger">{note}</Notice>
+    </CardScreen>
   );
 }

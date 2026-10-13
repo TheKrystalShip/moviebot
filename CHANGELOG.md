@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **The site's sign-in screens, labels and people lists are krystal-ui's own** (krystal-ui 0.30.0-dev.1):
+  the waiting, no-access, Activity-problem and first-sign-in screens stand on `CardScreen`; the
+  preparing and not-out-yet labels, keywords and the bell's count are `Pill`s; the profile's Saved row
+  and a saved list's people are `ListRow`s.
+
 ## [3.33.3] - 2026-10-14
 
 ### Changed

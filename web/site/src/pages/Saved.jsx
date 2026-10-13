@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  Button, Icon, IconButton, Input, Modal, Select, ShowcaseCard, Textarea, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, toast, useFilters,
+  Button, Icon, IconButton, Input, List, ListRow, Modal, Select, ShowcaseCard, Textarea, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, toast, useFilters,
 } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
@@ -401,22 +401,20 @@ function PeopleSheet({ list, me, onClose, onChange }) {
           </div>
         </div>
         <div className="kc-people">
-          <div className="kc-people__row">
-            <span className="kc-people__name">{list.owner.name || "someone"}{list.owner.userId === me.id && " (you)"}</span>
-            <span className="kc-quiet">Owner</span>
-          </div>
-          {list.members.map((m) => (
-            <div key={m.userId} className="kc-people__row">
-              <span className="kc-people__name">{m.name || "someone"}{m.userId === me.id && " (you)"}</span>
-              {owner ? (
-                <>
-                  <Select variant="chip" value={m.role} options={ROLES} aria-label={`What ${m.name} may do`}
-                    disabled={busy} onChange={(e) => change(m, e.target.value)} />
-                  <IconButton icon="x" label={`Take ${m.name} off`} disabled={busy} onClick={() => remove(m)} />
-                </>
-              ) : <span className="kc-quiet">{ROLES.find((r) => r.value === m.role)?.label}</span>}
-            </div>
-          ))}
+          <List label="People">
+            <ListRow title={<>{list.owner.name || "someone"}{list.owner.userId === me.id && " (you)"}</>} aside="Owner" />
+            {list.members.map((m) => (
+              <ListRow key={m.userId} title={<>{m.name || "someone"}{m.userId === me.id && " (you)"}</>}
+                aside={owner ? undefined : ROLES.find((r) => r.value === m.role)?.label}
+                actions={owner ? (
+                  <>
+                    <Select variant="chip" value={m.role} options={ROLES} aria-label={`What ${m.name} may do`}
+                      disabled={busy} onChange={(e) => change(m, e.target.value)} />
+                    <IconButton icon="x" label={`Take ${m.name} off`} disabled={busy} onClick={() => remove(m)} />
+                  </>
+                ) : undefined} />
+            ))}
+          </List>
           {owner && candidates.length > 0 && (
             <div className="kc-people__add">
               <Select value={pick} aria-label="Person" onChange={(e) => setPick(e.target.value)}

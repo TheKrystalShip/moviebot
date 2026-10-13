@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Pill } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { useCan } from "../session.js";
@@ -69,7 +69,7 @@ export function CatalogueFilm({ imdbId }) {
               </div>
             )}
             {a && a.notOut && (
-              <span className="kc-pill kc-pill--warn kc-tt__notout"><Icon name="calendar-clock" size={15} />Not out digitally yet</span>
+              <Pill tone="warn" icon="calendar-clock" className="kc-tt__notout">Not out digitally yet</Pill>
             )}
             {(d.rating || d.genres.length > 0) && (
               <div className="kc-tt__score-row">

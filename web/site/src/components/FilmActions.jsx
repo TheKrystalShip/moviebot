@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, toast } from "@thekrystalship/krystal-ui";
+import { Button, Pill, toast } from "@thekrystalship/krystal-ui";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
@@ -114,7 +114,7 @@ export function FilmActions({ imdbId, film, state, compact = false, children }) 
           Watch
         </Button>
       )}
-      {arriving && <span className="kc-pill kc-pill--info">preparing · {Math.floor(arriving.progress * 100)}%</span>}
+      {arriving && <Pill tone="info">preparing · {Math.floor(arriving.progress * 100)}%</Pill>}
 
       {a && wishing && a.notOut && (a.waiting
         ? <Button variant="accent" size="xl" icon="bell-ring" disabled={busy} onClick={stopWaiting}>Notifying</Button>

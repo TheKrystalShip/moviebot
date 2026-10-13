@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon, List, ListRow, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal-ui";
 import { KIND } from "../notifications.js";
 import { api, episodeCode, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
@@ -55,11 +55,10 @@ export function Profile({ tab: named, fromDevice = false }) {
   }, [tab, named]);
 
   const saved = (
-    <a className="kc-row kc-row--link kc-profile__saved" {...linkProps(savedPath)}>
-      <Icon name="bookmark" size={18} />
-      <span className="kc-row__title">Saved</span>
-      <Icon name="chevron-right" size={18} />
-    </a>
+    <List className="kc-profile__saved">
+      <ListRow lead={<Icon name="bookmark" size={18} />} title="Saved" aside={<Icon name="chevron-right" size={18} />}
+        href={linkProps(savedPath).href} onOpen={linkProps(savedPath).onClick} />
+    </List>
   );
   return (
     <div className="kc-page kc-profile">
