@@ -1254,7 +1254,7 @@ async function remoteUi() {
       const strip = document.querySelector(".kc-remote-strip").getBoundingClientRect();
       const main = document.querySelector(".app__main");
       const last = main ? [...main.querySelectorAll("*")].filter((e) => e.getBoundingClientRect().height > 0).reduce((a, e) => (e.getBoundingClientRect().bottom > a ? e.getBoundingClientRect().bottom : a), 0) : 0;
-      const field = document.querySelector(".assistant-dock--open textarea, .assistant-dock--open input, .assistant-dock textarea");
+      const field = document.querySelector(".chat-composer textarea");
       const f = field ? field.getBoundingClientRect() : null;
       return { stripTop: strip.top, last, field: f && { top: f.top, bottom: f.bottom } };
     });
@@ -1270,7 +1270,7 @@ async function remoteUi() {
       else pass(`the end of ${name} scrolls clear of the strip (${Math.round(m.last)} against ${Math.round(m.stripTop)})`);
     }
     await phone.locator(".tabbar__tab", { hasText: "Assistant" }).click();
-    await phone.waitForSelector(".assistant-dock--open", { timeout: 8000 });
+    await phone.waitForSelector(".chat-composer textarea", { timeout: 8000 });
     await phone.waitForTimeout(800);
     const assistant = await under();
     await shot(`clearance-${label}-assistant.png`);

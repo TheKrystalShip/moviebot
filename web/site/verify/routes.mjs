@@ -42,7 +42,7 @@ function chromePath() {
 
 const titles = await (await fetch(base + "/api/titles", { headers: { Authorization: `Bearer ${token}` } })).json();
 const MATRIX = { id: "the-matrix-1999", imdbId: "tt0133093" };
-const ABSENT_FILM = "tt0234215";
+const ABSENT_FILM = "tt0110912";
 const SHOW = "tt0903747";
 if (!titles.some((t) => t.id === MATRIX.id && t.film && t.film.imdbId === MATRIX.imdbId)) {
   console.error(`The scratch library does not hold ${MATRIX.id}.`);
@@ -116,7 +116,7 @@ const TRAILS = {
   [`/discover/show/${SHOW}/season/4`]: [HOME, ["Discover", "/discover"], ["Breaking Bad", `/discover/show/${SHOW}`], ["Season 4", null]],
   "/discover": [HOME, ["Discover", null]],
   "/discover?q=matrix": [HOME, ["Discover", null]],
-  [`/discover/film/${ABSENT_FILM}`]: [HOME, ["Discover", "/discover"], ["The Matrix Reloaded", null]],
+  [`/discover/film/${ABSENT_FILM}`]: [HOME, ["Discover", "/discover"], ["Pulp Fiction", null]],
   "/saved": [HOME, ["Saved", null]],
   "/saved/later": [HOME, ["Saved", "/saved"], [/./, null]],
   "/profile": [HOME, ["Profile", null]],
@@ -194,7 +194,7 @@ await cold("/discover/", { lands: "/discover" });
 await cold("/discover/other", { lands: "/discover" });
 await cold("/discover/film", { lands: "/discover" });
 await cold("/discover/show", { lands: "/discover" });
-await cold(`/discover/film/${ABSENT_FILM}`, { lands: `/discover/film/${ABSENT_FILM}`, h1: /Matrix Reloaded/, ...here("Discover", "Discover") });
+await cold(`/discover/film/${ABSENT_FILM}`, { lands: `/discover/film/${ABSENT_FILM}`, h1: /Pulp Fiction/, ...here("Discover", "Discover") });
 await cold(`/discover/film/${ABSENT_FILM}/extra`, { lands: `/discover/film/${ABSENT_FILM}` });
 await cold(`/discover/film/${MATRIX.imdbId}`, { lands: M, h1: /Matrix/, ...here("Movies", "Library") });
 await cold(`/discover/film/${MATRIX.imdbId}/extra`, { lands: M });
