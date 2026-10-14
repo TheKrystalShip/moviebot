@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.34.1] - 2026-10-14
+
+### Changed
+
+- **The site runs on krystal-ui 0.31.0**: fonts are WOFF2, popovers are placed by Floating UI, and a
+  Modal or Dialog traps focus, returns it, makes the rest of the page inert and stacks Escape. Site
+  0.81.4.
+
 ## [3.34.0] - 2026-10-14
 
 ### Changed
