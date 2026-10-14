@@ -1,5 +1,5 @@
 import {
-  Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, useFilters,
+  RadioGroup, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, useFilters,
 } from "@thekrystalship/krystal";
 import { filmName } from "../api.js";
 import { useOnline } from "../connectivity.js";
@@ -65,15 +65,9 @@ export function Library({ kind = "film", category = null, fromDevice = false }) 
 /** A row of options, one of them on, each replacing the page with its own rather than stacking on it. */
 function Segmented({ label, options, on, className }) {
   return (
-    <div className={"kc-segmented kc-segmented--fill " + className} role="radiogroup" aria-label={label}>
-      {options.map((o) => (
-        <button key={o.id} type="button" role="radio" aria-checked={o.id === on}
-          className={"kc-segmented__option" + (o.id === on ? " is-on" : "")}
-          onClick={() => { if (o.id !== on) navigate(o.path, { replace: true }); }}>
-          {o.label}
-        </button>
-      ))}
-    </div>
+    <RadioGroup variant="segmented" label={label} className={"kc-fill " + className} value={on}
+      options={options.map((o) => ({ value: o.id, label: o.label }))}
+      onChange={(id) => navigate(options.find((o) => o.id === id).path, { replace: true })} />
   );
 }
 

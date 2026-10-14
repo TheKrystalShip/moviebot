@@ -1,5 +1,5 @@
 import React from "react";
-import { EmptyState, Icon, OptionList, Rail, Toggle, toast } from "@thekrystalship/krystal";
+import { Drawer, EmptyState, Icon, OptionList, Rail, Toggle, toast } from "@thekrystalship/krystal";
 import { api, episodeCode, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { setRemoteMode, chooseScreen, useDrivenScreen, usePairedScreens, useRemoteMode, useRemoteOpen } from "../remote.js";
@@ -12,7 +12,6 @@ import { useTvRoom, useTvView } from "../remoteMenus.js";
 import { ScrubBar } from "../player/ScrubBar.jsx";
 import { SkipLabels, useSkipOffer } from "../player/stretches.js";
 import { ContinueCard, NextEpisodeCard } from "./Film.jsx";
-import { Drawer } from "./Drawer.jsx";
 import "../player/player.css";
 import "./download.css";
 import "./remote.css";
@@ -413,7 +412,7 @@ function Dock({ screen }) {
     <>
       <div ref={dock.scrim} className="kc-remote-scrim" onClick={collapse} />
       <div ref={dock.panel} className={"kc-remote-dock" + (open ? " is-open" : "")} data-theme="dark" {...dock.handlers}>
-        <div className="kc-drawer__grabber" />
+        <div className="kc-remote__grab" />
         <Strip rowRef={dock.row} screen={screen} hidden={open} onOpen={() => setOpen(true)} />
         {dock.live && <Remote dock={dock} shelf={shelf} screen={screen} hidden={!open} onCollapse={collapse} onPick={() => setPicking(true)} />}
       </div>
@@ -569,14 +568,14 @@ function Remote({ dock, shelf, screen, hidden, onCollapse, onPick }) {
   return (
     <>
       <div ref={dock.remote} className="kc-remote" role="dialog" aria-label={`Remote: ${tv}`} aria-hidden={hidden || undefined} inert={hidden ? "" : undefined}>
-        <div ref={dock.head} className="kc-drawer__top">
-          <div className="kc-drawer__head">
-            <span className="kc-drawer__title">
+        <div ref={dock.head} className="kc-remote__top">
+          <div className="kc-remote__head">
+            <span className="kc-remote__title">
               <button type="button" className="kc-remote__tv" aria-label={`TV: ${tv}. Choose another`} onClick={onPick}>
                 <Icon name="tv" size={13} />{tv}<Icon name="chevron-down" size={12} />
               </button>
             </span>
-            <span className="kc-drawer__action">
+            <span className="kc-remote__action">
               <span className="kc-remote__switch">Remote<Toggle on={mode} onChange={(on) => { if (on) setRemoteMode(true); else { onCollapse(); turnOff(tv); } }} label="Remote mode" /></span>
             </span>
           </div>

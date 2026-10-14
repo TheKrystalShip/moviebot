@@ -33,7 +33,7 @@ async function newPage(viewport) {
   const page = await context.newPage();
   page.errors = []; page.on("pageerror", e => page.errors.push(e.message));
   await page.goto(base + "/movies/" + encodeURIComponent(staged.film.id), { waitUntil: "load" });
-  await page.waitForSelector(".kc-title .kc-follow");
+  await page.waitForSelector(".kc-title .kc-actions .k-btn--accent");
   await page.waitForTimeout(800);
   page.cdp = await context.newCDPSession(page);
   return page;
@@ -48,20 +48,20 @@ async function touch(page, x, ys, stepMs) {
   for (const y of ys.slice(1)) { await sleep(stepMs); await t("touchMove", y, i++); }
   await sleep(stepMs); await t("touchEnd", 0, i);
 }
-const headY = async (page) => (await page.evaluate(() => document.querySelector(".kc-drawer__top").getBoundingClientRect().y)) + 12;
-const isOpen = (page) => page.evaluate(() => !!document.querySelector(".kc-drawer"));
+const headY = async (page) => (await page.evaluate(() => document.querySelector(".k-drawer__top").getBoundingClientRect().y)) + 12;
+const isOpen = (page) => page.evaluate(() => !!document.querySelector(".k-drawer"));
 const ramp = (y0, y1, n) => Array.from({ length: n + 1 }, (_, i) => Math.round(y0 + (y1 - y0) * i / n));
 async function openSave(page) {
-  await page.locator(".kc-follow .k-btn--accent").first().click();
-  await page.waitForSelector(".kc-drawer");
+  await page.locator(".kc-actions .k-btn--accent").first().click();
+  await page.waitForSelector(".k-drawer");
   await page.waitForTimeout(400);
 }
 const geom = (page) => page.evaluate(() => {
-  const d = document.querySelector(".kc-drawer"), top = d.querySelector(".kc-drawer__top"), g = d.querySelector(".kc-drawer__grabber");
+  const d = document.querySelector(".k-drawer"), top = d.querySelector(".k-drawer__top"), g = d.querySelector(".k-drawer__grabber");
   const r = (e) => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; };
   const cs = getComputedStyle;
   return { d: r(d), top: r(top), g: r(g), radius: cs(d).borderTopLeftRadius, ta: cs(top).touchAction, ob: cs(d).overscrollBehaviorY,
-    gbg: cs(g).backgroundColor, clip: cs(g).clipPath, tr: d.style.transform, open: !!document.querySelector(".kc-drawer"), mainTop: document.querySelector(".app__main")?.scrollTop };
+    gbg: cs(g).backgroundColor, clip: cs(g).clipPath, tr: d.style.transform, open: !!document.querySelector(".k-drawer"), mainTop: document.querySelector(".k-app__main")?.scrollTop };
 });
 const cx = 206;
 
@@ -81,7 +81,7 @@ await page.cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoint
 for (const y of ramp(topY, topY + 30, 5)) { await page.cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: cx, y }] }); await sleep(16); }
 await page.waitForTimeout(300);
 const held = await geom(page);
-check("tab is teal while held", held.gbg === strong[1] && await page.evaluate(() => !!document.querySelector(".kc-drawer__top.is-held")), held.gbg);
+check("tab is teal while held", held.gbg === strong[1] && await page.evaluate(() => !!document.querySelector(".k-drawer__top.k-is-held")), held.gbg);
 check("drawer follows the finger (translated down ~30px)", /translateY\(3[01](\.\d+)?px\)/.test(held.tr), held.tr);
 await page.screenshot({ path: join(out, "drawer-held.png") });
 await page.cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
@@ -117,7 +117,7 @@ await page.touchscreen.tap(cx, y); await page.waitForTimeout(300);
 check("tap on the head leaves it open", await isOpen(page));
 await touch(page, cx, ramp(y, y - 80, 10), 16);
 await page.waitForTimeout(300);
-check("pull up on the head moves nothing", await page.evaluate(() => !!document.querySelector(".kc-drawer") && document.querySelector(".kc-drawer").style.transform === ""));
+check("pull up on the head moves nothing", await page.evaluate(() => !!document.querySelector(".k-drawer") && document.querySelector(".k-drawer").style.transform === ""));
 await touch(page, 60, ramp(y, y + 4, 2), 16); await touch(page, cx - 100, [y, y + 2], 16);
 // pointer stream is never cancelled by the browser on the head; the same drag on a list option is (the control)
 await page.evaluate(() => { window.__pc = 0; document.addEventListener("pointercancel", () => window.__pc++, true); });
@@ -137,22 +137,22 @@ await page.context().close();
 // 5. A drawer that overflows: its body scrolls under a finger, and a sweep down at its top neither closes it nor moves the page.
 page = await newPage({ width: 412, height: 420 });
 await openSave(page);
-const body = await page.evaluate(() => { const d = document.querySelector(".kc-drawer"); return { sh: d.scrollHeight, ch: d.clientHeight }; });
+const body = await page.evaluate(() => { const d = document.querySelector(".k-drawer"); return { sh: d.scrollHeight, ch: d.clientHeight }; });
 console.log("  Save drawer at 412x420:", JSON.stringify(body));
-await page.evaluate(() => { const m = document.querySelector(".app__main"); if (m) m.scrollTop = 200; window.__main = m ? m.scrollTop : null; });
+await page.evaluate(() => { const m = document.querySelector(".k-app__main"); if (m) m.scrollTop = 200; window.__main = m ? m.scrollTop : null; });
 const m0 = await page.evaluate(() => window.__main);
 if (body.sh > body.ch + 4) {
   const gg = await geom(page);
   await touch(page, cx, ramp(gg.d.y + gg.d.h - 40, gg.d.y + 60, 14), 16);
-  const after = await page.evaluate(() => document.querySelector(".kc-drawer").scrollTop);
+  const after = await page.evaluate(() => document.querySelector(".k-drawer").scrollTop);
   check("a finger sweeping up the drawer body scrolls it", after > 0, "scrollTop " + after);
   await touch(page, cx, ramp(gg.d.y + 60, gg.d.y + gg.d.h - 20, 14), 16);
   await page.waitForTimeout(400);
-  const back = await page.evaluate(() => ({ s: document.querySelector(".kc-drawer")?.scrollTop, open: !!document.querySelector(".kc-drawer"), main: document.querySelector(".app__main")?.scrollTop }));
+  const back = await page.evaluate(() => ({ s: document.querySelector(".k-drawer")?.scrollTop, open: !!document.querySelector(".k-drawer"), main: document.querySelector(".k-app__main")?.scrollTop }));
   check("sweeping down scrolls it back to the top, the drawer stays open", back.open && back.s < after, JSON.stringify(back));
   await touch(page, cx, ramp(gg.d.y + 60, gg.d.y + gg.d.h - 20, 14), 16);
   await page.waitForTimeout(400);
-  const more = await page.evaluate(() => ({ open: !!document.querySelector(".kc-drawer"), main: document.querySelector(".app__main")?.scrollTop, doc: document.scrollingElement.scrollTop }));
+  const more = await page.evaluate(() => ({ open: !!document.querySelector(".k-drawer"), main: document.querySelector(".k-app__main")?.scrollTop, doc: document.scrollingElement.scrollTop }));
   check("a further sweep down at the top neither closes the drawer nor moves the page behind", more.open && more.main === m0 && more.doc === 0, JSON.stringify({ ...more, m0 }));
 } else console.log("  SKIP: drawer does not overflow at this size");
 await page.context().close();

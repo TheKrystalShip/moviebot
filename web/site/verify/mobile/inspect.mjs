@@ -1,4 +1,4 @@
-// What is measured on every view, in the page itself. The site scrolls inside `.app__main` rather than
+// What is measured on every view, in the page itself. The site scrolls inside `.k-app__main` rather than
 // the document, so a page-level overflow check alone reads clean while a box runs out of the column;
 // both are measured, and so is every element's own right edge.
 //
@@ -11,7 +11,7 @@
 
 export function inspect() {
   const vw = window.innerWidth;
-  const main = document.querySelector(".app__main");
+  const main = document.querySelector(".k-app__main");
   const describe = (e) => {
     const id = e.id ? "#" + e.id : "";
     const cls = typeof e.className === "string" && e.className.trim() ? "." + e.className.trim().split(/\s+/).slice(0, 2).join(".") : "";
@@ -71,7 +71,7 @@ export function inspect() {
   // kept only where that text is what is on top: text under a drawer or a popover is covered, not
   // collided with. Boxes of unrelated elements on screen must not cross.
   // The page scrolls under the tab bar, so what of the page is seen ends at the bar's top edge.
-  const tabbar = document.querySelector(".tabbar");
+  const tabbar = document.querySelector(".k-tabbar");
   const pageEnd = tabbar && shown(tabbar) ? tabbar.getBoundingClientRect().top : Infinity;
   const clipOf = (e, r) => {
     let { left, top, right, bottom } = r;
@@ -164,6 +164,6 @@ export function inspect() {
 /** Lets the page column grow to its content, so one screenshot holds the whole page. */
 export function unroll() {
   const style = document.createElement("style");
-  style.textContent = "html,body,.app{height:auto!important;overflow:visible!important}.app__main{height:auto!important;max-height:none!important;overflow:visible!important}.tabbar{display:none!important}";
+  style.textContent = "html,body,.app{height:auto!important;overflow:visible!important}.k-app__main{height:auto!important;max-height:none!important;overflow:visible!important}.k-tabbar{display:none!important}";
   document.head.appendChild(style);
 }

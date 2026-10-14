@@ -266,9 +266,9 @@ async function layoutChecks(browser) {
     check(`${name} is laid out ${expected}`, got === expected, got);
     if (expected === 'compact') {
       await press(page, '.mp-menu-button[title="Subtitles"]');
-      check('  and its menus come up from the bottom edge', (await page.$('.kc-drawer')) !== null);
+      check('  and its menus come up from the bottom edge', (await page.$('.k-drawer')) !== null);
       const spans = await page.evaluate(() => {
-        const sheet = document.querySelector('.kc-drawer').getBoundingClientRect();
+        const sheet = document.querySelector('.k-drawer').getBoundingClientRect();
         const frame = document.querySelector('.mp-stage').getBoundingClientRect();
         return Math.abs(sheet.width - frame.width) < 1;
       });
@@ -277,7 +277,7 @@ async function layoutChecks(browser) {
     if (expected === 'tiny') {
       check('  and its controls are one row', (await page.$('.mp-tiny')) !== null && (await page.$('.mp-bottom')) === null);
       await press(page, '.mp-tiny .mp-icon');
-      const folded = await page.$$eval('.kc-drawer .mp-option__label', (els) => els.map((e) => e.textContent));
+      const folded = await page.$$eval('.k-drawer .mp-option__label', (els) => els.map((e) => e.textContent));
       check('  with the rest folded behind the overflow', folded.includes('Subtitles'), folded.join(', '));
     }
     await page.context().close();

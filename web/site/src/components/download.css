@@ -20,10 +20,8 @@
 .kc-episode__sub--download { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-2); }
 .kc-episode__sub--download.is-done { color: var(--krystal-teal); }
 
-/* The sheet. On a phone the drawer reaches nearly to the top, its body scrolling between a fixed head
-   and foot. */
-.kc-drawer.kc-dl-drawer { max-height: calc(100% - 52px); padding: 0; overflow: hidden; background: var(--surface-1); }
-.kc-dl-drawer .kc-drawer__top { min-height: 0; padding-top: 0; }
+/* The sheet: the drawer's head is the title still with its label, name and line, and its foot stacks the actions. */
+.kc-dl-drawer .k-drawer__foot { flex-direction: column; align-items: stretch; }
 .kc-dl-head { flex-shrink: 0; display: flex; gap: 12px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-subtle); }
 .kc-dl-head__still {
   flex-shrink: 0; width: 72px; aspect-ratio: 16 / 9; object-fit: cover;
@@ -40,20 +38,11 @@
 .kc-dl-head__eyebrow.is-failed { color: var(--danger); }
 .kc-dl-head__name { font-size: 17px; font-weight: 600; color: var(--fg-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0; text-transform: none; }
 .kc-dl-head__sub { font-size: 12px; color: var(--fg-3); font-weight: 400; letter-spacing: 0; text-transform: none; }
-.kc-dl-head__close {
-  flex-shrink: 0; align-self: flex-start; width: 44px; height: 44px; margin: -6px -10px 0 0; padding: 0;
-  display: flex; align-items: center; justify-content: center; border: none; border-radius: var(--r-sm);
-  background: transparent; color: var(--fg-3); cursor: pointer;
-}
-.kc-dl-head__close:hover { color: var(--fg-1); background: var(--surface-2); }
-.kc-dl-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 18px; }
-.kc-dl-foot {
-  flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;
-  padding: 12px 18px max(18px, env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border-subtle);
-}
-/* Two actions share the foot equally; the picker's one fills it under the device's space. */
-.kc-dl-underway .kc-dl-foot, .kc-dl-done .kc-dl-foot, .kc-dl-remove .kc-dl-foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.kc-dl-foot .k-btn { width: 100%; justify-content: center; }
+.kc-dl-head__close { flex-shrink: 0; align-self: flex-start; margin: -6px -10px 0 0; }
+/* Two actions share the foot equally. */
+.kc-dl-underway .k-drawer__foot, .kc-dl-done .k-drawer__foot, .kc-dl-remove .k-drawer__foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.kc-dl-drawer .k-drawer__foot .k-btn { width: 100%; justify-content: center; }
+.kc-dl-remove .k-drawer__body { display: none; }
 
 /* On a wide screen, the dialog: the backdrop above, the label and name over its foot. */
 .kc-dl-dialog .k-modal__art { height: 120px; }

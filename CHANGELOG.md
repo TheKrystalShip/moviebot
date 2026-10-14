@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.36.0] - 2026-10-14
+
+### Changed
+
+- **The site draws its sheets, menus, choices and sliders through the Krystal design system**
+  (`@thekrystalship/krystal` and `-chat` 0.35.0). Every drawer is krystal's `Drawer` (the player's menus
+  `contained` in the frame, the remote's picker, the download, replace and remove sheets, the Notifications
+  and Save to lists), the Save and Notifications panels on a wide screen are `Popover`s, Following is a
+  `Menu`, a list's note and people are `Dialog`s, the library's and profile's segmented choices are
+  `RadioGroup`s, the volume and the subtitle height are `Slider`s, and the mute, Close, Back and Reset
+  controls are `IconButton`s and `Button`s. The television's arrow-key navigation is krystal's
+  `createSpatialFocus`, with the site keeping its pages' own first focus, Back and Menu. Site 0.83.0.
+
 ## [3.35.0] - 2026-10-14
 
 ### Changed

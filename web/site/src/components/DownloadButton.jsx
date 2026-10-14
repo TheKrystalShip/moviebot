@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Dialog, Icon, Meter, Notice, OptionList, Select, toast } from "@thekrystalship/krystal";
+import { Button, Dialog, Drawer, Icon, IconButton, Meter, Notice, OptionList, Select, toast, usePhone } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
@@ -18,8 +18,6 @@ import { linkProps } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago } from "../time.js";
 import { onTv } from "../tv/tv.js";
-import { Drawer } from "./Drawer.jsx";
-import { useNarrow } from "./SaveButton.jsx";
 import "./download.css";
 
 // Download on a film's page, on an episode's row and on a season: one control whose face says where
@@ -332,7 +330,7 @@ function WantSheet({ head, target, eyebrow = "Download", onClose }) {
   const session = useSession();
   const sub = session && session.user.id;
   const online = useOnline();
-  const narrow = useNarrow();
+  const narrow = usePhone();
   const preferences = useLoad(() => api.preferences().catch(() => keptPreferences(sub)), [sub]);
   const season = target.episodes ? target.episodes[0].season : null;
   const numbers = target.episodes ? target.episodes.map((e) => e.episode) : null;
@@ -474,9 +472,8 @@ function PreparingSheet({ head, standing, onClose }) {
  * a line under it; on a wide screen a dialog with the backdrop as its art. `tone` colours the label.
  */
 function Sheet({ head, eyebrow, tone, sub, onClose, canClose = true, foot, className = "", children }) {
-  const narrow = useNarrow();
+  const narrow = usePhone();
   const label = `${eyebrow} ${head.name}`;
-  const close = () => { if (canClose) onClose(); };
   const top = (
     <span className="kc-dl-head__text">
       <span className={"kc-dl-head__eyebrow" + (tone ? " is-" + tone : "")}>
@@ -495,17 +492,14 @@ function Sheet({ head, eyebrow, tone, sub, onClose, canClose = true, foot, class
     );
   }
   return (
-    <Drawer onClose={close} label={label} className={"kc-dl-sheet kc-dl-drawer " + className} head={(
+    <Drawer onClose={onClose} canClose={canClose} label={label} className={"kc-dl-sheet kc-dl-drawer " + className} foot={foot} head={(
       <div className="kc-dl-head">
         {head.still && <img className={"kc-dl-head__still" + (head.portrait ? " is-portrait" : "")} src={head.still} alt="" />}
         {top}
-        <button type="button" className="kc-dl-head__close" aria-label="Close" disabled={!canClose} onClick={onClose}>
-          <Icon name="x" size={18} />
-        </button>
+        <IconButton variant="ghost" icon="x" label="Close" className="kc-dl-head__close" disabled={!canClose} onClick={onClose} />
       </div>
     )}>
-      <div className="kc-dl-body">{children}</div>
-      {foot && <div className="kc-dl-foot">{foot}</div>}
+      {children}
     </Drawer>
   );
 }
@@ -536,7 +530,7 @@ function PickSheet({ titleId, head, onClose }) {
   const session = useSession();
   const sub = session && session.user.id;
   const online = useOnline();
-  const narrow = useNarrow();
+  const narrow = usePhone();
   const offer = useLoad(() => api.offlineOffer(titleId), [titleId]);
   const preferences = useLoad(() => api.preferences().catch(() => keptPreferences(sub)), [sub]);
   const room = useSpace();
@@ -755,7 +749,7 @@ function DoneSheet({ titleId, head, save, onClose, onRemove }) {
 /** Asks before a download is taken off the device: downloading it again costs its whole size. */
 function RemoveSheet({ titleId, head, standing, onClose, onKeep }) {
   const session = useSession();
-  const narrow = useNarrow();
+  const narrow = usePhone();
   const [busy, setBusy] = React.useState(false);
   const bytes = standing.kind === "done" ? standing.save.receivedBytes : standing.received;
   const remove = async () => {
@@ -784,7 +778,7 @@ function RemoveSheet({ titleId, head, standing, onClose, onKeep }) {
     );
   }
   return (
-    <Drawer onClose={() => { if (!busy) onClose(); }} label="Remove download" role="alertdialog" className="kc-dl-sheet kc-dl-drawer kc-dl-remove" head={(
+    <Drawer onClose={onClose} canClose={!busy} label="Remove download" role="alertdialog" className="kc-dl-sheet kc-dl-drawer kc-dl-remove" foot={foot} head={(
       <div className="kc-dl-head kc-dl-head--remove">
         <span className="kc-dl-remove__icon"><Icon name="trash-2" size={20} /></span>
         <span className="kc-dl-head__text">
@@ -792,8 +786,6 @@ function RemoveSheet({ titleId, head, standing, onClose, onKeep }) {
           {what}
         </span>
       </div>
-    )}>
-      <div className="kc-dl-foot">{foot}</div>
-    </Drawer>
+    )} />
   );
 }

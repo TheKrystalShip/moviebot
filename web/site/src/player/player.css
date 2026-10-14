@@ -287,19 +287,12 @@
 
 /* The volume is a button until it is reached for; then its slider opens beside it. */
 .mp-volume { display: flex; align-items: center; }
-.mp-volume .mp-btn {
-  width: 40px; height: 40px; border-radius: 999px; border: none; cursor: pointer;
-  background: transparent; color: #fff; display: flex; align-items: center; justify-content: center;
-}
-.mp-volume .mp-btn:hover { background: rgba(255, 255, 255, 0.1); }
+.mp-volume .k-iconbtn { color: #fff; }
 .mp-volume__track {
-  position: relative; height: 4px; width: 0; margin: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.18);
-  opacity: 0; cursor: pointer; transition: width 160ms var(--ease-out), opacity 160ms var(--ease-out), margin 160ms var(--ease-out);
-  touch-action: none;
+  width: 0; margin: 0; opacity: 0; overflow: hidden;
+  transition: width 160ms var(--ease-out), opacity 160ms var(--ease-out), margin 160ms var(--ease-out);
 }
 .mp-volume:hover .mp-volume__track, .mp-volume:focus-within .mp-volume__track { width: 84px; margin: 0 10px 0 4px; opacity: 1; }
-.mp-volume__fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: #fff; }
-.mp-volume__track::before { content: ""; position: absolute; inset: -10px 0; }
 
 /* ── Scrub bar ── */
 .mp-scrub-row { display: flex; flex-direction: column; gap: 6px; }
@@ -391,17 +384,12 @@
 :is(.mp-frame:not(.mp-frame--wide), .mp-aimed) .mp-episodes :is(.kc-episode__score, .kc-episode__runtime),
 :root[data-tv] .mp-episodes :is(.kc-episode__score, .kc-episode__runtime) { display: none; }
 /* The style editor's drawer leaves room above it for the sample line it is styling. */
-.kc-drawer.is-styling { max-height: 45%; }
+.k-drawer.is-styling { max-height: 45%; }
 .mp-menu__head {
   display: flex; align-items: center; gap: 8px; padding: 12px 16px;
   font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); font-weight: 600;
   border-bottom: 1px solid var(--border-subtle);
 }
-.mp-menu__back {
-  display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: -4px 0 -4px -6px;
-  border: none; border-radius: 999px; background: transparent; color: var(--fg-2); cursor: pointer;
-}
-.mp-menu__back:hover { background: var(--surface-2); color: var(--fg-1); }
 .mp-menu__list { padding: 6px; display: flex; flex-direction: column; }
 .mp-menu__section {
   display: block; padding: 12px 16px 2px; border-top: 1px solid var(--border-subtle);

@@ -190,15 +190,10 @@ view. The tab of the page already open scrolls it back to its top. The
 pages no tab names are linked from the footer every page ends with. A television has neither and
 gets around by its own bar (below).
 
-Every menu, list and sheet a phone opens from the bottom edge is a `Drawer`: square-cornered, fully
-opaque, with a tab lying along the inside of its top edge, the same tab the assistant dock's resize
-handle stands as along the inside of its left edge (`--border-strong` at rest, teal under a pointer or
-while held). The drawer's whole head, the tab, its title and its actions, or a `head` of its own as
-the download sheet's, is the handle: pulled down it follows the finger, and let go far enough or fast
-enough it calls `onPull`, which closes it unless a drawer passes its own, and otherwise it settles
-back open. The head takes no scrolling of its own, so a pull never starts the browser's pull to
-refresh, and a drawer's body scrolls as it does anywhere and passes nothing to the page behind. The
-distance and speed are named, with their reasons, at the top of `src/components/Drawer.jsx`.
+Every menu, list and sheet a phone opens from the bottom edge is krystal's `Drawer`: the player's
+menus draw it `contained` in the frame, the remote's picker and the download sheet draw it over the page
+(the download sheet with a `head` of its own), and each is pulled down by its head to close. A wide
+screen draws the same content in krystal's `Popover`, `Menu` or `Dialog`.
 
 ## Signing in
 
@@ -552,7 +547,7 @@ in a WebView, driven by the remote. `src/tv/` is all of it that is the site's ow
   Saved with nothing saved and a list with no titles show krystal's `EmptyState`, "Nothing saved yet" over a
   Discover button, which takes initial focus (`data-tv-initial`) so a remote has somewhere to land. The player is the
   site's own, with its menus as a panel down the right and its subtitles sized for the distance.
-- **Moving focus** (`src/tv/navigator.js`): every arrow key is taken and focus moves to the nearest
+- **Moving focus** (`src/tv/navigator.js`, the page glue over krystal's `lib/spatialFocus`): every arrow key is taken and focus moves to the nearest
   control that way on screen, from the focused element's rectangle, with the rules the module
   states: an open dialog or menu holds focus and hands it back when it closes, a row remembers its
   last card and scrolls to put the focused one first, a navigation landmark is entered at the current
@@ -630,7 +625,7 @@ is the switch's state. `npm run verify:tv` drives a room from a phone with nothi
 `node verify/resume.mjs` measures how quickly such a phone is live again after its page was away.
 
 The remote is one dock (`components/RemoteDock.jsx`), drawn by the site's own components and nothing
-redrawn: the drawer's tab and head, the download sheet's head, the player's scrub bar and control row, its
+redrawn: the download sheet's head, the player's scrub bar and control row, its
 episodes menu, `EmptyState`, `Rail` and the Continue watching card. While remote mode is on and a paired
 television is connected it stands on the tab bar, its bottom edge on the bar's top at every height, and the
 tab bar stays uncovered and live. Collapsed it is one row (the still, the television's name, what plays,
@@ -676,7 +671,7 @@ follow. Nothing here is in the room's state or roster.
 A television draws a phone glyph beside who is watching while it is paused and a remote drives it
 (`tv/screen.js` hears `RemotesChanged`; the room's roster is untouched).
 
-A toast sits at the top of the screen while any drawer or the open remote dock is open (`body.has-drawer`,
+A toast sits at the top of the screen while any drawer or the open remote dock is open (`body.k-has-drawer`,
 `body.has-remote-open`) and above the collapsed dock otherwise, so a toast is never under the thing it is about.
 
 With remote mode on and a television connected, a title's main button is Watch on TV (`remoteWatch.js`)

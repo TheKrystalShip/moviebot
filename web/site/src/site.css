@@ -164,30 +164,19 @@ button.kc-continue:disabled { cursor: progress; }
 }
 .kc-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255, 255, 255, 0.25); }
 .kc-bar > span { display: block; height: 100%; background: var(--krystal-teal); }
-.kc-segmented {
-  display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--r-sm);
-  background: var(--surface-2); border: 1px solid var(--border-subtle);
-}
-.kc-segmented__option {
-  height: 30px; padding: 0 12px; border: none; border-radius: var(--r-sm); cursor: pointer;
-  background: transparent; color: var(--fg-2); font: inherit; font-size: 13px; font-weight: 500;
-}
-.kc-segmented__option:hover { color: var(--fg-1); }
-.kc-segmented__option.is-on { background: var(--krystal-teal-dim); color: var(--krystal-teal-hover); font-weight: 600; }
-/* Full width, its options sharing it equally, the chosen one raised rather than tinted. */
-.kc-segmented--fill { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--surface-1); }
-.kc-segmented--fill .kc-segmented__option { height: 38px; font-size: 14px; color: var(--fg-3); }
-.kc-segmented--fill .kc-segmented__option.is-on { background: var(--surface-3); color: var(--fg-1); }
+/* A segmented choice across its container, its options sharing it equally. */
+.kc-fill { width: 100%; }
+.kc-fill .k-radios__item { flex: 1; }
 /* A setting choosing among heights: on a phone the choice goes under its words, across the row. */
 @media (max-width: 720px) {
   .k-brief__item:has(.kc-heights) { flex-wrap: wrap; }
   .k-brief__item:has(.kc-heights) .k-settings-row__controls { flex: 1 1 100%; }
-  .kc-heights { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; }
-  .kc-heights .kc-segmented__option { height: 40px; }
+  .kc-heights { flex: 1; }
+  .kc-heights .k-radios__item { flex: 1; }
 }
 /* The library's Movies | TV shows | Anime switch is the phone's; a wide screen has a sidebar entry for each. */
 .kc-kind-switch { display: none; }
-@media (max-width: 768px) { .kc-kind-switch { display: grid; } }
+@media (max-width: 768px) { .kc-kind-switch { display: flex; } }
 /* Anime holds both kinds, so its Series | Films switch is on every screen, the width of its two words
    on a wide one and across the page on a phone. */
 .kc-anime-switch { width: min(100%, 280px); }
@@ -301,7 +290,7 @@ button.kc-continue:disabled { cursor: progress; }
   /* Watch across the column, Save and Download sharing the row under it. */
   .kc-tt .kc-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .kc-tt .kc-actions > :first-child { grid-column: 1 / -1; }
-  .kc-tt .kc-actions > .k-btn, .kc-tt .kc-actions > .kc-follow > .k-btn { width: 100%; justify-content: center; }
+  .kc-tt .kc-actions > .k-btn { width: 100%; justify-content: center; }
 }
 
 /* ── Discover's first answer: its poster large, washed out behind it ─────────────────── */
@@ -586,30 +575,6 @@ button.kc-episode:disabled { cursor: progress; }
   .kc-episode__progress, .kc-episode__score, .kc-episode__runtime { display: none; }
 }
 
-/* ── Sheets over the page: a list entry's note, a list's people ──────────────────────── */
-.kc-sheet-scrim {
-  position: fixed; inset: 0; z-index: 60; background: rgba(11, 15, 20, 0.7); backdrop-filter: blur(8px);
-  display: flex; align-items: center; justify-content: center; padding: 24px;
-}
-.kc-sheet {
-  width: 540px; max-width: 100%; max-height: calc(100vh - 48px); display: flex; flex-direction: column;
-  background: var(--surface-1); border-radius: var(--r-sm); box-shadow: var(--shadow-pop); overflow: hidden;
-}
-.kc-sheet__head { display: flex; gap: 14px; padding: 20px 22px; border-bottom: 1px solid var(--border-subtle); }
-.kc-sheet__poster { width: 48px; aspect-ratio: 2 / 3; border-radius: var(--r-sm); background: var(--surface-2); flex-shrink: 0; overflow: hidden; }
-.kc-sheet__poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.kc-sheet__title { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; font-size: 12.5px; }
-.kc-sheet__name { font-size: 18px; font-weight: 600; }
-.kc-sheet__body { padding: 18px 22px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; font-size: 12.5px; line-height: 1.5; }
-.kc-sheet__foot {
-  display: flex; align-items: center; gap: 10px; padding: 14px 22px;
-  border-top: 1px solid var(--border-subtle); background: var(--surface-0);
-}
-@media (max-width: 720px) {
-  .kc-sheet-scrim { align-items: flex-end; padding: 0; }
-  .kc-sheet { width: 100%; max-height: 88vh; border-radius: 18px 18px 0 0; }
-}
-
 /* The bell: a sidebar row above the person on a wide screen, the top right of the front page on a
    phone, and the list either opens. */
 .kc-bell-item__badge { font-family: var(--font-mono); }
@@ -621,27 +586,18 @@ button.kc-episode:disabled { cursor: progress; }
   .kc-phonehead__name { font-size: 17px; font-weight: 700; }
   .kc-phonehead .kc-bell { margin-left: auto; }
 }
-.kc-bell-button {
-  position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
-  background: none; border: 0; color: var(--fg-2); cursor: pointer; margin-right: -10px;
-}
+.kc-bell-button { position: relative; display: flex; margin-right: -10px; }
 .kc-bell-button__dot {
-  position: absolute; top: 10px; right: 11px; width: 8px; height: 8px; border-radius: 999px;
+  position: absolute; top: 10px; right: 11px; pointer-events: none; width: 8px; height: 8px; border-radius: 999px;
   background: var(--krystal-teal); border: 2px solid var(--canvas);
 }
 
-.kc-bell__panel {
-  position: fixed; z-index: 60; width: 380px; max-height: min(560px, calc(100vh - 32px)); display: flex; flex-direction: column;
-  background: rgba(17, 22, 29, 0.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border-radius: var(--r-sm); box-shadow: var(--shadow-pop); overflow: hidden;
-}
-:root[data-theme="light"] .kc-bell__panel { background: color-mix(in srgb, var(--surface-1) 94%, transparent); }
+.kc-bell__panel { width: 380px; max-height: min(560px, calc(100vh - 32px)); overflow: hidden; }
 /* In the drawer, the list keeps the panel's rows, edge to edge. */
-.kc-bell__drawer .kc-bell__list { margin: 0 -8px; }
+.kc-bell__drawer .kc-bell__list { margin: 0 calc(var(--s-4) * -1); }
 .kc-bell__drawer .kc-bell__item:last-child { border-bottom: none; }
 .kc-bell__head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border-subtle); }
 .kc-bell__title { font-weight: 600; font-size: 14px; }
-.kc-bell__mark { background: none; border: 0; padding: 0; font: inherit; font-size: 12px; color: var(--krystal-teal); cursor: pointer; }
 .kc-bell__list { overflow-y: auto; min-height: 0; }
 .kc-bell__item { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); }
 .kc-bell__item.is-link { cursor: pointer; }
@@ -658,35 +614,14 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-bell__time { font-family: var(--font-mono); }
 .kc-bell__action { color: var(--krystal-teal); font-weight: 600; }
 .kc-bell__empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 16px; color: var(--fg-3); font-size: 13px; }
-.kc-bell__settings {
-  display: flex; align-items: center; gap: 6px; padding: 10px 16px; font: inherit; font-size: 12px; color: var(--fg-3);
-  background: none; border: 0; cursor: pointer; text-align: left;
-}
-.kc-bell__settings:hover { color: var(--fg-1); }
+.kc-bell__settings { justify-content: flex-start; margin: 4px 8px; align-self: flex-start; }
 
-/* ── Following ── */
-.kc-follow { position: relative; }
-.kc-follow__menu {
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; min-width: 280px; padding: 6px;
-  border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface-1); box-shadow: var(--shadow-pop);
-}
-.kc-follow__option { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 10px; font-size: 14px; cursor: pointer; }
-.kc-follow__unfollow {
-  display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px; border: none; border-top: 1px solid var(--border-subtle);
-  background: transparent; color: var(--fg-2); font: inherit; font-size: 14px; cursor: pointer; text-align: left;
-}
-.kc-follow__unfollow:hover { color: var(--fg-1); background: var(--surface-2); }
-.kc-follow__unfollow:disabled { opacity: 0.6; cursor: default; }
-@media (max-width: 720px) {
-  .kc-follow__menu { min-width: min(280px, calc(100vw - 32px)); }
-}
-
-/* ── Saving and lists ── the save menu is the follow menu's, a list's card is its newest posters. */
-.kc-follow__menu.kc-save__menu { position: fixed; z-index: 50; }
+/* ── Saving and lists ── a list's card is its newest posters. */
+.kc-save__menu { min-width: min(280px, calc(100vw - 32px)); padding: 6px; }
+.kc-save__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px; font-size: 14px; cursor: pointer; }
 .kc-save__name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .kc-save__name svg { color: var(--fg-3); flex-shrink: 0; }
 .kc-save__new { display: flex; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--border-subtle); }
-.kc-drawer .kc-follow__option { padding: 14px 16px; }
 
 .kc-lists { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
 .kc-list-card { display: flex; flex-direction: column; gap: 4px; color: inherit; text-decoration: none; min-width: 0; }
@@ -713,7 +648,7 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-list-group { display: flex; flex-direction: column; gap: 10px; }
 .kc-list-group__head { margin: 6px 0 0; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); }
 
-.kc-people { display: flex; flex-direction: column; padding: 8px 22px 16px; overflow-y: auto; }
+.kc-people { display: flex; flex-direction: column; }
 .kc-people__add { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; padding-top: 14px; }
 @media (max-width: 720px) {
   .kc-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
@@ -741,9 +676,10 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-search.is-off { opacity: 0.5; }
 .kc-episode.is-off { opacity: 0.4; }
 .kc-episode.is-off .kc-episode__still img { filter: grayscale(1); }
+.kc-dark { position: fixed; inset: 0; background: var(--canvas); }
 .kc-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .kc-fieldset:disabled .k-btn, .kc-fieldset:disabled .k-showcase-card__tool,
-.kc-fieldset:disabled .k-showcase-card__cta--act, .kc-fieldset:disabled .kc-segmented { opacity: 0.5; }
+.kc-fieldset:disabled .k-showcase-card__cta--act, .kc-fieldset:disabled .k-radios { opacity: 0.5; }
 
 /* A place that needs the server, reached with no connection. */
 .kc-unreachable {

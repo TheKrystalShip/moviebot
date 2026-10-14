@@ -26,7 +26,7 @@ const tap = (selector, opens) => async (page) => {
 /** Scrolls the page column, which is what scrolls on the site, to a fraction of its length. */
 const scrollTo = (fraction) => async (page) => {
   await page.evaluate((f) => {
-    const main = document.querySelector(".app__main");
+    const main = document.querySelector(".k-app__main");
     if (main) main.scrollTop = (main.scrollHeight - main.clientHeight) * f;
   }, fraction);
   await page.waitForTimeout(400);
@@ -44,13 +44,13 @@ export const VIEWS = [
   { name: "home", path: () => "/", ready: ".showcase-card", full: true },
   { name: "home-middle", path: () => "/", ready: ".showcase-card", act: scrollTo(0.5) },
   { name: "home-foot", path: () => "/", ready: ".kfoot", act: scrollTo(1) },
-  { name: "tab-library", path: () => "/", ready: ".tabbar", act: tap(".tabbar__tab:nth-child(2)", ".toolbar") },
+  { name: "tab-library", path: () => "/", ready: ".k-tabbar", act: tap(".k-tabbar__tab:nth-child(2)", ".toolbar") },
   { name: "movies", path: () => "/movies", ready: ".showcase-card", full: true },
   { name: "movies-filters", path: () => "/movies", ready: ".toolbar-filter__trigger", act: tap(".toolbar-filter:not(.toolbar-sort) .toolbar-filter__trigger", ".toolbar-filter__menu") },
   { name: "movies-sort", path: () => "/movies", ready: ".toolbar-sort", act: tap(".toolbar-sort .toolbar-filter__trigger", ".toolbar-sort__menu") },
   { name: "tv", path: () => "/tv", ready: ".kc-page", full: true },
   { name: "title", path: (s) => "/movies/" + encodeURIComponent(s.film.id), ready: ".kc-title", full: true },
-  { name: "title-saved", path: (s) => "/movies/" + encodeURIComponent(s.film.id), ready: ".kc-title .kc-follow", act: tap(".kc-follow .k-btn--accent",".kc-follow__menu, .kc-drawer") },
+  { name: "title-saved", path: (s) => "/movies/" + encodeURIComponent(s.film.id), ready: ".kc-title .kc-actions .k-btn--accent", act: tap(".kc-actions .k-btn--accent", ".k-popover, .k-drawer") },
   { name: "saved", path: () => "/saved", ready: ".kc-list-card", full: true },
   { name: "list-later", path: () => "/saved/later", ready: ".showcase-card", full: true },
   { name: "list-shared", path: (s) => "/saved/" + encodeURIComponent(s.list), ready: ".showcase-card", full: true },
@@ -58,7 +58,7 @@ export const VIEWS = [
   { name: "list-filters", path: () => "/saved/later", ready: ".toolbar-filter__trigger", act: tap(".toolbar-filter:not(.toolbar-sort) .toolbar-filter__trigger", ".toolbar-filter__menu") },
   { name: "discover", path: () => "/discover", ready: ".kc-discover .showcase-card", full: true },
   { name: "discover-results", path: () => "/discover?q=the", ready: ".kc-page", full: true },
-  { name: "tab-discover", path: () => "/", ready: ".tabbar", act: tap(".tabbar__tab:nth-child(3)", ".kc-discover") },
+  { name: "tab-discover", path: () => "/", ready: ".k-tabbar", act: tap(".k-tabbar__tab:nth-child(3)", ".kc-discover") },
   { name: "notify", path: () => "/notify", ready: ".kc-page", full: true },
   { name: "profile-history", path: () => "/profile", ready: ".kc-page", full: true },
   { name: "profile-requests", path: () => "/profile/requests", ready: ".kc-page", full: true },

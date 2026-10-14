@@ -55,7 +55,7 @@ const geom = (page) => page.evaluate(() => {
   return {
     docks: docks.length, top: b.top, bottom: b.bottom, h: b.height, open: d.classList.contains("is-open"),
     p: Number(getComputedStyle(d).getPropertyValue("--dock-p")), row: op(".kc-remote-strip"), remote: op(".kc-remote"),
-    remoteDrawn: Boolean(document.querySelector(".kc-remote")), tabTop: document.querySelector(".tabbar").getBoundingClientRect().top,
+    remoteDrawn: Boolean(document.querySelector(".kc-remote")), tabTop: document.querySelector(".k-tabbar").getBoundingClientRect().top,
   };
 });
 
@@ -78,7 +78,7 @@ async function touch(page, x, ys, stepMs, hold) {
   await page.waitForTimeout(450);
 }
 const rowPoint = async (page) => page.evaluate(() => { const b = document.querySelector(".kc-remote-strip").getBoundingClientRect(); return { x: b.x + b.width * 0.6, y: b.y + b.height / 2 }; });
-const headPoint = async (page) => page.evaluate(() => { const b = document.querySelector(".kc-remote .kc-drawer__top").getBoundingClientRect(); return { x: b.x + b.width * 0.5, y: b.y + 10 }; });
+const headPoint = async (page) => page.evaluate(() => { const b = document.querySelector(".kc-remote .kc-remote__top").getBoundingClientRect(); return { x: b.x + b.width * 0.5, y: b.y + 10 }; });
 const bodyPoint = async (page) => page.evaluate(() => { const b = document.querySelector(".kc-remote__body").getBoundingClientRect(); return { x: b.x + b.width * 0.5, y: b.y + 30 }; });
 
 async function run(tv, label) {
@@ -108,7 +108,7 @@ async function run(tv, label) {
 
   // The tab bar is uncovered and takes a tap while the dock is open.
   const tab = await page.evaluate(() => {
-    const t = [...document.querySelectorAll(".tabbar__tab")].find((e) => /Library/.test(e.textContent));
+    const t = [...document.querySelectorAll(".k-tabbar__tab")].find((e) => /Library/.test(e.textContent));
     const b = t.getBoundingClientRect();
     return { x: b.x + b.width / 2, y: b.y + b.height / 2, hit: t.contains(document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)) };
   });

@@ -1,11 +1,9 @@
 import React from "react";
-import { createPortal } from "react-dom";
-import { Icon, Pill } from "@thekrystalship/krystal";
+import { Button, Drawer, Icon, IconButton, Pill, Popover } from "@thekrystalship/krystal";
 import { profilePath } from "../paths.js";
 import { navigate } from "../router.js";
 import { ago } from "../time.js";
 import { KIND, markRead, useNotifications } from "../notifications.js";
-import { Drawer } from "./Drawer.jsx";
 
 /** How a kind this page does not know is drawn: plainly, as a notification. */
 const UNKNOWN_KIND = { icon: "bell", tone: "neutral" };
@@ -38,11 +36,11 @@ export function BellButton() {
   return (
     <Bell placement="sheet">
       {(open, toggle) => (
-        <button type="button" className="kc-bell-button" onClick={toggle} aria-haspopup="dialog" aria-expanded={open}
-          aria-label={"Notifications" + (unread > 0 ? `, ${unread} unread` : "")}>
-          <Icon name="bell" size={20} />
+        <span className="kc-bell-button">
+          <IconButton variant="ghost" size="xl" icon="bell" onClick={toggle} aria-haspopup="dialog" aria-expanded={open}
+            label={"Notifications" + (unread > 0 ? `, ${unread} unread` : "")} />
           {unread > 0 && <span className="kc-bell-button__dot" />}
-        </button>
+        </span>
       )}
     </Bell>
   );
@@ -54,57 +52,27 @@ export function BellButton() {
  */
 export function Bell({ placement, children }) {
   const [open, setOpen] = React.useState(false);
-  const [pos, setPos] = React.useState(null);
   const triggerRef = React.useRef(null);
-  const panelRef = React.useRef(null);
   const { unread } = useNotifications();
   const close = React.useCallback(() => setOpen(false), []);
 
-  React.useLayoutEffect(() => {
-    if (!open || placement !== "beside" || !triggerRef.current) return undefined;
-    const place = () => {
-      const sidebar = triggerRef.current.closest(".k-sidebar");
-      const right = (sidebar || triggerRef.current).getBoundingClientRect().right;
-      setPos({ left: Math.round(right + 12), bottom: 16 });
-    };
-    place();
-    window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
-  }, [open, placement]);
-
-  React.useEffect(() => {
-    if (!open || placement !== "beside") return undefined;
-    const outside = (e) => {
-      if (triggerRef.current?.contains(e.target) || panelRef.current?.contains(e.target)) return;
-      setOpen(false);
-    };
-    const escape = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", outside);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("mousedown", outside);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [open, placement]);
-
-  const markAll = unread > 0 && <button type="button" className="kc-bell__mark" onClick={() => markRead()}>Mark all read</button>;
+  const markAll = unread > 0 && <Button variant="link" size="xs" onClick={() => markRead()}>Mark all read</Button>;
   return (
     <div className="kc-bell" ref={triggerRef}>
       {children(open, () => setOpen((o) => !o))}
-      {open && placement === "sheet" && (
+      {placement === "sheet" ? open && (
         <Drawer title="Notifications" action={markAll} onClose={close} className="kc-bell__drawer">
           <BellList onClose={close} />
         </Drawer>
-      )}
-      {open && placement === "beside" && createPortal(
-        <div ref={panelRef} className="kc-bell__panel" style={pos || { visibility: "hidden" }} role="dialog" aria-label="Notifications">
+      ) : (
+        <Popover open={open} onOpenChange={setOpen} anchorRef={triggerRef} placement="right-end" label="Notifications" className="kc-bell__panel">
           <div className="kc-bell__head">
             <span className="kc-bell__title">Notifications</span>
             {markAll}
           </div>
           <BellList onClose={close} />
-        </div>,
-        document.body)}
+        </Popover>
+      )}
     </div>
   );
 }
@@ -144,9 +112,10 @@ function BellList({ onClose }) {
           );
         })}
       </div>
-      <button type="button" className="kc-bell__settings" onClick={() => { onClose(); navigate(profilePath("notifications")); }}>
-        <Icon name="settings-2" size={13} />Push notification settings
-      </button>
+      <Button variant="ghost" size="sm" icon="settings-2" className="kc-bell__settings"
+        onClick={() => { onClose(); navigate(profilePath("notifications")); }}>
+        Push notification settings
+      </Button>
     </>
   );
 }

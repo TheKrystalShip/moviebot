@@ -150,7 +150,7 @@ async function prepared(person, viewport = { width: 1280, height: 720 }) {
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15000 });
   // Profile's Playback, online, keeps the person's preferences on the device.
   await page.goto(base + "/profile/playback", { waitUntil: "load" });
-  await page.waitForSelector(".kc-segmented", { timeout: 15000 });
+  await page.waitForSelector(".kc-heights", { timeout: 15000 });
   const requests = [];
   context.on("request", (r) => requests.push(r.url()));
   return { context, page, requests };

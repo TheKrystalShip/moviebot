@@ -172,7 +172,7 @@ async function prepared() {
   await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 15000 });
   // Profile's Playback, online, keeps the person's preferences on the device.
   await page.goto(base + "/profile/playback", { waitUntil: "load" });
-  await page.waitForSelector(".kc-segmented", { timeout: 15000 });
+  await page.waitForSelector(".kc-heights", { timeout: 15000 });
   await seed(page, [
     { meta: metaFor(byId.get(FILM), { complete: true }), poster: posterOf(byId.get(FILM)) },
     { meta: metaFor(EPISODE, { complete: true }), poster: posterOf(EPISODE) },
@@ -321,8 +321,8 @@ async function walk(context, label) {
   check(off.join() === "History,Requests,Following,Notifications" && !d.subtabs.some(([n]) => n === "Offline"),
     `${label}: Profile's tabs that need the server are disabled and there is no Offline tab (${off.join(", ")})`);
   const playback = await page.evaluate(() => ({
-    drawn: !!document.querySelector(".kc-segmented"),
-    fixed: !!document.querySelector("fieldset.kc-fieldset:disabled .kc-segmented"),
+    drawn: !!document.querySelector(".kc-heights"),
+    fixed: !!document.querySelector("fieldset.kc-fieldset:disabled .kc-heights"),
   }));
   check(playback.drawn && playback.fixed, `${label}: Playback is drawn from the device and changes nothing (${JSON.stringify(playback)})`);
   await page.screenshot({ path: join(shots, `${label}-profile.png`) });
@@ -358,15 +358,15 @@ async function walk(context, label) {
   }
   await phone.goto(base + "/", { waitUntil: "domcontentloaded" });
   await settle(phone, 2000);
-  const tabs = await phone.$$eval(".tabbar__tab", (els) => els.map((b) => [b.textContent.trim(), b.disabled]));
+  const tabs = await phone.$$eval(".k-tabbar__tab", (els) => els.map((b) => [b.textContent.trim(), b.disabled]));
   const offTabs = tabs.filter(([, d]) => d).map(([n]) => n);
   check(offTabs.join() === "Discover,Assistant", `a phone's tab bar draws Discover and the Assistant disabled (${offTabs.join(", ")})`);
   const bell = await phone.locator(".kc-phonehead .kc-nav-off .kc-bell-button").count();
   check(bell === 1, "a phone's bell is drawn disabled");
-  await phone.locator(".tabbar__tab", { hasText: /^Library$/ }).click();
+  await phone.locator(".k-tabbar__tab", { hasText: /^Library$/ }).click();
   await settle(phone);
   check(where(phone) === "/movies", `a phone's Library leads to the downloaded films (${where(phone)})`);
-  await phone.locator(".tabbar__tab", { hasText: /^Me$/ }).click();
+  await phone.locator(".k-tabbar__tab", { hasText: /^Me$/ }).click();
   await settle(phone);
   check(where(phone) === "/profile/playback", `a phone's Me leads to the profile (${where(phone)})`);
   await phone.screenshot({ path: join(shots, "offline-phone-me.png") });

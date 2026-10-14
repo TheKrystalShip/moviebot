@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, Toggle, toast } from "@thekrystalship/krystal";
+import { Button, Menu, MenuCheckboxItem, MenuItem, toast } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useCan } from "../session.js";
@@ -11,22 +11,8 @@ import { useCan } from "../session.js";
 export function FollowButton({ imdbId, title, follow, onChange }) {
   const downloading = useCan("cinema:download");
   const online = useOnline();
-  const [open, setOpen] = React.useState(false);
   const [working, setBusy] = React.useState(false);
   const busy = working || !online;
-  const ref = React.useRef(null);
-
-  React.useEffect(() => {
-    if (!open) return undefined;
-    const outside = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    const escape = (e) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", outside);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("mousedown", outside);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [open]);
 
   const run = async (work, failure) => {
     setBusy(true);
@@ -47,7 +33,6 @@ export function FollowButton({ imdbId, title, follow, onChange }) {
   const setAuto = (on) => run(async () => { await api.follow(imdbId, on); onChange(); }, "Could not save that");
   const stop = () => run(async () => {
     await api.unfollow(imdbId);
-    setOpen(false);
     toast.info(`You no longer follow ${title}.`);
     onChange();
   }, "Could not unfollow it");
@@ -59,24 +44,15 @@ export function FollowButton({ imdbId, title, follow, onChange }) {
   }
 
   return (
-    <div className="kc-follow" ref={ref}>
-      <Button variant="accent" size="xl" icon="bell-ring" iconRight="chevron-down" disabled={!online}
-        aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        Following
-      </Button>
-      {open && (
-        <div className="kc-follow__menu" role="menu">
-          {downloading && (
-            <label className="kc-follow__option">
-              <span>Download new episodes automatically</span>
-              <Toggle on={follow.autoDownload} disabled={busy} label="Download new episodes automatically" onChange={setAuto} />
-            </label>
-          )}
-          <button type="button" className="kc-follow__unfollow" role="menuitem" disabled={busy} onClick={stop}>
-            <Icon name="bell-off" size={15} />Unfollow
-          </button>
-        </div>
+    <Menu trigger={(
+      <Button variant="accent" size="xl" icon="bell-ring" iconRight="chevron-down" disabled={!online}>Following</Button>
+    )}>
+      {downloading && (
+        <MenuCheckboxItem checked={follow.autoDownload} disabled={busy} onCheckedChange={setAuto}>
+          Download new episodes automatically
+        </MenuCheckboxItem>
       )}
-    </div>
+      <MenuItem icon="bell-off" disabled={busy} onSelect={stop}>Unfollow</MenuItem>
+    </Menu>
   );
 }

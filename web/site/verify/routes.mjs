@@ -94,7 +94,7 @@ const drawn = (page) => page.evaluate(() => {
   return {
     h1: text("h1")[0] || null,
     nav: text(".nav-item--active"),
-    tab: text(".tabbar__tab--active"),
+    tab: text(".k-tabbar__tab--active"),
     chipText: text(".kc-season-chip.is-on"),
     subtab: text(".subtab--active"),
     empty: text(".kc-empty__title"),

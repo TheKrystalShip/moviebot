@@ -1209,7 +1209,7 @@ async function remoteUi() {
     await shot("remoteui-04-strip.png");
     const stripFacts = await phone.evaluate(() => {
       const el = document.querySelector(".kc-remote-strip");
-      const bar = document.querySelector(".tabbar");
+      const bar = document.querySelector(".k-tabbar");
       const r = el.getBoundingClientRect();
       return {
         eyebrow: el.querySelector(".kc-dl-head__eyebrow")?.textContent, name: el.querySelector(".kc-dl-head__name")?.textContent,
@@ -1233,7 +1233,7 @@ async function remoteUi() {
       await page.waitForTimeout(500);
       const geo = await page.evaluate(() => {
         const s = document.querySelector(".kc-remote-strip").getBoundingClientRect();
-        const b = document.querySelector(".tabbar").getBoundingClientRect();
+        const b = document.querySelector(".k-tabbar").getBoundingClientRect();
         const row = document.querySelector(".kc-remote-strip__open").getBoundingClientRect();
         return { stripBottom: s.bottom, tabTop: b.top, above: row.top - s.top, below: s.bottom - row.bottom, x: 24 };
       });
@@ -1252,13 +1252,13 @@ async function remoteUi() {
     const label = process.env.CLEARANCE_LABEL || "after";
     const under = () => phone.evaluate(() => {
       const strip = document.querySelector(".kc-remote-strip").getBoundingClientRect();
-      const main = document.querySelector(".app__main");
+      const main = document.querySelector(".k-app__main");
       const last = main ? [...main.querySelectorAll("*")].filter((e) => e.getBoundingClientRect().height > 0).reduce((a, e) => (e.getBoundingClientRect().bottom > a ? e.getBoundingClientRect().bottom : a), 0) : 0;
       const field = document.querySelector(".chat-composer textarea");
       const f = field ? field.getBoundingClientRect() : null;
       return { stripTop: strip.top, last, field: f && { top: f.top, bottom: f.bottom } };
     });
-    const scrollEnd = () => phone.evaluate(() => { const m = document.querySelector(".app__main"); if (m) m.scrollTop = m.scrollHeight; });
+    const scrollEnd = () => phone.evaluate(() => { const m = document.querySelector(".k-app__main"); if (m) m.scrollTop = m.scrollHeight; });
     for (const [name, path, film] of [["home", "/", null], ["movies", "/movies", null], ["discover", "/discover", null], ["profile", "/profile", null], ["title", `/movies/${playable}`, "Coherence"]]) {
       if (film) await goTo(path, film);
       else { await phone.evaluate((to) => { history.pushState({}, "", to); window.dispatchEvent(new PopStateEvent("popstate")); }, path); await phone.waitForTimeout(1500); }
@@ -1269,7 +1269,7 @@ async function remoteUi() {
       if (m.last > m.stripTop + 0.5) fail("remoteui", `the end of ${name} is at ${Math.round(m.last)} under the strip, which starts at ${Math.round(m.stripTop)}`);
       else pass(`the end of ${name} scrolls clear of the strip (${Math.round(m.last)} against ${Math.round(m.stripTop)})`);
     }
-    await phone.locator(".tabbar__tab", { hasText: "Assistant" }).click();
+    await phone.locator(".k-tabbar__tab", { hasText: "Assistant" }).click();
     await phone.waitForSelector(".chat-composer textarea", { timeout: 8000 });
     await phone.waitForTimeout(800);
     const assistant = await under();
@@ -1277,7 +1277,7 @@ async function remoteUi() {
     if (!assistant.field) fail("remoteui", "the assistant drew no input to measure");
     else if (assistant.field.bottom > assistant.stripTop + 0.5) fail("remoteui", `the assistant's input ends at ${Math.round(assistant.field.bottom)} under the strip, which starts at ${Math.round(assistant.stripTop)}`);
     else pass(`the assistant's input stands clear of the strip (${Math.round(assistant.field.bottom)} against ${Math.round(assistant.stripTop)})`);
-    await phone.locator(".tabbar__tab", { hasText: "Home" }).click();
+    await phone.locator(".k-tabbar__tab", { hasText: "Home" }).click();
     await phone.waitForTimeout(800);
 
     // A tap opens the drawer.
@@ -1394,7 +1394,7 @@ async function remoteUi() {
     else pass("vertical sweeps on the still draw no level: the TV's volume is not the remote's");
 
     // Pulling the handle down collapses to the strip.
-    const top = await centre(".kc-remote .kc-drawer__top");
+    const top = await centre(".kc-remote .kc-remote__top");
     await finger.drag({ x: top.x - 120, y: top.y }, { x: top.x - 120, y: top.y + 150 }, { steps: 10, stepMs: 20, during: async () => { await shot("remoteui-15-pulling.png"); } });
     const collapsed = await until(() => phone.evaluate(() => !document.querySelector(".kc-remote") && Boolean(document.querySelector(".kc-remote-strip"))));
     if (!collapsed) fail("remoteui", "pulling the handle down did not leave the strip");
@@ -1406,7 +1406,7 @@ async function remoteUi() {
     if (!pushed) fail("remoteui", "pushing the strip up did not open the remote");
     else pass("pushing the strip up opens the remote");
     // Collapse again, then swipe the strip away.
-    const top2 = await centre(".kc-remote .kc-drawer__top");
+    const top2 = await centre(".kc-remote .kc-remote__top");
     await finger.drag({ x: top2.x - 120, y: top2.y }, { x: top2.x - 120, y: top2.y + 150 });
     await phone.waitForSelector(".kc-remote-strip", { timeout: 5000 }).catch(() => {});
     const strip3 = await centre(".kc-remote-strip__open");
@@ -1476,7 +1476,7 @@ async function remoteUi() {
       const asked = await phone.evaluate(() => ({
         title: document.querySelector(".kc-dl-sheet .kc-dl-head__name")?.textContent,
         names: [...document.querySelectorAll(".kc-replace__name")].map((n) => n.textContent),
-        buttons: [...document.querySelectorAll(".kc-dl-sheet .kc-dl-foot .k-btn")].map((b) => b.textContent.trim()),
+        buttons: [...document.querySelectorAll(".kc-dl-sheet .k-drawer__foot .k-btn")].map((b) => b.textContent.trim()),
       }));
       if (asked.title !== "Watch on TV" || asked.names.length !== 2 || !new RegExp(filmName).test(asked.names[0]) || !/Heat/.test(asked.names[1]) || asked.buttons[1] !== "Keep watching")
         fail("remoteui", `the question says ${JSON.stringify(asked)}`);
@@ -1488,7 +1488,7 @@ async function remoteUi() {
       else pass("Keep watching leaves the television as it was");
       await watchOnTvButton().click();
       await phone.waitForSelector(".kc-dl-sheet", { timeout: 5000 });
-      await phone.click(".kc-dl-sheet .kc-dl-foot .k-btn >> nth=0");
+      await phone.click(".kc-dl-sheet .k-drawer__foot .k-btn >> nth=0");
       const replaced = await until(async () => /Heat/.test(await stripName()), 10000);
       if (!replaced) fail("remoteui", "Watch on the question did not put the title on the television");
       else pass("Watch on the question puts the title on the television in its room");
@@ -1499,7 +1499,7 @@ async function remoteUi() {
     await goTo(`/movies/${film}`, filmName);
     await watchOnTvButton().click();
     await phone.waitForSelector(".kc-dl-sheet", { timeout: 5000 });
-    await phone.click(".kc-dl-sheet .kc-dl-foot .k-btn >> nth=0");
+    await phone.click(".kc-dl-sheet .k-drawer__foot .k-btn >> nth=0");
     await until(async () => new RegExp(filmName).test(await stripName()), 10000);
     await loaded(tv.page);
     const opener = await centre(".kc-remote-strip__open");
@@ -1535,7 +1535,7 @@ async function remoteUi() {
     await phone.waitForSelector(".mp-episodes .kc-episode", { timeout: 10000 }).catch(() => {});
     await phone.waitForTimeout(800);
     await shot("remoteui-08-episodes.png");
-    await phone.click('.mp-menu .kc-drawer__back[aria-label="Back to the remote"]');
+    await phone.click('.mp-menu .k-drawer__back[aria-label="Back to the remote"]');
     const episodesBack = await until(() => phone.evaluate(() => !document.querySelector(".mp-menu") && Boolean(document.querySelector(".kc-remote .mp-controls"))));
     if (!episodesBack) fail("remoteui", "the episodes list's back button did not return to the remote");
     else pass("the episodes list has a back button, which returns to the remote");
@@ -1589,7 +1589,7 @@ async function remoteUi() {
     if (rows.length !== 3 || !byName["Verify TV"]?.on || byName["Bedroom TV"]?.detail !== "Nothing playing" || byName["Office TV"]?.detail !== "Off" || !byName["Office TV"]?.off)
       fail("remoteui", `the picker lists ${JSON.stringify(rows)}`);
     else pass("the picker lists the paired televisions: the one driven, one with nothing playing, one off and not to be chosen");
-    await phone.click('.kc-drawer__back[aria-label="Back to the remote"]');
+    await phone.click('.k-drawer__back[aria-label="Back to the remote"]');
     const backToRemote = await until(() => phone.evaluate(() => Boolean(document.querySelector(".kc-remote .kc-remote__tv")) && !document.querySelector(".k-optlist")));
     if (!backToRemote) fail("remoteui", "the picker's back button did not return to the remote");
     else pass("the TV picker has a back button, which returns to the remote");
@@ -1767,8 +1767,8 @@ async function settingsUi() {
     await phone.waitForTimeout(800);
     await shot("settings-19-subtitles.png");
     const list = await rows();
-    const head = await phone.evaluate(() => ({ title: document.querySelector(".mp-aimed .kc-drawer__title")?.textContent, aim: document.querySelector(".mp-aimed .mp-menu__aim")?.textContent,
-      back: Boolean(document.querySelector(".mp-aimed .kc-drawer__back")) }));
+    const head = await phone.evaluate(() => ({ title: document.querySelector(".mp-aimed .k-drawer__title")?.textContent, aim: document.querySelector(".mp-aimed .mp-menu__aim")?.textContent,
+      back: Boolean(document.querySelector(".mp-aimed .k-drawer__back")) }));
     if (head.title !== "Subtitles" || head.aim !== "Verify TV" || !head.back || list[0]?.label !== "Off" || !list[0].on || !list.some((r) => r.label === "Español"))
       fail("settings", `the subtitles drawer shows ${JSON.stringify({ head, list })}`);
     else pass("the Subtitles drawer is aimed at the TV with Off checked, the film's tracks and a back arrow");
@@ -1793,8 +1793,8 @@ async function settingsUi() {
     await phone.waitForSelector(".mp-aimed.is-styling", { timeout: 5000 });
     await phone.waitForTimeout(500);
     await shot("settings-07-style.png");
-    const editor = await phone.evaluate(() => ({ title: document.querySelector(".mp-aimed .kc-drawer__title")?.textContent,
-      back: document.querySelector(".mp-aimed .kc-drawer__back")?.getAttribute("aria-label") }));
+    const editor = await phone.evaluate(() => ({ title: document.querySelector(".mp-aimed .k-drawer__title")?.textContent,
+      back: document.querySelector(".mp-aimed .k-drawer__back")?.getAttribute("aria-label") }));
     if (editor.title !== "Subtitle style" || editor.back !== "Back to subtitles") fail("settings", `the style editor shows ${JSON.stringify(editor)}`);
     else pass("the style editor opens from Style with the back arrow to the subtitle list");
     await tap('.mp-aimed .mp-style__choice:has-text("150%")');
@@ -1814,12 +1814,12 @@ async function settingsUi() {
     if (sampled && !lapsed) fail("settings", "the TV's sample line stayed after the style stopped changing");
     else pass(sampled ? "the TV showed its sample line while the style changed and let it lapse after the last change" : "the TV restyled a line the film was saying, and showed no sample");
 
-    await tap('.mp-aimed .kc-drawer__back');
+    await tap('.mp-aimed .k-drawer__back');
     await phone.waitForFunction(() => !document.querySelector(".mp-aimed.is-styling"), null, { timeout: 5000 });
     const listAgain = await rows();
     if (!listAgain.some((r) => r.label === "Español" && r.on)) fail("settings", `the back arrow of the style editor did not return to the subtitle list: ${JSON.stringify(listAgain)}`);
     else pass("the style editor's back arrow returns to the subtitle list");
-    await tap('.mp-aimed .kc-drawer__back');
+    await tap('.mp-aimed .k-drawer__back');
     await phone.waitForFunction(() => !document.querySelector(".mp-aimed"), null, { timeout: 5000 });
     if (await label("Subtitles") !== "Subtitles: Español") fail("settings", `the Subtitles label says ${await label("Subtitles")}`);
     else pass("the drawer's back arrow returns to the remote, whose Subtitles button names the track");
@@ -2059,8 +2059,8 @@ try {
   if (checks.includes("heads")) await heads();
   if (checks.includes("empty")) await empties();
   if (checks.includes("overlays")) {
-    await overlay("save", "/movies/" + encodeURIComponent(films[0].id), ".kc-follow .k-btn");
-    await overlay("notifications", "/", '.tv-bar__button[aria-haspopup="dialog"]');
+    await overlay("save", "/movies/" + encodeURIComponent(films[0].id), 'button.k-btn--accent[aria-haspopup="dialog"]');
+    await overlay("notifications", "/", '.k-tv-bar__button[aria-haspopup="dialog"]');
   }
   if (checks.includes("back")) await backs();
   if (checks.includes("player")) await player();

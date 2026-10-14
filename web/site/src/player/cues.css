@@ -6,7 +6,7 @@
 .mp-cues__top { top: 6%; }
 .mp-cues__bottom { bottom: var(--cue-bottom, 6%); transition: bottom 200ms var(--ease-out); }
 .mp-cues__bottom.is-raised { bottom: max(var(--cue-bottom, 6%), 120px); }
-/* Above the style sheet on a narrow frame, which `.kc-drawer.is-styling` holds to 45%. */
+/* Above the style sheet on a narrow frame, which `.k-drawer.is-styling` holds to 45%. */
 .mp-cues__bottom.is-lifted { bottom: calc(45% + 16px); }
 /* Left of the style popover on a wide frame: its width and its inset from the edge, and a gap. */
 .mp-cues__bottom.is-beside { right: calc(340px + 28px + 16px); }

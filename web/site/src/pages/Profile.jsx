@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, List, ListRow, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal";
+import { Button, Icon, List, ListRow, RadioGroup, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal";
 import { KIND } from "../notifications.js";
 import { api, episodeCode, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
@@ -448,15 +448,9 @@ function Playback() {
 /** A choice of heights, Auto (`""`) among them: `value` is the stored height or null. */
 function Heights({ label, options, value, onChange }) {
   return (
-    <div className="kc-segmented kc-heights" role="radiogroup" aria-label={label}>
-      {options.map((q) => {
-        const on = (value ? String(value) : "") === q.value;
-        return (
-          <button key={q.value} type="button" role="radio" aria-checked={on} className={"kc-segmented__option" + (on ? " is-on" : "")}
-            onClick={() => onChange(q.value ? Number(q.value) : null)}>{q.label}</button>
-        );
-      })}
-    </div>
+    <RadioGroup variant="segmented" className="kc-heights" label={label} value={value ? String(value) : ""}
+      options={options.map((q) => ({ value: q.value, label: q.label }))}
+      onChange={(next) => onChange(next ? Number(next) : null)} />
   );
 }
 

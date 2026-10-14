@@ -1,3 +1,4 @@
+import { Button, Slider } from "@thekrystalship/krystal";
 import { COLORS, DEFAULT_STYLE, EDGES, FONTS, OPACITIES, SIZES, resolveStyle, storedStyle } from "./subtitleStyle.js";
 import "./styleEditor.css";
 
@@ -26,11 +27,11 @@ function Colours({ label, value, onPick }) {
       <div className="mp-style__choices" role="radiogroup" aria-label={label}>
         {COLORS.map((c) => (
           <button key={c.value} type="button" role="radio" aria-checked={c.value === value} aria-label={c.label} title={c.label}
-            className={"mp-style__swatch" + (c.value === value ? " is-on" : "")} style={{ background: c.value }}
+            className={"mp-style__swatch" + (c.value === value ? " is-on" : "")} style={{ "--swatch": c.value }}
             onClick={() => onPick(c.value)} />
         ))}
         <label className={"mp-style__swatch mp-style__swatch--custom" + (custom ? " is-on" : "")} title="Another colour"
-          style={custom ? { background: value } : undefined}>
+          style={custom ? { "--swatch": value } : undefined}>
           <input type="color" value={value} aria-label={`${label}, another colour`} onChange={(e) => onPick(e.target.value)} />
         </label>
       </div>
@@ -63,11 +64,10 @@ export function SubtitleStyleEditor({ style, onChange }) {
       )}
       <div className="mp-style__row">
         <span className="mp-style__label">Height above the bottom<span className="mp-style__value">{s.position}%</span></span>
-        <input type="range" className="mp-style__range" min={0} max={30} step={1} value={s.position} aria-label="Height above the bottom"
-          onChange={(e) => set({ position: Number(e.target.value) })} />
+        <Slider size="sm" min={0} max={30} value={s.position} label="Height above the bottom" onChange={(position) => set({ position })} />
       </div>
-      <button type="button" className="mp-style__reset" disabled={storedStyle(s) === null}
-        onClick={() => onChange(storedStyle(DEFAULT_STYLE))}>Reset to default</button>
+      <Button variant="outline" size="sm" className="mp-style__reset" disabled={storedStyle(s) === null}
+        onClick={() => onChange(storedStyle(DEFAULT_STYLE))}>Reset to default</Button>
     </div>
   );
 }

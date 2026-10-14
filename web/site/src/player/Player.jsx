@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, Toggle } from "@thekrystalship/krystal";
+import { Button, Drawer, Icon, Toggle } from "@thekrystalship/krystal";
 import { PlayerRoom } from "./engine/room.ts";
 import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";
@@ -17,7 +17,6 @@ import { ScrubBar } from "./ScrubBar.jsx";
 import { SkipLabels, inClosingStretch, useSkipOffer } from "./stretches.js";
 import { Volume } from "./Volume.jsx";
 import { ago } from "../time.js";
-import { Drawer } from "../components/Drawer.jsx";
 import { AboutButton, AboutPanel, PauseCard, useAbout, usePausedLong } from "./About.jsx";
 import {
   Menu, MenuButton, MenuTitles, audioValue, episodeValue, hasEpisodes, hasQualityChoice, qualityValue, subtitleValue,

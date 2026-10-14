@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  Button, Icon, IconButton, Input, List, ListRow, Modal, Select, ShowcaseCard, Textarea, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, toast, useFilters,
+  Button, Dialog, Icon, IconButton, Input, List, ListRow, Select, ShowcaseCard, Textarea, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, toast, useFilters,
 } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
@@ -340,25 +340,16 @@ function NoteSheet({ entry: e, listId, onClose, onSaved }) {
   };
 
   return (
-    <Modal onClose={onClose} canClose={!busy} scrimClassName="kc-sheet-scrim">
-      <form className="kc-sheet" role="dialog" aria-label={`Note on ${e.title}`} onSubmit={save}>
-        <div className="kc-sheet__head">
-          <span className="kc-sheet__poster">{e.posterUrl && <img src={e.posterUrl} alt="" />}</span>
-          <div className="kc-sheet__title">
-            <span className="kc-eyebrow kc-eyebrow--muted">Note</span>
-            <span className="kc-sheet__name">{e.title}</span>
-          </div>
-        </div>
-        <div className="kc-sheet__body">
-          <Textarea autoFocus value={note} maxLength={500} rows={4}
-            onChange={(ev) => setNote(ev.target.value)} aria-label="Note" />
-          <div className="kc-actions">
-            <Button type="submit" variant="primary" size="lg" disabled={busy}>Save</Button>
-            <Button variant="outline" size="lg" disabled={busy} onClick={onClose}>Cancel</Button>
-          </div>
-        </div>
-      </form>
-    </Modal>
+    <Dialog as="form" onSubmit={save} title={e.title} sub="Note" onClose={onClose} canClose={!busy}
+      foot={(
+        <>
+          <Button variant="outline" size="lg" disabled={busy} onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" size="lg" disabled={busy}>Save</Button>
+        </>
+      )}>
+      <Textarea autoFocus value={note} maxLength={500} rows={4}
+        onChange={(ev) => setNote(ev.target.value)} aria-label="Note" />
+    </Dialog>
   );
 }
 
@@ -392,42 +383,31 @@ function PeopleSheet({ list, me, onClose, onChange }) {
   const remove = (m) => run(() => api.removeListMember(list.id, m.userId), "Could not take them off");
 
   return (
-    <Modal onClose={onClose} canClose={!busy} scrimClassName="kc-sheet-scrim">
-      <div className="kc-sheet" role="dialog" aria-label={`People on ${list.name}`}>
-        <div className="kc-sheet__head">
-          <div className="kc-sheet__title">
-            <span className="kc-eyebrow kc-eyebrow--muted">People</span>
-            <span className="kc-sheet__name">{list.name}</span>
+    <Dialog title={list.name} sub="People" onClose={onClose} canClose={!busy} foot={<Button size="lg" onClick={onClose}>Done</Button>}>
+      <div className="kc-people">
+        <List label="People">
+          <ListRow title={<>{list.owner.name || "someone"}{list.owner.userId === me.id && " (you)"}</>} aside="Owner" />
+          {list.members.map((m) => (
+            <ListRow key={m.userId} title={<>{m.name || "someone"}{m.userId === me.id && " (you)"}</>}
+              aside={owner ? undefined : ROLES.find((r) => r.value === m.role)?.label}
+              actions={owner ? (
+                <>
+                  <Select variant="chip" value={m.role} options={ROLES} aria-label={`What ${m.name} may do`}
+                    disabled={busy} onChange={(e) => change(m, e.target.value)} />
+                  <IconButton icon="x" label={`Take ${m.name} off`} disabled={busy} onClick={() => remove(m)} />
+                </>
+              ) : undefined} />
+          ))}
+        </List>
+        {owner && candidates.length > 0 && (
+          <div className="kc-people__add">
+            <Select value={pick} aria-label="Person" onChange={(e) => setPick(e.target.value)}
+              options={[{ value: "", label: "Add someone" }, ...candidates.map((p) => ({ value: p.userId, label: p.name }))]} />
+            <Select value={role} options={ROLES} aria-label="What they may do" onChange={(e) => setRole(e.target.value)} />
+            <Button variant="primary" size="lg" icon="user-plus" disabled={busy || !pick} onClick={add}>Add</Button>
           </div>
-        </div>
-        <div className="kc-people">
-          <List label="People">
-            <ListRow title={<>{list.owner.name || "someone"}{list.owner.userId === me.id && " (you)"}</>} aside="Owner" />
-            {list.members.map((m) => (
-              <ListRow key={m.userId} title={<>{m.name || "someone"}{m.userId === me.id && " (you)"}</>}
-                aside={owner ? undefined : ROLES.find((r) => r.value === m.role)?.label}
-                actions={owner ? (
-                  <>
-                    <Select variant="chip" value={m.role} options={ROLES} aria-label={`What ${m.name} may do`}
-                      disabled={busy} onChange={(e) => change(m, e.target.value)} />
-                    <IconButton icon="x" label={`Take ${m.name} off`} disabled={busy} onClick={() => remove(m)} />
-                  </>
-                ) : undefined} />
-            ))}
-          </List>
-          {owner && candidates.length > 0 && (
-            <div className="kc-people__add">
-              <Select value={pick} aria-label="Person" onChange={(e) => setPick(e.target.value)}
-                options={[{ value: "", label: "Add someone" }, ...candidates.map((p) => ({ value: p.userId, label: p.name }))]} />
-              <Select value={role} options={ROLES} aria-label="What they may do" onChange={(e) => setRole(e.target.value)} />
-              <Button variant="primary" size="lg" icon="user-plus" disabled={busy || !pick} onClick={add}>Add</Button>
-            </div>
-          )}
-        </div>
-        <div className="kc-sheet__foot">
-          <Button size="lg" onClick={onClose}>Done</Button>
-        </div>
+        )}
       </div>
-    </Modal>
+    </Dialog>
   );
 }

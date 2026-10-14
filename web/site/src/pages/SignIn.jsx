@@ -13,7 +13,7 @@ const UNREACHABLE = "The sign-in service is not answering. Try again in a moment
  */
 export function Dark() {
   React.useLayoutEffect(() => holdSplash(), []);
-  return <div style={{ position: "fixed", inset: 0, background: "#0B0F14" }} />;
+  return <div className="kc-dark" />;
 }
 
 /**

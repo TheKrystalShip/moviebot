@@ -1,26 +1,9 @@
 import React from "react";
-import { createPortal } from "react-dom";
-import { Button, Icon, Input, Toggle, toast } from "@thekrystalship/krystal";
+import { Button, Drawer, Icon, Input, Popover, Toggle, toast, usePhone } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { changeSaved, markSaved, useSaved } from "../saved.js";
-import { Drawer } from "./Drawer.jsx";
-
-const NARROW = "(max-width: 720px)";
-
-export function useNarrow() {
-  const query = () => typeof window !== "undefined" && !!window.matchMedia && window.matchMedia(NARROW).matches;
-  const [narrow, setNarrow] = React.useState(query);
-  React.useEffect(() => {
-    if (!window.matchMedia) return undefined;
-    const media = window.matchMedia(NARROW);
-    const change = () => setNarrow(media.matches);
-    media.addEventListener("change", change);
-    return () => media.removeEventListener("change", change);
-  }, []);
-  return narrow;
-}
 
 /** Puts a title on the person's Watch later, marked saved at once and unmarked again if it fails. */
 async function saveForLater(imdbId, kind, title) {
@@ -57,13 +40,13 @@ export function SaveButton({ imdbId, kind, title }) {
   }
 
   return (
-    <div className="kc-follow" ref={ref}>
-      <Button variant="accent" size="xl" icon="bookmark-check" iconRight="chevron-down" disabled={!online}
-        aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+    <>
+      <Button ref={ref} variant="accent" size="xl" icon="bookmark-check" iconRight="chevron-down" disabled={!online}
+        aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>
         Saved
       </Button>
       {open && <SavePopover anchor={ref.current} imdbId={imdbId} kind={kind} title={title} onClose={() => setOpen(false)} />}
-    </div>
+    </>
   );
 }
 
@@ -109,41 +92,8 @@ function SavePopover({ anchor, imdbId, kind, title, onClose }) {
   const lists = useLoad(() => api.lists(imdbId), [imdbId]);
   const online = useOnline();
   const [busy, setBusy] = React.useState(false);
-  const narrow = useNarrow();
-  const menuRef = React.useRef(null);
-  const [pos, setPos] = React.useState(null);
-
-  // The popover is drawn over the page rather than inside the card or the button's row, which clip
-  // what overflows them.
-  React.useLayoutEffect(() => {
-    if (narrow || !anchor) return undefined;
-    const place = () => {
-      const r = anchor.getBoundingClientRect();
-      setPos({ top: Math.round(r.bottom + 6), left: Math.round(Math.max(8, Math.min(r.left, window.innerWidth - 300))) });
-    };
-    place();
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
-    };
-  }, [anchor, narrow]);
-
-  React.useEffect(() => {
-    if (narrow) return undefined;
-    const outside = (e) => {
-      if (anchor?.contains(e.target) || menuRef.current?.contains(e.target)) return;
-      onClose();
-    };
-    const escape = (e) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("mousedown", outside);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("mousedown", outside);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [anchor, narrow, onClose]);
+  const narrow = usePhone();
+  const anchorRef = React.useMemo(() => ({ current: anchor }), [anchor]);
 
   const editable = (lists.data || []).filter((l) => l.role !== "viewer");
 
@@ -173,10 +123,13 @@ function SavePopover({ anchor, imdbId, kind, title, onClose }) {
   const menu = lists.data
     ? <SaveMenu lists={editable} busy={busy || !online} onToggle={toggle} onCreate={create} />
     : null;
-  if (narrow) return <Drawer title="Save to" onClose={onClose} role="menu">{menu}</Drawer>;
-  return createPortal(
-    <div ref={menuRef} className="kc-follow__menu kc-save__menu" role="menu" style={pos && menu ? pos : { visibility: "hidden" }}>{menu}</div>,
-    document.body);
+  if (narrow) return <Drawer title="Save to" onClose={onClose}>{menu}</Drawer>;
+  return (
+    <Popover open={!!menu} anchorRef={anchorRef} placement="bottom-start" label="Save to" className="kc-save__menu"
+      onOpenChange={(next) => { if (!next) onClose(); }}>
+      {menu}
+    </Popover>
+  );
 }
 
 function SaveMenu({ lists, busy, onToggle, onCreate }) {
@@ -195,7 +148,7 @@ function SaveMenu({ lists, busy, onToggle, onCreate }) {
   return (
     <>
       {lists.map((l) => (
-        <label key={l.id} className="kc-follow__option">
+        <label key={l.id} className="kc-save__row">
           <span className="kc-save__name">
             <Icon name={l.watchLater ? "clock" : l.members.length > 0 ? "users" : "list"} size={15} />
             {l.name}
@@ -209,9 +162,7 @@ function SaveMenu({ lists, busy, onToggle, onCreate }) {
           <Button type="submit" variant="primary" size="lg" disabled={busy || !name.trim()}>Create</Button>
         </form>
       ) : (
-        <button type="button" className="kc-follow__unfollow" role="menuitem" onClick={() => setNaming(true)}>
-          <Icon name="list-plus" size={15} />New list
-        </button>
+        <Button variant="ghost" icon="list-plus" onClick={() => setNaming(true)}>New list</Button>
       )}
     </>
   );

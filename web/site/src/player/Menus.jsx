@@ -1,12 +1,11 @@
 import React from "react";
-import { Icon } from "@thekrystalship/krystal";
+import { Drawer, Icon, IconButton } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useCan } from "../session.js";
 import { formatTime } from "./engine/format.ts";
 import { SubtitleStyleEditor } from "./SubtitleStyleEditor.jsx";
 import { EpisodeRow } from "../components/EpisodeRow.jsx";
 import { useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
-import { Drawer } from "../components/Drawer.jsx";
 
 const languageNames = (() => {
   try { return new Intl.DisplayNames(undefined, { type: "language" }); } catch { return null; }
@@ -128,9 +127,7 @@ export function Menu({ kind, view, room, sheet, position, styling, onStyling, on
     <div className={"mp-popover" + (kind === "subs" || kind === "listen" ? " mp-popover--wide" : kind === "episodes" ? " mp-popover--episodes" : "") + " mp-menu"} role="menu" aria-label={title}>
       <div className="mp-menu__head">
         {back && (
-          <button type="button" className="mp-menu__back" aria-label={back.label} onClick={back.onClick}>
-            <Icon name="arrow-left" size={14} />
-          </button>
+          <IconButton variant="ghost" size="xs" icon="arrow-left" label={back.label} className="mp-menu__back" onClick={back.onClick} />
         )}
         {title}
       </div>

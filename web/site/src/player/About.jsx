@@ -1,8 +1,7 @@
 import React from "react";
-import { Icon } from "@thekrystalship/krystal";
+import { Drawer, Icon } from "@thekrystalship/krystal";
 import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";
-import { Drawer } from "../components/Drawer.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, Tagline, originalTitle } from "../components/FilmDetails.jsx";
 import { clock } from "../time.js";
 
