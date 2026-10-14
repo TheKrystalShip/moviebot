@@ -1,6 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { Button, Icon, Input, Toggle, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon, Input, Toggle, toast } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";

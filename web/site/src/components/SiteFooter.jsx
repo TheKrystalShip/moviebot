@@ -1,5 +1,5 @@
-import { Footer, GithubMark } from "@thekrystalship/krystal-ui";
-import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
+import { Footer, GithubMark } from "@thekrystalship/krystal";
+import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { PLACES } from "../nav.js";
@@ -22,7 +22,7 @@ const SOURCE = [
   { name: "TheKrystalShip", href: "https://github.com/TheKrystalShip", glyph: <GithubMark size={18} />, featured: true, sub: "Where everything here is built" },
   { name: "moviebot", href: "https://github.com/TheKrystalShip/moviebot", icon: "git-branch", sub: "Rooms, the player and this site" },
   { name: "moviebot-acquire", href: "https://github.com/TheKrystalShip/moviebot-acquire", icon: "git-branch", sub: "Finding and fetching movies and shows" },
-  { name: "krystal-ui", href: "https://github.com/TheKrystalShip/krystal-ui", icon: "git-branch", sub: "The design system this site is drawn with" },
+  { name: "tks-krystal", href: "https://github.com/TheKrystalShip/tks-krystal", icon: "git-branch", sub: "The design system this site is drawn with" },
 ];
 
 /**
@@ -45,7 +45,7 @@ export function SiteFooter() {
       ]}
       copy={`© ${new Date().getFullYear()} The Krystal Ship · watched together.`}
       end={
-        <a href="https://github.com/TheKrystalShip" target="_blank" rel="noreferrer noopener" className="kfoot__org">
+        <a href="https://github.com/TheKrystalShip" target="_blank" rel="noreferrer noopener" className="kc-footer__org">
           <GithubMark size={13} />
           github.com/TheKrystalShip
         </a>

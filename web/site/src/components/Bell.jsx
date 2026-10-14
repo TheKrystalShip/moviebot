@@ -1,6 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { Icon, Pill } from "@thekrystalship/krystal-ui";
+import { Icon, Pill } from "@thekrystalship/krystal";
 import { profilePath } from "../paths.js";
 import { navigate } from "../router.js";
 import { ago } from "../time.js";
@@ -19,13 +19,13 @@ export function BellNavItem() {
   return (
     <Bell placement="beside">
       {(open, toggle) => (
-        <div className={"nav-item kc-bell-item" + (open ? " nav-item--active" : "")} role="button" tabIndex={0}
+        <div className={"k-nav-item kc-bell-item" + (open ? " k-nav-item--active" : "")} role="button" tabIndex={0}
           onClick={toggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
           data-tip={"Notifications" + (unread > 0 ? " · " + unread : "")}
           aria-label={"Notifications" + (unread > 0 ? `, ${unread} unread` : "")} aria-haspopup="dialog" aria-expanded={open}>
           <Icon name="bell" size={16} />
-          <span className="nav-item__label">Notifications</span>
-          {unread > 0 && <Pill tone="accent" className="nav-item__badge kc-bell-item__badge">{unread}</Pill>}
+          <span className="k-nav-item__label">Notifications</span>
+          {unread > 0 && <Pill tone="accent" className="k-nav-item__badge kc-bell-item__badge">{unread}</Pill>}
         </div>
       )}
     </Bell>
@@ -63,7 +63,7 @@ export function Bell({ placement, children }) {
   React.useLayoutEffect(() => {
     if (!open || placement !== "beside" || !triggerRef.current) return undefined;
     const place = () => {
-      const sidebar = triggerRef.current.closest(".sidebar");
+      const sidebar = triggerRef.current.closest(".k-sidebar");
       const right = (sidebar || triggerRef.current).getBoundingClientRect().right;
       setPos({ left: Math.round(right + 12), bottom: 16 });
     };

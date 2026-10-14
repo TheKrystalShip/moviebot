@@ -1,4 +1,4 @@
-import { Button, Icon, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon, toast } from "@thekrystalship/krystal";
 import { dayOf } from "../time.js";
 import { Qr } from "./Qr.jsx";
 import { unpairPhone, usePairedPhones, usePairingCode } from "./screen.js";

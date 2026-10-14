@@ -1,5 +1,5 @@
 import React from "react";
-import { toast } from "@thekrystalship/krystal-ui";
+import { toast } from "@thekrystalship/krystal";
 import { homePath } from "../paths.js";
 import { navigate } from "../router.js";
 import { pair, unpair } from "../remote.js";

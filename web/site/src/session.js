@@ -37,7 +37,7 @@
 // page never goes to the provider while offline, and what `/api/config` said is kept in localStorage
 // so a page opened with no connection still knows which provider's session it holds.
 
-import { createStore, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, useStore } from "@thekrystalship/krystal";
 import { ErrorResponse, User, UserManager, WebStorageStateStore } from "oidc-client-ts";
 import { isOnline, onReconnect, reached, unreached } from "./connectivity.js";
 import { deviceName, onTv } from "./tv/tv.js";

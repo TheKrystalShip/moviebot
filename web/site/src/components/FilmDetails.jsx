@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, Pill, Skeleton } from "@thekrystalship/krystal-ui";
+import { Icon, Pill, Skeleton } from "@thekrystalship/krystal";
 import { discoverPersonPath } from "../paths.js";
 import { linkProps } from "../router.js";
 
@@ -155,7 +155,7 @@ export function TitleSkeleton({ kind }) {
     <div className="kc-page kc-title">
       <section className="kc-tt">
         <div className="kc-tt__grid">
-          <span className="skel kc-tt__poster" />
+          <span className="k-skeleton kc-tt__poster" />
           <div className="kc-tt__body">
             <span className="kc-eyebrow kc-eyebrow--muted">{kind}</span>
             <Skeleton w="62%" h={34} r={8} />

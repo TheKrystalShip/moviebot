@@ -1,5 +1,5 @@
 import React from "react";
-import { EmptyState, Icon, OptionList, Rail, Toggle, toast } from "@thekrystalship/krystal-ui";
+import { EmptyState, Icon, OptionList, Rail, Toggle, toast } from "@thekrystalship/krystal";
 import { api, episodeCode, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { setRemoteMode, chooseScreen, useDrivenScreen, usePairedScreens, useRemoteMode, useRemoteOpen } from "../remote.js";
@@ -208,12 +208,12 @@ function useDock(open, setOpen, onAway) {
   const placed = React.useRef(false);
   React.useLayoutEffect(() => {
     document.body.classList.add("has-remote-strip");
-    const bar = document.querySelector(".tabbar");
+    const bar = document.querySelector(".k-tabbar");
     const place = () => {
       const standing = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect().height : 0;
       document.body.style.setProperty("--remote-strip-bottom", `${standing}px`);
       measure();
-      const shell = document.querySelector(".app--tabbed");
+      const shell = document.querySelector(".k-app--tabbed");
       const nominal = bar && shell ? parseFloat(getComputedStyle(shell).getPropertyValue("--tabbar-h")) + parseFloat(getComputedStyle(bar).paddingBottom) : 0;
       const shortfall = bar && nominal ? Math.max(0, bar.getBoundingClientRect().height - nominal) : 0;
       document.body.style.setProperty("--remote-strip-inset", `${size.current.shut + shortfall}px`);

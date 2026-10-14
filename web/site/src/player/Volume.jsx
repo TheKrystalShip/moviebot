@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Icon } from "@thekrystalship/krystal";
 import { VolumeStep } from "./engine/media/volume.ts";
 
 /**

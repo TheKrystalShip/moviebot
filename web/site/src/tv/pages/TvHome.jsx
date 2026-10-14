@@ -1,5 +1,5 @@
 import React from "react";
-import { TvCard, TvRow, TvTile } from "@thekrystalship/krystal-ui";
+import { TvCard, TvRow, TvTile } from "@thekrystalship/krystal";
 import { api, episodeCode, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { ANIME, discoverFilmPath, isAnime, libraryPath, listPath, moviePath, showPath } from "../../paths.js";

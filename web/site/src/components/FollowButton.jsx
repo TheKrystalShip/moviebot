@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, Toggle, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon, Toggle, toast } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useCan } from "../session.js";

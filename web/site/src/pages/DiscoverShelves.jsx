@@ -2,7 +2,7 @@ import React from "react";
 import {
   BriefCard, CollectionTile, Icon, Rail, Skeleton, Toolbar, ToolbarButton, ToolbarCount, ToolbarFilters, ToolbarSort,
   ToolbarSpacer, useStoredFlag,
-} from "@thekrystalship/krystal-ui";
+} from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { FILTER_PARAMS, discoverBrowsePath, discoverFilterPath, discoverShelfPath } from "../paths.js";
@@ -238,7 +238,7 @@ function sorted(titles, { key, dir }) {
 }
 
 /**
- * Every title on one shelf, up to 40, with krystal-ui's Toolbar as on the library's pages: what to
+ * Every title on one shelf, up to 40, with krystal's Toolbar as on the library's pages: what to
  * leave off, an order, how many are shown, and Surprise me among them.
  */
 export function ShelfPage({ id, where }) {
@@ -362,7 +362,7 @@ function filterQuestion(f) {
   return q;
 }
 
-/** The filter's fields, as krystal-ui's ToolbarFilters draws them, each changing `f` through `set`. */
+/** The filter's fields, as krystal's ToolbarFilters draws them, each changing `f` through `set`. */
 function filterFields(f, set, index, hideWatched, setHideWatched) {
   const genres = index ? (f.kind === "show" ? index.showGenres : index.filmGenres) : [];
   const languages = index ? index.languages : [];

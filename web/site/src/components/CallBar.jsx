@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon } from "@thekrystalship/krystal-ui";
+import { Button, Icon } from "@thekrystalship/krystal";
 import { api, filmName } from "../api.js";
 import { activityRoom } from "../discord/launch.js";
 import { roomPath } from "../paths.js";

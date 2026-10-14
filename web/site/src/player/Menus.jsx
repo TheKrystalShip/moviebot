@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Icon } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useCan } from "../session.js";
 import { formatTime } from "./engine/format.ts";

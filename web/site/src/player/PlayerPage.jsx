@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Input } from "@thekrystalship/krystal-ui";
+import { Button, Input } from "@thekrystalship/krystal";
 import "./player.css";
 import { Player } from "./Player.jsx";
 import { createSiteEnvironment, setEnvironment } from "./engine/environment.ts";

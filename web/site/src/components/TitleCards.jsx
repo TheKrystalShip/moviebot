@@ -1,11 +1,11 @@
-import { Icon, ShowcaseCard, Skeleton } from "@thekrystalship/krystal-ui";
+import { Icon, ShowcaseCard, Skeleton } from "@thekrystalship/krystal";
 import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { kindLine, watchHref } from "./Film.jsx";
 import { useSaveRibbon } from "./SaveButton.jsx";
 
 // Poster cards for titles that are not on a shelf: a search's answers, what somebody waits on, what
-// they asked to be fetched. Every card is krystal-ui's ShowcaseCard, so a page of them reads like
+// they asked to be fetched. Every card is krystal's ShowcaseCard, so a page of them reads like
 // Home's rows; `kc-card` lets a plain status line (a cast, a note) end in an ellipsis.
 
 /**
@@ -29,8 +29,8 @@ export function CardsSkeleton({ count = 6, row = false }) {
   return (
     <div className={"kc-grid" + (row ? " kc-grid--row" : "")} aria-hidden="true">
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="skel-card">
-          <Skeleton className="skel-card__art" h="auto" r={0} style={{ aspectRatio: "2 / 3" }} />
+        <div key={i} className="k-skeleton-card">
+          <Skeleton className="k-skeleton-card__art" h="auto" r={0} style={{ aspectRatio: "2 / 3" }} />
           <div className="kc-card-skel__foot">
             <Skeleton h={30} />
             <Skeleton w="70%" h={12} />

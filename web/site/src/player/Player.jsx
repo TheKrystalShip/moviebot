@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, Toggle } from "@thekrystalship/krystal-ui";
+import { Button, Icon, Toggle } from "@thekrystalship/krystal";
 import { PlayerRoom } from "./engine/room.ts";
 import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";

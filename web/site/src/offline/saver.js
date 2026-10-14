@@ -15,7 +15,7 @@
 // of it. Each tab says what its saves are doing on `cinema-offline-saving`, so every tab draws the
 // same progress, and a pause or a removal in one stops the transfer in whichever runs it.
 
-import { createStore, toast, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, toast, useStore } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { isOnline, onReconnect, probe, unreached } from "../connectivity.js";
 import { freshToken, sessionStore } from "../session.js";

@@ -2,8 +2,8 @@ import React from "react";
 import {
   AppShell, Dock, DockFab, NavItem, Sidebar, SidebarAccount, SidebarGroup, TabBar, Toasts,
   useDock, useStoredFlag,
-} from "@thekrystalship/krystal-ui";
-import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
+} from "@thekrystalship/krystal";
+import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { beginSignIn, can, restore, sessionEnded, useSession } from "./session.js";
 import { leave } from "./leave.js";
 import { goBack, navigate, useRoute } from "./router.js";
@@ -311,14 +311,14 @@ function Frame({ session, route }) {
 function noDrawer() {}
 
 /**
- * Draws the tab bar's places that need the server disabled while there is no connection. krystal-ui's
+ * Draws the tab bar's places that need the server disabled while there is no connection. krystal's
  * `TabBar` takes no disabled item, so its buttons are disabled in place, by the order `TABS` gives
  * them; React sets no `disabled` of its own on them to undo it.
  */
 function useOfflineTabs(offline, needsServer) {
   const key = needsServer.join();
   React.useLayoutEffect(() => {
-    const buttons = document.querySelectorAll(".tabbar .tabbar__tab");
+    const buttons = document.querySelectorAll(".k-tabbar .k-tabbar__tab");
     buttons.forEach((button, i) => { button.disabled = offline && !!needsServer[i]; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offline, key]);

@@ -1,6 +1,6 @@
 import React from "react";
-import { Button } from "@thekrystalship/krystal-ui";
-import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
+import { Button } from "@thekrystalship/krystal";
+import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { pollDeviceCode, requestDeviceCode } from "../session.js";
 import { Qr } from "./Qr.jsx";
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, CarouselPager, TvBackdrop, TvSpotlight, createStore, useCarousel, useStore } from "@thekrystalship/krystal-ui";
+import { Button, CarouselPager, TvBackdrop, TvSpotlight, createStore, useCarousel, useStore } from "@thekrystalship/krystal";
 import { discoverFilmPath, moviePath, showPath } from "../paths.js";
 import { linkProps } from "../router.js";
 import { watchLink } from "../components/Film.jsx";
@@ -55,7 +55,7 @@ export function TvHero({ slides: laid, store, initial = false, more, className, 
         onFocus={(e) => { carousel.rootProps.onFocus(e); track.onFocus(e); }}
         onBlur={(e) => { carousel.rootProps.onBlur(e); track.onBlur(e); }}>
         <TvSpotlight key={slide.key} className="kc-tv-hero" size="lg" eyebrow={spot.eyebrow} title={spot.title} meta={<SpotFacts facts={spot.facts} />}>
-          {spot.overview && <p className="tv-spot__overview">{spot.overview}</p>}
+          {spot.overview && <p className="k-tv-spot__overview">{spot.overview}</p>}
           <TvSlideActions slide={slide} initial={initial} more={more} />
           <CarouselPager carousel={carousel} indicator className="kc-tv-hero__pager" />
         </TvSpotlight>
@@ -65,7 +65,7 @@ export function TvHero({ slides: laid, store, initial = false, more, className, 
 }
 
 /** A slide's actions, in the order focus moves through them. */
-const ACTIONS = ".tv-spot__actions :is(a[href], button)";
+const ACTIONS = ".k-tv-spot__actions :is(a[href], button)";
 
 /**
  * Whether focus is on the page below `section`, in the rows under the slides, which have gone up the
@@ -112,7 +112,7 @@ function TvSlideActions({ slide, initial, more }) {
     watch = <Button variant="primary" size="lg" icon="play" busy={starting} {...first} onClick={fetch}>Watch</Button>;
   }
   return (
-    <div className="tv-spot__actions">
+    <div className="k-tv-spot__actions">
       {watch}
       <Button variant={watch ? undefined : "primary"} size="lg" icon="info" {...(watch ? {} : first)} {...linkProps(page)}>More info</Button>
       {slide.imdbId && <SaveButton imdbId={slide.imdbId} kind={show ? "show" : "film"} title={slide.spot.title} />}

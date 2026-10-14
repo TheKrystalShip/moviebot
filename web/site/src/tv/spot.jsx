@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, TvBackdrop, TvSpotlight, createStore, useStore } from "@thekrystalship/krystal-ui";
+import { Icon, TvBackdrop, TvSpotlight, createStore, useStore } from "@thekrystalship/krystal";
 
 /** How long focus rests on a card before the spotlight turns to it, so a held arrow loads nothing. */
 const SPOT_MS = 300;
@@ -70,7 +70,7 @@ export function SpotStage({ store, art, idleSize = "tall" }) {
       {inRows && spot && (
         <div className="kc-tvh__spot" key={spot.key}>
           <TvSpotlight size="md" eyebrow={spot.eyebrow} title={spot.title} meta={spot.facts ? <SpotFacts facts={spot.facts} /> : spot.line}>
-            {spot.overview && <p className="tv-spot__overview">{spot.overview}</p>}
+            {spot.overview && <p className="k-tv-spot__overview">{spot.overview}</p>}
             {spot.progress && <SpotProgress fraction={spot.progress.fraction} left={spot.progress.left} />}
             {!spot.progress && spot.credit && <span className="kc-tv-credit">{spot.credit.label} <b>{spot.credit.names}</b></span>}
           </TvSpotlight>

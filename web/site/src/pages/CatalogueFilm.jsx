@@ -1,5 +1,5 @@
 import React from "react";
-import { Pill } from "@thekrystalship/krystal-ui";
+import { Pill } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { useCan } from "../session.js";

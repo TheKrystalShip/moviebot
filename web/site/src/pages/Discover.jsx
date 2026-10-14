@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, Skeleton } from "@thekrystalship/krystal-ui";
+import { Button, Icon, Skeleton } from "@thekrystalship/krystal";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useOnline } from "../connectivity.js";
@@ -327,7 +327,7 @@ function ResultsSkeleton() {
     <>
       <div className="kc-hit">
         <div className="kc-hit__grid">
-          <span className="skel kc-hit__poster" />
+          <span className="k-skeleton kc-hit__poster" />
           <div className="kc-hit__body">
             <Skeleton w={70} h={12} />
             <Skeleton w="55%" h={28} />

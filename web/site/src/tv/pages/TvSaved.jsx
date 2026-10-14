@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, EmptyState, Icon, TvCard, TvRow } from "@thekrystalship/krystal-ui";
+import { Button, EmptyState, Icon, TvCard, TvRow } from "@thekrystalship/krystal";
 import { api } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { discoverFilmPath, discoverPath, listPath, moviePath, showPath } from "../../paths.js";
@@ -72,7 +72,7 @@ export function TvSaved() {
         <TvRow icon="users" title="Lists" count={others.length}>
           {others.map((l) => (
             <a key={l.id} className="kc-tvsv__list" {...linkProps(listPath(l.id))} onFocus={() => setFocused(null)}>
-              <span className="tv-card tv-card--wide kc-tvsv__art">
+              <span className="k-tv-card k-tv-card--wide kc-tvsv__art">
                 {l.posters.length === 0 && <Icon name="list" size={28} />}
                 {l.posters.slice(0, 3).map((p) => <img key={p} src={p} alt="" loading="lazy" />)}
               </span>

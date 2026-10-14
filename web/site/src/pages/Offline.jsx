@@ -1,6 +1,6 @@
 import React from "react";
-import { Button, CardScreen, Icon, Notice } from "@thekrystalship/krystal-ui";
-import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
+import { Button, CardScreen, Icon, Notice } from "@thekrystalship/krystal";
+import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { probe } from "../connectivity.js";
 import { libraryPath } from "../paths.js";
 import { linkProps } from "../router.js";

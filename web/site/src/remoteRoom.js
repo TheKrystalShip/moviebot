@@ -14,7 +14,7 @@
  */
 
 import React from "react";
-import { createStore, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, useStore } from "@thekrystalship/krystal";
 import { holdPersonConnection } from "./personConnection.js";
 import { ServerClock } from "./player/engine/session/clock.ts";
 import { derivePosition } from "./player/engine/session/hub.ts";

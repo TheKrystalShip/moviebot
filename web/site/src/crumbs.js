@@ -3,7 +3,7 @@
 // the page's own once it has loaded; until then the trail says what the address knows, the id.
 
 import React from "react";
-import { createStore, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, useStore } from "@thekrystalship/krystal";
 import { PLACES, PROFILE_TAB_FACES } from "./nav.js";
 import { ANIME, libraryPath, profilePath, showPath } from "./paths.js";
 

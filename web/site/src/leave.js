@@ -4,7 +4,7 @@
 // account's, kept under its `sub`, and signing out alone leaves them for the next sign-in of the same
 // account (`components/SignOutDialog.jsx`).
 
-import { createStore } from "@thekrystalship/krystal-ui";
+import { createStore } from "@thekrystalship/krystal";
 import { api } from "./api.js";
 import { forgotten, listSaves, pendingForgets } from "./offline/store.js";
 import { removeAllFromDevice, stopAccount } from "./offline/saver.js";

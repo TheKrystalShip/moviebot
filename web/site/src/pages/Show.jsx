@@ -1,5 +1,5 @@
 import React from "react";
-import { Button } from "@thekrystalship/krystal-ui";
+import { Button } from "@thekrystalship/krystal";
 import { api, episodeCode } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";

@@ -3,7 +3,7 @@
 // closed is in the bell the moment it is opened.
 
 import React from "react";
-import { createStore, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, useStore } from "@thekrystalship/krystal";
 import { api } from "./api.js";
 
 const EVERY_MS = 60 * 1000;

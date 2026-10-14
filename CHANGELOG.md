@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.35.0] - 2026-10-14
+
+### Changed
+
+- **The site runs on the Krystal design system's two packages**: `@thekrystalship/krystal` 0.32.1 for
+  the components and `@thekrystalship/krystal-chat` 0.32.1 for the assistant. Every class the system
+  draws carries the `k-` prefix, and the site's rules and selectors follow
+  the names. The site's document rules sit in cascade layers ordered around the system's, and ESLint
+  and Stylelint read the system's lint configs as warnings (`npm run lint:css`). Site 0.82.0.
+
 ## [3.34.1] - 2026-10-14
 
 ### Changed

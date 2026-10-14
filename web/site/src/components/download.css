@@ -106,10 +106,10 @@
 .kc-dl-remove__what .is-mono, .kc-dl-remove .is-mono { font-family: var(--font-mono); }
 
 /* A card on a shelf whose title is downloaded, or downloading: a pill on its poster. */
-.kc-card--dl .showcase-card__corner {
+.kc-card--dl .k-showcase-card__corner {
   height: 24px; padding: 0 8px; border-radius: 999px; gap: 5px; font-size: 11px; font-weight: 600;
   background: rgba(11, 15, 20, 0.75); border: 1px solid var(--border-strong); color: var(--fg-1);
 }
-.kc-card--dl-done .showcase-card__corner { border-color: var(--border-accent); color: var(--krystal-teal); }
-.kc-card--dl-underway .showcase-card__corner { font-family: var(--font-mono); }
-.kc-card--dl-underway .showcase-card__progress { background: var(--surface-3); }
+.kc-card--dl-done .k-showcase-card__corner { border-color: var(--border-accent); color: var(--krystal-teal); }
+.kc-card--dl-underway .k-showcase-card__corner { font-family: var(--font-mono); }
+.kc-card--dl-underway .k-showcase-card__progress { background: var(--surface-3); }

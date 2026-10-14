@@ -1,6 +1,6 @@
 import React from "react";
-import { Toasts, TvBar, TvBarButton } from "@thekrystalship/krystal-ui";
-import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
+import { Toasts, TvBar, TvBarButton } from "@thekrystalship/krystal";
+import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { Bell } from "../components/Bell.jsx";
 import { PageStage } from "../components/PageStage.jsx";
 import { useNotifications } from "../notifications.js";

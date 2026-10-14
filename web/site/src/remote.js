@@ -8,7 +8,7 @@
  * tells it each paired screen arriving, changing room and leaving; with none paired it holds nothing.
  *
  * Remote mode is the device's own: on says this phone is driving its screen now, and it is kept across
- * the app closing under `cinema:remote` ("1" or "0", as krystal-ui's `useStoredFlag` reads it). Turning
+ * the app closing under `cinema:remote` ("1" or "0", as krystal's `useStoredFlag` reads it). Turning
  * it off unpairs nothing, and a pairing turns it on.
  *
  * While remote mode is on and a paired screen is connected, the phone is a remote of that screen
@@ -16,7 +16,7 @@
  * connected, it holds no room connection.
  */
 
-import { createStore, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, useStore } from "@thekrystalship/krystal";
 import { api } from "./api.js";
 import { holdPersonConnection } from "./personConnection.js";
 import { holdRemoteRoom, releaseRemoteRoom } from "./remoteRoom.js";

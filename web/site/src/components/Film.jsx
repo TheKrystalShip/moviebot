@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, ShowcaseCard } from "@thekrystalship/krystal-ui";
+import { Button, Icon, ShowcaseCard } from "@thekrystalship/krystal";
 import { episodeCode, filmName, posterUrl } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useSave } from "../offline/hooks.js";
@@ -153,7 +153,7 @@ function downloadMarks(download) {
 }
 
 /**
- * A film on a shelf, as krystal-ui's ShowcaseCard: the poster with the name on it, its rating, year
+ * A film on a shelf, as krystal's ShowcaseCard: the poster with the name on it, its rating, year
  * and length, one line saying where it stands, Watch, and a ribbon that saves it. What a page knows
  * beside the film — a room watching it, whether it is new — is optional, and a card without it says
  * less rather than guessing. How far the person got comes with the title itself.

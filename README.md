@@ -179,7 +179,7 @@ installed there needs no restart. It is served on its own for development:
 
 ```bash
 cd web/site
-npm install          # @thekrystalship/krystal-ui comes from GitHub Packages, which wants a token
+npm install          # @thekrystalship/krystal comes from GitHub Packages, which wants a token
 npm run dev          # http://localhost:5175, talking to the API on :8099 and the assistant on :8191
 ```
 

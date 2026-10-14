@@ -1,5 +1,5 @@
 import React from "react";
-import { Button } from "@thekrystalship/krystal-ui";
+import { Button } from "@thekrystalship/krystal";
 import { setRemoteMode, useDrivenScreen } from "../remote.js";
 import { watchOnTv } from "../remoteWatch.js";
 import { useWatchLink } from "./Film.jsx";

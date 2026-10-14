@@ -10,7 +10,7 @@ deleted.
 - **The workbench is `npm run verify:tv-sweep`** (`web/site/verify/tvsweep/README.md`): every key
   press of a walk timed on the reference television, traced when asked, with ablations by `--css`,
   `--reduced`, `--eager` and `--shrink`. `--scratch` runs it against the scratch site through
-  `adb reverse`, so a local build (or a patched `node_modules/@thekrystalship/krystal-ui`) is measured
+  `adb reverse`, so a local build (or a patched `node_modules/@thekrystalship/krystal`) is measured
   on the television before anything is published or deployed.
 - **The release gate is `npm run verify:tv-perf`** in the lab, against `verify/tvperf/baseline.json`.
   It catches regressions in load time, layout and downloads, which the workbench does not; it cannot

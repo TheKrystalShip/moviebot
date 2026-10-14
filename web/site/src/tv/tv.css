@@ -1,5 +1,5 @@
 /* ── Krystal Cinema on a television ───────────────────────────────────────────────────────────────
-   The site's own pages in TV mode, laid out on krystal-ui's television parts (styles/tv.css). The
+   The site's own pages in TV mode, laid out on krystal's television parts (styles/tv.css). The
    page is 960 by 540 and is read from a sofa; nothing here is drawn anywhere but under `data-tv`. */
 
 :root[data-tv] body { overflow: hidden; background: var(--canvas); }
@@ -45,10 +45,10 @@
 
 /* Every button in a row of actions is one height, whatever size the component it comes from asks for
    (Save and Follow ask for the desktop's largest). */
-:root[data-tv] .tv-spot__actions .k-btn {
+:root[data-tv] .k-tv-spot__actions .k-btn {
   height: 40px; padding: 0 18px; gap: 8px; font-size: var(--text-md);
 }
-:root[data-tv] .tv-spot__actions .k-btn svg { width: 16px; height: 16px; }
+:root[data-tv] .k-tv-spot__actions .k-btn svg { width: 16px; height: 16px; }
 
 .kc-tv-rating { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-1); }
 .kc-tv-rating svg { color: var(--warning-fg); fill: var(--warning-fg); }
@@ -117,8 +117,8 @@
   position: relative; z-index: 1; min-height: 420px; box-sizing: border-box;
   padding: 54px var(--tv-margin-x) 12px;
 }
-.kc-tvf__head .tv-spot { max-width: 520px; }
-.kc-tvf__head .tv-spot__title { font-size: var(--text-5xl); }
+.kc-tvf__head .k-tv-spot { max-width: 520px; }
+.kc-tvf__head .k-tv-spot__title { font-size: var(--text-5xl); }
 .kc-tvf { padding-bottom: 200px; }
 
 /* ── Discover ── */
@@ -161,7 +161,7 @@
 .kc-tvd__poster { width: 128px; height: 192px; object-fit: cover; border-radius: var(--r-sm); flex: none; }
 .kc-tvd__body { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
 .kc-tvd__title { margin: 0; font-size: var(--text-4xl); line-height: 1.05; font-weight: var(--w-bold); }
-.kc-tvd__body .tv-spot__overview { -webkit-line-clamp: 2; }
+.kc-tvd__body .k-tv-spot__overview { -webkit-line-clamp: 2; }
 
 /* ── Movies and TV Shows ── */
 
@@ -300,8 +300,8 @@
   padding: 54px var(--tv-margin-x) 12px;
   transition: opacity var(--d-slow) var(--ease-out);
 }
-.kc-tvs__head .tv-spot { max-width: 520px; }
-.kc-tvs__head .tv-spot__title { font-size: var(--text-5xl); }
+.kc-tvs__head .k-tv-spot { max-width: 520px; }
+.kc-tvs__head .k-tv-spot__title { font-size: var(--text-5xl); }
 .kc-tvs[data-spot] .kc-tvs__head { opacity: 0; }
 .kc-tvs { padding-bottom: 200px; }
 
@@ -340,7 +340,7 @@
 }
 .kc-tvh[data-spot] .kc-tvh__hero { opacity: 0; }
 /* With focus in a spotlit page's rows, every card but the focused one steps back. */
-[data-spot] .tv-card:not(:focus-visible) { opacity: var(--tv-dim); }
+[data-spot] .k-tv-card:not(:focus-visible) { opacity: var(--tv-dim); }
 
 .kc-tvh__spot {
   position: fixed;

@@ -1,0 +1,5 @@
+/* The cascade order. `site.reset` sits before the design system's layers and `site.base` between its
+   base and its components, so the system's component rules win over both and the system's document
+   rules win over the reset; every rule outside a layer wins over all of them. This statement is
+   imported before the design system's sheets, which repeat the order of their own layers. */
+@layer site.reset, krystal.tokens, krystal.base, site.base, krystal.components;

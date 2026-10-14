@@ -1,4 +1,4 @@
-import { TvCard, TvRow, TvSpotlight, TvTile } from "@thekrystalship/krystal-ui";
+import { TvCard, TvRow, TvSpotlight, TvTile } from "@thekrystalship/krystal";
 import { api, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { ANIME, discoverGenrePath, isAnime, moviePath, showPath } from "../../paths.js";

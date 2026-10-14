@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, TvCard, TvSpotlight } from "@thekrystalship/krystal-ui";
+import { Button, TvCard, TvSpotlight } from "@thekrystalship/krystal";
 import { api, episodeCode } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { showPath } from "../../paths.js";
@@ -96,9 +96,9 @@ export function TvShow({ imdbId, season, inLibrary }) {
             rating: s.rating, year: years, cert: s.certification,
             length: `${seasons.length} ${seasons.length === 1 ? "season" : "seasons"}`, genres: s.genres,
           }} />}>
-          {s.overview && <p className="tv-spot__overview">{s.overview}</p>}
+          {s.overview && <p className="k-tv-spot__overview">{s.overview}</p>}
           {s.creators.length > 0 && <span className="kc-tv-credit">Created by <b>{s.creators.join(", ")}</b></span>}
-          <div className="tv-spot__actions">
+          <div className="k-tv-spot__actions">
             {play && (
               <Button variant="primary" size="lg" icon={room ? "users" : "play"} data-tv-initial=""
                 {...watchLink(play.titleId, room && room.sessionId, play.positionSeconds)}>
@@ -122,7 +122,7 @@ export function TvShow({ imdbId, season, inLibrary }) {
         <section className="kc-tvs__seasons" data-tv-row="" ref={regionRef}>
           <div className="kc-tvs__pills">
             {seasons.map((x) => (
-              <button key={x.number} type="button" className={"tv-pill kc-tvs__pill" + (x.number === current.number ? " is-on" : "")}
+              <button key={x.number} type="button" className={"k-tv-pill kc-tvs__pill" + (x.number === current.number ? " is-on" : "")}
                 aria-current={x.number === current.number ? "true" : undefined}
                 onClick={() => navigate(showPath(imdbId, { held: inLibrary, season: x.number, category: shelved }), { replace: true })}
                 {...focusOn(0, { key: "season:" + x.number, eyebrow: s.title, title: x.name || `Season ${x.number}`,
@@ -131,7 +131,7 @@ export function TvShow({ imdbId, season, inLibrary }) {
               </button>
             ))}
           </div>
-          <div className="tv-row__track kc-tvs__episodes">
+          <div className="k-tv-row__track kc-tvs__episodes">
             {current.episodes.map((e) => (
               <Episode key={e.number} episode={e} rooms={rooms.data || []} offers={offers.data} showImdbId={s.imdbId}
                 focus={focusOn(1, episodeSpot(e))} />

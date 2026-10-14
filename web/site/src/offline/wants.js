@@ -8,7 +8,7 @@
 // audio and subtitles Download picks by default (`choose.js`). A title still being made is downloaded
 // as it is made (`saver.js`). Saving the title ends the want at the API, and this side lets go of it.
 
-import { createStore, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, useStore } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { isOnline } from "../connectivity.js";
 import { sessionStore } from "../session.js";

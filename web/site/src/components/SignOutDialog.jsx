@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Dialog, useStore } from "@thekrystalship/krystal-ui";
+import { Button, Dialog, useStore } from "@thekrystalship/krystal";
 import { finishLeaving, leaving, stay } from "../leave.js";
 import { size } from "../pages/Offline.jsx";
 

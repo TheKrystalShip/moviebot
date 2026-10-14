@@ -9,7 +9,7 @@
  * so it asks the API for them itself.
  */
 
-import { createStore, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, useStore } from "@thekrystalship/krystal";
 import { api } from "./api.js";
 import { currentRemoteRoom, subscribeRemoteRoom } from "./remoteRoom.js";
 import { followFilm } from "./remoteSettings.js";

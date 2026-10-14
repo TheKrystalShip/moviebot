@@ -17,7 +17,7 @@
  * a room of the phone's choosing for a television in none.
  */
 
-import { toast, createStore } from "@thekrystalship/krystal-ui";
+import { toast, createStore } from "@thekrystalship/krystal";
 import { startWatching } from "./watchNow.js";
 import { currentDrivenScreen, setRemoteOpen, whenScreen } from "./remote.js";
 import { currentFilm } from "./remoteFilm.js";

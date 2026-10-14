@@ -1,4 +1,4 @@
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Icon } from "@thekrystalship/krystal";
 import { downloadLine } from "./DownloadButton.jsx";
 import { clock } from "../time.js";
 

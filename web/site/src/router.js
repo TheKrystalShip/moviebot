@@ -1,7 +1,7 @@
 // The site's addresses. A page is a path, so a film's page can be linked to and reloaded; the API
 // answers any path that is not its own with the site's index.
 
-import { createStore, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, useStore } from "@thekrystalship/krystal";
 import {
   ANIME, PROFILE_TABS, aboutPath, chatPath, discoverFilmPath, discoverPath, discoverShowPath, guestPath, homePath, libraryPath,
   listPath, moviePath, notifyPath, pairPath, profilePath, roomPath, savedPath, signInPath, tvPath,

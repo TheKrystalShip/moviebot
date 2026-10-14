@@ -10,7 +10,7 @@
 // tile over --canvas, the family the Control Panel's assistant icon belongs to, so Cinema installs as
 // an app of its own beside the Control Panel rather than as a second copy of the ship's mark. The
 // tile fills the frame square, since a launcher applies its own mask. The colours are copied from
-// the design system's tokens (@thekrystalship/krystal-ui, styles/tokens.css); an SVG cannot read a
+// the design system's tokens (@thekrystalship/krystal, styles/tokens.css); an SVG cannot read a
 // CSS custom property, so when one changes there it has to be changed here.
 
 import { execFileSync } from "node:child_process";

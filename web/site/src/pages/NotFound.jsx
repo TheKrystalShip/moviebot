@@ -1,4 +1,4 @@
-import { Button } from "@thekrystalship/krystal-ui";
+import { Button } from "@thekrystalship/krystal";
 import { Empty } from "../components/Film.jsx";
 import { homePath } from "../paths.js";
 import { linkProps } from "../router.js";

@@ -1,0 +1,3 @@
+{
+  "extends": ["@thekrystalship/krystal/stylelint"]
+}

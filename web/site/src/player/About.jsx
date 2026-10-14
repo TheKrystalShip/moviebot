@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Icon } from "@thekrystalship/krystal";
 import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";
 import { Drawer } from "../components/Drawer.jsx";

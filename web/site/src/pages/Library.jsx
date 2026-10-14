@@ -1,6 +1,6 @@
 import {
   Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, useFilters,
-} from "@thekrystalship/krystal-ui";
+} from "@thekrystalship/krystal";
 import { filmName } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLibrary } from "../offline/hooks.js";

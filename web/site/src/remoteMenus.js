@@ -9,7 +9,7 @@
  */
 
 import React from "react";
-import { toast } from "@thekrystalship/krystal-ui";
+import { toast } from "@thekrystalship/krystal";
 import { api } from "./api.js";
 import { qualityLevelsOf } from "./player/engine/media/ladder.ts";
 import { startingTracks } from "./player/engine/media/tracks.ts";

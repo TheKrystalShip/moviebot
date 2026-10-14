@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Dialog, Icon, Meter, Notice, OptionList, Select, toast } from "@thekrystalship/krystal-ui";
+import { Button, Dialog, Icon, Meter, Notice, OptionList, Select, toast } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";

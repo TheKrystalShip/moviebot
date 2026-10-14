@@ -1,7 +1,7 @@
 import React from "react";
 import {
   Button, Icon, IconButton, Input, List, ListRow, Modal, Select, ShowcaseCard, Textarea, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, toast, useFilters,
-} from "@thekrystalship/krystal-ui";
+} from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";

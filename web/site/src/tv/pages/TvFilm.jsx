@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, TvBackdrop, TvSpotlight, toast } from "@thekrystalship/krystal-ui";
+import { Button, TvBackdrop, TvSpotlight, toast } from "@thekrystalship/krystal";
 import { api, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { discoverFilmPath, moviePath } from "../../paths.js";
@@ -35,7 +35,7 @@ function FilmFrame({ details: d, fallback, length, actions, progress, facts }) {
             rating: d && d.rating, year: (d && d.year) || fallback.year, cert: d && d.certification,
             length, genres: d ? d.genres : [],
           }} />}>
-          {d && d.overview && <p className="tv-spot__overview">{d.overview}</p>}
+          {d && d.overview && <p className="k-tv-spot__overview">{d.overview}</p>}
           {credit && credit.length > 0 && (
             <span className="kc-tv-credit">
               {credit.map(([label, names], i) => (
@@ -43,7 +43,7 @@ function FilmFrame({ details: d, fallback, length, actions, progress, facts }) {
               ))}
             </span>
           )}
-          <div className="tv-spot__actions">{actions}</div>
+          <div className="k-tv-spot__actions">{actions}</div>
           {progress}
         </TvSpotlight>
       </section>

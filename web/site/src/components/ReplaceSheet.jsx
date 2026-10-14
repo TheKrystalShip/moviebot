@@ -1,4 +1,4 @@
-import { Button, Icon, useStore } from "@thekrystalship/krystal-ui";
+import { Button, Icon, useStore } from "@thekrystalship/krystal";
 import { stillSources } from "../remoteFilm.js";
 import { replaceStore } from "../remoteWatch.js";
 import { timeLeft } from "../time.js";

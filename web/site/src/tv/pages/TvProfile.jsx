@@ -1,4 +1,4 @@
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Icon } from "@thekrystalship/krystal";
 import { PROFILE_TAB_FACES } from "../../nav.js";
 import { aboutPath, profilePath } from "../../paths.js";
 import { navigate } from "../../router.js";
@@ -43,16 +43,16 @@ export function TvProfile({ tab: named, about = false }) {
         </div>
         <nav className="kc-tvp__nav" aria-label="Profile">
           {SECTIONS.map((t) => (
-            <button key={t.id} type="button" className="tv-pill kc-tvp__item" aria-current={!about && t.id === tab ? "page" : undefined}
+            <button key={t.id} type="button" className="k-tv-pill kc-tvp__item" aria-current={!about && t.id === tab ? "page" : undefined}
               data-tv-initial={!about && t.id === tab ? "" : undefined} onClick={() => navigate(profilePath(t.id), { replace: true })}>
               <Icon name={t.icon} size={18} />{t.label}
             </button>
           ))}
-          <button type="button" className="tv-pill kc-tvp__item" aria-current={about ? "page" : undefined}
+          <button type="button" className="k-tv-pill kc-tvp__item" aria-current={about ? "page" : undefined}
             data-tv-initial={about ? "" : undefined} onClick={() => navigate(aboutPath, { replace: true })}>
             <Icon name="info" size={18} />About
           </button>
-          <button type="button" className="tv-pill kc-tvp__item kc-tvp__out" onClick={leave}><Icon name="log-out" size={18} />Sign out</button>
+          <button type="button" className="k-tv-pill kc-tvp__item kc-tvp__out" onClick={leave}><Icon name="log-out" size={18} />Sign out</button>
         </nav>
       </aside>
       <section className="kc-tvp__panel">

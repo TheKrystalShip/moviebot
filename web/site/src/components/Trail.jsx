@@ -1,4 +1,4 @@
-import { Breadcrumbs } from "@thekrystalship/krystal-ui";
+import { Breadcrumbs } from "@thekrystalship/krystal";
 import { trailFor, useCrumbName } from "../crumbs.js";
 import { navigate } from "../router.js";
 

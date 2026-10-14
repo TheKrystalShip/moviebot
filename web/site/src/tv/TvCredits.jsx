@@ -12,8 +12,8 @@ export function TvCast({ cast }) {
   if (!cast || cast.length === 0) return null;
   return (
     <section className="kc-tv-cast" data-tv-row="">
-      <h2 className="tv-row__head">Cast</h2>
-      <div className="kc-tv-cast__track tv-row__track">
+      <h2 className="k-tv-row__head">Cast</h2>
+      <div className="kc-tv-cast__track k-tv-row__track">
         {cast.map((c) => {
           const body = (
             <>
@@ -50,7 +50,7 @@ export function TvFacts({ facts }) {
   if (shown.length === 0) return null;
   return (
     <section className="kc-tv-facts">
-      <h2 className="tv-row__head">Details</h2>
+      <h2 className="k-tv-row__head">Details</h2>
       <div className="kc-tv-facts__grid">
         {shown.map(([label, value, mono]) => (
           <div key={label} className="kc-tv-facts__cell">

@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, TvCard, TvRow } from "@thekrystalship/krystal-ui";
+import { Button, Icon, TvCard, TvRow } from "@thekrystalship/krystal";
 import { api, filmName, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { ANIME, discoverPath } from "../../paths.js";
@@ -133,10 +133,10 @@ function PersonWork({ personId, where }) {
       <div className="kc-tvd__browse-head">
         <span className="kc-tv-person__face kc-tvd__face">{p.portraitUrl ? <img src={p.portraitUrl} alt="" /> : initials(p.name)}</span>
         <span className="kc-tvd__browse-text">
-          {p.knownFor && <span className="tv-spot__eyebrow">{KNOWN_AS[p.knownFor] || p.knownFor}</span>}
+          {p.knownFor && <span className="k-tv-spot__eyebrow">{KNOWN_AS[p.knownFor] || p.knownFor}</span>}
           <span className="kc-tvd__title">{p.name}</span>
         </span>
-        <span className="tv-row__count">{p.titles.length}</span>
+        <span className="k-tv-row__count">{p.titles.length}</span>
       </div>
       <Posters titles={p.titles} where={where} />
       <p className="kc-tv-tmdb">Credits and artwork from TMDB.</p>
@@ -154,10 +154,10 @@ function GenreTitles({ kind, genre, category, where }) {
     <section className="kc-tvd__browse">
       <div className="kc-tvd__browse-head">
         <span className="kc-tvd__browse-text">
-          <span className="tv-spot__eyebrow">{category === ANIME ? (kind === "show" ? "Anime series" : "Anime films") : kind === "show" ? "TV Shows" : "Movies"}</span>
+          <span className="k-tv-spot__eyebrow">{category === ANIME ? (kind === "show" ? "Anime series" : "Anime films") : kind === "show" ? "TV Shows" : "Movies"}</span>
           <span className="kc-tvd__title">{g.genre}</span>
         </span>
-        <span className="tv-row__count">{g.titles.length}</span>
+        <span className="k-tv-row__count">{g.titles.length}</span>
       </div>
       <Posters titles={g.titles} where={where} />
       <p className="kc-tv-tmdb">Popular titles and artwork from TMDB.</p>
@@ -179,16 +179,16 @@ function BestMatch({ found, here, held }) {
     <section className="kc-tvd__best" data-tv-row="">
       {found.posterUrl && <img className="kc-tvd__poster" src={found.posterUrl} alt="" />}
       <div className="kc-tvd__body">
-        <span className="tv-spot__eyebrow">Best match</span>
+        <span className="k-tv-spot__eyebrow">Best match</span>
         <h1 className="kc-tvd__title">{found.title}</h1>
-        <div className="tv-spot__meta">
+        <div className="k-tv-spot__meta">
           {found.rating ? <span className="kc-tv-rating"><Icon name="star" size={13} /><span className="kc-mono">{found.rating.toFixed(1)}</span></span> : null}
           {found.year && <span>{found.year}</span>}
           <span>{show ? "TV series" : "Movie"}</span>
           {found.starring && <span>{found.starring}</span>}
         </div>
-        {found.overview && <p className="tv-spot__overview">{found.overview}</p>}
-        <div className="tv-spot__actions">
+        {found.overview && <p className="k-tv-spot__overview">{found.overview}</p>}
+        <div className="k-tv-spot__actions">
           {!show && <Button variant="primary" size="lg" icon="play" busy={busy} data-tv-initial="" onClick={watch}>Watch</Button>}
           <Button variant={show ? "primary" : "secondary"} size="lg" icon="info" data-tv-initial={show ? "" : undefined}
             {...linkProps(page)}>More info</Button>

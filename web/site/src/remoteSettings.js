@@ -10,7 +10,7 @@
  * confirmed or taken back by what the API then says.
  */
 
-import { createStore, toast, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, toast, useStore } from "@thekrystalship/krystal";
 import { api } from "./api.js";
 import { Ordered } from "./player/engine/session/ordered.ts";
 

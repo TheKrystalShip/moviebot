@@ -2,7 +2,7 @@
 // there, where the room shows the film being found, prepared and starting. A film that can already be
 // played goes to the room with the film in it.
 
-import { toast } from "@thekrystalship/krystal-ui";
+import { toast } from "@thekrystalship/krystal";
 import { api } from "./api.js";
 import { navigate } from "./router.js";
 import { activityRoom } from "./discord/launch.js";

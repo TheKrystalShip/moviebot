@@ -1,5 +1,7 @@
 import { createRoot } from "react-dom/client";
-import "@thekrystalship/krystal-ui/styles.css";
+import "./layers.css";
+import "@thekrystalship/krystal/styles.css";
+import "@thekrystalship/krystal-chat/styles.css";
 import "./site.css";
 import "./tv/tv.css";
 import { App } from "./App.jsx";

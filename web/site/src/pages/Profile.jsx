@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, List, ListRow, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal-ui";
+import { Button, Icon, List, ListRow, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal";
 import { KIND } from "../notifications.js";
 import { api, episodeCode, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
@@ -83,7 +83,7 @@ export function Profile({ tab: named, fromDevice = false }) {
 
 /**
  * Disables the tabs that need the server while `offline`, both the row of tabs and the phone's
- * picker. krystal-ui's `SubTabs` takes no disabled tab, so they are disabled in place, by the order
+ * picker. krystal's `SubTabs` takes no disabled tab, so they are disabled in place, by the order
  * `TABS` gives them; React sets no `disabled` of its own on them to undo it.
  */
 function useDisabledTabs(ref, offline, needsServer) {
@@ -91,8 +91,8 @@ function useDisabledTabs(ref, offline, needsServer) {
   React.useLayoutEffect(() => {
     if (!ref.current) return;
     const off = (i) => offline && !!needsServer[i];
-    ref.current.querySelectorAll(".subtab").forEach((button, i) => { button.disabled = off(i); });
-    ref.current.querySelectorAll(".subtabs-mobile option").forEach((option, i) => { option.disabled = off(i); });
+    ref.current.querySelectorAll(".k-subtab").forEach((button, i) => { button.disabled = off(i); });
+    ref.current.querySelectorAll(".k-subtabs-mobile option").forEach((option, i) => { option.disabled = off(i); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offline, key]);
 }

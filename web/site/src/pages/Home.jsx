@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, Rail } from "@thekrystalship/krystal-ui";
+import { Icon, Rail } from "@thekrystalship/krystal";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { ANIME, isAnime, libraryPath, listPath } from "../paths.js";
@@ -16,7 +16,7 @@ import { Spotlight } from "../components/Spotlight.jsx";
 import { useHomeSlides, useSlides } from "../heroes.js";
 import { BellButton } from "../components/Bell.jsx";
 import { SavedCard } from "./Saved.jsx";
-import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
+import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { inActivity } from "../discord/launch.js";
 import { useDriving } from "../components/WatchOnTv.jsx";
 

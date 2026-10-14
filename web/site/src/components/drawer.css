@@ -44,4 +44,4 @@
 @media (prefers-reduced-motion: reduce) { .kc-drawer { animation: none; } .kc-drawer__grabber { transition: none; } }
 
 /* While a drawer is open the toasts sit at the top of the screen, clear of it. */
-body.has-drawer .toasts { top: calc(16px + env(safe-area-inset-top, 0px)); bottom: auto; }
+body.has-drawer .k-toasts { top: calc(16px + env(safe-area-inset-top, 0px)); bottom: auto; }

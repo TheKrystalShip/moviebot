@@ -1,6 +1,6 @@
 import React from "react";
-import { Button, CardScreen, Notice } from "@thekrystalship/krystal-ui";
-import markUrl from "@thekrystalship/krystal-ui/assets/tks-mark.png";
+import { Button, CardScreen, Notice } from "@thekrystalship/krystal";
+import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { beginSignIn, completeSignIn } from "../session.js";
 import { navigate } from "../router.js";
 import { holdSplash } from "../splash.js";

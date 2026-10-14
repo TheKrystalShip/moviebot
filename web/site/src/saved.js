@@ -10,7 +10,7 @@
 // known, and a card draws no ribbon rather than one that says unsaved.
 
 import React from "react";
-import { createStore, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, useStore } from "@thekrystalship/krystal";
 import { api } from "./api.js";
 import { onReconnect } from "./connectivity.js";
 import { LoadTracker } from "./data.js";

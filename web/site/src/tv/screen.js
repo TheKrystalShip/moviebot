@@ -16,7 +16,7 @@
  */
 
 import React from "react";
-import { createStore, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, useStore } from "@thekrystalship/krystal";
 import { holdPersonConnection } from "../personConnection.js";
 import { roomPath } from "../paths.js";
 import { navigate } from "../router.js";

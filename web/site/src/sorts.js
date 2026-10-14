@@ -6,7 +6,7 @@
 // A page is named here and nowhere else in the API: the names below are the pages that sort.
 
 import React from "react";
-import { toast } from "@thekrystalship/krystal-ui";
+import { toast } from "@thekrystalship/krystal";
 import { api } from "./api.js";
 import { useOnline } from "./connectivity.js";
 import { useSession } from "./session.js";
@@ -54,7 +54,7 @@ function orderOf(sorts, surface, options) {
 }
 
 /**
- * One page's order, `[{key, dir}, change]`, for krystal-ui's ToolbarSort: what the person last picked
+ * One page's order, `[{key, dir}, change]`, for krystal's ToolbarSort: what the person last picked
  * on `surface`, else the first of `options`. It opens with the order kept on the device and takes the
  * API's when it answers, unless the person has picked one meanwhile; `change(key, dir)` shows the new
  * order at once and keeps it. With no connection a change is shown and not kept.

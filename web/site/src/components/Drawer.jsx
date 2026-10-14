@@ -1,6 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { Icon } from "@thekrystalship/krystal-ui";
+import { Icon } from "@thekrystalship/krystal";
 import "./drawer.css";
 
 // A pull down by the head settles the drawer away when it has gone this far, as a fraction of the

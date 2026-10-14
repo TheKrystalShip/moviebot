@@ -12,7 +12,7 @@
 // `LONGEST_WAIT_MS`, and at once on the browser's `online` event or the page coming back into view.
 // Any request the server answers means online again.
 
-import { createStore, useStore } from "@thekrystalship/krystal-ui";
+import { createStore, useStore } from "@thekrystalship/krystal";
 
 const PROBE = "/api/config";
 const PROBE_TIMEOUT_MS = 5000;

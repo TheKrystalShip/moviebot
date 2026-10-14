@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, CollectionTile, TvCard, TvRow } from "@thekrystalship/krystal-ui";
+import { Button, CollectionTile, TvCard, TvRow } from "@thekrystalship/krystal";
 import { api } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { discoverBrowsePath, discoverShelfPath } from "../../paths.js";
@@ -116,10 +116,10 @@ export function TvCategory({ id, index, where }) {
     <section className="kc-tvd__browse">
       <div className="kc-tvd__browse-head">
         <span className="kc-tvd__browse-text">
-          <span className="tv-spot__eyebrow">Discover</span>
+          <span className="k-tv-spot__eyebrow">Discover</span>
           <span className="kc-tvd__title">{section.label}</span>
         </span>
-        <span className="tv-row__count">{section.shelves.length}</span>
+        <span className="k-tv-row__count">{section.shelves.length}</span>
       </div>
       {section.series
         ? (
@@ -145,10 +145,10 @@ export function TvShelf({ id, where }) {
     <section className="kc-tvd__browse">
       <div className="kc-tvd__browse-head">
         <span className="kc-tvd__browse-text">
-          <span className="tv-spot__eyebrow">{s.section}</span>
+          <span className="k-tv-spot__eyebrow">{s.section}</span>
           <span className="kc-tvd__title">{s.title}</span>
         </span>
-        <span className="tv-row__count">{s.titles.length}</span>
+        <span className="k-tv-row__count">{s.titles.length}</span>
       </div>
       <div className="kc-tvsv__grid">
         {s.titles.map((t, i) => {

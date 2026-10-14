@@ -1,4 +1,4 @@
-import { Button, CarouselPager, Icon, Skeleton, useCarousel } from "@thekrystalship/krystal-ui";
+import { Button, CarouselPager, Icon, Skeleton, useCarousel } from "@thekrystalship/krystal";
 import { readySlides } from "../heroes.js";
 import { discoverFilmPath, moviePath, showPath } from "../paths.js";
 import { linkProps } from "../router.js";

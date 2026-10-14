@@ -1,4 +1,5 @@
-import { Chat, Icon, createAssistantClient } from "@thekrystalship/krystal-ui";
+import { Icon } from "@thekrystalship/krystal";
+import { Chat, createAssistantClient } from "@thekrystalship/krystal-chat";
 import { freshToken } from "./session.js";
 import { discoverFilmPath, showPath } from "./paths.js";
 import { linkProps } from "./router.js";
@@ -89,7 +90,7 @@ export function CinemaAssistant({ session, docked = false, dock, onClose, onExpa
       user={user ? { name: user.name, display: user.name, userId: user.id, displayName: user.name } : null}
       docked={docked}
       layout={docked ? "panel" : "page"}
-      pageClass={docked ? "" : "chat-page--framed"}
+      pageClass={docked ? "" : "k-chat-page--framed"}
       showPin={!!dock && dock.desktop}
       pinned={dock && dock.pinned}
       pinDisabled={!!dock && !dock.canPush}
