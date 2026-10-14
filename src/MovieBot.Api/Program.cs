@@ -404,8 +404,9 @@ app.MapGet("/api/titles/{id}/ticket", (
     if (library.Get(id) is null) return Results.NotFound();
 
     var now = clock.GetUtcNow();
+    var expires = MediaTicket.ExpiresAt(now);
     return Results.Ok(new MediaTicketReply(
-        MediaTicket.Issue(id, auth.Value, now), MediaTicket.ExpiresAt(now)));
+        MediaTicket.Issue(id, auth.Value, now), expires, (long)(expires - now).TotalSeconds));
 }).RequireActionOrGuest(GuestReach.RoomTitle, CinemaActions.Watch);
 
 app.MapSubtitles();

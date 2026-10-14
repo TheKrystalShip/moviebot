@@ -30,12 +30,14 @@ public sealed record ClientConfig(
 public sealed record ErrorReply(string Error);
 
 /// <summary>
-/// What a player carries on a request for one film's bytes, and when it stops working.
+/// What a player carries on a request for one film's bytes, and when it stops working: at
+/// <c>ExpiresAt</c> by the server's clock, which is <c>ExpiresIn</c> seconds from the reply. A
+/// device whose own clock is off measures the ticket's life by <c>ExpiresIn</c>.
 ///
 /// Every viewer of a title is handed the same string, so their segment requests are one URL a
 /// cache can answer once rather than one per person.
 /// </summary>
-public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt);
+public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt, long ExpiresIn);
 
 /// <summary>
 /// The serializer for everything this service puts on the wire that the Core library does not

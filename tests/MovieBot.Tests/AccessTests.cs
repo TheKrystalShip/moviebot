@@ -130,6 +130,17 @@ public sealed class AccessTests(SessionFixture fixture) : IClassFixture<SessionF
         Assert.NotEqual(HttpStatusCode.Unauthorized, poster.StatusCode);
     }
 
+    [Fact]
+    public async Task A_ticket_says_how_long_it_has_left_as_well_as_when_it_expires()
+    {
+        var viewer = fixture.CreatePersonClient("acc-8", "Ola", [CinemaActions.Watch]);
+        var reply = await viewer.GetFromJsonAsync($"/api/titles/{SessionFixture.ReadyTitle}/ticket",
+            TheKrystalShip.MovieBot.Api.ApiJsonContext.Default.MediaTicketReply);
+
+        Assert.InRange(reply!.ExpiresIn, (long)TimeSpan.FromHours(12).TotalSeconds, (long)TimeSpan.FromHours(13).TotalSeconds);
+        Assert.InRange((reply.ExpiresAt - DateTimeOffset.UtcNow).TotalSeconds, reply.ExpiresIn - 60, reply.ExpiresIn + 1);
+    }
+
     // ── Who a change is recorded as ───────────────────────────────────────────────────────
 
     [Fact]

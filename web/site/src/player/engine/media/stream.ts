@@ -5,7 +5,7 @@ import type { Manifest, ThumbnailStrip } from '../types';
 import { buildMasterPlaylist, masterPlaylistUrl, type MasterPlaylist } from './masterPlaylist';
 import { covers, rungReach, wantedHeight } from './heads';
 import { DeviceAnswers, deviceLoader, type DeviceCopy } from './deviceLoader';
-import { ensureTicket, hasTicket, ticketedLoader, ticketedMediaUrl } from './mediaTicket';
+import { carriesTicket, ensureTicket, ticketedLoader, ticketedMediaUrl } from './mediaTicket';
 import { findSubtitle } from './tracks';
 
 export interface StreamEvents {
@@ -84,8 +84,8 @@ const ReportHeartbeatMs = 30_000;
  * header is the fallback for a viewer whose ticket never arrived, and is never sent alongside
  * one: a shared cache refuses to store a response to a request carrying it.
  */
-function mediaFetchInit(titleId: string): RequestInit | undefined {
-  if (hasTicket(titleId)) return undefined;
+function mediaFetchInit(url: string): RequestInit | undefined {
+  if (carriesTicket(url)) return undefined;
 
   const token = environment().authToken();
   return token === null ? undefined : { headers: { authorization: `Bearer ${token}` } };
@@ -240,8 +240,8 @@ export class FilmStream {
         loader: answers === null ? ticketedLoader(titleId) : deviceLoader(answers, ticketedLoader(titleId)),
         // The fallback, for a viewer whose ticket never arrived. Never sent alongside a ticket: a
         // shared cache refuses to store a response to a request carrying it.
-        xhrSetup: (xhr) => {
-          if (hasTicket(titleId)) return;
+        xhrSetup: (xhr, url) => {
+          if (carriesTicket(url)) return;
           const token = environment().authToken();
           if (token !== null) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         },
@@ -571,7 +571,9 @@ export class FilmStream {
     if (held !== null) return held;
     if (environment().solo) throw new Error(`${relative} is not saved on this device`);
 
-    const response = await fetch(ticketedMediaUrl(titleId, relative), mediaFetchInit(titleId));
+    await ensureTicket(titleId);
+    const url = ticketedMediaUrl(titleId, relative);
+    const response = await fetch(url, mediaFetchInit(url));
     if (!response.ok) throw new Error(`${relative} answered ${response.status}`);
     return response.blob();
   }

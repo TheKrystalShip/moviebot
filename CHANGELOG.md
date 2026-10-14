@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.36.1] - 2026-10-14
+
+### Fixed
+
+- **A film opened on a page left open past its media ticket's expiry plays.** The player holds a ticket
+  until an hour before it expires and fetches a new one then, measuring its life from the reply's new
+  `expiresIn` so a device clock hours off the server's does not matter, and a media request refused
+  with `401` on its ticket is sent once more on a fresh one. A TV that kept the site open overnight
+  handed the server the previous evening's ticket, the playlist was refused, and the player sat on
+  its buffering screen. Site 0.83.1.
+
 ## [3.36.0] - 2026-10-14
 
 ### Changed

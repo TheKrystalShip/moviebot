@@ -55,7 +55,7 @@ export const api = {
 
   /** What a request for this film's bytes carries instead of who is asking. */
   mediaTicket: (id: string) =>
-    getJson<{ ticket: string; expiresAt: string }>(`/api/titles/${encodeURIComponent(id)}/ticket`),
+    getJson<{ ticket: string; expiresAt: string; expiresIn: number }>(`/api/titles/${encodeURIComponent(id)}/ticket`),
 
   participants: (sessionId: string) =>
     getJson<Participant[]>(`/api/sessions/${encodeURIComponent(sessionId)}/participants`),

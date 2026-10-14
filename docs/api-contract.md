@@ -17,7 +17,7 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET /.well-known/tks-actions.json` | the action manifest (`kgsm-docs/reference/action-manifest.md`): every action Cinema checks, in the namespace `cinema`, at `cluster`, the self actions marked `self`. Open: the provider reads it |
 | `GET /api/titles` | `TitleSummary[]`. The library as listed at most ten seconds ago, as are the episodes `/api/shows` and `/api/shows/{imdbId}` group; a person's progress and last plays on it are current |
 | `GET /api/titles/{id}` | `Manifest`, or 404 |
-| `GET /api/titles/{id}/ticket` | `{ticket, expiresAt}` — what a request for this film's bytes carries, or 404 |
+| `GET /api/titles/{id}/ticket` | `{ticket, expiresAt, expiresIn}` — what a request for this film's bytes carries, or 404 |
 | `GET /api/sessions` | `RoomSummary[]` — every room the person may enter, what it is watching, how many are in it; every room on the service key. A private room is in nobody else's list |
 | `GET /api/sessions/{id}` | `SessionStatePush` — creates the session if new. This and every `/api/sessions/{id}/…` route lets the person into the room when it admits them, makes it for them when there is none, and is a `403` when it is private to them (Who may come in, under Hub) |
 | `GET /api/sessions/{id}/participants` | `Participant[]` |
@@ -171,7 +171,12 @@ is handed the same string**, so their requests are one URL that one cached copy 
 
 - Fetch it from `GET /api/titles/{id}/ticket` before loading the film, and put it on every
   `/media/{id}/…` request for that title.
-- It is scoped to the one title and expires; `expiresAt` says when. It outlasts a feature.
+- It is scoped to the one title and expires: at `expiresAt` by the server's clock, `expiresIn`
+  seconds after the reply. It outlasts a feature. A player renews it before then rather than holding
+  it for as long as a page stays open, and measures its life by `expiresIn`, since a device's clock
+  can be hours off the server's.
+- A media request refused with `401` on a ticket the player believed good (a device clock off by
+  more than the margin it renews within) is sent once more on a newly fetched ticket.
 - Send the ticket **or** the header, never both: a shared cache refuses to store a response to a
   request carrying the header.
 - hls.js resolves a segment URI against the playlist that listed it, and relative resolution drops
