@@ -122,13 +122,6 @@
 .kc-shelf { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .kc-shelf__head { display: flex; align-items: flex-end; gap: 12px; }
 .kc-shelf__head h2 { margin: 0; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.kc-shelf__head--toggle {
-  align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 0; border: none;
-  background: none; color: var(--fg-3); font: inherit; text-align: left; cursor: pointer;
-}
-.kc-shelf__head--toggle h2 { color: var(--fg-1); }
-.kc-shelf__head--toggle:hover { color: var(--fg-1); }
-
 /* The tile closing a shelf of the library: the way past its last poster to everything else. */
 .kc-more-tile {
   box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -137,8 +130,6 @@
 }
 .kc-more-tile:hover, .kc-more-tile:focus-visible { border-color: var(--border-accent); color: var(--fg-1); }
 .kc-count { font-family: var(--font-mono); font-size: 12px; color: var(--fg-3); font-weight: 500; }
-.kc-tone--warn { color: var(--warning-fg); }
-.kc-tone--accent { color: var(--krystal-teal); }
 
 /* Film cards carry three facts under the poster, and read clean down to about 165px wide. */
 .kc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
@@ -403,30 +394,10 @@ button.kc-continue:disabled { cursor: progress; }
 .k-footer__end .kc-footer__org { font-family: var(--font-mono); }
 
 
-/* ── Search fields ───────────────────────────────────────────────────────────────────── */
-.kc-search {
-  display: flex; align-items: center; gap: 10px; padding: 0 6px 0 14px; height: 50px;
-  border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--fg-3);
-}
-.kc-search:focus-within { border-color: var(--border-accent); }
-.kc-search input,
-.kc-search input:focus {
-  flex: 1; min-width: 0; height: 100%; padding: 0; border: none; outline: none; box-shadow: none;
-  background: transparent; color: var(--fg-1); font-size: 15px; font-family: inherit;
-}
-.kc-search input::placeholder { color: var(--fg-4); }
-/* Discover's field is the page's first and largest thing: the way to anything not on the shelves. */
-.kc-search--discover { height: 60px; padding: 0 8px 0 20px; gap: 14px; border-radius: var(--r-md, var(--r-sm)); }
-.kc-search--discover input { font-size: 17px; }
-@media (max-width: 430px) {
-  .kc-search--discover { height: 52px; padding-left: 14px; gap: 10px; }
-  .kc-search--discover input { font-size: 16px; }
-}
-
 /* Discover: the field with the filter beside it at the field's height; a rail's place held until its
    shelf is asked for; the tiles' rails and the browse grid; and the spotlight's pager. */
 .kc-discover-bar { display: flex; align-items: stretch; gap: 10px; }
-.kc-discover-bar .kc-search { flex: 1; min-width: 0; }
+.kc-discover-bar .kc-discover-field { flex: 1; min-width: 0; }
 .kc-discover-filters { display: flex; align-items: stretch; }
 .kc-discover-filters .k-toolbar-filter { display: flex; align-items: stretch; }
 .kc-discover-filters .k-toolbar-filter__trigger {
@@ -673,7 +644,6 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-phonehead .kc-nav-off { margin-left: auto; }
 .k-tabbar .k-tabbar__tab:disabled { opacity: 0.4; cursor: default; }
 .kc-profile__tabs .k-subtab:disabled { opacity: 0.4; cursor: default; }
-.kc-search.is-off { opacity: 0.5; }
 .kc-episode.is-off { opacity: 0.4; }
 .kc-episode.is-off .kc-episode__still img { filter: grayscale(1); }
 .kc-dark { position: fixed; inset: 0; background: var(--canvas); }

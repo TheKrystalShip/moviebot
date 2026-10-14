@@ -1,4 +1,4 @@
-import { Button, Slider } from "@thekrystalship/krystal";
+import { Button, RadioGroup, Slider } from "@thekrystalship/krystal";
 import { COLORS, DEFAULT_STYLE, EDGES, FONTS, OPACITIES, SIZES, resolveStyle, storedStyle } from "./subtitleStyle.js";
 import "./styleEditor.css";
 
@@ -6,35 +6,18 @@ function Choices({ label, options, value, onPick }) {
   return (
     <div className="mp-style__row">
       <span className="mp-style__label">{label}</span>
-      <div className="mp-style__choices" role="radiogroup" aria-label={label}>
-        {options.map((o) => (
-          <button key={String(o.value)} type="button" role="radio" aria-checked={o.value === value}
-            className={"mp-style__choice" + (o.value === value ? " is-on" : "")} onClick={() => onPick(o.value)}>
-            {o.label}
-          </button>
-        ))}
-      </div>
+      <RadioGroup size="sm" label={label} options={options} value={value} onChange={onPick} />
     </div>
   );
 }
 
 /** The palette as swatches, and the browser's own picker for anything else. */
 function Colours({ label, value, onPick }) {
-  const custom = !COLORS.some((c) => c.value === value);
   return (
     <div className="mp-style__row">
       <span className="mp-style__label">{label}</span>
-      <div className="mp-style__choices" role="radiogroup" aria-label={label}>
-        {COLORS.map((c) => (
-          <button key={c.value} type="button" role="radio" aria-checked={c.value === value} aria-label={c.label} title={c.label}
-            className={"mp-style__swatch" + (c.value === value ? " is-on" : "")} style={{ "--swatch": c.value }}
-            onClick={() => onPick(c.value)} />
-        ))}
-        <label className={"mp-style__swatch mp-style__swatch--custom" + (custom ? " is-on" : "")} title="Another colour"
-          style={custom ? { "--swatch": value } : undefined}>
-          <input type="color" value={value} aria-label={`${label}, another colour`} onChange={(e) => onPick(e.target.value)} />
-        </label>
-      </div>
+      <RadioGroup variant="swatch" size="sm" label={label} picker="Another colour" value={value} onChange={onPick}
+        options={COLORS.map((c) => ({ value: c.value, label: c.label, color: c.value }))} />
     </div>
   );
 }

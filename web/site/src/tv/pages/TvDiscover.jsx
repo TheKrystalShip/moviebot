@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, TvCard, TvRow } from "@thekrystalship/krystal";
+import { Button, Icon, Input, TvCard, TvRow } from "@thekrystalship/krystal";
 import { api, filmName, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { ANIME, discoverPath } from "../../paths.js";
@@ -66,9 +66,9 @@ export function TvDiscover({ query }) {
   return (
     <div className={"kc-tv-page kc-tvd" + (q ? " has-query" : "")}>
       <form className="kc-tvd__search" onSubmit={submit} role="search" data-tv-top="">
-        <Icon name="search" size={22} />
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Any movie or show"
-          aria-label="Any movie or show" enterKeyHint="search" data-tv-initial={q || browsing ? undefined : ""} />
+        <Input wide className="kc-tvd__field" prefix={<Icon name="search" size={22} />} value={draft}
+          onChange={(e) => setDraft(e.target.value)} placeholder="Any movie or show" aria-label="Any movie or show"
+          enterKeyHint="search" data-tv-initial={q || browsing ? undefined : ""} />
       </form>
 
       {!q && person && <PersonWork key={person} personId={person} where={where} />}

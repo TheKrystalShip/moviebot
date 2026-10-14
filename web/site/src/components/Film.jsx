@@ -77,7 +77,7 @@ export function ContinueCard({ title, progress, remainingSeconds, room, onTv = f
       });
       setStarting(false);
     };
-    return <button type="button" className="kc-continue" disabled={starting} aria-label={`Watch on TV: ${filmName(title)}`} onClick={start}>{body}</button>;
+    return <Button variant="bare" className="kc-continue" disabled={starting} aria-label={`Watch on TV: ${filmName(title)}`} onClick={start}>{body}</Button>;
   }
   return <a className="kc-continue" {...(link.disabled ? { "aria-disabled": "true" } : link)}>{body}</a>;
 }
@@ -103,7 +103,7 @@ export function NextEpisodeCard({ progress, show, onTv = false }) {
     if (!started || onTv) setStarting(false);
   };
   return (
-    <button type="button" className="kc-continue" disabled={starting || !online} onClick={start}
+    <Button variant="bare" className="kc-continue" disabled={starting || !online} onClick={start}
       aria-label={onTv ? `Watch on TV: ${name}` : undefined}>
       <div className="kc-poster-art kc-poster-art--wide">
         {art ? <img src={art} alt="" loading="lazy" /> : <span className="kc-poster-art__name">{name}</span>}
@@ -113,7 +113,7 @@ export function NextEpisodeCard({ progress, show, onTv = false }) {
       <span className="kc-poster__note">
         {starting ? "Starting…" : progress.remainingSeconds > 0 ? timeLeft(progress.remainingSeconds) : progress.episodeName}
       </span>
-    </button>
+    </Button>
   );
 }
 

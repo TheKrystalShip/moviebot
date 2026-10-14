@@ -1,5 +1,5 @@
 import React from "react";
-import { Drawer, Icon } from "@thekrystalship/krystal";
+import { Button, Drawer, Icon } from "@thekrystalship/krystal";
 import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, Tagline, originalTitle } from "../components/FilmDetails.jsx";
@@ -103,10 +103,10 @@ function aboutOf(manifest, d) {
  */
 export function AboutButton({ open, onToggle }) {
   return (
-    <button type="button" className={"mp-round mp-top__about" + (open ? " is-open" : "")} aria-expanded={open}
+    <Button variant="bare" className={"mp-round mp-top__about" + (open ? " is-open" : "")} aria-expanded={open}
       aria-label="About" title="About (i)" onClick={onToggle}>
       <Icon name="info" size={18} />
-    </button>
+    </Button>
   );
 }
 
@@ -122,7 +122,7 @@ export function AboutPanel({ about, sheet, onClose }) {
     <aside className="mp-about mp-about--pane" aria-label="About">
       <div className="mp-about__bar">
         <span className="mp-about__label">About</span>
-        <button type="button" className="mp-round mp-round--small" aria-label="Close" onClick={onClose}><Icon name="x" size={16} /></button>
+        <Button variant="bare" className="mp-round mp-round--small" aria-label="Close" onClick={onClose}><Icon name="x" size={16} /></Button>
       </div>
       <div className="mp-about__scroll"><AboutBody about={about} /></div>
     </aside>

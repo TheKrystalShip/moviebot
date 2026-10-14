@@ -124,25 +124,20 @@
 /* ── Discover ── */
 
 .kc-tvd { padding: 96px 0 200px; }
-.kc-tvd__search {
-  position: relative; z-index: 1;
-  margin: 0 var(--tv-margin-x); height: 56px; box-sizing: border-box; padding: 0 20px;
-  display: flex; align-items: center; gap: 14px;
-  border-radius: var(--r-md); background: var(--surface-3); color: var(--fg-1);
-  transition: transform var(--d-base) var(--ease-out);
+.kc-tvd__search { position: relative; z-index: 1; margin: 0 var(--tv-margin-x); }
+.kc-tvd__field {
+  height: 56px; padding: 0 20px; gap: 14px; border: 0; border-radius: var(--r-md); background: var(--surface-3); color: var(--fg-1);
+  font-size: var(--text-lg); transition: transform var(--d-base) var(--ease-out);
 }
-.kc-tvd__search input {
-  flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; outline: none;
-  font: inherit; font-size: var(--text-lg); color: var(--fg-1);
-}
-.kc-tvd__search input::placeholder { color: var(--fg-3); }
-:root[data-tv] .kc-tvd__search input:focus-visible { box-shadow: none; }
-.kc-tvd__search:focus-within {
+.kc-tvd__field .k-input__affix { color: var(--fg-1); }
+.kc-tvd__field .k-input__el::placeholder { color: var(--fg-3); }
+:root[data-tv] .kc-tvd__field .k-input__el:focus-visible { box-shadow: none; }
+.kc-tvd__field:focus-within {
   transform: scale(1.015);
   box-shadow: inset 0 0 0 1px var(--fg-1), var(--glow-accent);
 }
 .kc-tvd.has-query { padding-top: 84px; }
-.kc-tvd.has-query .kc-tvd__search { height: 46px; background: var(--surface-2); }
+.kc-tvd.has-query .kc-tvd__field { height: 46px; background: var(--surface-2); }
 .kc-tvd__rows { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 8px; padding-top: 18px; }
 .kc-tvd__spot { position: relative; z-index: 1; padding: 36px var(--tv-margin-x) 8px; max-width: 62%; }
 .kc-tvd__lazy { min-height: 1px; }

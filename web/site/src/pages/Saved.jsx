@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  Button, Dialog, Icon, IconButton, Input, List, ListRow, Select, ShowcaseCard, Textarea, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, toast, useFilters,
+  Button, Dialog, Icon, IconButton, Input, List, ListRow, Select, SearchField, ShowcaseCard, Textarea, Toolbar, ToolbarCount, ToolbarFilters, ToolbarSearch, ToolbarSort, ToolbarSpacer, toast, useFilters,
 } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
@@ -54,8 +54,7 @@ export function Saved() {
   const [busy, setBusy] = React.useState(false);
   const online = useOnline();
 
-  const create = async (e) => {
-    e.preventDefault();
+  const create = async () => {
     if (!name.trim()) return;
     setBusy(true);
     try {
@@ -77,12 +76,9 @@ export function Saved() {
         )}
       </PageHead>
       {naming && (
-        <form className="kc-search" onSubmit={create}>
-          <Icon name="list" size={17} />
-          <input autoFocus value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="List name" aria-label="List name" />
-          <Button variant="outline" size="lg" onClick={() => { setNaming(false); setName(""); }}>Cancel</Button>
-          <Button type="submit" variant="primary" size="lg" disabled={busy || !name.trim()}>Create</Button>
-        </form>
+        <SearchField autoFocus icon="list" value={name} maxLength={80} onChange={setName} onSubmit={create}
+          placeholder="List name" submitLabel="Create" submitDisabled={busy || !name.trim()}
+          actions={<Button variant="outline" size="lg" onClick={() => { setNaming(false); setName(""); }}>Cancel</Button>} />
       )}
       <Failed error={lists.error} onRetry={lists.reload} />
       {lists.data && (

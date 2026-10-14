@@ -108,14 +108,14 @@ const recorder = () => {
     };
     const overlay = el.closest('[role="dialog"], [role="menu"], [aria-modal="true"]');
     if (overlay) return { ...base, id: "dialog/" + base.label };
-    if (el.closest(".tv-bar")) return { ...base, id: "bar/" + base.label };
+    if (el.closest(".k-tv-bar")) return { ...base, id: "bar/" + base.label };
     if (el.closest(".mp-frame")) return { ...base, id: "player/" + base.label };
-    const row = el.closest(".tv-row");
+    const row = el.closest(".k-tv-row");
     if (row) {
-      const head = row.querySelector(".tv-row__head");
-      const title = head ? (head.firstChild && head.firstChild.nodeType === 3 ? head.firstChild.textContent : [...head.childNodes].filter((n) => !(n.classList && n.classList.contains("tv-row__count"))).map((n) => n.textContent).join("")).trim() : "?";
-      const track = row.querySelector(".tv-row__track") || row;
-      const items = [...track.querySelectorAll(Focusable)].filter((x) => !x.parentElement.closest(".tv-card") || x === el);
+      const head = row.querySelector(".k-tv-row__head");
+      const title = head ? (head.firstChild && head.firstChild.nodeType === 3 ? head.firstChild.textContent : [...head.childNodes].filter((n) => !(n.classList && n.classList.contains("k-tv-row__count"))).map((n) => n.textContent).join("")).trim() : "?";
+      const track = row.querySelector(".k-tv-row__track") || row;
+      const items = [...track.querySelectorAll(Focusable)].filter((x) => !x.parentElement.closest(".k-tv-card") || x === el);
       return { ...base, id: `row/${title}/${items.indexOf(el)}` };
     }
     if (el.closest("[data-tv-top], .kc-tvh__hero")) return { ...base, id: "hero/" + base.label };

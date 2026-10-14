@@ -3,23 +3,6 @@
 .mp-style__row { display: flex; flex-direction: column; gap: 6px; }
 .mp-style__label { display: flex; font-size: 12px; font-weight: 600; color: var(--fg-2); }
 .mp-style__value { margin-left: auto; font-weight: 500; color: var(--fg-3); font-family: var(--font-mono); }
-.mp-style__choices { display: flex; flex-wrap: wrap; gap: 6px; }
-.mp-style__choice {
-  padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border-strong); background: transparent;
-  color: var(--fg-2); font: inherit; font-size: 12.5px; cursor: pointer;
-}
-.mp-style__choice:hover { background: var(--surface-2); color: var(--fg-1); }
-.mp-style__choice.is-on { border-color: var(--krystal-teal); background: rgba(64, 160, 192, 0.16); color: var(--fg-1); }
-.mp-style__swatch {
-  position: relative; width: 26px; height: 26px; border-radius: 999px; border: 2px solid var(--border-strong); background: var(--swatch);
-  cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
-}
-.mp-style__swatch.is-on { border-color: var(--krystal-teal); box-shadow: 0 0 0 2px rgba(64, 160, 192, 0.35); }
-.mp-style__swatch--custom {
-  background: conic-gradient(#f06a6a, #ffe14d, #7ee07e, #5ee0f0, #6a8cf0, #f07ef0, #f06a6a);
-  overflow: hidden;
-}
-.mp-style__swatch--custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; border: 0; padding: 0; }
 .mp-style__reset { align-self: flex-start; }
 
 /* The profile page's preview: a frame of the film's proportions with a line in the chosen style. */

@@ -193,11 +193,11 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
         <section className="kc-section">
           <div className="kc-seasons">
             {seasons.map((x) => (
-              <button key={x.number} type="button"
+              <Button variant="bare" key={x.number}
                 className={"kc-season-chip" + (x.number === current.number ? " is-on" : "")}
                 onClick={() => navigate(showPath(imdbId, { held: inLibrary, season: x.number, category: shelved }), { replace: true })}>
                 Season {x.number}
-              </button>
+              </Button>
             ))}
           </div>
 

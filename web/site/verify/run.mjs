@@ -142,11 +142,11 @@ async function roomChecks(browser) {
 
   // Bob's element waits for data: past the stall grace, the room sees him marked.
   await bob.evaluate(() => document.querySelector('video').dispatchEvent(new Event('waiting')));
-  await ada.waitForSelector('.mp-top .mp-avatar.is-buffering', { timeout: 4000 }).catch(() => null);
-  check('a viewer waiting for the film is marked for the others', (await ada.$('.mp-top .mp-avatar.is-buffering')) !== null);
+  await ada.waitForSelector('.mp-top .mp-avatar:has(.k-avatar__status--warn)', { timeout: 4000 }).catch(() => null);
+  check('a viewer waiting for the film is marked for the others', (await ada.$('.mp-top .mp-avatar:has(.k-avatar__status--warn)')) !== null);
   await bob.evaluate(() => document.querySelector('video').dispatchEvent(new Event('playing')));
-  await ada.waitForFunction(() => !document.querySelector('.mp-top .mp-avatar.is-buffering'), null, { timeout: 4000 }).catch(() => null);
-  check('and unmarked once it plays again', (await ada.$('.mp-top .mp-avatar.is-buffering')) === null);
+  await ada.waitForFunction(() => !document.querySelector('.mp-top .mp-avatar:has(.k-avatar__status--warn)'), null, { timeout: 4000 }).catch(() => null);
+  check('and unmarked once it plays again', (await ada.$('.mp-top .mp-avatar:has(.k-avatar__status--warn)')) === null);
 
   // Opened, the room hands out its link and anybody holding it walks in.
   await press(ada, '.mp-invite');
@@ -204,9 +204,9 @@ async function menuChecks(browser) {
   await holds(ada);
 
   await press(ada, '.mp-menu-button[title="Subtitles"]');
-  const rows = await ada.$$eval('.mp-popover .mp-option__label', (els) => els.map((e) => e.textContent));
+  const rows = await ada.$$eval('.mp-panel .k-menu__label', (els) => els.map((e) => e.firstChild.textContent));
   check('the subtitle menu opens over the controls, Off first', rows[0] === 'Off' && rows.length > 1, rows.join(' | '));
-  const english = await ada.$$('.mp-popover .mp-option[role="menuitemradio"]:not([disabled])');
+  const english = await ada.$$('.mp-panel [role="menuitemradio"]:not([aria-disabled="true"])');
   await english[english.length - 1].click();
   await ada.waitForFunction(() => [...document.querySelector('video').textTracks].some((t) => t.mode === 'hidden'), null, { timeout: 8000 }).catch(() => null);
   check('choosing a track attaches it hidden, for the page to draw',
@@ -217,7 +217,7 @@ async function menuChecks(browser) {
   const audio = await ada.$('.mp-menu-button[title="Audio track"]');
   if (audio) {
     await press(ada, '.mp-menu-button[title="Audio track"]');
-    const options = await ada.$$('.mp-popover .mp-option');
+    const options = await ada.$$('.mp-panel [role="menuitemradio"]');
     const before = await ada.textContent('.mp-menu-button[title="Audio track"]');
     await options[options.length - 1].click();
     await wait(300);
@@ -277,7 +277,7 @@ async function layoutChecks(browser) {
     if (expected === 'tiny') {
       check('  and its controls are one row', (await page.$('.mp-tiny')) !== null && (await page.$('.mp-bottom')) === null);
       await press(page, '.mp-tiny .mp-icon');
-      const folded = await page.$$eval('.k-drawer .mp-option__label', (els) => els.map((e) => e.textContent));
+      const folded = await page.$$eval('.k-drawer .k-menu__label', (els) => els.map((e) => e.firstChild.textContent));
       check('  with the rest folded behind the overflow', folded.includes('Subtitles'), folded.join(', '));
     }
     await page.context().close();

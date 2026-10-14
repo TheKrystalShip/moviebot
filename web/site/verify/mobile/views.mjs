@@ -79,7 +79,7 @@ export const VIEWS = [
     act: async (page) => {
       await openRemote(page);
       await tap('.kc-remote .mp-menu-button[title="Subtitles"]', ".mp-aimed.mp-menu")(page);
-      await tap(".mp-aimed .mp-option:has(.lucide-type)", ".mp-aimed.is-styling")(page);
+      await tap(".mp-aimed [role=menuitem]:has(.lucide-type)", ".mp-aimed.is-styling")(page);
     },
   },
   {

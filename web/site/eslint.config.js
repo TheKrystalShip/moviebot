@@ -1,10 +1,11 @@
 // ESLint flat config. Narrow on purpose: the static bug classes a build passes silently, undeclared
-// identifiers and Rules-of-Hooks violations, are errors; the rest are warnings.
+// identifiers and Rules-of-Hooks violations, and the design system's rules are errors; the rest are
+// warnings.
 import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import react from "eslint-plugin-react";
-import krystal from "@thekrystalship/krystal/eslint";
+import { configs as krystal } from "@thekrystalship/krystal/eslint";
 
 export default [
   { ignores: ["dist/**", "node_modules/**"] },
@@ -12,7 +13,7 @@ export default [
   js.configs.recommended,
 
   // The player's engine is TypeScript, checked by `tsc`; the design-system rules read the JavaScript.
-  ...krystal.map((entry) => ({ ...entry, files: ["**/*.{js,jsx,mjs}"] })),
+  ...krystal.strict.map((entry) => ({ ...entry, files: ["**/*.{js,jsx,mjs}"] })),
 
   {
     files: ["**/*.{js,jsx,mjs}"],

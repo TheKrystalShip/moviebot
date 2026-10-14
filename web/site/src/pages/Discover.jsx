@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, Skeleton } from "@thekrystalship/krystal";
+import { Button, Icon, SearchField, Skeleton } from "@thekrystalship/krystal";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useOnline } from "../connectivity.js";
@@ -17,7 +17,7 @@ import { CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, LandingFilters, 
 import { openingEpisode, watchOpening } from "../watchNow.js";
 
 /** The class the page's field carries, so the shortcut that opens the page can find it. */
-export const DISCOVER_FIELD = "kc-search--discover";
+export const DISCOVER_FIELD = "kc-discover-field";
 
 /**
  * Finding anything to watch, here or not. With nothing typed, the field with the filter beside it, a
@@ -85,22 +85,14 @@ export function Discover({ query }) {
   const where = (t) => ({ here: t.kind === "film" ? filmsHere.get(t.imdbId) : null, held: t.kind === "show" && heldShows.has(t.imdbId) });
   const [best, ...rest] = found;
 
-  const submit = (e) => {
-    e.preventDefault();
-    const typed = draft.trim();
-    navigate(discoverPath(typed));
-  };
+  const submit = (typed) => navigate(discoverPath(typed.trim()));
 
   return (
     <div className="kc-page kc-discover">
       <PageHead title="Discover" />
       <div className="kc-discover-bar">
-      <form className={"kc-search " + DISCOVER_FIELD + (online ? "" : " is-off")} onSubmit={submit} role="search">
-        <Icon name="search" size={20} />
-        <input ref={field} value={draft} onChange={(e) => setDraft(e.target.value)} disabled={!online}
-          placeholder="Any movie or show" aria-label="Any movie or show" enterKeyHint="search" />
-        <Button type="submit" variant="primary" size="lg" disabled={!online}>Search</Button>
-      </form>
+      <SearchField ref={field} size="xl" className={DISCOVER_FIELD} value={draft} onChange={setDraft} onSubmit={submit}
+        disabled={!online} placeholder="Any movie or show" />
       {!q && !browsing && online && <LandingFilters index={index.data} />}
       </div>
 

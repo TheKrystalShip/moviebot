@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.37.0] - 2026-10-14
+
+### Changed
+
+- **The site draws its remaining controls through the Krystal design system** (`@thekrystalship/krystal`
+  and `-chat` 0.37.1). The player's people are `Avatar`s (a tone per person, one letter, the sheet sets the
+  diameter, a status dot for a viewer who is buffering). The player's menus are `Menu`s of `MenuRadioItem`s
+  (with a second line, and read-only for a guest's chapters) and `Popover`s for the episodes and the
+  subtitle style, drawn inside the player's frame so they show while it is full screen and hung from the
+  control bar; on a television they are the column down the frame's right edge. The subtitle style's choices
+  are `RadioGroup`s, its colours a swatch `RadioGroup` with the browser's picker. Discover, Notify me and
+  the new list's name are `SearchField`s, and the television's Discover field is an `Input`. Every control
+  the site's own class shapes (the player's chrome, the remote, the film and episode tiles, the download
+  mark, the season chips, the television's profile and show pills) is a `Button variant="bare"`. The
+  design system's lint rules are errors. Site 0.84.0.
+
 ## [3.36.1] - 2026-10-14
 
 ### Fixed

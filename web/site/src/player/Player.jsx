@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Drawer, Icon, Toggle } from "@thekrystalship/krystal";
+import { Avatar, Button, Drawer, Icon, MenuItem, Toggle } from "@thekrystalship/krystal";
 import { PlayerRoom } from "./engine/room.ts";
 import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";
@@ -19,7 +19,7 @@ import { Volume } from "./Volume.jsx";
 import { ago } from "../time.js";
 import { AboutButton, AboutPanel, PauseCard, useAbout, usePausedLong } from "./About.jsx";
 import {
-  Menu, MenuButton, MenuTitles, audioValue, episodeValue, hasEpisodes, hasQualityChoice, qualityValue, subtitleValue,
+  MenuButton, MenuTitles, PlayerMenu, reach, audioValue, episodeValue, hasEpisodes, hasQualityChoice, qualityValue, subtitleValue,
 } from "./Menus.jsx";
 
 const SkipSeconds = 10;
@@ -44,21 +44,21 @@ const TinyHeight = 260;
 const noSubscribe = () => () => {};
 const noView = () => null;
 
-const Tints = ["teal", "info", "warning", "success"];
+const Tones = ["teal", "info", "warn", "ok"];
 
 /** A person's mark: the first letter of their name on a colour that stays theirs. */
-function tintFor(userId) {
+function toneFor(userId) {
   let hash = 0;
   for (const ch of String(userId)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return Tints[hash % Tints.length];
+  return Tones[hash % Tones.length];
 }
 
-export function Avatar({ person, className = "" }) {
-  const initial = (person.displayName || "?").trim().charAt(0).toUpperCase() || "?";
-  const marks = (person.buffering ? " is-buffering" : "") + (person.guest ? " is-guest" : "");
+export function Person({ person, className = "" }) {
   const title = [person.displayName, person.guest ? "guest" : null, person.buffering ? "buffering" : null].filter(Boolean).join(" · ");
   return (
-    <span className={`mp-avatar mp-avatar--${tintFor(person.userId)}${marks} ${className}`} title={title}>{initial}</span>
+    <Avatar name={person.displayName || "?"} tone={toneFor(person.userId)} letters={1} size="css" title={title}
+      status={person.buffering ? "warn" : undefined} statusLabel={person.buffering ? "buffering" : undefined}
+      className={"mp-avatar" + (person.guest ? " is-guest" : "") + (className ? " " + className : "")} />
   );
 }
 
@@ -235,6 +235,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   const lost = useRoomLost(view, online);
   const compact = size !== "wide";
   const [menu, setMenu] = React.useState(null);
+  const bottomRef = React.useRef(null);
   // The subtitle menu's style editor is open: a sample line stands in while the film says nothing.
   const [styling, setStyling] = React.useState(false);
   React.useEffect(() => { if (menu !== "subs") setStyling(false); }, [menu]);
@@ -621,7 +622,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
       {manifest && (
         <div className="mp-top">
           {!viewOnly && onBack && size !== "tiny" && (
-            <button type="button" className="mp-round" aria-label="Back" title="Back" onClick={onBack}><Icon name="arrow-left" size={18} /></button>
+            <Button variant="bare" className="mp-round" aria-label="Back" title="Back" onClick={onBack}><Icon name="arrow-left" size={18} /></Button>
           )}
           <div className="mp-top__title">
             <span className="mp-top__name">{filmName(manifest)}</span>
@@ -632,7 +633,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
               {tv && remoteAttached && clock.paused && (
                 <span className="mp-top__remote" role="img" aria-label="A remote is attached"><Icon name="smartphone" size={18} /></span>
               )}
-              <div className="mp-avatars">{everyone.map((p) => <Avatar key={p.userId} person={p} />)}</div>
+              <div className="mp-avatars">{everyone.map((p) => <Person key={p.userId} person={p} />)}</div>
               {size === "wide" && <span className="mp-top__count">{everyone.length > 1 ? `${everyone.length} watching` : "Just you"}</span>}
               {size !== "tiny" && !tv && !viewOnly && <InviteButton open={invite} icon={phone}
                 onToggle={() => { setMenu(null); setOverflow(false); setInfo(false); setInvite((o) => !o); }} />}
@@ -646,13 +647,13 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
         <div className="mp-lost" role="status">
           <Icon name="wifi-off" size={16} />
           <span className="mp-lost__text">The room can't be reached</span>
-          {carryOn && <button type="button" className="mp-lost__go" onClick={carryOn}>Carry on from this device</button>}
+          {carryOn && <Button variant="bare" className="mp-lost__go" onClick={carryOn}>Carry on from this device</Button>}
         </div>
       )}
 
       {announcement && (
         <div key={announcement.key} className="mp-event" role="status">
-          {announcement.actor && <Avatar person={announcement.actor} className="mp-avatar--small" />}
+          {announcement.actor && <Person person={announcement.actor} className="mp-avatar--small" />}
           {announcement.text}
         </div>
       )}
@@ -667,21 +668,21 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
       {waiting && !centred && <div className="mp-spinner" role="status" aria-label="Waiting for the film"><Icon name="loader-circle" size={36} className="mp-spin" /></div>}
       {centred && (
         <div className="mp-centre">
-          <button type="button" className="mp-centre__skip" aria-label={`Back ${SkipSeconds} seconds`} onClick={() => { room.seekBy(-SkipSeconds); wake(); }}>
+          <Button variant="bare" className="mp-centre__skip" aria-label={`Back ${SkipSeconds} seconds`} onClick={() => { room.seekBy(-SkipSeconds); wake(); }}>
             <Icon name="rotate-ccw" size={28} />
-          </button>
-          <button ref={playRef} type="button" className="mp-centre__play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => { room.togglePlay(); wake(); }}>
+          </Button>
+          <Button variant="bare" ref={playRef} className="mp-centre__play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => { room.togglePlay(); wake(); }}>
             {waiting ? <Icon name="loader-circle" size={32} className="mp-spin" /> : <Icon name={clock.paused ? "play" : "pause"} size={32} />}
-          </button>
-          <button type="button" className="mp-centre__skip" aria-label={`Forward ${SkipSeconds} seconds`} onClick={() => { room.seekBy(SkipSeconds); wake(); }}>
+          </Button>
+          <Button variant="bare" className="mp-centre__skip" aria-label={`Forward ${SkipSeconds} seconds`} onClick={() => { room.seekBy(SkipSeconds); wake(); }}>
             <Icon name="rotate-cw" size={28} />
-          </button>
+          </Button>
         </div>
       )}
       {locked && active && (
-        <button type="button" className="mp-unlock" aria-label="Unlock" onClick={() => { setLocked(false); wake(); }}>
+        <Button variant="bare" className="mp-unlock" aria-label="Unlock" onClick={() => { setLocked(false); wake(); }}>
           <Icon name="lock-open" size={18} />Unlock
-        </button>
+        </Button>
       )}
       {pauseCard && <PauseCard about={about} />}
       {pauseCard && tv && !viewOnly && <PausedCode />}
@@ -714,16 +715,16 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
       {manifest && view.ready && (size === "tiny"
         ? <TinyControls room={room} view={view} clock={clock} duration={duration} onHold={hold} swipe={swipe} onMore={() => { setMenu(null); setOverflow((o) => !o); }} />
         : (
-          <div className="mp-bottom">
+          <div className="mp-bottom" ref={bottomRef}>
             <ScrubBar duration={duration} position={clock.position} ready={view.transcodeHead} buffered={clock.buffered}
               thumbnails={view.thumbnails} chapters={manifest.chapters} onSeek={(s) => room.seek(s)} onHold={hold} swipe={swipe}
               readOnly={viewOnly} seeking={seeking} remaining={phone} />
             {phone ? (
               <div className="mp-controls">
-                <button type="button" className={"mp-menu-button" + (compact ? " is-icon" : "")} aria-label="Lock" title="Lock" onClick={lock}>
+                <Button variant="bare" className={"mp-menu-button" + (compact ? " is-icon" : "")} aria-label="Lock" title="Lock" onClick={lock}>
                   <Icon name="lock" size={18} />
                   {!compact && <span className="mp-menu-button__value">Lock</span>}
-                </button>
+                </Button>
                 <span className="mp-controls__gap" />
                 {hasEpisodes(view) && (
                   <MenuButton kind="episodes" icon="list-video" open={menu === "episodes"} compact={compact} onClick={() => openMenu("episodes")} />
@@ -733,42 +734,42 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
                   <MenuButton kind="settings" icon="settings" open={menu === "settings"} compact={compact} onClick={() => openMenu("settings")} />
                 )}
                 {manifest.episode && !viewOnly && next && (
-                  <button type="button" className={"mp-menu-button" + (compact ? " is-icon" : "")} disabled={view.stepping}
+                  <Button variant="bare" className={"mp-menu-button" + (compact ? " is-icon" : "")} disabled={view.stepping}
                     aria-label={`Next episode: ${episodeWords(next)}`} title={`Next episode · ${episodeWords(next)}`} onClick={goNext}>
                     <Icon name="skip-forward" size={18} />
                     {!compact && <span className="mp-menu-button__value">Next episode</span>}
-                  </button>
+                  </Button>
                 )}
               </div>
             ) : (
             <div className="mp-controls">
               {!viewOnly && (
                 <>
-                  <button ref={playRef} type="button" className="mp-play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => { room.togglePlay(); wake(); }}>
+                  <Button variant="bare" ref={playRef} className="mp-play" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => { room.togglePlay(); wake(); }}>
                     <Icon name={clock.paused ? "play" : "pause"} size={compact ? 18 : 20} />
-                  </button>
-                  <button type="button" className="mp-icon" aria-label={`Back ${SkipSeconds} seconds`} title={`Back ${SkipSeconds} seconds (j)`} onClick={() => room.seekBy(-SkipSeconds)}>
+                  </Button>
+                  <Button variant="bare" className="mp-icon" aria-label={`Back ${SkipSeconds} seconds`} title={`Back ${SkipSeconds} seconds (j)`} onClick={() => room.seekBy(-SkipSeconds)}>
                     <Icon name="rotate-ccw" size={19} />
-                  </button>
-                  <button type="button" className="mp-icon" aria-label={`Forward ${SkipSeconds} seconds`} title={`Forward ${SkipSeconds} seconds (l)`} onClick={() => room.seekBy(SkipSeconds)}>
+                  </Button>
+                  <Button variant="bare" className="mp-icon" aria-label={`Forward ${SkipSeconds} seconds`} title={`Forward ${SkipSeconds} seconds (l)`} onClick={() => room.seekBy(SkipSeconds)}>
                     <Icon name="rotate-cw" size={19} />
-                  </button>
+                  </Button>
                 </>
               )}
               {manifest.episode && !viewOnly && (
                 <>
-                  <button type="button" className="mp-icon" disabled={!(around && around.previous) || view.stepping}
+                  <Button variant="bare" className="mp-icon" disabled={!(around && around.previous) || view.stepping}
                     aria-label={around && around.previous ? `Previous episode: ${episodeWords(around.previous)}` : "No previous episode here"}
                     title={around && around.previous ? `Previous episode · ${episodeWords(around.previous)}` : "No previous episode here"}
                     onClick={() => room.previousEpisode()}>
                     <Icon name="skip-back" size={19} />
-                  </button>
-                  <button type="button" className="mp-icon" disabled={!next || view.stepping}
+                  </Button>
+                  <Button variant="bare" className="mp-icon" disabled={!next || view.stepping}
                     aria-label={next ? `Next episode: ${episodeWords(next)}` : "No next episode here"}
                     title={next ? `Next episode · ${episodeWords(next)}` : "No next episode here"}
                     onClick={goNext}>
                     <Icon name="skip-forward" size={19} />
-                  </button>
+                  </Button>
                 </>
               )}
               {!tv && <Volume position={volume.position} muted={volume.muted} onChange={changeVolume} onNudge={nudgeVolume} />}
@@ -785,9 +786,9 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
               {manifest.audio.length > 1 && <MenuButton kind="audio" icon="audio-lines" value={audioValue(view)} open={menu === "audio"} compact={compact} onClick={() => openMenu("audio")} />}
               {hasQualityChoice(view) && <MenuButton kind="quality" icon="gauge" value={qualityValue(view)} open={menu === "quality"} compact={compact} onClick={() => openMenu("quality")} />}
               {canFullscreen && (
-                <button type="button" className="mp-icon" aria-label={fullscreen ? "Exit full screen" : "Full screen"} title="Full screen (f)" onClick={toggleFullscreen}>
+                <Button variant="bare" className="mp-icon" aria-label={fullscreen ? "Exit full screen" : "Full screen"} title="Full screen (f)" onClick={toggleFullscreen}>
                   <Icon name={fullscreen ? "minimize" : "maximize"} size={19} />
-                </button>
+                </Button>
               )}
             </div>
             )}
@@ -795,22 +796,23 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
         ))}
 
       {manifest && view.ready && next && !(view.state && view.state.preparing) && size !== "tiny" && inClosingStretch(manifest, clock.position) && (
-        <button type="button" className="mp-nextup" disabled={view.stepping} onClick={goNext}>
+        <Button variant="bare" className="mp-nextup" disabled={view.stepping} onClick={goNext}>
           <span className="mp-nextup__label">Next episode</span>
           <span className="mp-nextup__name">{episodeWords(next)}</span>
           <Icon name="skip-forward" size={18} />
-        </button>
+        </Button>
       )}
 
       {skipOffer && !viewOnly && !(view.state && view.state.preparing) && size !== "tiny" && (
-        <button type="button" className="mp-nextup mp-skip" onClick={skipOffer.skip}>
+        <Button variant="bare" className="mp-nextup mp-skip" onClick={skipOffer.skip}>
           <span className="mp-nextup__name">{SkipLabels[skipOffer.marker.kind]}</span>
           <Icon name="skip-forward" size={18} />
-        </button>
+        </Button>
       )}
 
-      {menu !== null && manifest && <Menu kind={menu} view={view} room={room} sheet={sheet} position={clock.position}
-        styling={styling} onStyling={setStyling} onClose={() => setMenu(null)} settings={settings} onPick={setMenu} />}
+      {menu !== null && manifest && <PlayerMenu kind={menu} view={view} room={room} sheet={sheet} position={clock.position}
+        styling={styling} onStyling={setStyling} onClose={() => setMenu(null)} settings={settings} onPick={setMenu}
+        anchorRef={bottomRef} container={() => frameRef.current} />}
       {overflow && manifest && (
         <Overflow view={view} volume={volume} onVolume={changeVolume} onNudge={nudgeVolume}
           onPick={(kind) => { setOverflow(false); setMenu(kind); }} onClose={() => setOverflow(false)} />
@@ -826,14 +828,14 @@ function TinyControls({ room, view, clock, duration, onHold, swipe, onMore }) {
   return (
     <div className="mp-tiny">
       {!view.viewOnly && (
-        <button type="button" className="mp-play mp-play--small" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => room.togglePlay()}>
+        <Button variant="bare" className="mp-play mp-play--small" aria-label={clock.paused ? "Play" : "Pause"} onClick={() => room.togglePlay()}>
           <Icon name={clock.paused ? "play" : "pause"} size={16} />
-        </button>
+        </Button>
       )}
       <ScrubBar thin duration={duration} position={clock.position} ready={view.transcodeHead} buffered={clock.buffered}
         thumbnails={null} onSeek={(s) => room.seek(s)} onHold={onHold} swipe={swipe} readOnly={view.viewOnly} />
       <span className="mp-tiny__left">-{formatTime(Math.max(0, duration - clock.position))}</span>
-      <button type="button" className="mp-icon" aria-label="More" onClick={onMore}><Icon name="ellipsis" size={18} /></button>
+      <Button variant="bare" className="mp-icon" aria-label="More" onClick={onMore}><Icon name="ellipsis" size={18} /></Button>
     </div>
   );
 }
@@ -859,22 +861,18 @@ function Overflow({ view, volume, onVolume, onNudge, onPick, onClose }) {
     <Drawer contained role="menu" label="More" onClose={onClose} className="mp-menu">
       <div className="mp-menu__list">
         {entries.map(([kind, icon, value]) => (
-          <button key={kind} type="button" className="mp-option" onClick={() => onPick(kind)}>
-            <span className="mp-option__check"><Icon name={icon} size={16} /></span>
-            <span className="mp-option__text"><span className="mp-option__label">{MenuTitles[kind]}</span></span>
-            <span className="mp-option__value">{value}</span>
-          </button>
+          <MenuItem key={kind} icon={icon} aside={value} closeOnSelect={false} {...reach} onSelect={() => onPick(kind)}>{MenuTitles[kind]}</MenuItem>
         ))}
-        <div className="mp-option mp-option--volume">
+        <div className="mp-menu__volume">
           <Volume position={volume.position} muted={volume.muted} onChange={onVolume} onNudge={onNudge} />
         </div>
-        {link && !view.solo && <CopyLink link={link} className="mp-option" />}
+        {link && !view.solo && <CopyLink link={link} />}
       </div>
     </Drawer>
   );
 }
 
-function CopyLink({ link, className, label = "Copy room link" }) {
+function CopyLink({ link, label = "Copy room link" }) {
   const [copied, setCopied] = React.useState(false);
   React.useEffect(() => {
     if (!copied) return undefined;
@@ -882,12 +880,9 @@ function CopyLink({ link, className, label = "Copy room link" }) {
     return () => window.clearTimeout(timer);
   }, [copied]);
   return (
-    <button type="button" className={className} onClick={() => {
+    <MenuItem icon={copied ? "check" : "link"} closeOnSelect={false} {...reach} onSelect={() => {
       navigator.clipboard.writeText(link).then(() => setCopied(true), () => {});
-    }}>
-      <span className="mp-option__check"><Icon name={copied ? "check" : "link"} size={16} /></span>
-      <span className="mp-option__text"><span className="mp-option__label">{copied ? "Copied" : label}</span></span>
-    </button>
+    }}>{copied ? "Copied" : label}</MenuItem>
   );
 }
 
@@ -896,15 +891,15 @@ function CopyLink({ link, className, label = "Copy room link" }) {
 function InviteButton({ open, onToggle, icon = false }) {
   if (icon) {
     return (
-      <button type="button" className={"mp-round" + (open ? " is-open" : "")} aria-expanded={open} aria-label="Invite" title="Invite" onClick={onToggle}>
+      <Button variant="bare" className={"mp-round" + (open ? " is-open" : "")} aria-expanded={open} aria-label="Invite" title="Invite" onClick={onToggle}>
         <Icon name="user-plus" size={18} />
-      </button>
+      </Button>
     );
   }
   return (
-    <button type="button" className={"mp-invite" + (open ? " is-open" : "")} aria-expanded={open} onClick={onToggle}>
+    <Button variant="bare" className={"mp-invite" + (open ? " is-open" : "")} aria-expanded={open} onClick={onToggle}>
       <Icon name="user-plus" size={17} />Invite
-    </button>
+    </Button>
   );
 }
 
@@ -967,7 +962,7 @@ function InvitePanel({ view, room, everyone, compact }) {
               const state = sent[person.userId];
               return (
                 <div key={person.userId} className="mp-invite-panel__person">
-                  <Avatar person={{ userId: person.userId, displayName: person.name }} className="mp-invite-panel__avatar" />
+                  <Person person={{ userId: person.userId, displayName: person.name }} className="mp-invite-panel__avatar" />
                   <div className="mp-invite-panel__who">
                     <span className="mp-invite-panel__name">{person.name}</span>
                     <span className={"mp-invite-panel__status" + (state === "failed" ? " is-failed" : "")}>{status(person)}</span>
@@ -1085,16 +1080,16 @@ function JoinGate({ view, others, position, focused, solo, onJoin }) {
   ].filter(Boolean);
   return (
     <div className="mp-gate">
-      {others.length > 0 && <div className="mp-avatars mp-avatars--large">{others.map((p) => <Avatar key={p.userId} person={p} />)}</div>}
+      {others.length > 0 && <div className="mp-avatars mp-avatars--large">{others.map((p) => <Person key={p.userId} person={p} />)}</div>}
       <div className="mp-gate__text">
         {others.length > 0 && <span className="mp-gate__who">{namesOf(others)} {others.length === 1 ? "is" : "are"} watching</span>}
         <span className="mp-gate__name">{filmName(manifest)}</span>
         <span className="mp-gate__where">{formatTime(position)} of {formatTime(manifest.durationSeconds)}</span>
       </div>
       <div className="mp-gate__bar"><div style={{ width: `${manifest.durationSeconds > 0 ? Math.min(100, (position / manifest.durationSeconds) * 100) : 0}%` }} /></div>
-      <button type="button" className="mp-gate__join" autoFocus={focused} onClick={onJoin}>
+      <Button variant="bare" className="mp-gate__join" autoFocus={focused} onClick={onJoin}>
         <Icon name={solo ? "play" : "users"} size={18} />{solo ? "Play" : "Join"}
-      </button>
+      </Button>
       {view.identity && (
         <span className="mp-gate__me">{view.viewOnly ? "Watching as" : "Signed in as"} {view.identity.displayName}{brings.length > 0 ? ` · ${brings.join(", ")} from your settings` : ""}</span>
       )}
@@ -1172,7 +1167,7 @@ function Fetching({ preparing, onBack }) {
       {onBack && (
         <div className="mp-prepare__foot">
           <span className="mp-prepare__text">Closing won't cancel the download.</span>
-          <button type="button" className="mp-prepare__leave" onClick={onBack}>Keep downloading in background</button>
+          <Button variant="bare" className="mp-prepare__leave" onClick={onBack}>Keep downloading in background</Button>
         </div>
       )}
     </div>
@@ -1198,9 +1193,9 @@ function AtTheDoor({ entry, onAsk, onBack }) {
       <Icon name={asking ? "loader-circle" : "lock"} size={24} className={asking ? "mp-spin" : undefined} />
       <span className="mp-message__title">{title}</span>
       {!asking && (
-        <button type="button" className="mp-message__action" onClick={onAsk}>{entry === "refused" ? "Ask again" : "Ask to join"}</button>
+        <Button variant="bare" className="mp-message__action" onClick={onAsk}>{entry === "refused" ? "Ask again" : "Ask to join"}</Button>
       )}
-      {onBack && <button type="button" className="mp-message__back" onClick={onBack}>Back</button>}
+      {onBack && <Button variant="bare" className="mp-message__back" onClick={onBack}>Back</Button>}
     </div>
   );
 }
@@ -1225,10 +1220,10 @@ function Knocking({ knocks, onAnswer }) {
     <div className="mp-knocks" role="status">
       {knocks.map((knock) => (
         <div key={knock.userId} className="mp-knock">
-          <Avatar person={knock} className="mp-avatar--small" />
+          <Person person={knock} className="mp-avatar--small" />
           <span className="mp-knock__text">{knock.displayName} wants to join</span>
-          <button type="button" className="mp-knock__no" onClick={() => onAnswer(knock.userId, false)}>Not now</button>
-          <button type="button" className="mp-knock__yes" onClick={() => onAnswer(knock.userId, true)}>Let in</button>
+          <Button variant="bare" className="mp-knock__no" onClick={() => onAnswer(knock.userId, false)}>Not now</Button>
+          <Button variant="bare" className="mp-knock__yes" onClick={() => onAnswer(knock.userId, true)}>Let in</Button>
         </div>
       ))}
     </div>
@@ -1241,7 +1236,7 @@ function Message({ icon, title, text, action }) {
       <Icon name={icon} size={24} />
       <span className="mp-message__title">{title}</span>
       {text && <span className="mp-message__text">{text}</span>}
-      {action && <button type="button" className="mp-message__action" onClick={action.go}>{action.label}</button>}
+      {action && <Button variant="bare" className="mp-message__action" onClick={action.go}>{action.label}</Button>}
     </div>
   );
 }

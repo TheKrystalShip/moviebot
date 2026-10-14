@@ -1,7 +1,8 @@
 import React from "react";
-import { Drawer, Icon, IconButton } from "@thekrystalship/krystal";
+import { Button, Drawer, Icon, IconButton, Menu, MenuGroup, MenuItem, MenuRadioGroup, MenuRadioItem, Popover } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useCan } from "../session.js";
+import { environment } from "./engine/environment.ts";
 import { formatTime } from "./engine/format.ts";
 import { SubtitleStyleEditor } from "./SubtitleStyleEditor.jsx";
 import { EpisodeRow } from "../components/EpisodeRow.jsx";
@@ -69,19 +70,28 @@ export const episodeValue = (view) => `S${view.manifest.episode.season} · E${vi
  */
 export function MenuButton({ kind, icon, value = null, open, compact, onClick }) {
   return (
-    <button type="button" className={"mp-menu-button" + (open ? " is-open" : "") + (compact ? " is-icon" : "")}
+    <Button variant="bare" className={"mp-menu-button" + (open ? " is-open" : "") + (compact ? " is-icon" : "")}
       aria-haspopup="true" aria-expanded={open} aria-label={value === null ? MenuTitles[kind] : `${MenuTitles[kind]}: ${value}`}
       title={MenuTitles[kind]} onClick={onClick}>
       <Icon name={icon} size={18} />
       {!compact && <span className="mp-menu-button__value">{value === null ? MenuTitles[kind] : value}</span>}
-    </button>
+    </Button>
   );
 }
 
 /**
- * One menu over the film: a popover above the control bar where the frame is wide, a sheet from
+ * A row of a list that has no menu around it (a sheet) is reached by Tab and by a remote's arrows, which
+ * leave out what sits at `tabindex=-1`.
+ */
+export const reach = { tabIndex: 0 };
+
+/**
+ * One menu over the film: a panel hanging above the control bar where the frame is wide, a sheet from
  * the bottom edge where it is not. Every menu but two holds this viewer's own choice; the chapters
  * and the episodes move the whole room, like the scrub bar.
+ *
+ * The panel is drawn inside `container`, the player's frame, so it shows while the frame is full
+ * screen, and hangs from `anchorRef`. On a television it is a column down the frame's right edge.
  *
  * A phone's remote draws the same menu over the page rather than inside a frame (`contained` false) and
  * names the screen it is aimed at (`aimedAt`).
@@ -90,19 +100,19 @@ export function MenuButton({ kind, icon, value = null, open, compact, onClick })
  * (`listen`), the audio tracks over the subtitles, and Settings, whose `settings` entries each open
  * their own menu through `onPick`.
  */
-export function Menu({ kind, view, room, sheet, position, styling, onStyling, onClose, contained = true, aimedAt = null, settings = [], onPick }) {
+export function PlayerMenu({ kind, view, room, sheet, position, styling, onStyling, onClose, contained = true, aimedAt = null, settings = [], onPick, anchorRef, container }) {
   const editing = (kind === "subs" || kind === "listen") && styling;
   const body = editing ? <SubtitleStyleEditor style={view.preferences.subtitleStyle} onChange={(style) => room.setSubtitleStyle(style)} />
     : kind === "listen" ? (
       <>
         {view.manifest.audio.length > 1 && (
-          <>
-            <div className="mp-menu__section">{MenuTitles.audio}</div>
+          <MenuGroup label={MenuTitles.audio}>
             <AudioOptions view={view} room={room} onClose={onClose} />
-            <div className="mp-menu__section">{MenuTitles.subs}</div>
-          </>
+          </MenuGroup>
         )}
-        <SubtitleOptions view={view} room={room} onStyle={() => onStyling(true)} />
+        <MenuGroup label={view.manifest.audio.length > 1 ? MenuTitles.subs : undefined}>
+          <SubtitleOptions view={view} room={room} onStyle={() => onStyling(true)} />
+        </MenuGroup>
       </>
     )
     : kind === "settings" ? <SettingsOptions entries={settings} onPick={onPick} />
@@ -114,27 +124,34 @@ export function Menu({ kind, view, room, sheet, position, styling, onStyling, on
   const title = editing ? "Subtitle style" : MenuTitles[kind];
   const back = editing ? { label: "Back to subtitles", onClick: () => onStyling(false) }
     : aimedAt ? { label: "Back to the remote", onClick: onClose } : null;
+  const listed = !editing && kind !== "episodes";
   if (sheet) {
     return (
       <Drawer contained={contained} theme={contained ? undefined : "dark"} role="menu" title={title} back={back} onClose={onClose}
         action={aimedAt && <span className="mp-menu__aim"><Icon name="tv" size={13} />{aimedAt}</span>}
         className={"mp-menu" + (editing ? " is-styling" : "") + (contained ? "" : " mp-aimed")}>
-        {body}
+        {listed ? <div className="mp-menu__list">{body}</div> : body}
       </Drawer>
     );
   }
-  return (
-    <div className={"mp-popover" + (kind === "subs" || kind === "listen" ? " mp-popover--wide" : kind === "episodes" ? " mp-popover--episodes" : "") + " mp-menu"} role="menu" aria-label={title}>
-      <div className="mp-menu__head">
-        {back && (
-          <IconButton variant="ghost" size="xs" icon="arrow-left" label={back.label} className="mp-menu__back" onClick={back.onClick} />
-        )}
-        {title}
-      </div>
-      {body}
-    </div>
+  const panel = {
+    open: true, anchorRef, container, placement: "top-end", onOpenChange: (open) => { if (!open) onClose(); },
+    className: "mp-menu mp-panel" + (kind === "subs" || kind === "listen" ? " mp-panel--wide" : kind === "episodes" ? " mp-panel--episodes" : ""),
+    ...(environment().tv ? { style: TvColumn } : {}),
+  };
+  const head = (
+    <>
+      {back && <IconButton variant="ghost" size="xs" icon="arrow-left" label={back.label} className="mp-menu__back" onClick={back.onClick} />}
+      {title}
+    </>
   );
+  return listed
+    ? <Menu {...panel} label={title} header={head}>{body}</Menu>
+    : <Popover {...panel} title={head}>{body}</Popover>;
 }
+
+/** Where a television draws the panel: the frame's right edge, top to bottom. */
+const TvColumn = { position: "absolute", top: 0, right: 0, bottom: 0 };
 
 /**
  * The film's chapters, the one playing marked; picking one takes the whole room there. A guest reads
@@ -145,12 +162,14 @@ function ChapterOptions({ view, room, position, onClose }) {
   let current = -1;
   chapters.forEach((c, i) => { if (c.startSeconds <= position + 0.5) current = i; });
   return (
-    <div className="mp-menu__list">
+    <MenuRadioGroup value={current}>
       {chapters.map((c, i) => (
-        <Option key={i} on={i === current} label={c.title || `Chapter ${i + 1}`} sub={formatTime(c.startSeconds)}
-          readOnly={view.viewOnly} onPick={() => { room.seek(c.startSeconds); onClose(); }} />
+        <MenuRadioItem key={i} value={i} sub={formatTime(c.startSeconds)} readOnly={view.viewOnly} {...reach}
+          onSelect={() => { room.seek(c.startSeconds); onClose(); }}>
+          {c.title || `Chapter ${i + 1}`}
+        </MenuRadioItem>
       ))}
-    </div>
+    </MenuRadioGroup>
   );
 }
 
@@ -215,67 +234,38 @@ function EpisodeOptions({ view, room, onClose }) {
   );
 }
 
-/** One row of a menu. A read-only row says what is there and is no button. */
-function Option({ on, label, sub, disabled, readOnly = false, onPick, children }) {
-  const body = (
-    <>
-      <span className="mp-option__check">{on && <Icon name="check" size={15} />}</span>
-      <span className="mp-option__text">
-        <span className="mp-option__label">{label}</span>
-        {sub && <span className="mp-option__sub">{sub}</span>}
-      </span>
-      {children}
-    </>
-  );
-  if (readOnly) {
-    return <div role="listitem" aria-current={on || undefined} title={label} className={"mp-option is-static" + (on ? " is-on" : "")}>{body}</div>;
-  }
-  return (
-    <button type="button" role="menuitemradio" aria-checked={on} disabled={disabled} title={label}
-      className={"mp-option" + (on ? " is-on" : "")} onClick={onPick}>
-      {body}
-    </button>
-  );
-}
-
 /** Settings: each entry the name of a menu and what it is set to, opening that menu. */
 function SettingsOptions({ entries, onPick }) {
-  return (
-    <div className="mp-menu__list">
-      {entries.map(({ kind, icon, value }) => (
-        <button key={kind} type="button" role="menuitem" className="mp-option" onClick={() => onPick(kind)}>
-          <span className="mp-option__check"><Icon name={icon} size={16} /></span>
-          <span className="mp-option__text"><span className="mp-option__label">{MenuTitles[kind]}</span></span>
-          <span className="mp-option__value">{value}</span>
-        </button>
-      ))}
-    </div>
-  );
+  return entries.map(({ kind, icon, value }) => (
+    <MenuItem key={kind} icon={icon} aside={value} closeOnSelect={false} {...reach} onSelect={() => onPick(kind)}>{MenuTitles[kind]}</MenuItem>
+  ));
 }
 
 function AudioOptions({ view, room, onClose }) {
   return (
-    <div className="mp-menu__list">
+    <MenuRadioGroup value={view.audioId}>
       {view.manifest.audio.map((track) => (
-        <Option key={track.id} on={track.id === view.audioId} label={track.label}
+        <MenuRadioItem key={track.id} value={track.id} {...reach}
           sub={[track.kind === "commentary" ? "Commentary" : null, channelLayout(track.channels)].filter(Boolean).join(" · ")}
-          onPick={() => { room.selectAudio(track.id); onClose(); }} />
+          onSelect={() => { room.selectAudio(track.id); onClose(); }}>
+          {track.label}
+        </MenuRadioItem>
       ))}
-    </div>
+    </MenuRadioGroup>
   );
 }
 
 function QualityOptions({ view, room, onClose }) {
   const pick = (height) => { room.selectQuality(height); onClose(); };
   return (
-    <div className="mp-menu__list">
-      <Option on={view.quality === null} label="Auto"
-        sub={view.playingHeight !== null ? `Adaptive · ${view.playingHeight}p` : "Adaptive"} onPick={() => pick(null)} />
+    <MenuRadioGroup value={view.quality}>
+      <MenuRadioItem value={null} sub={view.playingHeight !== null ? `Adaptive · ${view.playingHeight}p` : "Adaptive"} {...reach}
+        onSelect={() => pick(null)}>Auto</MenuRadioItem>
       {view.qualityLevels.map((level) => (
-        <Option key={level.height} on={view.quality === level.height} label={`${level.height}p`} sub={mbps(level.bitrateKbps)}
-          onPick={() => pick(level.height)} />
+        <MenuRadioItem key={level.height} value={level.height} sub={mbps(level.bitrateKbps)} {...reach}
+          onSelect={() => pick(level.height)}>{`${level.height}p`}</MenuRadioItem>
       ))}
-    </div>
+    </MenuRadioGroup>
   );
 }
 
@@ -344,44 +334,42 @@ function SubtitleOptions({ view, room, onStyle }) {
 
   return (
     <>
-      <div className="mp-menu__list">
-        <Option on={view.subtitleId === null} label="Off" onPick={() => room.selectSubtitle(null)} />
+      <MenuRadioGroup value={view.subtitleId}>
+        <MenuRadioItem value={null} closeOnSelect={false} {...reach} onSelect={() => room.selectSubtitle(null)}>Off</MenuRadioItem>
         {manifest.subtitles.map((track) => (
-          <Option key={track.id} on={track.id === view.subtitleId} label={track.label} sub={trackSource(track)}
-            disabled={!track.available || track.uri === undefined} onPick={() => room.selectSubtitle(track.id)} />
+          <MenuRadioItem key={track.id} value={track.id} sub={trackSource(track)} closeOnSelect={false} {...reach}
+            disabled={!track.available || track.uri === undefined} onSelect={() => room.selectSubtitle(track.id)}>
+            {track.label}
+          </MenuRadioItem>
         ))}
-        <button type="button" className="mp-option" onClick={onStyle}>
-          <span className="mp-option__check"><Icon name="type" size={15} /></span>
-          <span className="mp-option__text"><span className="mp-option__label">Style</span></span>
-          <Icon name="chevron-right" size={15} />
-        </button>
-      </div>
-      {!alone && <div className="mp-menu__section">OpenSubtitles</div>}
-      {!alone && <div className="mp-menu__list">
-        {failure && <div className="mp-menu__message">{failure}</div>}
-        {!failure && found === null && <div className="mp-menu__message"><Icon name="loader-circle" size={14} className="mp-spin" />Looking</div>}
-        {!failure && found && offered.length === 0 && <div className="mp-menu__message">{found.explanation || "Nothing more to offer for this film."}</div>}
-        {offered.map((candidate) => (
-          <button key={candidate.fileId} type="button" className="mp-option mp-option--candidate" disabled={fetching !== null}
-            onClick={() => void take(candidate)}>
-            <span className="mp-option__check" />
-            <span className="mp-option__text">
-              <span className="mp-option__label">{languageName(candidate.language)}</span>
-              <span className="mp-option__release">{candidate.release || "Release not stated"}</span>
-              <span className={"mp-option__stats" + (fit(candidate) ? " is-" + fit(candidate).tone : "")}>
-                {[
-                  typeof candidate.rating === "number" ? `★ ${candidate.rating.toFixed(1)}` : null,
-                  `${candidate.downloadCount.toLocaleString()} downloads`,
-                  fit(candidate) && fit(candidate).text,
-                ].filter(Boolean).join(" · ")}
-              </span>
-            </span>
-            {fetching === candidate.fileId
-              ? <span className="mp-option__state is-loading"><Icon name="loader-circle" size={15} className="mp-spin" />downloading</span>
-              : <span className="mp-option__state"><Icon name="download" size={15} /></span>}
-          </button>
-        ))}
-      </div>}
+      </MenuRadioGroup>
+      <MenuItem icon="type" aside={<Icon name="chevron-right" size={15} />} closeOnSelect={false} {...reach} onSelect={onStyle}>Style</MenuItem>
+      {!alone && (
+        <MenuGroup label="OpenSubtitles">
+          {failure && <div className="mp-menu__message">{failure}</div>}
+          {!failure && found === null && <div className="mp-menu__message"><Icon name="loader-circle" size={14} className="mp-spin" />Looking</div>}
+          {!failure && found && offered.length === 0 && <div className="mp-menu__message">{found.explanation || "Nothing more to offer for this film."}</div>}
+          {offered.map((candidate) => (
+            <MenuItem key={candidate.fileId} icon="download" disabled={fetching !== null} closeOnSelect={false} {...reach}
+              aside={fetching === candidate.fileId ? <span className="mp-candidate__state"><Icon name="loader-circle" size={15} className="mp-spin" />downloading</span> : undefined}
+              onSelect={() => void take(candidate)}
+              sub={(
+                <>
+                  <span className="mp-candidate__release">{candidate.release || "Release not stated"}</span>
+                  <span className={"mp-candidate__stats" + (fit(candidate) ? " is-" + fit(candidate).tone : "")}>
+                    {[
+                      typeof candidate.rating === "number" ? `★ ${candidate.rating.toFixed(1)}` : null,
+                      `${candidate.downloadCount.toLocaleString()} downloads`,
+                      fit(candidate) && fit(candidate).text,
+                    ].filter(Boolean).join(" · ")}
+                  </span>
+                </>
+              )}>
+              {languageName(candidate.language)}
+            </MenuItem>
+          ))}
+        </MenuGroup>
+      )}
     </>
   );
 }

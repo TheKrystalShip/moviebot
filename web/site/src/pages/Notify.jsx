@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, toast } from "@thekrystalship/krystal";
+import { SearchField, toast } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { useCan } from "../session.js";
@@ -32,11 +32,8 @@ export function Notify() {
     <div className="kc-page">
       <PageHead title="Notify me" sub="Films that are not out yet. The server checks every hour, and says so when one can be watched." />
 
-      <form className="kc-search" onSubmit={(e) => { e.preventDefault(); setQuery(draft.trim()); }}>
-        <Icon name="search" size={17} />
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="A film that is not out yet" />
-        <Button type="submit" variant="primary" size="lg">Find it</Button>
-      </form>
+      <SearchField value={draft} onChange={setDraft} onSubmit={(typed) => setQuery(typed.trim())}
+        placeholder="A film that is not out yet" submitLabel="Find it" />
 
       {query && <FoundInCatalogue key={query} query={query} />}
 

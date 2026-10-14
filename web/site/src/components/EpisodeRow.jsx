@@ -1,4 +1,4 @@
-import { Icon } from "@thekrystalship/krystal";
+import { Button, Icon } from "@thekrystalship/krystal";
 import { downloadLine } from "./DownloadButton.jsx";
 import { clock } from "../time.js";
 
@@ -47,8 +47,8 @@ export function EpisodeRow({ episode: e, download = null, link = null, onPick = 
   const state = (current ? " is-current" : "") + (off ? " is-off" : "");
   if (onPick) {
     return (
-      <button type="button" className={"kc-episode" + state} aria-current={current || undefined} disabled={starting || off}
-        onClick={onPick}>{inner}</button>
+      <Button variant="bare" className={"kc-episode" + state} aria-current={current || undefined} disabled={starting || off}
+        onClick={onPick}>{inner}</Button>
     );
   }
   return <div className={"kc-episode is-absent" + state}>{inner}</div>;

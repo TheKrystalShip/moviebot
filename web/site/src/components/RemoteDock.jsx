@@ -1,5 +1,5 @@
 import React from "react";
-import { Drawer, EmptyState, Icon, OptionList, Rail, Toggle, toast } from "@thekrystalship/krystal";
+import { Button, Drawer, EmptyState, Icon, OptionList, Rail, Toggle, toast } from "@thekrystalship/krystal";
 import { api, episodeCode, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { setRemoteMode, chooseScreen, useDrivenScreen, usePairedScreens, useRemoteMode, useRemoteOpen } from "../remote.js";
@@ -7,7 +7,7 @@ import { useRoute } from "../router.js";
 import { roomCommands, useRemotePosition, useRemoteRoom } from "../remoteRoom.js";
 import { stillSources, useRemoteFilm } from "../remoteFilm.js";
 import { GestureHud, useStageGestures } from "../player/Gestures.jsx";
-import { Menu, MenuButton, audioValue, episodeValue, hasQualityChoice, qualityValue, subtitleValue } from "../player/Menus.jsx";
+import { MenuButton, PlayerMenu, audioValue, episodeValue, hasQualityChoice, qualityValue, subtitleValue } from "../player/Menus.jsx";
 import { useTvRoom, useTvView } from "../remoteMenus.js";
 import { ScrubBar } from "../player/ScrubBar.jsx";
 import { SkipLabels, useSkipOffer } from "../player/stretches.js";
@@ -431,19 +431,19 @@ function Strip({ rowRef, screen, hidden, onOpen }) {
   return (
     <div ref={rowRef} className="kc-remote-strip" aria-hidden={hidden || undefined} inert={hidden ? "" : undefined}>
       <div className="kc-dl-head">
-        <button type="button" className="kc-remote-strip__open" aria-label={`Open the remote: ${tv}`} onClick={onOpen}>
+        <Button variant="bare" className="kc-remote-strip__open" aria-label={`Open the remote: ${tv}`} onClick={onOpen}>
           <Art manifest={film.manifest} className="kc-dl-head__still"
             fallback={<span className="kc-dl-head__still kc-remote__nostill"><Icon name="tv" size={18} /></span>} />
           <span className="kc-dl-head__text">
             <span className="kc-dl-head__eyebrow"><Icon name="tv" size={12} />{tv}</span>
             <span className="kc-dl-head__name">{shown.name}</span>
           </span>
-        </button>
+        </Button>
         {shown.playing && (
-          <button type="button" className="mp-play mp-play--small" aria-label={paused ? "Play" : "Pause"} disabled={!room.live}
+          <Button variant="bare" className="mp-play mp-play--small" aria-label={paused ? "Play" : "Pause"} disabled={!room.live}
             onClick={() => run(paused ? roomCommands.play : roomCommands.pause)}>
             <Icon name={paused ? "play" : "pause"} size={16} />
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -571,9 +571,9 @@ function Remote({ dock, shelf, screen, hidden, onCollapse, onPick }) {
         <div ref={dock.head} className="kc-remote__top">
           <div className="kc-remote__head">
             <span className="kc-remote__title">
-              <button type="button" className="kc-remote__tv" aria-label={`TV: ${tv}. Choose another`} onClick={onPick}>
+              <Button variant="bare" className="kc-remote__tv" aria-label={`TV: ${tv}. Choose another`} onClick={onPick}>
                 <Icon name="tv" size={13} />{tv}<Icon name="chevron-down" size={12} />
-              </button>
+              </Button>
             </span>
             <span className="kc-remote__action">
               <span className="kc-remote__switch">Remote<Toggle on={mode} onChange={(on) => { if (on) setRemoteMode(true); else { onCollapse(); turnOff(tv); } }} label="Remote mode" /></span>
@@ -588,10 +588,10 @@ function Remote({ dock, shelf, screen, hidden, onCollapse, onPick }) {
                 <Still className="kc-remote__still" manifest={manifest} {...stageProps}>
                   <GestureHud hud={gestures.hud} />
                   {skipOffer && (
-                    <button type="button" className="mp-nextup mp-skip" onClick={skipOffer.skip}>
+                    <Button variant="bare" className="mp-nextup mp-skip" onClick={skipOffer.skip}>
                       <span className="mp-nextup__name">{SkipLabels[skipOffer.marker.kind]}</span>
                       <Icon name="skip-forward" size={18} />
-                    </button>
+                    </Button>
                   )}
                 </Still>
                 <span className="kc-dl-head__text kc-remote__film">
@@ -605,31 +605,31 @@ function Remote({ dock, shelf, screen, hidden, onCollapse, onPick }) {
                         buffered={0} thumbnails={thumbnails} chapters={manifest.chapters} onSeek={seek} onHold={setHeld} swipe={swipe} readOnly={!live} />
                       <div className="kc-remote__rows">
                         <div className="mp-controls kc-remote__row">
-                          <button type="button" className="mp-icon" disabled={!live} aria-label={`Back ${SkipSeconds} seconds`}
+                          <Button variant="bare" className="mp-icon" disabled={!live} aria-label={`Back ${SkipSeconds} seconds`}
                             onClick={() => run(() => roomCommands.skip(-SkipSeconds))}>
                             <Icon name="rotate-ccw" size={19} />
-                          </button>
+                          </Button>
                           {manifest.episode && (
-                            <button type="button" className="mp-icon" disabled={!live || !previous || stepping}
+                            <Button variant="bare" className="mp-icon" disabled={!live || !previous || stepping}
                               aria-label={previous ? `Previous episode: ${words(previous)}` : "No previous episode here"}
                               onClick={() => step(roomCommands.previous)}>
                               <Icon name="skip-back" size={19} />
-                            </button>
+                            </Button>
                           )}
-                          <button type="button" className="mp-play" aria-label={paused ? "Play" : "Pause"} disabled={!live} onClick={toggle}>
+                          <Button variant="bare" className="mp-play" aria-label={paused ? "Play" : "Pause"} disabled={!live} onClick={toggle}>
                             <Icon name={paused ? "play" : "pause"} size={18} />
-                          </button>
+                          </Button>
                           {manifest.episode && (
-                            <button type="button" className="mp-icon" disabled={!live || !next || stepping}
+                            <Button variant="bare" className="mp-icon" disabled={!live || !next || stepping}
                               aria-label={next ? `Next episode: ${words(next)}` : "No next episode here"}
                               onClick={() => step(roomCommands.next)}>
                               <Icon name="skip-forward" size={19} />
-                            </button>
+                            </Button>
                           )}
-                          <button type="button" className="mp-icon" disabled={!live} aria-label={`Forward ${SkipSeconds} seconds`}
+                          <Button variant="bare" className="mp-icon" disabled={!live} aria-label={`Forward ${SkipSeconds} seconds`}
                             onClick={() => run(() => roomCommands.skip(SkipSeconds))}>
                             <Icon name="rotate-cw" size={19} />
-                          </button>
+                          </Button>
                         </div>
                         <div className="mp-controls kc-remote__row">
                           {offersEpisodes && <MenuButton kind="episodes" icon="list-video" value={episodeValue({ manifest })} open={menu === "episodes"} compact onClick={() => setMenu("episodes")} />}
@@ -647,11 +647,11 @@ function Remote({ dock, shelf, screen, hidden, onCollapse, onPick }) {
         </div>
       </div>
       {menu === "episodes" && episodeView && (
-        <Menu kind="episodes" view={episodeView} sheet contained={false} aimedAt={tv} onClose={() => setMenu(null)}
+        <PlayerMenu kind="episodes" view={episodeView} sheet contained={false} aimedAt={tv} onClose={() => setMenu(null)}
           room={{ playEpisode: (season, number) => run(() => roomCommands.playEpisode(season, number)) }} />
       )}
       {(menu === "subs" || menu === "audio" || menu === "quality") && tvView && (
-        <Menu kind={menu} view={tvView} room={tvRoom} sheet contained={false} aimedAt={tv}
+        <PlayerMenu kind={menu} view={tvView} room={tvRoom} sheet contained={false} aimedAt={tv}
           styling={styling} onStyling={setStyling} onClose={() => setMenu(null)} />
       )}
     </>

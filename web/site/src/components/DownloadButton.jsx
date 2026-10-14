@@ -238,10 +238,10 @@ export function DownloadMark({ titleId = null, imdbId = null, season = null, num
     : standing.kind === "preparing" && !standing.failed ? <Ring percent={standing.percent || 0} state="preparing" /> : null;
   return (
     <span className="kc-episode-save">
-      <button type="button" className={"kc-dl-mark is-" + standing.kind} aria-label={`${label}: ${head.name}`} title={label}
+      <Button variant="bare" className={"kc-dl-mark is-" + standing.kind} aria-label={`${label}: ${head.name}`} title={label}
         disabled={standing.kind === "none" && !online} onClick={() => setOpen(true)}>
         {ring || <Icon name={icon} size={18} />}
-      </button>
+      </Button>
       {open && <DownloadSheet target={target} head={head} standing={standing} onClose={() => setOpen(false)} />}
     </span>
   );

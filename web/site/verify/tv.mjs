@@ -564,7 +564,7 @@ async function signIn() {
       const before = await alive();
       await provider("/verify/access?seconds=70");
       await provider(`/verify/decide?code=${code}&decision=approve&person=${VIEWER.id}&name=${encodeURIComponent(VIEWER.name)}`);
-      const inside = await until(() => page.locator(".tv-bar").isVisible(), 15000);
+      const inside = await until(() => page.locator(".k-tv-bar").isVisible(), 15000);
       await provider("/verify/access?seconds=300");
       const path = new URL(page.url()).pathname;
       if (!inside || path !== "/movies") fail("sign-in", `approval left ${path}${inside ? "" : " with no bar"}`);
@@ -580,13 +580,13 @@ async function signIn() {
         return now && first && now.access_token !== first.access_token && now.refresh_token !== first.refresh_token;
       }, 30000);
       const sessions = await alive() - before;
-      if (!first || !renewed || sessions !== 1 || !(await page.locator(".tv-bar").isVisible())) {
+      if (!first || !renewed || sessions !== 1 || !(await page.locator(".k-tv-bar").isVisible())) {
         fail("sign-in", `the session ${renewed ? "renewed" : "did not renew"} on its own, ${sessions} new at the provider`);
       } else pass("the session renews on its own, rotating its refresh token");
 
       await page.reload({ waitUntil: "load" });
       await page.waitForTimeout(SettleMs);
-      if (await page.locator(".kc-tv-signin").count() > 0 || !(await page.locator(".tv-bar").isVisible())) fail("sign-in", "the session did not survive a restart");
+      if (await page.locator(".kc-tv-signin").count() > 0 || !(await page.locator(".k-tv-bar").isVisible())) fail("sign-in", "the session did not survive a restart");
       else pass("the session survives a restart");
 
       await page.goto(base + "/profile/account", { waitUntil: "load" });
@@ -1704,8 +1704,8 @@ async function settingsUi() {
     .map((b) => b.getAttribute("aria-label")).find((l) => l && l.startsWith(p)) || null, prefix);
   const tvLabel = (prefix) => tv.page.evaluate((p) => [...document.querySelectorAll(".mp-controls button, .mp-bottom button")]
     .map((b) => b.getAttribute("aria-label")).find((l) => l && l.startsWith(p)) || null, prefix);
-  const rows = () => phone.evaluate(() => [...document.querySelectorAll(".mp-menu .mp-option")]
-    .map((o) => ({ label: o.querySelector(".mp-option__label")?.textContent, on: o.classList.contains("is-on") })));
+  const rows = () => phone.evaluate(() => [...document.querySelectorAll(".mp-menu [role^=menuitem]")]
+    .map((o) => ({ label: o.querySelector(".k-menu__label")?.firstChild?.textContent, on: o.getAttribute("aria-checked") === "true" })));
   const tvTracks = () => tv.page.evaluate(() => [...document.querySelectorAll("video track")].map((t) => t.label));
   const mine = (path) => fetch(base + path, { headers: phoneAuth }).then((r) => r.json());
   try {
@@ -1773,7 +1773,7 @@ async function settingsUi() {
       fail("settings", `the subtitles drawer shows ${JSON.stringify({ head, list })}`);
     else pass("the Subtitles drawer is aimed at the TV with Off checked, the film's tracks and a back arrow");
 
-    await tap('.mp-aimed .mp-option[title="Español"]');
+    await tap('.mp-aimed [role="menuitemradio"]:has-text("Español")');
     const seen = await until(async () => (await tvTracks()).join() === "Español", 8000);
     const stored = await mine(`/api/me/tracks/${DualFilm}`);
     await phone.waitForTimeout(400);
@@ -1789,7 +1789,7 @@ async function settingsUi() {
       return { size: parseFloat(c.fontSize), weight: c.fontWeight, text: t.textContent };
     });
     const plain = await cueStyle();
-    await tap(".mp-aimed .mp-option:has(.lucide-type)");
+    await tap(".mp-aimed [role=menuitem]:has(.lucide-type)");
     await phone.waitForSelector(".mp-aimed.is-styling", { timeout: 5000 });
     await phone.waitForTimeout(500);
     await shot("settings-07-style.png");
@@ -1797,9 +1797,9 @@ async function settingsUi() {
       back: document.querySelector(".mp-aimed .k-drawer__back")?.getAttribute("aria-label") }));
     if (editor.title !== "Subtitle style" || editor.back !== "Back to subtitles") fail("settings", `the style editor shows ${JSON.stringify(editor)}`);
     else pass("the style editor opens from Style with the back arrow to the subtitle list");
-    await tap('.mp-aimed .mp-style__choice:has-text("150%")');
-    await tap('.mp-aimed .mp-style__choice:has-text("200%")');
-    await tap('.mp-aimed .mp-style__choice:has-text("Bold")');
+    await tap('.mp-aimed [role="radio"]:has-text("150%")');
+    await tap('.mp-aimed [role="radio"]:has-text("200%")');
+    await tap('.mp-aimed [role="radio"]:has-text("Bold")');
     const restyled = await until(async () => {
       const c = await cueStyle();
       return c && c.weight >= 700 && (!plain || c.size > plain.size);
@@ -1832,7 +1832,7 @@ async function settingsUi() {
     const audio = await rows();
     if (audio.map((r) => r.label).join() !== "English,Español" || !audio[0].on) fail("settings", `the audio drawer shows ${JSON.stringify(audio)}`);
     asked.length = 0;
-    await tap('.mp-aimed .mp-option[title="Español"]');
+    await tap('.mp-aimed [role="menuitemradio"]:has-text("Español")');
     const audioFetched = await until(async () => asked.some((u) => u.includes(`/media/${DualFilm}/a1/`)), 10000);
     const audioLabel = await until(async () => (await tvLabel("Audio track")) === "Audio track: Español", 6000);
     await phone.waitForSelector(".mp-aimed", { state: "detached", timeout: 5000 }).catch(() => {});
@@ -1846,12 +1846,12 @@ async function settingsUi() {
     await phone.waitForTimeout(500);
     await shot("settings-20-quality.png");
     const quality = await rows();
-    const qualityHead = await phone.evaluate(() => [...document.querySelectorAll(".mp-aimed .mp-option__sub")].map((e) => e.textContent));
+    const qualityHead = await phone.evaluate(() => [...document.querySelectorAll(".mp-aimed .k-menu__sub")].map((e) => e.textContent));
     if (quality.map((r) => r.label).join() !== "Auto,818p,546p" || !quality[0].on || qualityHead[0] !== "Adaptive")
       fail("settings", `the quality drawer shows ${JSON.stringify({ quality, qualityHead })}`);
     else pass("the Quality drawer lists Auto (checked, plain Adaptive) and the film's own rungs");
     asked.length = 0;
-    await tap('.mp-aimed .mp-option[title="546p"]');
+    await tap('.mp-aimed [role="menuitemradio"]:has-text("546p")');
     const qualityLabel = await until(async () => /^Quality: (Up to )?546p/.test(await tvLabel("Quality") || ""), 8000);
     const qualityKept = await until(async () => (await mine("/api/me/preferences")).qualityHeight === 546, 6000);
     await phone.waitForSelector(".mp-aimed", { state: "detached", timeout: 5000 }).catch(() => {});
@@ -1861,11 +1861,11 @@ async function settingsUi() {
 
     // The television's own menus move the phone's labels.
     await tv.page.click('.mp-menu-button[title="Subtitles"]');
-    await tv.page.click('.mp-popover .mp-option[title="English"], .mp-menu .mp-option[title="English"]');
+    await tv.page.click('.mp-panel [role="menuitemradio"]:has-text("English"), .mp-menu [role="menuitemradio"]:has-text("English")');
     const phoneSubtitle = await until(async () => (await label("Subtitles")) === "Subtitles: English", 8000);
     // The subtitles popover stays open over the control bar; a button under it is pressed as a script would.
     await tv.page.locator('.mp-menu-button[title="Quality"]').dispatchEvent("click");
-    await tv.page.click('.mp-popover .mp-option[title="Auto"], .mp-menu .mp-option[title="Auto"]');
+    await tv.page.click('.mp-panel [role="menuitemradio"]:has-text("Auto"), .mp-menu [role="menuitemradio"]:has-text("Auto")');
     const phoneAuto = await until(async () => (await label("Quality")) === "Quality: Auto", 8000);
     await shot("settings-21-after-tv-menu.png");
     if (!phoneSubtitle || !phoneAuto) fail("settings", `after the TV's own menus the phone says ${await label("Subtitles")} and ${await label("Quality")}`);
@@ -1882,9 +1882,9 @@ async function settingsUi() {
     // The API's preferences pushes reach the television a second and a half late, so both choices are made before either echo.
     delayEchoes = true;
     await tv.page.locator('.mp-menu-button[title="Quality"]').dispatchEvent("click");
-    await tv.page.locator('.mp-menu .mp-option[title="818p"], .mp-popover .mp-option[title="818p"]').first().dispatchEvent("click");
+    await tv.page.locator('.mp-menu [role="menuitemradio"]:has-text("818p"), .mp-panel [role="menuitemradio"]:has-text("818p")').first().dispatchEvent("click");
     await tv.page.locator('.mp-menu-button[title="Quality"]').dispatchEvent("click");
-    await tv.page.locator('.mp-menu .mp-option[title="546p"], .mp-popover .mp-option[title="546p"]').first().dispatchEvent("click");
+    await tv.page.locator('.mp-menu [role="menuitemradio"]:has-text("546p"), .mp-panel [role="menuitemradio"]:has-text("546p")').first().dispatchEvent("click");
     await tv.page.waitForTimeout(5000);
     delayEchoes = false;
     const history = await tv.page.evaluate(() => window.__quality);
