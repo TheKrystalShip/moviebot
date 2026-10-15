@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, TvCard, TvSpotlight } from "@thekrystalship/krystal";
+import { Button, TvCard, TvRow, TvSpotlight } from "@thekrystalship/krystal";
 import { api, episodeCode } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { showPath } from "../../paths.js";
@@ -95,8 +95,7 @@ export function TvShow({ imdbId, season, inLibrary }) {
           meta={<SpotFacts facts={{
             rating: s.rating, year: years, cert: s.certification,
             length: `${seasons.length} ${seasons.length === 1 ? "season" : "seasons"}`, genres: s.genres,
-          }} />}>
-          {s.overview && <p className="k-tv-spot__overview">{s.overview}</p>}
+          }} />} overview={s.overview}>
           {s.creators.length > 0 && <span className="kc-tv-credit">Created by <b>{s.creators.join(", ")}</b></span>}
           <div className="k-tv-spot__actions">
             {play && (
@@ -119,25 +118,26 @@ export function TvShow({ imdbId, season, inLibrary }) {
       </section>
 
       {current && (
-        <section className="kc-tvs__seasons" data-tv-row="" ref={regionRef}>
-          <div className="kc-tvs__pills">
-            {seasons.map((x) => (
-              <Button variant="bare" key={x.number} className={"kc-tvs__pill" + (x.number === current.number ? " is-on" : "")}
-                aria-current={x.number === current.number ? "true" : undefined}
-                onClick={() => navigate(showPath(imdbId, { held: inLibrary, season: x.number, category: shelved }), { replace: true })}
-                {...focusOn(0, { key: "season:" + x.number, eyebrow: s.title, title: x.name || `Season ${x.number}`,
-                  facts: { length: `${x.episodes.length} episodes`, year: x.airDate ? new Date(x.airDate).getFullYear() : null }, overview: x.overview })}>
-                Season {x.number}
-              </Button>
-            ))}
-          </div>
-          <div className="k-tv-row__track kc-tvs__episodes">
+        <div ref={regionRef}>
+          <TvRow className="kc-tvs__seasons" trackClassName="kc-tvs__episodes" lead={(
+            <div className="kc-tvs__pills">
+              {seasons.map((x) => (
+                <Button variant="bare" key={x.number} className={"kc-tvs__pill" + (x.number === current.number ? " is-on" : "")}
+                  aria-current={x.number === current.number ? "true" : undefined}
+                  onClick={() => navigate(showPath(imdbId, { held: inLibrary, season: x.number, category: shelved }), { replace: true })}
+                  {...focusOn(0, { key: "season:" + x.number, eyebrow: s.title, title: x.name || `Season ${x.number}`,
+                    facts: { length: `${x.episodes.length} episodes`, year: x.airDate ? new Date(x.airDate).getFullYear() : null }, overview: x.overview })}>
+                  Season {x.number}
+                </Button>
+              ))}
+            </div>
+          )}>
             {current.episodes.map((e) => (
               <Episode key={e.number} episode={e} rooms={rooms.data || []} offers={offers.data} showImdbId={s.imdbId}
                 focus={focusOn(1, episodeSpot(e))} />
             ))}
-          </div>
-        </section>
+          </TvRow>
+        </div>
       )}
 
       <TvCast cast={s.cast} />

@@ -54,9 +54,8 @@ export function TvHero({ slides: laid, store, initial = false, more, className, 
       <section ref={section} className={className} {...rest} {...carousel.rootProps}
         onFocus={(e) => { carousel.rootProps.onFocus(e); track.onFocus(e); }}
         onBlur={(e) => { carousel.rootProps.onBlur(e); track.onBlur(e); }}>
-        <TvSpotlight key={slide.key} className="kc-tv-hero" size="lg" eyebrow={spot.eyebrow} title={spot.title} meta={<SpotFacts facts={spot.facts} />}>
-          {spot.overview && <p className="k-tv-spot__overview">{spot.overview}</p>}
-          <TvSlideActions slide={slide} initial={initial} more={more} />
+        <TvSpotlight key={slide.key} className="kc-tv-hero" size="lg" eyebrow={spot.eyebrow} title={spot.title} meta={<SpotFacts facts={spot.facts} />}
+          overview={spot.overview} actions={<TvSlideActions slide={slide} initial={initial} more={more} />}>
           <CarouselPager carousel={carousel} indicator className="kc-tv-hero__pager" />
         </TvSpotlight>
       </section>
@@ -112,11 +111,11 @@ function TvSlideActions({ slide, initial, more }) {
     watch = <Button variant="primary" size="lg" icon="play" busy={starting} {...first} onClick={fetch}>Watch</Button>;
   }
   return (
-    <div className="k-tv-spot__actions">
+    <>
       {watch}
       <Button variant={watch ? undefined : "primary"} size="lg" icon="info" {...(watch ? {} : first)} {...linkProps(page)}>More info</Button>
       {slide.imdbId && <SaveButton imdbId={slide.imdbId} kind={show ? "show" : "film"} title={slide.spot.title} />}
       {more}
-    </div>
+    </>
   );
 }

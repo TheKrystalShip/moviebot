@@ -543,7 +543,6 @@ button.kc-episode:disabled { cursor: progress; }
 
 /* The bell: a sidebar row above the person on a wide screen, the top right of the front page on a
    phone, and the list either opens. */
-.kc-bell-item__badge { font-family: var(--font-mono); }
 
 .kc-phonehead { display: none; }
 @media (max-width: 768px) {

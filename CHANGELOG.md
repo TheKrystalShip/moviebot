@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.39.0] - 2026-10-16
+
+### Changed
+
+- **The notifications bell is a `NavItem`.** The sidebar row is `role="button"` with `aria-haspopup`,
+  `aria-expanded` and an `aria-label` that carries the unread count, and its count is the package's pill.
+- **The television's spotlights take their story and buttons as props.** Home, Discover, a film and a
+  show hand `TvSpotlight` an `overview`, and the hero and Discover's best match hand it `actions`.
+- **The television's headings are `TvHeading`s.** A browse page (a person, a genre, a category, a shelf)
+  names itself through a large heading with its eyebrow, count and portrait lead, and Details is a heading
+  of its own. A show's season pills are the `lead` of its episodes' `TvRow`, and Cast and the episodes set
+  their track through `trackClassName`.
+- **The assistant's page is a framed `Chat`** through its `framed` flag. Krystal and Krystal Chat 0.40.0.
+  Site 0.86.0.
+
 ## [3.38.0] - 2026-10-16
 
 ### Changed

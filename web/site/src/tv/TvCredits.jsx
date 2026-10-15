@@ -1,4 +1,4 @@
-import { Avatar, TvRow } from "@thekrystalship/krystal";
+import { Avatar, TvHeading, TvRow } from "@thekrystalship/krystal";
 import { discoverPersonPath } from "../paths.js";
 import { linkProps } from "../router.js";
 
@@ -10,7 +10,7 @@ import { linkProps } from "../router.js";
 export function TvCast({ cast }) {
   if (!cast || cast.length === 0) return null;
   return (
-    <TvRow className="kc-tv-cast" title="Cast">
+    <TvRow className="kc-tv-cast" trackClassName="kc-tv-cast__track" title="Cast">
       {cast.map((c) => {
         const body = (
           <>
@@ -39,7 +39,7 @@ export function TvFacts({ facts }) {
   if (shown.length === 0) return null;
   return (
     <section className="kc-tv-facts">
-      <h2 className="k-tv-row__head">Details</h2>
+      <TvHeading title="Details" />
       <div className="kc-tv-facts__grid">
         {shown.map(([label, value, mono]) => (
           <div key={label} className="kc-tv-facts__cell">

@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Drawer, Icon, IconButton, Pill, Popover } from "@thekrystalship/krystal";
+import { Button, Drawer, Icon, IconButton, NavItem, Popover } from "@thekrystalship/krystal";
 import { profilePath } from "../paths.js";
 import { navigate } from "../router.js";
 import { ago } from "../time.js";
@@ -17,14 +17,9 @@ export function BellNavItem() {
   return (
     <Bell placement="beside">
       {(open, toggle) => (
-        <div className={"k-nav-item kc-bell-item" + (open ? " k-nav-item--active" : "")} role="button" tabIndex={0}
-          onClick={toggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
-          data-tip={"Notifications" + (unread > 0 ? " · " + unread : "")}
-          aria-label={"Notifications" + (unread > 0 ? `, ${unread} unread` : "")} aria-haspopup="dialog" aria-expanded={open}>
-          <Icon name="bell" size={16} />
-          <span className="k-nav-item__label">Notifications</span>
-          {unread > 0 && <Pill tone="accent" className="k-nav-item__badge kc-bell-item__badge">{unread}</Pill>}
-        </div>
+        <NavItem icon="bell" label="Notifications" badge={unread} active={open} onClick={toggle} role="button"
+          tip={"Notifications" + (unread > 0 ? " · " + unread : "")} aria-haspopup="dialog" aria-expanded={open}
+          aria-label={"Notifications" + (unread > 0 ? `, ${unread} unread` : "")} />
       )}
     </Bell>
   );

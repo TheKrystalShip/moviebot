@@ -34,8 +34,7 @@ function FilmFrame({ details: d, fallback, length, actions, progress, facts }) {
           meta={<SpotFacts facts={{
             rating: d && d.rating, year: (d && d.year) || fallback.year, cert: d && d.certification,
             length, genres: d ? d.genres : [],
-          }} />}>
-          {d && d.overview && <p className="k-tv-spot__overview">{d.overview}</p>}
+          }} />} overview={d && d.overview}>
           {credit && credit.length > 0 && (
             <span className="kc-tv-credit">
               {credit.map(([label, names], i) => (
