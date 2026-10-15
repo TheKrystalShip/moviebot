@@ -26,19 +26,19 @@
   min-width: 0;
   max-width: 1280px;
   margin: 0 auto;
-  padding: 24px 32px 64px;
+  padding-block: 24px 64px;
   display: flex;
   flex-direction: column;
   gap: 28px;
 }
-@media (max-width: 720px) { .kc-page { padding: 16px 16px 48px; gap: 22px; } }
+@media (max-width: 720px) { .kc-page { padding-block: 16px 48px; gap: 22px; } }
 
-/* The trail above a page, in the page column's own gutters. */
-.kc-trail { box-sizing: border-box; width: 100%; max-width: 1280px; margin: 0 auto; padding: 16px 32px 0; }
-@media (max-width: 720px) { .kc-trail { padding: 12px 16px 0; } }
+/* The trail above a page, in the frame's page gutter. */
+.kc-trail { box-sizing: border-box; width: 100%; max-width: 1280px; margin: 0 auto; padding-block: 16px 0; }
+@media (max-width: 720px) { .kc-trail { padding-block: 12px 0; } }
 
 /* What the call is watching, above every page in the Discord Activity, in the page column's gutters. */
-.kc-callbar { box-sizing: border-box; width: 100%; max-width: 1280px; margin: 0 auto; padding: 16px 32px 0; }
+.kc-callbar { box-sizing: border-box; width: 100%; max-width: 1280px; margin: 0 auto; padding-block: 16px 0; }
 .kc-callbar__bar {
   display: flex; align-items: center; gap: 10px; min-width: 0;
   padding: 8px 8px 8px 14px; border: var(--edge-accent); border-radius: var(--r-sm);
@@ -50,7 +50,7 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .kc-callbar__bar > :last-child { flex-shrink: 0; margin-left: auto; }
-@media (max-width: 720px) { .kc-callbar { padding: 12px 16px 0; } }
+@media (max-width: 720px) { .kc-callbar { padding-block: 12px 0; } }
 
 /* ── Moving between pages (PageStage) ── the page navigated to is laid out at the column's width
    out of sight, then fades in rising a few pixels in place of the one it replaces. Out of sight is
@@ -75,7 +75,7 @@
    the chat, whose thread scrolls inside it while the column stays still. */
 .k-app__main:has(.kc-chat-page) > .kc-stage,
 .kc-stage__page:has(> .kc-chat-page) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-.kc-chat-page { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.kc-chat-page { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; margin-inline: calc(var(--k-page-gutter) * -1); }
 
 .kc-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .kc-head__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -363,14 +363,9 @@ button.kc-continue:disabled { cursor: progress; }
   display: flex; align-items: center; gap: 12px; padding: 10px 12px; min-width: 0;
   background: var(--surface-1); border: var(--edge); border-radius: var(--r-sm);
 }
-.kc-cast__face {
-  width: 44px; height: 44px; border-radius: var(--r-pill); flex-shrink: 0; overflow: hidden;
-  background: var(--surface-3); border: var(--edge);
-  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--fg-2);
-}
+.kc-cast__face { width: 44px; height: 44px; flex-shrink: 0; border: var(--edge); }
 .kc-cast__card--link { color: inherit; text-decoration: none; }
 .kc-cast__card--link:hover, .kc-cast__card--link:focus-visible { border-color: var(--border-strong); background: var(--surface-2); }
-.kc-cast__face img { width: 100%; height: 100%; object-fit: cover; }
 .kc-cast__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .kc-cast__name, .kc-cast__role { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kc-cast__name { font-size: 13.5px; font-weight: 600; }
@@ -443,12 +438,12 @@ button.kc-continue:disabled { cursor: progress; }
 
 /* Discover's heading over a person's work or a genre: who or what, and how many. */
 .kc-browse-head { display: flex; align-items: center; gap: 16px; min-width: 0; }
-.kc-browse-head__face { width: 72px; height: 72px; font-size: 20px; }
+.kc-browse-head__face { width: 72px; height: 72px; }
 .kc-browse-head__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
 .kc-browse-head__text h2 { margin: 0; font-size: 24px; font-weight: 700; overflow-wrap: anywhere; }
 @media (max-width: 430px) {
   .kc-browse-head { gap: 12px; }
-  .kc-browse-head__face { width: 56px; height: 56px; font-size: 16px; }
+  .kc-browse-head__face { width: 56px; height: 56px; }
   .kc-browse-head__text h2 { font-size: 20px; }
 }
 

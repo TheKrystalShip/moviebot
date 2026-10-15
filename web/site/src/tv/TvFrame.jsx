@@ -1,5 +1,5 @@
 import React from "react";
-import { Toasts, TvBar, TvBarButton } from "@thekrystalship/krystal";
+import { Avatar, Toasts, TvBar, TvBarButton } from "@thekrystalship/krystal";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { Bell } from "../components/Bell.jsx";
 import { PageStage } from "../components/PageStage.jsx";
@@ -7,7 +7,6 @@ import { useNotifications } from "../notifications.js";
 import { PLACES } from "../nav.js";
 import { homePath, profilePath } from "../paths.js";
 import { goBack, linkProps, navigate } from "../router.js";
-import { initials } from "../components/FilmDetails.jsx";
 import { onBack } from "./tv.js";
 import { focusNavigation, pageShown } from "./navigator.js";
 import { TvPage } from "./TvPage.jsx";
@@ -107,7 +106,7 @@ export function TvFrame({ session, route, held = false }) {
             actions={<>
               <TvBell />
               <TvBarButton label="Profile" className="kc-tv-avatar" onClick={() => navigate(profilePath())}>
-                <span>{initials(session.user.name || session.user.username || "")}</span>
+                <Avatar name={session.user.name || session.user.username || ""} size="css" />
               </TvBarButton>
             </>} />
         </div>

@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, SearchField, Skeleton } from "@thekrystalship/krystal";
+import { Avatar, Button, Icon, SearchField, Skeleton } from "@thekrystalship/krystal";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useOnline } from "../connectivity.js";
@@ -10,7 +10,7 @@ import { Empty, Failed, FilmCard, PageHead, ShowCard, watchHref } from "../compo
 import { FilmMatchActions } from "../components/FilmActions.jsx";
 import { Spotlight } from "../components/Spotlight.jsx";
 import { useDiscoverSlides } from "../heroes.js";
-import { FilmScore, initials } from "../components/FilmDetails.jsx";
+import { FilmScore } from "../components/FilmDetails.jsx";
 import { SaveButton } from "../components/SaveButton.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
 import { CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, LandingFilters, ShelfPage, surprisePool, useSurprise } from "./DiscoverShelves.jsx";
@@ -160,9 +160,7 @@ function PersonWork({ personId, where }) {
       {p && (
         <section className="kc-shelf">
           <div className="kc-browse-head">
-            <span className="kc-cast__face kc-browse-head__face">
-              {p.portraitUrl ? <img src={p.portraitUrl} alt="" /> : initials(p.name)}
-            </span>
+            <Avatar src={p.portraitUrl} name={p.name} tone="muted" size="css" className="kc-cast__face kc-browse-head__face" />
             <div className="kc-browse-head__text">
               {p.knownFor && <span className="kc-eyebrow">{KNOWN_AS[p.knownFor] || p.knownFor}</span>}
               <h2>{p.name}</h2>

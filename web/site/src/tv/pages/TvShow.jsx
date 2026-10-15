@@ -122,7 +122,7 @@ export function TvShow({ imdbId, season, inLibrary }) {
         <section className="kc-tvs__seasons" data-tv-row="" ref={regionRef}>
           <div className="kc-tvs__pills">
             {seasons.map((x) => (
-              <Button variant="bare" key={x.number} className={"k-tv-pill kc-tvs__pill" + (x.number === current.number ? " is-on" : "")}
+              <Button variant="bare" key={x.number} className={"kc-tvs__pill" + (x.number === current.number ? " is-on" : "")}
                 aria-current={x.number === current.number ? "true" : undefined}
                 onClick={() => navigate(showPath(imdbId, { held: inLibrary, season: x.number, category: shelved }), { replace: true })}
                 {...focusOn(0, { key: "season:" + x.number, eyebrow: s.title, title: x.name || `Season ${x.number}`,

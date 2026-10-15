@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, Input, TvCard, TvRow } from "@thekrystalship/krystal";
+import { Avatar, Button, Icon, SearchField, TvCard, TvRow, TvSpotlight } from "@thekrystalship/krystal";
 import { api, filmName, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { ANIME, discoverPath } from "../../paths.js";
@@ -9,7 +9,6 @@ import { watchHref } from "../../components/Film.jsx";
 import { SaveButton } from "../../components/SaveButton.jsx";
 import { foundPage } from "../../components/TitleCards.jsx";
 import { Failed } from "../../components/Film.jsx";
-import { initials } from "../../components/FilmDetails.jsx";
 import { startFilm } from "./TvFilm.jsx";
 import { TvCategory, TvDiscoverFront, TvShelf } from "./TvDiscoverShelves.jsx";
 
@@ -58,18 +57,12 @@ export function TvDiscover({ query }) {
   const libraryShowsNamed = q ? (libraryShows.data || []).filter((s) => named(s.title) && !answeredIds.has(s.imdbId)) : [];
   const [best, ...rest] = found;
 
-  const submit = (e) => {
-    e.preventDefault();
-    navigate(discoverPath(draft.trim()));
-  };
+  const submit = (value) => navigate(discoverPath(value.trim()));
 
   return (
     <div className={"kc-tv-page kc-tvd" + (q ? " has-query" : "")}>
-      <form className="kc-tvd__search" onSubmit={submit} role="search" data-tv-top="">
-        <Input wide className="kc-tvd__field" prefix={<Icon name="search" size={22} />} value={draft}
-          onChange={(e) => setDraft(e.target.value)} placeholder="Any movie or show" aria-label="Any movie or show"
-          enterKeyHint="search" data-tv-initial={q || browsing ? undefined : ""} />
-      </form>
+      <SearchField size="xl" className="kc-tvd__search" data-tv-top="" value={draft} onChange={setDraft} onSubmit={submit} submit={false}
+        placeholder="Any movie or show" inputProps={{ "data-tv-initial": q || browsing ? undefined : "" }} />
 
       {!q && person && <PersonWork key={person} personId={person} where={where} />}
       {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} where={where} />}
@@ -131,7 +124,7 @@ function PersonWork({ personId, where }) {
   return (
     <section className="kc-tvd__browse">
       <div className="kc-tvd__browse-head">
-        <span className="kc-tv-person__face kc-tvd__face">{p.portraitUrl ? <img src={p.portraitUrl} alt="" /> : initials(p.name)}</span>
+        <Avatar src={p.portraitUrl} name={p.name} tone="muted" size="css" className="kc-tv-person__face kc-tvd__face" />
         <span className="kc-tvd__browse-text">
           {p.knownFor && <span className="k-tv-spot__eyebrow">{KNOWN_AS[p.knownFor] || p.knownFor}</span>}
           <span className="kc-tvd__title">{p.name}</span>
@@ -178,15 +171,13 @@ function BestMatch({ found, here, held }) {
   return (
     <section className="kc-tvd__best" data-tv-row="">
       {found.posterUrl && <img className="kc-tvd__poster" src={found.posterUrl} alt="" />}
-      <div className="kc-tvd__body">
-        <span className="k-tv-spot__eyebrow">Best match</span>
-        <h1 className="kc-tvd__title">{found.title}</h1>
-        <div className="k-tv-spot__meta">
+      <TvSpotlight className="kc-tvd__body" eyebrow="Best match" title={found.title}
+        meta={<>
           {found.rating ? <span className="kc-tv-rating"><Icon name="star" size={13} /><span className="kc-mono">{found.rating.toFixed(1)}</span></span> : null}
           {found.year && <span>{found.year}</span>}
           <span>{show ? "TV series" : "Movie"}</span>
           {found.starring && <span>{found.starring}</span>}
-        </div>
+        </>}>
         {found.overview && <p className="k-tv-spot__overview">{found.overview}</p>}
         <div className="k-tv-spot__actions">
           {!show && <Button variant="primary" size="lg" icon="play" busy={busy} data-tv-initial="" onClick={watch}>Watch</Button>}
@@ -194,7 +185,7 @@ function BestMatch({ found, here, held }) {
             {...linkProps(page)}>More info</Button>
           <SaveButton imdbId={found.imdbId} kind={show ? "show" : "film"} title={found.title} />
         </div>
-      </div>
+      </TvSpotlight>
     </section>
   );
 }

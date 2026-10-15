@@ -1,5 +1,5 @@
 import React from "react";
-import { Icon, Pill, Skeleton } from "@thekrystalship/krystal";
+import { Avatar, Icon, Pill, Skeleton } from "@thekrystalship/krystal";
 import { discoverPersonPath } from "../paths.js";
 import { linkProps } from "../router.js";
 
@@ -15,10 +15,6 @@ export function bytes(n) {
   if (!n) return null;
   const gb = n / 1024 ** 3;
   return gb >= 1 ? `${gb.toFixed(1)} GB` : `${Math.round(n / 1024 ** 2)} MB`;
-}
-
-export function initials(name) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 }
 
 /** The film database's rating, and that it is the database's. */
@@ -96,14 +92,7 @@ export function Credits({ film }) {
 }
 
 function Portrait({ person }) {
-  const [failed, setFailed] = React.useState(false);
-  return (
-    <span className="kc-cast__face">
-      {person.portraitUrl && !failed
-        ? <img src={person.portraitUrl} alt="" loading="lazy" onError={() => setFailed(true)} />
-        : initials(person.name)}
-    </span>
-  );
+  return <Avatar src={person.portraitUrl} name={person.name} tone="muted" size="css" className="kc-cast__face" />;
 }
 
 /** The billing, each person the film database has an id for leading to their work in Discover. */

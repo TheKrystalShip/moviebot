@@ -1,5 +1,4 @@
-import React from "react";
-import { initials } from "../components/FilmDetails.jsx";
+import { Avatar, TvRow } from "@thekrystalship/krystal";
 import { discoverPersonPath } from "../paths.js";
 import { linkProps } from "../router.js";
 
@@ -11,37 +10,27 @@ import { linkProps } from "../router.js";
 export function TvCast({ cast }) {
   if (!cast || cast.length === 0) return null;
   return (
-    <section className="kc-tv-cast" data-tv-row="">
-      <h2 className="k-tv-row__head">Cast</h2>
-      <div className="kc-tv-cast__track k-tv-row__track">
-        {cast.map((c) => {
-          const body = (
-            <>
-              <Face person={c} />
-              <span className="kc-tv-person__name">{c.name}</span>
-              {c.character && <span className="kc-tv-person__part">{c.character}</span>}
-            </>
-          );
-          const key = c.name + (c.character || "");
-          const label = c.character ? `${c.name}, ${c.character}` : c.name;
-          return c.personId
-            ? <a key={key} className="kc-tv-person" aria-label={label} {...linkProps(discoverPersonPath(c.personId))}>{body}</a>
-            : <div key={key} className="kc-tv-person" tabIndex={0} role="group" aria-label={label}>{body}</div>;
-        })}
-      </div>
-    </section>
+    <TvRow className="kc-tv-cast" title="Cast">
+      {cast.map((c) => {
+        const body = (
+          <>
+            <Face person={c} />
+            <span className="kc-tv-person__name">{c.name}</span>
+            {c.character && <span className="kc-tv-person__part">{c.character}</span>}
+          </>
+        );
+        const key = c.name + (c.character || "");
+        const label = c.character ? `${c.name}, ${c.character}` : c.name;
+        return c.personId
+          ? <a key={key} className="kc-tv-person" aria-label={label} {...linkProps(discoverPersonPath(c.personId))}>{body}</a>
+          : <div key={key} className="kc-tv-person" tabIndex={0} role="group" aria-label={label}>{body}</div>;
+      })}
+    </TvRow>
   );
 }
 
 function Face({ person }) {
-  const [failed, setFailed] = React.useState(false);
-  return (
-    <span className="kc-tv-person__face">
-      {person.portraitUrl && !failed
-        ? <img src={person.portraitUrl} alt="" loading="lazy" onError={() => setFailed(true)} />
-        : initials(person.name)}
-    </span>
-  );
+  return <Avatar src={person.portraitUrl} name={person.name} tone="muted" size="css" className="kc-tv-person__face" />;
 }
 
 /** Label over value, four to a line; a fact with no value is left out. `mono` sets a code in a code face. */

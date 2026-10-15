@@ -1,10 +1,9 @@
-import { Button, Icon } from "@thekrystalship/krystal";
+import { Avatar, Button, Icon } from "@thekrystalship/krystal";
 import { PROFILE_TAB_FACES } from "../../nav.js";
 import { aboutPath, profilePath } from "../../paths.js";
 import { navigate } from "../../router.js";
 import { useSession } from "../../session.js";
 import { leave } from "../../leave.js";
-import { initials } from "../../components/FilmDetails.jsx";
 import { TabStage } from "../../components/PageStage.jsx";
 import { panel } from "../../pages/Profile.jsx";
 import { About } from "../../pages/About.jsx";
@@ -35,7 +34,7 @@ export function TvProfile({ tab: named, about = false }) {
     <div className="kc-tv-page kc-tvp">
       <aside className="kc-tvp__side">
         <div className="kc-tvp__who">
-          <span className="kc-tvp__avatar">{initials((user && (user.name || user.username)) || "")}</span>
+          <Avatar className="kc-tvp__avatar" name={(user && (user.name || user.username)) || ""} size="css" />
           <span className="kc-tvp__names">
             <span className="kc-tvp__name">{user && user.name}</span>
             {user && user.username && <span className="kc-tvp__handle">@{user.username}</span>}
@@ -43,16 +42,16 @@ export function TvProfile({ tab: named, about = false }) {
         </div>
         <nav className="kc-tvp__nav" aria-label="Profile">
           {SECTIONS.map((t) => (
-            <Button variant="bare" key={t.id} className="k-tv-pill kc-tvp__item" aria-current={!about && t.id === tab ? "page" : undefined}
+            <Button variant="bare" key={t.id} className="kc-tvp__item" aria-current={!about && t.id === tab ? "page" : undefined}
               data-tv-initial={!about && t.id === tab ? "" : undefined} onClick={() => navigate(profilePath(t.id), { replace: true })}>
               <Icon name={t.icon} size={18} />{t.label}
             </Button>
           ))}
-          <Button variant="bare" className="k-tv-pill kc-tvp__item" aria-current={about ? "page" : undefined}
+          <Button variant="bare" className="kc-tvp__item" aria-current={about ? "page" : undefined}
             data-tv-initial={about ? "" : undefined} onClick={() => navigate(aboutPath, { replace: true })}>
             <Icon name="info" size={18} />About
           </Button>
-          <Button variant="bare" className="k-tv-pill kc-tvp__item kc-tvp__out" onClick={leave}><Icon name="log-out" size={18} />Sign out</Button>
+          <Button variant="bare" className="kc-tvp__item kc-tvp__out" onClick={leave}><Icon name="log-out" size={18} />Sign out</Button>
         </nav>
       </aside>
       <section className="kc-tvp__panel">

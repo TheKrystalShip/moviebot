@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.38.0] - 2026-10-16
+
+### Changed
+
+- **The page gutter is the frame's.** The site's pages, the trail above them and the Discord call bar
+  keep only their vertical padding and their 1280px width; the frame's main column pads both sides equally
+  by `--k-page-gutter` (24px, 16px at 768px and narrower, 12px at 480px and narrower). The assistant's
+  page spans the column through a negative inline margin of the same variable. Krystal and Krystal Chat
+  0.39.0.
+- **The television's Discover search is a `SearchField`**, its first-focus mark on the input through
+  `inputProps`. The best match is a `TvSpotlight` and Cast is a `TvRow`. The television's season and
+  profile choices are bare `Button`s that take the package's focus look without a class of their own.
+- **Portraits and account marks are `Avatar`s.** A cast member, a person in Discover and the television's
+  account marks draw their picture or their initials through the package, so a name such as "Claude (agent)"
+  reads "CA". The subtitle-height slider on a television gives Up and Down to spatial focus. Site 0.85.0.
+
 ## [3.37.1] - 2026-10-15
 
 ### Changed
