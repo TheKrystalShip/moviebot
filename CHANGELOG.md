@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.37.1] - 2026-10-15
+
+### Changed
+
+- **The site's stylesheets hold no literal colour and no off-scale radius, and Stylelint fails the
+  build on one.** Borders are `--edge*`, pill corners `--r-pill`, and the player's white and black
+  veils are `color-mix()` over `--art-fg-white`, `--kc-black` and the dark palette's `--canvas`,
+  `--surface-1` and `--krystal-teal`, which resolve to the same pixels as the literals they replace.
+  The colours that hold in every theme (a QR code's black, the ink under a poster, the subtitle
+  preview's sample frame) are named once in `src/fixed-colours.css`, the one sheet the lint config
+  exempts from the colour rules. Four corners between two radius tokens keep their pixel value behind
+  a commented `stylelint-disable-next-line`. Site 0.84.1.
+
 ## [3.37.0] - 2026-10-14
 
 ### Changed

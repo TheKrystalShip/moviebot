@@ -10,7 +10,7 @@ API is the authority for everything it draws.
 npm install        # @thekrystalship/krystal comes from GitHub Packages, which wants a token
 npm run dev        # http://localhost:5175
 npm run lint       # ESLint, with the design system's rules as warnings
-npm run lint:css   # Stylelint, with the design system's rules as warnings
+npm run lint:css   # Stylelint, with the design system's rules as errors
 npm run check      # the player's engine, types only
 npm test           # the engine's pure rung logic (verify/heads.test.mjs)
 npm run build      # -> dist/; scripts/build-player.sh installs it into the API's wwwroot

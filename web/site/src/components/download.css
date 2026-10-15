@@ -3,7 +3,7 @@
 /* At an episode's row's end: a square button, a ring while under way, the accent once downloaded. */
 .kc-dl-mark {
   width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center;
-  border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: transparent; color: var(--fg-2); cursor: pointer;
+  border: var(--edge-strong); border-radius: var(--r-sm); background: transparent; color: var(--fg-2); cursor: pointer;
 }
 .kc-dl-mark:hover:not(:disabled) { background: var(--surface-2); color: var(--fg-1); }
 .kc-dl-mark:disabled { opacity: 0.4; cursor: default; }
@@ -14,6 +14,7 @@
 .kc-dl-ring circle { fill: none; stroke-width: 2.5; }
 .kc-dl-ring__track { stroke: var(--surface-3); }
 .kc-dl-ring__done { stroke: var(--krystal-teal); stroke-linecap: round; transition: stroke-dasharray 0.25s linear; }
+/* stylelint-disable-next-line declaration-property-value-allowed-list -- the 6px stop square keeps a 1px corner, finer than --r-sm */
 .kc-dl-ring__stop { width: 6px; height: 6px; border-radius: 1px; background: currentColor; }
 
 /* An episode's row says where its download stands under its name, in the accent once downloaded. */
@@ -25,7 +26,7 @@
 .kc-dl-head { flex-shrink: 0; display: flex; gap: 12px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-subtle); }
 .kc-dl-head__still {
   flex-shrink: 0; width: 72px; aspect-ratio: 16 / 9; object-fit: cover;
-  border-radius: var(--r-sm); border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm); border: var(--edge);
 }
 .kc-dl-head__still.is-portrait { width: 40px; aspect-ratio: 2 / 3; }
 .kc-dl-head__text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
@@ -63,7 +64,7 @@
 .kc-dl-progress__figures { display: flex; align-items: baseline; gap: 10px; }
 .kc-dl-progress__percent { font-family: var(--font-mono); font-size: 28px; font-weight: 500; color: var(--fg-1); }
 .kc-dl-progress__bytes { font-family: var(--font-mono); font-size: 12px; color: var(--fg-3); }
-.kc-dl-parts { border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden; }
+.kc-dl-parts { border: var(--edge); border-radius: var(--r-sm); overflow: hidden; }
 .kc-dl-part { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 14px; background: var(--surface-2); }
 .kc-dl-part + .kc-dl-part { border-top: 1px solid var(--border-subtle); }
 .kc-dl-part > svg { color: var(--fg-4); }
@@ -77,7 +78,7 @@
 /* Downloaded: what it holds, as a grid of facts. */
 .kc-dl-facts {
   margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px;
-  background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); overflow: hidden;
+  background: var(--border-subtle); border: var(--edge); border-radius: var(--r-sm); overflow: hidden;
 }
 .kc-dl-fact { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: var(--surface-2); min-width: 0; }
 .kc-dl-fact dt { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-3); }
@@ -96,8 +97,8 @@
 
 /* A card on a shelf whose title is downloaded, or downloading: a pill on its poster. */
 .kc-card--dl .k-showcase-card__corner {
-  height: 24px; padding: 0 8px; border-radius: 999px; gap: 5px; font-size: 11px; font-weight: 600;
-  background: rgba(11, 15, 20, 0.75); border: 1px solid var(--border-strong); color: var(--fg-1);
+  height: 24px; padding: 0 8px; border-radius: var(--r-pill); gap: 5px; font-size: 11px; font-weight: 600;
+  background: color-mix(in srgb, var(--kc-art-ink) 75%, transparent); border: var(--edge-strong); color: var(--fg-1);
 }
 .kc-card--dl-done .k-showcase-card__corner { border-color: var(--border-accent); color: var(--krystal-teal); }
 .kc-card--dl-underway .k-showcase-card__corner { font-family: var(--font-mono); }

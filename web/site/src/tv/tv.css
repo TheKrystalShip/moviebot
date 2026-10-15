@@ -60,10 +60,10 @@
   font-size: var(--text-sm); color: var(--fg-2);
 }
 .kc-tv-progress__bar {
-  width: 120px; height: 4px; border-radius: 2px;
+  width: 120px; height: 4px; border-radius: var(--r-pill);
   background: color-mix(in srgb, var(--fg-1) 18%, transparent);
 }
-.kc-tv-progress__bar > span { display: block; height: 100%; border-radius: 2px; background: var(--krystal-teal); }
+.kc-tv-progress__bar > span { display: block; height: 100%; border-radius: var(--r-pill); background: var(--krystal-teal); }
 
 .kc-tv-live { width: 7px; height: 7px; border-radius: var(--r-pill); background: var(--success-fg); }
 
@@ -247,13 +247,14 @@
   flex: none; margin: 0; box-sizing: content-box; width: 200px; height: 200px; padding: 14px; border-radius: var(--r-md);
   background: var(--fg-1);
 }
-.kc-tvr__qr svg { display: block; width: 200px; height: 200px; fill: #000; }
+.kc-tvr__qr svg { display: block; width: 200px; height: 200px; fill: var(--kc-black); }
 .kc-tvr__phones { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 .kc-tvr__label {
   margin: 0; font-size: var(--text-xs); font-weight: var(--w-bold); letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--fg-2);
 }
 .kc-tvr__phone {
+  /* stylelint-disable-next-line declaration-property-value-allowed-list -- the 72px row's 6px corner sits between --r-sm and --r-md */
   display: flex; align-items: center; gap: 16px; height: 72px; padding: 0 16px; border-radius: 6px;
   background: var(--surface-1); color: var(--fg-2);
   transition: transform var(--d-base) var(--ease-out), opacity var(--d-base) var(--ease-out);
@@ -278,9 +279,10 @@
 }
 .kc-tvr-paused__figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .kc-tvr-paused__qr {
-  padding: 12px; border-radius: 10px; background: #fff; box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+  /* stylelint-disable-next-line declaration-property-value-allowed-list -- the plate's 10px corner sits between --r-md and --r-lg */
+  padding: 12px; border-radius: 10px; background: var(--art-fg-white); box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
 }
-.kc-tvr-paused__qr svg { display: block; width: 128px; height: 128px; fill: #000; }
+.kc-tvr-paused__qr svg { display: block; width: 128px; height: 128px; fill: var(--kc-black); }
 .kc-tvr-paused__caption {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 12.5px; font-weight: var(--w-semibold); color: var(--fg-2);
@@ -392,9 +394,9 @@
 }
 .kc-tv-signin__qr {
   flex: none; width: 260px; height: 260px; border-radius: var(--r-lg);
-  background: #fff;
+  background: var(--art-fg-white);
 }
-.kc-tv-signin__qr svg { display: block; width: 100%; height: 100%; fill: #000; }
+.kc-tv-signin__qr svg { display: block; width: 100%; height: 100%; fill: var(--kc-black); }
 .kc-tv-signin__stopped {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
 }

@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import "./layers.css";
+import "./fixed-colours.css";
 import "@thekrystalship/krystal/styles.css";
 import "@thekrystalship/krystal-chat/styles.css";
 import "./site.css";

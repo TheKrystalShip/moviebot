@@ -1,0 +1,13 @@
+/* Colours that hold in every theme, named once. The page chrome reads the design tokens; these are
+   the few that do not follow a theme. */
+:root {
+  /* A QR code's modules and the shade under a poster are black whatever the theme is. */
+  --kc-black: #000;
+  /* The ink of a scrim laid over cover art, which stays dark in a light theme. */
+  --kc-art-ink: #0B0F14;
+  /* The subtitle preview's sample frame: a warm light and a cool light over a dusk gradient. */
+  --kc-cue-sample-warm: rgba(255, 214, 160, 0.55);
+  --kc-cue-sample-cool: rgba(70, 110, 160, 0.7);
+  --kc-cue-sample-from: #6b5a4a;
+  --kc-cue-sample-to: #1f2a36;
+}

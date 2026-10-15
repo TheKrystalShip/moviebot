@@ -3,15 +3,15 @@
 
 .mp-page {
   position: fixed; inset: 0; z-index: 70;
-  background: #000; color: #fff;
+  background: var(--kc-black); color: var(--art-fg-white);
   font-family: var(--font-ui);
 }
 .mp-page--message {
   display: flex; align-items: center; justify-content: center; padding: 24px;
-  color: rgba(255, 255, 255, 0.75); font-size: 14px; text-align: center;
+  color: color-mix(in srgb, var(--art-fg-white) 75%, transparent); font-size: 14px; text-align: center;
 }
 
-.mp-frame { position: absolute; inset: 0; overflow: hidden; background: #000; }
+.mp-frame { position: absolute; inset: 0; overflow: hidden; background: var(--kc-black); }
 .mp-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: transparent; }
 .mp-frame button { font-family: var(--font-ui); white-space: nowrap; }
 
@@ -21,18 +21,18 @@
 
 /* How bright this viewer has the picture drawn. It sits over the film and under the subtitles,
    which stay as bright as they were chosen to be. */
-.mp-dim { position: absolute; inset: 0; pointer-events: none; background: #000; }
+.mp-dim { position: absolute; inset: 0; pointer-events: none; background: var(--kc-black); }
 
 /* What stands behind the film until it is in the element: its poster, dimmed. */
 .mp-backdrop {
   position: absolute; inset: 0; pointer-events: none;
-  background: var(--mp-poster) center / cover no-repeat, #000;
+  background: var(--mp-poster) center / cover no-repeat, var(--kc-black);
   opacity: 0.4; transition: opacity 400ms var(--ease-out);
 }
 .mp-stage.is-playing-film .mp-backdrop { opacity: 0; }
 .mp-shade {
   position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.65), transparent 22%, transparent 62%, rgba(0, 0, 0, 0.85));
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--kc-black) 65%, transparent), transparent 22%, transparent 62%, color-mix(in srgb, var(--kc-black) 85%, transparent));
   transition: opacity 200ms var(--ease-out);
 }
 
@@ -48,37 +48,37 @@
 }
 .mp-top__title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mp-top__name { font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mp-top__sub { font-size: 13px; color: rgba(255, 255, 255, 0.65); }
+.mp-top__sub { font-size: 13px; color: color-mix(in srgb, var(--art-fg-white) 65%, transparent); }
 .mp-top__room { margin-left: auto; display: flex; align-items: center; gap: 12px; position: relative; flex-shrink: 0; }
-.mp-top__count { font-size: 12.5px; color: rgba(255, 255, 255, 0.7); }
+.mp-top__count { font-size: 12.5px; color: color-mix(in srgb, var(--art-fg-white) 70%, transparent); }
 
 .mp-round {
-  width: 40px; height: 40px; flex-shrink: 0; border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.35); color: #fff;
+  width: 40px; height: 40px; flex-shrink: 0; border-radius: var(--r-pill);
+  border: 1px solid color-mix(in srgb, var(--art-fg-white) 20%, transparent); background: color-mix(in srgb, var(--kc-black) 35%, transparent); color: var(--art-fg-white);
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
 }
-.mp-round:hover { background: rgba(255, 255, 255, 0.14); }
+.mp-round:hover { background: color-mix(in srgb, var(--art-fg-white) 14%, transparent); }
 .mp-round--small { width: 36px; height: 36px; }
 
 .mp-invite {
   height: 40px; padding: 0 14px; border-radius: var(--r-sm);
-  border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.35); color: #fff;
+  border: 1px solid color-mix(in srgb, var(--art-fg-white) 20%, transparent); background: color-mix(in srgb, var(--kc-black) 35%, transparent); color: var(--art-fg-white);
   display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
 }
-.mp-invite:hover, .mp-invite.is-open { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.3); }
+.mp-invite:hover, .mp-invite.is-open { background: color-mix(in srgb, var(--art-fg-white) 14%, transparent); border-color: color-mix(in srgb, var(--art-fg-white) 30%, transparent); }
 
 .mp-avatars { display: flex; padding-left: 6px; }
-.mp-avatar { width: 34px; height: 34px; margin-left: -6px; border: 2px solid #0B0F14; }
+.mp-avatar { width: 34px; height: 34px; margin-left: -6px; border-width: 2px; border-style: solid; border-color: var(--canvas); }
 /* Somebody on the room's guest link: the same mark, hollow. */
-.mp-avatar.is-guest { background: #0B0F14; box-shadow: inset 0 0 0 1.5px currentColor; }
+.mp-avatar.is-guest { background: var(--canvas); box-shadow: inset 0 0 0 1.5px currentColor; }
 .mp-avatar--small { width: 22px; height: 22px; margin-left: 0; border: none; }
-.mp-avatars--large .mp-avatar { width: 44px; height: 44px; border: 3px solid #000; margin-left: -8px; }
+.mp-avatars--large .mp-avatar { width: 44px; height: 44px; border-width: 3px; border-style: solid; border-color: var(--kc-black); margin-left: -8px; }
 
 /* ── Who did what, and what went wrong ── */
 .mp-event {
   position: absolute; top: 84px; left: 50%; transform: translateX(-50%); z-index: 4;
-  display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px;
-  background: rgba(17, 22, 29, 0.88); backdrop-filter: blur(12px); border: 1px solid var(--border-strong);
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface-1) 88%, transparent); backdrop-filter: blur(12px); border: var(--edge-strong);
   font-size: 13px; color: var(--fg-1); white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis;
   animation: mp-rise 160ms var(--ease-out);
 }
@@ -88,21 +88,21 @@
 }
 .mp-notice {
   padding: 8px 14px; border-radius: var(--r-sm); font-size: 13px; line-height: 1.45; text-align: center;
-  background: rgba(17, 22, 29, 0.9); backdrop-filter: blur(12px); border: 1px solid var(--border-strong); color: var(--fg-1);
+  background: color-mix(in srgb, var(--surface-1) 90%, transparent); backdrop-filter: blur(12px); border: var(--edge-strong); color: var(--fg-1);
 }
 .mp-notice--error { border-color: var(--danger-fg); color: var(--danger-fg); }
 
 /* The room cannot be heard from: said above the film, which goes on playing what it has. */
 .mp-lost {
   position: absolute; top: 84px; left: 50%; transform: translateX(-50%); z-index: 5;
-  display: inline-flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border-radius: 999px;
-  background: rgba(17, 22, 29, 0.92); backdrop-filter: blur(12px); border: 1px solid var(--warning-fg, var(--border-strong));
+  display: inline-flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface-1) 92%, transparent); backdrop-filter: blur(12px); border: var(--edge-strong); border-color: var(--warning-fg, var(--border-strong));
   font-size: 13px; color: var(--fg-1); max-width: calc(100% - 32px);
 }
 .mp-lost:not(:has(.mp-lost__go)) { padding-right: 14px; }
 .mp-lost__text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mp-lost__go {
-  flex: none; height: 32px; padding: 0 14px; border-radius: 999px; border: none; cursor: pointer;
+  flex: none; height: 32px; padding: 0 14px; border-radius: var(--r-pill); border: none; cursor: pointer;
   background: var(--krystal-teal); color: var(--fg-inverse); font-weight: 600; font-size: 13px;
 }
 .mp-lost__go:hover { background: var(--krystal-teal-hover); }
@@ -113,8 +113,8 @@
 .mp-gesture-skip {
   position: absolute; top: 50%; z-index: 4; pointer-events: none;
   display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 18px 20px; border-radius: 999px; background: rgba(0, 0, 0, 0.45);
-  font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: #fff;
+  padding: 18px 20px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--kc-black) 45%, transparent);
+  font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--art-fg-white);
   transform: translateY(-50%); animation: mp-tap 220ms var(--ease-out);
 }
 .mp-gesture-skip--left { left: 12%; }
@@ -123,27 +123,27 @@
 .mp-gesture-level {
   position: absolute; top: 45%; transform: translateY(-50%); z-index: 4; pointer-events: none;
   display: flex; flex-direction: column; align-items: center; gap: 8px;
-  padding: 10px 8px; border-radius: 999px; background: rgba(17, 22, 29, 0.85); color: #fff;
+  padding: 10px 8px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--surface-1) 85%, transparent); color: var(--art-fg-white);
 }
 .mp-gesture-level--left { left: 24px; }
 .mp-gesture-level--right { right: 24px; }
 .mp-gesture-level__track {
-  width: 4px; height: min(88px, 22vh); border-radius: 999px; background: rgba(255, 255, 255, 0.2);
+  width: 4px; height: min(88px, 22vh); border-radius: var(--r-pill); background: color-mix(in srgb, var(--art-fg-white) 20%, transparent);
   display: flex; align-items: flex-end; overflow: hidden;
 }
-.mp-gesture-level__track > div { width: 100%; border-radius: 999px; background: #fff; }
+.mp-gesture-level__track > div { width: 100%; border-radius: var(--r-pill); background: var(--art-fg-white); }
 
 /* ── The middle of the frame ── */
 .mp-spinner {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2;
-  color: rgba(255, 255, 255, 0.85); pointer-events: none; display: flex;
+  color: color-mix(in srgb, var(--art-fg-white) 85%, transparent); pointer-events: none; display: flex;
 }
 .mp-spin { animation: mp-spin 0.9s linear infinite; }
 /* A guest has no play button to show the room stopped, so the middle of the frame says it. */
 .mp-paused {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2; pointer-events: none;
-  display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px;
-  background: rgba(17, 22, 29, 0.78); backdrop-filter: blur(12px); border: 1px solid var(--border-strong);
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface-1) 78%, transparent); backdrop-filter: blur(12px); border: var(--edge-strong);
   font-size: 13.5px; font-weight: 600; color: var(--fg-1);
 }
 
@@ -154,15 +154,15 @@
   text-align: center;
 }
 .mp-arrive__eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); font-weight: 600; }
-.mp-arrive__name { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.25; }
+.mp-arrive__name { font-size: 22px; font-weight: 700; color: var(--art-fg-white); line-height: 1.25; }
 .mp-arrive__form { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
 
 .mp-message {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2;
   width: min(440px, calc(100% - 32px)); display: flex; flex-direction: column; align-items: center; gap: 8px;
-  text-align: center; color: rgba(255, 255, 255, 0.75);
+  text-align: center; color: color-mix(in srgb, var(--art-fg-white) 75%, transparent);
 }
-.mp-message__title { font-size: 17px; font-weight: 600; color: #fff; }
+.mp-message__title { font-size: 17px; font-weight: 600; color: var(--art-fg-white); }
 .mp-message__text { font-size: 13.5px; line-height: 1.5; }
 .mp-message__action {
   margin-top: 8px; height: 40px; padding: 0 16px; border-radius: var(--r-sm); border: none; cursor: pointer;
@@ -171,9 +171,9 @@
 .mp-message__action:hover { background: var(--krystal-teal-hover); }
 .mp-message__back {
   height: 36px; padding: 0 14px; border-radius: var(--r-sm); border: none; cursor: pointer;
-  background: transparent; color: rgba(255, 255, 255, 0.75); font-weight: 600; font-size: 13px;
+  background: transparent; color: color-mix(in srgb, var(--art-fg-white) 75%, transparent); font-weight: 600; font-size: 13px;
 }
-.mp-message__back:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.mp-message__back:hover { color: var(--art-fg-white); background: color-mix(in srgb, var(--art-fg-white) 8%, transparent); }
 
 /* ── Somebody asking to be let in ── */
 /* A row below the announcements, which come and go over it while somebody waits for an answer. */
@@ -182,43 +182,43 @@
   display: flex; flex-direction: column; gap: 6px; max-width: calc(100% - 32px);
 }
 .mp-knock {
-  display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 8px; border-radius: 999px;
-  background: rgba(17, 22, 29, 0.92); backdrop-filter: blur(12px); border: 1px solid var(--border-strong);
+  display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 8px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--surface-1) 92%, transparent); backdrop-filter: blur(12px); border: var(--edge-strong);
   font-size: 13px; color: var(--fg-1);
 }
 .mp-knock .mp-avatar { margin-left: 0; border: 0; }
 .mp-knock__text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mp-knock__yes, .mp-knock__no {
-  flex: none; height: 32px; padding: 0 14px; border-radius: 999px; border: none; cursor: pointer; font-weight: 600; font-size: 13px;
+  flex: none; height: 32px; padding: 0 14px; border-radius: var(--r-pill); border: none; cursor: pointer; font-weight: 600; font-size: 13px;
 }
 .mp-knock__yes { background: var(--krystal-teal); color: var(--fg-inverse); }
 .mp-knock__yes:hover { background: var(--krystal-teal-hover); }
 .mp-knock__no { background: transparent; color: var(--fg-2); }
-.mp-knock__no:hover { background: rgba(255, 255, 255, 0.08); color: var(--fg-1); }
+.mp-knock__no:hover { background: color-mix(in srgb, var(--art-fg-white) 8%, transparent); color: var(--fg-1); }
 
 .mp-gate {
-  position: absolute; inset: 0; z-index: 5; background: rgba(0, 0, 0, 0.55);
+  position: absolute; inset: 0; z-index: 5; background: color-mix(in srgb, var(--kc-black) 55%, transparent);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
   text-align: center; padding: 16px;
 }
 .mp-gate__text { display: flex; flex-direction: column; gap: 6px; }
-.mp-gate__who { font-size: 13px; color: rgba(255, 255, 255, 0.7); }
+.mp-gate__who { font-size: 13px; color: color-mix(in srgb, var(--art-fg-white) 70%, transparent); }
 .mp-gate__name { font-size: 28px; font-weight: 700; line-height: 1.15; }
-.mp-gate__where { font-size: 14px; color: rgba(255, 255, 255, 0.75); font-family: var(--font-mono); }
-.mp-gate__bar { width: min(280px, 80%); height: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.18); overflow: hidden; }
-.mp-gate__bar > div { height: 100%; border-radius: 999px; background: var(--success); }
+.mp-gate__where { font-size: 14px; color: color-mix(in srgb, var(--art-fg-white) 75%, transparent); font-family: var(--font-mono); }
+.mp-gate__bar { width: min(280px, 80%); height: 4px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--art-fg-white) 18%, transparent); overflow: hidden; }
+.mp-gate__bar > div { height: 100%; border-radius: var(--r-pill); background: var(--success); }
 .mp-gate__join {
   height: 48px; padding: 0 28px; border-radius: var(--r-sm); border: none; cursor: pointer;
   background: var(--krystal-teal); color: var(--fg-inverse); font-weight: 600; font-size: 15px;
   display: inline-flex; align-items: center; gap: 8px;
 }
 .mp-gate__join:hover { background: var(--krystal-teal-hover); }
-.mp-gate__me { font-size: 12px; color: rgba(255, 255, 255, 0.55); }
+.mp-gate__me { font-size: 12px; color: color-mix(in srgb, var(--art-fg-white) 55%, transparent); }
 
 .mp-prepare {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2;
   width: min(440px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 18px; padding: 24px;
-  background: rgba(17, 22, 29, 0.9); backdrop-filter: blur(12px); border-radius: var(--r-sm); box-shadow: var(--shadow-pop);
+  background: color-mix(in srgb, var(--surface-1) 90%, transparent); backdrop-filter: blur(12px); border-radius: var(--r-sm); box-shadow: var(--shadow-pop);
   color: var(--fg-1);
 }
 .mp-prepare__head { display: flex; flex-direction: column; gap: 4px; }
@@ -226,18 +226,18 @@
 .mp-prepare__foot { display: flex; align-items: center; gap: 12px; }
 .mp-prepare__foot .mp-prepare__text { font-size: 12px; flex: 1; }
 .mp-prepare__leave {
-  height: 34px; padding: 0 12px; border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: transparent;
+  height: 34px; padding: 0 12px; border-radius: var(--r-sm); border: var(--edge-strong); background: transparent;
   color: var(--fg-1); font: inherit; font-weight: 600; font-size: 12.5px; cursor: pointer; white-space: nowrap;
 }
 .mp-prepare__leave:hover { background: var(--surface-2); }
 .mp-prepare__eyebrow { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--krystal-teal); font-weight: 600; }
 .mp-prepare__name { font-size: 18px; font-weight: 600; }
 .mp-prepare__steps { display: flex; flex-direction: column; gap: 14px; }
-.mp-prepare__bar { height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+.mp-prepare__bar { height: 6px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
 .mp-prepare__bar > div { height: 100%; background: var(--krystal-teal); transition: width 400ms var(--ease-out); }
 .mp-step { display: grid; grid-template-columns: 22px 1fr; column-gap: 12px; row-gap: 2px; align-items: center; }
 .mp-step__dot {
-  grid-row: span 2; align-self: start; width: 22px; height: 22px; border-radius: 999px;
+  grid-row: span 2; align-self: start; width: 22px; height: 22px; border-radius: var(--r-pill);
   display: flex; align-items: center; justify-content: center; background: var(--surface-3); color: var(--krystal-teal);
 }
 .mp-step.is-done .mp-step__dot { background: var(--krystal-teal); color: var(--fg-inverse); }
@@ -254,28 +254,28 @@
 .mp-controls { display: flex; align-items: center; gap: 6px; }
 .mp-controls__gap { flex: 1; }
 .mp-play {
-  width: 44px; height: 44px; flex-shrink: 0; border-radius: 999px; border: none; cursor: pointer;
-  background: #fff; color: #0B0F14; display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; flex-shrink: 0; border-radius: var(--r-pill); border: none; cursor: pointer;
+  background: var(--art-fg-white); color: var(--canvas); display: flex; align-items: center; justify-content: center;
 }
 .mp-play--small { width: 36px; height: 36px; }
 .mp-icon {
-  width: 40px; height: 40px; flex-shrink: 0; border-radius: 999px; border: none; cursor: pointer;
-  background: transparent; color: #fff; display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; flex-shrink: 0; border-radius: var(--r-pill); border: none; cursor: pointer;
+  background: transparent; color: var(--art-fg-white); display: flex; align-items: center; justify-content: center;
 }
-.mp-icon:hover { background: rgba(255, 255, 255, 0.1); }
+.mp-icon:hover { background: color-mix(in srgb, var(--art-fg-white) 10%, transparent); }
 .mp-menu-button {
   height: 40px; padding: 0 12px; border-radius: var(--r-sm); cursor: pointer; flex-shrink: 0;
-  border: 1px solid transparent; background: transparent; color: #fff;
+  border: 1px solid transparent; background: transparent; color: var(--art-fg-white);
   display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500;
 }
-.mp-menu-button:hover { background: rgba(255, 255, 255, 0.1); }
-.mp-menu-button.is-open { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.25); }
+.mp-menu-button:hover { background: color-mix(in srgb, var(--art-fg-white) 10%, transparent); }
+.mp-menu-button.is-open { background: color-mix(in srgb, var(--art-fg-white) 14%, transparent); border-color: color-mix(in srgb, var(--art-fg-white) 25%, transparent); }
 .mp-menu-button.is-icon { width: 40px; padding: 0; justify-content: center; }
-.mp-menu-button__value { color: rgba(255, 255, 255, 0.75); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.mp-menu-button__value { color: color-mix(in srgb, var(--art-fg-white) 75%, transparent); max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 
 /* The volume is a button until it is reached for; then its slider opens beside it. */
 .mp-volume { display: flex; align-items: center; }
-.mp-volume .k-iconbtn { color: #fff; }
+.mp-volume .k-iconbtn { color: var(--art-fg-white); }
 .mp-volume__track {
   width: 0; margin: 0; opacity: 0; overflow: hidden;
   transition: width 160ms var(--ease-out), opacity 160ms var(--ease-out), margin 160ms var(--ease-out);
@@ -286,25 +286,25 @@
 .mp-scrub-row { display: flex; flex-direction: column; gap: 6px; }
 .mp-scrub-row__line {
   display: flex; align-items: center; gap: 14px;
-  font-family: var(--font-mono); font-size: 12.5px; color: rgba(255, 255, 255, 0.8);
+  font-family: var(--font-mono); font-size: 12.5px; color: color-mix(in srgb, var(--art-fg-white) 80%, transparent);
 }
 .mp-scrub-row__time { flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.mp-scrub-row__hint { font-size: 12px; color: rgba(255, 255, 255, 0.6); text-align: center; }
+.mp-scrub-row__hint { font-size: 12px; color: color-mix(in srgb, var(--art-fg-white) 60%, transparent); text-align: center; }
 
 .mp-scrub { flex: 1; height: 22px; display: flex; align-items: center; position: relative; cursor: pointer; touch-action: none; outline: none; }
 .mp-scrub.is-readonly { cursor: default; }
 .mp-scrub__track {
-  flex: 1; height: 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); position: relative;
+  flex: 1; height: 5px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--art-fg-white) 8%, transparent); position: relative;
   transition: height 90ms var(--ease-out);
 }
 .mp-scrub.is-pointed .mp-scrub__track, .mp-scrub:focus-visible .mp-scrub__track { height: 7px; }
-.mp-scrub__ready, .mp-scrub__buffered, .mp-scrub__played { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; }
-.mp-scrub__ready { background: rgba(255, 255, 255, 0.14); }
-.mp-scrub__buffered { background: rgba(255, 255, 255, 0.3); }
+.mp-scrub__ready, .mp-scrub__buffered, .mp-scrub__played { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--r-pill); }
+.mp-scrub__ready { background: color-mix(in srgb, var(--art-fg-white) 14%, transparent); }
+.mp-scrub__buffered { background: color-mix(in srgb, var(--art-fg-white) 30%, transparent); }
 .mp-scrub__played { background: var(--krystal-teal); }
-.mp-scrub__marker { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #fff; border-radius: var(--r-sm); }
+.mp-scrub__marker { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--art-fg-white); border-radius: var(--r-sm); }
 .mp-scrub__knob {
-  position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 999px; background: #fff;
+  position: absolute; top: 50%; width: 14px; height: 14px; border-radius: var(--r-pill); background: var(--art-fg-white);
   transform: translate(-50%, -50%); box-shadow: 0 0 0 4px rgba(64, 160, 192, 0.35);
   transition: width 90ms var(--ease-out), height 90ms var(--ease-out), box-shadow 90ms var(--ease-out);
 }
@@ -315,21 +315,21 @@
   display: flex; flex-direction: column; align-items: center; gap: 6px;
 }
 .mp-scrub__frame {
-  border-radius: var(--r-sm); border: 2px solid rgba(255, 255, 255, 0.9); box-shadow: var(--shadow-2);
-  position: relative; overflow: hidden; background-color: #000; background-repeat: no-repeat;
+  border-radius: var(--r-sm); border: 2px solid color-mix(in srgb, var(--art-fg-white) 90%, transparent); box-shadow: var(--shadow-2);
+  position: relative; overflow: hidden; background-color: var(--kc-black); background-repeat: no-repeat;
 }
 .mp-scrub__unreached {
-  position: absolute; inset: 0; background: rgba(11, 15, 20, 0.88);
+  position: absolute; inset: 0; background: color-mix(in srgb, var(--canvas) 88%, transparent);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   font-family: var(--font-ui); font-size: 12px; font-weight: 600; color: var(--fg-2);
 }
 .mp-scrub__time {
-  font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: #fff;
-  background: rgba(0, 0, 0, 0.6); padding: 2px 8px; border-radius: 999px;
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--art-fg-white);
+  background: color-mix(in srgb, var(--kc-black) 60%, transparent); padding: 2px 8px; border-radius: var(--r-pill);
 }
-.mp-scrub__chapter { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: rgba(11, 15, 20, 0.85); }
+.mp-scrub__chapter { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: color-mix(in srgb, var(--canvas) 85%, transparent); }
 .mp-scrub__chapter-name {
-  font-size: 12.5px; font-weight: 600; color: #fff; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 12.5px; font-weight: 600; color: var(--art-fg-white); max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
@@ -360,7 +360,7 @@
 }
 .mp-episodes .kc-episode:first-of-type { border-top: 0; }
 .mp-episodes .kc-episode__progress { display: none; }
-.mp-episodes .kc-episode.is-current { background: rgba(64, 160, 192, 0.12); }
+.mp-episodes .kc-episode.is-current { background: color-mix(in srgb, var(--krystal-teal) 12%, transparent); }
 .mp-episodes .kc-episode.is-current .kc-episode__go { border-color: var(--krystal-teal); color: var(--krystal-teal); }
 :is(.mp-frame:not(.mp-frame--wide), .mp-aimed) .mp-episodes .kc-episode,
 :root[data-tv] .mp-episodes .kc-episode { grid-template-columns: 22px 96px minmax(0, 1fr) 30px; gap: 10px; padding: 10px 12px; }
@@ -388,7 +388,7 @@
 .mp-invite-panel {
   position: absolute; top: 72px; right: 28px; z-index: 6; width: 360px; max-width: calc(100% - 32px);
   max-height: calc(100% - 96px); overflow-y: auto; overscroll-behavior: contain;
-  background: rgba(17, 22, 29, 0.94); backdrop-filter: blur(12px); border-radius: var(--r-sm); box-shadow: var(--shadow-pop);
+  background: color-mix(in srgb, var(--surface-1) 94%, transparent); backdrop-filter: blur(12px); border-radius: var(--r-sm); box-shadow: var(--shadow-pop);
   color: var(--fg-1); white-space: normal;
 }
 .mp-invite-panel__head { padding: 14px 16px 12px; font-size: 14px; font-weight: 600; }
@@ -403,12 +403,12 @@
   width: 32px; height: 32px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
   border-radius: var(--r-sm); background: var(--surface-3); color: var(--fg-2); transition: background 140ms, color 140ms;
 }
-.mp-invite-panel__badge.is-open { background: rgba(64, 160, 192, 0.16); color: var(--krystal-teal); }
+.mp-invite-panel__badge.is-open { background: color-mix(in srgb, var(--krystal-teal) 16%, transparent); color: var(--krystal-teal); }
 .mp-invite-panel__access-name { flex: 1; font-size: 13.5px; font-weight: 600; }
 .mp-invite-panel__row { display: flex; gap: 8px; }
 .mp-invite-panel__url {
   flex: 1; min-width: 0; height: 34px; display: flex; align-items: center; padding: 0 10px;
-  background: var(--surface-3); border: 1px solid var(--border-subtle); border-radius: var(--r-sm);
+  background: var(--surface-3); border: var(--edge); border-radius: var(--r-sm);
   font-family: var(--font-mono); font-size: 12.5px; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .mp-invite-panel__end { align-self: flex-end; margin: -4px -9px -6px 0; }
@@ -416,7 +416,7 @@
 .mp-invite-panel__people > .mp-invite-panel__label { padding: 0 8px 2px; }
 .mp-invite-panel__list { display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow-y: auto; }
 .mp-invite-panel__person { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 8px; border-radius: var(--r-sm); }
-.mp-invite-panel__person:hover { background: rgba(255, 255, 255, 0.04); }
+.mp-invite-panel__person:hover { background: color-mix(in srgb, var(--art-fg-white) 4%, transparent); }
 .mp-invite-panel .mp-avatar.mp-invite-panel__avatar { width: 32px; height: 32px; margin-left: 0; border: 0; }
 .mp-invite-panel__who { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
 .mp-invite-panel__name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -425,7 +425,7 @@
 .mp-invite-panel__sent { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--fg-3); padding: 0 4px; }
 .mp-invite-panel__here {
   font-size: 11.5px; font-weight: 600; color: var(--success-fg); background: var(--success-bg);
-  padding: 3px 9px; border-radius: 999px;
+  padding: 3px 9px; border-radius: var(--r-pill);
 }
 
 /* ── What is playing ── the (i) at the top bar's end, its pane down the right edge, and the card a
@@ -433,7 +433,7 @@
 .mp-stage { --mp-about-w: min(440px, 42%); }
 .mp-top__about { margin-left: auto; }
 .mp-top__room + .mp-top__about { margin-left: 0; }
-.mp-top__about.is-open { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.3); }
+.mp-top__about.is-open { background: color-mix(in srgb, var(--art-fg-white) 14%, transparent); border-color: color-mix(in srgb, var(--art-fg-white) 30%, transparent); }
 /* The pane stands beside the film rather than over its controls: the bars end where it begins. */
 .mp-stage.has-about :is(.mp-top, .mp-bottom) { right: var(--mp-about-w); }
 .mp-stage.has-about .mp-nextup { right: calc(var(--mp-about-w) + 24px); }
@@ -448,7 +448,7 @@
 .mp-about--pane {
   position: absolute; top: 0; right: 0; bottom: 0; z-index: 6; width: var(--mp-about-w);
   display: flex; flex-direction: column;
-  background: rgba(17, 22, 29, 0.94); backdrop-filter: blur(12px); border-left: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-1) 94%, transparent); backdrop-filter: blur(12px); border-left: 1px solid var(--border-subtle);
   color: var(--fg-1); white-space: normal; animation: mp-about-in 200ms var(--ease-out);
 }
 .mp-about__bar { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 10px 20px; }
@@ -482,7 +482,7 @@
 .mp-pausecard {
   position: absolute; top: 0; bottom: 0; left: 0; z-index: 2; pointer-events: none;
   width: min(620px, 60%); display: flex; align-items: center; padding: 96px 32px 150px 48px; box-sizing: border-box;
-  background: linear-gradient(to right, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.55) 55%, transparent);
+  background: linear-gradient(to right, color-mix(in srgb, var(--kc-black) 82%, transparent), color-mix(in srgb, var(--kc-black) 55%, transparent) 55%, transparent);
   animation: mp-pausecard-in 500ms var(--ease-out);
 }
 .mp-pausecard__text { display: flex; flex-direction: column; gap: 10px; max-width: 480px; }
@@ -491,12 +491,12 @@
 }
 .mp-pausecard__name { font-size: 34px; font-weight: 700; line-height: 1.12; text-wrap: balance; }
 .mp-pausecard__episode { font-size: 17px; font-weight: 600; color: var(--fg-1); }
-.mp-pausecard__meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13.5px; color: rgba(255, 255, 255, 0.75); }
+.mp-pausecard__meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13.5px; color: color-mix(in srgb, var(--art-fg-white) 75%, transparent); }
 .mp-pausecard__story {
-  margin: 0; font-size: 15px; line-height: 1.55; color: rgba(255, 255, 255, 0.85); text-wrap: pretty;
+  margin: 0; font-size: 15px; line-height: 1.55; color: color-mix(in srgb, var(--art-fg-white) 85%, transparent); text-wrap: pretty;
   display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
 }
-.mp-pausecard__stars { font-size: 13px; color: rgba(255, 255, 255, 0.6); }
+.mp-pausecard__stars { font-size: 13px; color: color-mix(in srgb, var(--art-fg-white) 60%, transparent); }
 @keyframes mp-pausecard-in { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .mp-about--pane, .mp-pausecard { animation: none; } }
 
@@ -533,11 +533,11 @@
 }
 .mp-centre__play, .mp-centre__skip {
   display: inline-flex; align-items: center; justify-content: center; border: none; cursor: pointer;
-  border-radius: 999px; color: #fff; -webkit-tap-highlight-color: transparent;
+  border-radius: var(--r-pill); color: var(--art-fg-white); -webkit-tap-highlight-color: transparent;
 }
-.mp-centre__play { width: 72px; height: 72px; background: rgba(255, 255, 255, 0.16); }
+.mp-centre__play { width: 72px; height: 72px; background: color-mix(in srgb, var(--art-fg-white) 16%, transparent); }
 .mp-centre__skip { width: 56px; height: 56px; background: transparent; }
-.mp-centre__play:active, .mp-centre__skip:active { background: rgba(255, 255, 255, 0.28); }
+.mp-centre__play:active, .mp-centre__skip:active { background: color-mix(in srgb, var(--art-fg-white) 28%, transparent); }
 .mp-stage.is-touch .mp-round { width: 44px; height: 44px; }
 .mp-stage.is-touch .mp-scrub__track { height: 6px; }
 .mp-stage.is-touch .mp-scrub.is-pointed .mp-scrub__track, .mp-stage.is-touch .mp-scrub.is-dragging .mp-scrub__track { height: 10px; }
@@ -547,8 +547,8 @@
 /* Locked: nothing but the way out, shown by a tap. */
 .mp-unlock {
   position: absolute; left: 50%; bottom: 32px; transform: translateX(-50%); z-index: 6;
-  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: 999px;
-  border: 1px solid var(--border-strong); background: rgba(17, 22, 29, 0.85); color: #fff;
+  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 18px; border-radius: var(--r-pill);
+  border: var(--edge-strong); background: color-mix(in srgb, var(--surface-1) 85%, transparent); color: var(--art-fg-white);
   font-size: 14px; font-weight: 600; cursor: pointer;
 }
 
@@ -561,9 +561,9 @@
   display: flex; align-items: center; gap: 6px;
 }
 .mp-tiny .mp-scrub { height: 24px; }
-.mp-tiny .mp-scrub__track { height: 4px; background: rgba(255, 255, 255, 0.18); }
+.mp-tiny .mp-scrub__track { height: 4px; background: color-mix(in srgb, var(--art-fg-white) 18%, transparent); }
 .mp-tiny .mp-scrub__knob { width: 10px; height: 10px; box-shadow: none; }
-.mp-tiny__left { font-family: var(--font-mono); font-size: 10.5px; color: rgba(255, 255, 255, 0.8); flex-shrink: 0; }
+.mp-tiny__left { font-family: var(--font-mono); font-size: 10.5px; color: color-mix(in srgb, var(--art-fg-white) 80%, transparent); flex-shrink: 0; }
 .mp-tiny .mp-icon { width: 36px; height: 36px; }
 .mp-frame--tiny .mp-event { top: 36px; font-size: 11.5px; padding: 5px 10px; }
 .mp-frame--tiny .mp-notices { top: 70px; }

@@ -27,7 +27,7 @@
 /* Over the page above the tab bar, darker the further the dock is open; it takes a tap only while the dock is open. */
 .kc-remote-scrim {
   position: fixed; left: 0; right: 0; top: 0; bottom: var(--remote-strip-bottom, 0px); z-index: 59;
-  background: rgba(0, 0, 0, 0.45); opacity: var(--dock-p); pointer-events: none; touch-action: none;
+  background: color-mix(in srgb, var(--kc-black) 45%, transparent); opacity: var(--dock-p); pointer-events: none; touch-action: none;
 }
 body.has-remote-open .kc-remote-scrim { pointer-events: auto; }
 
@@ -106,7 +106,7 @@ body.has-remote-open .k-toasts { top: calc(16px + env(safe-area-inset-top, 0px))
 /* The picture: the room's still under a finger, as the film is in the player. */
 .kc-remote__still {
   position: relative; margin: 0 10px; border-radius: var(--r-sm); overflow: hidden;
-  border: 1px solid var(--border-subtle); background: var(--surface-2); touch-action: none; user-select: none; -webkit-user-select: none;
+  border: var(--edge); background: var(--surface-2); touch-action: none; user-select: none; -webkit-user-select: none;
 }
 .kc-remote__still img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; -webkit-user-drag: none; pointer-events: none; }
 .kc-remote__still .mp-nextup { right: 10px; bottom: 10px; }
@@ -134,11 +134,12 @@ body.has-remote-open .k-toasts { top: calc(16px + env(safe-area-inset-top, 0px))
 .kc-replace { display: flex; flex-direction: column; gap: 10px; }
 .kc-replace__card {
   display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: var(--r-sm);
-  background: var(--surface-2); border: 1px solid var(--border-subtle);
+  background: var(--surface-2); border: var(--edge);
 }
 .kc-replace__card.is-playing { opacity: 0.7; }
 .kc-replace__card.is-next { background: var(--krystal-teal-dim); border-color: var(--border-accent); }
 .kc-replace__art { position: relative; flex: none; }
+/* stylelint-disable-next-line declaration-property-value-allowed-list -- the still's 3px corner is finer than --r-sm */
 .kc-replace__art img, .kc-replace__art .kc-remote__nostill { display: block; width: 96px; aspect-ratio: 16 / 9; border-radius: 3px; object-fit: cover; }
 .kc-replace__art .kc-bar { position: absolute; left: 4px; right: 4px; bottom: 4px; }
 .kc-replace__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
