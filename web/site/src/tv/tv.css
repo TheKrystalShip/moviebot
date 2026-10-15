@@ -35,8 +35,8 @@
 
 .kc-tv-page { position: relative; min-height: 100%; }
 
-.kc-tv-avatar .k-avatar { width: 34px; height: 34px; background: var(--krystal-teal-press); color: var(--fg-1); }
-.kc-tv-avatar:focus-visible .k-avatar { background: transparent; color: inherit; }
+.kc-tv-avatar__face { width: 34px; height: 34px; background: var(--krystal-teal-press); color: var(--fg-1); }
+.kc-tv-avatar:focus-visible .kc-tv-avatar__face { background: transparent; color: inherit; }
 
 /* Every button in a row of actions is one height, whatever size the component it comes from asks for
    (Save and Follow ask for the desktop's largest). */
@@ -47,8 +47,6 @@
 
 .kc-tv-rating { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-1); }
 .kc-tv-rating svg { color: var(--warning-fg); fill: var(--warning-fg); }
-.kc-tv-credit { font-size: var(--text-sm); color: var(--fg-3); }
-.kc-tv-credit b { color: var(--fg-2); font-weight: var(--w-semibold); }
 
 .kc-tv-progress {
   display: flex; align-items: center; gap: 10px;
@@ -110,7 +108,7 @@
   position: relative; z-index: 1; min-height: 420px; box-sizing: border-box;
   padding: 54px var(--tv-margin-x) 12px;
 }
-.kc-tvf__head .k-tv-spot { max-width: 520px; }
+.kc-tvf__spot { max-width: 520px; }
 .kc-tvf__head .k-tv-spot__title { font-size: var(--text-5xl); }
 .kc-tvf { padding-bottom: 200px; }
 
@@ -122,9 +120,9 @@
   height: 56px; padding: 0 20px; gap: 14px; border: 0; border-radius: var(--r-md); background: var(--surface-3); color: var(--fg-1);
   transition: transform var(--d-base) var(--ease-out);
 }
-.kc-tvd__search .k-searchfield__input { font-size: var(--text-lg); }
-.kc-tvd__search .k-searchfield__input::placeholder { color: var(--fg-3); }
-:root[data-tv] .kc-tvd__search .k-searchfield__input:focus-visible { box-shadow: none; }
+.kc-tvd__input { font-size: var(--text-lg); }
+.kc-tvd__input::placeholder { color: var(--fg-3); }
+:root[data-tv] .kc-tvd__input:focus-visible { box-shadow: none; }
 .kc-tvd__search:focus-within {
   transform: scale(1.015);
   box-shadow: inset 0 0 0 1px var(--fg-1), var(--glow-accent);
@@ -284,7 +282,7 @@
   padding: 54px var(--tv-margin-x) 12px;
   transition: opacity var(--d-slow) var(--ease-out);
 }
-.kc-tvs__head .k-tv-spot { max-width: 520px; }
+.kc-tvs__spot { max-width: 520px; }
 .kc-tvs__head .k-tv-spot__title { font-size: var(--text-5xl); }
 .kc-tvs[data-spot] .kc-tvs__head { opacity: 0; }
 .kc-tvs { padding-bottom: 200px; }
@@ -395,3 +393,4 @@
    which of them this is and how long until the next. */
 .kc-tv-hero { animation: k-rise 500ms var(--ease-out) both; }
 .kc-tv-hero__pager { margin-top: 22px; }
+.kc-tv-hero__actions { display: contents; }

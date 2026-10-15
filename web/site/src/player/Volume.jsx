@@ -35,7 +35,7 @@ export function Volume({ position, muted, onChange, onNudge }) {
 
   return (
     <div ref={rootRef} className="mp-volume">
-      <IconButton variant="ghost" size="lg" label={muted ? "Unmute (m)" : "Mute (m)"}
+      <IconButton variant="ghost" size="lg" className="mp-volume__mute" label={muted ? "Unmute (m)" : "Mute (m)"}
         icon={muted || shown === 0 ? "volume-x" : shown < 0.5 ? "volume-1" : "volume-2"}
         onClick={() => onChange(position, !muted)} />
       <Slider className="mp-volume__track" size="sm" label="Volume" min={0} max={100} step={VolumeStep * 100}

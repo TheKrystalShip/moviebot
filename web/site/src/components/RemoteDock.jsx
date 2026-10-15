@@ -207,13 +207,12 @@ function useDock(open, setOpen, onAway) {
   const placed = React.useRef(false);
   React.useLayoutEffect(() => {
     document.body.classList.add("has-remote-strip");
-    const bar = document.querySelector(".k-tabbar");
+    const bar = document.querySelector('nav[aria-label="Main"]');
     const place = () => {
       const standing = bar && getComputedStyle(bar).display !== "none" ? bar.getBoundingClientRect().height : 0;
       document.body.style.setProperty("--remote-strip-bottom", `${standing}px`);
       measure();
-      const shell = document.querySelector(".k-app--tabbed");
-      const nominal = bar && shell ? parseFloat(getComputedStyle(shell).getPropertyValue("--tabbar-h")) + parseFloat(getComputedStyle(bar).paddingBottom) : 0;
+      const nominal = bar ? parseFloat(getComputedStyle(bar).getPropertyValue("--tabbar-h")) + parseFloat(getComputedStyle(bar).paddingBottom) : 0;
       const shortfall = bar && nominal ? Math.max(0, bar.getBoundingClientRect().height - nominal) : 0;
       document.body.style.setProperty("--remote-strip-inset", `${size.current.shut + shortfall}px`);
       if (!grab.current) rest(placed.current);
@@ -493,7 +492,7 @@ function Idle({ shelf }) {
   const continuing = (progress.data || []).filter((p) => (p.titleId ? byId.has(p.titleId) : p.episode && p.showImdbId));
   return (
     <>
-      <EmptyState icon="tv" title="Nothing playing" />
+      <EmptyState className="kc-remote__empty" icon="tv" title="Nothing playing" />
       {continuing.length > 0 && (
         <Rail
           variant="wide" icon="history" title="Continue watching" count={continuing.length}
@@ -576,7 +575,7 @@ function Remote({ dock, shelf, screen, hidden, onCollapse, onPick }) {
               </Button>
             </span>
             <span className="kc-remote__action">
-              <span className="kc-remote__switch">Remote<Toggle on={mode} onChange={(on) => { if (on) setRemoteMode(true); else { onCollapse(); turnOff(tv); } }} label="Remote mode" /></span>
+              <span className="kc-remote__switch">Remote<Toggle className="kc-remote__toggle" on={mode} onChange={(on) => { if (on) setRemoteMode(true); else { onCollapse(); turnOff(tv); } }} label="Remote mode" /></span>
             </span>
           </div>
         </div>

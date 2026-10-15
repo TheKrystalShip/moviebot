@@ -55,7 +55,7 @@ export function TvHero({ slides: laid, store, initial = false, more, className, 
         onFocus={(e) => { carousel.rootProps.onFocus(e); track.onFocus(e); }}
         onBlur={(e) => { carousel.rootProps.onBlur(e); track.onBlur(e); }}>
         <TvSpotlight key={slide.key} className="kc-tv-hero" size="lg" eyebrow={spot.eyebrow} title={spot.title} meta={<SpotFacts facts={spot.facts} />}
-          overview={spot.overview} actions={<TvSlideActions slide={slide} initial={initial} more={more} />}>
+          overview={spot.overview} actions={<div className="kc-tv-hero__actions"><TvSlideActions slide={slide} initial={initial} more={more} /></div>}>
           <CarouselPager carousel={carousel} indicator className="kc-tv-hero__pager" />
         </TvSpotlight>
       </section>
@@ -64,7 +64,7 @@ export function TvHero({ slides: laid, store, initial = false, more, className, 
 }
 
 /** A slide's actions, in the order focus moves through them. */
-const ACTIONS = ".k-tv-spot__actions :is(a[href], button)";
+const ACTIONS = ".kc-tv-hero__actions :is(a[href], button)";
 
 /**
  * Whether focus is on the page below `section`, in the rows under the slides, which have gone up the

@@ -69,9 +69,9 @@ export function SpotStage({ store, art, idleSize = "tall" }) {
       <TvBackdrop src={(inRows && spot && spot.art) || art} size={inRows ? "short" : idleSize} />
       {inRows && spot && (
         <div className="kc-tvh__spot" key={spot.key}>
-          <TvSpotlight size="md" eyebrow={spot.eyebrow} title={spot.title} meta={spot.facts ? <SpotFacts facts={spot.facts} /> : spot.line} overview={spot.overview}>
+          <TvSpotlight size="md" eyebrow={spot.eyebrow} title={spot.title} meta={spot.facts ? <SpotFacts facts={spot.facts} /> : spot.line} overview={spot.overview}
+            credit={!spot.progress && spot.credit ? <>{spot.credit.label} <b>{spot.credit.names}</b></> : undefined}>
             {spot.progress && <SpotProgress fraction={spot.progress.fraction} left={spot.progress.left} />}
-            {!spot.progress && spot.credit && <span className="kc-tv-credit">{spot.credit.label} <b>{spot.credit.names}</b></span>}
           </TvSpotlight>
         </div>
       )}

@@ -217,7 +217,7 @@ export function ListPage({ id }) {
 
   const title = renaming !== null ? (
     <form className="kc-list-rename" onSubmit={rename}>
-      <Input size="lg" autoFocus value={renaming} maxLength={80} onChange={(e) => setRenaming(e.target.value)} aria-label="List name" />
+      <Input size="lg" className="kc-list-rename__name" autoFocus value={renaming} maxLength={80} onChange={(e) => setRenaming(e.target.value)} aria-label="List name" />
       <Button type="submit" variant="primary" size="lg" disabled={!renaming.trim()}>Save</Button>
       <Button variant="outline" size="lg" onClick={() => setRenaming(null)}>Cancel</Button>
     </form>
@@ -397,7 +397,7 @@ function PeopleSheet({ list, me, onClose, onChange }) {
         </List>
         {owner && candidates.length > 0 && (
           <div className="kc-people__add">
-            <Select value={pick} aria-label="Person" onChange={(e) => setPick(e.target.value)}
+            <Select className="kc-people__who" value={pick} aria-label="Person" onChange={(e) => setPick(e.target.value)}
               options={[{ value: "", label: "Add someone" }, ...candidates.map((p) => ({ value: p.userId, label: p.name }))]} />
             <Select value={role} options={ROLES} aria-label="What they may do" onChange={(e) => setRole(e.target.value)} />
             <Button variant="primary" size="lg" icon="user-plus" disabled={busy || !pick} onClick={add}>Add</Button>

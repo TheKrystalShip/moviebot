@@ -46,7 +46,7 @@ export function Unreachable({ place, onClose }) {
       <Icon name="wifi-off" size={32} />
       <span className="kc-unreachable__title">You're offline</span>
       <span className="kc-unreachable__note">{PLACES[place] || "This page isn't available offline."}</span>
-      <Button size="lg" icon="clapperboard" href={library.href} onClick={(e) => { library.onClick(e); if (onClose) onClose(); }}>Library</Button>
+      <Button size="lg" icon="clapperboard" className="kc-unreachable__library" href={library.href} onClick={(e) => { library.onClick(e); if (onClose) onClose(); }}>Library</Button>
     </div>
   );
 }

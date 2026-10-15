@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.39.1] - 2026-10-16
+
+### Changed
+
+- **The site's code names fewer package classes.** A download sheet's foot buttons fill the drawer through
+  the Button's `wide`; the volume's mute button, the remote's idle state and switch, a list's rename field,
+  the people sheet's person select, the offline page's Library button, the Watch buttons dimmed on a full
+  disk, the player's menu rows, the television's profile avatar and Discover's search input each carry a
+  class of the site's own that its sheet styles. A television film and show hand `TvSpotlight` their credit
+  and actions, and the hero's actions sit in a wrapper the site names. The tab bar's and the profile tabs'
+  offline disabling find their buttons by element and role, and the remote dock reads the tab bar's
+  `--tabbar-h` from the bar itself. Krystal and Krystal Chat 0.42.1; Stylelint holds the package's `.k-`
+  selector rule at a warning until the sheets reach zero. Site 0.86.1.
+
 ## [3.39.0] - 2026-10-16
 
 ### Changed

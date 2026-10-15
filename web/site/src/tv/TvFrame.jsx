@@ -106,7 +106,7 @@ export function TvFrame({ session, route, held = false }) {
             actions={<>
               <TvBell />
               <TvBarButton label="Profile" className="kc-tv-avatar" onClick={() => navigate(profilePath())}>
-                <Avatar name={session.user.name || session.user.username || ""} size="css" />
+                <Avatar className="kc-tv-avatar__face" name={session.user.name || session.user.username || ""} size="css" />
               </TvBarButton>
             </>} />
         </div>

@@ -318,7 +318,7 @@ function noDrawer() {}
 function useOfflineTabs(offline, needsServer) {
   const key = needsServer.join();
   React.useLayoutEffect(() => {
-    const buttons = document.querySelectorAll(".k-tabbar .k-tabbar__tab");
+    const buttons = document.querySelectorAll('nav[aria-label="Main"] > button');
     buttons.forEach((button, i) => { button.disabled = offline && !!needsServer[i]; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offline, key]);

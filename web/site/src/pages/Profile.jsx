@@ -91,8 +91,8 @@ function useDisabledTabs(ref, offline, needsServer) {
   React.useLayoutEffect(() => {
     if (!ref.current) return;
     const off = (i) => offline && !!needsServer[i];
-    ref.current.querySelectorAll(".k-subtab").forEach((button, i) => { button.disabled = off(i); });
-    ref.current.querySelectorAll(".k-subtabs-mobile option").forEach((option, i) => { option.disabled = off(i); });
+    ref.current.querySelectorAll("button").forEach((button, i) => { button.disabled = off(i); });
+    ref.current.querySelectorAll("option").forEach((option, i) => { option.disabled = off(i); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offline, key]);
 }

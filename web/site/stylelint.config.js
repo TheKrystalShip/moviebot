@@ -3,6 +3,13 @@
 export default {
   extends: ["@thekrystalship/krystal/stylelint"],
   defaultSeverity: "error",
+  rules: {
+    // The package's `.k-` reach-in rule, held at a warning while the sheets still select package classes.
+    "selector-disallowed-list": [[String.raw`/\.k-[\w-]/`], {
+      severity: "warning",
+      message: "A site styles its own className, and reaches the package through props, variants and tokens, not through its `.k-` classes.",
+    }],
+  },
   overrides: [
     {
       // The one sheet that names fixed colours. Each is a colour that holds in every theme (the

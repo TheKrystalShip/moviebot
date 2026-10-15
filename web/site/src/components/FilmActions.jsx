@@ -98,18 +98,18 @@ export function FilmActions({ imdbId, film, state, compact = false, children }) 
 
       {a && downloading && (arriving || offer) && driving && (
         <>
-          <Button variant="primary" size="xl" icon="tv" className={full && !arriving ? "is-dim" : undefined}
+          <Button variant="primary" size="xl" icon="tv" className={full && !arriving ? "kc-dim" : undefined}
             disabled={busy} onClick={watchOnTelevision}>
             Watch on TV
           </Button>
-          <Button variant="secondary" size="xl" icon="smartphone" className={full && !arriving ? "is-dim" : undefined}
+          <Button variant="secondary" size="xl" icon="smartphone" className={full && !arriving ? "kc-dim" : undefined}
             disabled={busy} onClick={() => { setRemoteMode(false); void watch(); }}>
             Watch
           </Button>
         </>
       )}
       {a && downloading && (arriving || offer) && !driving && (
-        <Button variant="primary" size="xl" icon="play" className={full && !arriving ? "is-dim" : undefined}
+        <Button variant="primary" size="xl" icon="play" className={full && !arriving ? "kc-dim" : undefined}
           disabled={busy} onClick={watch}>
           Watch
         </Button>

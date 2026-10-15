@@ -91,13 +91,13 @@ export function TvShow({ imdbId, season, inLibrary }) {
       <SpotStage store={store} art={s.backdropUrl || s.posterUrl} idleSize="page" />
 
       <section className="kc-tvs__head" data-tv-top="">
-        <TvSpotlight size="lg" eyebrow="TV series" title={s.title}
+        <TvSpotlight className="kc-tvs__spot" size="lg" eyebrow="TV series" title={s.title}
           meta={<SpotFacts facts={{
             rating: s.rating, year: years, cert: s.certification,
             length: `${seasons.length} ${seasons.length === 1 ? "season" : "seasons"}`, genres: s.genres,
-          }} />} overview={s.overview}>
-          {s.creators.length > 0 && <span className="kc-tv-credit">Created by <b>{s.creators.join(", ")}</b></span>}
-          <div className="k-tv-spot__actions">
+          }} />} overview={s.overview}
+          credit={s.creators.length > 0 ? <>Created by <b>{s.creators.join(", ")}</b></> : undefined}
+          actions={<>
             {play && (
               <Button variant="primary" size="lg" icon={room ? "users" : "play"} data-tv-initial=""
                 {...watchLink(play.titleId, room && room.sessionId, play.positionSeconds)}>
@@ -109,7 +109,7 @@ export function TvShow({ imdbId, season, inLibrary }) {
             )}
             {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
             {s.imdbId && <SaveButton imdbId={s.imdbId} kind="show" title={s.title} />}
-          </div>
+          </>}>
           {resume && resume.positionSeconds > 0 && (
             <SpotProgress fraction={resume.positionSeconds / resume.durationSeconds}
               left={`${resumeEpisode && resumeEpisode.name ? resumeEpisode.name + " - " : ""}(${clock(resume.durationSeconds - resume.positionSeconds)} remaining)`} />

@@ -81,9 +81,9 @@ export function MenuButton({ kind, icon, value = null, open, compact, onClick })
 
 /**
  * A row of a list that has no menu around it (a sheet) is reached by Tab and by a remote's arrows, which
- * leave out what sits at `tabindex=-1`.
+ * leave out what sits at `tabindex=-1`. Every row of the player's menus is a `mp-menu__item`.
  */
-export const reach = { tabIndex: 0 };
+export const reach = { tabIndex: 0, className: "mp-menu__item" };
 
 /**
  * One menu over the film: a panel hanging above the control bar where the frame is wide, a sheet from

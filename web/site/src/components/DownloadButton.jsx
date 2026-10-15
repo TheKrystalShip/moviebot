@@ -312,6 +312,11 @@ function DownloadSheet({ target, head, standing, onClose }) {
   return <WantSheet head={head} target={target} onClose={onClose} />;
 }
 
+/** A button in a sheet's foot: full width in the phone's drawer, its own size in the dialog. */
+function FootButton(props) {
+  return <Button size="lg" wide={usePhone()} {...props} />;
+}
+
 /** The qualities a title not yet whole is asked for at, by picture height. */
 const HEIGHTS = [1080, 720, 480];
 
@@ -375,11 +380,11 @@ function WantSheet({ head, target, eyebrow = "Download", onClose }) {
   const foot = (
     <>
       <DeviceSpace space={room.data} need={need || 0} />
-      {!narrow && <Button variant="outline" size="lg" disabled={busy} onClick={onClose}>Cancel</Button>}
-      <Button variant="primary" size="lg" icon="hard-drive-download" busy={busy} className="kc-dl-start"
+      {!narrow && <FootButton variant="outline" disabled={busy} onClick={onClose}>Cancel</FootButton>}
+      <FootButton variant="primary" icon="hard-drive-download" busy={busy}
         disabled={!online || !picked || !fits} onClick={download}>
         {need ? `Download · ${roughly(need)}` : "Download"}
-      </Button>
+      </FootButton>
     </>
   );
 
@@ -448,10 +453,10 @@ function PreparingSheet({ head, standing, onClose }) {
       sub={joined(head.context, quality)} onClose={onClose} canClose={!busy} className="kc-dl-underway"
       foot={standing.failed
         ? <>
-          <Button variant="outline" size="lg" icon="trash-2" disabled={busy} onClick={stop}>Remove</Button>
-          <Button variant="primary" size="lg" icon="rotate-ccw" busy={busy} onClick={again}>Try again</Button>
+          <FootButton variant="outline" icon="trash-2" disabled={busy} onClick={stop}>Remove</FootButton>
+          <FootButton variant="primary" icon="rotate-ccw" busy={busy} onClick={again}>Try again</FootButton>
         </>
-        : <Button variant="outline" size="lg" icon="x" busy={busy} onClick={stop}>Cancel</Button>}>
+        : <FootButton variant="outline" icon="x" busy={busy} onClick={stop}>Cancel</FootButton>}>
       {standing.failed
         ? <Notice tone="danger" icon="triangle-alert">{standing.message}</Notice>
         : (
@@ -575,15 +580,15 @@ function PickSheet({ titleId, head, onClose }) {
   // The featured subtitles lead, and the rest fold under "more languages".
   const ordered = o && featured ? [...o.subtitles.filter((s) => featured.has(s.id)), ...o.subtitles.filter((s) => !featured.has(s.id))] : [];
   const start = (
-    <Button variant="primary" size="lg" icon="hard-drive-download" busy={busy} className="kc-dl-start"
+    <FootButton variant="primary" icon="hard-drive-download" busy={busy}
       disabled={!online || !rung || audio.length === 0 || !!shortBy} onClick={download}>
       {picked ? `Download · ${size(need)}` : "Download"}
-    </Button>
+    </FootButton>
   );
   const foot = (
     <>
       <DeviceSpace space={space} need={need} />
-      {!narrow && <Button variant="outline" size="lg" disabled={busy} onClick={onClose}>Cancel</Button>}
+      {!narrow && <FootButton variant="outline" disabled={busy} onClick={onClose}>Cancel</FootButton>}
       {start}
     </>
   );
@@ -685,10 +690,10 @@ function UnderwaySheet({ titleId, head, standing, onClose, onRemove }) {
     <Sheet head={head} eyebrow={state.label} tone={standing.state === "failed" ? "failed" : "active"}
       sub={joined(head.context, meta && meta.quality && meta.quality.label)} onClose={onClose} className="kc-dl-underway"
       foot={<>
-        <Button variant="outline" size="lg" icon="trash-2" onClick={onRemove}>Cancel</Button>
+        <FootButton variant="outline" icon="trash-2" onClick={onRemove}>Cancel</FootButton>
         {stopped
-          ? <Button variant="primary" size="lg" icon="play" onClick={() => resumeSave(titleId)}>Resume</Button>
-          : <Button variant="primary" size="lg" icon="pause" onClick={() => pauseSave(titleId)}>Pause</Button>}
+          ? <FootButton variant="primary" icon="play" onClick={() => resumeSave(titleId)}>Resume</FootButton>
+          : <FootButton variant="primary" icon="pause" onClick={() => pauseSave(titleId)}>Pause</FootButton>}
       </>}>
       <div className="kc-dl-progress">
         <span className="kc-dl-progress__figures">
@@ -730,8 +735,8 @@ function DoneSheet({ titleId, head, save, onClose, onRemove }) {
   return (
     <Sheet head={head} eyebrow="Downloaded" tone="done" sub={joined(head.context, head.runtime)} onClose={onClose} className="kc-dl-done"
       foot={<>
-        <Button variant="outline" size="lg" icon="trash-2" onClick={onRemove}>Remove</Button>
-        <Button variant="primary" size="lg" icon="play" {...linkProps(playSavedPath(titleId))}>Play</Button>
+        <FootButton variant="outline" icon="trash-2" onClick={onRemove}>Remove</FootButton>
+        <FootButton variant="primary" icon="play" {...linkProps(playSavedPath(titleId))}>Play</FootButton>
       </>}>
       <dl className="kc-dl-facts">
         {facts.map(([label, value, mono]) => (
@@ -765,8 +770,8 @@ function RemoveSheet({ titleId, head, standing, onClose, onKeep }) {
   };
   const foot = (
     <>
-      <Button variant="outline" size="lg" disabled={busy} onClick={onKeep}>Keep</Button>
-      <Button variant="danger" size="lg" icon="trash-2" busy={busy} onClick={remove}>Remove</Button>
+      <FootButton variant="outline" disabled={busy} onClick={onKeep}>Keep</FootButton>
+      <FootButton variant="danger" icon="trash-2" busy={busy} onClick={remove}>Remove</FootButton>
     </>
   );
   const what = <span className="kc-dl-remove__what">{head.name} · <span className="is-mono">{size(bytes || 0)}</span></span>;

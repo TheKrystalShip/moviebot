@@ -30,19 +30,15 @@ function FilmFrame({ details: d, fallback, length, actions, progress, facts }) {
     <div className="kc-tv-page kc-tvf">
       <TvBackdrop src={(d && (d.backdropUrl || d.posterUrl)) || fallback.art} size="page" />
       <section className="kc-tvf__head" data-tv-top="">
-        <TvSpotlight size="lg" eyebrow="Movie" title={name}
+        <TvSpotlight className="kc-tvf__spot" size="lg" eyebrow="Movie" title={name}
           meta={<SpotFacts facts={{
             rating: d && d.rating, year: (d && d.year) || fallback.year, cert: d && d.certification,
             length, genres: d ? d.genres : [],
-          }} />} overview={d && d.overview}>
-          {credit && credit.length > 0 && (
-            <span className="kc-tv-credit">
-              {credit.map(([label, names], i) => (
-                <React.Fragment key={label}>{i > 0 && " · "}{label} <b>{names}</b></React.Fragment>
-              ))}
-            </span>
-          )}
-          <div className="k-tv-spot__actions">{actions}</div>
+          }} />} overview={d && d.overview}
+          credit={credit && credit.length > 0 ? credit.map(([label, names], i) => (
+            <React.Fragment key={label}>{i > 0 && " · "}{label} <b>{names}</b></React.Fragment>
+          )) : undefined}
+          actions={actions}>
           {progress}
         </TvSpotlight>
       </section>

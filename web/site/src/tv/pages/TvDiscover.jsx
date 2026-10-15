@@ -62,7 +62,7 @@ export function TvDiscover({ query }) {
   return (
     <div className={"kc-tv-page kc-tvd" + (q ? " has-query" : "")}>
       <SearchField size="xl" className="kc-tvd__search" data-tv-top="" value={draft} onChange={setDraft} onSubmit={submit} submit={false}
-        placeholder="Any movie or show" inputProps={{ "data-tv-initial": q || browsing ? undefined : "" }} />
+        placeholder="Any movie or show" inputProps={{ className: "kc-tvd__input", "data-tv-initial": q || browsing ? undefined : "" }} />
 
       {!q && person && <PersonWork key={person} personId={person} where={where} />}
       {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} where={where} />}

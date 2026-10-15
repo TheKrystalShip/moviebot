@@ -275,7 +275,7 @@
 
 /* The volume is a button until it is reached for; then its slider opens beside it. */
 .mp-volume { display: flex; align-items: center; }
-.mp-volume .k-iconbtn { color: var(--art-fg-white); }
+.mp-volume__mute { color: var(--art-fg-white); }
 .mp-volume__track {
   width: 0; margin: 0; opacity: 0; overflow: hidden;
   transition: width 160ms var(--ease-out), opacity 160ms var(--ease-out), margin 160ms var(--ease-out);
@@ -369,7 +369,7 @@
 :is(.mp-frame:not(.mp-frame--wide), .mp-aimed) .mp-episodes :is(.kc-episode__score, .kc-episode__runtime),
 :root[data-tv] .mp-episodes :is(.kc-episode__score, .kc-episode__runtime) { display: none; }
 /* The style editor's drawer leaves room above it for the sample line it is styling. */
-.k-drawer.is-styling { max-height: 45%; }
+.mp-menu.is-styling { max-height: 45%; }
 .mp-menu__list { padding: 6px; display: flex; flex-direction: column; gap: 2px; }
 .mp-menu__message { display: flex; align-items: center; gap: 8px; padding: 9px 10px; font-size: 12.5px; color: var(--fg-3); line-height: 1.45; }
 .mp-menu__volume { display: flex; align-items: center; padding: 7px 10px; }
@@ -579,18 +579,18 @@
   width: 320px; max-height: none; border-radius: 0; translate: none; padding: 27px 28px 27px 24px; box-sizing: border-box;
   box-shadow: -1px 0 0 var(--border-subtle);
 }
-:root[data-tv] .mp-menu .k-menu__item { border-radius: var(--r-pill); }
+:root[data-tv] .mp-menu__item { border-radius: var(--r-pill); }
 :root[data-tv] .mp-panel--episodes { width: 420px; padding-left: 12px; padding-right: 12px; }
 :root[data-tv] .mp-episodes .kc-episode { border-radius: var(--r-sm); }
 :root[data-tv] .mp-episodes .kc-episode:focus-visible { outline: none; background: var(--fg-1); box-shadow: var(--glow-accent); }
 :root[data-tv] .mp-episodes .kc-episode:focus-visible :is(.kc-episode__title, .kc-episode__n, .kc-episode__go) { color: var(--canvas); }
 :root[data-tv] .mp-episodes .kc-episode:focus-visible .kc-episode__sub { color: var(--fg-4); }
-:root[data-tv] :is(.mp-play, .mp-icon, .mp-menu-button, .mp-menu .k-menu__item, .mp-menu__back):focus-visible {
+:root[data-tv] :is(.mp-play, .mp-icon, .mp-menu-button, .mp-menu__item, .mp-menu__back):focus-visible {
   background: var(--fg-1); color: var(--canvas); border-color: transparent;
   box-shadow: var(--glow-accent), var(--shadow-lift); transform: scale(1.06);
 }
-:root[data-tv] :is(.mp-play, .mp-icon, .mp-menu-button, .mp-menu .k-menu__item, .mp-menu__back):focus-visible * { color: var(--canvas); }
-:root[data-tv] :is(.mp-menu-button, .mp-menu .k-menu__item):focus-visible :is(.mp-menu-button__value, .k-menu__aside, .k-menu__sub) {
+:root[data-tv] :is(.mp-play, .mp-icon, .mp-menu-button, .mp-menu__item, .mp-menu__back):focus-visible * { color: var(--canvas); }
+:root[data-tv] :is(.mp-menu-button, .mp-menu__item):focus-visible :is(.mp-menu-button__value, .k-menu__aside, .k-menu__sub) {
   color: var(--fg-4);
 }
 :root[data-tv] .mp-cue { font-size: var(--cue-size, max(26px, 4.8cqh)); }
