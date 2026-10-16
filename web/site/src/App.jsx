@@ -4,12 +4,12 @@ import {
   useDock, useStoredFlag,
 } from "@thekrystalship/krystal";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
-import { beginSignIn, can, restore, sessionEnded, useSession } from "./session.js";
+import { can, restore, signIn, useEnded, useSession } from "./session.js";
 import { leave } from "./leave.js";
 import { goBack, navigate, useRoute } from "./router.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { PLACES } from "./nav.js";
-import { ANIME, OFFLINE_FLAG, chatPath, discoverPath, homePath, libraryPath, moviePath, profilePath, roomPath } from "./paths.js";
+import { ANIME, OFFLINE_FLAG, chatPath, discoverPath, homePath, libraryPath, moviePath, profilePath, roomPath, signedInPath } from "./paths.js";
 import { useOnline } from "./connectivity.js";
 import { sendProgress } from "./offline/progress.js";
 import { useOfflineSync } from "./offline/sync.js";
@@ -25,7 +25,7 @@ import { Discover, DISCOVER_FIELD } from "./pages/Discover.jsx";
 import { Notify } from "./pages/Notify.jsx";
 import { ListPage, Saved } from "./pages/Saved.jsx";
 import { Profile } from "./pages/Profile.jsx";
-import { ActivityProblem, Dark, NoAccess, SignInReturn, Waiting } from "./pages/SignIn.jsx";
+import { ActivityProblem, Dark, NoAccess, Waiting } from "./pages/SignIn.jsx";
 import { Pairing } from "./pages/Pairing.jsx";
 import { followPairings, forgetPairings } from "./remote.js";
 import { About } from "./pages/About.jsx";
@@ -94,9 +94,10 @@ const NEEDS_SERVER = new Set(["discover", "saved", "notify", "assistant"]);
 /**
  * Krystal Cinema: the shelf, the films on their way and on their way out, and the assistant. Every page
  * needs somebody signed in: one opened with nothing held leaves for the provider at once, and is where
- * the browser returns once they are. A session that ends while a page is open is shown, with the way
- * back offered, never followed. Somebody signed in whose account may not watch is told there is nothing
- * here for them yet.
+ * the browser returns once they are. A session that has ended is the one thing drawn in place of a
+ * page, with the way back offered, never followed; a session being restored or recovered draws
+ * nothing of its own. Somebody signed in whose account may not watch is told there is nothing here for
+ * them yet.
  *
  * A television never leaves for the provider: with nothing held it shows its sign-in code. A session
  * that ends there puts the code over the page, which stays drawn and out of reach beneath it and is
@@ -110,10 +111,11 @@ const NEEDS_SERVER = new Set(["discover", "saved", "notify", "assistant"]);
  */
 export function App() {
   const session = useSession();
+  const ended = useEnded();
   const route = useRoute();
   // A guest link answers to no session: it needs nobody to be anybody.
   const embedded = route.view === "guest";
-  const restoredHere = useRestored(!inActivity && !embedded && route.view !== "signin");
+  const restoredHere = useRestored(!inActivity && !embedded);
   const activity = useActivity();
   const restored = inActivity ? activity.ready : restoredHere;
   const online = useOnline();
@@ -157,13 +159,14 @@ export function App() {
   React.useEffect(() => {
     // With no connection nothing goes to the provider: a device with no session says a first sign-in
     // needs one, and signs in once the connection is back.
-    if (!restored || session || route.view === "signin" || embedded || inActivity || onTv || !online) {
+    if (!restored || session || ended || route.view === "signed-in" || embedded || inActivity || onTv || !online) {
       setWaiting(null);
       return;
     }
-    if (sessionEnded()) setWaiting({ note: ENDED });
-    else beginSignIn(route.href).catch(() => setWaiting({ note: UNANSWERED }));
-  }, [restored, session, route.view, route.href, embedded, online]);
+    let live = true;
+    void signIn(route.href).then((left) => { if (live && !left) setWaiting({ note: UNANSWERED }); });
+    return () => { live = false; };
+  }, [restored, session, ended, route.view, route.href, embedded, online]);
 
   if (route.view === "guest") return <React.Suspense fallback={<Dark />}><GuestRoom code={route.arg} /></React.Suspense>;
   // A television's code is scanned by a phone; a television or the Activity opening one has nothing to pair.
@@ -185,8 +188,8 @@ export function App() {
     return <Frame session={session} route={route} />;
   }
   if (route.view === "embed") return <Away to={homePath} />;
-  if (route.view === "signin") return <SignInReturn query={route.query} />;
-  const covered = onTv && restored && !session && sessionEnded() && held.current && route.view !== "room";
+  if (route.view === "signed-in") return <Dark />;
+  const covered = onTv && restored && !session && ended && held.current && route.view !== "room";
   if (onTv && restored && !session && !covered) return <TvSignIn />;
   if (covered || (onTv && session && can(session, "cinema:watch") && route.view !== "room")) {
     const shown = session || held.current;
@@ -200,6 +203,7 @@ export function App() {
       </>
     );
   }
+  if (restored && ended) return <Waiting note={ENDED} returnTo={route.href} />;
   if (restored && !session && !online && !onTv) return <FirstSignIn />;
   if (!restored || !session) return waiting ? <Waiting note={waiting.note} returnTo={route.href} /> : <Dark />;
   if (!can(session, "cinema:watch")) return <><NoAccess onSignOut={leave} /><SignOutDialog /></>;
@@ -366,14 +370,22 @@ function Away({ to }) {
 
 /**
  * Whether the session this browser holds has been picked up, renewing it first when its token has run
- * out. Until it has, nothing is shown, so a signed-in person is never sent through the door.
+ * out. Until it has, nothing is shown, so a signed-in person is never sent through the door. The
+ * callback's own address is never left on screen: a completed sign-in goes on to the page that was
+ * asked for, and anything else goes Home, where a missing session signs in again and an ended one is
+ * drawn.
  */
 function useRestored(wanted) {
   const [restored, setRestored] = React.useState(false);
   React.useEffect(() => {
     if (!wanted || restored) return;
     let live = true;
-    restore().catch(() => null).finally(() => { if (live) setRestored(true); });
+    const callback = window.location.pathname === signedInPath;
+    restore().catch(() => null).then((returnTo) => {
+      if (!live) return;
+      if (callback || returnTo) navigate(returnTo || homePath, { replace: true });
+      setRestored(true);
+    });
     return () => { live = false; };
   }, [wanted, restored]);
   return restored;

@@ -136,7 +136,7 @@ their own way.
 |---|---|
 | Application id and audience | `cinema` |
 | Action manifest | `https://movies.example.com/.well-known/tks-actions.json` |
-| The site's client | `cinema-site`, public (no secret), redirect `https://movies.example.com/signin`, sign-out redirect `https://movies.example.com/` |
+| The site's client | `cinema-site`, public (no secret), redirect `https://movies.example.com/signed-in`, sign-out redirect `https://movies.example.com/` |
 | The television's client | `cinema-tv`, public, allowed the device authorization grant (RFC 8628): a TV shows a code that a phone approves. No redirect. Your provider also needs token revocation (RFC 7009) for a TV to sign out |
 | The player's exchange | `cinema-activity`, confidential, allowed to present your Discord application (value 1). Its secret is value 5 |
 | The bot | `cinema-bot`, confidential, allowed to act for people by their linked Discord accounts. Its secret is value 6 |
@@ -352,7 +352,7 @@ journalctl -u moviebot-handoff -n 50 --no-pager
 | A change to the settings file has no effect | Each service logs which files it read when it starts: `journalctl -u moviebot-api \| grep Settings:`. A setting in the secrets file wins over the same setting in the settings file |
 | The bot is online but `/watch` does not appear | Commands appear only in the servers listed in `GuildIds`. Check the number, then restart `moviebot-bot` |
 | The player inside Discord says signing in failed | `ApplicationId` or `Discord__ClientSecret` is wrong, `Oidc__ActivityClientSecret` is not the secret of `cinema-activity`, or the provider is not told it may accept your Discord application from that client |
-| Opening the site returns an error from the provider | `cinema-site` is not registered, or its redirect is not exactly `https://YOUR.DOMAIN/signin` |
+| Opening the site returns an error from the provider | `cinema-site` is not registered, or its redirect is not exactly `https://YOUR.DOMAIN/signed-in` |
 | Everybody is told their account has no access | Nobody holds `cinema:watch` yet: give it to a role at the provider. Each token lists a person's actions for five minutes, so a change reaches MovieBot within that |
 | The bot answers that an administrator has to approve the account | That Discord account is not linked to an approved account at the provider |
 | Pressing **Watch together** shows a blank or failed Activity | The URL mapping in step 3.7 must be your domain without `https://`, and `https://YOUR.DOMAIN/health` must work from outside your network |

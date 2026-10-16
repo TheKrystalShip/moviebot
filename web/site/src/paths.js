@@ -14,7 +14,7 @@ export const aboutPath = "/about";
 /** The assistant's page. Not `/assistant`, which is the assistant's own service on the same origin. */
 export const chatPath = "/chat";
 /** Where the provider sends the browser back with a code. */
-export const signInPath = "/signin";
+export const signedInPath = "/signed-in";
 
 /** The API's category for a title shelved as anime, whatever its kind. */
 export const ANIME = "anime";

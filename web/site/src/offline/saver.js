@@ -272,7 +272,7 @@ function stopRunning(ending) {
 /** What the worker says. */
 async function heard(message) {
   if (message.type === "token") {
-    const token = await freshToken({ refused: !!message.refused }).catch(() => null);
+    const token = await freshToken({ refused: !!message.refused });
     workerOf().postMessage({ type: "token", n: message.n, token });
     return;
   }

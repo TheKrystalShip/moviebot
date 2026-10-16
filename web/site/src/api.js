@@ -1,9 +1,10 @@
 // MovieBot.Api, as the site reaches it: same origin, the session's access token as the bearer.
 //
-// This is the one module that attaches the token. A 401 means the token has lapsed or was never
-// good: the session is renewed once and the call made again, and a second 401 is a session that has
-// ended, which the page answers by saying so and offering the way back rather than showing a library
-// that failed to load. A 403 is the person's account not letting them do what they asked.
+// This is the one module that attaches the token, through the session's `authorizedFetch`, which
+// renews and replays a refused call once. A 401 that survives that is a session the API will not
+// honour: it is ended, which the page answers by saying so and offering the way back rather than
+// showing a library that failed to load. A 403 is the person's account not letting them do what they
+// asked.
 //
 // Every call tells `connectivity.js` whether the server answered: a call that fails on the network,
 // or is answered by a gateway or a captive portal rather than by MovieBot, is the page going offline,
@@ -12,7 +13,7 @@
 import { answeredByServer, reached, unreached } from "./connectivity.js";
 import { keepPreferences } from "./offline/preferences.js";
 import { keepProgress } from "./offline/progress.js";
-import { forget, freshToken, sessionStore } from "./session.js";
+import { session, sessionStore } from "./session.js";
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -22,15 +23,24 @@ export class ApiError extends Error {
 }
 
 const UNANSWERED = "MovieBot is not answering. Try again in a moment.";
+const SIGN_IN = "Sign in to carry on.";
 
-async function send(method, path, body, token) {
+/** The request with the bearer when somebody is signed in, and without it when nobody is. */
+function authorized(path, init) {
+  return session.authorizedFetch(path, init).catch((error) => {
+    if (error && error.code === "none") return fetch(path, init);
+    throw error;
+  });
+}
+
+async function send(method, path, body) {
   const headers = { Accept: "application/json" };
-  if (token) headers.Authorization = "Bearer " + token;
   if (body !== undefined) headers["Content-Type"] = "application/json";
   let response;
   try {
-    response = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-  } catch {
+    response = await authorized(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  } catch (error) {
+    if (error && error.code === "ended") throw new ApiError(401, SIGN_IN);
     unreached();
     throw new ApiError(0, UNANSWERED);
   }
@@ -43,12 +53,11 @@ async function send(method, path, body, token) {
 }
 
 async function call(method, path, body) {
-  let response = await send(method, path, body, await freshToken());
-  if (response.status === 401) response = await send(method, path, body, await freshToken({ refused: true }));
+  const response = await send(method, path, body);
 
   if (response.status === 401) {
-    await forget();
-    throw new ApiError(401, "Sign in to carry on.");
+    if (session.getSnapshot().status === "live") session.end("refused");
+    throw new ApiError(401, SIGN_IN);
   }
   if (response.status === 204) return null;
 

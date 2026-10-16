@@ -1,23 +1,20 @@
 import React from "react";
 import { Button } from "@thekrystalship/krystal";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
-import { pollDeviceCode, requestDeviceCode } from "../session.js";
+import { startDeviceSignIn } from "../session.js";
 import { Qr } from "./Qr.jsx";
 
 /** The first wait before asking a provider that could not be reached again, and the longest. */
 const RETRY_FIRST_MS = 2000;
 const RETRY_LONGEST_MS = 60000;
-/** What `slow_down` adds to the wait between polls (RFC 8628 §3.5). */
-const SLOW_DOWN_S = 5;
 
 /**
  * A television signing in: a code a phone approves at the provider, shown as the code itself, the
  * address to enter it at, a QR code of the address with the code already in it (`Qr.jsx`), and the
- * time left on it. Every answer the provider gives has one handling. An expired code is replaced unasked; a poll
- * that fails on the network keeps the code and keeps polling, and says so only if it is still failing
- * when the code runs out; a provider that cannot be reached for a code is asked again on a lengthening
- * wait, with Retry; a refusal waits for New code, since somebody decided it; and a provider that will
- * not sign this client in this way is said once and not asked again.
+ * time left on it. Every answer the provider gives has one handling. An expired code is replaced unasked;
+ * a provider that cannot be reached for a code is asked again on a lengthening wait, with Retry; a
+ * refusal waits for New code, since somebody decided it; and a provider that will not sign this client
+ * in this way is said once and not asked again.
  *
  * `over` draws it over a page whose session has ended, which approval returns to.
  */
@@ -81,7 +78,7 @@ function useSecondsLeft(until) {
 }
 
 /**
- * Runs one sign-in: asks for a code and polls until somebody decides, answering the phase to show and
+ * Runs one sign-in: asks for a code and waits until somebody decides, answering the phase to show and
  * a way to start over. Approval stores the session, which takes this screen away.
  */
 function useDeviceSignIn() {
@@ -91,14 +88,14 @@ function useDeviceSignIn() {
   React.useEffect(() => {
     let live = true;
     let timer = null;
+    let code = null;
     const wait = (ms) => new Promise((resolve) => { timer = window.setTimeout(resolve, ms); });
 
     (async () => {
       let retry = RETRY_FIRST_MS;
-      for (;;) {
-        let code;
+      while (live) {
         try {
-          code = await requestDeviceCode();
+          code = await startDeviceSignIn();
         } catch (error) {
           if (!live) return;
           if (error.kind !== "unreachable") {
@@ -108,44 +105,36 @@ function useDeviceSignIn() {
           setState({ phase: "unreachable" });
           await wait(retry);
           retry = Math.min(retry * 2, RETRY_LONGEST_MS);
-          if (!live) return;
           continue;
         }
-        if (!live) return;
-        retry = RETRY_FIRST_MS;
-        setState({ phase: "code", code });
-
-        let interval = code.interval;
-        let failing = false;
-        for (;;) {
-          await wait(interval * 1000);
-          if (!live) return;
-          if (Date.now() >= code.expiresAt) {
-            if (failing) setState({ phase: "unreachable" });
-            break;
-          }
-          try {
-            const answer = await pollDeviceCode(code);
-            if (!live) return;
-            failing = false;
-            if (answer === "slow") interval += SLOW_DOWN_S;
-            else if (answer !== "pending") return;
-          } catch (error) {
-            if (!live) return;
-            if (error.kind === "unreachable") failing = true;
-            else if (error.kind === "expired") break;
-            else {
-              setState({ phase: error.kind === "refused" ? "refused" : "misconfigured" });
-              return;
-            }
-          }
+        if (!live) {
+          code.cancel();
+          return;
         }
+        retry = RETRY_FIRST_MS;
+        setState({
+          phase: "code",
+          code: {
+            userCode: code.userCode,
+            uri: code.verificationUri,
+            uriComplete: code.verificationUriComplete,
+            expiresAt: Date.now() + code.expiresIn * 1000,
+          },
+        });
+        const outcome = await code.poll();
+        if (!live) return;
+        if (outcome === "refused") {
+          setState({ phase: "refused" });
+          return;
+        }
+        if (outcome !== "expired") return;
       }
     })();
 
     return () => {
       live = false;
       window.clearTimeout(timer);
+      if (code) code.cancel();
     };
   }, [round]);
 

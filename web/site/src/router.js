@@ -4,7 +4,7 @@
 import { createStore, useStore } from "@thekrystalship/krystal";
 import {
   ANIME, PROFILE_TABS, aboutPath, chatPath, discoverFilmPath, discoverPath, discoverShowPath, guestPath, homePath, libraryPath,
-  listPath, moviePath, notifyPath, pairPath, profilePath, roomPath, savedPath, signInPath, tvPath,
+  listPath, moviePath, notifyPath, pairPath, profilePath, roomPath, savedPath, signedInPath, tvPath,
 } from "./paths.js";
 
 const decode = (s) => {
@@ -22,6 +22,7 @@ function arrived(segments, search) {
   const [head, ...rest] = segments;
   const query = new URLSearchParams(search);
   switch (head) {
+    case "signin": return [[], ""];
     case "title": return [["movies", ...rest], search];
     case "film": return [rest.length ? ["discover", "film", ...rest] : ["discover"], search];
     case "show": {
@@ -46,7 +47,7 @@ function arrived(segments, search) {
  * `notfound` and keeps the address as typed.
  *
  *   view      which page: home, movies, movie, tv, show, anime, anime-films, discover, discover-film,
- *             discover-show, saved, list, notify, profile, about, chat, signin, room, guest, pair, embed,
+ *             discover-show, saved, list, notify, profile, about, chat, signed-in, room, guest, pair, embed,
  *             notfound
  *   category  `anime` for a shelf or a title's page under Anime; null everywhere else
  *   arg       the id the path carries: a title, a show, a film, a list, a room or a code
@@ -109,7 +110,7 @@ function parse(href) {
     case "notify": route = shaped("notify", notifyPath); break;
     case "about": route = shaped("about", aboutPath); break;
     case "chat": route = shaped("chat", chatPath); break;
-    case "signin": route = shaped("signin", signInPath); break;
+    case "signed-in": route = shaped("signed-in", signedInPath); break;
     case "r":
       route = rest[0] ? shaped("room", roomPath(rest[0]), { arg: rest[0] }) : shaped("home", homePath);
       break;

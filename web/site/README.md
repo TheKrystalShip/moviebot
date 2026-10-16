@@ -54,7 +54,7 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glanc
 | `/profile`, `/profile/<tab>` | The signed-in person; History, the first tab, has no segment: History (each film a poster card with how far the person got along its foot, when they watched it, Resume, and a way to remove it), Requests (the films they wait on, each a poster card), Following (each followed show a poster card with its next episode, whether new episodes are downloaded, switched on the card, and Unfollow), Notifications, Playback (audio language, quality, skipping intros and recaps automatically, and the quality Download picks on a phone or a tablet that can download, its choices under its words on a phone), Subtitles (the language a film starts in, and how subtitles look with a preview of them), Appearance (the theme) and Account (who is signed in, and a link to the account's page at the provider, where it is managed); every tab one column at the page's width; signing out |
 | `/about` | What the site is, and where its film details come from |
 | `/chat` | The assistant, as the page a phone's Assistant tab opens; a wide screen has it in the dock beside every other page (below) |
-| `/signin` | Where the identity provider sends the browser back with its code; opened on its own, it goes to the provider |
+| `/signed-in` | Where the identity provider sends the browser back with its code: the sign-in is completed and the page that was asked for opens; opened on its own it goes Home. `/signin` opens Home |
 | `/r/<room>?title=<id>` | A room: the player, full screen, with a way back to the page it was opened from. A room waiting on a Watch now shows the film being found, arriving and starting, and plays it on its own |
 | `/embed/` | Where the Discord Activity opens: it signs in through Discord, then goes to the player when the call's room holds something or is private to the viewer, and to Home otherwise |
 | `/g/<code>` | A room's guest link: the film it holds and a name to watch it as, then the player with nothing that moves the room and no way back to the site. Nobody signs in |
@@ -197,18 +197,24 @@ screen draws the same content in krystal's `Popover`, `Menu` or `Dialog`.
 
 ## Signing in
 
-Krystal Cinema signs nobody in. It is a public OpenID Connect client (`src/session.js`, on
-`oidc-client-ts`) of the provider `/api/config` names, with the client id it names. A page opened with
-nothing held sends the browser there at once, authorization code with PKCE, and the person signs in on
-the provider's own pages; the provider sends the browser back to `<origin>/signin` with a code redeemed
-for an access token and a refresh token, and the page that was asked for opens. The access token is the
-bearer on every call to the API, the hub and the assistant. It lives five minutes and is renewed by the
-refresh grant a minute before it runs out and whenever a call is refused; the session is kept in this
-browser's `localStorage` under `cinema.oidc.`, so a tab opened days later carries on without a bounce.
+Krystal Cinema signs nobody in. It is a public client of the provider `/api/config` names, with the client
+id it names, and `@thekrystalship/auth-client` keeps the session (`src/session.js` is the site's glue
+over it: where to sign in, the Cinema actions, the shape the pages read). A page opened with nothing held
+sends the browser there at once, authorization code with PKCE, and the person signs in on the provider's
+own pages; the provider sends the browser back to `<origin>/signed-in` with a code the client redeems, and
+the page that was asked for opens. The access token is the bearer on every call to the API, the hub and
+the assistant (`src/api.js` calls through the session's `authorizedFetch`). It lives five minutes and
+is renewed ahead of expiry and replayed when a call is refused; the session is kept in this browser's
+`localStorage` under `tks-auth-client:<client id>:`, so a tab opened days later carries on without a
+bounce.
 
-A session that ends while a page is open is not followed to the provider: the page says so and offers
-the way back, because leaving unasked would discard whatever somebody was in the middle of. A sign-in
-the provider refuses, and a provider that does not answer, are shown the same way.
+Signing in is invisible while it can recover. Opened offline, with the provider unreachable, or while a
+renewal is being retried, a session stands as it was stored, and the page draws nothing about it. The
+only state a page draws is a session that has ended and nothing can bring back: it takes the place of
+the page, with one action, Sign in, which comes back to the page that was asked for. It is not followed
+to the provider unasked, because leaving would discard whatever somebody was in the middle of. A
+sign-in callback that cannot be completed goes Home and signs in again once; a second failure within a
+minute ends the session. A provider that does not answer a first sign-in is shown the same way.
 
 Signing out is the provider's: its end-session endpoint ends the person's sign-in there and every
 session minted under it, and sends the browser back to `<origin>/`, which holds nothing and goes to the
@@ -216,11 +222,9 @@ provider's sign-in. The account's page at the provider lists its sessions, and P
 Somebody with films saved on the device is first asked whether to keep them for the account's next
 sign-in here or remove them.
 
-With no connection a session is never ended: one whose access token has run out stands as the stored
-user's `sub`, name and actions until the connection is back, when the refresh grant runs and its answer
-decides. The page never goes to the provider while offline, and what `/api/config` said is kept in
-`localStorage` (`cinema.config`) so the page still knows whose session it holds. A device that holds no
-session says that a first sign-in needs a connection, and signs in once there is one.
+What `/api/config` said is kept in `localStorage` (`cinema.config`) so a page opened with no connection
+still knows whose session it holds. A device that holds no session says that a first sign-in needs a
+connection, and signs in once there is one.
 
 The token lists the Cinema actions the person holds, in the claim `/api/config` names, and the page
 shows a control only to somebody holding the action it needs (`can` and `useCan` in `src/session.js`):
@@ -233,19 +237,15 @@ A television signs in with the device authorization grant (RFC 8628) as the devi
 TV's owner gave it (`device_name`, from the wrapper's `window.KrystalCinemaTV.deviceName()`), which the
 provider's approval page offers to keep or change. With nothing held it shows a code
 (`src/tv/TvSignIn.jsx`): the address to enter it at, the code itself, a QR code of the address with the
-code in it, drawn by `lean-qr`, which only a television fetches, and the time left on it. It polls the
-token endpoint at the interval it was given, five seconds longer on each `slow_down`, and a code that
-runs out is replaced unasked. A poll that fails on the network keeps the code and keeps polling, and is
-shown only if it is still failing when the code runs out; a provider that cannot be reached for a code
-is shown with Retry and asked again on a lengthening wait up to a minute; a refusal is shown with New
-code; a provider that will not sign this client in that way is shown and not asked again. The tokens
-that come back are stored as `oidc-client-ts`'s own user under the device client, so renewal and
-restoring are the same as anywhere. The session lasts as long as the provider keeps it from its last
-renewal. One that ends while a page is open puts the code over the page, which stays drawn beneath it
-out of reach and is where approval returns; a room is left rather than kept under it, and joined again
-after approval at the room's position. Signing out on a television revokes the refresh token at the
-provider's revocation endpoint (RFC 7009) and forgets the session, since it holds no provider session
-to end.
+code in it, drawn by `lean-qr`, which only a television fetches, and the time left on it. The client
+polls for the person's decision, and a code that runs out is replaced unasked. A provider that cannot be
+reached for a code is shown with Retry and asked again on a lengthening wait up to a minute; a refusal is
+shown with New code; a provider that will not sign this client in that way is shown and not asked
+again. The session is stored and renewed as anywhere, and lasts as long as the provider keeps it from
+its last renewal. One that ends while a page is open puts the code over the page, which stays drawn
+beneath it out of reach and is where approval returns; a room is left rather than kept under it, and
+joined again after approval at the room's position. Signing out on a television revokes the refresh
+token at the provider and forgets the session, since it holds no provider session to end.
 
 The Activity signs in through the API instead, since it has no browser to redirect: the code the
 Embedded App SDK gives it is posted to `/api/auth/discord/callback`, which answers Discord's access
@@ -740,7 +740,7 @@ leading to the title's page. The assistant holds no room controls and no buttons
   attribution page, in `src/assets/tmdb.svg`.
 - **One module attaches the token.** `src/api.js` is the only place a bearer is added to a call to
   the API; the assistant's client and the player are given a way to ask for a good token, never a
-  token to keep. A 401 renews the session once and makes the call again, and a second 401 signs the
-  browser out.
+  token to keep. A 401 renews the session once and makes the call again, and a second 401 ends the
+  session.
 - **Every act is the person's own.** The API takes who asked from the token, so the site sends no
   name of its own and cannot act for anybody else.

@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.41.0] - 2026-10-16
+
+### Changed
+
+- **The site's sign-in is `@thekrystalship/auth-client`.** The session renews ahead of expiry, replays a
+  refused call, holds through an outage or an unreachable provider, and settles races between tabs, all
+  without a word on screen: a page draws only a session that has ended, as one screen with Sign in. The
+  provider returns the browser to `/signed-in`; `/signin` goes Home. The television signs in through the
+  client's device grant and keeps its stored session; website sessions end once, with the new redirect.
+  The Activity holds its Discord-minted token through the client's `adopt`.
+
 ## [3.40.4] - 2026-10-16
 
 ### Changed

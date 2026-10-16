@@ -67,7 +67,7 @@ These exist and are not restated here:
 | Discover by person and by genre, on every surface | `docs/api-contract.md`, `web/site/README.md` |
 | `npm run verify:tv` | `web/site/README.md` "Verifying" |
 | The device grant: `/device_authorization`, polling `/token`, the `/device` approval page, device sessions surviving the phone's sign-out; `/revoke` ending a session | `tks-auth/src/Auth.Anchor/CLAUDE.md` |
-| The site's session: `oidc-client-ts`, tokens in `localStorage` under `cinema.oidc.`, `restore`, `freshToken`, `signOut` | `web/site/src/session.js`, `web/site/README.md` "Signing in" |
+| The site's session: `@thekrystalship/auth-client`, tokens in `localStorage` under `tks-auth-client:`, `restore`, `freshToken`, `signOut` | `web/site/src/session.js`, `web/site/README.md` "Signing in" |
 | The TV signing in: the `cinema-tv` client named on `/api/config`, the code screen and its QR, each answer's handling, the code over a page whose session ended, signing out by revocation | `web/site/README.md` "Signing in", `web/site/src/tv/TvSignIn.jsx`, `docs/deploying.md` |
 | The API accepting any token whose audience is the Cinema application, whatever client asked for it | `src/MovieBot.Api/Auth/CinemaAuthentication.cs` |
 | Media: HLS fMP4, H.264 High at level 4.2 with stereo AAC-LC, WebVTT drawn by the page, `MediaSource.isTypeSupported` asked before anything is fetched | `web/site/README.md` "A viewer who cannot play the film" |

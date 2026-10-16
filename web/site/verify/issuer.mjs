@@ -7,7 +7,7 @@
 //
 //   node verify/issuer.mjs serve <dir> <port>    serve discovery, keys and a television's sign-in
 //
-// A browser is signed in by planting the session `oidc-client-ts` keeps, under the key it reads.
+// A browser is signed in by planting the session the sign-in client keeps, under the key it reads.
 //
 // A television signs in for real, through the device authorization grant (RFC 8628) served the way
 // tks-auth serves it: `/device_authorization` for the TV's client alone, `/token` answering a poll with
@@ -69,7 +69,7 @@ export function issuerIn(dir, port) {
   };
 
   /**
-   * What a browser holds once `person` has signed in: the entry `oidc-client-ts` reads from
+   * What a browser holds once `person` has signed in: the entry the sign-in client reads from
    * localStorage, which an init script puts there before the page loads. A television's is kept under
    * its own client, `{ client: TV_CLIENT }`, and `{ refresh }` gives it a refresh token.
    */
@@ -77,7 +77,7 @@ export function issuerIn(dir, port) {
     const client = options.client || SITE_CLIENT;
     const token = mint(person, options);
     return {
-      key: `cinema.oidc.user:${url}:${client}`,
+      key: `tks-auth-client:${client}:user:${url}:${client}`,
       value: JSON.stringify({
         access_token: token, id_token: token, token_type: "Bearer", scope: "openid", refresh_token: options.refresh,
         profile: { sub: person.id, name: person.name, preferred_username: person.id },

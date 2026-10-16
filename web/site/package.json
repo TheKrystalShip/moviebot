@@ -1,7 +1,7 @@
 {
   "name": "krystal-cinema",
   "private": true,
-  "version": "0.87.3",
+  "version": "0.88.0",
   "type": "module",
   "description": "Krystal Cinema: MovieBot's site, served by MovieBot.Api.",
   "scripts": {
@@ -10,7 +10,7 @@
     "lint": "eslint src verify scripts public/sw.js",
     "lint:css": "stylelint \"src/**/*.css\"",
     "check": "tsc -p .",
-    "test": "node --test verify/heads.test.mjs verify/remote.test.mjs verify/devicePlaylist.test.mjs verify/revision.test.mjs verify/tracks.test.mjs verify/ordered.test.mjs",
+    "test": "node --test verify/heads.test.mjs verify/remote.test.mjs verify/devicePlaylist.test.mjs verify/revision.test.mjs verify/tracks.test.mjs verify/ordered.test.mjs verify/sessionMigration.test.mjs verify/sessionView.test.mjs",
     "verify": "node verify/run.mjs",
     "verify:routes": "node verify/routes.mjs",
     "verify:mobile": "node verify/mobile/run.mjs",
@@ -30,12 +30,12 @@
   "dependencies": {
     "@discord/embedded-app-sdk": "^2.5.0",
     "@microsoft/signalr": "^8.0.29",
+    "@thekrystalship/auth-client": "0.2.0",
     "@thekrystalship/krystal": "1.0.0",
     "@thekrystalship/krystal-chat": "1.0.0",
     "hls.js": "^1.7.3",
     "lean-qr": "^2.7.4",
     "lucide-react": "^0.460.0",
-    "oidc-client-ts": "^3.5.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

@@ -410,7 +410,7 @@ for (const [from, forwards] of [[`/discover/film/${MATRIX.imdbId}`, M], [`/tv/${
 
 /**
  * Waits for the browser to reach the provider's authorize endpoint, and answers what is wrong with the
- * request it made: the site's client, PKCE, and /signin to come back to.
+ * request it made: the site's client, PKCE, and /signed-in to come back to.
  */
 async function leftForProvider(page) {
   const authorize = issuer.url + "/authorize";
@@ -421,27 +421,30 @@ async function leftForProvider(page) {
   const problems = [];
   if (reached.searchParams.get("client_id") !== "cinema-site") problems.push(`signed in as ${reached.searchParams.get("client_id")}`);
   if (reached.searchParams.get("code_challenge_method") !== "S256") problems.push("no PKCE challenge");
-  if (reached.searchParams.get("redirect_uri") !== base + "/signin") problems.push(`returns to ${reached.searchParams.get("redirect_uri")}`);
+  if (reached.searchParams.get("redirect_uri") !== base + "/signed-in") problems.push(`returns to ${reached.searchParams.get("redirect_uri")}`);
   return problems;
 }
 
 // Signed out, a page leaves for the provider at once, remembering itself to come back to.
 for (const path of ["/tv/tt0903747/season/3", "/discover?q=matrix", "/movies/the-matrix-1999", "/profile/playback", "/nonsense", "/signin"]) {
+  // An earlier address of Home, which goes Home and so remembers Home.
+  const wanted = path === "/signin" ? "/" : path;
   const { context, page } = await open({ signedIn: false });
   const problems = [];
   try {
     await page.goto(base + path, { waitUntil: "load" });
     problems.push(...await leftForProvider(page));
-    if (path !== "/signin") {
-      await page.goto(base + "/manifest.webmanifest").catch(() => {});
-      const remembered = await page.evaluate(() => sessionStorage.getItem("cinema:signin-return"));
-      if (remembered !== path) problems.push(`remembers ${remembered}, wanted ${path}`);
-    }
+    await page.goto(base + "/manifest.webmanifest").catch(() => {});
+    const remembered = await page.evaluate(() => {
+      const key = Object.keys(sessionStorage).find((k) => k.startsWith("tks-auth-client:cinema-site:"));
+      try { return key ? JSON.parse(sessionStorage.getItem(key)).data.returnTo : null; } catch { return null; }
+    });
+    if (remembered !== wanted) problems.push(`remembers ${remembered}, wanted ${wanted}`);
   } catch (error) {
     problems.push(error.message.split("\n")[0]);
   }
   await context.close();
-  report(`signed out, ${path} goes to the provider${path === "/signin" ? "" : " and remembers it"}`, problems);
+  report(`signed out, ${path} goes to the provider and remembers ${wanted}`, problems);
 }
 
 // Signing out is the provider's: the browser goes to its end-session endpoint, naming the session and
@@ -465,7 +468,7 @@ for (const path of ["/tv/tt0903747/season/3", "/discover?q=matrix", "/movies/the
     }
     const left = await context.newPage();
     await left.goto(base + "/manifest.webmanifest");
-    if (await left.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("cinema.oidc.user")))) problems.push("the session is still held");
+    if (await left.evaluate(() => Object.keys(localStorage).some((k) => k.includes(":user:")))) problems.push("the session is still held");
   } catch (error) {
     problems.push(error.message.split("\n")[0]);
   }
@@ -486,7 +489,8 @@ for (const path of ["/tv/tt0903747/season/3", "/discover?q=matrix", "/movies/the
     // A request the page was already making may be the one refused; otherwise moving on makes one.
     await page.waitForTimeout(500);
     if (!(await card.isVisible())) await page.locator(".nav-item", { hasText: "Discover" }).first().click();
-    await card.waitFor({ timeout: 10000 });
+    // The refusal is held for the client's grace period before the session is over.
+    await card.waitFor({ timeout: 60000 });
     await page.waitForTimeout(1500);
     if (!(await card.textContent()).includes("Your session ended.")) problems.push(`says ${await card.textContent()}`);
     if (page.url().startsWith(issuer.url)) problems.push("left for the provider by itself");

@@ -571,7 +571,7 @@ async function signIn() {
       else pass("approval opens the page that was asked for");
 
       const stored = () => page.evaluate((client) => {
-        const key = Object.keys(localStorage).find((k) => k.startsWith("cinema.oidc.user:") && k.endsWith(":" + client));
+        const key = Object.keys(localStorage).find((k) => k.startsWith(`tks-auth-client:${client}:user:`));
         return key ? JSON.parse(localStorage.getItem(key)) : null;
       }, TV_CLIENT);
       const first = await stored();
@@ -652,13 +652,14 @@ async function signIn() {
     }
   }
   {
-    // Fifteen seconds after opening, the renewal presents a refresh token the provider never issued.
+    // Fifteen seconds after opening, the renewal presents a refresh token the provider never issued; the
+    // session stands for the client's grace period before it ends.
     const planted = issuer.planted(VIEWER, { seconds: 75, client: TV_CLIENT, refresh: "ended" });
     const { page, close } = await openSignedOut("/movies", planted);
     try {
       await page.waitForTimeout(SettleMs);
       await page.evaluate(() => { document.querySelector(".kc-tv-main").dataset.kept = "1"; });
-      const covered = await until(() => page.locator(".kc-tv-signin.is-over").isVisible(), 30000);
+      const covered = await until(() => page.locator(".kc-tv-signin.is-over").isVisible(), 70000);
       const under = await page.evaluate(() => {
         const main = document.querySelector('.kc-tv-main[data-kept="1"]');
         return !!main && !!main.closest("[inert]");
