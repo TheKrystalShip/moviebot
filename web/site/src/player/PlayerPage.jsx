@@ -36,6 +36,7 @@ const viewer = {
   keptPreferences: () => keptPreferences(signedIn()),
   resumeAt: (titleId, durationSeconds) => resumeAt(signedIn(), titleId, durationSeconds),
   recordProgress: (titleId, positionSeconds) => logProgress(signedIn(), titleId, positionSeconds),
+  sendProgress: () => void sendProgress(),
 };
 
 /**

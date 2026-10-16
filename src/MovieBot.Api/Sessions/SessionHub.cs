@@ -41,7 +41,16 @@ public sealed class SessionHub(
     /// else: the position is derived from the anchor, so it computes where the room is without being
     /// told. A room private to this person answers that and nothing else.
     /// </summary>
-    public async Task<JoinReply> Join(string sessionId)
+    public Task<JoinReply> Join(string sessionId) => EnterRoom(sessionId, null);
+
+    /// <summary>
+    /// Comes back into a room this page was in, with what its player did while the room could not hear
+    /// it. The room takes that as its own state when nobody else could have seen it differently
+    /// (<see cref="SessionStore.Resume"/>), and otherwise answers where it is, as <see cref="Join"/> does.
+    /// </summary>
+    public Task<JoinReply> Rejoin(string sessionId, PlayerAccount? account) => EnterRoom(sessionId, account);
+
+    private async Task<JoinReply> EnterRoom(string sessionId, PlayerAccount? account)
     {
         var person = Person("Sign in to join a room.");
         if (!sessions.Enter(sessionId, person.UserId))
@@ -62,8 +71,8 @@ public sealed class SessionHub(
         await Groups.AddToGroupAsync(Context.ConnectionId, RoomGroups.Members(sessionId));
         await screens.JoinedAsync(Context.ConnectionId, sessionId);
 
-        var participants = sessions.Join(sessionId, Context.ConnectionId,
-            new Participant { UserId = actor.UserId, DisplayName = actor.DisplayName });
+        var viewer = new Participant { UserId = actor.UserId, DisplayName = actor.DisplayName };
+        var participants = sessions.Join(sessionId, Context.ConnectionId, viewer);
         quality.Join(sessionId, Context.ConnectionId);
 
         await Clients.Group(RoomGroups.Everyone(sessionId)).SendAsync("ParticipantsChanged", participants);
@@ -71,7 +80,9 @@ public sealed class SessionHub(
             "{DisplayName} joined session {SessionId} (connection {Connection}, {Count} in the room)",
             actor.DisplayName, sessionId, Context.ConnectionId[..6], participants.Count);
 
-        // Somebody arriving is somebody not waiting, so a room held for its players goes on.
+        // A player coming back alone to a room nobody changed carries on from its own playhead; otherwise
+        // somebody arriving is somebody not waiting, so a room held for its players goes on.
+        if (account is not null) await controls.ResumeAsync(sessionId, Context.ConnectionId, viewer, account);
         await controls.HoldAsync(sessionId);
         return new JoinReply { Admitted = true, Push = Push(sessions.GetOrCreate(sessionId)), Door = sessions.Door(sessionId) };
     }

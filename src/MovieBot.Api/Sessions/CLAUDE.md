@@ -23,16 +23,29 @@ door and miss the other.
   as the wanted rung heights per room (`WantedHeights`, `WantedByRoom`). A viewer who has said
   nothing wants the tallest rung of the room's film. It is dropped when the connection leaves, and no
   state, push or broadcast carries it.
-- **A room is held only while every player in it is waiting for the film** (`SessionStore.Hold`).
-  One slow connection never stops the film for the others. A room nobody can play would otherwise
-  run on for nobody, and each player, once it has the film again, would be told the room is somewhere
-  it has not fetched, seek there, and stall again. Each player reports where its playhead stopped
+- **A room is held only while every player in it is waiting for the film, or nobody is in it**
+  (`SessionStore.Hold`). One slow connection never stops the film for the others. A room nobody can
+  play would otherwise run on for nobody, and each player, once it has the film again, would be told
+  the room is somewhere it has not fetched, seek there, and stall again. A room whose last viewer's
+  connection went is the same room: their phone plays on from what it fetched, unheard, and a room
+  that ran on would be somewhere they never saw. Each player reports where its playhead stopped
   (`Buffering`), and the room is held at the furthest behind of them, never ahead of where it had got
   to: a player put back seeks into what it already holds. The held state is playing with `Waiting`
   set, so its position does not advance, and names no actor. It is let go, from the same place, when
   one player plays, somebody arrives, or the waiting are left alone by somebody leaving; a change
   somebody makes to a held room leaves it held from wherever that put it. `RoomControls.HoldAsync` is
   the push, and the log says when a room was held and let go.
+- **A player coming back alone carries the room on from its own playhead** (`Rejoin`,
+  `SessionStore.Resume`). A page whose connection came back says what its player did meanwhile: the
+  last state it applied (epoch and revision), the film, where its playhead is and whether it plays.
+  The room takes that as its state when nobody else with an account is in it and either it holds that
+  film with nothing done to it since that revision (`ActRevision`: holds, a download's progress and
+  resumes are the server's own doing, not acts), or it holds nothing because it was forgotten while
+  the player was away. Otherwise the room stands and the player takes it as it is, which is what
+  keeps one viewer coming back from moving a room others went on watching. The server still decides:
+  the player says what it did and the store judges it. The state names no actor, so no player
+  announces it, and where the playhead moved, the stretch is credited to the viewer, since the held
+  room recorded none of it.
 - **`SeekClamped` reaches the caller alone.** Broadcasting it would show the whole room an error
   nobody else triggered. Down the hub that is a message to the caller; over HTTP it rides in the
   response body, because the caller that asked is the one thing a broadcast cannot reach.
@@ -212,8 +225,9 @@ alone, and restarting the API would take the film out from under everybody in it
   whose kept state no longer reads as one starts again empty.
 - **A restored room keeps its epoch and its revision.** It is the same run of the same room rather
   than a new one wearing its name, so a client connected across the restart goes on applying pushes
-  instead of discarding every one of them, and its reconnect resync hands back what it already had.
-  Nothing about the restart reaches a person watching.
+  instead of discarding every one of them, and its rejoin carries on from its own playhead, since
+  nothing was done to the room while the server was down. Nothing about the restart reaches a person
+  watching.
 - **Position survives for free**, because it is a place at an instant rather than a number that
   ticks. A room that was playing when the server stopped is playing, at the right place, when it
   starts again — however long that took.

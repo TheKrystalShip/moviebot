@@ -1,6 +1,7 @@
-// Where a person got to in films played from the device, kept per account until the API has it.
+// Where a person got to in films nothing else was recording, kept per account until the API has it.
 //
-// The player writes an entry as a saved film plays alone (`player/engine/room.ts`), one per title, the
+// The player writes an entry as a saved film plays alone, and as a room's film plays while the room
+// cannot hear the page (`player/engine/room.ts`), one per title, the
 // latest replacing the one before: the API keeps only the newest position of a title, so an older one
 // is worth nothing to send. Whenever the server can be reached the log goes up in one
 // `POST /api/me/progress`, and an entry is taken off once the API has answered for it, unless it was

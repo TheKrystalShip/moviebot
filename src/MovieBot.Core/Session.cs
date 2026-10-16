@@ -107,6 +107,21 @@ public sealed record SessionStatePush
 }
 
 /// <summary>
+/// What a player coming back into a room did while the room could not hear it: the last state it
+/// applied (<see cref="Epoch"/> and <see cref="Revision"/>), the film it holds, and where its playhead
+/// is and whether it plays. The room takes it as its own state only when nobody else is in it and
+/// nothing has been done to it since that state (<c>SessionStore.Resume</c>).
+/// </summary>
+public sealed record PlayerAccount
+{
+    public required string Epoch { get; init; }
+    public required long Revision { get; init; }
+    public required string TitleId { get; init; }
+    public required double PositionSeconds { get; init; }
+    public required bool Paused { get; init; }
+}
+
+/// <summary>
 /// Sent only to the client whose seek was refused, so its UI can explain itself rather than
 /// silently snapping somewhere else.
 /// </summary>

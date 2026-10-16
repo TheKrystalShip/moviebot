@@ -88,12 +88,31 @@ public sealed class RoomControls(
     public async Task HoldAsync(string sessionId, CancellationToken ct = default)
     {
         if (sessions.Hold(sessionId) is not { } state) return;
+        var held = !state.Waiting ? "let go"
+            : sessions.Participants(sessionId).Any(p => !p.Guest) ? "held for its players" : "held with nobody in it";
         logger.LogInformation(
             "Session {SessionId} {Held} at {Position:0.00}s -> revision {Revision}",
-            sessionId, state.Waiting ? "held for its players" : "let go", state.PositionSeconds, state.Revision);
+            sessionId, held, state.PositionSeconds, state.Revision);
         await hub.Clients.Group(RoomGroups.Everyone(sessionId)).SendAsync("StateChanged",
             new SessionStatePush { State = state, ServerTime = DateTimeOffset.UtcNow }, ct);
         await screens.RoomChangedAsync(sessionId);
+    }
+
+    /// <summary>
+    /// Takes a returning player's account of what it played as the room's state where the room allows
+    /// it (<see cref="SessionStore.Resume"/>), and pushes that to everybody in it. True when it did.
+    /// </summary>
+    public async Task<bool> ResumeAsync(string sessionId, string connectionId, Participant viewer, PlayerAccount account,
+        CancellationToken ct = default)
+    {
+        if (sessions.Resume(sessionId, connectionId, viewer, account) is not { } state) return false;
+        logger.LogInformation(
+            "Session {SessionId} resumed from {DisplayName}'s player at {Position:0.00}s, {Paused} -> revision {Revision}",
+            sessionId, viewer.DisplayName, state.PositionSeconds, state.Paused ? "paused" : "playing", state.Revision);
+        await hub.Clients.Group(RoomGroups.Everyone(sessionId)).SendAsync("StateChanged",
+            new SessionStatePush { State = state, ServerTime = DateTimeOffset.UtcNow }, ct);
+        await screens.RoomChangedAsync(sessionId);
+        return true;
     }
 }
 

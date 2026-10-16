@@ -366,6 +366,19 @@ export interface RoomDoor {
 export type GuestRefusal = 'unattended' | 'full' | 'ended';
 
 /**
+ * What a player coming back into its room did while the room could not hear it: the last state it
+ * applied, the film it holds, and where its playhead is. The room takes it as its own only when nobody
+ * else could have seen the room differently.
+ */
+export interface PlayerAccount {
+  epoch: string;
+  revision: number;
+  titleId: string;
+  positionSeconds: number;
+  paused: boolean;
+}
+
+/**
  * What entering a room is answered: the room and its door, or only that it is private. A guest is
  * answered the room and who the room has them as, or why they were not let in.
  */

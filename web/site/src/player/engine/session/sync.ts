@@ -1,4 +1,4 @@
-import type { SessionState, SessionStatePush } from '../types';
+import type { PlayerAccount, SessionState, SessionStatePush } from '../types';
 import { derivePosition } from './hub';
 import { RevisionGate } from './revision';
 import type { ServerClock } from './clock';
@@ -157,6 +157,23 @@ export class SyncController {
    */
   setLive(live: boolean): void {
     this.live = live;
+  }
+
+  /**
+   * What this player did with the room's last state, for coming back into the room with: that state's
+   * run and revision, the film, where the playhead is and whether it plays. Null while the player holds
+   * no film, and for a player that speaks for nobody.
+   */
+  account(): PlayerAccount | null {
+    const state = this.latest;
+    if (this.viewOnly || state === null || !state.titleId || !this.playerReady || !this.hooks.holdsFilm()) return null;
+    return {
+      epoch: state.epoch,
+      revision: state.revision,
+      titleId: state.titleId,
+      positionSeconds: this.video.currentTime,
+      paused: this.video.paused
+    };
   }
 
   /** Where the room is, as opposed to where this viewer's playhead has got to. */

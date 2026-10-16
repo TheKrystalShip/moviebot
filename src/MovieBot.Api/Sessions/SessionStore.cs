@@ -75,6 +75,14 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         /// back, and from when the last of them left. Null while one is here. Guarded by <see cref="Gate"/>.
         /// </summary>
         public DateTimeOffset? MembersGoneSince;
+
+        /// <summary>
+        /// The revision of the last thing done to the room: every change <see cref="Advance"/> stamps,
+        /// and nothing the server does on its own (a hold, a download's progress, a player's account
+        /// taken back in). A player that last applied this revision or a later one has missed nothing
+        /// anybody did. Guarded by <see cref="Gate"/>.
+        /// </summary>
+        public long ActRevision;
     }
 
     /// <summary>Every live guest link's room, by the pass's id.</summary>
@@ -552,8 +560,9 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     }
 
     /// <summary>
-    /// Holds a playing room while every player in it is waiting for the film, and lets it go the
-    /// moment one is not. Answers the new state when that changed the room, and null when it did not.
+    /// Holds a playing room while every player in it is waiting for the film, or nobody is in it, and
+    /// lets it go the moment one plays. Answers the new state when that changed the room, and null when
+    /// it did not.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -561,6 +570,12 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     /// the rest of the room; they fall behind and catch up. A room in which nobody can play is a
     /// different thing: its timeline runs on for nobody, and the moment a player has the film again
     /// it is told the room is somewhere it has not fetched, seeks there, and stalls again.
+    /// </para>
+    /// <para>
+    /// <b>A room nobody is in is held where it was.</b> A phone that loses its connection goes on
+    /// playing what it has fetched and stalls where that runs out, unheard; a room that ran on would
+    /// be somewhere that viewer never saw when they came back. Its account of what it played settles
+    /// where the room is on the way back in (<see cref="Resume"/>).
     /// </para>
     /// <para>
     /// <b>Held where the furthest-behind player stopped</b>, never ahead of where the room is. A
@@ -600,14 +615,72 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     }
 
     /// <summary>
-    /// Somebody with an account is in the room and every one of their players is waiting for the film.
-    /// A guest holds nothing: what a guest's player does never moves the room.
+    /// No player of anybody with an account is playing the film: every one in the room is waiting for
+    /// it, or nobody with an account is in the room. A guest holds nothing: what a guest's player does
+    /// never moves the room.
     /// </summary>
-    private static bool EveryoneWaiting(SessionEntry entry)
+    private static bool EveryoneWaiting(SessionEntry entry) =>
+        entry.Participants.Values.Where(p => !p.Guest).All(p => p.Buffering);
+
+    /// <summary>
+    /// Takes a returning player's account of what it played as the room's state, when nobody else
+    /// could have seen the room differently: nobody else with an account is in it, and it either holds
+    /// the film the player holds with nothing done to it since the state the player last applied, or
+    /// holds nothing at all because it was forgotten while the player was away. Answers the new state,
+    /// or null when the room's own state stands. Called with the player already in the room.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The server stays the authority: the player says what it did, and this decides. A room with
+    /// others in it, or one somebody changed, is theirs, and a player coming back takes it as it is.
+    /// Alone, the player's playhead is the only account of the film there is: a room held where its
+    /// connection was lost is behind it by whatever it played from its buffer.
+    /// </para>
+    /// <para>
+    /// Nobody did this, so the state names no actor and no player announces it. Where the playhead
+    /// moved, the stretch is credited to the viewer, since the room was held and recorded none of it.
+    /// </para>
+    /// </remarks>
+    public SessionState? Resume(string sessionId, string connectionId, Participant viewer, PlayerAccount account)
     {
-        var members = entry.Participants.Values.Where(p => !p.Guest).ToList();
-        return members.Count > 0 && members.All(p => p.Buffering);
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return null;
+        if (!double.IsFinite(account.PositionSeconds) || account.PositionSeconds < 0) return null;
+        if (library.Get(account.TitleId) is null) return null;
+
+        lock (entry.Gate)
+        {
+            if (entry.Participants.Any(p => p.Key != connectionId && !p.Value.Guest)) return null;
+
+            var state = entry.State;
+            var continued = state.TitleId == account.TitleId && state.Epoch == account.Epoch
+                && account.Revision >= entry.ActRevision && account.Revision <= state.Revision;
+            var forgotten = state.TitleId is null && state.Preparing is null;
+            if (!continued && !forgotten) return null;
+
+            var now = clock.GetUtcNow();
+            var resumed = state with { TitleId = account.TitleId };
+            var (at, _) = ClampToHead(resumed, account.PositionSeconds);
+            var moved = !continued || Math.Abs(at - state.PositionAt(now)) > ResumeToleranceSeconds;
+
+            EndSpan(entry, Viewers(entry));
+            entry.LastActivityUtc = now;
+            Changed?.Invoke();
+            entry.State = resumed with
+            {
+                Revision = state.Revision + 1,
+                UpdatedBy = null,
+                Paused = account.Paused,
+                Waiting = false,
+                PositionSeconds = at,
+                AnchorUtc = now
+            };
+            if (moved) Watched?.Invoke(new WatchedSpan(account.TitleId, at, [viewer], now));
+            return WithCurrentHead(entry.State);
+        }
     }
+
+    /// <summary>A playhead this close to the room's is where the room already had it.</summary>
+    private const double ResumeToleranceSeconds = 1;
 
     public IReadOnlyList<Participant> Participants(string sessionId) =>
         _sessions.TryGetValue(sessionId, out var entry) ? entry.Participants.Values.ToList() : new List<Participant>();
@@ -650,6 +723,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         if (_sessions.TryGetValue(state.SessionId, out var entry))
         {
             entry.LastActivityUtc = clock.GetUtcNow();
+            entry.ActRevision = state.Revision + 1;
             waiting = EveryoneWaiting(entry);
         }
 
@@ -753,7 +827,10 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
                 LastActivityUtc = room.LastActivityUtc,
                 Admission = new RoomAdmission(room.Open, room.Admitted,
                     room.Guests is { } kept && kept.LiveAt(now) ? kept : null),
-                MembersGoneSince = now
+                MembersGoneSince = now,
+                // What was done before the server stopped is not known apart from what the server
+                // did, so a player that applied anything older has missed something.
+                ActRevision = room.State.Revision
             };
         }
     }

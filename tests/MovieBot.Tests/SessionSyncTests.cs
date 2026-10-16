@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using TheKrystalShip.MovieBot.Api.Sessions;
 using Xunit;
 using Microsoft.AspNetCore.SignalR.Client;
 using TheKrystalShip.MovieBot.Core;
@@ -240,6 +242,57 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
 
         var paused = playing with { Paused = true };
         Assert.Equal(100, paused.PositionAt(anchor.AddSeconds(30)), 3);
+    }
+
+    [Fact]
+    public async Task A_viewer_back_alone_carries_the_room_on_from_their_own_playhead()
+    {
+        var session = NewSession();
+        var sessions = fixture.Services.GetRequiredService<SessionStore>();
+        var phone = await fixture.ConnectAsync(session, "u1", "Alice");
+        await phone.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
+        var applied = (await phone.InvokeAsync<SessionStatePush>("Play", 100.0)).State;
+
+        await phone.DisposeAsync();
+        var deadline = DateTime.UtcNow + PushTimeout;
+        while (sessions.Get(session) is not { Waiting: true } && DateTime.UtcNow < deadline) await Task.Delay(20);
+        Assert.True(sessions.Get(session)!.Waiting);
+
+        await using var back = await fixture.ConnectOutsideAsync("u1", "Alice");
+        var account = new PlayerAccount
+        {
+            Epoch = applied.Epoch, Revision = applied.Revision, TitleId = SessionFixture.ReadyTitle,
+            PositionSeconds = 340, Paused = false
+        };
+        var reply = await back.InvokeAsync<JoinReply>("Rejoin", session, account);
+
+        Assert.True(reply.Admitted);
+        Assert.Equal(340, reply.Push!.State.PositionSeconds, 3);
+        Assert.False(reply.Push.State.Waiting);
+        Assert.False(reply.Push.State.Paused);
+        Assert.Null(reply.Push.State.UpdatedBy);
+    }
+
+    [Fact]
+    public async Task A_viewer_coming_back_to_a_room_others_are_watching_takes_it_as_it_is()
+    {
+        var session = NewSession();
+        await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
+        var phone = await fixture.ConnectAsync(session, "u1", "Alice");
+        await phone.InvokeAsync<SessionStatePush>("LoadTitle", SessionFixture.ReadyTitle, null);
+        var applied = (await phone.InvokeAsync<SessionStatePush>("Play", 100.0)).State;
+        await phone.DisposeAsync();
+
+        await using var back = await fixture.ConnectOutsideAsync("u1", "Alice");
+        var account = new PlayerAccount
+        {
+            Epoch = applied.Epoch, Revision = applied.Revision, TitleId = SessionFixture.ReadyTitle,
+            PositionSeconds = 20, Paused = true
+        };
+        var state = (await back.InvokeAsync<JoinReply>("Rejoin", session, account)).Push!.State;
+
+        Assert.False(state.Paused);
+        Assert.True(state.PositionSeconds >= 100);
     }
 
     // ---- helpers --------------------------------------------------------------------

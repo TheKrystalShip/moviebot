@@ -244,12 +244,15 @@ hold exactly the track's `bytes`; a `subtitle` file by its `id`, the `thumbnails
 
 ## Progress on the device (`progress.js`)
 
-A film played alone writes where it got to into a log per account in localStorage
+A film played alone, and a room's film while the room cannot hear the page, write where they got to
+into a log per account in localStorage
 (`cinema.progress.<sub>`), one entry a title, `{ titleId, positionSeconds, watchedAt }`, the latest
 replacing the one before. `sendProgress()` sends the signed-in account's log with
 `POST /api/me/progress` and takes off each entry the API answered for, unless it was written again
 meanwhile; `App.jsx` calls it whenever somebody is signed in and the server can be reached, and the
-player when a film played alone is left. `resumeAt(sub, titleId, duration)` is where a saved film
+player when a film played alone is left and when a room it lost can hear it again. The API keeps an
+entry only when it is newer than what it holds, so a log sent late never undoes what a room recorded
+since. `resumeAt(sub, titleId, duration)` is where a saved film
 starts when nothing names a position: the newer of the log and `GET /api/me/progress` (asked only
 while the server can be reached), or the beginning once nine tenths of it was watched.
 

@@ -97,7 +97,7 @@ export interface RoomView {
  */
 const StyleSampleLapseMs = 4000;
 
-/** How often a film played alone writes down where it has got to, while it plays. */
+/** How often a film nothing else is recording writes down where it has got to, while it plays. */
 const ProgressEveryMs = 10_000;
 
 /** What somebody in the room did to it, this viewer included, and who did it. */
@@ -146,14 +146,22 @@ export class PlayerRoom {
   /** The film as the device holds it, for the title this viewer holds, or null. */
   private copy: DeviceCopy | null = null;
   private progressTimer: number | null = null;
+  /**
+   * Writes down where the film got to when nothing else records it: a film played alone, or a room's
+   * while the room cannot hear this page. A room that can hear it records it itself.
+   */
   private readonly recordProgress = () => {
     const titleId = this.loadedTitleId;
-    if (!this.view.solo || !titleId || !this.stream.holdsFilm) return;
+    if (!titleId || !this.stream.holdsFilm) return;
+    if (!this.view.solo && this.view.connection === 'connected') return;
     environment().recordProgress(titleId, this.video.currentTime);
   };
   private readonly onVisible = () => {
-    if (document.visibilityState === 'visible') void this.hub?.resync();
+    if (document.visibilityState !== 'visible') return;
+    void this.roomHub?.reconnect();
+    void this.hub?.resync();
   };
+  private readonly onOnline = () => void this.roomHub?.reconnect();
 
   view: RoomView;
 
@@ -300,8 +308,14 @@ export class PlayerRoom {
       onGuestEnded: (reason) => this.endGuest(reason),
       onPreferences: (preferences) => this.preferencesOrder.heard(preferences),
       onTracks: (tracks) => this.tracksOrderOf(tracks.titleId).heard(tracks),
+      account: () => this.controller?.account() ?? null,
       onStatus: (status) => {
+        const was = this.view.connection;
         this.set({ connection: status });
+        // While the room cannot hear this page, the device writes down where the film gets to,
+        // starting where it was when the room was lost, and sends it once the room is back.
+        if (was === 'connected' && status !== 'connected') this.recordProgress();
+        if (was !== 'connected' && was !== 'connecting' && status === 'connected') environment().sendProgress();
         // Nothing is derived forward from a room that cannot be heard from. Its anchor runs
         // whether or not the film does, so a state nothing has confirmed is a guess about where a
         // film that may have been stopped has got to.
@@ -373,8 +387,11 @@ export class PlayerRoom {
     void this.showPresence();
 
     // Coming back to a tab that has been in the background is the moment its picture of the room
-    // is least likely to be right, and the cheapest moment to ask.
+    // is least likely to be right, and the cheapest moment to ask; a browser back online is the
+    // moment to try the room again rather than wait out the next attempt.
     document.addEventListener('visibilitychange', this.onVisible);
+    window.addEventListener('online', this.onOnline);
+    this.recordWhilePlaying();
 
     // A launch link names the film. The room is told once, by whoever arrives while it is showing
     // something else; a viewer joining a room that already holds the title says nothing, because
@@ -470,14 +487,19 @@ export class PlayerRoom {
     this.hub = timeline;
     this.controller = this.controllerFor(timeline, identity);
 
-    // Where the person has got to is written down as they watch, and whenever they stop, skip or
-    // reach the end, so it is there for the API whenever a connection comes back.
+    this.recordWhilePlaying();
+    this.controller.applyPush(await timeline.start(), true);
+  }
+
+  /**
+   * Writes down where the person has got to as they watch, and whenever they stop, skip or reach the
+   * end, so it is there for the API whenever a connection comes back (`recordProgress` says when).
+   */
+  private recordWhilePlaying(): void {
     for (const event of ['pause', 'seeked', 'ended']) this.video.addEventListener(event, this.recordProgress);
     this.progressTimer = window.setInterval(() => {
       if (!this.video.paused) this.recordProgress();
     }, ProgressEveryMs);
-
-    this.controller.applyPush(await timeline.start(), true);
   }
 
   /** The controller that applies a timeline to the element, whichever timeline it is. */
@@ -508,6 +530,7 @@ export class PlayerRoom {
     }
     if (this.styleSampleLapse !== null) clearTimeout(this.styleSampleLapse);
     document.removeEventListener('visibilitychange', this.onVisible);
+    window.removeEventListener('online', this.onOnline);
     this.controller?.dispose();
     this.stream.dispose();
     void this.hub?.stop();

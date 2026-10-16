@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.44.0] - 2026-10-16
+
+### Added
+
+- **`Rejoin` on the hub**: a page coming back into its room says what its player did while the room
+  could not hear it (`PlayerAccount`: the last state it applied, the film, its playhead, playing or
+  paused). Alone in a room nobody changed since, the room carries on from that playhead and credits the
+  stretch to the viewer; a room forgotten meanwhile is given the film back; a room with others in it,
+  or changed, stands.
+
+### Changed
+
+- **A room nobody is in is held where it was**, as one whose every player waits is, so a viewer whose
+  connection went comes back to where they were rather than to where the room ran to.
+- **The player never stops trying to reach its room**: soon at first, then every ten seconds, and at
+  once when the browser is online again or the page is in front of somebody again. "The room can't be
+  reached" goes once the room is back.
+- **Where a room's film got to is kept on the device while the room cannot hear the page**, in the log
+  a film played alone writes, and sent once it can. Site 0.91.0.
+
 ## [3.43.3] - 2026-10-16
 
 ### Fixed

@@ -315,6 +315,24 @@ and does nothing that would be.
   track choices it was given and moves them with every choice after, so one made while the film is
   loading is the one the load ends on.
 
+## When the room cannot hear the page
+
+A phone on the move loses its connection for seconds or minutes and plays on from what it fetched.
+
+- **The connection never stops trying to come back** (`buildHubConnection`): soon at first, then every
+  ten seconds for as long as it takes, and at once when the browser is online again or the page is in
+  front of somebody again (`SessionHub.reconnect`).
+- **Coming back says what the player did** (`Rejoin`, `SyncController.account`): the last state it
+  applied, the film, where its playhead is and whether it plays. Alone in a room nobody changed, the
+  room carries on from there, and a room forgotten meanwhile is given the film back
+  (`src/MovieBot.Api/Sessions/CLAUDE.md`); with others in it, or changed, the room's state stands and
+  the player goes to it. The answer is applied before the page counts itself connected, since a
+  player live first would correct toward the last state it heard, which ran on while it was away.
+  Whether the player is waiting for the film is said again with the rest.
+- **Where the film got to is kept on the device meanwhile** (`recordProgress`), from where it was when
+  the room was lost, every ten seconds and on a pause, a seek and the end, and sent once the room can
+  hear the page again. A room that can hear the page records it itself.
+
 ## Playing from the device
 
 A film saved whole on the device (`src/offline/CLAUDE.md`) plays from it, alone or in a room.
@@ -345,7 +363,8 @@ track whose file is not the length the package says, is no copy at all.
   copy has that track. A film named with no position starts from `resumeAt`: the newer of the
   device's log and the API's record, from the beginning once most of it was watched.
 - **Alone, where the film got to is written down** (`recordProgress`, `src/offline/progress.js`):
-  every ten seconds while it plays, and on a pause, a seek, the end and leaving. The log is one entry
+  every ten seconds while it plays, and on a pause, a seek, the end and leaving. A room's film is
+  written down the same way while the room cannot hear the page (below). The log is one entry
   a title, sent with `POST /api/me/progress` whenever the site can reach the server, and an entry
   goes once the API has answered for it.
 - **In a room, the hub keeps the timeline and the device the bytes.** Nothing about the other viewers

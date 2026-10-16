@@ -106,8 +106,13 @@ export interface Environment {
    * device's own record and what the API last said, or null for the beginning.
    */
   resumeAt(titleId: string, durationSeconds: number): Promise<number | null>;
-  /** Where this viewer has got to in a film played alone, kept on the device until the API has it. */
+  /**
+   * Where this viewer has got to in a film nothing else is recording: one played alone, or a room's
+   * while it cannot be heard from. Kept on the device until the API has it.
+   */
   recordProgress(titleId: string, positionSeconds: number): void;
+  /** Sends what the device kept of where this viewer got to, now that the server can be reached. */
+  sendProgress(): void;
   /**
    * The guest this viewer is, on a room's guest link, or null for a person with an account. A guest
    * watches the room and changes nothing about it, and how they watch is kept by this browser alone.
@@ -160,6 +165,7 @@ export interface SiteViewer {
   keptPreferences(): ViewerPreferences | null;
   resumeAt(titleId: string, durationSeconds: number): Promise<number | null>;
   recordProgress(titleId: string, positionSeconds: number): void;
+  sendProgress(): void;
 }
 
 /**
@@ -223,6 +229,7 @@ export function createSiteEnvironment(
     online: () => viewer.online(),
     resumeAt: (title, duration) => viewer.resumeAt(title, duration),
     recordProgress: (title, seconds) => viewer.recordProgress(title, seconds),
+    sendProgress: () => viewer.sendProgress(),
     guest: null
   };
 }

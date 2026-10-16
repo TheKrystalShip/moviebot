@@ -75,6 +75,7 @@ export function createGuestEnvironment(
     online,
     resumeAt: () => Promise.resolve(null),
     recordProgress: () => {},
+    sendProgress: () => {},
     guest: {
       name,
       preferences: keptPreferences,

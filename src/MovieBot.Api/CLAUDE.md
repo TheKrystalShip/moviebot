@@ -173,8 +173,9 @@ film onto a device is `Offline/CLAUDE.md`.
 - **What a person watched comes from the room, the one source of where a film is** (`People/`). A
   room's state is a position at an instant and everything between two changes follows from it, so
   nothing polls the rooms. `SessionStore` raises `Watched` when a stretch of playing ends — a pause,
-  a seek, a film changed, somebody leaving, the server stopping — and `WatchRecorder` credits each
-  person who was watching with where it got to. What a room is playing right now is newer than any
+  a seek, a film changed, somebody leaving, the server stopping, a player coming back alone carrying
+  the room on from its own playhead — and `WatchRecorder` credits each person who was watching with
+  where it got to. What a room is playing right now is newer than any
   record and is read from the room (`SessionStore.Viewing`), so progress and "last played" never
   lag the room. A paused room records nothing: the library's clock reads each film's last play to
   decide when an unwatched film leaves, and a room left paused overnight must not look like a play. A person forgetting a film removes

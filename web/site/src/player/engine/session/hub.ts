@@ -1,8 +1,8 @@
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { environment } from '../environment';
 import type {
-  FilmTracks, GuestRefusal, JoinReply, Manifest, Participant, RoomDoor, SeekClamped, SessionState, SessionStatePush,
-  ViewerPreferences
+  FilmTracks, GuestRefusal, JoinReply, Manifest, Participant, PlayerAccount, RoomDoor, SeekClamped, SessionState,
+  SessionStatePush, ViewerPreferences
 } from '../types';
 import { ServerClock } from './clock';
 
@@ -18,15 +18,26 @@ export function derivePosition(state: SessionState, serverNowMs: number): number
 }
 
 /**
+ * How long a lost connection waits before each attempt to come back, the last repeated for as long as
+ * it takes. A phone on the move loses its connection for minutes at a time and plays on from what it
+ * fetched, so a connection that stopped trying would leave it outside its room for the rest of the film.
+ */
+const ReconnectDelaysMs = [0, 2_000, 5_000, 10_000];
+
+/**
  * A connection to the hub, not yet started. The WebSocket transport cannot set headers, so SignalR
  * puts the token on the query string itself; the server reads it from there for hub routes only and
- * admits the connection on it when it opens. A reconnect asks for a fresh token. Every connection to
- * the hub is built here, a room's and a television's own alike.
+ * admits the connection on it when it opens. A reconnect asks for a fresh token, and a lost
+ * connection never stops trying to come back. Every connection to the hub is built here, a room's and
+ * a television's own alike.
  */
 export function buildHubConnection(hubUrl: string, freshToken: () => Promise<string | null>): HubConnection {
   return new HubConnectionBuilder()
     .withUrl(hubUrl, { accessTokenFactory: async () => (await freshToken()) ?? '' })
-    .withAutomaticReconnect()
+    .withAutomaticReconnect({
+      nextRetryDelayInMilliseconds: ({ previousRetryCount }) =>
+        ReconnectDelaysMs[Math.min(previousRetryCount, ReconnectDelaysMs.length - 1)]
+    })
     .configureLogging(LogLevel.Warning)
     .build();
 }
@@ -53,6 +64,11 @@ export interface HubHandlers {
   onPreferences(preferences: ViewerPreferences): void;
   /** The tracks this person watches a film with changed, on this device or another. */
   onTracks(tracks: FilmTracks): void;
+  /**
+   * What this page's player did with the room's last state, which coming back into the room carries,
+   * or null while it holds no film.
+   */
+  account(): PlayerAccount | null;
 }
 
 /**
@@ -79,6 +95,9 @@ export class SessionHub implements Timeline {
   private connection: HubConnection;
   private probeTimer: number | null = null;
   private lastQuality: [number | null, number | null] | null = null;
+  private lastBuffering: [boolean, number] | null = null;
+  /** Stopped on purpose: nothing brings it back. */
+  private stopped = false;
   /** The room let this page in. Until it does, the page is at the door, asking or not. */
   private inside = false;
   /** This page is asking to be let in, which a reconnect has to say again: the server forgot it. */
@@ -109,17 +128,43 @@ export class SessionHub implements Timeline {
     this.connection.onreconnecting(() => this.handlers.onStatus('reconnecting'));
     this.connection.onclose(() => this.handlers.onStatus('disconnected'));
 
-    // A reconnect leaves the server holding no membership for this connection, so rejoining is
-    // what puts the viewer back in the participant list and hands back the state it missed.
-    // What comes back settles the room's position rather than joining the queue of broadcasts:
-    // a client that has been away has no standing to judge it against the last thing it heard.
-    // A page still at the door asks again, since its asking went with the connection.
-    this.connection.onreconnected(async () => {
-      this.handlers.onStatus('connected');
+    this.connection.onreconnected(() => this.cameBack());
+  }
+
+  /**
+   * A reconnect leaves the server holding no membership for this connection, so rejoining is what
+   * puts the viewer back in the participant list, with what their player did while the room could not
+   * hear it. What comes back settles the room's position rather than joining the queue of broadcasts,
+   * and it is settled before the page counts itself connected: a page that went live first would
+   * correct its playhead toward the last state it heard, which ran on while it was away. A page still
+   * at the door asks again, since its asking went with the connection.
+   */
+  private async cameBack(): Promise<void> {
+    try {
       if (this.inside) await this.rejoin();
       else if (this.asking && await this.knock()) this.handlers.onKnockAnswered(true);
-      if (this.lastQuality !== null) void this.reportQuality(...this.lastQuality);
-    });
+    } finally {
+      this.handlers.onStatus('connected');
+    }
+    if (this.lastBuffering !== null && this.lastBuffering[0]) void this.buffering(...this.lastBuffering);
+    if (this.lastQuality !== null) void this.reportQuality(...this.lastQuality);
+  }
+
+  /**
+   * Tries to come back at once where the page has reason to think it can: the browser is online
+   * again, or the page is in front of somebody again. A connection between attempts waits out its
+   * delay; one that closed is started again.
+   */
+  async reconnect(): Promise<void> {
+    if (this.stopped || this.connection.state !== HubConnectionState.Disconnected) return;
+    this.handlers.onStatus('reconnecting');
+    try {
+      await this.connection.start();
+    } catch {
+      this.handlers.onStatus('disconnected');
+      return;
+    }
+    await this.cameBack();
   }
 
   /** Asks the room where it is, and takes the answer as the authority. */
@@ -207,7 +252,9 @@ export class SessionHub implements Timeline {
    */
   async buffering(waiting: boolean, atSeconds: number): Promise<void> {
     // A guest's player holds nothing: the room is not told about it.
-    if (!this.connected || environment().guest !== null) return;
+    if (environment().guest !== null) return;
+    this.lastBuffering = [waiting, atSeconds];
+    if (!this.connected) return;
     try {
       await this.connection.invoke('Buffering', waiting, atSeconds);
     } catch {
@@ -236,6 +283,7 @@ export class SessionHub implements Timeline {
   }
 
   async stop(): Promise<void> {
+    this.stopped = true;
     if (this.probeTimer !== null) window.clearInterval(this.probeTimer);
     await this.connection.stop();
   }
@@ -251,9 +299,16 @@ export class SessionHub implements Timeline {
       : this.connection.invoke<JoinReply>('JoinAsGuest', guest.name);
   }
 
-  /** Comes back into the room this page was in, taking where it is as the authority. */
+  /**
+   * Comes back into the room this page was in, saying what its player did meanwhile, and takes what
+   * the room answers as the authority.
+   */
   private async rejoin(): Promise<void> {
-    const reply = await this.enter();
+    const reply = environment().guest === null
+      ? await this.connection.invoke<JoinReply>('Rejoin', this.sessionId, this.handlers.account())
+      : await this.join();
+    this.inside = reply.admitted;
+    if (reply.door) this.handlers.onDoor(reply.door);
     if (reply.push) this.handlers.onState(reply.push, true);
     else if (reply.refused) this.endGuest(reply.refused);
     else this.handlers.onShutOut();

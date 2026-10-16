@@ -92,13 +92,14 @@ public sealed class RoomStoreTests : IDisposable
 
     /// <summary>
     /// Position is held as a place at an instant rather than as a number that ticks, so a room
-    /// that was playing when the server stopped is at the right place when it starts again —
-    /// however long that took.
+    /// that was playing to somebody when the server stopped is at the right place when it starts
+    /// again — however long that took.
     /// </summary>
     [Fact]
     public void A_room_that_was_playing_is_still_playing_where_it_should_be()
     {
         var before = NewStore();
+        before.Join("room", "conn-1", new Participant { UserId = "u1", DisplayName = "Someone" });
         before.LoadTitle("room", TitleId, Someone);
         before.Play("room", 600, Someone);
 
