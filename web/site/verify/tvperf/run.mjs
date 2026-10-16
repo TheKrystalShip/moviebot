@@ -2,16 +2,18 @@
 // empty cache, every key timed by the recorder in probe.js and measured by measure.mjs.
 //
 //   node verify/tvperf/run.mjs [--target lab|tv] [--walks home,bar] [--runs n] [--video] [--out dir]
-//                              [--cpu n] [--save-baseline] [--strict]
+//                              [--warmup n] [--confirm n] [--cpu n] [--save-baseline] [--strict]
 //
 // Two targets run the same walks.
 //
 // - `lab` (the default) is Chromium against the scratch site verify/mobile/scratch.sh serves, staged
 //   as verify:tv stages it, drawn the way the reference television draws: its 960 by 540 page at a
-//   pixel ratio of 4, its user agent, motion on, the CPU slowed and the network shaped by `Lab`. Each
-//   step is the median of `--runs` runs (3), compared with baseline.json: a measure past its
-//   baseline by more than `Slack` allows is a regression and the run exits 1. `--save-baseline`
-//   writes the run as the baseline instead.
+//   pixel ratio of 4, its user agent, motion on, the CPU slowed and the network shaped by `Lab`. One
+//   warm-up pass of every walk is discarded, then each step is the median of `--runs` measured
+//   passes (3), compared with baseline.json: a measure past its baseline by more than `Slack`
+//   allows is a suspect. The walks holding a suspect are measured `--confirm` more passes (4) and
+//   the medians over all of their passes decide: only a measure still past its limit is a
+//   regression, and the run exits 1. `--save-baseline` writes the run as the baseline instead.
 // - `tv` is the reference television itself, over adb (`--serial`, or ADB_SERIAL): the debug build of
 //   tv/ opened on `--origin` (https://movies.thekrystalship.com), its WebView driven over the DevTools
 //   protocol. The debug build keeps a session of its own, signed in once with the device grant. A run
@@ -32,11 +34,11 @@
 
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, loadavg } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { WALKS, Keys } from "./walks.mjs";
-import { Metrics, measure, median, slowest } from "./measure.mjs";
+import { Metrics, measure, summarise, slowest } from "./measure.mjs";
 import { VIEWER, stage } from "../mobile/stage.mjs";
 import { TV_CLIENT, issuerIn } from "../issuer.mjs";
 import { awake } from "../awake.mjs";
@@ -73,14 +75,20 @@ export const Budget = {
 
 /**
  * How far past its baseline a measure may land before it is a regression: `base × factor + add`.
- * `answerMs` has a wide floor because a key handled inside a frame has no Event Timing entry and reads
- * as 16. `focusMs` is not held: whether focus moves on the key or once the page's content arrives
+ * A key handled inside a frame has no Event Timing entry and reads as 16 (`answerMs`), and the same key
+ * reads one whole slow frame (about 208) when the work it starts, a history traversal after Back, runs
+ * before that frame is drawn instead of after it; so a step the baseline answers inside a frame is held
+ * to `SlowFrameMs` at least (`judge`). `focusMs` is not held: whether focus moves on the key or once the page's content arrives
  * depends on which comes first, so it lands on either of two values from one run to the next.
  */
 export const Slack = {
   answerMs: [1.5, 100], readyMs: [1.3, 300], relayouts: [1, 1], blankMs: [1, 50],
   freezeMs: [1.5, 100], blockingMs: [1.5, 150], cls: [1, 0.05], requests: [1.2, 5], kb: [1.25, 100],
 };
+
+/** An `answerMs` up to this is a key handled inside a frame; one slow frame at the lab's slowing reads this much. */
+const InsideFrameMs = 32;
+const SlowFrameMs = 240;
 
 /** How long nothing may change before a step is over, and how long a step or a load may take at most. */
 const QuietMs = 1200;
@@ -91,6 +99,8 @@ const KeyGapMs = 350;
 
 const target = option("target", "lab");
 const runs = Number(option("runs", target === "lab" ? 3 : 1));
+const warmup = Number(option("warmup", target === "lab" ? 1 : 0));
+const confirm = Number(option("confirm", target === "lab" ? 4 : 0));
 const video = flag("video");
 const cpuSlowdown = Number(option("cpu", Lab.cpuSlowdown));
 const walkNames = option("walks", "") ? option("walks").split(",") : Object.keys(WALKS);
@@ -105,31 +115,39 @@ const probe = readFileSync(new URL("./probe.js", import.meta.url), "utf8");
 const surface = target === "tv" ? await television() : target === "lab" ? await lab() : null;
 if (!surface) { console.error(`--target is lab or tv, not ${target}.`); process.exit(2); }
 
-const report = { target, runs, started: new Date().toISOString(), lab: target === "lab" ? { ...Lab, cpuSlowdown } : undefined, steps: {} };
+const report = { target, runs, warmup, confirm, started: new Date().toISOString(), lab: target === "lab" ? { ...Lab, cpuSlowdown } : undefined, load: [], steps: {} };
 const failures = [];
+const baseline = target === "lab" && !flag("save-baseline") && existsSync(baselinePath) ?JSON.parse(readFileSync(baselinePath, "utf8")) : null;
+/** True while a pass only brings the browser and the site's caches to a steady state; it measures nothing. */
+let warming = false;
+let rows;
 try {
-  for (let run = 0; run < runs; run++) {
-    for (const name of walkNames) await walk(name, run);
+  report.load.push(loadNow());
+  for (let pass = 0; pass < warmup + runs; pass++) {
+    warming = pass < warmup;
+    if (warming) console.log("  (warm-up pass, not measured)");
+    for (const name of walkNames) await walk(name, pass);
   }
+  warming = false;
+
+  // The medians, the budget and the baseline. A walk holding a step past its limit is measured again;
+  // only a measure still past its limit over all of that walk's passes is a regression.
+  rows = judge();
+  const suspect = (r) => r[3].length || (flag("strict") && r[2].length);
+  const suspects = [...new Set(rows.filter(suspect).map((r) => r[0].split("/")[0]))];
+  if (baseline && confirm > 0 && suspects.length && !failures.length && !flag("save-baseline")) {
+    console.log(`\nPast the baseline in ${suspects.join(", ")}: measuring ${suspects.length === 1 ? "it" : "them"} ${confirm} more times.`);
+    for (let i = 0; i < confirm; i++) for (const name of walkNames.filter((w) => suspects.includes(w))) await walk(name, warmup + runs + i);
+    rows = judge();
+  }
+  report.load.push(loadNow());
 } finally {
   await surface.close();
 }
-
-// The medians, the budget and the baseline.
-const baseline = target === "lab" && existsSync(baselinePath) ? JSON.parse(readFileSync(baselinePath, "utf8")) : null;
-const rows = [];
-for (const [key, step] of Object.entries(report.steps)) {
-  step.median = median(step.runs);
-  step.over = Object.entries(Budget).filter(([m, limit]) => step.median[m] != null && step.median[m] > limit).map(([m]) => m);
-  const base = baseline?.steps[key];
-  step.regressed = base ? Metrics.filter((m) => {
-    if (!Slack[m] || step.median[m] == null || base[m] == null) return false;
-    const [factor, add] = Slack[m];
-    return step.median[m] > base[m] * factor + add;
-  }) : [];
-  for (const m of step.regressed) failures.push(`${key}: ${m} ${step.median[m]} against a baseline of ${base[m]}`);
-  if (flag("strict")) for (const m of step.over) failures.push(`${key}: ${m} ${step.median[m]} over the budget of ${Budget[m]}`);
-  rows.push([key, step.median, step.over, step.regressed]);
+for (const [key, , over, regressed] of rows) {
+  const step = report.steps[key];
+  for (const m of regressed) failures.push(`${key}: ${m} ${step.median[m]} against a baseline of ${baseline.steps[key][m]}`);
+  if (flag("strict")) for (const m of over) failures.push(`${key}: ${m} ${step.median[m]} over the budget of ${Budget[m]}`);
 }
 
 const columns = [["answer", "answerMs"], ["focus", "focusMs"], ["ready", "readyMs"], ["relay", "relayouts"], ["blank", "blankMs"],
@@ -144,6 +162,7 @@ for (const [key, m, over, regressed] of rows) {
   console.log(`${key.padEnd(width)}  ${columns.map(([, metric]) => cell(metric).padStart(6)).join(" ")}`);
 }
 console.log(`\n* over the budget   ! a regression against the baseline${baseline ? "" : " (none kept for this target)"}`);
+console.log(`Machine load, one minute: ${report.load.join(" then ")}`);
 
 writeFileSync(join(out, "report.json"), JSON.stringify(report, null, 1));
 if (flag("save-baseline")) {
@@ -188,7 +207,7 @@ async function walk(name, run) {
     const where = await page.evaluate(() => window.__tvPerf.where());
     const key = `${name}/${i + 1}:${step.name || step.keys.at(-1).toLowerCase()}`;
     if (step.to && !(step.to.endsWith("/") ? where.path.startsWith(step.to) : where.path.split("?")[0] === step.to)) {
-      failures.push(`${key}: landed on ${where.path}, not ${step.to}`);
+      if (!warming) failures.push(`${key}: landed on ${where.path}, not ${step.to}`);
       console.log(`  ✗ ${key} landed on ${where.path}, not ${step.to}; the rest of the walk is skipped`);
       break;
     }
@@ -197,7 +216,30 @@ async function walk(name, run) {
   if (recording) report.videos = { ...report.videos, [`${name}-${run + 1}`]: await recording.stop() };
 }
 
+/** Every step's median over its passes so far, held against the budget and the baseline's limits. */
+function judge() {
+  const result = [];
+  for (const [key, step] of Object.entries(report.steps)) {
+    step.median = summarise(step.runs);
+    step.samples = step.runs.length;
+    step.over = Object.entries(Budget).filter(([m, limit]) => step.median[m] != null && step.median[m] > limit).map(([m]) => m);
+    const base = baseline?.steps[key];
+    step.regressed = base ? Metrics.filter((m) => {
+      if (!Slack[m] || step.median[m] == null || base[m] == null) return false;
+      const [factor, add] = Slack[m];
+      const limit = base[m] * factor + add;
+      return step.median[m] > (m === "answerMs" && base[m] <= InsideFrameMs ? Math.max(limit, SlowFrameMs) : limit);
+    }) : [];
+    result.push([key, step.median, step.over, step.regressed]);
+  }
+  return result;
+}
+
+/** The machine's one-minute load, which the report keeps beside the run: the lab shares the machine. */
+function loadNow() { return +loadavg()[0].toFixed(2); }
+
 function note(key, record, { load = false, at = null, where } = {}) {
+  if (warming) return;
   const m = measure(record, { load });
   const entry = (report.steps[key] ??= { runs: [], detail: [] });
   entry.runs.push(m);

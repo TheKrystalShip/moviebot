@@ -74,12 +74,22 @@ export function slowest(record, count = 3) {
 
 export const Metrics = ["answerMs", "focusMs", "readyMs", "relayouts", "blankMs", "freezeMs", "blockingMs", "cls", "requests", "kb"];
 
-/** The median of each measure over repeated runs of one step; a measure absent from a run is skipped. */
-export function median(runs) {
+/**
+ * The measures whose one run lands on either of two values from one pass to the next, and only ever
+ * more than the least: a key handled inside a frame has no Event Timing entry and reads as 16, or as a
+ * whole slow frame (200) when its handler's work lands in that frame; a page revalidating its cache
+ * after Back asks for 3 requests or 17. They are summarised by their lower quartile, so a coin that
+ * lands on the high value half the time does not decide; a cost every pass carries still raises it.
+ */
+const LowerQuartile = ["answerMs", "requests"];
+
+/** The summary of each measure over repeated runs of one step: its median, or its lower quartile where the measure is two-valued. A measure absent from a run is skipped. */
+export function summarise(runs) {
   const out = {};
   for (const m of Metrics) {
     const values = runs.map((r) => r[m]).filter((v) => v != null).sort((a, b) => a - b);
-    out[m] = values.length ? values[Math.floor((values.length - 1) / 2)] : null;
+    const at = LowerQuartile.includes(m) ? Math.floor((values.length - 1) / 4) : Math.floor((values.length - 1) / 2);
+    out[m] = values.length ? values[at] : null;
   }
   return out;
 }

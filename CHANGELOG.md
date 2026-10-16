@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.40.2] - 2026-10-16
+
+### Fixed
+
+- **The television performance gate fails only on a regression.** `verify:tv-perf` judged one pass of
+  each step against the baseline's median, so one to four steps failed at random on an unchanged site. It
+  now discards a warm-up pass, takes each step's median over three passes (the lower quartile for the
+  two-valued `answer` and `req`), measures a walk that holds a step past its limit four more times and
+  fails only what is still past its limit over all seven, holds a key the baseline answers inside a frame
+  to one slow frame at least, and keeps the machine's load in `report.json`. The baseline is saved again
+  from seven passes.
+
 ## [3.40.1] - 2026-10-16
 
 ### Changed
