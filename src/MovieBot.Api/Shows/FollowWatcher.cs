@@ -184,7 +184,8 @@ public sealed class FollowWatcher(
         if (wanting.Count == 0) return null;
 
         var quality = wanting.Select(u => QualityOf(u, show)).Max();
-        if (ShowOfferCache.Pick(offered, number, quality) is not { } release) return null;
+        var original = shows.Held(show)?.Details?.OriginalLanguage;
+        if (ShowOfferCache.Pick(offered, number, quality, original: original) is not { } release) return null;
 
         // The download's own notice reaches whoever it is started as.
         var requester = wanting[0];

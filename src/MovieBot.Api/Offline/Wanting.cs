@@ -89,8 +89,7 @@ public sealed class OfflineWanting(
             return;
         }
 
-        var language = ReleaseLanguages.WorthPreferring(want.AudioLanguage, films.Held(imdbId)?.Details?.OriginalLanguage);
-        if (await watch.BestReleaseAsync(imdbId, Resolution.Hd1080, ct, language) is not { } release)
+        if (await watch.BestReleaseAsync(imdbId, Resolution.Hd1080, ct, want.AudioLanguage) is not { } release)
         {
             saves.Fetched(asker.UserId, want.Id, null, WantStages.NotOffered);
             return;
@@ -111,8 +110,7 @@ public sealed class OfflineWanting(
         foreach (var want in wants)
         {
             var e = want.Episode!;
-            var language = ReleaseLanguages.WorthPreferring(want.AudioLanguage, original);
-            if (ShowOfferCache.Pick(offers, new EpisodeNumber(e.Season, e.Episode), Resolution.Hd720, language) is { } release)
+            if (ShowOfferCache.Pick(offers, new EpisodeNumber(e.Season, e.Episode), Resolution.Hd720, want.AudioLanguage, original) is { } release)
                 picked.Add((want, release));
             else
                 saves.Fetched(asker.UserId, want.Id, null, WantStages.NotOffered);

@@ -6,6 +6,7 @@ using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
 using TheKrystalShip.MovieBot.Api.Auth;
+using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Sessions;
@@ -46,6 +47,8 @@ public sealed class WatchNow(
     RoomControls controls,
     WishList wishes,
     ShowOfferCache showOffers,
+    FilmStore films,
+    ShowStore shows,
     IOptions<NotifyOptions> notify,
     IOptions<WatchOptions> options,
     ILogger<WatchNow> logger)
@@ -93,7 +96,8 @@ public sealed class WatchNow(
         }
 
         var floor = notify.Value.MinimumSource;
-        var digital = ranked.Candidates.Where(r => r.Source >= floor).ToList();
+        var digital = ReleaseLanguages.OriginalFirst(ranked.Candidates.Where(r => r.Source >= floor),
+            films.Held(imdbId)?.Details?.OriginalLanguage).ToList();
         var hd1080 = digital.FirstOrDefault(r => r.Resolution == Resolution.Hd1080);
         var hd720 = digital.FirstOrDefault(r => r.Resolution == Resolution.Hd720);
         offered.Remember([.. new[] { hd1080, hd720 }.OfType<Release>()]);
@@ -194,7 +198,8 @@ public sealed class WatchNow(
         {
             var release = chosen ?? (episode is { } wanted
                 ? ShowOfferCache.Pick(await showOffers.GetAsync(request.ImdbId, ct), wanted,
-                    request.Quality == "1080p" ? Resolution.Hd1080 : Resolution.Hd720)
+                    request.Quality == "1080p" ? Resolution.Hd1080 : Resolution.Hd720,
+                    original: shows.Held(request.ImdbId)?.Details?.OriginalLanguage)
                 : await PickAsync(request, ct));
             if (release is null)
             {
@@ -245,19 +250,15 @@ public sealed class WatchNow(
         BestReleaseAsync(request.ImdbId, request.Quality == "720p" ? Resolution.Hd720 : Resolution.Hd1080, ct);
 
     /// <summary>
-    /// The best release of a film at <paramref name="wanted"/>, else the best at any resolution, from a
-    /// digital source up; null when the tracker offers none. With a <paramref name="language"/> to
-    /// prefer (<see cref="ReleaseLanguages.WorthPreferring"/>), a release whose name carries it comes
-    /// first, at that resolution and then at any.
+    /// The release of a film to fetch at <paramref name="wanted"/>, from a digital source up, as
+    /// <see cref="ReleaseLanguages.Choose"/> picks it against the film's original language; null when
+    /// the tracker offers none.
     /// </summary>
-    internal async Task<Release?> BestReleaseAsync(string imdbId, Resolution wanted, CancellationToken ct, string? language = null)
+    internal async Task<Release?> BestReleaseAsync(string imdbId, Resolution wanted, CancellationToken ct, string? asked = null)
     {
         var ranked = await search.ByImdbAsync(imdbId, ct);
-        var digital = ranked.Candidates.Where(r => r.Source >= notify.Value.MinimumSource).ToList();
-        var dubbed = language is null
-            ? null
-            : ReleaseLanguages.Preferring(digital.Where(r => r.Resolution == wanted), language) ?? ReleaseLanguages.Preferring(digital, language);
-        return dubbed ?? digital.FirstOrDefault(r => r.Resolution == wanted) ?? digital.FirstOrDefault();
+        var digital = ranked.Candidates.Where(r => r.Source >= notify.Value.MinimumSource);
+        return ReleaseLanguages.Choose(digital, wanted, asked, films.Held(imdbId)?.Details?.OriginalLanguage);
     }
 
     /// <summary>

@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.43.3] - 2026-10-16
+
+### Fixed
+
+- **A release naming another language's dub is fetched last.** When the audio wanted is the title's
+  original language, or none is asked for, a release whose name advertises a dub in another language
+  (`Rus`, `Castellano`, `TRUEFRENCH`, `PLDUB`) comes after every release at the same quality that names
+  none: Watch now, the next episode fetched ahead, a followed show's new episode, a device download and
+  the Watch now panel's offers all take the clean release, a single episode before a foreign season
+  pack, and the dub only when nothing else is there. Only tokens after the title and not marking
+  subtitles are read, so a film called The Cat names no Catalan.
+
 ## [3.43.2] - 2026-10-16
 
 ### Fixed

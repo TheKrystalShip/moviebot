@@ -72,7 +72,8 @@ public sealed class NextEpisodes(
             Release? release;
             try
             {
-                release = ShowOfferCache.Pick(await offers.GetAsync(show, ct), next, quality);
+                release = ShowOfferCache.Pick(await offers.GetAsync(show, ct), next, quality,
+                    original: shows.Held(show)?.Details?.OriginalLanguage);
             }
             catch (TrackerException ex)
             {

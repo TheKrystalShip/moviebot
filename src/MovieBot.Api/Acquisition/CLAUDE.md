@@ -17,6 +17,12 @@ and this directory is where the API calls them.
   names slash commands, a web page does neither, so the words are each client's.
 - **A service that did not answer is a 502, never an empty answer.** No downloads and a torrent client
   that could not be asked are different facts.
+- **A release naming another language's dub comes after one that names none** (`ReleaseLanguages`).
+  Its default audio is usually the dub, with the title's original language second or absent, so at
+  each step of a pick (the quality asked for, then any) a clean release is taken first, a single
+  episode before a foreign season pack, and the dub only when nothing else is there. Only tokens after
+  the title and not marking subtitles count, and an unknown original language makes nothing a dub. A
+  person asking for a dub still gets a release naming it first.
 
 ## Watch now (`WatchNow.cs`)
 
