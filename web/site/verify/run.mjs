@@ -101,9 +101,13 @@ async function roomChecks(browser) {
   check('a link naming a film loads it', (await ada.textContent('.mp-top__name')).length > 0, await ada.textContent('.mp-top__name'));
   check('and the room was told', (await sent(ada)).includes('"LoadTitle"'));
 
-  // A room is private to whoever made it: Bob, holding the link, is at the door until Ada lets him in.
+  // A room is open from the moment it is made and hands out its link; closed by somebody in it, it
+  // hands out none, and Bob, holding the link, is at the door until Ada lets him in.
   await press(ada, '.mp-invite');
-  await ada.waitForSelector('.mp-invite-panel', { timeout: 5000 }).catch(() => null);
+  await ada.waitForSelector('.mp-invite-panel__url', { timeout: 5000 }).catch(() => null);
+  check('a new room is open and hands out its link', /\/r\//.test(await ada.textContent('.mp-invite-panel__url').catch(() => '')));
+  await ada.click('.mp-invite-panel__door [role=switch]');
+  await ada.waitForSelector('.mp-invite-panel__url', { state: 'detached', timeout: 5000 }).catch(() => null);
   check('a private room hands out no link', (await ada.$('.mp-invite-panel')) !== null && (await ada.$('.mp-invite-panel__url')) === null);
   await press(ada, '.mp-invite');
 
