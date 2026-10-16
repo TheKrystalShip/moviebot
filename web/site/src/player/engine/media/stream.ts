@@ -9,6 +9,7 @@ import { carriesTicket, ensureTicket, ticketedLoader, ticketedMediaUrl } from '.
 import { findSubtitle } from './tracks';
 import { BufferAheadLevels, bufferAhead, bufferConfig } from './bufferAhead';
 import { AheadFetcher, AheadHeld, Reach, aheadLevel, aheadLoader, NextEpisodeSeconds, type AheadStore, type AheadTitle } from './ahead';
+import { Horizon } from './aheadHorizon';
 
 export interface StreamEvents {
   /** The media element holds the title and can be driven. */
@@ -113,7 +114,7 @@ export class FilmStream {
   private device: DeviceCopy | null = null;
   private answers: DeviceAnswers | null = null;
   /** What the device keeps of the film ahead of the playhead, where this device keeps it (`ahead.ts`). */
-  private ahead: { store: AheadStore; held: AheadHeld; reach: Reach; fetcher: AheadFetcher } | null = null;
+  private ahead: { store: AheadStore; held: AheadHeld; reach: Reach; fetcher: AheadFetcher; horizon: Horizon } | null = null;
   /** The rung hls.js was last held to because the server could not be reached, or -1 while it can be. */
   private heldToDevice = -1;
   private master: MasterPlaylist | null = null;
@@ -486,7 +487,29 @@ export class FilmStream {
   private watch(): void {
     this.limitLevels();
     this.holdToDevice();
+    this.growAhead();
     this.reportViewerQuality();
+  }
+
+  /**
+   * Dynamic's horizon against what the connection is doing (`aheadHorizon.ts`): the network's measured
+   * throughput over the rate of the rung watched, the browser's data saver and whether the link is
+   * metered. A server that cannot be reached counts as a stall. When it grows, the fetcher looks again.
+   */
+  private growAhead(): void {
+    const hls = this.hls;
+    const ahead = this.ahead;
+    if (hls === null || ahead === null || ahead.horizon.whole || hls.levels.length === 0) return;
+    if (ahead.reach.unreachable) ahead.horizon.stalled();
+    const ceiling = this.ceilingLevel();
+    const rate = hls.levels[ceiling >= 0 ? ceiling : hls.levels.length - 1]?.averageBitrate ?? 0;
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; type?: string } }).connection;
+    const link = {
+      ratio: ahead.reach.throughput !== null && rate > 0 ? ahead.reach.throughput / rate : null,
+      saveData: connection?.saveData === true,
+      unmetered: connection?.type === 'wifi' || connection?.type === 'ethernet'
+    };
+    if (ahead.horizon.grow(link)) ahead.fetcher.poke();
   }
 
   /**
@@ -537,11 +560,11 @@ export class FilmStream {
     const reach = new Reach();
     const fetcher = new AheadFetcher(store, held, reach);
     fetcher.start();
-    return { store, held, reach, fetcher };
+    return { store, held, reach, fetcher, horizon: new Horizon(!BufferAheadLevels[level].dynamic) };
   }
 
   /** The title playing as the device keeps it ahead: its lowest rung, the rung watched, and the audio chosen. */
-  private aheadTitle(manifest: Manifest, audioId: string | undefined, from: () => number, until: number): AheadTitle | null {
+  private aheadTitle(manifest: Manifest, audioId: string | undefined, from: () => number, until: () => number): AheadTitle | null {
     const renditions = [...manifest.video.renditions].sort((a, b) => (a.height ?? 0) - (b.height ?? 0));
     if (renditions.length === 0) return null;
     const height = (r: typeof renditions[number]) => r.height ?? manifest.video.height;
@@ -557,7 +580,9 @@ export class FilmStream {
     const manifest = this.manifest;
     const ahead = this.ahead;
     if (ahead === null || manifest === null) return;
-    const title = this.aheadTitle(manifest, this.audioChoice, () => this.video.currentTime, manifest.durationSeconds);
+    const horizon = ahead.horizon;
+    const title = this.aheadTitle(manifest, this.audioChoice, () => this.video.currentTime,
+      () => Math.min(manifest.durationSeconds, this.video.currentTime + horizon.ahead));
     if (title !== null) ahead.fetcher.follow(title);
   }
 
@@ -570,7 +595,7 @@ export class FilmStream {
     if (ahead === null) return;
     const title = next === null || next.status === 'failed'
       ? null
-      : this.aheadTitle(next, audioId, () => 0, Math.min(NextEpisodeSeconds, next.durationSeconds));
+      : this.aheadTitle(next, audioId, () => 0, () => Math.min(NextEpisodeSeconds, next.durationSeconds));
     ahead.fetcher.followNext(title);
   }
 
@@ -723,6 +748,8 @@ export class FilmStream {
 
     this.stallTimer = window.setTimeout(() => {
       this.stallTimer = null;
+      // A wait that outlived the grace while nobody was seeking is the connection falling behind.
+      if (this.holdsFilm && !this.video.seeking) this.ahead?.horizon.stalled();
       this.events.onStall(true);
     }, StallGraceMs);
   }

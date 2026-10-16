@@ -243,10 +243,22 @@ and does nothing that would be.
 - **It is the device's choice, not the person's.** It is about the connection in front of it, a phone
   on mobile data wanting what a television on a fixed line does not, so it is kept in this browser
   (`cinema.bufferAhead`) like volume and brightness, and chosen under This device on the profile's
-  Playback tab, with or without a connection. Light is about 30 seconds ahead and Standard, the
-  default, about 3 minutes; A lot is Standard in memory and the rest of the episode and the start of
-  the next on the device, and is offered only where the browser has a private file system. Each says
-  roughly what it costs in prose, not in figures the API serves.
+  Playback tab, with or without a connection. Light is about 30 seconds ahead and Standard about 3
+  minutes; A lot is Standard in memory and the rest of the episode and the start of the next on the
+  device; Dynamic, the default, is Standard in memory and as much on the device as the connection
+  calls for (below). A lot and Dynamic are offered only where the browser has a private file system,
+  and are Standard where it has none. Each says roughly what it costs in prose, not in figures the API
+  serves.
+- **Dynamic grows how far ahead the device keeps the film from what the connection does**
+  (`engine/media/aheadHorizon.ts`). It starts at nothing past the player's own minutes in memory and,
+  looked at no more than every thirty seconds, grows ten minutes while the network carries three times
+  the rate of the rung watched or the browser calls the link Wi-Fi or a wire, at least to ten minutes
+  and five more while a stall or a server that could not be reached is under ten minutes old, two
+  minutes while the network carries one and a half times the rate, and not at all on a tighter
+  connection, where filling would compete with playing. It never shrinks within a title, does not grow
+  with the browser's data saver on, and reaches the next episode only once it covers the rest of this
+  one. The network's rate is measured from the files fetched over it alone (`Reach.measured`): one read
+  from the device arrives at the disk's speed, and hls.js's own estimate counts those.
 - **A lot keeps the film on the device as it plays** (`engine/media/ahead.ts`, the store
   `src/offline/ahead.js` through `Environment.aheadStore`). The fetcher takes one file at a time:
   the playlists, then the lowest rung with the chosen audio from the playhead to the end, then the

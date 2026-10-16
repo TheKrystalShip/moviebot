@@ -431,6 +431,8 @@ function Playback() {
 /** What each setting fetches ahead of the playhead and roughly what it costs, said as a person would weigh it. */
 const WATCHING = "Watching uses roughly 1 GB an hour at 720p, half that at 480p.";
 const BUFFER_AHEAD_SUBS = {
+  dynamic: "About 3 minutes ahead, and more kept on this device while the connection is fast or keeps dropping, "
+    + "up to the rest of the episode and the start of the next; no more with data saver on. Roughly 1 to 1.7 GB an hour.",
   light: `About 30 seconds ahead. ${WATCHING}`,
   standard: `About 3 minutes ahead. ${WATCHING}`,
   ahead: "The rest of the episode and the start of the next, kept on this device as you watch and deleted once "
@@ -442,7 +444,9 @@ const BUFFER_AHEAD_SUBS = {
  * changed here with or without a connection.
  */
 function DeviceBuffering() {
-  const [level, setLevel] = React.useState(bufferAhead);
+  const [kept, setLevel] = React.useState(bufferAhead);
+  // A level that keeps the film on the device is Standard where the device can keep nothing.
+  const level = BufferAheadLevels[kept].device && !offlineSupported() ? "standard" : kept;
   const choose = (next) => {
     setBufferAhead(next);
     setLevel(next);

@@ -66,11 +66,24 @@ export class AheadHeld {
   }
 }
 
-/** Whether the server answered the last request made of it, by the player or by the fetcher. */
+/**
+ * Whether the server answered the last request made of it, by the player or by the fetcher, and how
+ * fast the network has been delivering. Only a file fetched over the network is measured: one read
+ * from the device arrives at the disk's speed, which says nothing about the connection.
+ */
 export class Reach {
   unreachable = false;
+  /** Bits a second, averaged over recent fetches, or null before any was measured. */
+  throughput: number | null = null;
   ok(): void { this.unreachable = false; }
   lost(): void { this.unreachable = true; }
+
+  /** A file of `bytes` fetched in `ms`. A small or instant one says too little to count. */
+  measured(bytes: number, ms: number): void {
+    if (bytes < 100_000 || ms < 20) return;
+    const bps = (bytes * 8) / (ms / 1000);
+    this.throughput = this.throughput === null ? bps : 0.7 * this.throughput + 0.3 * bps;
+  }
 }
 
 /** The path a request has under the title's media, or null for a request that is not for the title's media. */
@@ -93,9 +106,9 @@ export interface AheadTitle {
   low: string;
   top: string;
   audio: string | null;
-  /** Where the stretch wanted starts: the playhead for the title playing. */
+  /** Where the stretch wanted starts and ends: from the playhead for the title playing. */
   from: () => number;
-  until: number;
+  until: () => number;
 }
 
 interface Job {
@@ -150,7 +163,8 @@ export class AheadFetcher {
     return parsed?.segments.find((s) => s.start <= seconds + 0.01 && s.end > seconds + 0.01)?.uri ?? null;
   }
 
-  private poke(): void {
+  /** Looks at what is wanted again now: the stretch wanted grew. */
+  poke(): void {
     this.wake?.();
   }
 
@@ -191,10 +205,12 @@ export class AheadFetcher {
   private async nextJob(): Promise<Job | null> {
     const current = this.current;
     if (current === null) return null;
+    // The next episode is wanted only once the whole of this one is.
+    const next = this.next !== null && current.until() >= current.manifest.durationSeconds - 1 ? this.next : null;
     const stretches: [AheadTitle, 'low' | 'top'][] = [[current, 'low']];
-    if (this.next) stretches.push([this.next, 'low']);
+    if (next) stretches.push([next, 'low']);
     stretches.push([current, 'top']);
-    if (this.next) stretches.push([this.next, 'top']);
+    if (next) stretches.push([next, 'top']);
 
     for (const [title, rung] of stretches) {
       const tracks = [title[rung], ...(title.audio ? [title.audio] : [])];
@@ -209,8 +225,9 @@ export class AheadFetcher {
         if (init !== null && !this.held.has(title.titleId, init)) return { titleId: title.titleId, relative: init };
       }
       const from = title.from();
+      const until = title.until();
       const wanted = parsed
-        .map((p) => p.segments.find((s) => s.end > from && s.start < title.until && !this.held.has(title.titleId, s.uri)))
+        .map((p) => p.segments.find((s) => s.end > from && s.start < until && !this.held.has(title.titleId, s.uri)))
         .filter((s): s is PlaylistSegment => s !== undefined)
         .sort((a, b) => a.start - b.start);
       if (wanted.length > 0) return { titleId: title.titleId, relative: wanted[0].uri };
@@ -241,9 +258,11 @@ export class AheadFetcher {
     const headers: Record<string, string> = {};
     const token = environment().authToken();
     if (!carriesTicket(url) && token !== null) headers.Authorization = `Bearer ${token}`;
+    const started = performance.now();
     const response = await fetch(url, { headers, priority: 'low' } as RequestInit);
     if (!response.ok) throw new Error(`${response.status} for ${job.relative}`);
     const bytes = await response.arrayBuffer();
+    this.reach.measured(bytes.byteLength, performance.now() - started);
     if (job.relative.endsWith('.m3u8')) {
       this.playlists.set(`${job.titleId}|${job.relative}`,
         { parsed: parsePlaylist(new TextDecoder().decode(bytes), job.relative), at: Date.now() });
@@ -307,6 +326,7 @@ export function aheadLoader(titleId: string, store: AheadStore, held: AheadHeld,
         ...callbacks,
         onSuccess: (response, stats, ctx, details) => {
           reach.ok();
+          reach.measured(stats.loaded, stats.loading.end - stats.loading.start);
           if (relative !== null) {
             const data = response.data;
             const bytes = typeof data === 'string' ? new TextEncoder().encode(data).buffer as ArrayBuffer

@@ -34,3 +34,10 @@ test('each level is its seconds and nothing else', () => {
     assert.deepEqual(bufferConfig(level), { maxBufferLength: seconds, maxMaxBufferLength: seconds, maxBufferSize: 0 });
   }
 });
+
+test('a device that chose nothing is on Dynamic', () => {
+  globalThis.window = { localStorage: storage() };
+  assert.equal(bufferAhead(), 'dynamic');
+  assert.equal(BufferAheadLevels.dynamic.device, true);
+  assert.equal(BufferAheadLevels.dynamic.dynamic, true);
+});

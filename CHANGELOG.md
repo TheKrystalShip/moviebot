@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.47.0] - 2026-10-17
+
+### Added
+
+- **Buffer ahead: Dynamic, the default.** Standard in memory, and as much more kept on the device as
+  the connection calls for: ten minutes at a time while the network carries three times what the film
+  needs or the link is Wi-Fi, at least ten minutes after a stall or a dead zone, two at a time on a
+  comfortable connection and none on a tight one, up to the rest of the episode and the start of the
+  next. Nothing more with the browser's data saver on. Standard where the browser has no private file
+  system. Site 0.94.0.
+
 ## [3.46.0] - 2026-10-17
 
 ### Added

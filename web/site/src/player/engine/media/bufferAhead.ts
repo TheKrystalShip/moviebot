@@ -5,20 +5,23 @@ import type { HlsConfig } from 'hls.js';
  * is about the connection in front of it, a phone on mobile data wanting what a television on a fixed
  * line does not, so it is kept in this browser like volume and brightness are.
  */
-export type BufferAhead = 'light' | 'standard' | 'ahead';
+export type BufferAhead = 'dynamic' | 'light' | 'standard' | 'ahead';
 
 /**
- * Each level: what it is called, how far ahead the player holds the film in memory, and whether the
- * rest of the episode and the start of the next are kept on the device as well (`ahead.ts`), which
- * only a browser with a private file system can do.
+ * Each level: what it is called, how far ahead the player holds the film in memory, whether the device
+ * keeps more of it ahead (`ahead.ts`), which only a browser with a private file system can do, and
+ * whether how much more is grown from what the connection does (`aheadHorizon.ts`) rather than being
+ * the rest of the episode and the start of the next. Where the device can keep nothing, a level that
+ * would is Standard.
  */
-export const BufferAheadLevels: Record<BufferAhead, { label: string; seconds: number; device: boolean }> = {
-  light: { label: 'Light', seconds: 30, device: false },
-  standard: { label: 'Standard', seconds: 180, device: false },
-  ahead: { label: 'A lot', seconds: 180, device: true }
+export const BufferAheadLevels: Record<BufferAhead, { label: string; seconds: number; device: boolean; dynamic: boolean }> = {
+  dynamic: { label: 'Dynamic', seconds: 180, device: true, dynamic: true },
+  light: { label: 'Light', seconds: 30, device: false, dynamic: false },
+  standard: { label: 'Standard', seconds: 180, device: false, dynamic: false },
+  ahead: { label: 'A lot', seconds: 180, device: true, dynamic: false }
 };
 
-export const DefaultBufferAhead: BufferAhead = 'standard';
+export const DefaultBufferAhead: BufferAhead = 'dynamic';
 
 const Key = 'cinema.bufferAhead';
 
