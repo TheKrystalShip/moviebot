@@ -8,6 +8,7 @@ import {
 } from "./layout.js";
 
 import { inActivity } from "../discord/launch.js";
+import { AHEAD } from "./ahead.js";
 
 const CHANNEL = "cinema-offline";
 const FORGET_KEY = "cinema.offline.forget.";
@@ -50,7 +51,7 @@ export async function listSaves(sub) {
   if (!account) return [];
   const saves = [];
   for await (const [name, handle] of account.entries()) {
-    if (handle.kind !== "directory" || name === SHOWS) continue;
+    if (handle.kind !== "directory" || name === SHOWS || name === AHEAD) continue;
     const save = await readFrom(handle, titleIdOf(name));
     if (save) saves.push(save);
   }

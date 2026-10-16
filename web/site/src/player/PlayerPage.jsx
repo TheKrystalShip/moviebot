@@ -12,6 +12,7 @@ import { isOnline, useOnline } from "../connectivity.js";
 import { offlineSupported } from "../offline/store.js";
 import { keptPreferences } from "../offline/preferences.js";
 import { logProgress, resumeAt, sendProgress } from "../offline/progress.js";
+import { aheadStore } from "../offline/ahead.js";
 import { navigate } from "../router.js";
 import { playSavedPath } from "../paths.js";
 import { onTv } from "../tv/tv.js";
@@ -37,6 +38,7 @@ const viewer = {
   resumeAt: (titleId, durationSeconds) => resumeAt(signedIn(), titleId, durationSeconds),
   recordProgress: (titleId, positionSeconds) => logProgress(signedIn(), titleId, positionSeconds),
   sendProgress: () => void sendProgress(),
+  aheadStore: () => (signedIn() && offlineSupported() ? aheadStore(signedIn()) : null),
 };
 
 /**

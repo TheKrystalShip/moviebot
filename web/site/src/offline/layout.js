@@ -6,10 +6,11 @@
 //   /<account>/<title>/<file name>      each track, subtitle and artwork file meta.json lists
 //   /<account>/.shows/<show>/show.json  a show any saved episode belongs to, as the API described it
 //   /<account>/.shows/<show>/<name>     its poster, backdrop and episode stills, which show.json lists
+//   /<account>/.ahead/...                what the player keeps ahead of the playhead (`ahead.js`)
 //
 // `<account>` is the provider's `sub`, `<title>` the title's id and `<show>` the show's IMDb id, each
-// encoded so any string makes a legal name; an encoded name never holds a bare `.`, so `.shows` is no
-// title's. Nothing else is kept at the root.
+// encoded so any string makes a legal name; an encoded name never holds a bare `.`, so neither `.shows` nor
+// `.ahead` is a title's. Nothing else is kept at the root.
 
 /** The file every save's directory holds, written last by the saver and read first by the page. */
 export const META = "meta.json";

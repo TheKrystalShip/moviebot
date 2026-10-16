@@ -15,11 +15,12 @@ and the pages and the player read it; this file is the contract between them.
 /<sub>/.shows/<imdbId>/            a show a saved episode belongs to (`shows.js`)
 /<sub>/.shows/<imdbId>/show.json   what the API said of it
 /<sub>/.shows/<imdbId>/<name>      each artwork file show.json lists
+/<sub>/.ahead/<titleId>/<dir>/<file>  a file the player keeps ahead of the playhead (`ahead.js`)
 ```
 
 The names are encoded by `accountDirName`, `titleDirName` and `showDirName` (percent-encoding, with
 `.` encoded too), so any `sub`, title id and IMDb id make a legal name; `titleIdOf` reads one back.
-An encoded name never holds a bare `.`, so `.shows` is no title's. `layout.js` touches no DOM, so the
+An encoded name never holds a bare `.`, so neither `.shows` nor `.ahead` is a title's. `layout.js` touches no DOM, so the
 worker that writes a save names every file the way the page reads it. Nothing else is kept at the root.
 
 ## `meta.json`
@@ -69,6 +70,14 @@ nowhere else. Its shape is `docs/api-contract.md`'s ("Save offline"). A `role` i
 
 A save is under way until `completedAt` is set; how far it has got is what is on the device of each
 listed file, so the saver never writes progress into `meta.json`.
+
+## Kept ahead of the playhead (`ahead.js`)
+
+The player's store for Buffer ahead's A lot (`src/player/CLAUDE.md`): each file of a title's media by
+its path under it, its directory and its name encoded as a title's are. It is no save: no `meta.json`,
+nothing the API records, nothing `listSaves` lists or `reconcile` judges, and it goes with the
+account's directory. A file is written whole through a writable stream, which the browser commits on
+close, so nothing reads one half written.
 
 ## Reading (`store.js`, `hooks.js`)
 

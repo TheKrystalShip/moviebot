@@ -1,3 +1,4 @@
+import type { AheadStore } from './media/ahead';
 import type { DeviceCopy } from './media/deviceLoader';
 import type { ViewerPreferences } from './types';
 
@@ -114,6 +115,11 @@ export interface Environment {
   /** Sends what the device kept of where this viewer got to, now that the server can be reached. */
   sendProgress(): void;
   /**
+   * Where the device keeps a film ahead of the playhead for this viewer (`media/ahead.ts`), or null
+   * where it keeps nothing: a guest, or a browser with no private file system.
+   */
+  aheadStore(): AheadStore | null;
+  /**
    * The guest this viewer is, on a room's guest link, or null for a person with an account. A guest
    * watches the room and changes nothing about it, and how they watch is kept by this browser alone.
    */
@@ -166,6 +172,7 @@ export interface SiteViewer {
   resumeAt(titleId: string, durationSeconds: number): Promise<number | null>;
   recordProgress(titleId: string, positionSeconds: number): void;
   sendProgress(): void;
+  aheadStore(): AheadStore | null;
 }
 
 /**
@@ -230,6 +237,7 @@ export function createSiteEnvironment(
     resumeAt: (title, duration) => viewer.resumeAt(title, duration),
     recordProgress: (title, seconds) => viewer.recordProgress(title, seconds),
     sendProgress: () => viewer.sendProgress(),
+    aheadStore: () => viewer.aheadStore(),
     guest: null
   };
 }

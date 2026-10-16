@@ -428,10 +428,13 @@ function Playback() {
   );
 }
 
-/** How far ahead of the playhead each setting fetches, said as a person would weigh it. */
+/** What each setting fetches ahead of the playhead and roughly what it costs, said as a person would weigh it. */
+const WATCHING = "Watching uses roughly 1 GB an hour at 720p, half that at 480p.";
 const BUFFER_AHEAD_SUBS = {
-  light: "About 30 seconds ahead.",
-  standard: "About 3 minutes ahead.",
+  light: `About 30 seconds ahead. ${WATCHING}`,
+  standard: `About 3 minutes ahead. ${WATCHING}`,
+  ahead: "The rest of the episode and the start of the next, kept on this device as you watch and deleted once "
+    + "watched. It fetches 480p first, then 720p: roughly 1.7 GB an hour.",
 };
 
 /**
@@ -446,10 +449,11 @@ function DeviceBuffering() {
   };
   return (
     <SettingsSection icon="smartphone" title="This device">
-      <SettingsRow controlsBelow icon="download" title="Buffer ahead"
-        sub={`${BUFFER_AHEAD_SUBS[level]} Watching uses roughly 1 GB an hour at 720p, half that at 480p.`}>
+      <SettingsRow controlsBelow icon="download" title="Buffer ahead" sub={BUFFER_AHEAD_SUBS[level]}>
         <RadioGroup variant="segmented" fill label="Buffer ahead" value={level}
-          options={Object.entries(BufferAheadLevels).map(([value, { label }]) => ({ value, label }))}
+          options={Object.entries(BufferAheadLevels)
+            .filter(([, { device }]) => !device || offlineSupported())
+            .map(([value, { label }]) => ({ value, label }))}
           onChange={choose} />
       </SettingsRow>
     </SettingsSection>

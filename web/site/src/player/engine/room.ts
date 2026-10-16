@@ -6,6 +6,7 @@ import { playableHead, playableHeadOf } from './media/heads';
 import type { DeviceCopy } from './media/deviceLoader';
 import { FilmStream, type QualityLevel } from './media/stream';
 import { startingTracks } from './media/tracks';
+import { BufferAheadLevels, bufferAhead } from './media/bufferAhead';
 import { describeChange } from './session/changes';
 import { SessionHub, type ConnectionStatus, type Timeline } from './session/hub';
 import { LocalTimeline } from './session/local';
@@ -647,6 +648,25 @@ export class PlayerRoom {
     }
 
     await this.stream.load(manifest, this.controller?.roomPosition(), audioId ?? undefined, subtitleId, this.view.quality, copy);
+    void this.keepNextAhead(titleId);
+  }
+
+  /**
+   * Tells the stream the episode after this one, on the tracks it would start on, so a device keeping
+   * the film ahead keeps that episode's start too. A film has none, and a question that fails keeps
+   * nothing of it.
+   */
+  private async keepNextAhead(titleId: string): Promise<void> {
+    if (this.view.solo || this.view.viewOnly || !BufferAheadLevels[bufferAhead()].device) return;
+    try {
+      const next = (await api.around(this.view.sessionId)).next?.titleId;
+      const manifest = next ? await api.manifest(next) : null;
+      if (this.loadedTitleId !== titleId) return;
+      const audioId = manifest ? startingTracks(manifest, {}, this.view.preferences).audioId : null;
+      this.stream.keepAheadNext(manifest, audioId ?? undefined);
+    } catch {
+      /* The next episode is fetched when it plays. */
+    }
   }
 
   /**

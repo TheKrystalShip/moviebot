@@ -15,7 +15,7 @@ room holds something (`forgetLaunch`), whether it is a television, who the viewe
 (`freshToken`) and which Cinema actions it holds (`holds`), the link that hands the room to someone
 else, where their presence is shown, how the film is held sideways on a phone, and what the device
 keeps for the viewer (`solo`, `deviceCopy`, `keptPreferences`, `online`, `resumeAt`,
-`recordProgress`, below). Nothing else reads `location` or builds a URL. The site's room is the address and its viewer whoever signed in; the
+`recordProgress`, `sendProgress`, `aheadStore`, below). Nothing else reads `location` or builds a URL. The site's room is the address and its viewer whoever signed in; the
 Activity's room is the channel it runs in and its viewer the site's session, which there is the token
 the API exchanged for its Discord sign-in, so `engine/discordEnvironment.ts` is the site's environment
 with the room, the presence and the phone's orientation of its own, and nothing more. The
@@ -244,7 +244,29 @@ and does nothing that would be.
   on mobile data wanting what a television on a fixed line does not, so it is kept in this browser
   (`cinema.bufferAhead`) like volume and brightness, and chosen under This device on the profile's
   Playback tab, with or without a connection. Light is about 30 seconds ahead and Standard, the
-  default, about 3 minutes.
+  default, about 3 minutes; A lot is Standard in memory and the rest of the episode and the start of
+  the next on the device, and is offered only where the browser has a private file system. Each says
+  roughly what it costs in prose, not in figures the API serves.
+- **A lot keeps the film on the device as it plays** (`engine/media/ahead.ts`, the store
+  `src/offline/ahead.js` through `Environment.aheadStore`). The fetcher takes one file at a time:
+  the playlists, then the lowest rung with the chosen audio from the playhead to the end, then the
+  first five minutes of the next episode the same way (the room asks `/around` for it once a title
+  loads, and its audio is the one it would start on), then the rung watched for each. Every file the
+  player fetches from the server is kept as well, so nothing is fetched twice. What the playhead has
+  passed by more than two minutes is deleted, the device keeps only the title playing and the next,
+  and fetching stops while the browser would let the site keep less than half a gigabyte more. A
+  growing playlist is read again every minute, so a title still transcoding is kept as far as it is
+  written.
+- **The device answers before the server, and the server is asked first only for a playlist**
+  (`aheadLoader`): a segment the device holds is read from it, and a playlist is the server's, since
+  one still being written grows, and the device's when the server cannot be reached.
+- **With no connection, the player is held to what the device has** (`FilmStream.holdToDevice`).
+  While a request to the server has just failed, or the browser says it is offline, hls.js is capped
+  at the best rung the device holds where the buffer ends, so a stretch kept only at 480p plays at
+  480p. hls.js waits on a fragment that failed for want of a connection until the browser is online
+  again, whatever the device holds, so when the player is first held, or held to another rung,
+  loading starts again from where it was. Back online, the cap goes, and the rung watched returns
+  once what was buffered from the device has played.
 - **The level is seconds, whatever the rung.** hls.js otherwise sizes its buffer by a byte budget over
   the rung's stated peak, so a heavier rung would be fetched less far ahead; the budget is nothing and
   the seconds are the only measure.

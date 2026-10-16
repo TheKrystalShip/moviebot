@@ -7,7 +7,8 @@ import { covers, rungReach, wantedHeight } from './heads';
 import { DeviceAnswers, deviceLoader, type DeviceCopy } from './deviceLoader';
 import { carriesTicket, ensureTicket, ticketedLoader, ticketedMediaUrl } from './mediaTicket';
 import { findSubtitle } from './tracks';
-import { bufferAhead, bufferConfig } from './bufferAhead';
+import { BufferAheadLevels, bufferAhead, bufferConfig } from './bufferAhead';
+import { AheadFetcher, AheadHeld, Reach, aheadLevel, aheadLoader, NextEpisodeSeconds, type AheadStore, type AheadTitle } from './ahead';
 
 export interface StreamEvents {
   /** The media element holds the title and can be driven. */
@@ -111,6 +112,10 @@ export class FilmStream {
   /** The film as this device holds it, or null to stream every byte. */
   private device: DeviceCopy | null = null;
   private answers: DeviceAnswers | null = null;
+  /** What the device keeps of the film ahead of the playhead, where this device keeps it (`ahead.ts`). */
+  private ahead: { store: AheadStore; held: AheadHeld; reach: Reach; fetcher: AheadFetcher } | null = null;
+  /** The rung hls.js was last held to because the server could not be reached, or -1 while it can be. */
+  private heldToDevice = -1;
   private master: MasterPlaylist | null = null;
   private masterUrl: string | null = null;
   private masterUrlIsBlob = false;
@@ -227,8 +232,15 @@ export class FilmStream {
     if (mse) {
       const titleId = manifest.id;
       const answers = this.answers;
-
       const level = bufferAhead();
+      const ahead = await this.keepAhead(titleId, level);
+      // A film loaded while the device was asked what it holds is the one that stands.
+      if (this.manifest !== manifest) {
+        ahead?.fetcher.stop();
+        return;
+      }
+      this.ahead = ahead;
+
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
@@ -240,7 +252,9 @@ export class FilmStream {
         // segment against its playlist, and relative resolution drops the query string, so a
         // ticket put on the playlist URL reaches none of the segments underneath it. A film the
         // device holds is answered from it first.
-        loader: answers === null ? ticketedLoader(titleId) : deviceLoader(answers, ticketedLoader(titleId)),
+        loader: answers !== null ? deviceLoader(answers, ticketedLoader(titleId))
+          : ahead !== null ? aheadLoader(titleId, ahead.store, ahead.held, ahead.reach, ticketedLoader(titleId))
+          : ticketedLoader(titleId),
         // The fallback, for a viewer whose ticket never arrived. Never sent alongside a ticket: a
         // shared cache refuses to store a response to a request carrying it.
         xhrSetup: (xhr, url) => {
@@ -280,6 +294,7 @@ export class FilmStream {
         // have started on.
         if (this.heldLevel() >= 0) hls.startLevel = this.heldLevel();
         this.selectQuality(this.quality);
+        this.followAhead();
         this.watchTimer = window.setInterval(() => this.watch(), WatchIntervalMs);
       });
       hls.on(Hls.Events.LEVEL_SWITCHED, () => {
@@ -339,6 +354,7 @@ export class FilmStream {
 
   selectAudio(trackId: string): void {
     this.audioChoice = trackId;
+    this.followAhead();
     const name = this.master?.audioNames[trackId];
     if (this.hls) {
       // Renditions are written in manifest order, so the position is the reliable key; the name
@@ -368,6 +384,7 @@ export class FilmStream {
    */
   selectQuality(height: number | null): void {
     this.quality = height;
+    this.followAhead();
     const hls = this.hls;
     if (hls === null || hls.levels.length === 0) return;
     hls.nextLevel = this.heldLevel();
@@ -468,7 +485,93 @@ export class FilmStream {
   /** Once per interval: the cap against where the playhead has got to, and what the viewer would choose. */
   private watch(): void {
     this.limitLevels();
+    this.holdToDevice();
     this.reportViewerQuality();
+  }
+
+  /**
+   * Where the device keeps the film ahead and the server cannot be reached, holds hls.js to the best
+   * rung the device has where it is fetching next, so the film plays on from the device rather than
+   * waiting on a rung it cannot fetch. Nothing is held while the server answers.
+   */
+  private holdToDevice(): void {
+    const hls = this.hls;
+    const ahead = this.ahead;
+    const manifest = this.manifest;
+    if (hls === null || ahead === null || manifest === null || hls.levels.length < 2) return;
+    if (!ahead.reach.unreachable && navigator.onLine !== false) {
+      this.heldToDevice = -1;
+      return;
+    }
+    const level = aheadLevel(hls.levels, manifest, ahead.fetcher, ahead.held, this.bufferEnd());
+    if (level < 0) return;
+    if (hls.autoLevelCapping < 0 || hls.autoLevelCapping > level) hls.autoLevelCapping = level;
+    if (level === this.heldToDevice) return;
+    // hls.js waits on a fragment that failed for want of a connection until the browser is online
+    // again, whatever the device holds. Loading again from where it was, on the device's rung, is
+    // what takes the film from the device instead.
+    this.heldToDevice = level;
+    hls.nextLoadLevel = level;
+    hls.stopLoad();
+    hls.startLoad(-1);
+  }
+
+  /** Where what the element holds ahead of the playhead ends. */
+  private bufferEnd(): number {
+    const { buffered, currentTime } = this.video;
+    for (let i = 0; i < buffered.length; i++) {
+      if (buffered.start(i) <= currentTime + 0.5 && buffered.end(i) > currentTime) return buffered.end(i);
+    }
+    return currentTime;
+  }
+
+  /**
+   * The device's store of what it keeps ahead, with what it holds of the title, where the level asks
+   * for it and the device can keep it. Never for a film played from a save, which is all there already.
+   */
+  private async keepAhead(titleId: string, level: ReturnType<typeof bufferAhead>): Promise<FilmStream['ahead']> {
+    const store = BufferAheadLevels[level].device && this.answers === null ? environment().aheadStore() : null;
+    if (store === null) return null;
+    const held = new AheadHeld();
+    await held.load(store, titleId);
+    const reach = new Reach();
+    const fetcher = new AheadFetcher(store, held, reach);
+    fetcher.start();
+    return { store, held, reach, fetcher };
+  }
+
+  /** The title playing as the device keeps it ahead: its lowest rung, the rung watched, and the audio chosen. */
+  private aheadTitle(manifest: Manifest, audioId: string | undefined, from: () => number, until: number): AheadTitle | null {
+    const renditions = [...manifest.video.renditions].sort((a, b) => (a.height ?? 0) - (b.height ?? 0));
+    if (renditions.length === 0) return null;
+    const height = (r: typeof renditions[number]) => r.height ?? manifest.video.height;
+    const top = this.quality === null
+      ? renditions[renditions.length - 1]
+      : [...renditions].reverse().find((r) => height(r) <= this.quality!) ?? renditions[0];
+    const audio = manifest.audio.find((track) => track.id === audioId)
+      ?? manifest.audio.find((track) => track.default) ?? manifest.audio[0];
+    return { titleId: manifest.id, manifest, low: renditions[0].uri, top: top.uri, audio: audio?.uri ?? null, from, until };
+  }
+
+  private followAhead(): void {
+    const manifest = this.manifest;
+    const ahead = this.ahead;
+    if (ahead === null || manifest === null) return;
+    const title = this.aheadTitle(manifest, this.audioChoice, () => this.video.currentTime, manifest.durationSeconds);
+    if (title !== null) ahead.fetcher.follow(title);
+  }
+
+  /**
+   * The episode after the one playing, so its start is kept on the device too: the lowest rung and the
+   * audio first, then the rung watched. Null when there is none, or none the library holds.
+   */
+  keepAheadNext(next: Manifest | null, audioId?: string): void {
+    const ahead = this.ahead;
+    if (ahead === null) return;
+    const title = next === null || next.status === 'failed'
+      ? null
+      : this.aheadTitle(next, audioId, () => 0, Math.min(NextEpisodeSeconds, next.durationSeconds));
+    ahead.fetcher.followNext(title);
   }
 
   /**
@@ -643,6 +746,9 @@ export class FilmStream {
     this.watchTimer = null;
     this.stepDown = false;
     this.reported = null;
+    this.ahead?.fetcher.stop();
+    this.ahead = null;
+    this.heldToDevice = -1;
     this.hls?.destroy();
     this.hls = null;
     if (this.masterUrl !== null && this.masterUrlIsBlob) URL.revokeObjectURL(this.masterUrl);

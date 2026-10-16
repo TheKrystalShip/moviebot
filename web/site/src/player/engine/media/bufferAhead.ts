@@ -5,11 +5,17 @@ import type { HlsConfig } from 'hls.js';
  * is about the connection in front of it, a phone on mobile data wanting what a television on a fixed
  * line does not, so it is kept in this browser like volume and brightness are.
  */
-export type BufferAhead = 'light' | 'standard';
+export type BufferAhead = 'light' | 'standard' | 'ahead';
 
-export const BufferAheadLevels: Record<BufferAhead, { label: string; seconds: number }> = {
-  light: { label: 'Light', seconds: 30 },
-  standard: { label: 'Standard', seconds: 180 }
+/**
+ * Each level: what it is called, how far ahead the player holds the film in memory, and whether the
+ * rest of the episode and the start of the next are kept on the device as well (`ahead.ts`), which
+ * only a browser with a private file system can do.
+ */
+export const BufferAheadLevels: Record<BufferAhead, { label: string; seconds: number; device: boolean }> = {
+  light: { label: 'Light', seconds: 30, device: false },
+  standard: { label: 'Standard', seconds: 180, device: false },
+  ahead: { label: 'A lot', seconds: 180, device: true }
 };
 
 export const DefaultBufferAhead: BufferAhead = 'standard';

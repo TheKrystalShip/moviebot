@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.46.0] - 2026-10-17
+
+### Added
+
+- **Buffer ahead: A lot.** The rest of the episode and the first five minutes of the next are kept on
+  the device as they play, the lowest rung with the audio first and then the rung watched, and deleted
+  once the playhead has passed them by two minutes; only the title playing and the next are kept. A
+  segment on the device is read from it before the server is asked, and every file the player fetches
+  is kept too. With no connection the player is held to the best rung the device has where it is
+  fetching, so a stretch kept only at 480p plays at 480p rather than stopping. Offered where the
+  browser has a private file system. Site 0.93.0.
+
 ## [3.45.0] - 2026-10-16
 
 ### Added
