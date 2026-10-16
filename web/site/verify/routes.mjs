@@ -93,12 +93,12 @@ const drawn = (page) => page.evaluate(() => {
   const text = (selector) => [...document.querySelectorAll(selector)].map((e) => e.textContent.trim());
   return {
     h1: text("h1")[0] || null,
-    nav: text(".nav-item--active"),
+    nav: text(".k-nav-item--active"),
     tab: text(".k-tabbar__tab--active"),
     chipText: text(".kc-season-chip.is-on"),
-    subtab: text(".subtab--active"),
+    subtab: text(".k-subtab--active"),
     empty: text(".kc-empty__title"),
-    trail: [...document.querySelectorAll(".crumbs__item")].map((li) => [li.textContent.trim(), li.querySelector("a")?.getAttribute("href") ?? null]),
+    trail: [...document.querySelectorAll(".k-breadcrumbs__item")].map((li) => [li.textContent.trim(), li.querySelector("a")?.getAttribute("href") ?? null]),
   };
 });
 
@@ -277,9 +277,9 @@ console.log("\nFlows");
     await page.goto(base + "/profile", { waitUntil: "load" });
     await page.waitForSelector(".kc-profile", { timeout: 15000 });
     const before = await page.evaluate(() => { document.querySelector(".kc-profile").dataset.mark = "kept"; return history.length; });
-    await page.locator(".subtab", { hasText: "Playback" }).click();
+    await page.locator(".k-subtab", { hasText: "Playback" }).click();
     if ((await settled(page, "/profile/playback")) !== "/profile/playback") problems.push(`a tab left the address at ${where(page)}`);
-    await page.locator(".subtab", { hasText: "History" }).click();
+    await page.locator(".k-subtab", { hasText: "History" }).click();
     if ((await settled(page, "/profile")) !== "/profile") problems.push(`the first tab left the address at ${where(page)}`);
     const after = await page.evaluate(() => ({ length: history.length, mark: document.querySelector(".kc-profile")?.dataset.mark }));
     if (after.length !== before) problems.push("a tab added a history entry");
@@ -326,7 +326,7 @@ console.log("\nFlows");
   try {
     await page.route(new RegExp(`/api/titles/${MATRIX.id}$`), async (route) => { await new Promise((r) => setTimeout(r, 2500)); await route.continue(); });
     await page.goto(base + `/movies/${MATRIX.id}`, { waitUntil: "commit" });
-    await page.waitForSelector(".crumbs", { timeout: 15000 });
+    await page.waitForSelector(".k-breadcrumbs", { timeout: 15000 });
     const early = (await drawn(page)).trail;
     if (!sameTrail(early, [HOME, ["Movies", "/movies"], [MATRIX.id, null]])) problems.push(`before the name loads: ${show(early)}`);
     await page.waitForSelector("h1", { timeout: 15000 });
@@ -346,7 +346,7 @@ console.log("\nFlows");
   try {
     await page.route(new RegExp(`/api/shows/${SHOW}$`), async (route) => { await new Promise((r) => setTimeout(r, 2500)); await route.continue(); });
     await page.goto(base + `/discover/show/${SHOW}/season/3`, { waitUntil: "commit" });
-    await page.waitForSelector(".crumbs", { timeout: 15000 });
+    await page.waitForSelector(".k-breadcrumbs", { timeout: 15000 });
     const early = (await drawn(page)).trail;
     if (!sameTrail(early, [HOME, ["Discover", "/discover"], [SHOW, `/discover/show/${SHOW}`], ["Season 3", null]])) problems.push(`before the name loads: ${show(early)}`);
     await page.waitForSelector("h1", { timeout: 15000 });
@@ -372,11 +372,11 @@ for (const [from, crumb, lands] of [
   const problems = [];
   try {
     await page.goto(base + from, { waitUntil: "load" });
-    await page.waitForSelector(".crumbs", { timeout: 15000 });
+    await page.waitForSelector(".k-breadcrumbs", { timeout: 15000 });
     await page.waitForTimeout(800);
     await page.evaluate(() => { window.__stayed = true; });
     const before = await page.evaluate(() => history.length);
-    await page.locator(".crumbs__link", { hasText: new RegExp(`^${crumb}$`) }).click();
+    await page.locator(".k-breadcrumbs__link", { hasText: new RegExp(`^${crumb}$`) }).click();
     if ((await settled(page, lands)) !== lands) problems.push(`landed at ${where(page)}, wanted ${lands}`);
     if (!(await page.evaluate(() => window.__stayed === true))) problems.push("the page was reloaded");
     if ((await page.evaluate(() => history.length)) !== before + 1) problems.push("the crumb did not push one entry");
@@ -488,7 +488,7 @@ for (const path of ["/tv/tt0903747/season/3", "/discover?q=matrix", "/movies/the
     const card = page.locator(".k-cardscreen__card");
     // A request the page was already making may be the one refused; otherwise moving on makes one.
     await page.waitForTimeout(500);
-    if (!(await card.isVisible())) await page.locator(".nav-item", { hasText: "Discover" }).first().click();
+    if (!(await card.isVisible())) await page.locator(".k-nav-item", { hasText: "Discover" }).first().click();
     // The refusal is held for the client's grace period before the session is over.
     await card.waitFor({ timeout: 60000 });
     await page.waitForTimeout(1500);
