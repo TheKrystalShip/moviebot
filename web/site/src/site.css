@@ -156,7 +156,6 @@ button.kc-continue:disabled { cursor: progress; }
 .kc-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: color-mix(in srgb, var(--art-fg-white) 25%, transparent); }
 .kc-bar > span { display: block; height: 100%; background: var(--krystal-teal); }
 /* A segmented choice across its container. */
-.kc-fill { width: 100%; }
 /* The library's Movies | TV shows | Anime switch is the phone's; a wide screen has a sidebar entry for each. */
 .kc-kind-switch { display: none; }
 @media (max-width: 768px) { .kc-kind-switch { display: flex; } }

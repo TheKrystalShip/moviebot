@@ -65,7 +65,7 @@ export function Library({ kind = "film", category = null, fromDevice = false }) 
 /** A row of options, one of them on, each replacing the page with its own rather than stacking on it. */
 function Segmented({ label, options, on, className }) {
   return (
-    <RadioGroup variant="segmented" fill label={label} className={"kc-fill " + className} value={on}
+    <RadioGroup variant="segmented" fill label={label} className={className} value={on}
       options={options.map((o) => ({ value: o.id, label: o.label }))}
       onChange={(id) => navigate(options.find((o) => o.id === id).path, { replace: true })} />
   );

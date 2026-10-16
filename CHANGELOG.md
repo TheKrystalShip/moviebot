@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.40.1] - 2026-10-16
+
+### Changed
+
+- **The Library kind switch fills its row through `RadioGroup` `fill` alone** (Krystal 0.43.3).
+
 ## [3.40.0] - 2026-10-16
 
 ### Changed
