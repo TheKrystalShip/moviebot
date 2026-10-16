@@ -337,7 +337,8 @@ viewers in a room through play, pause, seek and the waiting mark, the join gate,
 preferences reaching a fresh player, each frame size, and a film still transcoding (its manifest is
 edited in place and put back). It needs Chrome or Chromium **with H.264 and AAC** (`CHROME_PATH`, or
 Playwright's own download), the API (`MOVIEBOT_API`, `MOVIEBOT_SERVICE_KEY`, `MOVIEBOT_MEDIA` for its
-media root) and a film (`MOVIEBOT_TITLE`) with more than one audio track and a subtitle track. A jsdom
+media roots, separated by `:`) and a film (`MOVIEBOT_TITLE`) with more than one audio track and a subtitle track
+(`verify/mobile/scratch.sh` gives its film a second audio track). A jsdom
 mount has no media pipeline, so it agrees with itself while the film never decodes a frame; a real
 browser is the only thing that catches what matters here.
 

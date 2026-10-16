@@ -17,6 +17,7 @@
 #   MOVIEBOT_VERIFY_MEDIA       the library to link from       (<repo>/media); same filesystem as the dir
 #   MOVIEBOT_VERIFY_COLD        films put on the cold root     (5)
 #   MOVIEBOT_VERIFY_PORT        the API's port                 (8299)
+#   MOVIEBOT_VERIFY_DUB         the film given a second audio track, for the audio menu (coherence-2013)
 #   MOVIEBOT_VERIFY_TMDB_TOKEN_FILE  a file holding a TMDB read token; without one, films carry no
 #                                    ratings, genres or backdrops
 #
@@ -58,6 +59,12 @@ for film in "$source_media"/*/; do
   i=$((i + 1))
 done
 (( i > 0 )) || { echo "No films under $source_media." >&2; exit 1; }
+
+# The audio menu needs a film with a choice; the one the checks play is given a second track.
+dub="${MOVIEBOT_VERIFY_DUB:-coherence-2013}"
+for root in media cold; do
+  [[ -d "$dir/library/$root/$dub" ]] && node "$here/secondAudio.mjs" "$dir/library/$root/$dub"
+done
 
 # A fresh state directory.
 rm -rf "$dir/state"

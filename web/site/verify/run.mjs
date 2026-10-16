@@ -5,12 +5,13 @@
 // (verify/issuer.mjs, its key kept in MOVIEBOT_VERIFY_DIR and served on MOVIEBOT_ISSUER_PORT, as
 // verify/mobile/scratch.sh starts it), the site's dev server in front of it (MOVIEBOT_WEB), and a
 // Chromium that decodes H.264 and AAC. MOVIEBOT_TITLE names the film to use, which should carry more
-// than one audio track and a subtitle track; MOVIEBOT_MEDIA is the API's media root, whose copy of
-// that film's manifest is edited for the transcoding checks and put back.
+// than one audio track and a subtitle track (verify/mobile/scratch.sh gives its film a second audio
+// track); MOVIEBOT_MEDIA is the API's media root, or its roots separated by ':', and the one holding
+// the film has its copy of the film's manifest edited for the transcoding checks and put back.
 
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { delimiter, join, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
 import { issuerIn } from './issuer.mjs';
 
@@ -20,7 +21,7 @@ const ISSUER = issuerIn(
   process.env.MOVIEBOT_VERIFY_DIR ?? join(homedir(), '.cache', 'moviebot-verify'),
   Number(process.env.MOVIEBOT_ISSUER_PORT ?? 8300));
 const TITLE = process.env.MOVIEBOT_TITLE ?? 'baby-driver-2017';
-const MEDIA = process.env.MOVIEBOT_MEDIA ?? resolve(import.meta.dirname, '../../../media');
+const MEDIA = (process.env.MOVIEBOT_MEDIA ?? resolve(import.meta.dirname, '../../../media')).split(delimiter);
 
 function chromePath() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -271,12 +272,16 @@ async function layoutChecks(browser) {
     if (expected === 'compact') {
       await press(page, '.mp-menu-button[title="Subtitles"]');
       check('  and its menus come up from the bottom edge', (await page.$('.k-drawer')) !== null);
+      // The design system's bottom sheet fills a narrow frame and, in a wider one, is centred at its own
+      // largest width (the drawer's `max-width`), so it never overflows and never sits off to a side.
       const spans = await page.evaluate(() => {
         const sheet = document.querySelector('.k-drawer').getBoundingClientRect();
         const frame = document.querySelector('.mp-stage').getBoundingClientRect();
-        return Math.abs(sheet.width - frame.width) < 1;
+        const max = parseFloat(getComputedStyle(document.querySelector('.k-drawer')).maxWidth);
+        const centred = Math.abs((sheet.left - frame.left) - (frame.right - sheet.right)) < 1;
+        return centred && Math.abs(sheet.width - Math.min(frame.width, max)) < 1;
       });
-      check('  the full width of the frame, the subtitle menu included', spans);
+      check('  as wide as the frame allows, the subtitle menu included', spans);
     }
     if (expected === 'tiny') {
       check('  and its controls are one row', (await page.$('.mp-tiny')) !== null && (await page.$('.mp-bottom')) === null);
@@ -292,9 +297,9 @@ async function layoutChecks(browser) {
 
 async function headChecks(browser) {
   const check = suite('A film still transcoding');
-  const path = join(MEDIA, TITLE, 'manifest.json');
-  if (!existsSync(path)) {
-    check(`the film's manifest is reachable at ${path} (MOVIEBOT_MEDIA)`, false);
+  const path = MEDIA.map((root) => join(root, TITLE, 'manifest.json')).find(existsSync);
+  if (!path) {
+    check(`the film's manifest is reachable under ${MEDIA.join(', ')} (MOVIEBOT_MEDIA)`, false);
     return;
   }
   const original = readFileSync(path, 'utf8');
