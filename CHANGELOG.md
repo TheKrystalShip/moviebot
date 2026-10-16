@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.43.0] - 2026-10-16
+
+### Changed
+
+- **The dock on a wide screen is drawn as the phone's page**: the greeting alone in the middle, the
+  suggestions as chips over a one-row composer, the privacy note under it, and no name over an answer.
+- **Back starts a conversation.** Every conversation's header carries the back arrow to the empty one,
+  and there is no New chat button.
+- **The dock hides into the right of the screen** through a hide button with the sidebar's collapse
+  icon mirrored. The `/chat` page has none.
+- Design system 3.0.0; site 0.90.0.
+
 ## [3.42.0] - 2026-10-16
 
 ### Changed
