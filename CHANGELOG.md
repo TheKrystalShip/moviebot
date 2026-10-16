@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.40.3] - 2026-10-16
+
+### Fixed
+
+- **On a television, Down from the bar into Home's slides stays on the slide it landed on.** The slide's
+  time starts over when focus arrives in the slides (krystal 0.43.4), so the slide no longer turns the
+  moment focus lands on its first action.
+
+### Changed
+
+- **`verify:tv-focus` steps can expect `under`**: focus comes to rest on the card under or over the one
+  it left, whichever index that is. Movies' walk expects Down from a row's fourth card to land under it.
+
 ## [3.40.2] - 2026-10-16
 
 ### Fixed

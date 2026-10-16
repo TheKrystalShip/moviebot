@@ -2,7 +2,8 @@
 // opened on against `ready`, then presses each step's `key` and checks where focus came to rest against
 // its `expect`: an element's name as focus.mjs gives it (`bar/Movies`, `row/Continue watching/0`,
 // `hero/*`), with `*` for anything, a list of names any of which will do, or `=<n>` for wherever focus
-// came to rest after the walk's step n. A step that opens a page
+// came to rest after the walk's step n; `under` asks besides that focus came to rest in the screen's
+// column it left, on the card under or over it. A step that opens a page
 // says `open`, and may name the page it should land on as `path`. In the player a step may also expect
 // the film: `paused`, `shown` (the controls up), `seeking` (the scrub bar moving the film) and `moved`
 // (the film jumped). A step that is only `wait` presses nothing and lets that many ms pass. A step whose flags (focus moving twice
@@ -102,7 +103,7 @@ export const WALKS = {
     steps: [
       { key: "Down" }, { key: "Down" }, { key: "Down" }, { key: "Down" }, { key: "Down", expect: "row/*/0" },
       { key: "Right" }, { key: "Right" }, { key: "Right", expect: "row/*/3" },
-      { key: "Down", expect: "row/*/0" }, { key: "Up", expect: "row/*/3", note: "back to the card it left" },
+      { key: "Down", expect: "row/*", under: true, note: "the card under it" }, { key: "Up", expect: "row/*/3", note: "back to the card it left" },
       { key: "Up" }, { key: "Up" }, { key: "Up" }, { key: "Up" }, { key: "Up" },
       { key: "Up", expect: "bar/Movies" },
     ],

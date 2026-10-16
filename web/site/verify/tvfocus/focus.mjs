@@ -10,7 +10,8 @@
 //
 // Each step is one key. The step records where focus was, every element focus passed through after the
 // key until it stayed put, and where it came to rest, each named by `where` below; then it compares the
-// resting place with the step's `expect`. A step without `expect` is recorded and reported, not judged,
+// resting place with the step's `expect`, and, for a step marked `under`, that focus came to rest on the
+// screen under (or over) where it was. A step without `expect` is recorded and reported, not judged,
 // which is how a new walk is written: run it, read where focus went, write down where it should have.
 // Whatever the expectation, a step is flagged when focus ends against the arrow (Down landing above
 // where it was), when it passes through somewhere else on the way (it moved twice for one press), or
@@ -308,7 +309,9 @@ try {
         }
       }
       const judged = expect || ["paused", "shown", "seeking", "moved"].some((k) => k in step);
-      const ok = judged ? (!expect || matches(expect, to.id)) && filmMisses.length === 0 : null;
+      // `under`: the screen's column focus left holds where it came to rest, whichever card that is.
+      const lined = !step.under || (to.rect.x + to.rect.w / 2 >= before.rect.x && to.rect.x + to.rect.w / 2 <= before.rect.x + before.rect.w);
+      const ok = judged ? (!expect || matches(expect, to.id)) && lined && filmMisses.length === 0 : null;
       const pathOk = step.path ? to.path === step.path : true;
       const bad = ok === false || !pathOk || (flags.length > 0 && !step.allow);
       if (bad) failures++;
@@ -326,6 +329,7 @@ try {
       const moved = before.path !== to.path ? `  [${before.path} -> ${to.path}]` : "";
       const why = [
         ok === false && expect && !matches(expect, to.id) ? `expected ${[expect].flat().join(" | ")}` : "",
+        !lined ? "not under the card it left" : "",
         ...filmMisses,
         !pathOk ? `expected page ${step.path}` : "",
         via.length ? `via ${via.join(" > ")}` : "",
