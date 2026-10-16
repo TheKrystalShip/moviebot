@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.43.1] - 2026-10-16
+
+### Changed
+
+- The assistant plugin is on `TheKrystalShip.Agent.Plugin` 1.0.0-dev.18, which serves no site.
+
 ## [3.43.0] - 2026-10-16
 
 ### Changed
