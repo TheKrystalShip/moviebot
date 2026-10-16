@@ -254,8 +254,13 @@ export class FilmStream {
       });
       this.hls = hls;
       hls.on(Hls.Events.ERROR, (_event, data) => this.onHlsError(data));
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      // hls.js fills a level's audio renditions when that level first loads, after the manifest is
+      // parsed, and falls to the master's DEFAULT rendition unless one is chosen while it announces
+      // them. Choosing here is what keeps a film whose default is a dub from starting on it.
+      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
         if (this.audioChoice !== undefined) this.selectAudio(this.audioChoice);
+      });
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
         // The first playlist and segment are the saved rung's, not whatever the connection would
         // have started on.
         if (this.heldLevel() >= 0) hls.startLevel = this.heldLevel();
@@ -286,6 +291,9 @@ export class FilmStream {
     // Native HLS has no start position in its configuration. For hls.js it is in the
     // configuration, and setting it here as well is harmless.
     if (startPosition !== undefined && startPosition > 0) this.video.currentTime = startPosition;
+
+    // Native HLS lists the renditions on the element once it has the metadata, enabling the default.
+    if (this.hls === null && this.audioChoice !== undefined) this.selectAudio(this.audioChoice);
 
     if (this.subtitleChoice !== null) await this.selectSubtitle(this.subtitleChoice);
     this.ready = true;

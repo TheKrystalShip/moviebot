@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.43.2] - 2026-10-16
+
+### Fixed
+
+- **A film starts on the viewer's audio, not the release's default.** The player chooses the audio
+  track it starts on (the one picked for the film, else the viewer's audio language) while hls.js
+  announces the renditions, and on the element once the browser plays HLS itself; a film whose
+  default track is a dub, such as Grimm's second season with the Russian dub first, starts in the
+  viewer's language. Site 0.90.1.
+
 ## [3.43.1] - 2026-10-16
 
 ### Changed
