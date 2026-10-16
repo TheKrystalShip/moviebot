@@ -124,7 +124,7 @@ function PersonWork({ personId, where }) {
   return (
     <section className="kc-tvd__browse">
       <TvHeading as="h1" size="lg" count={p.titles.length} title={p.name} eyebrow={p.knownFor && (KNOWN_AS[p.knownFor] || p.knownFor)}
-        lead={<Avatar src={p.portraitUrl} name={p.name} tone="muted" size="css" className="kc-tv-person__face kc-tvd__face" />} />
+        lead={<Avatar src={p.portraitUrl} name={p.name} tone="muted" size="css" imagePosition="center 20%" className="kc-tv-person__face kc-tvd__face" />} />
       <Posters titles={p.titles} where={where} />
       <p className="kc-tv-tmdb">Credits and artwork from TMDB.</p>
     </section>
@@ -160,7 +160,7 @@ function BestMatch({ found, here, held }) {
   return (
     <section className="kc-tvd__best" data-tv-row="">
       {found.posterUrl && <img className="kc-tvd__poster" src={found.posterUrl} alt="" />}
-      <TvSpotlight className="kc-tvd__body" eyebrow="Best match" title={found.title}
+      <TvSpotlight className="kc-tvd__body" titleSize="sm" overviewLines={2} eyebrow="Best match" title={found.title}
         meta={<>
           {found.rating ? <span className="kc-tv-rating"><Icon name="star" size={13} /><span className="kc-mono">{found.rating.toFixed(1)}</span></span> : null}
           {found.year && <span>{found.year}</span>}

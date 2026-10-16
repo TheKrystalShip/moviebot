@@ -239,10 +239,9 @@ function Frame({ session, route }) {
   const item = (n) => (online || !NEEDS_SERVER.has(n.id)
     ? <NavItem key={n.id} icon={n.icon} label={n.label} active={lit.item === n.id} onClick={() => go(n.path)} />
     : <Off key={n.id}><NavItem icon={n.icon} label={n.label} /></Off>);
-  useOfflineTabs(!online, TABS.map((t) => NEEDS_SERVER.has(t.id)));
   // A tab goes to its page. The tab of the page already open takes it back to its top.
   const tab = (t) => ({
-    id: t.id, icon: t.icon, label: t.label,
+    id: t.id, icon: t.icon, label: t.label, disabled: !online && NEEDS_SERVER.has(t.id),
     active: lit.tab === t.id && (online || !NEEDS_SERVER.has(t.id)),
     onClick: () => {
       if (route.path === t.path && mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
@@ -261,6 +260,7 @@ function Frame({ session, route }) {
         onDrawer={noDrawer}
         dockPush={docked && dock.pushing ? dock.width : 0}
         mainRef={mainRef}
+        mainClassName="kc-main"
         sidebar={
           <Sidebar
             mark={markUrl}
@@ -309,20 +309,6 @@ function Frame({ session, route }) {
 }
 
 function noDrawer() {}
-
-/**
- * Draws the tab bar's places that need the server disabled while there is no connection. krystal's
- * `TabBar` takes no disabled item, so its buttons are disabled in place, by the order `TABS` gives
- * them; React sets no `disabled` of its own on them to undo it.
- */
-function useOfflineTabs(offline, needsServer) {
-  const key = needsServer.join();
-  React.useLayoutEffect(() => {
-    const buttons = document.querySelectorAll('nav[aria-label="Main"] > button');
-    buttons.forEach((button, i) => { button.disabled = offline && !!needsServer[i]; });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offline, key]);
-}
 
 /**
  * A page as the connection allows when it was opened. Opened with no connection it is the same page

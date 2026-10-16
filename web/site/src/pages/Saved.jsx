@@ -28,7 +28,7 @@ function entryHref(e) {
  */
 export function SavedCard({ entry: e }) {
   return (
-    <ShowcaseCard
+    <ShowcaseCard compactFacts
       name={e.title}
       eyebrow={kindLine(e.kind, e)}
       art={e.posterUrl ? `url("${e.posterUrl}")` : null}
@@ -291,8 +291,7 @@ function EntryCard({ entry: e, listId, editable, shared, onChange }) {
   const saved = `Saved ${ago(e.addedAt)}${shared ? ` by ${e.addedBy.name || "someone"}` : ""}`;
   return (
     <>
-      <ShowcaseCard
-        className="kc-card"
+      <ShowcaseCard compactFacts
         name={e.title}
         eyebrow={kindLine(e.kind, e)}
         art={e.posterUrl ? `url("${e.posterUrl}")` : null}

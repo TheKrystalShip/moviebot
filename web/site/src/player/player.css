@@ -350,8 +350,6 @@
 /* ── Menus ── */
 .mp-panel { width: 300px; max-height: calc(100vh - 200px); translate: -28px 0; }
 .mp-panel--wide { width: 340px; }
-.mp-panel .k-popover__title, .mp-panel .k-menu__header { display: flex; align-items: center; gap: 8px; }
-.mp-panel .k-menu__label { overflow: hidden; text-overflow: ellipsis; }
 /* The season as the show's page lists it, without the progress column: the still carries the bar. */
 .mp-panel--episodes { width: min(600px, calc(100% - 56px)); }
 .mp-episodes { display: flex; flex-direction: column; padding: 4px 0; }
@@ -590,7 +588,7 @@
   box-shadow: var(--glow-accent), var(--shadow-lift); transform: scale(1.06);
 }
 :root[data-tv] :is(.mp-play, .mp-icon, .mp-menu-button, .mp-menu__item, .mp-menu__back):focus-visible * { color: var(--canvas); }
-:root[data-tv] :is(.mp-menu-button, .mp-menu__item):focus-visible :is(.mp-menu-button__value, .k-menu__aside, .k-menu__sub) {
+:root[data-tv] .mp-menu-button:focus-visible .mp-menu-button__value {
   color: var(--fg-4);
 }
 :root[data-tv] .mp-cue { font-size: var(--cue-size, max(26px, 4.8cqh)); }

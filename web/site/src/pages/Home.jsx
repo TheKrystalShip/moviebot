@@ -1,5 +1,6 @@
 import React from "react";
 import { Icon, Rail } from "@thekrystalship/krystal";
+import { POSTERS, WIDE } from "../railDensity.js";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { ANIME, isAnime, libraryPath, listPath } from "../paths.js";
@@ -69,14 +70,14 @@ function DeviceHome() {
 
       {continuing.length > 0 && (
         <Rail
-          variant="wide" icon="history" title="Continue watching" count={continuing.length}
+          perView={WIDE} icon="history" title="Continue watching" count={continuing.length}
           items={continuing} itemKey={(p) => p.titleId}
           renderItem={(p) => <ContinueCard title={titles.get(p.titleId)} progress={p} remainingSeconds={p.remainingSeconds} />} />
       )}
 
       {generalFilms.length > 0 && (
         <Rail
-          variant="posters" icon="clapperboard" title="Movies" count={generalFilms.length}
+          perView={POSTERS} icon="clapperboard" title="Movies" count={generalFilms.length}
           onViewAll={() => navigate(libraryPath("film"))} viewAllLabel="All movies"
           items={[...generalFilms].sort(latest)} itemKey={(t) => t.id}
           renderItem={(t) => <FilmCard title={t} download={marks.film(t.id)} />} />
@@ -84,7 +85,7 @@ function DeviceHome() {
 
       {generalShows.length > 0 && (
         <Rail
-          variant="posters" icon="tv" title="TV Shows" count={generalShows.length}
+          perView={POSTERS} icon="tv" title="TV Shows" count={generalShows.length}
           onViewAll={() => navigate(libraryPath("show"))} viewAllLabel="All shows"
           items={[...generalShows].sort(latest)} itemKey={showKey}
           renderItem={(s) => <ShowCard show={s} downloaded={marks.episodes(s.imdbId)} />} />
@@ -92,7 +93,7 @@ function DeviceHome() {
 
       {anime.length > 0 && (
         <Rail
-          variant="posters" icon="swords" title="Anime" count={anime.length}
+          perView={POSTERS} icon="swords" title="Anime" count={anime.length}
           onViewAll={() => navigate(libraryPath("show", ANIME))} viewAllLabel="All anime"
           items={anime} itemKey={itemKey}
           renderItem={(item) => (item.show
@@ -168,7 +169,7 @@ function ServerHome() {
 
       {continuing.length > 0 && (
         <Rail
-          variant="wide" icon="history" title="Continue watching" count={continuing.length}
+          perView={WIDE} icon="history" title="Continue watching" count={continuing.length}
           items={continuing} itemKey={continueKey}
           renderItem={(p) => !p.titleId ? <NextEpisodeCard progress={p} show={showOf.get(p.showImdbId)} onTv={driving} /> : (
             <ContinueCard
@@ -182,7 +183,7 @@ function ServerHome() {
 
       {watching.length > 0 && (
         <Rail
-          variant="wide" icon="users" title="Watching now" count={watching.length}
+          perView={WIDE} icon="users" title="Watching now" count={watching.length}
           items={watching} itemKey={(room) => room.sessionId}
           renderItem={(room) => (
             <a className="kc-room" {...watchLink(room.titleId, room.sessionId)}>
@@ -200,7 +201,7 @@ function ServerHome() {
 
       {saved.length > 0 && (
         <Rail
-          variant="posters" icon="bookmark" title="Watch later" count={saved.length}
+          perView={POSTERS} icon="bookmark" title="Watch later" count={saved.length}
           onViewAll={() => navigate(listPath("later"))} viewAllLabel="See all"
           items={saved} itemKey={(e) => e.imdbId}
           renderItem={(e) => <SavedCard entry={e} />} />
@@ -208,21 +209,21 @@ function ServerHome() {
 
       {recent.length > 0 && (
         <Rail
-          variant="posters" icon="sparkles" title="Recently added" count={recent.length}
+          perView={POSTERS} icon="sparkles" title="Recently added" count={recent.length}
           items={recent} itemKey={itemKey}
           renderItem={either} />
       )}
 
       {waitedOn.length > 0 && (
         <Rail
-          variant="posters" icon="bell" title="Anticipated" count={waitedOn.length}
+          perView={POSTERS} icon="bell" title="Anticipated" count={waitedOn.length}
           items={waitedOn} itemKey={(f) => f.imdbId}
           renderItem={(f) => <AnticipatedCard film={f} />} />
       )}
 
       {generalFilms.length > 0 && (
         <Rail
-          variant="posters" icon="clapperboard" title="Movies" count={generalFilms.length}
+          perView={POSTERS} icon="clapperboard" title="Movies" count={generalFilms.length}
           onViewAll={() => navigate(libraryPath("film"))} viewAllLabel="All movies"
           items={[...dealt(generalFilms, (t) => t.id, deal), MORE]} itemKey={(t) => (t === MORE ? "more" : t.id)}
           renderItem={(t) => (t === MORE ? <MoreTile label="Any movie" /> : card(t))} />
@@ -230,7 +231,7 @@ function ServerHome() {
 
       {generalShows.length > 0 && (
         <Rail
-          variant="posters" icon="tv" title="TV Shows" count={generalShows.length}
+          perView={POSTERS} icon="tv" title="TV Shows" count={generalShows.length}
           onViewAll={() => navigate(libraryPath("show"))} viewAllLabel="All shows"
           items={[...dealt(generalShows, showKey, deal), MORE]} itemKey={(s) => (s === MORE ? "more" : showKey(s))}
           renderItem={(s) => (s === MORE ? <MoreTile label="Any show" /> : <ShowCard show={s} downloaded={marks.episodes(s.imdbId)} />)} />
@@ -238,7 +239,7 @@ function ServerHome() {
 
       {anime.length > 0 && (
         <Rail
-          variant="posters" icon="swords" title="Anime" count={anime.length}
+          perView={POSTERS} icon="swords" title="Anime" count={anime.length}
           onViewAll={() => navigate(libraryPath("show", ANIME))} viewAllLabel="All anime"
           items={dealt(anime, itemKey, deal)} itemKey={itemKey}
           renderItem={either} />

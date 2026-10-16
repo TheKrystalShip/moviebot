@@ -450,7 +450,7 @@ function PreparingSheet({ head, standing, onClose }) {
 
   return (
     <Sheet head={head} eyebrow={standing.failed ? STATES.failed.label : STATES.preparing.label} tone={standing.failed ? "failed" : "active"}
-      sub={joined(head.context, quality)} onClose={onClose} canClose={!busy} className="kc-dl-underway"
+      sub={joined(head.context, quality)} onClose={onClose} canClose={!busy} className="kc-dl-underway" pair
       foot={standing.failed
         ? <>
           <FootButton variant="outline" icon="trash-2" disabled={busy} onClick={stop}>Remove</FootButton>
@@ -476,7 +476,7 @@ function PreparingSheet({ head, standing, onClose }) {
  * The sheet's frame: on a phone the drawer, headed by the title's still, a small label, its name and
  * a line under it; on a wide screen a dialog with the backdrop as its art. `tone` colours the label.
  */
-function Sheet({ head, eyebrow, tone, sub, onClose, canClose = true, foot, className = "", children }) {
+function Sheet({ head, eyebrow, tone, sub, onClose, canClose = true, foot, pair = false, className = "", children }) {
   const narrow = usePhone();
   const label = `${eyebrow} ${head.name}`;
   const top = (
@@ -490,14 +490,14 @@ function Sheet({ head, eyebrow, tone, sub, onClose, canClose = true, foot, class
   );
   if (!narrow) {
     return (
-      <Dialog title={top} label={label} art={head.backdrop ? `url("${head.backdrop}")` : undefined} onClose={onClose} canClose={canClose}
+      <Dialog title={top} label={label} art={head.backdrop ? `url("${head.backdrop}")` : undefined} artOverlap onClose={onClose} canClose={canClose}
         className={"kc-dl-sheet kc-dl-dialog " + className} foot={foot}>
         {children}
       </Dialog>
     );
   }
   return (
-    <Drawer onClose={onClose} canClose={canClose} label={label} className={"kc-dl-sheet kc-dl-drawer " + className} foot={foot} head={(
+    <Drawer onClose={onClose} canClose={canClose} label={label} className={"kc-dl-sheet " + className} footLayout={pair ? "pair" : "stack"} foot={foot} head={(
       <div className="kc-dl-head">
         {head.still && <img className={"kc-dl-head__still" + (head.portrait ? " is-portrait" : "")} src={head.still} alt="" />}
         {top}
@@ -688,7 +688,7 @@ function UnderwaySheet({ titleId, head, standing, onClose, onRemove }) {
 
   return (
     <Sheet head={head} eyebrow={state.label} tone={standing.state === "failed" ? "failed" : "active"}
-      sub={joined(head.context, meta && meta.quality && meta.quality.label)} onClose={onClose} className="kc-dl-underway"
+      sub={joined(head.context, meta && meta.quality && meta.quality.label)} onClose={onClose} className="kc-dl-underway" pair
       foot={<>
         <FootButton variant="outline" icon="trash-2" onClick={onRemove}>Cancel</FootButton>
         {stopped
@@ -733,7 +733,7 @@ function DoneSheet({ titleId, head, save, onClose, onRemove }) {
     ["Subtitles", labels("subtitle") || "None"],
   ];
   return (
-    <Sheet head={head} eyebrow="Downloaded" tone="done" sub={joined(head.context, head.runtime)} onClose={onClose} className="kc-dl-done"
+    <Sheet head={head} eyebrow="Downloaded" tone="done" sub={joined(head.context, head.runtime)} onClose={onClose} className="kc-dl-done" pair
       foot={<>
         <FootButton variant="outline" icon="trash-2" onClick={onRemove}>Remove</FootButton>
         <FootButton variant="primary" icon="play" {...linkProps(playSavedPath(titleId))}>Play</FootButton>
@@ -783,7 +783,7 @@ function RemoveSheet({ titleId, head, standing, onClose, onKeep }) {
     );
   }
   return (
-    <Drawer onClose={onClose} canClose={!busy} label="Remove download" role="alertdialog" className="kc-dl-sheet kc-dl-drawer kc-dl-remove" foot={foot} head={(
+    <Drawer onClose={onClose} canClose={!busy} label="Remove download" role="alertdialog" className="kc-dl-sheet kc-dl-remove" footLayout="pair" foot={foot} head={(
       <div className="kc-dl-head kc-dl-head--remove">
         <span className="kc-dl-remove__icon"><Icon name="trash-2" size={20} /></span>
         <span className="kc-dl-head__text">

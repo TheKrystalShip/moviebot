@@ -30,7 +30,7 @@ function FilmFrame({ details: d, fallback, length, actions, progress, facts }) {
     <div className="kc-tv-page kc-tvf">
       <TvBackdrop src={(d && (d.backdropUrl || d.posterUrl)) || fallback.art} size="page" />
       <section className="kc-tvf__head" data-tv-top="">
-        <TvSpotlight className="kc-tvf__spot" size="lg" eyebrow="Movie" title={name}
+        <TvSpotlight className="kc-tvf__spot" size="lg" titleSize="lg" eyebrow="Movie" title={name}
           meta={<SpotFacts facts={{
             rating: d && d.rating, year: (d && d.year) || fallback.year, cert: d && d.certification,
             length, genres: d ? d.genres : [],

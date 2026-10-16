@@ -47,8 +47,6 @@ export function Profile({ tab: named, fromDevice = false }) {
   const session = useSession();
   const user = session && session.user;
   const online = useOnline();
-  const tabsRef = React.useRef(null);
-  useDisabledTabs(tabsRef, !online, TABS.map((t) => SERVER_TABS.has(t.id)));
 
   React.useEffect(() => {
     if (tab !== (named || PROFILE_TABS[0])) navigate(profilePath(tab), { replace: true });
@@ -66,9 +64,8 @@ export function Profile({ tab: named, fromDevice = false }) {
         {!inActivity && <Button size="lg" icon="log-out" className="kc-head__action" onClick={leave}>Sign out</Button>}
       </PageHead>
       {online ? saved : <Off>{saved}</Off>}
-      <div ref={tabsRef} className="kc-profile__tabs">
-        <SubTabs tabs={TABS} active={tab} onChange={(id) => navigate(profilePath(id), { replace: true })} />
-      </div>
+      <SubTabs tabs={TABS.map((t) => ({ ...t, disabled: !online && SERVER_TABS.has(t.id) }))} active={tab}
+        onChange={(id) => navigate(profilePath(id), { replace: true })} />
       <TabStage tab={tab} render={(shown) => (
         <div className="kc-profile__panel">
           {/* A tab that asks the server keeps what it drew when the connection goes, and asks nothing. */}
@@ -79,22 +76,6 @@ export function Profile({ tab: named, fromDevice = false }) {
       )} />
     </div>
   );
-}
-
-/**
- * Disables the tabs that need the server while `offline`, both the row of tabs and the phone's
- * picker. krystal's `SubTabs` takes no disabled tab, so they are disabled in place, by the order
- * `TABS` gives them; React sets no `disabled` of its own on them to undo it.
- */
-function useDisabledTabs(ref, offline, needsServer) {
-  const key = needsServer.join();
-  React.useLayoutEffect(() => {
-    if (!ref.current) return;
-    const off = (i) => offline && !!needsServer[i];
-    ref.current.querySelectorAll("button").forEach((button, i) => { button.disabled = off(i); });
-    ref.current.querySelectorAll("option").forEach((option, i) => { option.disabled = off(i); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offline, key]);
 }
 
 export function panel(tab, session) {
@@ -148,8 +129,7 @@ function HistoryCard({ row, title, onForget }) {
   const ready = title && title.status === "ready";
   const name = !title ? row.name : title.episode || !title.film || !title.film.name ? filmName(title) : title.film.name;
   return (
-    <ShowcaseCard
-      className="kc-card"
+    <ShowcaseCard compactFacts
       name={name}
       eyebrow={kindLine(row.episode ? "show" : "film", title)}
       art={poster ? `url("${poster}")` : null}
@@ -252,9 +232,8 @@ function Following() {
               { icon: "bell-off", label: `Unfollow ${row.title}`, onClick: () => unfollow(row) },
             ];
             return (
-              <ShowcaseCard
+              <ShowcaseCard compactFacts
                 key={row.imdbId}
-                className="kc-card"
                 name={row.title}
                 art={row.posterUrl ? `url("${row.posterUrl}")` : keptArt(row.imdbId)}
                 onPick={() => navigate(showPath(row.imdbId))}
@@ -427,7 +406,7 @@ function Playback() {
           <Select value={preferences.audioLanguage || ""} options={languages(preferences.audioLanguage, "Original")}
             aria-label="Audio language" onChange={(e) => change({ audioLanguage: orNull(e.target.value) })} />
         </SettingsRow>
-        <SettingsRow icon="gauge" title="Quality" sub="Auto lets the connection decide.">
+        <SettingsRow controlsBelow icon="gauge" title="Quality" sub="Auto lets the connection decide.">
           <Heights label="Quality" options={qualities} value={preferences.qualityHeight}
             onChange={(height) => change({ qualityHeight: height })} />
         </SettingsRow>
@@ -435,7 +414,7 @@ function Playback() {
           <Toggle on={Boolean(preferences.skipIntros)} label="Skip intros and recaps automatically" onChange={(on) => change({ skipIntros: on })} />
         </SettingsRow>
         {handheld() && offlineSupported() && can(session, "cinema:offline") && (
-          <SettingsRow icon="hard-drive-download" title="Download quality" sub="Auto downloads the smallest.">
+          <SettingsRow controlsBelow icon="hard-drive-download" title="Download quality" sub="Auto downloads the smallest.">
             <Heights label="Download quality" options={OFFLINE_QUALITIES} value={preferences.offlineQualityHeight}
               onChange={(height) => change({ offlineQualityHeight: height })} />
           </SettingsRow>
@@ -448,7 +427,7 @@ function Playback() {
 /** A choice of heights, Auto (`""`) among them: `value` is the stored height or null. */
 function Heights({ label, options, value, onChange }) {
   return (
-    <RadioGroup variant="segmented" className="kc-heights" label={label} value={value ? String(value) : ""}
+    <RadioGroup variant="segmented" fill className="kc-heights" label={label} value={value ? String(value) : ""}
       options={options.map((q) => ({ value: q.value, label: q.label }))}
       onChange={(next) => onChange(next ? Number(next) : null)} />
   );

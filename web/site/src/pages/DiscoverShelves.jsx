@@ -4,6 +4,7 @@ import {
   ToolbarSpacer, useStoredFlag,
 } from "@thekrystalship/krystal";
 import { api } from "../api.js";
+import { POSTERS, TILES } from "../railDensity.js";
 import { useLoad } from "../data.js";
 import { FILTER_PARAMS, discoverBrowsePath, discoverFilterPath, discoverShelfPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
@@ -107,7 +108,7 @@ function TileRail({ section }) {
   if (shelves.length === 0) return null;
   return (
     <Rail
-      variant="tiles" icon={section.icon} title={section.label} count={shelves.length}
+      perView={TILES} icon={section.icon} title={section.label} count={shelves.length}
       items={shelves} itemKey={(h) => h.id}
       renderItem={(h) => <ShelfTile head={h} series={section.series} />}
       onViewAll={() => navigate(discoverBrowsePath(section.id))} viewAllLabel="See all" />
@@ -165,7 +166,7 @@ function ShelfRail({ head, kept, where }) {
   if (titles.length === 0) return null;
   return (
     <Rail
-      variant="posters" icon={head.icon} title={head.title} count={titles.length}
+      perView={POSTERS} icon={head.icon} title={head.title} count={titles.length}
       items={titles.slice(0, RAIL_TITLES)} itemKey={(t) => t.kind + t.imdbId}
       renderItem={(t) => <FoundCard found={t} {...where(t)} />}
       onViewAll={() => navigate(discoverShelfPath(head.id))} viewAllLabel="See all" />
@@ -404,7 +405,7 @@ export function LandingFilters({ index }) {
     setHideWatched(hide);
     open({});
   });
-  return <div className="kc-discover-filters"><ToolbarFilters fields={fields} /></div>;
+  return <ToolbarFilters fields={fields} framed compact="phone" />;
 }
 
 /**

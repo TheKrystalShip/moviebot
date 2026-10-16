@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.40.0] - 2026-10-16
+
+### Changed
+
+- **No site sheet selects a package class.** The shelves take their card counts from Rail's `perView`;
+  a download sheet's dialog takes `artOverlap` and its foot `footLayout`; a downloaded or downloading
+  card's pill is the card's `corner` in the accent or monospace tone, with the progress track set through
+  `--k-showcase-progress-track`; the profile's tabs and the tab bar disable their places through each
+  item's `disabled`; Quality and Download quality are rows whose choice goes under the words on a phone
+  (`controlsBelow`, indented to the label); the Discover filter is a framed, compact ToolbarFilters; the
+  television's spotlights take `titleSize` and `overviewLines`, its cast portraits `imagePosition`, and
+  its spotlit pages dim the other cards through `data-tv-dim`; the remote dock leaves its room through
+  `--k-app-bottom-inset` and the toast tokens, and the column keeps its scrollbar's room through the
+  shell's `mainClassName`. Cards drop their fact icons below 210px through `compactFacts`. Krystal and
+  Krystal Chat 0.43.2; Stylelint's `.k-` selector rule is an error. Site 0.87.0.
+
 ## [3.39.1] - 2026-10-16
 
 ### Changed

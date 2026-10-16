@@ -32,7 +32,7 @@ export function ReplaceSheet() {
   const fraction = manifest && manifest.durationSeconds > 0 ? Math.min(1, (position ?? 0) / manifest.durationSeconds) : 0;
   const close = () => answer(false);
   return (
-    <Drawer theme="dark" className="kc-dl-sheet kc-dl-drawer" label={`Watch on ${tv}`} onClose={close} foot={(
+    <Drawer theme="dark" className="kc-dl-sheet" footLayout="stack" label={`Watch on ${tv}`} onClose={close} foot={(
       <>
         <Button variant="primary" size="xl" icon="tv" wide onClick={() => answer(true)}>Watch {target.name}</Button>
         <Button variant="outline" size="lg" wide onClick={close}>Keep watching</Button>

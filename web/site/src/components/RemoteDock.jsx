@@ -1,5 +1,6 @@
 import React from "react";
 import { Button, Drawer, EmptyState, Icon, OptionList, Rail, Toggle, toast } from "@thekrystalship/krystal";
+import { WIDE } from "../railDensity.js";
 import { api, episodeCode, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { setRemoteMode, chooseScreen, useDrivenScreen, usePairedScreens, useRemoteMode, useRemoteOpen } from "../remote.js";
@@ -494,8 +495,8 @@ function Idle({ shelf }) {
     <>
       <EmptyState className="kc-remote__empty" icon="tv" title="Nothing playing" />
       {continuing.length > 0 && (
-        <Rail
-          variant="wide" icon="history" title="Continue watching" count={continuing.length}
+        <Rail className="kc-remote__rail"
+          perView={WIDE} icon="history" title="Continue watching" count={continuing.length}
           items={continuing} itemKey={(p) => p.titleId || `${p.showImdbId}:${p.episode.season}:${p.episode.number}`}
           renderItem={(p) => !p.titleId
             ? <NextEpisodeCard progress={p} show={showOf.get(p.showImdbId)} onTv />

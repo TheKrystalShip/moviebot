@@ -3,7 +3,7 @@
 
 /* The scrolling column keeps its scrollbar's room whether or not the page is taller than the screen,
    so a page growing past it, or shrinking back, never moves the page sideways. */
-.k-app__main { scrollbar-gutter: stable; }
+.kc-main { scrollbar-gutter: stable; }
 @layer site.reset {
   html, body, #root { height: 100%; }
   body { margin: 0; }
@@ -73,7 +73,7 @@
 
 /* The assistant's page fills the column: the column, its stage and the page are one flex column down to
    the chat, whose thread scrolls inside it while the column stays still. */
-.k-app__main:has(.kc-chat-page) > .kc-stage,
+.kc-stage:has(.kc-chat-page),
 .kc-stage__page:has(> .kc-chat-page) { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .kc-chat-page { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; margin-inline: calc(var(--k-page-gutter) * -1); }
 
@@ -155,16 +155,8 @@ button.kc-continue:disabled { cursor: progress; }
 }
 .kc-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: color-mix(in srgb, var(--art-fg-white) 25%, transparent); }
 .kc-bar > span { display: block; height: 100%; background: var(--krystal-teal); }
-/* A segmented choice across its container, its options sharing it equally. */
+/* A segmented choice across its container. */
 .kc-fill { width: 100%; }
-.kc-fill .k-radios__item { flex: 1; }
-/* A setting choosing among heights: on a phone the choice goes under its words, across the row. */
-@media (max-width: 720px) {
-  .k-brief__item:has(.kc-heights) { flex-wrap: wrap; }
-  .k-brief__item:has(.kc-heights) .k-settings-row__controls { flex: 1 1 100%; }
-  .kc-heights { flex: 1; }
-  .kc-heights .k-radios__item { flex: 1; }
-}
 /* The library's Movies | TV shows | Anime switch is the phone's; a wide screen has a sidebar entry for each. */
 .kc-kind-switch { display: none; }
 @media (max-width: 768px) { .kc-kind-switch { display: flex; } }
@@ -172,42 +164,6 @@ button.kc-continue:disabled { cursor: progress; }
    on a wide one and across the page on a phone. */
 .kc-anime-switch { width: min(100%, 280px); }
 @media (max-width: 768px) { .kc-anime-switch { width: 100%; } }
-/* A film card on a phone's two-up grid keeps its rating, year and length and lets their icons go:
-   "1h 28m" with its icon is wider than a third of a card that narrow, and runs into the next fact. */
-@container showcase (max-width: 210px) {
-  .k-showcase-spec__ico { display: none; }
-  .k-showcase-spec { padding: 0 3px; }
-}
-
-/* How many cards each of the home page's shelves shows (krystal's Rail), by the shelf's own
-   width. Fractional on purpose: the card cut off at the right edge is what says there is more. A
-   film card stays at about 190px or wider: at 165px its length and a "1h 50m left" beside Resume
-   are clipped. */
-.k-rail--posters .k-rail__track { --rail-per-view: 6.2; }
-.k-rail--wide .k-rail__track { --rail-per-view: 3.4; }
-@container rail (max-width: 1350px) {
-  .k-rail--posters .k-rail__track { --rail-per-view: 5.2; }
-}
-@container rail (max-width: 1100px) {
-  .k-rail--posters .k-rail__track { --rail-per-view: 4.3; }
-  .k-rail--wide .k-rail__track { --rail-per-view: 2.4; }
-}
-@container rail (max-width: 900px) {
-  .k-rail--posters .k-rail__track { --rail-per-view: 3.4; }
-}
-@container rail (max-width: 760px) {
-  .k-rail--wide .k-rail__track { --rail-per-view: 1.6; }
-}
-@container rail (max-width: 700px) {
-  .k-rail--posters .k-rail__track { --rail-per-view: 2.6; }
-}
-@container rail (max-width: 540px) {
-  .k-rail--posters .k-rail__track { --rail-per-view: 2.1; }
-}
-@container rail (max-width: 430px) {
-  .k-rail--posters .k-rail__track { --rail-per-view: 1.7; }
-  .k-rail--wide .k-rail__track { --rail-per-view: 1.15; }
-}
 
 /* ── The featured film ───────────────────────────────────────────────────────────────── */
 .kc-featured {
@@ -314,8 +270,6 @@ button.kc-continue:disabled { cursor: progress; }
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
 }
 .kc-hit__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-/* A card's cast line is text alone, which ends in an ellipsis only as a block. */
-.kc-card .k-showcase-card__status:not([class*="--"]) { display: block; }
 .kc-card-skel__foot { display: grid; gap: 14px; padding: 12px 14px 16px; }
 @media (max-width: 720px) {
   .kc-hit__grid {
@@ -392,17 +346,8 @@ button.kc-continue:disabled { cursor: progress; }
    shelf is asked for; the tiles' rails and the browse grid; and the spotlight's pager. */
 .kc-discover-bar { display: flex; align-items: stretch; gap: 10px; }
 .kc-discover-bar .kc-discover-field { flex: 1; min-width: 0; }
-.kc-discover-filters { display: flex; align-items: stretch; }
-.kc-discover-filters .k-toolbar-filter { display: flex; align-items: stretch; }
-.kc-discover-filters .k-toolbar-filter__trigger {
-  height: auto; padding: 0 18px; font-size: 14px; border: var(--edge-strong); border-radius: var(--r-md);
-}
 .kc-lazy-shelf { min-width: 0; }
 .kc-rail-skeleton { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.k-rail--tiles .k-rail__track { --rail-per-view: 4.3; }
-@container rail (max-width: 1100px) { .k-rail--tiles .k-rail__track { --rail-per-view: 3.2; } }
-@container rail (max-width: 760px) { .k-rail--tiles .k-rail__track { --rail-per-view: 2.2; } }
-@container rail (max-width: 430px) { .k-rail--tiles .k-rail__track { --rail-per-view: 1.4; } }
 .kc-browse-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; padding: 14px; }
 .kc-shelf > .kc-browse-grid { padding: 0; }
 @media (max-width: 600px) { .kc-browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; } }
@@ -428,8 +373,6 @@ button.kc-continue:disabled { cursor: progress; }
   .kc-spotlight__pager { left: 19px; right: auto; bottom: 12px; }
 }
 @media (max-width: 600px) {
-  .kc-discover-filters .k-toolbar-filter__trigger { width: 52px; padding: 0; justify-content: center; position: relative; }
-  .kc-discover-filters .k-toolbar-filter__trigger > span:not(.k-toolbar-filter__badge) { display: none; }
   .kc-spotlight .kc-featured__overview {
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }
@@ -635,14 +578,10 @@ button.kc-episode:disabled { cursor: progress; }
 /* What needs the server, with no connection: dimmed and out of reach. */
 .kc-nav-off { opacity: 0.4; }
 .kc-phonehead .kc-nav-off { margin-left: auto; }
-.k-tabbar .k-tabbar__tab:disabled { opacity: 0.4; cursor: default; }
-.kc-profile__tabs .k-subtab:disabled { opacity: 0.4; cursor: default; }
 .kc-episode.is-off { opacity: 0.4; }
 .kc-episode.is-off .kc-episode__still img { filter: grayscale(1); }
 .kc-dark { position: fixed; inset: 0; background: var(--canvas); }
 .kc-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
-.kc-fieldset:disabled .k-btn, .kc-fieldset:disabled .k-showcase-card__tool,
-.kc-fieldset:disabled .k-showcase-card__cta--act, .kc-fieldset:disabled .k-radios { opacity: 0.5; }
 
 /* A place that needs the server, reached with no connection. */
 .kc-unreachable {

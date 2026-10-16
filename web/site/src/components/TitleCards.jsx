@@ -6,7 +6,7 @@ import { useSaveRibbon } from "./SaveButton.jsx";
 
 // Poster cards for titles that are not on a shelf: a search's answers, what somebody waits on, what
 // they asked to be fetched. Every card is krystal's ShowcaseCard, so a page of them reads like
-// Home's rows; `kc-card` lets a plain status line (a cast, a note) end in an ellipsis.
+// Home's rows.
 
 /**
  * The poster a title's page shows, kept by this server, as a card's art: the film's, else the
@@ -69,8 +69,7 @@ export function FoundCard({ found, here, held, line = found.starring }) {
   const [ribbon, lists] = useSaveRibbon(found.imdbId, show ? "show" : "film", found.title);
   return (
     <>
-      <ShowcaseCard
-        className="kc-card"
+      <ShowcaseCard compactFacts
         name={found.title}
         eyebrow={kindLine(found.kind, found)}
         art={found.posterUrl ? `url("${found.posterUrl}")` : null}
@@ -101,8 +100,7 @@ export function AnticipatedCard({ film }) {
   const [ribbon, lists] = useSaveRibbon(film.imdbId, "film", film.title);
   return (
     <>
-      <ShowcaseCard
-        className="kc-card"
+      <ShowcaseCard compactFacts
         name={film.title}
         eyebrow={kindLine("film", film)}
         art={keptArt(film.imdbId, film.posterUrl)}
@@ -124,8 +122,7 @@ export function WishCard({ wish, onStop, downloading, status }) {
   const out = !!wish.release;
   const waiting = wish.subscribers.length === 1 ? "Only you are waiting" : `${wish.subscribers.length} waiting`;
   return (
-    <ShowcaseCard
-      className="kc-card"
+    <ShowcaseCard compactFacts
       name={wish.title}
       eyebrow={kindLine("film", wish)}
       art={keptArt(wish.imdbId, wish.posterUrl)}

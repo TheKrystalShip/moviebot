@@ -21,8 +21,7 @@
 .kc-episode__sub--download { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-2); }
 .kc-episode__sub--download.is-done { color: var(--krystal-teal); }
 
-/* The sheet: the drawer's head is the title still with its label, name and line, and its foot stacks the actions. */
-.kc-dl-drawer .k-drawer__foot { flex-direction: column; align-items: stretch; }
+/* The sheet: the drawer's head is the title still with its label, name and line. */
 .kc-dl-head { flex-shrink: 0; display: flex; gap: 12px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border-subtle); }
 .kc-dl-head__still {
   flex-shrink: 0; width: 72px; aspect-ratio: 16 / 9; object-fit: cover;
@@ -40,17 +39,9 @@
 .kc-dl-head__name { font-size: 17px; font-weight: 600; color: var(--fg-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0; text-transform: none; }
 .kc-dl-head__sub { font-size: 12px; color: var(--fg-3); font-weight: 400; letter-spacing: 0; text-transform: none; }
 .kc-dl-head__close { flex-shrink: 0; align-self: flex-start; margin: -6px -10px 0 0; }
-/* Two actions share the foot equally. */
-.kc-dl-underway .k-drawer__foot, .kc-dl-done .k-drawer__foot, .kc-dl-remove .k-drawer__foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.kc-dl-remove .k-drawer__body { display: none; }
 
 /* On a wide screen, the dialog: the backdrop above, the label and name over its foot. */
-.kc-dl-dialog .k-modal__art { height: 120px; }
-.kc-dl-dialog .k-modal__art + .k-modal__head { margin-top: -54px; position: relative; }
-.kc-dl-dialog .k-modal__head { align-items: flex-end; }
 .kc-dl-dialog .kc-dl-head__name { font-size: 20px; font-weight: 700; }
-.kc-dl-dialog .k-modal__body { display: flex; flex-direction: column; gap: 16px; }
-.kc-dl-dialog .k-modal__foot { align-items: center; gap: 12px; }
 .kc-dl-dialog .kc-dl-space { flex: 1; min-width: 0; }
 .kc-dl-pick.kc-dl-dialog .kc-dl-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .kc-dl-pair { display: flex; flex-direction: column; gap: 18px; }
@@ -94,11 +85,5 @@
 .kc-dl-remove__what { font-size: 12.5px; color: var(--fg-3); }
 .kc-dl-remove__what .is-mono, .kc-dl-remove .is-mono { font-family: var(--font-mono); }
 
-/* A card on a shelf whose title is downloaded, or downloading: a pill on its poster. */
-.kc-card--dl .k-showcase-card__corner {
-  height: 24px; padding: 0 8px; border-radius: var(--r-pill); gap: 5px; font-size: 11px; font-weight: 600;
-  background: color-mix(in srgb, var(--kc-art-ink) 75%, transparent); border: var(--edge-strong); color: var(--fg-1);
-}
-.kc-card--dl-done .k-showcase-card__corner { border-color: var(--border-accent); color: var(--krystal-teal); }
-.kc-card--dl-underway .k-showcase-card__corner { font-family: var(--font-mono); }
-.kc-card--dl-underway .k-showcase-card__progress { background: var(--surface-3); }
+/* A card whose title is downloading: its progress runs along a raised track. */
+.kc-card--dl-underway { --k-showcase-progress-track: var(--surface-3); }

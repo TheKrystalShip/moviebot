@@ -63,21 +63,15 @@ body.has-remote-open .kc-remote-scrim { pointer-events: auto; }
 /* The dock takes room above the tab bar, which the page, the assistant dock and the toasts leave as they leave the
    bar's (`--remote-strip-inset` is the collapsed dock's measured height). */
 @media (max-width: 768px) {
-  body.has-remote-strip .k-app--tabbed .k-app__main {
-    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--remote-strip-inset, 0px));
-  }
-  body.has-remote-strip .k-app--tabbed .k-assistant-dock {
-    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--remote-strip-inset, 0px));
-  }
+  body.has-remote-strip { --k-app-bottom-inset: var(--remote-strip-inset, 0px); }
 }
 /* While a person writes in the assistant, the keyboard takes the dock's room as it takes the tab bar's. */
 @media (max-width: 768px) {
-  body.k-chat-typing .kc-remote-dock, body.k-chat-typing .kc-remote-scrim { display: none; }
-  body.k-chat-typing.has-remote-strip .k-app--tabbed .k-app__main { padding-bottom: env(keyboard-inset-height, 0px); }
+  body[data-chat-typing] .kc-remote-dock, body[data-chat-typing] .kc-remote-scrim { display: none; }
 }
-body.has-remote-strip .k-toasts { bottom: calc(84px + var(--remote-strip-inset, 0px) + env(safe-area-inset-bottom, 0px)); }
+body.has-remote-strip { --k-toasts-bottom: calc(84px + var(--remote-strip-inset, 0px) + env(safe-area-inset-bottom, 0px)); }
 /* While the open dock covers the bottom of the screen the toasts sit at the top, clear of it. */
-body.has-remote-open .k-toasts { top: calc(16px + env(safe-area-inset-top, 0px)); bottom: auto; }
+body.has-remote-open { --k-toasts-top: calc(16px + env(safe-area-inset-top, 0px)); --k-toasts-bottom: auto; }
 
 /* The dock's head is the grip it is pulled by: a tab along the top edge, then the title and the action. */
 .kc-remote__top { position: relative; flex-shrink: 0; min-height: 28px; padding-top: 8px; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
@@ -124,7 +118,7 @@ body.has-remote-open .k-toasts { top: calc(16px + env(safe-area-inset-top, 0px))
 
 /* The idle remote. */
 .kc-remote__empty { padding: 14px 20px 18px; }
-.kc-remote .k-rail { margin: 0 2px 6px; }
+.kc-remote__rail { margin: 0 2px 6px; }
 .kc-continue__tv { position: absolute; right: 8px; bottom: 14px; }
 
 /* The menus the remote opens say which screen they are aimed at. */

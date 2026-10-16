@@ -148,8 +148,8 @@ export function kindLine(kind, title) {
 /** A card's marks for a download on this device: the pill on its poster, and its progress while under way. */
 function downloadMarks(download) {
   if (!download) return {};
-  if (download.kind === "done") return { corner: { icon: "circle-check", label: "Downloaded" }, className: "kc-card--dl kc-card--dl-done" };
-  return { corner: { label: `Downloading ${download.percent}%` }, progress: download.percent / 100, className: "kc-card--dl kc-card--dl-underway" };
+  if (download.kind === "done") return { corner: { icon: "circle-check", label: "Downloaded", tone: "accent" } };
+  return { corner: { label: `Downloading ${download.percent}%`, tone: "neutral", mono: true }, progress: download.percent / 100, className: "kc-card--dl-underway" };
 }
 
 /**
@@ -181,7 +181,7 @@ export function FilmCard({ title, room, isNew, download }) {
 
   return (
     <>
-      <ShowcaseCard
+      <ShowcaseCard compactFacts
         name={film.name || title.title}
         eyebrow={kindLine("film", title)}
         art={poster ? `url("${poster}")` : null}
@@ -222,13 +222,13 @@ export function ShowCard({ show, downloaded = 0 }) {
 
   return (
     <>
-      <ShowcaseCard
+      <ShowcaseCard compactFacts
         name={show.title}
         eyebrow={kindLine("show", show)}
         segments={show.seasonProgress ? show.seasonProgress.map((x) => (x.episodes > 0 ? x.watched / x.episodes : 0)) : null}
         art={d && d.posterUrl ? `url("${d.posterUrl}")` : null}
         onPick={() => navigate(show.imdbId ? showPath(show.imdbId, { category: show.category }) : moviePath(show.firstTitleId, show.category))}
-        {...(downloaded > 0 ? { corner: { icon: "circle-check", label: `${downloaded} downloaded` }, className: "kc-card--dl kc-card--dl-done" } : {})}
+        {...(downloaded > 0 ? { corner: { icon: "circle-check", label: `${downloaded} downloaded`, tone: "accent" } } : {})}
         specs={[
           { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
           { icon: "layers", value: show.seasons.length, label: show.seasons.length === 1 ? "Season" : "Seasons" },

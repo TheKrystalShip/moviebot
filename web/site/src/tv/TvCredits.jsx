@@ -30,7 +30,7 @@ export function TvCast({ cast }) {
 }
 
 function Face({ person }) {
-  return <Avatar src={person.portraitUrl} name={person.name} tone="muted" size="css" className="kc-tv-person__face" />;
+  return <Avatar src={person.portraitUrl} name={person.name} tone="muted" size="css" imagePosition="center 20%" className="kc-tv-person__face" />;
 }
 
 /** Label over value, four to a line; a fact with no value is left out. `mono` sets a code in a code face. */

@@ -91,7 +91,7 @@ export function TvShow({ imdbId, season, inLibrary }) {
       <SpotStage store={store} art={s.backdropUrl || s.posterUrl} idleSize="page" />
 
       <section className="kc-tvs__head" data-tv-top="">
-        <TvSpotlight className="kc-tvs__spot" size="lg" eyebrow="TV series" title={s.title}
+        <TvSpotlight className="kc-tvs__spot" size="lg" titleSize="lg" eyebrow="TV series" title={s.title}
           meta={<SpotFacts facts={{
             rating: s.rating, year: years, cert: s.certification,
             length: `${seasons.length} ${seasons.length === 1 ? "season" : "seasons"}`, genres: s.genres,

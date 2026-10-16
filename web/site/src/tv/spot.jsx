@@ -12,7 +12,7 @@ const SPOT_MS = 300;
  * anywhere else puts both away at once.
  *
  * Moving focus re-renders nothing of the page: the spotlight reads the store (`useSpot`), and the page
- * is marked `data-spot` and each row above the focused one `data-past` directly, since a page of a
+ * is marked `data-spot` (and `data-tv-dim`, which steps the other cards back) and each row above the focused one `data-past` directly, since a page of a
  * hundred cards drawn again on every press is a dropped frame on a television.
  */
 export function useSpotlight() {
@@ -24,7 +24,10 @@ export function useSpotlight() {
   React.useEffect(() => {
     const mark = () => {
       const { row } = store.getState();
-      if (pageRef.current) pageRef.current.toggleAttribute("data-spot", row >= 0);
+      if (pageRef.current) {
+        pageRef.current.toggleAttribute("data-spot", row >= 0);
+        pageRef.current.toggleAttribute("data-tv-dim", row >= 0);
+      }
       if (!regionRef.current) return;
       regionRef.current.querySelectorAll("[data-spot-row]").forEach((el, i) => el.toggleAttribute("data-past", row >= 0 && i < row));
     };
