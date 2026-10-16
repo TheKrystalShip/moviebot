@@ -190,6 +190,11 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             manifest.HeadSeconds = null;
             manifest.AudioHeadSeconds = null;
             foreach (var rendition in manifest.Video.Renditions) rendition.HeadSeconds = null;
+
+            // Every segment is written, so what each track weighs is known: the master states it from
+            // here on, before the manifest that says the film is ready.
+            MeasuredRates.Measure(outputDirectory, manifest);
+            MasterPlaylist.Write(outputDirectory, manifest);
             ManifestJson.WriteAtomic(manifestPath, manifest);
             log($"Ready: {outputDirectory}");
             return manifest;

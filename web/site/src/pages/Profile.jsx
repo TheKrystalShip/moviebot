@@ -20,6 +20,7 @@ import { TabStage } from "../components/PageStage.jsx";
 import { CardsSkeleton, WishCard, keptArt } from "../components/TitleCards.jsx";
 import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
+import { BufferAheadLevels, bufferAhead, setBufferAhead } from "../player/engine/media/bufferAhead.ts";
 import { onTv } from "../tv/tv.js";
 import { inActivity } from "../discord/launch.js";
 
@@ -400,6 +401,7 @@ function Playback() {
     : QUALITIES;
 
   return (
+    <>
     <fieldset className="kc-fieldset" disabled={fixed}>
       <SettingsSection icon="play" title="Playback">
         <SettingsRow icon="audio-lines" title="Audio" sub="Original is the language it was made in.">
@@ -421,6 +423,36 @@ function Playback() {
         )}
       </SettingsSection>
     </fieldset>
+    <DeviceBuffering />
+    </>
+  );
+}
+
+/** How far ahead of the playhead each setting fetches, said as a person would weigh it. */
+const BUFFER_AHEAD_SUBS = {
+  light: "About 30 seconds ahead.",
+  standard: "About 3 minutes ahead.",
+};
+
+/**
+ * How far ahead this device fetches a film. It is the device's own, kept in this browser, so it is
+ * changed here with or without a connection.
+ */
+function DeviceBuffering() {
+  const [level, setLevel] = React.useState(bufferAhead);
+  const choose = (next) => {
+    setBufferAhead(next);
+    setLevel(next);
+  };
+  return (
+    <SettingsSection icon="smartphone" title="This device">
+      <SettingsRow controlsBelow icon="download" title="Buffer ahead"
+        sub={`${BUFFER_AHEAD_SUBS[level]} Watching uses roughly 1 GB an hour at 720p, half that at 480p.`}>
+        <RadioGroup variant="segmented" fill label="Buffer ahead" value={level}
+          options={Object.entries(BufferAheadLevels).map(([value, { label }]) => ({ value, label }))}
+          onChange={choose} />
+      </SettingsRow>
+    </SettingsSection>
   );
 }
 

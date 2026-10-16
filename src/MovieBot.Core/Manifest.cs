@@ -413,6 +413,14 @@ public sealed record Rendition
     /// </summary>
     public double? HeadSeconds { get; set; }
 
+    /// <summary>
+    /// What this rung's segments weigh, measured once the title is ready (<see cref="MeasuredRates"/>);
+    /// null until then. <see cref="BitrateKbps"/> is what the encoder was given, which a rung encoded at
+    /// a constant quality stays well under, and a player picks its rung and sizes its buffer by the rate
+    /// the master states, so the master states this one where it is known.
+    /// </summary>
+    public MeasuredRate? Rate { get; set; }
+
     /// <summary>This rung's size: its own where it states one, the source's where it does not.</summary>
     public (int Width, int Height) SizeIn(VideoInfo video) =>
         Width > 0 && Height > 0 ? (Width, Height) : (video.Width, video.Height);
@@ -427,7 +435,17 @@ public sealed record AudioTrack
     public required int Channels { get; init; }
     public bool Default { get; init; }
     public required string Uri { get; init; }
+
+    /// <summary>What this track's segments weigh, measured once the title is ready; null until then.</summary>
+    public MeasuredRate? Rate { get; set; }
 }
+
+/// <summary>
+/// A track's measured rate in kilobits a second: over the whole film, and over its heaviest segment.
+/// The master states the peak as a variant's <c>BANDWIDTH</c> and the average as its
+/// <c>AVERAGE-BANDWIDTH</c>, which is what each means in HLS.
+/// </summary>
+public sealed record MeasuredRate(int AverageKbps, int PeakKbps);
 
 /// <summary>
 /// Somebody watched a film with this track and said it was right.

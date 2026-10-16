@@ -7,6 +7,7 @@ import { covers, rungReach, wantedHeight } from './heads';
 import { DeviceAnswers, deviceLoader, type DeviceCopy } from './deviceLoader';
 import { carriesTicket, ensureTicket, ticketedLoader, ticketedMediaUrl } from './mediaTicket';
 import { findSubtitle } from './tracks';
+import { bufferAhead, bufferConfig } from './bufferAhead';
 
 export interface StreamEvents {
   /** The media element holds the title and can be driven. */
@@ -227,10 +228,12 @@ export class FilmStream {
       const titleId = manifest.id;
       const answers = this.answers;
 
+      const level = bufferAhead();
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
         backBufferLength: 90,
+        ...bufferConfig(level),
         startPosition: startPosition ?? 0,
         // A film's own bytes are opened by a ticket on the URL, which is what lets a shared cache
         // answer a whole room from one copy. The loader is where it goes: hls.js resolves a
@@ -254,6 +257,18 @@ export class FilmStream {
       });
       this.hls = hls;
       hls.on(Hls.Events.ERROR, (_event, data) => this.onHlsError(data));
+      // hls.js trims how far ahead it fetches whenever it meets a fragment still being appended,
+      // which a switch between rungs makes, and never puts it back: a long trip of switches halves it
+      // again and again. It is put back once a fragment lands, unless the browser said its buffer was
+      // full, which is the one limit the device really has.
+      let full = false;
+      hls.on(Hls.Events.ERROR, (_event, data) => { if (data.details === Hls.ErrorDetails.BUFFER_FULL_ERROR) full = true; });
+      hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        const { maxMaxBufferLength } = bufferConfig(level);
+        if (!full && maxMaxBufferLength !== undefined && hls.config.maxMaxBufferLength < maxMaxBufferLength) {
+          hls.config.maxMaxBufferLength = maxMaxBufferLength;
+        }
+      });
       // hls.js fills a level's audio renditions when that level first loads, after the manifest is
       // parsed, and falls to the master's DEFAULT rendition unless one is chosen while it announces
       // them. Choosing here is what keeps a film whose default is a dub from starting on it.

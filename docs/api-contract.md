@@ -656,6 +656,13 @@ names. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 `"bitmap"`. All `uri` values are relative to `/media/{id}/`. A rendition's `cq` is the constant
 quality it was encoded at, absent where none is recorded.
 
+**Rates.** A rendition's `bitrateKbps` is what the encoder was given, a ceiling a rung encoded at a
+constant quality stays well under. Once a title is ready, each rendition and audio track carries
+`rate: {averageKbps, peakKbps}`, what its segments measured over the film and at the heaviest one;
+it is absent before. The master states a variant's `BANDWIDTH` as its rung's peak plus the heaviest
+audio track's, and its `AVERAGE-BANDWIDTH` as their averages, and states the ceiling alone as
+`BANDWIDTH` for a rung not yet measured.
+
 **Heads.** While a title transcodes, each rendition's `headSeconds` and the manifest's
 `audioHeadSeconds` say how far that playlist has reached, and `headSeconds` is the shortest of them.
 All of them are absent once the title is `ready`. A manifest with no rendition `headSeconds` says

@@ -56,6 +56,11 @@ public static class MasterPlaylist
 
         var audioAttribute = manifest.Audio.Count > 0 ? $",AUDIO=\"{audioGroup}\"" : string.Empty;
 
+        // A variant's rate is its video's and the heaviest audio track's together, which is what a
+        // player fetches while it plays it.
+        var audioPeak = manifest.Audio.Select(a => a.Rate?.PeakKbps ?? 0).DefaultIfEmpty(0).Max();
+        var audioAverage = manifest.Audio.Select(a => a.Rate?.AverageKbps ?? 0).DefaultIfEmpty(0).Max();
+
         foreach (var rendition in manifest.Video.Renditions)
         {
             // CODECS is deliberately absent: a player reads the real codecs from the fMP4
@@ -63,9 +68,15 @@ public static class MasterPlaylist
             // source buffer for no benefit.
             var (width, height) = rendition.SizeIn(manifest.Video);
 
+            // The measured rates once the rung is written; until then the encoder's ceiling, the only
+            // figure there is for a rung still being made.
+            var bandwidth = rendition.Rate is { } rate ? rate.PeakKbps + audioPeak : rendition.BitrateKbps;
             builder.Append("#EXT-X-STREAM-INF:BANDWIDTH=")
-                .Append((rendition.BitrateKbps * 1000).ToString(CultureInfo.InvariantCulture))
-                .Append(",RESOLUTION=")
+                .Append((bandwidth * 1000L).ToString(CultureInfo.InvariantCulture));
+            if (rendition.Rate is { } measured)
+                builder.Append(",AVERAGE-BANDWIDTH=")
+                    .Append(((measured.AverageKbps + audioAverage) * 1000L).ToString(CultureInfo.InvariantCulture));
+            builder.Append(",RESOLUTION=")
                 .Append(width.ToString(CultureInfo.InvariantCulture))
                 .Append('x')
                 .Append(height.ToString(CultureInfo.InvariantCulture))

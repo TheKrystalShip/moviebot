@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.45.0] - 2026-10-16
+
+### Added
+
+- **Buffer ahead, chosen per device**: under This device on the profile's Playback tab, Light fetches
+  about 30 seconds ahead and Standard, the default, about 3 minutes, whatever the rung. It is kept in
+  the browser, so a phone and a television choose apart.
+- **A ready title's tracks carry their measured rate** (`rate: {averageKbps, peakKbps}` on each
+  rendition and audio track), measured by the ingest as a title turns ready and by the hand-off's
+  `RatesWorker` for every ready title that records none.
+
+### Changed
+
+- **The master states what a rung's segments measure**: `BANDWIDTH` is the rung's peak with the
+  heaviest audio's, and `AVERAGE-BANDWIDTH` their averages; a rung not yet measured states the
+  encoder's ceiling as before. A phone on a few megabits now plays 720p where it was held to 480p.
+- **What hls.js trims of the buffer while switching rungs is given back** once a fragment lands,
+  unless the browser said its buffer was full. Site 0.92.0.
+
 ## [3.44.0] - 2026-10-16
 
 ### Added

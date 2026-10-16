@@ -203,6 +203,18 @@ rungs all record one has only the missing rungs made, which is how the library g
   writes the master and the manifest. A pass that stops between the two moves is undone by the next
   one, which moves back any rung the film is missing.
 
+## What a title weighs (`RatesWorker`, `MeasuredRates`)
+
+A player picks its rung and sizes its buffer by the rate the master states, and a rung encoded at a
+constant quality weighs far less than the ceiling it was given, so the master states what the
+segments measure (`docs/api-contract.md`, Rates). The ingest measures a title as it turns ready.
+`RatesWorker` measures the rest, at start and every hour: any ready title with a track that records no
+rate, which is a title made before rates were kept or a rung the re-encode put in place. Measuring
+reads playlists and file sizes, never the media. It takes the title's lock like every writer here,
+reads the manifest again right before writing and replaces only the rates, and writes the master
+first so the manifest never names a rate the master does not state. A track whose playlist cannot be
+measured (unfinished, or naming a segment that is not there) keeps the ceiling and is said once.
+
 ## Settling onto the cold disk (`SettleWorker`, `ColdStore`)
 
 The model of the two roots is `src/MovieBot.Core/CLAUDE.md`.

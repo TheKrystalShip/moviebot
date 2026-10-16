@@ -126,6 +126,7 @@ builder.Services.AddHostedService<HandoffWorker>();
 builder.Services.AddHostedService<RetentionWorker>();
 builder.Services.AddHostedService<LibraryWorker>();
 builder.Services.AddHostedService<SettleWorker>();
+builder.Services.AddHostedService<RatesWorker>();
 
 builder.Logging.AddSimpleConsole(o => o.SingleLine = true);
 

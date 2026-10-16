@@ -2,7 +2,8 @@ import { environment } from '../environment';
 import type { Manifest } from '../types';
 
 /**
- * Ingest writes one media playlist per rendition and no master, so the player composes one.
+ * The master playlist, composed here for a manifest that names none and for a film played from the
+ * device, the same playlist `MovieBot.Core`'s `MasterPlaylist` writes beside a title.
  *
  * The master is what binds the audio renditions to the video: without it hls.js loads a
  * video-only playlist and the film plays silently with no track to switch to. It is handed over
@@ -49,6 +50,10 @@ export function buildMasterPlaylist(manifest: Manifest): MasterPlaylist {
   }
 
   const audioAttribute = manifest.audio.length > 0 ? `,AUDIO="${AudioGroupId}"` : '';
+  // A variant's rate is its video's and the heaviest audio track's together, which is what a player
+  // fetches while it plays it.
+  const audioPeak = Math.max(0, ...manifest.audio.map((track) => track.rate?.peakKbps ?? 0));
+  const audioAverage = Math.max(0, ...manifest.audio.map((track) => track.rate?.averageKbps ?? 0));
 
   for (const rendition of manifest.video.renditions) {
     // The rung's own size where it states one, since a player sizes its buffer from what it is
@@ -56,8 +61,13 @@ export function buildMasterPlaylist(manifest: Manifest): MasterPlaylist {
     const width = rendition.width && rendition.height ? rendition.width : manifest.video.width;
     const height = rendition.width && rendition.height ? rendition.height : manifest.video.height;
 
+    // The measured rates once the rung is written, which a player picks its rung and sizes its
+    // buffer by; until then the encoder's ceiling, the only figure there is.
+    const rate = rendition.rate;
+    const bandwidth = rate ? rate.peakKbps + audioPeak : rendition.bitrateKbps;
+    const average = rate ? `AVERAGE-BANDWIDTH=${Math.round((rate.averageKbps + audioAverage) * 1000)},` : '';
     lines.push(
-      `#EXT-X-STREAM-INF:BANDWIDTH=${Math.round(rendition.bitrateKbps * 1000)},` +
+      `#EXT-X-STREAM-INF:BANDWIDTH=${Math.round(bandwidth * 1000)},${average}` +
         `RESOLUTION=${width}x${height}${audioAttribute}`
     );
     lines.push(media(rendition.uri));

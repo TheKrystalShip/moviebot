@@ -13,9 +13,18 @@ export interface TitleSummary {
   poster?: string;
 }
 
+/** A track's measured rate in kilobits a second: over the whole film, and at its heaviest segment. */
+export interface MeasuredRate {
+  averageKbps: number;
+  peakKbps: number;
+}
+
 export interface Rendition {
   name: string;
+  /** What the encoder was given: a ceiling, which a rung encoded at a constant quality stays under. */
   bitrateKbps: number;
+  /** What the rung's segments weigh, once the title is ready. */
+  rate?: MeasuredRate;
   /** What this rung is encoded at. Absent on a film with a single rung, which is the source's
    *  own size. */
   width?: number;
@@ -42,6 +51,8 @@ export interface AudioTrack {
   channels: number;
   default?: boolean;
   uri: string;
+  /** What the track's segments weigh, once the title is ready. */
+  rate?: MeasuredRate;
 }
 
 /** Somebody watched the film with this track and confirmed it fits. The only ground truth there is. */

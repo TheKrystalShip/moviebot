@@ -238,6 +238,21 @@ and does nothing that would be.
   than stopping the film; the menu names the choice and, while playback is beneath it, the rung
   playing. Auto is no ceiling at all. Only a film played from the device is held on one rung.
 
+## How far ahead the film is fetched (`engine/media/bufferAhead.ts`, `stream.ts`)
+
+- **It is the device's choice, not the person's.** It is about the connection in front of it, a phone
+  on mobile data wanting what a television on a fixed line does not, so it is kept in this browser
+  (`cinema.bufferAhead`) like volume and brightness, and chosen under This device on the profile's
+  Playback tab, with or without a connection. Light is about 30 seconds ahead and Standard, the
+  default, about 3 minutes.
+- **The level is seconds, whatever the rung.** hls.js otherwise sizes its buffer by a byte budget over
+  the rung's stated peak, so a heavier rung would be fetched less far ahead; the budget is nothing and
+  the seconds are the only measure.
+- **What hls.js trims, it is given back.** It shortens how far ahead it fetches whenever it meets a
+  fragment still being appended, which a switch between rungs makes, and never lengthens it again: a
+  trip of switches would halve it time after time. The player puts the level back once a fragment
+  lands, unless the browser said its buffer was full, which is the one limit the device really has.
+
 ## Quality while a film is still being written (`engine/media/heads.ts`, `stream.ts`)
 
 - **The player stays on rungs written past the playhead.** While a title transcodes, its manifest
