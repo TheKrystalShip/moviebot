@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.42.0] - 2026-10-16
+
+### Changed
+
+- **The site is drawn by design system 2.0.0**, whose assistant is this site's: every other surface
+  now draws its chat the same way. The composer's switches (Thinking, Read aloud) stand behind its
+  options button at every width, the `/chat` page in the column's full width included.
+- Site 0.89.0.
+
 ## [3.41.1] - 2026-10-16
 
 ### Fixed
