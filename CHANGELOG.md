@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.41.1] - 2026-10-16
+
+### Fixed
+
+- **The Discord Activity opens with the person's Cinema access.** The site learns which claim lists the
+  Cinema actions wherever it reads `/api/config`, so the Activity's session, which the API mints and the
+  site adopts, reads them too instead of drawing "Your account has no access to Krystal Cinema yet."
+
 ## [3.41.0] - 2026-10-16
 
 ### Changed

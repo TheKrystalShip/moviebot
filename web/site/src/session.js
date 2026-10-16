@@ -38,29 +38,38 @@ let configured = null;
  */
 function config() {
   configured ??= (async () => {
-    const kept = keptConfig();
-    if (kept && !isOnline()) return kept;
-    let response;
-    try {
-      response = await fetch("/api/config", { signal: AbortSignal.timeout(CONFIG_TIMEOUT_MS) });
-    } catch (error) {
-      unreached();
-      if (kept) return kept;
-      throw error;
-    }
-    if (!response.ok) {
-      if (kept) return kept;
-      throw new Error(`MovieBot answered ${response.status}.`);
-    }
-    reached();
-    const answer = await response.json();
-    try { localStorage.setItem(CONFIG_KEY, JSON.stringify(answer)); } catch { /* the next page asks again */ }
+    const answer = await askConfig();
+    // Every path to a session reads the config first (the code flow's resolve, the Activity's adopt),
+    // so this is where the actions' claim is learned.
+    actionsClaim = answer.actionsClaim;
     return answer;
   })().catch((error) => {
     configured = null;
     throw error;
   });
   return configured;
+}
+
+/** `/api/config`, or the kept copy of it when the API cannot be asked. */
+async function askConfig() {
+  const kept = keptConfig();
+  if (kept && !isOnline()) return kept;
+  let response;
+  try {
+    response = await fetch("/api/config", { signal: AbortSignal.timeout(CONFIG_TIMEOUT_MS) });
+  } catch (error) {
+    unreached();
+    if (kept) return kept;
+    throw error;
+  }
+  if (!response.ok) {
+    if (kept) return kept;
+    throw new Error(`MovieBot answered ${response.status}.`);
+  }
+  reached();
+  const answer = await response.json();
+  try { localStorage.setItem(CONFIG_KEY, JSON.stringify(answer)); } catch { /* the next page asks again */ }
+  return answer;
 }
 
 function keptConfig() {
@@ -74,7 +83,6 @@ function keptConfig() {
 
 async function resolve() {
   const answer = await config();
-  actionsClaim = answer.actionsClaim;
   // The provider continues a session only for the client it was minted for.
   const clientId = onTv ? answer.tvClientId : answer.clientId;
   migrateSession({ issuer: answer.issuer, clientId, onTv, local: window.localStorage, session: window.sessionStorage });
