@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.40.4] - 2026-10-16
+
+### Changed
+
+- **The site runs on Krystal 1.0.0.** A dimmed television card reads at 4.5:1 on the light palette.
+
 ## [3.40.3] - 2026-10-16
 
 ### Fixed

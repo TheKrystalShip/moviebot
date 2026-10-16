@@ -1,7 +1,7 @@
 {
   "name": "krystal-cinema",
   "private": true,
-  "version": "0.87.2",
+  "version": "0.87.3",
   "type": "module",
   "description": "Krystal Cinema: MovieBot's site, served by MovieBot.Api.",
   "scripts": {
@@ -30,8 +30,8 @@
   "dependencies": {
     "@discord/embedded-app-sdk": "^2.5.0",
     "@microsoft/signalr": "^8.0.29",
-    "@thekrystalship/krystal": "0.43.4",
-    "@thekrystalship/krystal-chat": "0.43.4",
+    "@thekrystalship/krystal": "1.0.0",
+    "@thekrystalship/krystal-chat": "1.0.0",
     "hls.js": "^1.7.3",
     "lean-qr": "^2.7.4",
     "lucide-react": "^0.460.0",
