@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.47.1] - 2026-10-18
+
+### Fixed
+
+- **Download season no longer blanks the site.** The season's sheet asks for the episodes that
+  remained when it opened, so the wants it creates no longer empty its list while it is still on
+  screen. A season the server then refuses shows each episode as Not downloaded, with the reason.
+  Site 0.94.1.
+
 ## [3.47.0] - 2026-10-17
 
 ### Added

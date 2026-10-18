@@ -255,7 +255,9 @@ export function DownloadMark({ titleId = null, imdbId = null, season = null, num
 export function SeasonDownload({ imdbId, showName, season, offers, backdrop }) {
   const marks = useDownloadMarks();
   const online = useOnline();
-  const [open, setOpen] = React.useState(false);
+  // The episodes the sheet asks for, as they stood when it opened: asking marks every one of them,
+  // which empties what remains before the sheet has closed.
+  const [asking, setAsking] = React.useState(null);
   const eligible = season.episodes.filter((e) => (e.titleId && e.status !== "failed") || episodeRelease(offers, e.season, e.number));
   if (!eligible.length) return null;
   const mark = (e) => (e.titleId && marks.film(e.titleId)) || marks.want(imdbId, e.season, e.number);
@@ -264,17 +266,18 @@ export function SeasonDownload({ imdbId, showName, season, offers, backdrop }) {
   const label = done ? "Downloaded"
     : remaining.length === 0 ? "Downloading"
       : remaining.length === eligible.length ? "Download season" : `Download ${remaining.length} more`;
-  const count = `${remaining.length} ${remaining.length === 1 ? "episode" : "episodes"}`;
+  const count = (n) => `${n} ${n === 1 ? "episode" : "episodes"}`;
   return (
     <>
       <Button variant="outline" size="sm" icon={done ? "circle-check" : "hard-drive-download"} className="kc-dl-season"
-        disabled={remaining.length === 0 || !online} onClick={() => setOpen(true)}>
+        disabled={remaining.length === 0 || !online}
+        onClick={() => setAsking(remaining.map((e) => ({ season: e.season, episode: e.number })))}>
         {label}
       </Button>
-      {open && (
-        <WantSheet head={{ name: showName, context: `Season ${season.number} · ${count}`, still: backdrop, backdrop }}
-          eyebrow="Download season" target={{ imdbId, episodes: remaining.map((e) => ({ season: e.season, episode: e.number })) }}
-          onClose={() => setOpen(false)} />
+      {asking && (
+        <WantSheet head={{ name: showName, context: `Season ${season.number} · ${count(asking.length)}`, still: backdrop, backdrop }}
+          eyebrow="Download season" target={{ imdbId, episodes: asking }}
+          onClose={() => setAsking(null)} />
       )}
     </>
   );
