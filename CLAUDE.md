@@ -29,8 +29,8 @@ a file once it exists — probing it, transcoding it, serving it, and keeping a 
 - `src/MovieBot.Bot/README.md`: the Discord surface. `docs/voice-commands.md`: what can be said.
 - `docs/deploying.md`: a newcomer's install. `tv/README.md`: the Android TV and Fire TV app, Java built
   with the SDK's own tools, on a version clock of its own tagged `tv-v<version>`. `phone/README.md`:
-  the Android phone app, built the same way, whose downloads run with the screen off, tagged
-  `phone-v<version>`.
+  the Android phone app, the TKS shell (vendored from `tks-shell` into `phone/shell/`, never edited
+  there) built as Cinema, whose downloads run with the screen off, tagged `phone-v<version>`.
 - **The rules each part rests on live in a `CLAUDE.md` beside its code**: `deploy/`,
   `src/MovieBot.Api/` (with `Sessions/`, `Subtitles/`, `Acquisition/`, `Transcode/`, `Offline/` and
   `Notifications/`), `src/MovieBot.Core/` (the two disks), `src/MovieBot.Ingest/`,

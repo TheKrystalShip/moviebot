@@ -40,7 +40,7 @@ public final class DownloadService extends Service {
 
     /** Starts the service if anything is left to fetch; the activity calls it, while it is in view. */
     static void start(Context context) {
-        if (!Downloads.of(context).pending()) return;
+        if (!Built.DOWNLOADS || !Downloads.of(context).pending()) return;
         Intent intent = new Intent(context, DownloadService.class);
         if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent);
         else context.startService(intent);

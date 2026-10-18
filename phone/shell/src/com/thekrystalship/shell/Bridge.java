@@ -14,13 +14,15 @@ import org.json.JSONObject;
  * where it is a value, since that is what a bridge carries.
  *
  * <ul>
- *   <li>{@code app()}: {@code {name, version, shell}}, the app this build is and the shell's own
- *       version; that the object is there at all is how a page knows it runs inside the shell.</li>
+ *   <li>{@code app()}: {@code {name, version, shell, features}}, the app this build is, the shell's
+ *       own version and the features it was built with; that the object is there at all is how a page
+ *       knows it runs inside the shell.</li>
  *   <li>{@code download(json)}: takes a download over ({@link Downloads}); its URLs may be relative to
  *       the site, and every one has to be on it, so the headers the page hands over reach no other
  *       server. Answers {@code "ok"}, or why not.</li>
  *   <li>{@code status(id)}, {@code statuses()}, {@code pause(id)}, {@code resume(id)},
- *       {@code remove(id)}: the downloads, as {@link Downloads} says.</li>
+ *       {@code remove(id)}: the downloads, as {@link Downloads} says. An app built without the
+ *       {@code downloads} feature takes none, and lists none.</li>
  *   <li>{@code fileUrl(id, name)}: where the page reads a whole downloaded file ({@link LocalFiles}).</li>
  * </ul>
  *
@@ -51,6 +53,7 @@ final class Bridge {
             out.put("name", activity.getString(R.string.app_name));
             out.put("version", Built.VERSION);
             out.put("shell", VERSION);
+            out.put("features", new JSONArray(Built.FEATURES.isEmpty() ? new String[0] : Built.FEATURES.split(" ")));
         } catch (JSONException impossible) {
             throw new IllegalStateException(impossible);
         }
@@ -59,6 +62,7 @@ final class Bridge {
 
     @JavascriptInterface
     public String download(String json) {
+        if (!Built.DOWNLOADS) return "This app does not download.";
         if (!activity.onSite()) return "This page cannot download.";
         try {
             JSONObject download = new JSONObject(json);

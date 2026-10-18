@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.51.1] - 2026-10-18
+
+### Changed
+
+- **The phone app is built on tks-shell 1.0.0**, vendored into `phone/shell/` (phone app 1.1.1):
+  `phone/` holds only Cinema's `shell.conf`, `res/` and version. Nothing a person sees changes.
+
 ## [3.51.0] - 2026-10-18
 
 ### Changed
