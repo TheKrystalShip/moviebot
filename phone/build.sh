@@ -21,6 +21,11 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The app the shell is built as: its id (the manifest's package), and the mark its user agent carries.
+# Its name and icon are its resources (res/); everything under src/com/thekrystalship/shell/ is the
+# shell's own and names no app.
+app_id="com.thekrystalship.cinema.phone"
+mark="KrystalCinemaApp"
 export JAVA_HOME="${JAVA_HOME:-$HOME/Android/jdk}"
 sdk="${ANDROID_HOME:-$HOME/Android/Sdk}"
 tools="$sdk/build-tools/35.0.0"
@@ -53,16 +58,17 @@ code=$(( major * 10000 + minor * 100 + patch ))
 kind=$($debug && echo debug || echo release)
 out="$here/out/$kind"
 rm -rf "$out"
-mkdir -p "$out/gen/com/thekrystalship/cinema/phone" "$out/classes" "$out/dex"
+mkdir -p "$out/gen/com/thekrystalship/shell" "$out/classes" "$out/dex"
 
-cat > "$out/gen/com/thekrystalship/cinema/phone/Built.java" <<EOF
-package com.thekrystalship.cinema.phone;
+cat > "$out/gen/com/thekrystalship/shell/Built.java" <<EOF
+package com.thekrystalship.shell;
 
 /** What this build was made with, by phone/build.sh. */
 final class Built {
     static final String ORIGIN = "$origin";
     static final String VERSION = "$version";
     static final boolean DEBUG = $debug;
+    static final String MARK = "$mark";
 
     private Built() {}
 }
@@ -75,12 +81,12 @@ link=(--manifest "$here/AndroidManifest.xml" -I "$platform" -A "$here/assets"
 if $debug; then
   "$tools/aapt2" compile --dir "$here/debug/res" -o "$out/debug-res.zip"
   link+=(-R "$out/debug-res.zip" --auto-add-overlay --debug-mode
-    --rename-manifest-package com.thekrystalship.cinema.phone.debug)
+    --rename-manifest-package "$app_id.debug")
 fi
-"$tools/aapt2" link -o "$out/base.apk" --java "$out/gen" "${link[@]}"
+"$tools/aapt2" link -o "$out/base.apk" --java "$out/gen" --custom-package com.thekrystalship.shell "${link[@]}"
 
 "$JAVA_HOME/bin/javac" -source 8 -target 8 -nowarn -Xlint:-options -bootclasspath "$platform" \
-  -d "$out/classes" "$here"/src/com/thekrystalship/cinema/phone/*.java "$out"/gen/com/thekrystalship/cinema/phone/*.java
+  -d "$out/classes" "$here"/src/com/thekrystalship/shell/*.java "$out"/gen/com/thekrystalship/shell/*.java
 "$tools/d8" --min-api 26 --lib "$platform" $($debug || echo --release) --output "$out/dex" \
   $(find "$out/classes" -name '*.class')
 (cd "$out/dex" && zip -q "$out/base.apk" classes.dex)
@@ -109,11 +115,11 @@ fi
 rm -f "$apk.idsig"
 echo "$apk ($kind $version, code $code, $origin)"
 
-package="com.thekrystalship.cinema.phone$($debug && echo .debug || true)"
+package="$app_id$($debug && echo .debug || true)"
 if $install; then "$adb" install -r "$apk" >/dev/null && echo "installed $package"; fi
 if $open; then
   "$adb" shell am force-stop "$package"
   extra=(); [[ -n "$url" ]] && extra=(--es url "$url")
-  "$adb" shell am start -n "$package/com.thekrystalship.cinema.phone.CinemaActivity" "${extra[@]}" >/dev/null
+  "$adb" shell am start -n "$package/com.thekrystalship.shell.ShellActivity" "${extra[@]}" >/dev/null
   echo "opened $package"
 fi

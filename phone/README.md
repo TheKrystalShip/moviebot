@@ -6,42 +6,58 @@ Android freezes a page in the background within a minute or two; Chrome's Backgr
 under Doze once Chrome is out of view, and loses what it fetched when a credential runs out. A
 foreground service is what Android keeps on the network through Doze, so the app runs one.
 
-It is a single Java activity holding a WebView (`src/com/thekrystalship/cinema/phone/`), with no
-dependencies. Everything a person sees is the site; the app adds these.
+The app is two parts. **The TKS shell** (`src/com/thekrystalship/shell/`) is a site in a WebView with
+what a browser's page cannot do done natively; it names no app and no site. **Cinema's build of it**
+is the rest: the app id and the user agent's mark at the top of `build.sh`, the name, icon and
+network rules in `res/`, the debug overlay in `debug/`, the version in `CHANGELOG.md`. Everything a
+person sees is the site.
 
-- **Downloads the app runs** (`DownloadService`, `Downloads`). Download in the site hands a save's
-  tracks to the app with the save's grant (`docs/api-contract.md`, Save offline), which opens them
-  with no access token for as long as the save holds its title. A foreground service of the data
-  transfer kind fetches them one save at a time, one track after another, into the app's own files
-  (`saves/<saveId>/`), holding a partial wake lock and a Wi-Fi lock while it does. A track resumes
-  from its length on disk with `Range` and `If-Range`; a connection that breaks or goes quiet for 30
-  seconds is tried again after a pause growing to a minute, which a network coming back ends at
-  once. A save whose every track is whole is told to the API on its grant, with no page running.
-  One notification says which save is downloading, how far it has got and how many wait behind it,
-  and each save that becomes whole gets one of its own, "Downloaded", that stays after the service
-  goes.
-  Android stops a data transfer service after six hours in a day; what is left carries on the next
-  time the app is opened, as anything the service could not finish does.
-- **The bridge** (`AppBridge`), `window.KrystalCinemaApp`: `download`, `status`, `statuses`,
-  `pause`, `resume`, `remove` and `trackUrl`, each answering only while the site's own page is
-  showing, since a WebView puts the bridge on every page it loads, the sign-in's among them. The
-  site's half is `web/site/src/offline/app.js` (`web/site/src/offline/CLAUDE.md`).
-- **The downloaded tracks, served to the page** (`LocalTracks`) at
-  `<origin>/__app/saves/<saveId>/<rendition>.mp4?start=&end=`, once whole, a byte range at a time. The
-  range is named in the query, never a `Range` header, because WebView applies a `Range` header
-  itself to the stream an app answers with.
+## The shell
+
+- **A site in an app** (`ShellActivity`, `Origin`). Every page loads in the app, the sign-in's
+  included, so the session the site keeps is the app's; a link that opens a new window goes to the
+  phone's browser. Video the page puts full screen fills the screen with the system bars hidden;
+  otherwise the page is kept clear of the bars, the display cutout and the keyboard. Back goes back a
+  page, and leaves from the first. The user agent carries the app's mark and version
+  (`KrystalCinemaApp/<version>`) and `TksShell/<version>`, the shell's own, which moves when what a
+  page can ask of it does.
+- **No connection.** The site's service worker answers its pages. A page of the site that fails to
+  load is tried twice more, 1.5 seconds apart and drawing nothing, before `assets/unreachable.html`
+  says the site cannot be reached and offers Retry: on a cold start, the service worker takes a
+  second or two to come up.
+- **The bridge** (`Bridge`), `window.TksShell`: `app()` (`{name, version, shell}`), `download`,
+  `status`, `statuses`, `pause`, `resume`, `remove` and `fileUrl`. Each answers only while the site's
+  own page is showing, since a WebView puts the bridge on every page it loads, the sign-in's among
+  them.
+- **Downloads that run with no page** (`DownloadService`, `Downloads`). A page hands over
+  `{id, title, headers, files: [{name, url, bytes, type?, validator?}], done?: {url}}`, its URLs on
+  the site, each with its exact length, and the headers every request carries, which is how a site
+  lets the shell fetch for hours with no page to renew a credential. A foreground service of the data
+  transfer kind fetches one download at a time, one file after another, into the app's own files
+  (`downloads/<id>/`), holding a partial wake lock and a Wi-Fi lock while it does. A file resumes from
+  its length on disk with `Range` and `If-Range`; a connection that breaks or goes quiet for 30
+  seconds is tried again after a pause growing to a minute, which a network coming back ends at once.
+  An answer only the page can act on fails the download with a reason the page words:
+  `credential` (401, 403), `gone` (404, 409, 410), `http-<status>`. A download whose every file is
+  whole is POSTed to `done.url` with the same headers, with no page running. One notification says
+  which download is running, how far it has got and how many wait behind it, and each that becomes
+  whole gets one of its own, "Downloaded", that stays after the service goes. Android stops a data
+  transfer service after six hours in a day; what is left carries on the next time the app is opened.
+- **The downloaded files, served to the page** (`LocalFiles`) at
+  `<origin>/__shell/downloads/<id>/<name>`, once whole, whole or a byte range at a time named as
+  `?start=&end=`: never a `Range` header, because WebView applies a `Range` header itself to the
+  stream an app answers with.
+
+## Cinema's build
+
+- **Downloads** are saves: the site hands a save's tracks over as one download, its id the save's,
+  with the save's grant (`docs/api-contract.md`, Save offline) as the header and the save's
+  `complete` route as `done`, and plays them from the shell. The site's half is
+  `web/site/src/offline/shell.js` (`web/site/src/offline/CLAUDE.md`).
 - **The site's icon**, Lucide's clapperboard on the PWA icon's ground (`web/site/public/icons/icon.svg`),
   as an adaptive vector icon with a themed variant.
-- **The app mark.** `KrystalCinemaApp/<version>` is appended to the WebView's user agent, and the
-  site names the device "Krystal Cinema on Android" on the API's records.
-- **Every page loads in the app**, the sign-in's included, so the session the site keeps is the
-  app's; a link that opens a new window goes to the phone's browser. A film put full screen fills
-  the screen with the system bars hidden; otherwise the page is kept clear of the bars, the display
-  cutout and the keyboard. Back goes back a page, and leaves from the first.
-- **No connection.** The site's service worker answers every page, and the player plays what the
-  app downloaded. A page of the site that fails to load is tried twice more, 1.5 seconds apart and
-  drawing nothing, before `assets/unreachable.html` says the site cannot be reached and offers
-  Retry: on a cold start, the service worker takes a second or two to come up.
+- **The mark** `KrystalCinemaApp`, by which the site names the device "Krystal Cinema on Android" on
+  the API's records.
 
 ## Building
 
@@ -53,9 +69,9 @@ phone/build.sh --debug --install --open            # debug build, installed and 
 
 `build.sh` runs the SDK's own tools from `JAVA_HOME` (`~/Android/jdk`) and `ANDROID_HOME`
 (`~/Android/Sdk`, with `build-tools;35.0.0`, `platforms;android-35` and `platform-tools`), as
-`tv/build.sh` does: the resources are linked first, writing `R.java`, then the code is compiled to
-Java 8 bytecode against `android.jar` alone, which has no lambdas, and dexed. The APK lands in
-`phone/out/`.
+`tv/build.sh` does: the resources are linked first, writing `R.java` into the shell's package, then
+the code is compiled to Java 8 bytecode against `android.jar` alone, which has no lambdas, and
+dexed. The APK lands in `phone/out/`.
 
 - **The version** is the newest heading in `phone/CHANGELOG.md`, tagged `phone-v<version>`, a clock
   of its own. `versionCode` is major×10000 + minor×100 + patch.
@@ -66,7 +82,7 @@ Java 8 bytecode against `android.jar` alone, which has no lambdas, and dexed. Th
 - **A debug build** is `com.thekrystalship.cinema.phone.debug`, named Krystal Cinema Debug,
   installed beside a release one, with WebView debugging on (`webview_devtools_remote_<pid>`) and
   plain http allowed to `127.0.0.1` and `localhost`; it takes its start address from the launch's
-  `url` extra. Its downloads are its own files, read with `adb shell run-as
+  `url` extra. Its downloads are its own files (`files/downloads/`), read with `adb shell run-as
   com.thekrystalship.cinema.phone.debug`.
 
 ## Getting it onto a phone

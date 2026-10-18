@@ -1,7 +1,7 @@
 // A film saved on this device, as the player plays it (`engine/media/deviceLoader.ts`): read from the
 // store (`src/offline/CLAUDE.md`) for one account, and only when the save is whole.
 
-import { appFile, appStatus, heldByApp } from "../offline/app.js";
+import { appFile, appHoldsWhole, appStatus, heldByApp } from "../offline/shell.js";
 import { readSave, saveFile } from "../offline/store.js";
 
 const TRACK_ROLES = new Set(["video", "audio"]);
@@ -56,7 +56,5 @@ export async function deviceCopy(sub, titleId) {
 
 /** A track the app holds whole, as a file the player reads by slices; null while it is short. */
 function appTrack(saveId, entry) {
-  const status = appStatus(saveId);
-  const held = status && status.tracks.find((t) => t.rendition === entry.rendition);
-  return held && held.received === entry.bytes ? appFile(saveId, entry.rendition, entry.bytes) : null;
+  return appHoldsWhole(appStatus(saveId), entry) ? appFile(saveId, entry.rendition, entry.bytes) : null;
 }

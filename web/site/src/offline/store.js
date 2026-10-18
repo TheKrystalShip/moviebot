@@ -9,7 +9,7 @@ import {
 
 import { inActivity } from "../discord/launch.js";
 import { AHEAD } from "./ahead.js";
-import { appReceived, appRemove, appStatus, heldByApp, savedByApp } from "./app.js";
+import { appReceived, appRemove, appStatus, heldByApp, savedByApp } from "./shell.js";
 
 const CHANNEL = "cinema-offline";
 const FORGET_KEY = "cinema.offline.forget.";
@@ -35,7 +35,7 @@ async function readFrom(dir, titleId) {
   }
   if (!isMeta(meta) || meta.titleId !== titleId) return null;
   let receivedBytes = 0;
-  // A track the phone app holds is counted as the app has it (`app.js`).
+  // A track the phone app holds is counted as the app has it (`shell.js`).
   const status = savedByApp(meta) ? appStatus(meta.saveId) : null;
   for (const file of meta.files) {
     if (heldByApp(file)) {

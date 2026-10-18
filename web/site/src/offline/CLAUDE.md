@@ -192,30 +192,34 @@ worker is writing.
 A save the API answers `POST /api/me/offline/{id}/complete` for is one whose `completedAt` is set here.
 The page posts it when the worker finishes, and `sync.js` posts it again for any it could not.
 
-## Downloads in the phone app (`app.js`)
+## Downloads in the phone app (`shell.js`)
 
-Inside Krystal Cinema for Android (`phone/README.md`), the page finds `window.KrystalCinemaApp`, and
-the tracks of a save of a title that is whole are the app's to fetch: the app keeps fetching with the
-screen off and the page frozen, which no page does. `metaOf` lists such a save's tracks with
-`store: "app"`, after the subtitles and the artwork, which are written before the tracks are handed
-over, so `received` counts the files in listed order as for any save. The worker writes `meta.json`,
-the subtitles and the artwork as for any save, skips those tracks, and ends the run `handed`. The
-page then hands the tracks to the app with the
-package's `grant` (`appDownload`); a grant that has ended is renewed first by asking for the package
-again. A save still being made is written here a stretch at a time, as it is outside the app.
+Inside Krystal Cinema for Android, the TKS shell (`phone/README.md`), the page finds
+`window.TksShell`, and the tracks of a save of a title that is whole are the shell's to fetch: the
+shell keeps fetching with the screen off and the page frozen, which no page does. `metaOf` lists such
+a save's tracks with `store: "app"`, after the subtitles and the artwork, which are written before
+the tracks are handed over, so `received` counts the files in listed order as for any save. The
+worker writes `meta.json`, the subtitles and the artwork as for any save, skips those tracks, and ends
+the run `handed`. The page then hands the tracks to the shell as one of its downloads (`appDownload`):
+its id the save's, a file per track named by its rendition, the package's `grant` as the header
+every request carries, and the save's `complete` route as where the shell says the download is whole.
+A grant that has ended is renewed first by asking for the package again. A save still being made is
+written here a stretch at a time, as it is outside the app.
 
-While the page runs it reads the app's status every `APP_MS` for each save the app is fetching
-(`follow`, `tend`) and draws it as `useSaving` draws any save, its `state` the app's (`downloading`
-as `saving`; `queued`, `waiting`, `paused`, and `failed` with the app's message). Once the app holds
-every track whole, the page posts `finish` to the worker, which sets `completedAt` under the save's
-lock, and tells the API, which the app has usually told already on the grant. A page loading resumes
-following every unfinished save the app holds (`resumeUnfinished`); one the app has lost is handed
-over again. Pausing, resuming and removing a save the app holds is done at the app; `removeSave`
-removes the app's copy along with the store's.
+While the page runs it reads the shell's status every `APP_MS` for each save the shell is fetching
+(`follow`, `tend`) and draws it as `useSaving` draws any save, its `state` the shell's (`downloading`
+as `saving`; `queued`, `waiting`, `paused`, `failed`). A download that failed because its grant
+ended (`credential`) is asked for again and handed over with the new grant, with nothing shown; any
+other failure is shown as `appFailure` words its reason. Once the shell holds every track whole, the
+page posts `finish` to the worker, which sets `completedAt` under the save's lock, and tells the API,
+which the shell has usually told already. A page loading resumes following every unfinished save the
+shell holds (`resumeUnfinished`); one the shell has lost is handed over again. Pausing, resuming and
+removing a save the shell holds is done at the shell; `removeSave` removes the shell's copy along
+with the store's.
 
-The store counts an app track's bytes from the app's status (`appReceived`), and `deviceCopy` plays a
-whole app track through `appFile`: a stand-in for a `File` whose `slice(start, end).arrayBuffer()`
-asks the app for that range at its `trackUrl`, the range in the query.
+The store counts a shell track's bytes from the shell's status (`appReceived`), and `deviceCopy` plays
+a whole shell track through `appFile`: a stand-in for a `File` whose `slice(start, end).arrayBuffer()`
+asks the shell for that range at its `fileUrl`, the range in the query.
 
 ## What is picked (`choose.js`)
 

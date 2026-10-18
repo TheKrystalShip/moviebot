@@ -2,7 +2,7 @@ import { Footer, GithubMark } from "@thekrystalship/krystal";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
-import { inApp } from "../offline/app.js";
+import { inApp } from "../offline/shell.js";
 import { PLACES } from "../nav.js";
 import { navigate } from "../router.js";
 

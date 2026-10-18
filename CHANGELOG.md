@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.51.0] - 2026-10-18
+
+### Changed
+
+- **The phone app is the TKS shell built as Cinema** (phone app 1.1.0): its native part names no app
+  and no site, and the site hands it a save's tracks as one of its downloads, so the shell can carry
+  other sites. A download whose grant ended is asked for again and handed over with a new one, with
+  nothing shown. Site 0.96.0.
+
 ## [3.50.1] - 2026-10-18
 
 ### Fixed

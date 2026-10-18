@@ -11,7 +11,7 @@
 // package says the title is whole; the other saves run in between.
 //
 // Inside the phone app, the tracks of a save of a title that is whole are the app's to fetch
-// (`app.js`): the worker writes the rest and hands over, the app fetches with no page running, and
+// (`shell.js`): the worker writes the rest and hands over, the app fetches with no page running, and
 // this side follows how far it has got every `APP_MS` while the page runs, and finishes the save once
 // the app holds every track. A save the app is fetching is paused, resumed and removed at the app.
 //
@@ -22,7 +22,7 @@
 
 import { createStore, toast, useStore } from "@thekrystalship/krystal";
 import { api } from "../api.js";
-import { appDownload, appPause, appResume, appStatus, heldByApp, inApp, savedByApp } from "./app.js";
+import { appDownload, appFailure, appPause, appResume, appStatus, heldByApp, inApp, savedByApp } from "./shell.js";
 import { isOnline, onReconnect, probe, unreached } from "../connectivity.js";
 import { freshToken, sessionStore } from "../session.js";
 import { deviceName } from "./choose.js";
@@ -411,9 +411,14 @@ function tend() {
       withApp.delete(titleId);
       set(titleId, { state: "saving", received: meta.bytes, bytes: meta.bytes });
       workerOf().postMessage({ type: "finish", sub, titleId });
+    } else if (status.state === "failed" && status.reason === "credential") {
+      // The grant ended before the tracks did: the package is asked for again, and its new grant handed over.
+      withApp.delete(titleId);
+      void repost({ sub, titleId, meta }).then((fresh) => enqueue({ sub, titleId, meta: fresh }),
+        (error) => failed(titleId, error.message || appFailure(status.reason)));
     } else if (status.state === "failed") {
       withApp.delete(titleId);
-      failed(titleId, status.message || "This film could not be downloaded.");
+      failed(titleId, appFailure(status.reason));
     } else {
       const state = status.state === "paused" ? "paused" : status.state === "waiting" ? "waiting" : status.state === "queued" ? "queued" : "saving";
       set(titleId, { state, received, bytes: meta.bytes, message: null });

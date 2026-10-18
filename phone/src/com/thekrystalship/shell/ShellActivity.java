@@ -1,4 +1,4 @@
-package com.thekrystalship.cinema.phone;
+package com.thekrystalship.shell;
 
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
@@ -23,20 +23,20 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
 /**
- * Krystal Cinema on a phone: the site in a WebView, and the downloads it starts run by the app
- * ({@link DownloadService}), which carries on with the screen off and the app out of view. The page
- * reaches the app as {@code window.KrystalCinemaApp} ({@link AppBridge}), and plays what the app
- * downloaded from the site's own origin ({@link LocalTracks}); the user agent carries
- * {@code KrystalCinemaApp/<version>}.
+ * A site in an app: the site in a WebView, with what a browser's page cannot do done natively. The
+ * page reaches the shell as {@code window.TksShell} ({@link Bridge}): downloads that run with no page
+ * ({@link DownloadService}), carrying on with the screen off and the app out of view, read back from
+ * the site's own origin ({@link LocalFiles}). The user agent carries the app's mark and version
+ * ({@link Built#MARK}) and {@code TksShell/<version>}.
  *
  * Every page loads here, the sign-in's among them, so the session the site keeps in its storage is
- * the app's. A link that opens a new window goes to the phone's browser. A film the player puts full
- * screen fills the screen, with the system bars hidden, until it leaves. With no connection the site's
- * service worker answers its pages, the downloaded films among them; a site that cannot be reached
- * and has no such answer is shown with a way to try again. Back goes back a page, and leaves from the
- * first.
+ * the app's. A link that opens a new window goes to the phone's browser. Video the page puts full
+ * screen fills the screen, with the system bars hidden, until it leaves; otherwise the page is kept
+ * clear of the bars, the display cutout and the keyboard. With no connection the site's service worker
+ * answers its pages; a site that cannot be reached and has no such answer is shown with a way to try
+ * again. Back goes back a page, and leaves from the first.
  */
-public final class CinemaActivity extends Activity {
+public final class ShellActivity extends Activity {
     private static final String UNREACHABLE = "file:///android_asset/unreachable.html";
     private static final int BACKGROUND = 0xFF0B0F14;
     private static final int QUIET_TRIES = 2;
@@ -44,8 +44,8 @@ public final class CinemaActivity extends Activity {
 
     private FrameLayout frame;
     private WebView web;
-    private Server server;
-    private LocalTracks tracks;
+    private Origin origin;
+    private LocalFiles files;
     private View fullScreen;
     private WebChromeClient.CustomViewCallback leaveFullScreen;
     /** The address of the page the WebView last began loading, read by the bridge on its own thread. */
@@ -56,9 +56,9 @@ public final class CinemaActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        server = Server.of(getIntent());
+        origin = Origin.of(getIntent());
         Downloads downloads = Downloads.of(this);
-        tracks = new LocalTracks(server, downloads);
+        files = new LocalFiles(origin, downloads);
         WebView.setWebContentsDebuggingEnabled(Built.DEBUG);
 
         frame = new FrameLayout(this);
@@ -70,15 +70,15 @@ public final class CinemaActivity extends Activity {
         settings.setDomStorageEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setSupportMultipleWindows(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " KrystalCinemaApp/" + Built.VERSION);
+        settings.setUserAgentString(settings.getUserAgentString() + " " + Built.MARK + "/" + Built.VERSION + " TksShell/" + Bridge.VERSION);
         web.setWebViewClient(new Client());
         web.setWebChromeClient(new Chrome());
-        web.addJavascriptInterface(new AppBridge(this, server, downloads), "KrystalCinemaApp");
+        web.addJavascriptInterface(new Bridge(this, origin, downloads), Bridge.NAME);
         // A request a service worker makes reaches the app here rather than through the page's client.
         ServiceWorkerController.getInstance().setServiceWorkerClient(new ServiceWorkerClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebResourceRequest request) {
-                return tracks.answer(request);
+                return files.answer(request);
             }
         });
         frame.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -95,7 +95,7 @@ public final class CinemaActivity extends Activity {
             }
         });
         setContentView(frame);
-        web.loadUrl(server.start());
+        web.loadUrl(origin.start());
     }
 
     @Override
@@ -155,7 +155,7 @@ public final class CinemaActivity extends Activity {
 
     /** Whether the page showing is the site's: the bridge answers nothing else, the sign-in's pages among them. */
     boolean onSite() {
-        return server.owns(showing);
+        return origin.owns(showing);
     }
 
     private final class Client extends WebViewClient {
@@ -173,14 +173,14 @@ public final class CinemaActivity extends Activity {
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             String scheme = request.getUrl().getScheme();
-            if ("https".equals(scheme) || server.owns(request.getUrl())) return false;
+            if ("https".equals(scheme) || origin.owns(request.getUrl())) return false;
             openOutside(request.getUrl());
             return true;
         }
 
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-            return tracks.answer(request);
+            return files.answer(request);
         }
 
         /**
@@ -191,24 +191,24 @@ public final class CinemaActivity extends Activity {
         @Override
         public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
             if (!request.isForMainFrame()) return;
-            boolean quietly = server.owns(request.getUrl()) && failures < QUIET_TRIES;
+            boolean quietly = origin.owns(request.getUrl()) && failures < QUIET_TRIES;
             failures++;
             unreachable(view, request.getUrl(), quietly);
         }
 
         @Override
         public void onPageCommitVisible(WebView view, String url) {
-            if (server.owns(Uri.parse(url))) failures = 0;
+            if (origin.owns(Uri.parse(url))) failures = 0;
         }
 
         @Override
         public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
-            if (request.isForMainFrame() && server.owns(request.getUrl()) && response.getStatusCode() >= 500) unreachable(view, request.getUrl(), false);
+            if (request.isForMainFrame() && origin.owns(request.getUrl()) && response.getStatusCode() >= 500) unreachable(view, request.getUrl(), false);
         }
 
         private void unreachable(WebView view, Uri failed, boolean quietly) {
-            String again = server.owns(failed) ? failed.toString() : server.start();
-            view.loadUrl(UNREACHABLE + "?host=" + Uri.encode(server.host()) + "&to=" + Uri.encode(again)
+            String again = origin.owns(failed) ? failed.toString() : origin.start();
+            view.loadUrl(UNREACHABLE + "?host=" + Uri.encode(origin.host()) + "&to=" + Uri.encode(again)
                 + (quietly ? "&quiet=1&after=" + QUIET_AFTER_MS : ""));
         }
     }

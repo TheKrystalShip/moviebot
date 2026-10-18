@@ -1,4 +1,4 @@
-package com.thekrystalship.cinema.phone;
+package com.thekrystalship.shell;
 
 import android.content.Context;
 import android.util.Log;
@@ -16,70 +16,75 @@ import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * The tracks of every save this phone is downloading or holds, kept under the app's own files:
- * {@code saves/<saveId>/save.json}, what the page handed over and how far it has got, beside one
- * {@code <rendition>.mp4} per track.
+ * The files the page asked the shell to download, kept under the app's own files:
+ * {@code downloads/<id>/download.json}, what the page handed over and how far it has got, beside each
+ * file by its name.
  *
- * The page hands a save over ({@link #add}) with the save's grant, which opens its tracks with no
- * access token for as long as the save holds its title, so a transfer carries on for hours with no
- * page running. One save is fetched at a time, one track after another, by {@link #work}, which the
- * foreground service runs. A track resumes from its length on disk, by {@code Range} with
- * {@code If-Range} naming the validator the bytes on disk arrived under; a whole {@code 200} to a
- * resume means the track changed, and it starts over. A connection that breaks or goes quiet for
- * {@link #READ_TIMEOUT_MS} is tried again, after a pause that grows to a minute and ends early when a
- * network comes back ({@link #networkBack}), for as long as the save is not paused: a phone loses its
- * connection all the time and gets it back. A {@code 401} or
- * {@code 409} is the grant or the save gone, which only the page can renew, so the save fails with
- * that said. A save whose every track is whole is told to the API on its grant.
+ * A download is {@code {id, title, headers, files: [{name, url, bytes, type?, validator?}], done?: {url}}}
+ * ({@link #add}): the files to fetch, each with its exact length, and the headers every request
+ * carries, which is how a site lets the shell fetch for hours with no page to renew a credential.
+ * One download is fetched at a time, one file after another, by {@link #work}, which the foreground
+ * service runs. A file resumes from its length on disk, by {@code Range} with {@code If-Range} naming
+ * the validator the bytes on disk arrived under; a whole {@code 200} to a resume means the file
+ * changed, and it starts over. A connection that breaks or goes quiet for {@link #READ_TIMEOUT_MS} is
+ * tried again, after a pause that grows to a minute and ends early when a network comes back
+ * ({@link #networkBack}), for as long as the download is not paused: a phone loses its connection all
+ * the time and gets it back. An answer only the page can do anything about fails the download with a
+ * reason the page words ({@code credential} for a 401 or 403, {@code gone} for a 404, 409 or 410,
+ * {@code http-<status>} for any other refusal it cannot outwait). A download whose every file is
+ * whole is said to {@code done.url}, a POST with the same headers, so the site hears of it with no
+ * page running.
  *
  * Everything here is one lock: the page's calls arrive on the WebView's bridge thread and the
  * transfer runs on the service's.
  */
 final class Downloads {
     private static final String TAG = "Downloads";
+    private static final String RECORD = "download.json";
     static final int CONNECT_TIMEOUT_MS = 15000;
     static final int READ_TIMEOUT_MS = 30000;
     private static final long[] BACKOFF_MS = {2000, 5000, 15000, 30000, 60000};
     private static final int BUFFER = 256 * 1024;
     private static final long PROGRESS_MS = 500;
 
-    private static Downloads instance;
-
-    private final File root;
-    private final Map<String, JSONObject> saves = new LinkedHashMap<>();
-    /** What each save is doing now, by id: not kept, rebuilt from the files when the process starts. */
-    private final Map<String, String> states = new LinkedHashMap<>();
-    private final Map<String, String> messages = new LinkedHashMap<>();
-    private String running;
-    private HttpURLConnection connection;
     private static final Runnable NOTHING = new Runnable() {
         @Override
         public void run() {
         }
     };
 
+    private static Downloads instance;
+
+    private final File root;
+    private final Map<String, JSONObject> downloads = new LinkedHashMap<>();
+    /** What each download is doing now, by id: not kept, rebuilt from the records when the process starts. */
+    private final Map<String, String> states = new LinkedHashMap<>();
+    private final Map<String, String> reasons = new LinkedHashMap<>();
+    private String running;
+    private HttpURLConnection connection;
     private Runnable changed = NOTHING;
     private Finished finished = null;
     /** What a pause between attempts waits on, so a network coming back ends it at once. */
     private final Object nap = new Object();
 
     private Downloads(Context context) {
-        root = new File(context.getFilesDir(), "saves");
+        root = new File(context.getFilesDir(), "downloads");
         File[] dirs = root.listFiles();
         if (dirs == null) return;
         for (File dir : dirs) {
-            JSONObject save = read(new File(dir, "save.json"));
-            if (save == null) continue;
-            String id = save.optString("saveId");
-            saves.put(id, save);
-            states.put(id, save.has("completedAt") ? "done" : save.optBoolean("paused") ? "paused" : "queued");
-            if (save.has("failed")) {
+            JSONObject download = read(new File(dir, RECORD));
+            if (download == null) continue;
+            String id = download.optString("id");
+            downloads.put(id, download);
+            states.put(id, download.has("completedAt") ? "done" : download.optBoolean("paused") ? "paused" : "queued");
+            if (download.has("failed")) {
                 states.put(id, "failed");
-                messages.put(id, save.optString("failed"));
+                reasons.put(id, download.optString("failed"));
             }
         }
     }
@@ -89,12 +94,12 @@ final class Downloads {
         return instance;
     }
 
-    /** What hears that a save is whole: its id and the name the page gave it. */
+    /** What hears that a download is whole: its id and the title the page gave it. */
     interface Finished {
-        void finished(String saveId, String name);
+        void finished(String id, String title);
     }
 
-    /** Called with each save that becomes whole, on the transfer's thread. */
+    /** Called with each download that becomes whole, on the transfer's thread. */
     synchronized void onFinished(Finished listener) {
         finished = listener;
     }
@@ -105,36 +110,36 @@ final class Downloads {
     }
 
     /**
-     * Takes a save over from the page: {@code {saveId, titleId, name, origin, grant: {header, value,
-     * expiresAt}, tracks: [{rendition, url, bytes, etag}]}}. A save already here keeps the bytes it
-     * holds of each track, which the server judges by their validator, and takes the new grant.
+     * Takes a download over from the page, its URLs absolute. One already here by the same id keeps
+     * the bytes it holds of each file, which the server judges by their validator, and takes the new
+     * headers.
      */
     synchronized void add(JSONObject handed) throws JSONException {
-        String id = handed.getString("saveId");
+        String id = handed.getString("id");
         File dir = dirOf(id);
         if (!dir.isDirectory() && !dir.mkdirs()) throw new JSONException("No room for " + id);
-        JSONObject before = saves.get(id);
-        JSONArray tracks = handed.getJSONArray("tracks");
-        for (int i = 0; i < tracks.length(); i++) {
-            JSONObject track = tracks.getJSONObject(i);
-            JSONObject held = before != null ? trackOf(before, track.getString("rendition")) : null;
-            if (held != null && held.has("etag")) track.put("etag", held.getString("etag"));
+        JSONObject before = downloads.get(id);
+        JSONArray files = handed.getJSONArray("files");
+        for (int i = 0; i < files.length(); i++) {
+            JSONObject file = files.getJSONObject(i);
+            JSONObject held = before != null ? fileEntry(before, file.getString("name")) : null;
+            if (held != null && held.has("validator")) file.put("validator", held.getString("validator"));
         }
         handed.remove("paused");
         handed.remove("failed");
         handed.remove("completedAt");
         handed.remove("told");
-        saves.put(id, handed);
+        downloads.put(id, handed);
         write(id);
         states.put(id, "queued");
-        messages.remove(id);
+        reasons.remove(id);
         changed.run();
     }
 
     synchronized void pause(String id) {
-        JSONObject save = saves.get(id);
-        if (save == null || save.has("completedAt")) return;
-        put(save, "paused", true);
+        JSONObject download = downloads.get(id);
+        if (download == null || download.has("completedAt")) return;
+        put(download, "paused", true);
         write(id);
         states.put(id, "paused");
         if (id.equals(running)) cut();
@@ -142,70 +147,73 @@ final class Downloads {
     }
 
     synchronized void resume(String id) {
-        JSONObject save = saves.get(id);
-        if (save == null || save.has("completedAt")) return;
-        save.remove("paused");
-        save.remove("failed");
+        JSONObject download = downloads.get(id);
+        if (download == null || download.has("completedAt")) return;
+        download.remove("paused");
+        download.remove("failed");
         write(id);
         states.put(id, "queued");
-        messages.remove(id);
+        reasons.remove(id);
         changed.run();
     }
 
     synchronized void remove(String id) {
-        saves.remove(id);
+        downloads.remove(id);
         states.remove(id);
-        messages.remove(id);
+        reasons.remove(id);
         if (id.equals(running)) cut();
         delete(dirOf(id));
         changed.run();
     }
 
-    /** One save as the page reads it, or null: {@code {saveId, titleId, state, received, bytes, message, tracks}}. */
+    /**
+     * One download as the page reads it, or null: {@code {id, state, received, bytes, reason?, files:
+     * [{name, received, bytes}]}}, {@code state} one of {@code queued}, {@code downloading},
+     * {@code waiting}, {@code paused}, {@code failed}, {@code done}.
+     */
     synchronized JSONObject status(String id) {
-        JSONObject save = saves.get(id);
-        if (save == null) return null;
-        JSONObject out = new JSONObject();
+        JSONObject download = downloads.get(id);
+        if (download == null) return null;
         long received = 0;
         long bytes = 0;
-        JSONArray tracks = new JSONArray();
-        JSONArray listed = save.optJSONArray("tracks");
+        JSONArray files = new JSONArray();
+        JSONArray listed = download.optJSONArray("files");
         for (int i = 0; listed != null && i < listed.length(); i++) {
-            JSONObject track = listed.optJSONObject(i);
-            long length = fileOf(id, track.optString("rendition")).length();
-            long want = track.optLong("bytes");
-            received += Math.min(length, want);
+            JSONObject entry = listed.optJSONObject(i);
+            long want = entry.optLong("bytes");
+            long have = Math.min(fileOf(id, entry.optString("name")).length(), want);
+            received += have;
             bytes += want;
-            JSONObject t = new JSONObject();
-            put(t, "rendition", track.optString("rendition"));
-            put(t, "received", Math.min(length, want));
-            put(t, "bytes", want);
-            tracks.put(t);
+            JSONObject f = new JSONObject();
+            put(f, "name", entry.optString("name"));
+            put(f, "received", have);
+            put(f, "bytes", want);
+            files.put(f);
         }
-        put(out, "saveId", id);
-        put(out, "titleId", save.optString("titleId"));
+        JSONObject out = new JSONObject();
+        put(out, "id", id);
         put(out, "state", states.get(id));
         put(out, "received", received);
         put(out, "bytes", bytes);
-        put(out, "tracks", tracks);
-        if (messages.containsKey(id)) put(out, "message", messages.get(id));
+        put(out, "files", files);
+        if (reasons.containsKey(id)) put(out, "reason", reasons.get(id));
         return out;
     }
 
-    /** Every save's status, by save id. */
+    /** Every download's status, by id. */
     synchronized JSONObject statuses() {
         JSONObject out = new JSONObject();
-        for (String id : saves.keySet()) put(out, id, status(id));
+        for (String id : downloads.keySet()) put(out, id, status(id));
         return out;
     }
 
-    /** Whether anything is left to fetch: a save neither done, paused nor failed. */
+    /** Whether anything is left to fetch: a download neither done, paused nor failed. */
     synchronized boolean pending() {
         for (String state : states.values()) if ("queued".equals(state) || "downloading".equals(state) || "waiting".equals(state)) return true;
         return false;
     }
 
-    /** What the notification says: the save being fetched, how far, and how many wait behind it. */
+    /** What the notification says: the download being fetched, how far, and how many wait behind it. */
     synchronized Progress progress() {
         String id = running;
         int more = 0;
@@ -213,27 +221,34 @@ final class Downloads {
             if (e.getKey().equals(id)) continue;
             if ("queued".equals(e.getValue()) || "waiting".equals(e.getValue())) more++;
         }
-        if (id == null || !saves.containsKey(id)) return new Progress(null, 0, 0, more, false);
+        if (id == null || !downloads.containsKey(id)) return new Progress(null, 0, 0, more, false);
         JSONObject status = status(id);
-        return new Progress(saves.get(id).optString("name", saves.get(id).optString("titleId")),
+        return new Progress(downloads.get(id).optString("title", id),
             status.optLong("received"), status.optLong("bytes"), more, "waiting".equals(states.get(id)));
     }
 
-    /** A track's file, for the page to read once whole: under the save's directory, by rendition. */
-    File fileOf(String id, String rendition) {
-        return new File(dirOf(id), rendition.replaceAll("[^A-Za-z0-9_-]", "_") + ".mp4");
+    /** A file of a download, under its directory by its name. */
+    File fileOf(String id, String name) {
+        return new File(dirOf(id), safe(name));
     }
 
-    /** Whether a save's track is whole on disk, which is when the page may read it. */
-    synchronized boolean whole(String id, String rendition) {
-        JSONObject save = saves.get(id);
-        JSONObject track = save != null ? trackOf(save, rendition) : null;
-        return track != null && fileOf(id, rendition).length() == track.optLong("bytes");
+    /** The type the page gave a download's file, or {@code application/octet-stream}. */
+    synchronized String typeOf(String id, String name) {
+        JSONObject download = downloads.get(id);
+        JSONObject entry = download != null ? fileEntry(download, name) : null;
+        return entry != null ? entry.optString("type", "application/octet-stream") : "application/octet-stream";
+    }
+
+    /** Whether a download's file is whole on disk, which is when the page may read it. */
+    synchronized boolean whole(String id, String name) {
+        JSONObject download = downloads.get(id);
+        JSONObject entry = download != null ? fileEntry(download, name) : null;
+        return entry != null && fileOf(id, name).length() == entry.optLong("bytes");
     }
 
     // ---- The transfer, on the service's thread ----
 
-    /** Fetches every save that is due, one after another, until none is left or the service is stopped. */
+    /** Fetches every download that is due, one after another, until none is left or the service is stopped. */
     void work(Thread self) {
         while (!self.isInterrupted()) {
             String id = next();
@@ -264,26 +279,25 @@ final class Downloads {
     }
 
     private void fetch(String id, Thread self) throws InterruptedException {
-        JSONObject save;
+        JSONObject download;
         synchronized (this) {
-            save = saves.get(id);
+            download = downloads.get(id);
         }
-        if (save == null) return;
-        JSONArray tracks = save.optJSONArray("tracks");
-        for (int i = 0; tracks != null && i < tracks.length(); i++) {
+        if (download == null) return;
+        JSONArray files = download.optJSONArray("files");
+        for (int i = 0; files != null && i < files.length(); i++) {
             if (!stillMine(id)) return;
-            Outcome outcome = track(id, save, tracks.optJSONObject(i), self);
-            if (outcome != Outcome.WHOLE) return;
+            if (file(id, download, files.optJSONObject(i), self) != Outcome.WHOLE) return;
         }
-        tell(id, save);
+        done(id, download);
     }
 
     private enum Outcome { WHOLE, STOPPED, FAILED }
 
-    private Outcome track(String id, JSONObject save, JSONObject track, Thread self) throws InterruptedException {
-        String rendition = track.optString("rendition");
-        long bytes = track.optLong("bytes");
-        File file = fileOf(id, rendition);
+    private Outcome file(String id, JSONObject download, JSONObject entry, Thread self) throws InterruptedException {
+        String name = entry.optString("name");
+        long bytes = entry.optLong("bytes");
+        File file = fileOf(id, name);
         int attempt = 0;
         while (stillMine(id)) {
             long at = file.length();
@@ -294,34 +308,26 @@ final class Downloads {
             if (at == bytes) return Outcome.WHOLE;
             HttpURLConnection http = null;
             try {
-                http = (HttpURLConnection) new URL(save.getString("origin") + track.getString("url")).openConnection();
-                JSONObject grant = save.getJSONObject("grant");
-                http.setRequestProperty(grant.getString("header"), grant.getString("value"));
-                http.setConnectTimeout(CONNECT_TIMEOUT_MS);
-                http.setReadTimeout(READ_TIMEOUT_MS);
-                http.setUseCaches(false);
+                http = open(entry.getString("url"), download.optJSONObject("headers"));
                 if (at > 0) {
                     http.setRequestProperty("Range", "bytes=" + at + "-");
-                    if (track.has("etag")) http.setRequestProperty("If-Range", track.getString("etag"));
+                    if (entry.has("validator")) http.setRequestProperty("If-Range", entry.getString("validator"));
                 }
                 synchronized (this) {
                     if (!id.equals(running)) return Outcome.STOPPED;
                     connection = http;
                 }
                 int code = http.getResponseCode();
-                if (code == 401 || code == 403 || code == 409 || code == 404) {
-                    fail(id, code == 409 || code == 404
-                        ? "This download is no longer on the server. Open Krystal Cinema to download it again."
-                        : "Open Krystal Cinema to carry on with this download.");
-                    return Outcome.FAILED;
-                }
-                if (code == 429) {
+                if (code == 401 || code == 403) return failed(id, "credential");
+                if (code == 404 || code == 409 || code == 410) return failed(id, "gone");
+                if (code == 429 || code == 503) {
                     waiting(id);
                     rest(retryAfter(http) * 1000L);
                     continue;
                 }
+                if (code >= 400 && code < 500) return failed(id, "http-" + code);
                 if (code == 200 && at > 0) {
-                    // The track changed under the bytes on disk: they go, and this answer is the track.
+                    // The file changed under the bytes on disk: they go, and this answer is the file.
                     truncate(file);
                     at = 0;
                 }
@@ -329,20 +335,20 @@ final class Downloads {
                     truncate(file);
                     continue;
                 }
-                if (code != 200 && code != 206) throw new IOException("MovieBot answered " + code);
-                String etag = http.getHeaderField("ETag");
-                if (etag != null && !etag.equals(track.optString("etag", null))) {
+                if (code != 200 && code != 206) throw new IOException("The server answered " + code);
+                String validator = http.getHeaderField("ETag");
+                if (validator != null && !validator.equals(entry.optString("validator", null))) {
                     synchronized (this) {
-                        put(track, "etag", etag);
+                        put(entry, "validator", validator);
                         write(id);
                     }
                 }
                 downloading(id);
-                copy(id, http.getInputStream(), file, at, bytes);
+                copy(http.getInputStream(), file, at, bytes);
                 attempt = 0;
             } catch (IOException | JSONException broken) {
                 if (!stillMine(id)) return Outcome.STOPPED;
-                Log.i(TAG, id + " " + rendition + " broke at " + file.length() + ": " + broken.getMessage());
+                Log.i(TAG, id + " " + name + " broke at " + file.length() + ": " + broken.getMessage());
                 waiting(id);
                 rest(BACKOFF_MS[Math.min(attempt++, BACKOFF_MS.length - 1)]);
             } finally {
@@ -356,7 +362,21 @@ final class Downloads {
         return Outcome.STOPPED;
     }
 
-    private void copy(String id, InputStream in, File file, long at, long bytes) throws IOException {
+    private HttpURLConnection open(String url, JSONObject headers) throws IOException {
+        HttpURLConnection http = (HttpURLConnection) new URL(url).openConnection();
+        if (headers != null) {
+            for (Iterator<String> keys = headers.keys(); keys.hasNext(); ) {
+                String key = keys.next();
+                http.setRequestProperty(key, headers.optString(key));
+            }
+        }
+        http.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        http.setReadTimeout(READ_TIMEOUT_MS);
+        http.setUseCaches(false);
+        return http;
+    }
+
+    private void copy(InputStream in, File file, long at, long bytes) throws IOException {
         byte[] buffer = new byte[BUFFER];
         long last = 0;
         try (RandomAccessFile out = new RandomAccessFile(file, "rw"); InputStream body = in) {
@@ -378,41 +398,38 @@ final class Downloads {
         changed();
     }
 
-    /** Tells the API the save is whole, on its grant; the page tells it again for one this could not. */
-    private void tell(String id, JSONObject save) {
+    /** Marks a download whole, and says so at its {@code done.url}; the page says it again for one this could not. */
+    private void done(String id, JSONObject download) {
         synchronized (this) {
             if (!id.equals(running)) return;
-            put(save, "completedAt", System.currentTimeMillis());
+            put(download, "completedAt", System.currentTimeMillis());
             write(id);
             states.put(id, "done");
-            if (finished != null) finished.finished(id, save.optString("name", save.optString("titleId")));
+            if (finished != null) finished.finished(id, download.optString("title", id));
         }
         changed();
+        JSONObject done = download.optJSONObject("done");
+        if (done == null || !done.has("url")) return;
         HttpURLConnection http = null;
         try {
-            http = (HttpURLConnection) new URL(save.getString("origin") + "/api/me/offline/" + id + "/complete").openConnection();
-            JSONObject grant = save.getJSONObject("grant");
+            http = open(done.getString("url"), download.optJSONObject("headers"));
             http.setRequestMethod("POST");
-            http.setRequestProperty(grant.getString("header"), grant.getString("value"));
-            http.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            http.setReadTimeout(READ_TIMEOUT_MS);
             http.setDoOutput(true);
             http.setFixedLengthStreamingMode(0);
             http.getOutputStream().close();
             if (http.getResponseCode() / 100 == 2) {
                 synchronized (this) {
-                    put(save, "told", true);
+                    put(download, "told", true);
                     write(id);
                 }
             }
         } catch (IOException | JSONException unreached) {
-            Log.i(TAG, id + " finished, and the API could not be told: " + unreached.getMessage());
+            Log.i(TAG, id + " finished, and its site could not be told: " + unreached.getMessage());
         } finally {
             if (http != null) http.disconnect();
         }
     }
 
-    /** Whether the transfer of a save is still wanted: a pause or a removal lets go of it. */
     /** Waits between attempts, until the time is up or a network comes back. */
     private void rest(long ms) throws InterruptedException {
         synchronized (nap) {
@@ -427,8 +444,9 @@ final class Downloads {
         }
     }
 
+    /** Whether the transfer of a download is still wanted: a pause or a removal lets go of it. */
     private synchronized boolean stillMine(String id) {
-        return id.equals(running) && saves.containsKey(id);
+        return id.equals(running) && downloads.containsKey(id);
     }
 
     private synchronized void downloading(String id) {
@@ -443,14 +461,15 @@ final class Downloads {
         changed.run();
     }
 
-    private synchronized void fail(String id, String message) {
-        JSONObject save = saves.get(id);
-        if (save == null) return;
-        put(save, "failed", message);
+    private synchronized Outcome failed(String id, String reason) {
+        JSONObject download = downloads.get(id);
+        if (download == null) return Outcome.STOPPED;
+        put(download, "failed", reason);
         write(id);
         states.put(id, "failed");
-        messages.put(id, message);
+        reasons.put(id, reason);
         changed.run();
+        return Outcome.FAILED;
     }
 
     private synchronized void changed() {
@@ -479,35 +498,39 @@ final class Downloads {
         }
     }
 
-    // ---- The files ----
+    // ---- The records ----
 
-    private File dirOf(String id) {
-        return new File(root, id.replaceAll("[^A-Za-z0-9_-]", "_"));
+    private static String safe(String name) {
+        return name.replaceAll("[^A-Za-z0-9._-]", "_").replaceAll("^\\.+", "_");
     }
 
-    private static JSONObject trackOf(JSONObject save, String rendition) {
-        JSONArray tracks = save.optJSONArray("tracks");
-        for (int i = 0; tracks != null && i < tracks.length(); i++) {
-            JSONObject track = tracks.optJSONObject(i);
-            if (track != null && rendition.equals(track.optString("rendition"))) return track;
+    private File dirOf(String id) {
+        return new File(root, safe(id));
+    }
+
+    private static JSONObject fileEntry(JSONObject download, String name) {
+        JSONArray files = download.optJSONArray("files");
+        for (int i = 0; files != null && i < files.length(); i++) {
+            JSONObject entry = files.optJSONObject(i);
+            if (entry != null && name.equals(entry.optString("name"))) return entry;
         }
         return null;
     }
 
-    /** Writes a save's record whole to a file beside it, then puts it in place, so a reader never meets half of one. */
+    /** Writes a download's record whole to a file beside it, then puts it in place, so a reader never meets half of one. */
     private void write(String id) {
-        JSONObject save = saves.get(id);
-        if (save == null) return;
+        JSONObject download = downloads.get(id);
+        if (download == null) return;
         File dir = dirOf(id);
-        File temp = new File(dir, "save.json.tmp");
+        File temp = new File(dir, RECORD + ".tmp");
         try (OutputStream out = new FileOutputStream(temp)) {
-            out.write(save.toString().getBytes(StandardCharsets.UTF_8));
+            out.write(download.toString().getBytes(StandardCharsets.UTF_8));
             out.flush();
         } catch (IOException failed) {
             Log.w(TAG, "Could not write " + id + ": " + failed.getMessage());
             return;
         }
-        if (!temp.renameTo(new File(dir, "save.json"))) Log.w(TAG, "Could not put " + id + "'s record in place");
+        if (!temp.renameTo(new File(dir, RECORD))) Log.w(TAG, "Could not put " + id + "'s record in place");
     }
 
     private static JSONObject read(File file) {
@@ -550,14 +573,14 @@ final class Downloads {
 
     /** What the download notification shows. */
     static final class Progress {
-        final String name;
+        final String title;
         final long received;
         final long bytes;
         final int more;
         final boolean waiting;
 
-        Progress(String name, long received, long bytes, int more, boolean waiting) {
-            this.name = name;
+        Progress(String title, long received, long bytes, int more, boolean waiting) {
+            this.title = title;
             this.received = received;
             this.bytes = bytes;
             this.more = more;

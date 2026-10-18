@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Krystal Cinema on a phone. The version is the build's (phone/build.sh, from phone/CHANGELOG.md),
-     set on the command line rather than here. -->
+<!-- Krystal Cinema on a phone: the shell (com.thekrystalship.shell) under Cinema's app id, name and
+     icon. The version is the build's (phone/build.sh, from phone/CHANGELOG.md), set on the command
+     line rather than here. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.thekrystalship.cinema.phone">
   <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
@@ -18,7 +19,7 @@
       android:allowBackup="false"
       android:networkSecurityConfig="@xml/network_security_config"
       android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
-    <activity android:name=".CinemaActivity" android:exported="true"
+    <activity android:name="com.thekrystalship.shell.ShellActivity" android:exported="true"
         android:launchMode="singleTask"
         android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density">
       <intent-filter>
@@ -26,7 +27,7 @@
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
     </activity>
-    <service android:name=".DownloadService" android:exported="false"
+    <service android:name="com.thekrystalship.shell.DownloadService" android:exported="false"
         android:foregroundServiceType="dataSync" />
   </application>
 </manifest>

@@ -1,26 +1,26 @@
-package com.thekrystalship.cinema.phone;
+package com.thekrystalship.shell;
 
 import android.content.Intent;
 import android.net.Uri;
 
 /**
- * The one site this app shows: its origin, which everything that needs it asks for here.
+ * The one site this shell shows: its origin, which everything that needs it asks for here.
  *
  * A build carries its origin fixed ({@link Built#ORIGIN}), and then never asks for one and offers no
  * way to change it. A debug build also takes a whole address from the launch's {@code url} extra,
  * which is how it reaches a scratch site on the development machine.
  */
-final class Server {
+final class Origin {
     private final Uri start;
 
-    private Server(Uri start) {
+    private Origin(Uri start) {
         this.start = start;
     }
 
     /** The site this launch shows. */
-    static Server of(Intent launch) {
+    static Origin of(Intent launch) {
         String asked = Built.DEBUG && launch != null ? launch.getStringExtra("url") : null;
-        return new Server(Uri.parse(asked != null ? asked : Built.ORIGIN + "/"));
+        return new Origin(Uri.parse(asked != null ? asked : Built.ORIGIN + "/"));
     }
 
     /** The address the app opens on. */
@@ -36,6 +36,15 @@ final class Server {
     /** The site's host, as a person reads it. */
     String host() {
         return start.getAuthority();
+    }
+
+    /** An address as the page wrote it, made absolute against the site, or null for one that is not an address. */
+    String resolve(String address) {
+        try {
+            return java.net.URI.create(start()).resolve(address).toString();
+        } catch (IllegalArgumentException malformed) {
+            return null;
+        }
     }
 
     /** Whether an address is on this site: the same scheme, host and port. */

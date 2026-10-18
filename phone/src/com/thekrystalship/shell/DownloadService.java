@@ -1,4 +1,4 @@
-package com.thekrystalship.cinema.phone;
+package com.thekrystalship.shell;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -19,9 +19,9 @@ import android.os.PowerManager;
  * The downloads, run with no page: a foreground service of the data transfer kind, which Android
  * keeps running and on the network through Doze and with the app out of view, as it does not for a
  * browser's page. It runs {@link Downloads#work} on a thread of its own, holds a partial wake lock
- * and a Wi-Fi lock while it does, and shows one notification with the save being fetched, how far
+ * and a Wi-Fi lock while it does, and shows one notification with the download being fetched, how far
  * it has got and how many wait behind it. A network coming back wakes a transfer waiting between
- * attempts. Each save that becomes whole is said in a notification of its own, and the service stops
+ * attempts. Each download that becomes whole is said in a notification of its own, and the service stops
  * itself when nothing is left to fetch.
  *
  * Android stops a data transfer service once it has run six hours in a day ({@link #onTimeout});
@@ -53,10 +53,10 @@ public final class DownloadService extends Service {
         notifications.createNotificationChannel(
             new NotificationChannel(CHANNEL, getString(R.string.downloads_channel), NotificationManager.IMPORTANCE_LOW));
         PowerManager power = getSystemService(PowerManager.class);
-        cpu = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "KrystalCinema:downloads");
+        cpu = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "TksShell:downloads");
         WifiManager radio = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         //noinspection deprecation
-        wifi = radio.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "KrystalCinema:downloads");
+        wifi = radio.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "TksShell:downloads");
         final Downloads downloads = Downloads.of(this);
         network = new ConnectivityManager.NetworkCallback() {
             @Override
@@ -76,8 +76,8 @@ public final class DownloadService extends Service {
             final Downloads downloads = Downloads.of(this);
             downloads.onFinished(new Downloads.Finished() {
                 @Override
-                public void finished(String saveId, String name) {
-                    told(saveId, name);
+                public void finished(String id, String title) {
+                    told(id, title);
                 }
             });
             downloads.onChanged(new Runnable() {
@@ -140,26 +140,26 @@ public final class DownloadService extends Service {
         stopSelf();
     }
 
-    /** A save is whole: said on its own, by its name, and kept after the service goes. */
-    private void told(String saveId, String name) {
+    /** A download is whole: said on its own, by its title, and kept after the service goes. */
+    private void told(String id, String title) {
         Notification done = builder()
-            .setContentTitle(name)
+            .setContentTitle(title)
             .setContentText("Downloaded")
             .setAutoCancel(true)
             .build();
-        getSystemService(NotificationManager.class).notify(saveId, ONGOING, done);
+        getSystemService(NotificationManager.class).notify(id, ONGOING, done);
     }
 
     private Notification ongoing(Downloads.Progress p) {
         Notification.Builder b = builder().setOngoing(true).setOnlyAlertOnce(true);
-        if (p.name == null) return b.setContentTitle("Downloading").build();
+        if (p.title == null) return b.setContentTitle("Downloading").build();
         int percent = p.bytes > 0 ? (int) (100 * p.received / p.bytes) : 0;
         String text = (p.waiting ? "Waiting for a connection" : percent + "%") + (p.more > 0 ? " · " + p.more + " more" : "");
-        return b.setContentTitle(p.name).setContentText(text).setProgress(100, percent, p.waiting).build();
+        return b.setContentTitle(p.title).setContentText(text).setProgress(100, percent, p.waiting).build();
     }
 
     private Notification.Builder builder() {
-        Intent open = new Intent(this, CinemaActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        Intent open = new Intent(this, ShellActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent tap = PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification.Builder b = new Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.notification)

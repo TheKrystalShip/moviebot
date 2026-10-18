@@ -5,6 +5,16 @@ Krystal Cinema for Android phones, the app in this directory. Its version clock 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-10-18
+
+### Changed
+
+- **The TKS shell**: what the app does natively is a shell that names no app and no site, in
+  `com.thekrystalship.shell`, built as Cinema by its app id, mark, name and icon. The page finds it
+  as `window.TksShell`, and hands it downloads as files with the headers they carry and where to say
+  they are whole; a failure comes back as a reason (`credential`, `gone`, `http-<status>`) the site
+  words. Downloads are kept under `downloads/` and served at `/__shell/downloads/`.
+
 ## [1.0.1] - 2026-10-18
 
 ### Fixed

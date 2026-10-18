@@ -1,4 +1,4 @@
-package com.thekrystalship.cinema.phone;
+package com.thekrystalship.shell;
 
 import android.net.Uri;
 import android.webkit.WebResourceRequest;
@@ -14,36 +14,35 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The tracks this phone downloaded, served to the page on the site's own origin under
- * {@link #PREFIX}{@code <saveId>/<rendition>.mp4}, so the player reads them as it reads a file:
- * a byte range at a time, named as {@code ?start=&end=} (end exclusive) and answered whole. The range
- * is never a {@code Range} header, because WebView applies one itself to the stream answered here,
- * which would skip what this already skipped. A track is served only once it is whole, since the
- * player reads a track as the film it is and a short one ends early. A request for one is answered
- * here and never reaches the network; any other request is the network's.
+ * The files the shell downloaded, served to the page on the site's own origin under
+ * {@link #PREFIX}{@code <id>/<name>}, so the page reads them as it reads a file: whole, or a byte
+ * range at a time named as {@code ?start=&end=} (end exclusive). The range is never a {@code Range}
+ * header, because WebView applies one itself to the stream answered here, which would skip what this
+ * already skipped. A file is served only once it is whole, as the type the page gave it. A request
+ * for one is answered here and never reaches the network; any other request is the network's.
  */
-final class LocalTracks {
-    static final String PREFIX = "/__app/saves/";
+final class LocalFiles {
+    static final String PREFIX = "/__shell/downloads/";
 
-    private final Server server;
+    private final Origin origin;
     private final Downloads downloads;
 
-    LocalTracks(Server server, Downloads downloads) {
-        this.server = server;
+    LocalFiles(Origin origin, Downloads downloads) {
+        this.origin = origin;
         this.downloads = downloads;
     }
 
-    /** The answer to a request for a downloaded track, or null for any other request. */
+    /** The answer to a request for a downloaded file, or null for any other request. */
     WebResourceResponse answer(WebResourceRequest request) {
         Uri url = request.getUrl();
-        if (!server.owns(url) || url.getPath() == null || !url.getPath().startsWith(PREFIX)) return null;
+        if (!origin.owns(url) || url.getPath() == null || !url.getPath().startsWith(PREFIX)) return null;
         List<String> parts = url.getPathSegments();
-        if (parts.size() != 4 || !parts.get(3).endsWith(".mp4")) return status(404);
-        String save = parts.get(2);
-        String rendition = parts.get(3).substring(0, parts.get(3).length() - 4);
-        if (!downloads.whole(save, rendition)) return status(404);
+        if (parts.size() != 4) return status(404);
+        String id = parts.get(2);
+        String name = parts.get(3);
+        if (!downloads.whole(id, name)) return status(404);
 
-        File file = downloads.fileOf(save, rendition);
+        File file = downloads.fileOf(id, name);
         long length = file.length();
         long start;
         long end;
@@ -59,7 +58,7 @@ final class LocalTracks {
         headers.put("Cache-Control", "no-store");
         try {
             InputStream body = new Bounded(new FileInputStream(file), start, end - start);
-            return new WebResourceResponse("video/mp4", null, 200, "OK", headers, body);
+            return new WebResourceResponse(downloads.typeOf(id, name), null, 200, "OK", headers, body);
         } catch (IOException unreadable) {
             return status(404);
         }
