@@ -17,7 +17,9 @@ dependencies. Everything a person sees is the site; the app adds these.
   from its length on disk with `Range` and `If-Range`; a connection that breaks or goes quiet for 30
   seconds is tried again after a pause growing to a minute, which a network coming back ends at
   once. A save whose every track is whole is told to the API on its grant, with no page running.
-  One notification says which save is downloading, how far it has got and how many wait behind it.
+  One notification says which save is downloading, how far it has got and how many wait behind it,
+  and each save that becomes whole gets one of its own, "Downloaded", that stays after the service
+  goes.
   Android stops a data transfer service after six hours in a day; what is left carries on the next
   time the app is opened, as anything the service could not finish does.
 - **The bridge** (`AppBridge`), `window.KrystalCinemaApp`: `download`, `status`, `statuses`,
@@ -28,6 +30,8 @@ dependencies. Everything a person sees is the site; the app adds these.
   `<origin>/__app/saves/<saveId>/<rendition>.mp4?start=&end=`, once whole, a byte range at a time. The
   range is named in the query, never a `Range` header, because WebView applies a `Range` header
   itself to the stream an app answers with.
+- **The site's icon**, Lucide's clapperboard on the PWA icon's ground (`web/site/public/icons/icon.svg`),
+  as an adaptive vector icon with a themed variant.
 - **The app mark.** `KrystalCinemaApp/<version>` is appended to the WebView's user agent, and the
   site names the device "Krystal Cinema on Android" on the API's records.
 - **Every page loads in the app**, the sign-in's included, so the session the site keeps is the

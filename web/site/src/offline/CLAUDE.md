@@ -197,8 +197,10 @@ The page posts it when the worker finishes, and `sync.js` posts it again for any
 Inside Krystal Cinema for Android (`phone/README.md`), the page finds `window.KrystalCinemaApp`, and
 the tracks of a save of a title that is whole are the app's to fetch: the app keeps fetching with the
 screen off and the page frozen, which no page does. `metaOf` lists such a save's tracks with
-`store: "app"`, and the worker writes `meta.json`, the subtitles and the artwork as for any save,
-skips those tracks, and ends the run `handed`. The page then hands the tracks to the app with the
+`store: "app"`, after the subtitles and the artwork, which are written before the tracks are handed
+over, so `received` counts the files in listed order as for any save. The worker writes `meta.json`,
+the subtitles and the artwork as for any save, skips those tracks, and ends the run `handed`. The
+page then hands the tracks to the app with the
 package's `grant` (`appDownload`); a grant that has ended is renewed first by asking for the package
 again. A save still being made is written here a stretch at a time, as it is outside the app.
 

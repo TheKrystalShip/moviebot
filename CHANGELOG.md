@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.50.1] - 2026-10-18
+
+### Fixed
+
+- **The phone app looks like the site.** Its launcher icon is the site's clapperboard, as the
+  installed web app shows it, with a themed variant. Phone app 1.0.1.
+- **The phone app says what finished.** Each download that completes gets its own "Downloaded"
+  notification; pausing one no longer says the downloads finished. Phone app 1.0.1.
+- **A download in the phone app shows each file as far as it is.** The download sheet listed
+  subtitles as still waiting while the app fetched the picture. Site 0.95.1.
+
 ## [3.50.0] - 2026-10-18
 
 ### Added

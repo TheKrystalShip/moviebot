@@ -63,6 +63,7 @@ final class Downloads {
     };
 
     private Runnable changed = NOTHING;
+    private Finished finished = null;
     /** What a pause between attempts waits on, so a network coming back ends it at once. */
     private final Object nap = new Object();
 
@@ -86,6 +87,16 @@ final class Downloads {
     static synchronized Downloads of(Context context) {
         if (instance == null) instance = new Downloads(context.getApplicationContext());
         return instance;
+    }
+
+    /** What hears that a save is whole: its id and the name the page gave it. */
+    interface Finished {
+        void finished(String saveId, String name);
+    }
+
+    /** Called with each save that becomes whole, on the transfer's thread. */
+    synchronized void onFinished(Finished listener) {
+        finished = listener;
     }
 
     /** Called after every change a person could see, from whichever thread made it. */
@@ -374,6 +385,7 @@ final class Downloads {
             put(save, "completedAt", System.currentTimeMillis());
             write(id);
             states.put(id, "done");
+            if (finished != null) finished.finished(id, save.optString("name", save.optString("titleId")));
         }
         changed();
         HttpURLConnection http = null;

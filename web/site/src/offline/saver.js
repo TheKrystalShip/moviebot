@@ -220,7 +220,9 @@ function metaOf(sub, pkg) {
   // Artwork is named once its type is known; the preview sheet is the one image a token opens.
   const artwork = ["poster", "backdrop", "still", "thumbnails"].filter((role) => pkg.artwork[role])
     .map((role) => ({ name: role, role, url: pkg.artwork[role], auth: role === "thumbnails", bytes: 0 }));
-  const files = [...tracks, ...subtitles, ...artwork];
+  // The app's tracks come last: the rest is written before they are handed over, so a sheet reading
+  // how far a save has got in listed order finds each file as far as it is.
+  const files = byApp ? [...subtitles, ...artwork, ...tracks] : [...tracks, ...subtitles, ...artwork];
   return {
     format: FORMAT,
     titleId: m.id,

@@ -5,6 +5,15 @@ Krystal Cinema for Android phones, the app in this directory. Its version clock 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-18
+
+### Fixed
+
+- **The site's icon**: Lucide's clapperboard on the PWA icon's ground, as an adaptive vector icon
+  with a themed variant.
+- **A notification per finished download**, "Downloaded" under its name; a pause no longer says
+  the downloads finished.
+
 ## [1.0.0] - 2026-10-18
 
 ### Added

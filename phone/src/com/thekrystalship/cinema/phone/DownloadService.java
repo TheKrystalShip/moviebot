@@ -21,7 +21,8 @@ import android.os.PowerManager;
  * browser's page. It runs {@link Downloads#work} on a thread of its own, holds a partial wake lock
  * and a Wi-Fi lock while it does, and shows one notification with the save being fetched, how far
  * it has got and how many wait behind it. A network coming back wakes a transfer waiting between
- * attempts. When nothing is left it says so and stops itself.
+ * attempts. Each save that becomes whole is said in a notification of its own, and the service stops
+ * itself when nothing is left to fetch.
  *
  * Android stops a data transfer service once it has run six hours in a day ({@link #onTimeout});
  * what is not fetched by then waits, and carries on the next time the app is opened.
@@ -29,7 +30,6 @@ import android.os.PowerManager;
 public final class DownloadService extends Service {
     private static final String CHANNEL = "downloads";
     private static final int ONGOING = 1;
-    private static final int FINISHED = 2;
     private static final long DRAW_MS = 1000;
 
     private Thread worker;
@@ -74,6 +74,12 @@ public final class DownloadService extends Service {
         else startForeground(ONGOING, ongoing);
         if (worker == null || !worker.isAlive()) {
             final Downloads downloads = Downloads.of(this);
+            downloads.onFinished(new Downloads.Finished() {
+                @Override
+                public void finished(String saveId, String name) {
+                    told(saveId, name);
+                }
+            });
             downloads.onChanged(new Runnable() {
                 @Override
                 public void run() {
@@ -111,6 +117,7 @@ public final class DownloadService extends Service {
         if (worker != null) worker.interrupt();
         getSystemService(ConnectivityManager.class).unregisterNetworkCallback(network);
         Downloads.of(this).onChanged(null);
+        Downloads.of(this).onFinished(null);
         super.onDestroy();
     }
 
@@ -127,15 +134,20 @@ public final class DownloadService extends Service {
         getSystemService(NotificationManager.class).notify(ONGOING, ongoing(Downloads.of(this).progress()));
     }
 
+    /** Nothing is left to fetch, or the rest is paused or failed: the service goes, saying nothing of its own. */
     private void finished() {
         stopForeground(STOP_FOREGROUND_REMOVE);
         stopSelf();
-        if (Downloads.of(this).pending()) return;
+    }
+
+    /** A save is whole: said on its own, by its name, and kept after the service goes. */
+    private void told(String saveId, String name) {
         Notification done = builder()
-            .setContentTitle("Downloads finished")
+            .setContentTitle(name)
+            .setContentText("Downloaded")
             .setAutoCancel(true)
             .build();
-        getSystemService(NotificationManager.class).notify(FINISHED, done);
+        getSystemService(NotificationManager.class).notify(saveId, ONGOING, done);
     }
 
     private Notification ongoing(Downloads.Progress p) {
