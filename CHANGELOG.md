@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.51.4] - 2026-10-18
+
+### Fixed
+
+- **The assistant's mark holds still on a phone.** The site pins `@thekrystalship/krystal` and the
+  chat at 3.0.2, whose mark no longer animates forever on a touch screen. Site 0.96.1.
+
 ## [3.51.3] - 2026-10-18
 
 ### Changed
