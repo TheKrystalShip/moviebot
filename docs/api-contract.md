@@ -238,12 +238,12 @@ the device saves it once the library holds it.
 | `POST /api/me/offline` | `OfflinePackage` for `{titleId, rung, audio, subtitles, device, subtitleLanguage?}` — records the save and answers everything the device fetches. `rung` is one video rendition's `rendition`, `audio` one or more audio `rendition`s, `subtitles` zero or more subtitle ids, `device` the name the device goes by, 1 to 100 characters. With `subtitleLanguage` the save also takes every text subtitle in that language the title carries when the package is asked for, and once the title's source is known (it is ready, or its fingerprint is taken) one is fetched from the subtitle index for a title carrying none, waiting on the index at most 20 seconds, once per save and language. A save of the same title on the same device replaces that one, keeping its `id`, and the device's wants for the title go. `400` for a rendition or subtitle the title does not have, no audio, a bad device or language; `404` and `409` as above. `cinema:offline` |
 | `GET /api/offline/estimate?imdbId=&season=&episodes=` | `OfflineEstimate` — what downloading a film, or with `season` and `episodes` (comma-separated numbers, at most 100) those episodes of a show, would come to before the library holds it: the language it was made in, and roughly how many bytes it takes at 1080, 720 and 480, from its runtime and the median the library's finished titles take a second at each height. A size is absent while the runtime or the measure is unknown. `400` for an id that is not an IMDb id or a bad episode. `cinema:offline` |
 | `GET /api/me/offline` | `OfflineSave[]` — every save the token's person has, on every device, newest first. `cinema:profile.read` |
-| `POST /api/me/offline/{id}/complete` | `OfflineSave` — the device holds every byte, which ends the save's hold on the title. `404` for a save that is not this person's. `cinema:profile.write` |
+| `POST /api/me/offline/{id}/complete` | `OfflineSave` — the device holds every byte, which ends the save's hold on the title. `404` for a save that is not this person's. `cinema:profile.write`, or that save's grant |
 | `DELETE /api/me/offline/{id}` | `204` — forgets the save, and its hold with it; also when there was none. `cinema:profile.write` |
 | `POST /api/me/offline/wants` | `OfflineWant[]` for `{imdbId, episodes?, height?, audioLanguage?, subtitleLanguage?, device}` — a film, or with `episodes` (`[{season, episode}]`, at most 100) those of a show, wanted on the device, one want each, as each stands now. What the library neither holds nor is fetching is fetched in the background: a film's best release at 1080p from a digital source up, an episode out of its season's pack at 720p where there is one, as Watch now picks, nobody told it can be watched. With an `audioLanguage` that is not the title's own, a release whose name carries it (a token naming the language, else `MULTI` or `DUAL`) comes first, at that quality and then at any. Asking again for one the device wants keeps it with the `height` and languages asked now; one that failed is asked for afresh. `height` is the picture height the device saves it at, 1 to 4320, absent for the device's own; `audioLanguage` absent for the title's own and `subtitleLanguage` absent for none, each a language tag. `400` for an id that is not an IMDb id, a bad device, height, language or episode; `403` for somebody not holding `cinema:download` as well, since fetching spends the disk and the tracker. `cinema:offline` |
 | `GET /api/me/offline/wants` | `OfflineWant[]` — every want the token's person has, on every device, the oldest first, each as it stands now. A want is waited on for `Offline:WantDays`. `cinema:profile.read` |
 | `DELETE /api/me/offline/wants/{id}` | `204` — lets the want go, also when there was none; its download stays the library's. `cinema:profile.write` |
-| `GET,HEAD /media/{id}/{rendition}/track.mp4` | one track whole: the rendition's init segment and every segment after it, joined, as `video/mp4`; of a title still being made, every segment its playlist lists so far. Ranged (`206`, `416`), with an exact `Content-Length` and a strong `ETag`; a growing track's `Content-Range` gives its length as `*`. `If-Range` resumes with that `ETag`, or with one this track answered earlier while it was shorter, and with any other answers the whole track. Served `no-store`. The bearer token of somebody holding `cinema:offline` who has a save of the title, never a ticket: `409` for a person with no save of it or a title that failed, `404` for a rendition the title does not have, `429` with `Retry-After` past the transfers allowed at once |
+| `GET,HEAD /media/{id}/{rendition}/track.mp4` | one track whole: the rendition's init segment and every segment after it, joined, as `video/mp4`; of a title still being made, every segment its playlist lists so far. Ranged (`206`, `416`), with an exact `Content-Length` and a strong `ETag`; a growing track's `Content-Range` gives its length as `*`. `If-Range` resumes with that `ETag`, or with one this track answered earlier while it was shorter, and with any other answers the whole track. Served `no-store`. The bearer token of somebody holding `cinema:offline` who has a save of the title, or that save's grant in `X-Cinema-Save-Grant`, never a ticket: `409` for a person with no save of it or a title that failed, `404` for a rendition the title does not have, `429` with `Retry-After` past the transfers allowed at once |
 
 ```jsonc
 // OfflineOffer: GET /api/titles/{id}/offline
@@ -295,7 +295,10 @@ the device saves it once the library holds it.
     "thumbnails": "/media/coherence-2013/thumbs.jpg"   // the scrub preview sheet the manifest's thumbnails describe
   },
   "growing": false,       // true while the title is still being made: the tracks are what is made so far
-  "category": "anime"     // the shelf it is on (Categories); absent while nothing says
+  "category": "anime",    // the shelf it is on (Categories); absent while nothing says
+  "grant": {              // the save's grant, for the device's own downloader
+    "header": "X-Cinema-Save-Grant", "value": "5c0f3b2a9e7d4c18.1760918400.…", "expiresAt": "2026-10-20T00:00:00Z"
+  }
 }
 
 // OfflineWant: POST and GET /api/me/offline/wants
@@ -348,6 +351,13 @@ the device saves it once the library holds it.
   are built from `segmentSeconds` and `segmentBytes` as byte ranges of the one file.
 - **Media addresses take the bearer token.** A track, a subtitle and the preview sheet are fetched
   with `Authorization: Bearer`; a ticket does not open a track. The artwork routes are open.
+- **A save's grant opens its tracks with no token.** The package's `grant` is carried as its
+  `header` (`X-Cinema-Save-Grant`), never on the URL, and opens that save's tracks and its
+  `complete` route until `expiresAt`, which is the end of the save's hold: a phone's download
+  service fetching for hours with no page running, past every access token's life. It names the
+  person, so their transfer limits count it; it opens nothing once the save is forgotten, and
+  saving the title again issues a new one. A device resuming on it sends `If-Range` with the track's
+  validator, as a page does.
 - **A save in progress holds its title.** Until it is complete, and for `Offline:HoldHours` after it
   was made, the title stays in the library and in place: the library's clock does not let it go, its
   source is not removed, and it is neither moved between disks nor encoded again. Past that a save

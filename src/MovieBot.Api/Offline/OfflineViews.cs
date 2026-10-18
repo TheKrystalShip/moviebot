@@ -48,11 +48,19 @@ public sealed record OfflineArtwork(string? Poster, string? Backdrop, string? St
 /// What <c>POST /api/me/offline</c> answers: everything the device fetches and keeps. A title still being
 /// made is <c>Growing</c>: its tracks are what is on disk so far, and the device asks again for more.
 /// <c>Category</c> is the shelf the title is on beyond its kind, which the device's own library keeps.
+/// <c>Grant</c> opens the save's tracks to the device's own downloader.
 /// </summary>
 public sealed record OfflinePackage(
     OfflineSave Save, Manifest Manifest, long Bytes, List<OfflineTrack> Tracks, List<OfflineSubtitle> Subtitles,
     Films.FilmFacts? Details, OfflineEpisode? Episode, OfflineArtwork Artwork, bool Growing,
-    Library.TitleCategory? Category = null);
+    Library.TitleCategory? Category = null, OfflineGrant? Grant = null);
+
+/// <summary>
+/// The save's grant (<see cref="Auth.SaveGrant"/>): what a device's own downloader carries in
+/// <c>Header</c> to fetch the save's tracks and say it is complete with no page running, until
+/// <c>ExpiresAt</c>.
+/// </summary>
+public sealed record OfflineGrant(string Header, string Value, DateTimeOffset ExpiresAt);
 
 /// <summary>
 /// What a device asks to download before the library holds it: a film by its IMDb id, or a show's

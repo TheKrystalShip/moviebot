@@ -123,6 +123,11 @@ public sealed class OfflineSaves(CinemaDatabase database, IOptionsMonitor<Offlin
         database.Read(c => c.Exists("SELECT 1 FROM offline_saves WHERE user_id = $user AND title_id = $title",
             ("$user", userId), ("$title", titleId)));
 
+    /// <summary>Whose save an id is and the title it is of, or null when there is none: what a grant is checked against.</summary>
+    public (string UserId, string TitleId)? Owner(string saveId) =>
+        database.Read(c => c.Query("SELECT user_id, title_id FROM offline_saves WHERE id = $id",
+            r => (r.GetString(0), r.GetString(1)), ("$id", saveId))) is [var owner] ? owner : null;
+
     /// <summary>
     /// Records a save. One of the same title on the same device is that save made again: it keeps its
     /// id, starts its hold over and is no longer complete.
@@ -170,6 +175,9 @@ public sealed class OfflineSaves(CinemaDatabase database, IOptionsMonitor<Offlin
     /// <summary>Forgets a save. False when the person had none by that id.</summary>
     public bool Forget(string userId, string id) =>
         database.Write(c => c.Execute("DELETE FROM offline_saves WHERE user_id = $user AND id = $id", ("$user", userId), ("$id", id)) > 0);
+
+    /// <summary>How long a save holds its title from when it was made, which is also how long its grant lasts.</summary>
+    public TimeSpan Hold => options.CurrentValue.Hold;
 
     /// <summary>When the save stops holding its title, or null when it holds nothing.</summary>
     public DateTimeOffset? HoldsUntil(StoredSave save, DateTimeOffset now)

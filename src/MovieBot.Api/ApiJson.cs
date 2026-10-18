@@ -116,6 +116,7 @@ public sealed record MediaTicketReply(string Ticket, DateTimeOffset ExpiresAt, l
 [JsonSerializable(typeof(Offline.OfflineOffer))]
 [JsonSerializable(typeof(Offline.OfflineSaveRequest))]
 [JsonSerializable(typeof(Offline.OfflinePackage))]
+[JsonSerializable(typeof(Offline.OfflineGrant))]
 [JsonSerializable(typeof(Offline.OfflineSave))]
 [JsonSerializable(typeof(List<Offline.OfflineSave>))]
 [JsonSerializable(typeof(List<Offline.OfflineProgress>))]

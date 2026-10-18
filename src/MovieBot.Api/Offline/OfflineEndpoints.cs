@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Films;
@@ -35,7 +36,7 @@ public static class OfflineEndpoints
 
         app.MapPost("/api/me/offline", async (OfflineSaveRequest body, HttpContext context, TitleLibrary library,
             TrackIndexes indexes, SubtitleStore subtitles, SubtitleFetcher fetcher, OfflineSaves saves, FilmStore films,
-            ShowStore shows, TitleCategories categories, TimeProvider clock, CancellationToken ct) =>
+            ShowStore shows, TitleCategories categories, IOptions<AuthOptions> auth, TimeProvider clock, CancellationToken ct) =>
         {
             if (CinemaPerson.Of(context) is not { } person) return NoPerson();
             if (string.IsNullOrEmpty(body.TitleId)) return Bad("Name the title to save.");
@@ -105,6 +106,7 @@ public static class OfflineEndpoints
                 manifest.Episode is { } place ? new EpisodePick(place.Season, place.Number) : null);
 
             var details = manifest.Kind == TitleKind.Show ? shows.Facts(manifest.Film?.ImdbId) : films.Facts(manifest.Film?.ImdbId);
+            var grantEnds = stored.CreatedAt + saves.Hold;
             return Results.Ok(new OfflinePackage(
                 View(stored, saves, now),
                 Trimmed(manifest, rung.Rendition, audioIds, subtitleIds),
@@ -115,7 +117,8 @@ public static class OfflineEndpoints
                 EpisodeOf(manifest, shows),
                 ArtworkOf(id, manifest, details, shows),
                 offer.Growing,
-                categories.Of(manifest.Kind, manifest.Film?.ImdbId)));
+                categories.Of(manifest.Kind, manifest.Film?.ImdbId),
+                new OfflineGrant(SaveGrant.Header, SaveGrant.Issue(stored.Id, person.UserId, id, grantEnds, auth.Value), grantEnds)));
         }).RequireAction(CinemaActions.Offline);
 
         // Download of a title the library does not hold yet: fetched onto the server, and downloaded
@@ -179,14 +182,17 @@ public static class OfflineEndpoints
             return Results.Ok(saves.For(person.UserId).Select(s => View(s, saves, now)).ToList());
         }).RequireAction(CinemaActions.ProfileRead);
 
+        // Also on the save's own grant: a device's downloader finishing with no page running says so itself.
         app.MapPost("/api/me/offline/{saveId}/complete", (string saveId, HttpContext context, OfflineSaves saves, TimeProvider clock) =>
         {
-            if (CinemaPerson.Of(context) is not { } person) return NoPerson();
+            var userId = CinemaPerson.Of(context)?.UserId
+                         ?? (SaveGranted.Of(context.User) is { } granted && granted.SaveId == saveId ? granted.UserId : null);
+            if (userId is null) return NoPerson();
             var now = clock.GetUtcNow();
-            return saves.Complete(person.UserId, saveId, now) is { } done
+            return saves.Complete(userId, saveId, now) is { } done
                 ? Results.Ok(View(done, saves, now))
                 : Results.NotFound();
-        }).RequireAction(CinemaActions.ProfileWrite);
+        }).RequireActionOrSaveGrant(CinemaActions.ProfileWrite);
 
         // Forgetting a save that is not there is the same end state, so it is not an error: a device
         // coming back online replays the removals it made while away.
@@ -203,15 +209,17 @@ public static class OfflineEndpoints
                 Results.Ok(saves.Holding(clock.GetUtcNow()).Order(StringComparer.Ordinal).ToArray()))
             .RequireService();
 
-        // A whole track, for a person who has saved the title. The ticket does not open it: the
-        // limits are per person, and a ticket names nobody.
+        // A whole track, for a person who has saved the title, on their token or on the save's grant.
+        // The ticket does not open it: the limits are per person, and a ticket names nobody.
         app.MapMethods("/media/{id}/{rendition}/track.mp4", ["GET", "HEAD"], (string id, string rendition,
             HttpContext context, TitleLibrary library, TrackIndexes indexes, OfflineSaves saves, Transfers transfers,
             ILoggerFactory loggers) =>
         {
-            if (CinemaPerson.Of(context) is not { } person) return NoPerson();
+            var userId = CinemaPerson.Of(context)?.UserId
+                         ?? (SaveGranted.Of(context.User) is { } granted && granted.TitleId == id ? granted.UserId : null);
+            if (userId is null) return NoPerson();
             if (Saveable(id, library) is { } refused) return refused;
-            if (!saves.Has(person.UserId, id))
+            if (!saves.Has(userId, id))
                 return Conflict("Save the title offline before fetching its tracks.");
 
             var manifest = library.Get(id)!;
@@ -223,7 +231,7 @@ public static class OfflineEndpoints
                 return Results.NotFound();
 
             Transfers.Lease? lease = null;
-            if (HttpMethods.IsGet(context.Request.Method) && (lease = transfers.TryBegin(person.UserId)) is null)
+            if (HttpMethods.IsGet(context.Request.Method) && (lease = transfers.TryBegin(userId)) is null)
             {
                 context.Response.Headers.RetryAfter = RetryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
                 return Results.Json(new ErrorReply("Too many saves are being fetched at once; try again shortly."),
@@ -232,7 +240,7 @@ public static class OfflineEndpoints
 
             return new TrackResult(track, directory, () => library.DirectoryOf(id), transfers, lease,
                 loggers.CreateLogger(typeof(TrackResult).FullName!));
-        }).RequireAction(CinemaActions.Offline);
+        }).RequireActionOrSaveGrant(CinemaActions.Offline);
     }
 
     /// <summary>

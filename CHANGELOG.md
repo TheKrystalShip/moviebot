@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.49.0] - 2026-10-18
+
+### Added
+
+- **A save's grant.** `POST /api/me/offline` answers a `grant` that opens the save's tracks and its
+  `complete` route with no access token, carried in `X-Cinema-Save-Grant` and lasting the save's
+  hold. It is what a phone's own download service fetches on for hours with no page running. It
+  names the save's owner, so their transfer limits count it, and opens nothing once the save is
+  forgotten.
+
+### Changed
+
+- **More transfers at once.** A person may fetch 6 tracks at once and the server sends 12
+  (`Offline:MaxTransfersPerPerson`, `Offline:MaxTransfers`).
+
 ## [3.48.0] - 2026-10-18
 
 ### Changed

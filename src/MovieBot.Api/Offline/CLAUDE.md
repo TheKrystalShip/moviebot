@@ -28,9 +28,13 @@ offline"; these are the rules it rests on.
 - **A title moving between disks under a transfer is followed.** A file not where the transfer found
   the title is looked for in the title's directory as it is now; both copies are whole while they
   overlap, so the bytes are the same.
-- **A track opens to the bearer of somebody holding `cinema:offline` who saved the title, and never
-  to a ticket.** The limits are per person and a ticket names nobody, and a save is what holds the
-  title in place for the transfer.
+- **A track opens to the bearer of somebody holding `cinema:offline` who saved the title, or to
+  that save's grant, and never to a ticket.** The limits are per person and a ticket names nobody,
+  and a save is what holds the title in place for the transfer. A grant (`Auth/SaveGrant`) is what a
+  device's own downloader fetches on for hours with no page to renew a token: it names the save, so
+  it names its owner, and the save is looked up on every request, so forgetting it ends the grant.
+  It lasts the save's hold, and it also opens that save's `complete`. It is signed with the media
+  ticket key under a domain of its own, so neither can stand for the other.
 - **A save still being made holds its title** (`OfflineSaves`, `ISaveHolds`). Until the device says
   it holds every byte, the save is forgotten, or `Offline:HoldHours` after it was made, the library's
   clock does not let the title (or an episode's season) go, and `/api/library/saving` tells the

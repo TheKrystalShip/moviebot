@@ -198,15 +198,16 @@
   },
 
   // Save offline: films copied onto a person's device. A save still being made keeps its title in the
-  // library and in place for HoldHours after it was made. A person fetches at most
+  // library and in place for HoldHours after it was made, and its grant opens its tracks to the
+  // device's own downloader for as long. A person fetches at most
   // MaxTransfersPerPerson tracks at once and the server sends at most MaxTransfers; while a room has
   // somebody in it, each transfer is held to MegabitsPerTransferWhileWatched (0 for no limit). A
   // title asked for before the library holds it is fetched onto the server and waited on for
   // WantDays, after which the device stops waiting for it.
   "Offline": {
     "HoldHours": 48,
-    "MaxTransfersPerPerson": 2,
-    "MaxTransfers": 4,
+    "MaxTransfersPerPerson": 6,
+    "MaxTransfers": 12,
     "MegabitsPerTransferWhileWatched": 20,
     "WantDays": 14
   },

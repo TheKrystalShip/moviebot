@@ -280,6 +280,54 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
     }
 
     [Fact]
+    public async Task A_save_s_grant_opens_its_tracks_and_its_completion_with_no_token()
+    {
+        var package = await SaveAsync(fixture.CreatePersonClient("o6c"));
+        var grant = package.Grant!;
+        Assert.Equal(SaveGrant.Header, grant.Header);
+        Assert.True(grant.ExpiresAt > DateTimeOffset.UtcNow);
+
+        var device = fixture.CreateClient();
+        device.DefaultRequestHeaders.Add(grant.Header, grant.Value);
+        var track = package.Tracks[0];
+        var bytes = await device.GetByteArrayAsync(track.Url);
+        Assert.Equal(Joined(track.Rendition), bytes);
+
+        using var listing = await device.GetAsync("/api/me/offline");
+        Assert.Equal(HttpStatusCode.Unauthorized, listing.StatusCode);
+
+        using var done = await device.PostAsync($"/api/me/offline/{package.Save.Id}/complete", null);
+        Assert.Equal(HttpStatusCode.OK, done.StatusCode);
+        Assert.NotNull((await done.Content.ReadFromJsonAsync<OfflineSave>(Json))!.CompletedAt);
+    }
+
+    [Fact]
+    public async Task A_grant_opens_nothing_once_its_save_is_forgotten_or_once_tampered_with()
+    {
+        var owner = fixture.CreatePersonClient("o6d");
+        var package = await SaveAsync(owner);
+        var url = package.Tracks[0].Url;
+
+        var forged = package.Grant!.Value[..^2] + (package.Grant.Value[^2..] == "AA" ? "BB" : "AA");
+        var tampered = fixture.CreateClient();
+        tampered.DefaultRequestHeaders.Add(SaveGrant.Header, forged);
+        using var refusedForgery = await tampered.GetAsync(url);
+        Assert.Equal(HttpStatusCode.Unauthorized, refusedForgery.StatusCode);
+
+        // Another person's completion is not this grant's to make.
+        var other = await SaveAsync(fixture.CreatePersonClient("o6e"));
+        var device = fixture.CreateClient();
+        device.DefaultRequestHeaders.Add(SaveGrant.Header, package.Grant.Value);
+        using var elsewhere = await device.PostAsync($"/api/me/offline/{other.Save.Id}/complete", null);
+        Assert.Equal(HttpStatusCode.Forbidden, elsewhere.StatusCode);
+
+        using var forget = await owner.DeleteAsync($"/api/me/offline/{package.Save.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, forget.StatusCode);
+        using var gone = await device.GetAsync(url);
+        Assert.Equal(HttpStatusCode.Unauthorized, gone.StatusCode);
+    }
+
+    [Fact]
     public async Task A_person_past_their_transfers_is_asked_to_wait()
     {
         var client = fixture.CreatePersonClient("o7");

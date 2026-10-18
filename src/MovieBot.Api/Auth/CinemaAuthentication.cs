@@ -88,15 +88,19 @@ public static class CinemaSchemes
     /// <summary>A room's guest link, which lets its holder watch that room and nothing else.</summary>
     public const string Guest = "Guest";
 
+    /// <summary>A save's grant (<see cref="Auth.SaveGrant"/>), which opens that save's tracks to its owner's device.</summary>
+    public const string SaveGrant = "SaveGrant";
+
     /// <summary>The header the service key is carried in.</summary>
     public const string ServiceHeader = "X-MovieBot-Service";
 }
 
 /// <summary>
 /// What a route needs: any one of its actions, or the service key, or a ticket for the film, or a
-/// room's guest link.
+/// room's guest link, or a save's grant.
 /// </summary>
-public sealed record ActionRequirement(IReadOnlyList<string> AnyOf, bool Service = false, bool Ticket = false, bool Guest = false)
+public sealed record ActionRequirement(
+    IReadOnlyList<string> AnyOf, bool Service = false, bool Ticket = false, bool Guest = false, bool SaveGrant = false)
     : IAuthorizationRequirement;
 
 /// <summary>
@@ -116,6 +120,7 @@ internal sealed class ActionRequirementHandler(IOptionsMonitor<OidcOptions> oidc
                 CinemaSchemes.Service => requirement.Service,
                 CinemaSchemes.MediaTicket => requirement.Ticket,
                 CinemaSchemes.Guest => requirement.Guest,
+                CinemaSchemes.SaveGrant => requirement.SaveGrant,
                 CinemaSchemes.Bearer => requirement.AnyOf.Any(action => identity.HasClaim(claim, action)),
                 _ => false,
             };
@@ -180,6 +185,47 @@ internal sealed class MediaTicketHandler(
         var id = slash < 0 ? value[1..] : value[1..slash];
         return id.Length == 0 ? null : id;
     }
+}
+
+/// <summary>
+/// A save's grant, in its own header. The save is looked up on every request, so a forgotten save's
+/// grant opens nothing; the title a media path names, and the save a save's own route names, must be
+/// the grant's.
+/// </summary>
+internal sealed class SaveGrantHandler(
+    IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder,
+    IOptions<AuthOptions> auth, Offline.OfflineSaves saves, TimeProvider clock)
+    : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        if (!Request.Headers.TryGetValue(SaveGrant.Header, out var offered))
+            return Task.FromResult(AuthenticateResult.NoResult());
+
+        if (SaveGrant.Parse(offered.ToString()) is not { } grant || saves.Owner(grant.SaveId) is not { } owner
+            || !SaveGrant.IsValid(grant, owner.UserId, owner.TitleId, auth.Value, clock.GetUtcNow()))
+            return Task.FromResult(AuthenticateResult.Fail("The grant has ended, or its save is gone."));
+
+        var identity = new ClaimsIdentity(
+            [new Claim("sub", owner.UserId), new Claim(SaveGranted.SaveClaim, grant.SaveId), new Claim(SaveGranted.TitleClaim, owner.TitleId)],
+            Scheme.Name);
+        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name)));
+    }
+}
+
+/// <summary>A request made on a save's grant: whose save, which one, and the title it is of.</summary>
+public sealed record SaveGranted(string UserId, string SaveId, string TitleId)
+{
+    internal const string SaveClaim = "save";
+    internal const string TitleClaim = "title";
+
+    /// <summary>The grant a request carries, or null when it carries none.</summary>
+    public static SaveGranted? Of(ClaimsPrincipal? user) =>
+        user?.Identities.FirstOrDefault(i => i.IsAuthenticated && i.AuthenticationType == CinemaSchemes.SaveGrant) is { } identity
+        && identity.FindFirst("sub")?.Value is { } sub && identity.FindFirst(SaveClaim)?.Value is { } save
+        && identity.FindFirst(TitleClaim)?.Value is { } title
+            ? new SaveGranted(sub, save, title)
+            : null;
 }
 
 /// <summary>
@@ -311,6 +357,10 @@ public static class CinemaAccess
     public static TBuilder RequireMediaAccess<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder => Require(builder, new ActionRequirement([CinemaActions.Watch], Ticket: true));
 
+    /// <summary>As <see cref="RequireAction{TBuilder}"/>, and also a save's grant: a device's downloader working on its own.</summary>
+    public static TBuilder RequireActionOrSaveGrant<TBuilder>(this TBuilder builder, params string[] anyOf)
+        where TBuilder : IEndpointConventionBuilder => Require(builder, new ActionRequirement(Declared(anyOf), SaveGrant: true));
+
     /// <summary>
     /// As <see cref="RequireAction{TBuilder}"/>, and also a guest, reaching only what
     /// <paramref name="reach"/> says of the room their link opens.
@@ -365,6 +415,7 @@ public static class CinemaAccess
         if (requirement.Service) schemes.Add(CinemaSchemes.Service);
         if (requirement.Ticket) schemes.Add(CinemaSchemes.MediaTicket);
         if (requirement.Guest) schemes.Add(CinemaSchemes.Guest);
+        if (requirement.SaveGrant) schemes.Add(CinemaSchemes.SaveGrant);
         return new AuthorizationPolicyBuilder([.. schemes]).AddRequirements(requirement).Build();
     }
 
@@ -378,7 +429,8 @@ public static class CinemaAuthenticationExtensions
 {
     /// <summary>
     /// Cinema as a resource server of its OpenID Connect provider: access tokens validated against the
-    /// issuer's discovery and keys, its audience and ES256; the service key and media tickets beside them;
+    /// issuer's discovery and keys, its audience and ES256; the service key, media tickets, guest links
+    /// and save grants beside them;
     /// every route refused unless it names what it needs.
     /// </summary>
     public static IServiceCollection AddCinemaAuthentication(this IServiceCollection services)
@@ -396,7 +448,8 @@ public static class CinemaAuthenticationExtensions
             .AddJwtBearer(CinemaSchemes.Bearer, _ => { })
             .AddScheme<AuthenticationSchemeOptions, ServiceKeyHandler>(CinemaSchemes.Service, null)
             .AddScheme<AuthenticationSchemeOptions, MediaTicketHandler>(CinemaSchemes.MediaTicket, null)
-            .AddScheme<AuthenticationSchemeOptions, GuestHandler>(CinemaSchemes.Guest, null);
+            .AddScheme<AuthenticationSchemeOptions, GuestHandler>(CinemaSchemes.Guest, null)
+            .AddScheme<AuthenticationSchemeOptions, SaveGrantHandler>(CinemaSchemes.SaveGrant, null);
         services.AddSingleton<GuestCodes>();
 
         // Read when the options are first asked for, after every configuration source is in.

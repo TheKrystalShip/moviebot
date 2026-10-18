@@ -12,10 +12,10 @@ public sealed class OfflineOptions
     public double HoldHours { get; set; } = 48;
 
     /// <summary>Tracks one person may be fetching at once, across their devices.</summary>
-    public int MaxTransfersPerPerson { get; set; } = 2;
+    public int MaxTransfersPerPerson { get; set; } = 6;
 
     /// <summary>Tracks the server sends at once, for everybody together.</summary>
-    public int MaxTransfers { get; set; } = 4;
+    public int MaxTransfers { get; set; } = 12;
 
     /// <summary>
     /// What one transfer may take while a room has somebody in it, in megabits a second; zero leaves it
