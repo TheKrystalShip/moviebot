@@ -46,6 +46,7 @@ import java.nio.charset.StandardCharsets;
 public final class ShellActivity extends Activity {
     private static final String UNREACHABLE = "file:///android_asset/unreachable.html";
     private static final int BACKGROUND = 0xFF0B0F14;
+    private static final String TONE = "tone";
     private static final int QUIET_TRIES = 2;
     private static final int QUIET_AFTER_MS = 1500;
     private static final int PICK = 1;
@@ -73,10 +74,10 @@ public final class ShellActivity extends Activity {
         files = new LocalFiles(origin, downloads);
         WebView.setWebContentsDebuggingEnabled(Built.DEBUG);
 
+        int tone = getSharedPreferences("shell", MODE_PRIVATE).getInt(TONE, BACKGROUND);
         frame = new FrameLayout(this);
-        frame.setBackgroundColor(BACKGROUND);
         web = new WebView(this);
-        web.setBackgroundColor(BACKGROUND);
+        paint(tone);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -185,6 +186,43 @@ public final class ShellActivity extends Activity {
     protected void onDestroy() {
         web.destroy();
         super.onDestroy();
+    }
+
+    /**
+     * The colour the page shows: the strips behind the system bars and the WebView's ground take it,
+     * the bars' icons are drawn to read on it, and the next launch starts with it.
+     */
+    void tone(final int colour) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                paint(colour);
+            }
+        });
+        getSharedPreferences("shell", MODE_PRIVATE).edit().putInt(TONE, colour).apply();
+    }
+
+    @SuppressWarnings("deprecation")
+    private void paint(int colour) {
+        frame.setBackgroundColor(colour);
+        web.setBackgroundColor(colour);
+        getWindow().getDecorView().setBackgroundColor(colour);
+        // Android draws a scrim of its own behind three-button navigation unless told the app gives the
+        // buttons their contrast, which it does here by the icons' shade.
+        if (Build.VERSION.SDK_INT >= 29) getWindow().setNavigationBarContrastEnforced(false);
+        double r = ((colour >> 16) & 0xFF) / 255.0, g = ((colour >> 8) & 0xFF) / 255.0, b = (colour & 0xFF) / 255.0;
+        boolean light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.5;
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController insets = getWindow().getInsetsController();
+            if (insets == null) return;
+            int dark = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+            insets.setSystemBarsAppearance(light ? dark : 0, dark);
+        } else {
+            View decor = getWindow().getDecorView();
+            int flags = decor.getSystemUiVisibility();
+            int lightBars = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | (Build.VERSION.SDK_INT >= 26 ? View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR : 0);
+            decor.setSystemUiVisibility(light ? flags | lightBars : flags & ~lightBars);
+        }
     }
 
     @SuppressWarnings("deprecation")

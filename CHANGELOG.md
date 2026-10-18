@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.51.3] - 2026-10-18
+
+### Changed
+
+- **The phone app's system bars wear the site's colour** (phone app 1.1.3, tks-shell 1.2.0).
+
 ## [3.51.2] - 2026-10-18
 
 ### Added

@@ -24,6 +24,8 @@ import org.json.JSONObject;
  *       {@code remove(id)}: the downloads, as {@link Downloads} says. An app built without the
  *       {@code downloads} feature takes none, and lists none.</li>
  *   <li>{@code fileUrl(id, name)}: where the page reads a whole downloaded file ({@link LocalFiles}).</li>
+ *   <li>{@code theme(colour)}: the colour the page shows, which the strips behind the system bars take;
+ *       the shell's own page script says it.</li>
  *   <li>{@code saveFile(name, type, base64)}: saves bytes the page made into the phone's Downloads
  *       ({@link SavedFiles}); the shell's own page script calls it for a {@code download} link to a
  *       {@code blob:} or {@code data:} address.</li>
@@ -37,7 +39,7 @@ final class Bridge {
     /** The name the page finds the bridge under. */
     static final String NAME = "TksShell";
     /** The shell's own version, which moves when what a page can ask of it does. */
-    static final String VERSION = "2";
+    static final String VERSION = "3";
 
     private final ShellActivity activity;
     private final Origin origin;
@@ -133,6 +135,28 @@ final class Bridge {
         } catch (IllegalArgumentException | java.io.IOException failed) {
             return String.valueOf(failed.getMessage());
         }
+    }
+
+    /** The colour the page shows, as CSS gives it, which the strips behind the system bars take. */
+    @JavascriptInterface
+    public void theme(String colour) {
+        if (!activity.onSite()) return;
+        Integer parsed = parse(colour);
+        if (parsed != null) activity.tone(parsed);
+    }
+
+    /** {@code rgb(r, g, b)}, {@code rgba(r, g, b, a)} or {@code #rrggbb}, as an opaque colour, or null. */
+    static Integer parse(String colour) {
+        if (colour == null) return null;
+        String c = colour.trim();
+        try {
+            if (c.startsWith("#") && c.length() == 7) return 0xFF000000 | Integer.parseInt(c.substring(1), 16);
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("rgba?\\(\\s*(\\d+)[ ,]+(\\d+)[ ,]+(\\d+)").matcher(c);
+            if (m.find()) return 0xFF000000 | Integer.parseInt(m.group(1)) << 16 | Integer.parseInt(m.group(2)) << 8 | Integer.parseInt(m.group(3));
+        } catch (NumberFormatException malformed) {
+            return null;
+        }
+        return null;
     }
 
     @JavascriptInterface
