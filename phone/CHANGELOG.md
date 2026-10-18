@@ -5,6 +5,13 @@ Krystal Cinema for Android phones, the app in this directory. Its version clock 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-10-18
+
+### Added
+
+- **Files, as a browser handles them** (tks-shell 1.1.0): a file the site saves lands in the phone's
+  Downloads, and a file input opens the system's picker.
+
 ## [1.1.1] - 2026-10-18
 
 ### Changed

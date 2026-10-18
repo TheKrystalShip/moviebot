@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.51.2] - 2026-10-18
+
+### Added
+
+- **The phone app saves files and picks them as a browser does** (phone app 1.1.2, tks-shell 1.1.0).
+
 ## [3.51.1] - 2026-10-18
 
 ### Changed

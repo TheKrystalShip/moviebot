@@ -24,6 +24,9 @@ import org.json.JSONObject;
  *       {@code remove(id)}: the downloads, as {@link Downloads} says. An app built without the
  *       {@code downloads} feature takes none, and lists none.</li>
  *   <li>{@code fileUrl(id, name)}: where the page reads a whole downloaded file ({@link LocalFiles}).</li>
+ *   <li>{@code saveFile(name, type, base64)}: saves bytes the page made into the phone's Downloads
+ *       ({@link SavedFiles}); the shell's own page script calls it for a {@code download} link to a
+ *       {@code blob:} or {@code data:} address.</li>
  * </ul>
  *
  * Every call arrives on the WebView's bridge thread, never the page's. A WebView puts the bridge on
@@ -34,16 +37,18 @@ final class Bridge {
     /** The name the page finds the bridge under. */
     static final String NAME = "TksShell";
     /** The shell's own version, which moves when what a page can ask of it does. */
-    static final String VERSION = "1";
+    static final String VERSION = "2";
 
     private final ShellActivity activity;
     private final Origin origin;
     private final Downloads downloads;
+    private final SavedFiles saved;
 
-    Bridge(ShellActivity activity, Origin origin, Downloads downloads) {
+    Bridge(ShellActivity activity, Origin origin, Downloads downloads, SavedFiles saved) {
         this.activity = activity;
         this.origin = origin;
         this.downloads = downloads;
+        this.saved = saved;
     }
 
     @JavascriptInterface
@@ -116,6 +121,18 @@ final class Bridge {
     @JavascriptInterface
     public void remove(String id) {
         if (activity.onSite()) downloads.remove(id);
+    }
+
+    /** Saves bytes the page made into the phone's Downloads under the page's name: "ok", or why not. */
+    @JavascriptInterface
+    public String saveFile(String name, String type, String base64) {
+        if (!activity.onSite()) return "This page cannot save files.";
+        try {
+            saved.save(name, type, android.util.Base64.decode(base64, android.util.Base64.DEFAULT));
+            return "ok";
+        } catch (IllegalArgumentException | java.io.IOException failed) {
+            return String.valueOf(failed.getMessage());
+        }
     }
 
     @JavascriptInterface

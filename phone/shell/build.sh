@@ -17,7 +17,8 @@
 # shell.conf (sourced as shell):
 #   APP_ID      the app id, which an update must keep: com.example.app
 #   MARK        what the WebView's user agent carries before the shell's own: MARK/<version>
-#   ORIGIN      the https site a release shows
+#   ORIGIN      the https site a release shows; may come from the app's own untracked settings, or
+#               be left empty for --origin to give
 #   ARTIFACT    the APK's name, <ARTIFACT>-<version>.apk, and the key directory, ~/.config/<ARTIFACT>/
 #   FEATURES    what the app does beyond showing its site, space-separated: downloads
 #
@@ -42,8 +43,8 @@ adb="$sdk/platform-tools/adb"
 APP_ID="" MARK="" ORIGIN="" ARTIFACT="" FEATURES=""
 # shellcheck source=/dev/null
 source "$app/shell.conf"
-[[ -n "$APP_ID" && -n "$MARK" && -n "$ORIGIN" && -n "$ARTIFACT" ]] \
-  || { echo "$app/shell.conf names APP_ID, MARK, ORIGIN and ARTIFACT." >&2; exit 2; }
+[[ -n "$APP_ID" && -n "$MARK" && -n "$ARTIFACT" ]] \
+  || { echo "$app/shell.conf names APP_ID, MARK and ARTIFACT." >&2; exit 2; }
 keys="$HOME/.config/$ARTIFACT"
 downloads=false
 for feature in $FEATURES; do
@@ -67,6 +68,7 @@ done
 
 [[ -x "$JAVA_HOME/bin/javac" && -x "$tools/d8" && -f "$platform" ]] \
   || { echo "No Android toolchain: JAVA_HOME=$JAVA_HOME, ANDROID_HOME=$sdk" >&2; exit 1; }
+[[ -n "$origin" ]] || { echo "No site to show: $app/shell.conf gives no ORIGIN, and no --origin was given." >&2; exit 2; }
 origin="${origin%/}"
 [[ "$origin" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] || { echo "--origin is a scheme and a host, nothing more: $origin" >&2; exit 2; }
 if ! $debug && [[ "$origin" != https://* ]]; then echo "A release build shows an https site." >&2; exit 2; fi

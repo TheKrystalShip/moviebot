@@ -11,7 +11,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.webkit.DownloadListener;
 import android.webkit.ServiceWorkerClient;
+import android.webkit.ValueCallback;
 import android.webkit.ServiceWorkerController;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -21,6 +23,11 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * A site in an app: the site in a WebView, with what a browser's page cannot do done natively. The
@@ -41,6 +48,7 @@ public final class ShellActivity extends Activity {
     private static final int BACKGROUND = 0xFF0B0F14;
     private static final int QUIET_TRIES = 2;
     private static final int QUIET_AFTER_MS = 1500;
+    private static final int PICK = 1;
 
     private FrameLayout frame;
     private WebView web;
@@ -52,6 +60,10 @@ public final class ShellActivity extends Activity {
     private volatile Uri showing;
     /** How many times in a row a page of the site has failed to load. */
     private int failures;
+    /** What the shell runs in each page of the site (assets/page.js). */
+    private String pageScript;
+    /** The file input waiting on the system's picker, if one is. */
+    private ValueCallback<Uri[]> picking;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -73,7 +85,23 @@ public final class ShellActivity extends Activity {
         settings.setUserAgentString(settings.getUserAgentString() + " " + Built.MARK + "/" + Built.VERSION + " TksShell/" + Bridge.VERSION);
         web.setWebViewClient(new Client());
         web.setWebChromeClient(new Chrome());
-        web.addJavascriptInterface(new Bridge(this, origin, downloads), Bridge.NAME);
+        final SavedFiles saved = new SavedFiles(this);
+        pageScript = asset("page.js");
+        web.addJavascriptInterface(new Bridge(this, origin, downloads, saved), Bridge.NAME);
+        // A file the page asks the WebView to download: one at an address goes to the system's download
+        // manager; one the page made itself is saved by the page's script, under the name it comes with.
+        web.setDownloadListener(new DownloadListener() {
+            @Override
+            public void onDownloadStart(String url, String userAgent, String disposition, String type, long length) {
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    saved.fetch(url, userAgent, disposition, type);
+                } else if (url.startsWith("blob:") || url.startsWith("data:")) {
+                    String name = android.webkit.URLUtil.guessFileName(url, disposition, type);
+                    web.evaluateJavascript("(function(){var a=document.createElement('a');a.href=" + quoted(url)
+                        + ";a.download=" + quoted(name) + ";document.body.appendChild(a);a.click();a.remove();})()", null);
+                }
+            }
+        });
         // A request a service worker makes reaches the app here rather than through the page's client.
         ServiceWorkerController.getInstance().setServiceWorkerClient(new ServiceWorkerClient() {
             @Override
@@ -106,6 +134,37 @@ public final class ShellActivity extends Activity {
         }
         if (web.canGoBack()) web.goBack();
         else super.onBackPressed();
+    }
+
+    /** What the person picked for a file input, or nothing when they backed out. */
+    @Override
+    protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request != PICK || picking == null) return;
+        Uri[] chosen = null;
+        if (result == RESULT_OK && data != null && data.getClipData() != null) {
+            chosen = new Uri[data.getClipData().getItemCount()];
+            for (int i = 0; i < chosen.length; i++) chosen[i] = data.getClipData().getItemAt(i).getUri();
+        } else {
+            chosen = WebChromeClient.FileChooserParams.parseResult(result, data);
+        }
+        picking.onReceiveValue(chosen);
+        picking = null;
+    }
+
+    private String asset(String name) {
+        try (InputStream in = getAssets().open(name)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            for (int n; (n = in.read(buffer)) > 0; ) out.write(buffer, 0, n);
+            return new String(out.toByteArray(), StandardCharsets.UTF_8);
+        } catch (IOException missing) {
+            return "";
+        }
+    }
+
+    private static String quoted(String text) {
+        return org.json.JSONObject.quote(text);
     }
 
     @Override
@@ -202,6 +261,11 @@ public final class ShellActivity extends Activity {
         }
 
         @Override
+        public void onPageFinished(WebView view, String url) {
+            if (origin.owns(Uri.parse(url)) && !pageScript.isEmpty()) view.evaluateJavascript(pageScript, null);
+        }
+
+        @Override
         public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
             if (request.isForMainFrame() && origin.owns(request.getUrl()) && response.getStatusCode() >= 500) unreachable(view, request.getUrl(), false);
         }
@@ -233,6 +297,22 @@ public final class ShellActivity extends Activity {
             fullScreen = null;
             leaveFullScreen = null;
             bars(true);
+        }
+
+        /** A file input opens the system's picker, for as many files as the input takes. */
+        @Override
+        public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+            if (picking != null) picking.onReceiveValue(null);
+            picking = callback;
+            Intent intent = params.createIntent();
+            if (params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            try {
+                startActivityForResult(intent, PICK);
+            } catch (ActivityNotFoundException none) {
+                picking = null;
+                return false;
+            }
+            return true;
         }
 
         /** A link that asks for a new window opens in the phone's browser. */
