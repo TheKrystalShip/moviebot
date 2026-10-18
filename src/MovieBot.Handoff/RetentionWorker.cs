@@ -6,7 +6,8 @@ using TheKrystalShip.MovieBot.Core;
 namespace TheKrystalShip.MovieBot.Handoff;
 
 /// <summary>
-/// The tracker's clock: lets go of the source once it has seeded for the window.
+/// The tracker's clock: lets go of the source as soon as it has seeded the tracker's minimum or
+/// reached its ratio (<see cref="Retention"/>).
 ///
 /// What goes is the torrent and the files it downloaded, through the client, so the client never
 /// finds itself seeding a file that is no longer there. The film's own directory, the transcode, is
@@ -26,16 +27,17 @@ public sealed class RetentionWorker(
     ILogger<RetentionWorker> logger) : BackgroundService
 {
     /// <summary>
-    /// How often the downloads are looked at. A film becomes due once a week and a room is
-    /// forgotten half an hour after its last viewer, so nothing here is waiting on the minute.
+    /// How often the downloads are looked at. A film becomes due after days of seeding or hours of
+    /// a good ratio, and a room is forgotten half an hour after its last viewer, so nothing here is
+    /// waiting on the minute.
     /// </summary>
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation(
-            "Removing sources after {Window} of seeding; never under {Floor}.",
-            retention.Window, retention.Floor);
+            "Removing sources after {Floor} of seeding, or at a ratio of {Ratio}.",
+            retention.Floor, retention.RatioFloor);
 
         using var timer = new PeriodicTimer(Interval);
 
@@ -105,8 +107,9 @@ public sealed class RetentionWorker(
             await downloads.RemoveAsync(download.Hash, ct);
 
             logger.LogInformation(
-                "Removed the source of {Name} after {Hours}h {Minutes}m of seeding.",
-                download.Name, (int)download.Seeded.TotalHours, download.Seeded.Minutes);
+                "Removed the source of {Name} after {Hours}h {Minutes}m of seeding at a ratio of {Ratio}.",
+                download.Name, (int)download.Seeded.TotalHours, download.Seeded.Minutes,
+                download.Ratio is { } ratio ? ratio.ToString("0.00") : "none");
         }
     }
 }

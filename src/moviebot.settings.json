@@ -137,11 +137,15 @@
     "TierByTrackerFlags": true
   },
 
-  // How long a downloaded film keeps seeding before its torrent and downloaded files are removed.
+  // When a downloaded film's torrent and downloaded files are removed: once it has seeded the
+  // tracker's minimum plus MarginHours, or reached the tracker's ratio plus RatioMargin after
+  // RatioMinimumHours of seeding, whichever comes first.
   "Retention": {
-    "SeedDays": 7,
     "TrackerMinimumHours": 48,
-    "MarginHours": 12
+    "MarginHours": 12,
+    "TrackerRatio": 1,
+    "RatioMargin": 0.1,
+    "RatioMinimumHours": 3
   },
 
   // How long a film stays in the library once it has settled on the cold disk: LeaveAfterDays after

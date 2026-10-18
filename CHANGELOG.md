@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.48.0] - 2026-10-18
+
+### Changed
+
+- **A source goes as soon as the tracker lets it go.** The hand-off removes a finished torrent and
+  its files once it has seeded 60 hours (the tracker's 48 plus a margin), or reached a ratio of 1.1
+  after 3 hours of seeding, whichever comes first. Settings: `Retention:TrackerMinimumHours`,
+  `MarginHours`, `TrackerRatio`, `RatioMargin` and `RatioMinimumHours`.
+
 ## [3.47.1] - 2026-10-18
 
 ### Fixed

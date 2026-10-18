@@ -265,11 +265,11 @@ acts on it and what is checked first.
 
 - **The clock is the torrent client's seeding time, never the calendar.** The tracker credits seeding
   only while the client is running and the torrent is active, and the client's own count covers the
-  same stretches and survives its restarts. A week is a week of seeding, and a machine that was off for
-  a month has moved nothing closer to leaving.
-- **Nothing is removed under the tracker's minimum plus a margin, whatever the window says.** The
-  client's clock can only run ahead of the tracker's, by the announces that never landed, so the floor
-  carries a margin and the window sits days above it.
+  same stretches and survives its restarts. Two days are two days of seeding, and a machine that was
+  off for a month has moved nothing closer to leaving.
+- **A source goes as soon as the tracker lets it go, and never before.** That is its minimum seeding
+  time or its ratio, each with a margin, since the client can only run ahead of the tracker; once
+  either is met nothing reads the source, and the disk is what the next film needs.
 - **Only the torrent and its files go, through the client.** Deleting them from under it would leave
   the client announcing a file it no longer has. The title directory, the transcode, is not this
   clock's: it is what the library keeps.

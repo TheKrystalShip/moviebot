@@ -234,13 +234,13 @@ public sealed class LibraryRetentionTests : IDisposable
 
     private RetentionWorker Tracker(Seeding downloads, Api api, MediaRoots? roots = null) => new(
         downloads,
-        new Retention(Options.Create(new RetentionOptions { SeedDays = 7, TrackerMinimumHours = 48, MarginHours = 12 })),
+        new Retention(Options.Create(new RetentionOptions { TrackerMinimumHours = 48, MarginHours = 12 })),
         new OccupiedRooms(Client(api), NullLogger<OccupiedRooms>.Instance),
         roots ?? new MediaRoots(Hot, Cold),
         NullLogger<RetentionWorker>.Instance);
 
     [Fact]
-    public async Task A_source_past_its_window_loses_its_torrent_and_the_film_stays_in_the_library()
+    public async Task A_source_past_its_floor_loses_its_torrent_and_the_film_stays_in_the_library()
     {
         var settled = Title(Cold, "heat-1995");
         var making = Title(Hot, "collateral-2004");
