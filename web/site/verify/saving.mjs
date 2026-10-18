@@ -235,7 +235,7 @@ const picker = await page.evaluate(() => {
     chosen: rows(quality).map((r) => r.querySelector("input")).find((i) => i.checked)?.value,
     audio: rows(audio).filter((r) => r.querySelector("input").checked).map((r) => r.textContent),
     space: document.querySelector(".kc-dl-pick .k-meter__caption")?.textContent,
-    start: document.querySelector(".kc-dl-pick .kc-dl-start")?.textContent,
+    start: [...document.querySelectorAll(".kc-dl-pick button")].find((b) => /^Download/.test(b.textContent.trim()))?.textContent.trim(),
   };
 });
 check(picker.options.length === OFFER.rungs.length && picker.options.every(([, size]) => /^[\d.]+ [KMG]?B$/.test(size)),
@@ -247,7 +247,7 @@ check(/free/.test(picker.space || "") && /^Download · [\d.]+ [KMG]?B$/.test(pic
   `the sheet says what is free and what the download takes (${picker.space}; ${picker.start})`);
 await page.screenshot({ path: join(shots, "picker.png") });
 
-await sheet.locator(".kc-dl-start").click();
+await sheet.getByRole("button", { name: /^Download/ }).click();
 await sheet.waitFor({ state: "detached", timeout: 15000 });
 const label = await waitFor(async () => {
   const text = await button.textContent().catch(() => "");
@@ -391,7 +391,7 @@ await page.screenshot({ path: join(shots, "film-downloaded.png") });
   await p.locator(".kc-tt .kc-actions button", { hasText: /^Download$/ }).click();
   await p.locator(".kc-dl-pick .k-optlist").first().waitFor({ timeout: 10000 });
   const refusal = await p.locator(".kc-dl-pick .k-notice", { hasText: "Needs" }).textContent().catch(() => null);
-  const disabled = await p.locator(".kc-dl-pick .kc-dl-start").isDisabled();
+  const disabled = await p.locator(".kc-dl-pick").getByRole("button", { name: /^Download/ }).isDisabled();
   check(!!refusal && disabled, `a device without room is told how much it needs, and cannot start (${refusal})`);
   check((await call("GET", "/api/me/offline")).body.length === before && transfers.length === seen, "nothing was asked of the API or fetched");
   await p.screenshot({ path: join(shots, "no-room.png") });

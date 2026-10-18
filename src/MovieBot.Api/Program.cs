@@ -371,6 +371,16 @@ app.MapMethods("/tv.apk", [HttpMethods.Get, HttpMethods.Head], (IConfiguration c
     return Results.File(path, "application/vnd.android.package-archive", enableRangeProcessing: true);
 }).AllowAnonymous();
 
+// The phone app built for this site (`phone/`), which downloads films with the screen off. Kept apart
+// as the television's is, `Phone:App` or `phone.apk` in the state directory; a host without one answers 404.
+app.MapMethods("/phone.apk", [HttpMethods.Get, HttpMethods.Head], (IConfiguration configuration, HttpContext context) =>
+{
+    var path = StatePath(configuration["Phone:App"], "phone.apk");
+    if (!File.Exists(path)) return Results.NotFound();
+    context.Response.Headers.CacheControl = "no-cache";
+    return Results.File(path, "application/vnd.android.package-archive", enableRangeProcessing: true);
+}).AllowAnonymous();
+
 // Each title with what the film database said about it, from what is kept: a listing never waits
 // on the network, and a film not described yet is listed without it. Each carries the asking
 // person's progress and when the film was last played, and a caller that is nobody gets no progress.

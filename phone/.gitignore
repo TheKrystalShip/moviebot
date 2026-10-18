@@ -1,0 +1,4 @@
+# What build.sh makes.
+out/
+# The debug build's resource overlay is source, whatever the repository's build-result rules say.
+!debug/

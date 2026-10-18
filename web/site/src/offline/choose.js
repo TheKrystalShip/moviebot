@@ -97,6 +97,7 @@ export function deviceName() {
 
 function browserName() {
   const ua = navigator.userAgent;
+  if (/KrystalCinemaApp\//.test(ua)) return "Krystal Cinema";
   if (/Edg\//.test(ua)) return "Edge";
   if (/Firefox\//.test(ua)) return "Firefox";
   if (/SamsungBrowser\//.test(ua)) return "Samsung Internet";

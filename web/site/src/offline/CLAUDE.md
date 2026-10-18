@@ -45,6 +45,7 @@ worker that writes a save names every file the way the page reads it. Nothing el
   "files": [                         // every file the save holds, each written under its `name`
     { "name": "v1.mp4", "role": "video", "rendition": "v1", "bytes": 1339012345, "etag": "\"3f9a…-2697\"" },
     { "name": "a0.mp4", "role": "audio", "rendition": "a0", "language": "eng", "label": "English", "bytes": 163456789, "etag": "\"…\"" },
+    // inside the phone app a track is listed with "store": "app": the app holds it, and nothing of it is here
     { "name": "s3.vtt", "role": "subtitle", "id": "s3", "language": "eng", "label": "English", "bytes": 81234 },
     { "name": "poster.jpg", "role": "poster", "type": "image/jpeg", "bytes": 81234 },
     { "name": "backdrop.jpg", "role": "backdrop", "type": "image/jpeg", "bytes": 234567 }
@@ -58,9 +59,11 @@ worker that writes a save names every file the way the page reads it. Nothing el
 }
 ```
 
-A track's `etag` is the validator the bytes on disk arrived under, which is what resumes them. Of a
-title still being made, a track's `bytes` are as far as the package says it has got, and the package
-is asked for again until it is no longer `growing`.
+A track's `etag` is the validator the bytes on disk arrived under, which is what resumes them. A track
+listed with `store: "app"` is the phone app's (Downloads in the phone app, below) and has no file
+here; its bytes are counted and read through the app. Of a title still being made, a track's `bytes`
+are as far as the package says it has got, and the package is asked for again until it is no longer
+`growing`.
 
 The fields above `package` are what a page draws from, so nothing reading a save parses the package.
 `package` is kept whole for the player: the segment index (`tracks[].initBytes`, `segmentSeconds`,
@@ -151,8 +154,11 @@ save is stale, as is one answered a `206` from elsewhere or a `409`. The page as
 again as it was chosen, once, and the worker writes it as new, keeping each track's bytes under their
 own validator for the server to judge, every subtitle and artwork already whole from the same address,
 and removing any file the new listing does not name. A `429` waits for `Retry-After`; a broken
-connection is retried three times, then the save waits for the connection to come back. Each request
-asks the page for the bearer token, so a transfer that outlives a token renews it.
+connection is retried three times, then the save waits for the connection to come back. A read that
+leaves a request silent for `STALL_MS` (30 seconds) ends it as a broken connection: a phone moving
+between networks, or a page the browser froze and thawed, leaves a connection that never errors and
+never delivers. Each request asks the page for the bearer token, so a transfer that outlives a token
+renews it.
 
 A package that is `growing` is written a stretch at a time: each track is asked for up to its listed
 `bytes`, and the worker ends the run `growing` instead of setting `completedAt`. The page asks for the
@@ -186,14 +192,37 @@ worker is writing.
 A save the API answers `POST /api/me/offline/{id}/complete` for is one whose `completedAt` is set here.
 The page posts it when the worker finishes, and `sync.js` posts it again for any it could not.
 
+## Downloads in the phone app (`app.js`)
+
+Inside Krystal Cinema for Android (`phone/README.md`), the page finds `window.KrystalCinemaApp`, and
+the tracks of a save of a title that is whole are the app's to fetch: the app keeps fetching with the
+screen off and the page frozen, which no page does. `metaOf` lists such a save's tracks with
+`store: "app"`, and the worker writes `meta.json`, the subtitles and the artwork as for any save,
+skips those tracks, and ends the run `handed`. The page then hands the tracks to the app with the
+package's `grant` (`appDownload`); a grant that has ended is renewed first by asking for the package
+again. A save still being made is written here a stretch at a time, as it is outside the app.
+
+While the page runs it reads the app's status every `APP_MS` for each save the app is fetching
+(`follow`, `tend`) and draws it as `useSaving` draws any save, its `state` the app's (`downloading`
+as `saving`; `queued`, `waiting`, `paused`, and `failed` with the app's message). Once the app holds
+every track whole, the page posts `finish` to the worker, which sets `completedAt` under the save's
+lock, and tells the API, which the app has usually told already on the grant. A page loading resumes
+following every unfinished save the app holds (`resumeUnfinished`); one the app has lost is handed
+over again. Pausing, resuming and removing a save the app holds is done at the app; `removeSave`
+removes the app's copy along with the store's.
+
+The store counts an app track's bytes from the app's status (`appReceived`), and `deviceCopy` plays a
+whole app track through `appFile`: a stand-in for a `File` whose `slice(start, end).arrayBuffer()`
+asks the app for that range at its `trackUrl`, the range in the query.
+
 ## What is picked (`choose.js`)
 
 The download sheet's defaults: the rung is the person's `offlineQualityHeight` matched to the widest rung no
 wider than that height at 16:9 (`rungFor`), else the smallest on a phone or a tablet (a coarse main pointer) and the step-down anywhere else; the audio in the person's language, else the
 title's default; the text subtitles in the person's subtitle language and the forced ones in each
-picked audio language. `deviceName()` is what this device is called on the API's records: the browser,
-the system and a mark kept in localStorage, so saving a title again from here replaces this device's
-save and never another's.
+picked audio language. `deviceName()` is what this device is called on the API's records: the browser
+(Krystal Cinema inside the phone app), the system and a mark kept in localStorage, so saving a title
+again from here replaces this device's save and never another's.
 
 ## Asking for what the library does not hold (`wants.js`)
 
@@ -215,7 +244,7 @@ outright. A want this device could not start (no room, the title gone) is kept w
 ## Progress with the page out of view (`notice.js`)
 
 A browser keeps writing a save only while it runs the page, and a phone slows a hidden page and
-sooner or later stops it; nothing writes a save with no page. While the page is hidden, one
+sooner or later stops it; outside the phone app, nothing writes a save with no page. While the page is hidden, one
 notification (tag `kc-downloads`) says what this device is doing: the save being written, else the
 first waiting its turn or for a connection, else the first want the server is preparing, as
 "Downloading · 42% · 2 more", "Queued", "Waiting for a connection" or "Preparing · 12%", titled with

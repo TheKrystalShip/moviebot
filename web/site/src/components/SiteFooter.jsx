@@ -2,6 +2,7 @@ import { Footer, GithubMark } from "@thekrystalship/krystal";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
+import { inApp } from "../offline/app.js";
 import { PLACES } from "../nav.js";
 import { navigate } from "../router.js";
 
@@ -26,8 +27,18 @@ const SOURCE = [
 ];
 
 /**
+ * The phone app, offered on an Android phone's browser: a tap fetches the APK the site serves, which
+ * the phone installs once it allows installing from the browser. Inside the app it is not offered.
+ */
+const APP = [
+  { name: "Krystal Cinema for Android", href: "/phone.apk", icon: "smartphone", featured: true, sub: "Downloads that carry on with the screen off" },
+];
+const offerApp = () => typeof navigator !== "undefined" && /Android/.test(navigator.userAgent) && !inApp();
+
+/**
  * What every page ends with: what the cinema is, how many rooms are watching something right now,
- * the way around it, and its source. Where the details and artwork come from is credited on About.
+ * the way around it, the phone app on an Android phone, and its source. Where the details and
+ * artwork come from is credited on About.
  */
 export function SiteFooter() {
   const rooms = useLoad(() => api.rooms().catch(() => null), [], { every: 30000 });
@@ -41,6 +52,7 @@ export function SiteFooter() {
       note={playing > 0 ? (playing === 1 ? "A room is watching now" : `${playing} rooms are watching now`) : "Self-hosted and open source"}
       groups={[
         { label: "Browse", links: BROWSE },
+        ...(offerApp() ? [{ label: "App", links: APP }] : []),
         { label: "Source code", mono: true, links: SOURCE },
       ]}
       copy={`© ${new Date().getFullYear()} The Krystal Ship · watched together.`}

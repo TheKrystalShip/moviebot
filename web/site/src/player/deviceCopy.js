@@ -1,6 +1,7 @@
 // A film saved on this device, as the player plays it (`engine/media/deviceLoader.ts`): read from the
 // store (`src/offline/CLAUDE.md`) for one account, and only when the save is whole.
 
+import { appFile, appStatus, heldByApp } from "../offline/app.js";
 import { readSave, saveFile } from "../offline/store.js";
 
 const TRACK_ROLES = new Set(["video", "audio"]);
@@ -9,7 +10,8 @@ const TRACK_ROLES = new Set(["video", "audio"]);
  * The account's save of a title as the player's `DeviceCopy`, or null when there is none, it is still
  * under way, or a track on the device is not the length the package says. Each track is the file as it
  * stands now, which reads by slices without loading it; the subtitles and the preview sheet are read
- * when asked for, by the manifest-relative path each stands for.
+ * when asked for, by the manifest-relative path each stands for. A track the phone app holds is read
+ * from the app, and only once the app holds it whole.
  */
 export async function deviceCopy(sub, titleId) {
   const save = await readSave(sub, titleId);
@@ -21,7 +23,7 @@ export async function deviceCopy(sub, titleId) {
   const tracks = [];
   for (const track of saved.tracks) {
     const entry = files.find((f) => TRACK_ROLES.has(f.role) && f.rendition === track.rendition);
-    const file = entry && await saveFile(sub, titleId, entry.name);
+    const file = entry && (heldByApp(entry) ? appTrack(save.meta.saveId, entry) : await saveFile(sub, titleId, entry.name));
     if (!file || file.size !== track.bytes) return null;
     tracks.push({
       uri: track.uri,
@@ -50,4 +52,11 @@ export async function deviceCopy(sub, titleId) {
     file: (relative) => (named.has(relative) ? saveFile(sub, titleId, named.get(relative)) : Promise.resolve(null)),
     poster: poster && poster.size > 0 ? poster : null,
   };
+}
+
+/** A track the app holds whole, as a file the player reads by slices; null while it is short. */
+function appTrack(saveId, entry) {
+  const status = appStatus(saveId);
+  const held = status && status.tracks.find((t) => t.rendition === entry.rendition);
+  return held && held.received === entry.bytes ? appFile(saveId, entry.rendition, entry.bytes) : null;
 }

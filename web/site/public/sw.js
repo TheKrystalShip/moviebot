@@ -55,14 +55,15 @@ self.addEventListener("fetch", (event) => {
 
   if (req.method !== "GET" || url.origin !== self.location.origin) return;
 
-  // A page: from the network, and this build's index when that fails or is answered with anything
-  // but a page (a gateway's error for a server that is down). The server answers every page
-  // with the same index, so the one copy under "/" stands for all of them. It is never replaced from
-  // a page load: it has to be the index whose chunks this build's cache holds.
+  // A page: from the network, and this build's index when that fails or is answered with an error
+  // (a gateway's for a server that is down). The server answers every page with the same index, so
+  // the one copy under "/" stands for all of them. It is never replaced from a page load: it has to be
+  // the index whose chunks this build's cache holds. A file opened by a link, the phone app at
+  // /phone.apk, is a navigation answered with no page, and goes through as it came.
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req)
-        .then((res) => (isShell(res) ? res : caches.match("/", { cacheName: CACHE }).then((shell) => shell || res)))
+        .then((res) => (isShell(res) || (res.ok && res.type === "basic") ? res : caches.match("/", { cacheName: CACHE }).then((shell) => shell || res)))
         .catch(() => caches.match("/", { cacheName: CACHE }))
     );
     return;

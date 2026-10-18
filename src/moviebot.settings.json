@@ -48,6 +48,12 @@
     "App": ""
   },
 
+  // The phone app built for this site (phone/), served at /phone.apk. App is its path; empty is
+  // phone.apk in the state directory. Without the file, /phone.apk answers 404.
+  "Phone": {
+    "App": ""
+  },
+
   // Where people reach this host: the https address the Activity is mapped to.
   "Player": {
     "BaseUrl": ""

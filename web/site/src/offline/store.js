@@ -9,6 +9,7 @@ import {
 
 import { inActivity } from "../discord/launch.js";
 import { AHEAD } from "./ahead.js";
+import { appReceived, appRemove, appStatus, heldByApp, savedByApp } from "./app.js";
 
 const CHANNEL = "cinema-offline";
 const FORGET_KEY = "cinema.offline.forget.";
@@ -34,7 +35,13 @@ async function readFrom(dir, titleId) {
   }
   if (!isMeta(meta) || meta.titleId !== titleId) return null;
   let receivedBytes = 0;
+  // A track the phone app holds is counted as the app has it (`app.js`).
+  const status = savedByApp(meta) ? appStatus(meta.saveId) : null;
   for (const file of meta.files) {
+    if (heldByApp(file)) {
+      receivedBytes += appReceived(status, file);
+      continue;
+    }
     try {
       receivedBytes += Math.min(file.bytes || Infinity, (await (await dir.getFileHandle(file.name)).getFile()).size);
     } catch {
@@ -109,7 +116,10 @@ export async function removeSave(sub, titleId) {
   if (account) {
     await account.removeEntry(titleDirName(titleId), { recursive: true }).catch(ignoreMissing);
   }
-  if (save && save.meta.saveId) queueForget(sub, save.meta.saveId);
+  if (save && save.meta.saveId) {
+    queueForget(sub, save.meta.saveId);
+    if (savedByApp(save.meta)) appRemove(save.meta.saveId);
+  }
   const show = save && save.meta.show && save.meta.show.imdbId;
   if (show && !(await listSaves(sub)).some((s) => s.meta.show && s.meta.show.imdbId === show)) {
     await removeShow(sub, show);

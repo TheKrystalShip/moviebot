@@ -314,6 +314,19 @@ sudo cp krystal-cinema-tv-<version>.apk /var/lib/moviebot/tv.apk
 
 A Fire TV then fetches it with the Downloader app from `https://YOUR.DOMAIN/tv.apk`.
 
+### On an Android phone
+
+The site works in a phone's browser, but a browser stops a download soon after the screen goes off.
+The Android app downloads in the background instead. Build it for your site the same way
+(`phone/build.sh --origin https://YOUR.DOMAIN`, as `phone/README.md` says) and put it where the
+site serves it:
+
+```bash
+sudo cp krystal-cinema-phone-<version>.apk /var/lib/moviebot/phone.apk
+```
+
+A phone then installs it from `https://YOUR.DOMAIN/phone.apk`.
+
 ## Adding films you already have
 
 Copy the film into `/srv/moviebot/incoming`, where the `moviebot` user can read it, then prepare

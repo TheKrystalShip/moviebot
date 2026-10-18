@@ -29,6 +29,13 @@ tv/build.sh
 rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
 ```
 
+The phone app (`phone/README.md`) is handed over the same way, to `/phone.apk`:
+
+```bash
+phone/build.sh
+rsync phone/out/krystal-cinema-phone-<version>.apk hotbox:/var/lib/moviebot/phone.apk
+```
+
 - **Settings are two files and the environment.** Every service reads `moviebot.settings.json`
   twice: the copy of `src/moviebot.settings.json` published beside its binary holds the defaults,
   and `~/.config/moviebot/moviebot.settings.json` (`deploy/hotbox.settings.json`, which

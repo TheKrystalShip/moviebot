@@ -10,6 +10,11 @@
 // stretch at a time: what has been made, then the package asked for again a little later, until the
 // package says the title is whole; the other saves run in between.
 //
+// Inside the phone app, the tracks of a save of a title that is whole are the app's to fetch
+// (`app.js`): the worker writes the rest and hands over, the app fetches with no page running, and
+// this side follows how far it has got every `APP_MS` while the page runs, and finishes the save once
+// the app holds every track. A save the app is fetching is paused, resumed and removed at the app.
+//
 // A save is the worker's to write only while it holds the title's lock, so two tabs never write one
 // save: a tab that finds it held waits for the lock and takes the save over when the other tab lets go
 // of it. Each tab says what its saves are doing on `cinema-offline-saving`, so every tab draws the
@@ -17,6 +22,7 @@
 
 import { createStore, toast, useStore } from "@thekrystalship/krystal";
 import { api } from "../api.js";
+import { appDownload, appPause, appResume, appStatus, heldByApp, inApp, savedByApp } from "./app.js";
 import { isOnline, onReconnect, probe, unreached } from "../connectivity.js";
 import { freshToken, sessionStore } from "../session.js";
 import { deviceName } from "./choose.js";
@@ -28,6 +34,8 @@ const PAUSED_KEY = "cinema.offline.paused.";
 const CHANNEL = "cinema-offline-saving";
 /** How long a save of a title still being made waits between one stretch of it and the next. */
 const GROW_MS = 15000;
+/** How often a page reads how far the app's downloads have got. */
+const APP_MS = 1000;
 
 /** A save refused before a byte moved because the device has no room for it. */
 export class NoRoom extends Error {
@@ -59,6 +67,9 @@ let running = null;
 let wakeLock = null;
 /** The saves of titles still being made waiting to ask for their next stretch, by title id. */
 const growing = new Map();
+/** The saves whose tracks the app is fetching, by title id: `{ sub, saveId, meta }`. */
+const withApp = new Map();
+let tending = null;
 
 /** What one title's save is doing, or null. */
 export function useSaving(titleId) {
@@ -192,11 +203,14 @@ function metaOf(sub, pkg) {
   const episode = m.episode ? { season: m.episode.season, number: m.episode.number, name: (pkg.episode && pkg.episode.name) || null } : null;
   const rung = m.video.renditions[0] || {};
   const rendition = (uri) => String(uri).split("/")[0];
+  // The app fetches the tracks of a title that is whole; one still being made is written here a stretch at a time.
+  const byApp = inApp() && !pkg.growing && !!pkg.grant;
   const tracks = pkg.tracks.map((t) => {
     const audio = t.kind === "audio" ? m.audio.find((a) => rendition(a.uri) === t.rendition) : null;
     return {
       name: t.rendition + ".mp4", role: t.kind, rendition: t.rendition, bytes: t.bytes,
       ...(audio ? { language: audio.language, label: audio.label } : {}),
+      ...(byApp ? { store: "app" } : {}),
     };
   });
   const subtitles = pkg.subtitles.map((s) => ({
@@ -280,6 +294,10 @@ async function heard(message) {
     set(message.titleId, { state: "saving", received: message.received, bytes: message.bytes });
     return;
   }
+  if (message.type === "finished") {
+    void finished(message.titleId);
+    return;
+  }
 
   const job = running;
   running = null;
@@ -293,6 +311,11 @@ async function heard(message) {
       const save = await readSave(job.sub, job.titleId).catch(() => null);
       if (save && save.meta.saveId) api.completeSave(save.meta.saveId).catch(() => {});
       if (save) toast.info(`Downloaded ${saveTitle(save.meta)}.`);
+      break;
+    }
+    case "handed": {
+      const save = await readSave(job.sub, job.titleId).catch(() => null);
+      if (save) hand(job.sub, save.meta);
       break;
     }
     case "growing":
@@ -345,6 +368,70 @@ function failed(titleId, message) {
   set(titleId, { state: "failed", message });
 }
 
+/** Hands a save's tracks to the app and follows it. A save whose grant has ended is asked for again first. */
+function hand(sub, meta) {
+  const grant = meta.package && meta.package.grant;
+  if (!grant || Date.parse(grant.expiresAt) <= Date.now()) {
+    void repost({ sub, titleId: meta.titleId, meta }).then((fresh) => enqueue({ sub, titleId: meta.titleId, meta: fresh }),
+      (error) => failed(meta.titleId, error.message || "This film could not be downloaded."));
+    return;
+  }
+  try {
+    appDownload(meta);
+  } catch (error) {
+    failed(meta.titleId, error.message);
+    return;
+  }
+  follow(sub, meta);
+}
+
+/** Follows a save the app is fetching, until the app holds it whole. */
+function follow(sub, meta) {
+  withApp.set(meta.titleId, { sub, saveId: meta.saveId, meta });
+  tend();
+  if (!tending) tending = setInterval(tend, APP_MS);
+}
+
+/** Reads how far each of the app's downloads has got, and finishes those it holds whole. */
+function tend() {
+  for (const [titleId, { sub, saveId, meta }] of withApp) {
+    if (currentSub() !== sub) continue;
+    const status = appStatus(saveId);
+    if (!status) {
+      // The app lost it (its data was cleared): handed over again from the package.
+      withApp.delete(titleId);
+      hand(sub, meta);
+      continue;
+    }
+    const appBytes = meta.files.filter(heldByApp).reduce((n, f) => n + f.bytes, 0);
+    const received = meta.bytes - appBytes + status.received;
+    if (status.state === "done") {
+      withApp.delete(titleId);
+      set(titleId, { state: "saving", received: meta.bytes, bytes: meta.bytes });
+      workerOf().postMessage({ type: "finish", sub, titleId });
+    } else if (status.state === "failed") {
+      withApp.delete(titleId);
+      failed(titleId, status.message || "This film could not be downloaded.");
+    } else {
+      const state = status.state === "paused" ? "paused" : status.state === "waiting" ? "waiting" : status.state === "queued" ? "queued" : "saving";
+      set(titleId, { state, received, bytes: meta.bytes, message: null });
+    }
+  }
+  if (!withApp.size && tending) {
+    clearInterval(tending);
+    tending = null;
+  }
+}
+
+/** The app holds a save whole and `completedAt` is set: said to the API and to the person. */
+async function finished(titleId) {
+  set(titleId, null);
+  const sub = currentSub();
+  const save = sub ? await readSave(sub, titleId).catch(() => null) : null;
+  if (save && save.meta.saveId) api.completeSave(save.meta.saveId).catch(() => {});
+  if (save && save.complete) toast.info(`Downloaded ${saveTitle(save.meta)}.`);
+}
+
 /**
  * Asks for the next stretch of a title the server is still making once it has had time to make more,
  * and queues it. With no connection the save waits for one, as any save does; a title gone from the
@@ -383,6 +470,11 @@ export function pauseSave(titleId) {
   setPaused(sub, titleId, true);
   queue = queue.filter((j) => j.titleId !== titleId);
   stopGrowing(titleId);
+  const held = withApp.get(titleId);
+  if (held) {
+    appPause(held.saveId);
+    tend();
+  }
   if (running && running.titleId === titleId) stopRunning("paused");
   else set(titleId, { state: "paused" });
   if (channel) channel.postMessage({ type: "pause", sub, titleId });
@@ -393,6 +485,12 @@ export function resumeSave(titleId) {
   const sub = currentSub();
   if (!sub) return;
   setPaused(sub, titleId, false);
+  const held = withApp.get(titleId);
+  if (held) {
+    appResume(held.saveId);
+    tend();
+    return;
+  }
   enqueue({ sub, titleId });
 }
 
@@ -404,6 +502,7 @@ export function resumeSave(titleId) {
 export async function removeFromDevice(sub, titleId, { forget = true } = {}) {
   queue = queue.filter((j) => !(j.sub === sub && j.titleId === titleId));
   stopGrowing(titleId);
+  withApp.delete(titleId);
   if (running && running.sub === sub && running.titleId === titleId) stopRunning("removed");
   if (channel) channel.postMessage({ type: "stop", sub, titleId });
   setPaused(sub, titleId, false);
@@ -445,8 +544,13 @@ export async function resumeUnfinished(sub) {
       continue;
     }
     const entry = saving.getState()[save.titleId];
-    if ((running && running.titleId === save.titleId) || growing.has(save.titleId)) continue;
+    if ((running && running.titleId === save.titleId) || growing.has(save.titleId) || withApp.has(save.titleId)) continue;
     if (entry && entry.state === "failed") continue;
+    // A save the app holds is followed there; one it does not is written here and handed over again.
+    if (savedByApp(save.meta) && appStatus(save.meta.saveId)) {
+      follow(sub, save.meta);
+      continue;
+    }
     if (!entry) set(save.titleId, { received: save.receivedBytes, bytes: save.meta.bytes }, { tell: false });
     enqueue({ sub, titleId: save.titleId });
   }

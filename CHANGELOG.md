@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.50.0] - 2026-10-18
+
+### Added
+
+- **Krystal Cinema for Android** (`phone/`, version 1.0.0): the site in an app whose downloads run
+  in a foreground service, so they carry on with the screen off, the app out of view and the phone
+  in Doze, and are told to the API as complete with no page running. Download in the site hands a
+  title's tracks to the app on the save's grant, and the player plays them from the app with no
+  connection. The API serves it at `/phone.apk` (`Phone:App`), and the site's footer offers it on an
+  Android phone's browser. Site 0.95.0.
+
+### Fixed
+
+- **A download no longer stalls for good on a dead connection.** A request that delivers nothing for
+  30 seconds is dropped and asked for again from what is on the device, so a phone moving between
+  networks, or a page the browser froze and thawed, carries on instead of waiting forever.
+- **A link to a file opens the file.** The site's service worker answered every navigation that was
+  not a page with the site's index; one answered with a file now goes through.
+
 ## [3.49.0] - 2026-10-18
 
 ### Added

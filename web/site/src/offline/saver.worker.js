@@ -10,6 +10,15 @@
 // the bytes on disk are of another encoding and are dropped, and the save is reported stale so the
 // page asks for a new package. A `429` waits for its `Retry-After`.
 //
+// A track a read leaves silent for `STALL_MS` is a connection that died without saying so (a phone
+// moving between networks, a page the browser froze and thawed): the request is dropped and asked
+// for again from what is on disk, as a broken one is.
+//
+// A track listed with `store: "app"` is the phone app's to fetch (`app.js`), not this worker's: it is
+// listed and nothing of it is written here, and a run whose tracks are the app's ends `handed` once
+// `meta.json`, the subtitles and the artwork are written, for the page to hand the tracks over. The
+// page says `finish` once the app holds them whole, and `completedAt` is set then.
+//
 // A package marked `growing` is a title the server is still making: each track is fetched as far as the
 // package says it has got, and the run ends `growing` rather than `done`, for the page to ask for the
 // package again later and carry on from what is on disk. The server answers a validator of a stretch
@@ -20,9 +29,10 @@
 // let go of it.
 //
 // Messages in: `run` `{ sub, titleId, meta? }` (a `meta` is a new package to write; without one the
-// save on disk is resumed), `stop` `{ sub, titleId }`, `token` `{ n, token }`. Out: `token`
-// `{ n, refused }`, `progress` `{ titleId, received, bytes }`, and one of `done`, `growing`, `stopped`,
-// `elsewhere`, `unreached`, `stale`, `failed` `{ titleId, status, message }` to end each run. A write
+// save on disk is resumed), `finish` `{ sub, titleId }`, `stop` `{ sub, titleId }`, `token`
+// `{ n, token }`. Out: `token` `{ n, refused }`, `progress` `{ titleId, received, bytes }`, and one of
+// `done`, `growing`, `handed`, `stopped`, `elsewhere`, `unreached`, `stale`, `failed`
+// `{ titleId, status, message }` to end each run. A write
 // a reader should see is said on the store's `cinema-offline` channel, which reaches every page.
 
 import { META, isMeta, saveDir } from "./layout.js";
@@ -32,6 +42,7 @@ const FLUSH_EVERY = 8 * 1024 * 1024;
 const PROGRESS_MS = 250;
 const RETRIES = [2000, 5000, 15000];
 const DEFAULT_RETRY_AFTER_S = 10;
+const STALL_MS = 30000;
 
 const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel(CHANNEL) : null;
 const tokens = new Map();
@@ -56,6 +67,8 @@ self.onmessage = (event) => {
     if (current && current.sub === message.sub && current.titleId === message.titleId) current.abort.abort();
   } else if (message.type === "run") {
     void run(message);
+  } else if (message.type === "finish") {
+    void finish(message);
   }
 };
 
@@ -93,6 +106,23 @@ async function run({ sub, titleId, meta }) {
   }
 }
 
+/** The app holds every track of a save whole: `completedAt` is set, under the save's lock. */
+async function finish({ sub, titleId }) {
+  try {
+    await navigator.locks.request(`cinema-offline-save:${sub}/${titleId}`, async () => {
+      const dir = await saveDir(sub, titleId);
+      const meta = dir && (await readMeta(dir));
+      if (!meta || meta.completedAt) return;
+      meta.completedAt = new Date().toISOString();
+      await writeJson(dir, META, meta);
+      changed();
+    });
+    self.postMessage({ type: "finished", titleId });
+  } catch (error) {
+    self.postMessage({ type: "finished", titleId, message: String((error && error.message) || error) });
+  }
+}
+
 async function save(sub, titleId, fresh, signal) {
   const dir = await saveDir(sub, titleId, { create: true });
   let meta;
@@ -107,10 +137,12 @@ async function save(sub, titleId, fresh, signal) {
 
   const progress = reporter(titleId, meta);
   for (const file of meta.files) {
+    if (file.store === "app") continue;
     if (file.role === "video" || file.role === "audio") await track(dir, meta, file, progress, signal);
     else await small(dir, meta, file, progress, signal);
   }
   if (meta.growing) throw new Ended("growing");
+  if (meta.files.some((f) => f.store === "app")) throw new Ended("handed");
 
   meta.completedAt = new Date().toISOString();
   await writeJson(dir, META, meta);
@@ -130,6 +162,12 @@ async function begin(dir, meta, before, signal) {
   const formerly = new Map(((before && before.files) || []).map((f) => [f.role === "subtitle" ? "subtitle:" + f.id : f.role, f]));
   const formerTracks = new Map(((before && before.package && before.package.tracks) || []).map((t) => [t.rendition, t]));
   for (const file of meta.files) {
+    if (file.store === "app") {
+      // The app fetches it; a copy a former package left here is of no use now.
+      await dir.removeEntry(file.name).catch(() => {});
+      files.push(file);
+      continue;
+    }
     if (file.role === "video" || file.role === "audio") {
       const former = (before && before.files.find((f) => f.name === file.name)) || null;
       const formerTrack = formerTracks.get(file.rendition);
@@ -210,76 +248,83 @@ async function track(dir, meta, file, progress, signal) {
       if (growing) headers.Range = `bytes=${at}-${file.bytes - 1}`;
       else if (at > 0) headers.Range = `bytes=${at}-`;
       if (at > 0) headers["If-Range"] = file.etag || source.etag;
-      let response;
+      // Each request ends when the save is stopped, or when a read leaves it silent for STALL_MS.
+      const watch = guard(signal);
       try {
-        response = await fetch(source.url, { headers, cache: "no-store", signal });
-      } catch (error) {
-        if (signal.aborted) throw error;
-        if (attempt >= RETRIES.length) throw new Ended("unreached");
-        await pause(RETRIES[attempt++], signal);
-        continue;
-      }
-      if (response.status === 401) {
-        if (refused) throw new Ended("failed", { status: 401, message: "Sign in to carry on saving." });
-        refused = true;
-        continue;
-      }
-      refused = false;
-      if (response.status === 429) {
-        const wait = Number(response.headers.get("Retry-After")) || DEFAULT_RETRY_AFTER_S;
-        await pause(wait * 1000, signal);
-        continue;
-      }
-      if (response.status === 409) throw new Ended("stale", { status: 409 });
-      if (response.status === 200 && at > 0) {
-        // What is on disk is of another encoding: it goes, and the package is asked for again.
-        handle.truncate(0);
-        throw new Ended("stale", { status: 200 });
-      }
-      if (response.status === 200 && (growing ? Number(response.headers.get("Content-Length")) < file.bytes
-        : Number(response.headers.get("Content-Length")) !== file.bytes)) {
-        throw new Ended("stale", { status: 200 });
-      }
-      if (response.status === 206 && !String(response.headers.get("Content-Range") || "").startsWith(`bytes ${at}-`)) {
-        throw new Ended("stale", { status: 206 });
-      }
-      if (response.status !== 200 && response.status !== 206) {
-        const answer = await response.json().catch(() => null);
-        throw new Ended("failed", { status: response.status, message: (answer && answer.error) || `MovieBot answered ${response.status}.` });
-      }
-
-      const etag = response.headers.get("ETag");
-      if (etag && etag !== file.etag) {
-        file.etag = etag;
-        validated = true;
-      }
-      const reader = response.body.getReader();
-      let unflushed = 0;
-      try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const room = file.bytes - at;
-          const chunk = value.byteLength > room ? value.subarray(0, room) : value;
-          const written = handle.write(chunk, { at });
-          at += written;
-          unflushed += written;
-          progress.add(written);
-          if (unflushed >= FLUSH_EVERY) {
-            handle.flush();
-            unflushed = 0;
-          }
-          if (at >= file.bytes) break;
+        let response;
+        try {
+          response = await fetch(source.url, { headers, cache: "no-store", signal: watch.signal });
+        } catch (error) {
+          if (signal.aborted) throw error;
+          if (attempt >= RETRIES.length) throw new Ended("unreached");
+          await pause(RETRIES[attempt++], signal);
+          continue;
         }
-        attempt = 0;
-      } catch (error) {
-        if (signal.aborted) throw error;
-        // The connection broke mid-track: what arrived is kept and the rest is asked for again.
-        if (attempt >= RETRIES.length) throw new Ended("unreached");
-        await pause(RETRIES[attempt++], signal);
+        if (response.status === 401) {
+          if (refused) throw new Ended("failed", { status: 401, message: "Sign in to carry on saving." });
+          refused = true;
+          continue;
+        }
+        refused = false;
+        if (response.status === 429) {
+          const wait = Number(response.headers.get("Retry-After")) || DEFAULT_RETRY_AFTER_S;
+          await pause(wait * 1000, signal);
+          continue;
+        }
+        if (response.status === 409) throw new Ended("stale", { status: 409 });
+        if (response.status === 200 && at > 0) {
+          // What is on disk is of another encoding: it goes, and the package is asked for again.
+          handle.truncate(0);
+          throw new Ended("stale", { status: 200 });
+        }
+        if (response.status === 200 && (growing ? Number(response.headers.get("Content-Length")) < file.bytes
+          : Number(response.headers.get("Content-Length")) !== file.bytes)) {
+          throw new Ended("stale", { status: 200 });
+        }
+        if (response.status === 206 && !String(response.headers.get("Content-Range") || "").startsWith(`bytes ${at}-`)) {
+          throw new Ended("stale", { status: 206 });
+        }
+        if (response.status !== 200 && response.status !== 206) {
+          const answer = await response.json().catch(() => null);
+          throw new Ended("failed", { status: response.status, message: (answer && answer.error) || `MovieBot answered ${response.status}.` });
+        }
+
+        const etag = response.headers.get("ETag");
+        if (etag && etag !== file.etag) {
+          file.etag = etag;
+          validated = true;
+        }
+        const reader = response.body.getReader();
+        let unflushed = 0;
+        try {
+          for (;;) {
+            watch.quiet();
+            const { done, value } = await reader.read();
+            if (done) break;
+            const room = file.bytes - at;
+            const chunk = value.byteLength > room ? value.subarray(0, room) : value;
+            const written = handle.write(chunk, { at });
+            at += written;
+            unflushed += written;
+            progress.add(written);
+            if (unflushed >= FLUSH_EVERY) {
+              handle.flush();
+              unflushed = 0;
+            }
+            if (at >= file.bytes) break;
+          }
+          attempt = 0;
+        } catch (error) {
+          if (signal.aborted) throw error;
+          // The connection broke or went silent mid-track: what arrived is kept and the rest is asked for again.
+          if (attempt >= RETRIES.length) throw new Ended("unreached");
+          await pause(RETRIES[attempt++], signal);
+        } finally {
+          handle.flush();
+          reader.cancel().catch(() => {});
+        }
       } finally {
-        handle.flush();
-        reader.cancel().catch(() => {});
+        watch.release();
       }
     }
   } finally {
@@ -288,6 +333,28 @@ async function track(dir, meta, file, progress, signal) {
   // The validator the bytes arrived under is kept, so the next package resumes them.
   if (validated) await writeJson(dir, META, meta);
   changed();
+}
+
+/**
+ * One request's end: an abort signal that follows the save's, and fires on its own once `quiet` has
+ * not been called for STALL_MS; `release` lets go of both.
+ */
+function guard(outer) {
+  const request = new AbortController();
+  const stop = () => request.abort();
+  outer.addEventListener("abort", stop, { once: true });
+  let stalled = setTimeout(stop, STALL_MS);
+  return {
+    signal: request.signal,
+    quiet() {
+      clearTimeout(stalled);
+      stalled = setTimeout(stop, STALL_MS);
+    },
+    release() {
+      clearTimeout(stalled);
+      outer.removeEventListener("abort", stop);
+    },
+  };
 }
 
 /** The package's track a listed file is. */

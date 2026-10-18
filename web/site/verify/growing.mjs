@@ -244,7 +244,7 @@ const picker = await page.evaluate(() => ({
   lists: document.querySelectorAll(".kc-dl-pick .k-optlist").length,
   options: [...document.querySelectorAll(".kc-dl-pick .k-optlist__row input")].map((i) => i.value),
   chosen: [...document.querySelectorAll(".kc-dl-pick .k-optlist__row input")].find((i) => i.checked)?.value,
-  start: document.querySelector(".kc-dl-pick .kc-dl-start")?.textContent,
+  start: [...document.querySelectorAll(".kc-dl-pick button")].find((b) => /^Download/.test(b.textContent.trim()))?.textContent.trim(),
   languages: [...document.querySelectorAll(".kc-dl-pick select")].map((s) => s.getAttribute("aria-label")),
   original: document.querySelector('.kc-dl-pick select[aria-label="Audio language"] option[value=""]')?.textContent,
 }));
@@ -255,7 +255,7 @@ check(picker.languages.join() === "Audio language,Subtitle language" && picker.o
 // Subtitles in Spanish: the save takes the title's Spanish subtitles as the server lists them.
 await page.locator('.kc-dl-pick select[aria-label="Subtitle language"]').selectOption("es");
 await page.screenshot({ path: join(shots, "want-sheet.png") });
-await sheet.locator(".kc-dl-start").click();
+await sheet.getByRole("button", { name: /^Download/ }).click();
 await sheet.waitFor({ state: "detached", timeout: 15000 });
 
 // The want is ready at once, and the device's download of what has been made begins.
