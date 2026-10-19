@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.52.0] - 2026-10-19
+
+### Added
+
+- **The assistant hands-free.** The site pins `@thekrystalship/krystal` and the chat at 3.2.0: the
+  dock's options offer *Hands-free* where the assistant can scan. The microphone stays open, and a
+  request that opens with "hey assistant" is sent and read aloud; listening holds while the answer is
+  written and read. Site 0.97.0.
+
 ## [3.51.5] - 2026-10-18
 
 ### Fixed

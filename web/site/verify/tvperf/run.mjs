@@ -313,6 +313,9 @@ async function television() {
     console.error(`${serial} has no debug build: tv/build.sh --debug --install.`);
     process.exit(2);
   }
+  // A fresh process holds one WebView: one left from an earlier start keeps its page, which draws no
+  // frames behind the new one, and would be the page attached to.
+  adb("shell", "am", "force-stop", Debug);
   adb("shell", "am", "start", "-W", "-n", `${Debug}/com.thekrystalship.cinema.CinemaActivity`, "--es", "url", origin);
   let socket = null;
   for (let i = 0; i < 40 && !socket; i++) {
