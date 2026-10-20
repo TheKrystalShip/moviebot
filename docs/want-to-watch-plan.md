@@ -80,3 +80,55 @@ each row before changing that area.
 - **Docs move as each phase lands:** `docs/api-contract.md` gains "Plans"; `Acquisition/CLAUDE.md`
   gains the prefetch rules; `Notifications/CLAUDE.md` gains `together` and `plan`; then the phase's
   section here is struck.
+
+## 8. The final pass
+
+Every phase is implemented, built and committed locally, untested (`33c716b`, `07ac1a9`, `7c03347`,
+`bde8af8` here; `ed1144a` in moviebot-acquire). This pass tests all of it once, fixes what fails,
+releases and deploys. When it is done, this file is deleted.
+
+### Tests
+
+- `dotnet test` across the solution, and moviebot-acquire's own tests for the `want:` tag.
+- The site: `npm run lint`, `lint:css`, `check`, `npm test`, `verify:routes`, `verify:mobile`,
+  `verify:tv` (every `--checks`; Home and the title page must reach every control by D-pad), and
+  `verify:tv-perf` against its baseline (`tvperf/baseline.json` had a key renamed and is not
+  re-measured). `verify:tv --checks remoteui` timed out on the remote's Episodes control before this
+  work; find out whether that is staging or a real fault.
+- `npm run build` reports a bundler failure as a precache "no build line" error; build through the
+  Vite API without that plugin to read the real one.
+- What has no unit test: `TogetherDigest.PassAsync` and `WantMatcher.Of` (they read the library),
+  and `WantFetcher.PassAsync` end to end.
+
+### The migration on live data
+
+Copy `/var/lib/moviebot/moviebot.db` from hotbox with `sqlite3 .backup` (never write the live
+file), run the API's schema against the copy and check it: 56 wants (45 list entries plus 15 wish
+subscriptions, 4 overlapping), all just me, none with `may_fetch`, the 15 wish subscribers with
+`may_wish`; the list tables, `wish_subscribers` and `shared` notifications gone; the 7 wish rows
+kept; schema at step 5.
+
+### Live, after the deploy
+
+Sign in as `claude` (`tks-login header cinema`, `tks-login browser -o <file>`). **Never invite,
+match or notify a real person**: every plan made here invites nobody but `claude`, every want made
+here is just me, and each is removed afterwards.
+
+- **Wants:** `PUT` and `DELETE /api/me/wants/{imdbId}` round-trip; the migrated rows are listed; the
+  toggle and `/wants` work on the site and on the TV pages.
+- **Prefetch:** with no room playing, a just-me want on a small fetchable film starts its download
+  within a pass, tagged `want:`, and `ready` arrives once it can be watched. A room started first
+  holds the fetch back. `/api/library/due` leaves a wanted, unwatched title off.
+- **Matching:** covered by the tests; with one account it is only checked to answer an empty
+  `/api/me/together`.
+- **Plans:** `claude` plans a ready film about 35 minutes out and fixes it as the maker. At
+  `Plans:OpenMinutes` before, the room exists, closed, with `claude` admitted and the film loaded
+  paused; the reminder arrives at `Plans:RemindMinutes`; joining plays; once the room is reaped the
+  plan is `done`. Cancelling a second plan before it opens works. The two-person path (answering in,
+  fixing at `Plans:FixAt`, a can't-answerer not admitted) is `PlanRoomTests`.
+
+### Release
+
+One minor version bump with its CHANGELOG entry (the site's version too, as recent entries carry
+it), committed with the fixes, tagged `v<version>`; moviebot-acquire's bump per its own
+convention if its change is released. Not pushed. Deploy per `deploy/CLAUDE.md`.
