@@ -22,8 +22,7 @@ import { Title } from "./pages/Title.jsx";
 import { Show } from "./pages/Show.jsx";
 import { CatalogueFilm } from "./pages/CatalogueFilm.jsx";
 import { Discover, DISCOVER_FIELD } from "./pages/Discover.jsx";
-import { Notify } from "./pages/Notify.jsx";
-import { ListPage, Saved } from "./pages/Saved.jsx";
+import { Wants } from "./pages/Wants.jsx";
 import { Profile } from "./pages/Profile.jsx";
 import { ActivityProblem, Dark, NoAccess, Waiting } from "./pages/SignIn.jsx";
 import { Pairing } from "./pages/Pairing.jsx";
@@ -54,9 +53,8 @@ const ENDED = "Your session ended.";
 const ENDED_IN_ACTIVITY = "Your session ended. Close the Activity and start it again.";
 
 const place = (id) => ({ id, ...PLACES[id] });
-const HOME = ["home", "discover", "saved"].map(place);
+const HOME = ["home", "discover", "wants"].map(place);
 const LIBRARY = ["movies", "tv", "anime"].map(place);
-const WAITING = ["notify"].map(place);
 
 // A phone's way around: a tab for each place, the assistant's page among them.
 const TABS = [
@@ -81,15 +79,13 @@ const LIT = {
   "discover-film": { item: "discover", tab: "discover" },
   "discover-show": { item: "discover", tab: "discover" },
   profile: { tab: "me" },
-  notify: { item: "notify", tab: "me" },
-  saved: { item: "saved", tab: "me" },
-  list: { item: "saved", tab: "me" },
+  wants: { item: "wants", tab: "me" },
   chat: { tab: "assistant" },
 };
 
 // The places that need the server, drawn disabled with no connection. Every other place draws what the
 // device holds.
-const NEEDS_SERVER = new Set(["discover", "saved", "notify", "assistant"]);
+const NEEDS_SERVER = new Set(["discover", "wants", "assistant"]);
 
 /**
  * Krystal Cinema: the shelf, the films on their way and on their way out, and the assistant. Every page
@@ -288,7 +284,6 @@ function Frame({ session, route }) {
             </>}>
             <SidebarGroup>{HOME.map(item)}</SidebarGroup>
             <SidebarGroup>{LIBRARY.map(item)}</SidebarGroup>
-            {can(session, "cinema:wish") && <SidebarGroup>{WAITING.map(item)}</SidebarGroup>}
           </Sidebar>
         }
         aside={docked && <>
@@ -445,9 +440,7 @@ function Page({ route, fromDevice }) {
   switch (route.view) {
     case "discover-film": return <CatalogueFilm key={route.arg} imdbId={route.arg} />;
     case "discover": return <Discover query={route.query} />;
-    case "saved": return <Saved />;
-    case "list": return <ListPage key={route.arg} id={route.arg} />;
-    case "notify": return <Notify />;
+    case "wants": return <Wants />;
     case "chat": return <Assistant />;
     default: return <NotFound />;
   }

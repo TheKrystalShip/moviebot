@@ -99,10 +99,10 @@ public sealed record FilmAvailability
     /// <summary>The tracker could not be asked; nothing is known about what it offers.</summary>
     public bool TrackerUnanswered { get; init; }
 
-    /// <summary>Whether the person asking waits on it.</summary>
+    /// <summary>Whether the person asking wants it.</summary>
     public bool Waiting { get; init; }
 
-    /// <summary>How many people wait on it, the person asking among them.</summary>
+    /// <summary>How many people want it as the person asking may count them: every visible want, and their own.</summary>
     public int Waiters { get; init; }
 
     public required StreamSlots Streams { get; init; }

@@ -11,18 +11,18 @@ public sealed class NotificationPreferenceStore(CinemaDatabase database)
 {
     public NotificationPreferences For(string userId) =>
         database.Read(c => c.First(
-            "SELECT available, ready, episode, shared FROM notification_preferences WHERE user_id = $user",
-            r => new NotificationPreferences { Available = r.GetBool(0), Ready = r.GetBool(1), Episode = r.GetBool(2), Shared = r.GetBool(3) },
+            "SELECT available, ready, episode FROM notification_preferences WHERE user_id = $user",
+            r => new NotificationPreferences { Available = r.GetBool(0), Ready = r.GetBool(1), Episode = r.GetBool(2) },
             ("$user", userId)))
         ?? new NotificationPreferences();
 
     public NotificationPreferences Set(string userId, NotificationPreferences preferences)
     {
         database.Write(c => c.Execute(
-            "INSERT OR REPLACE INTO notification_preferences (user_id, available, ready, episode, shared) "
-            + "VALUES ($user, $available, $ready, $episode, $shared)",
+            "INSERT OR REPLACE INTO notification_preferences (user_id, available, ready, episode) "
+            + "VALUES ($user, $available, $ready, $episode)",
             ("$user", userId), ("$available", preferences.Available), ("$ready", preferences.Ready),
-            ("$episode", preferences.Episode), ("$shared", preferences.Shared)));
+            ("$episode", preferences.Episode)));
         return preferences;
     }
 }

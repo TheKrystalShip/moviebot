@@ -2,12 +2,13 @@ import React from "react";
 import { TvCard, TvRow, TvTile } from "@thekrystalship/krystal";
 import { api, episodeCode, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
-import { ANIME, discoverFilmPath, isAnime, libraryPath, listPath, moviePath, showPath } from "../../paths.js";
+import { ANIME, discoverFilmPath, isAnime, libraryPath, moviePath, showPath, wantsPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { since, timeLeft } from "../../time.js";
 import { Empty, Failed, watchLink } from "../../components/Film.jsx";
 import { waitersWords } from "../../components/TitleCards.jsx";
 import { useCan } from "../../session.js";
+import { useWantList } from "../../wants.js";
 import { continueKey, dealt } from "../../pages/Home.jsx";
 import { useHomeSlides } from "../../heroes.js";
 import { TvHero } from "../hero.jsx";
@@ -21,7 +22,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /**
  * The front page on a television. It opens on the top's slides (`heroes.js`), large, turning through
  * what is worth watching now, with the first one's first action focused. Down goes
- * into the rows: Continue watching, Watching now, Watch later, Recently added, Anticipated (the films
+ * into the rows: Continue watching, Watching now, Want to watch, Recently added, Anticipated (the films
  * not out yet that people wait on, for a person who may wait on one), then the shelf as Movies, TV
  * Shows and Anime, each ending in the tile that leads to all of it. Once focus is in the rows the
  * top of the screen is a spotlight on the card it rests on, the focused row holds one line on the
@@ -32,7 +33,7 @@ export function TvHome() {
   const rooms = useLoad(() => api.rooms(), [], { every: 15000 });
   const progress = useLoad(() => api.progress().catch(() => []), []);
   const showList = useLoad(() => api.shows().catch(() => []), []);
-  const later = useLoad(() => api.list("later").catch(() => null), []);
+  const wanted = useWantList().list;
   const canWish = useCan("cinema:wish");
   const anticipated = useLoad(() => (canWish ? api.anticipated().catch(() => []) : Promise.resolve([])), [canWish]);
   const [deal] = React.useState(() => Math.random().toString(36).slice(2));
@@ -46,7 +47,7 @@ export function TvHome() {
   const watching = (rooms.data || []).filter((r) => r.titleId && r.participants > 0 && byId.has(r.titleId));
   // An episode the library does not hold yet comes with no title, and is fetched when chosen.
   const continuing = (progress.data || []).filter((p) => (p.titleId ? byId.has(p.titleId) : p.episode && p.showImdbId));
-  const saved = (later.data && later.data.entries) || [];
+  const wants = wanted || [];
   const isRecent = (at) => at && Date.now() - Date.parse(at) <= RECENT_DAYS * DAY_MS;
   const recent = [
     ...films.filter((t) => isRecent(t.addedAt)).map((t) => ({ film: t, at: t.addedAt })),
@@ -111,18 +112,18 @@ export function TvHome() {
       </TvRow>,
     );
   }
-  if (saved.length > 0) {
+  if (wants.length > 0) {
     const row = rows.length;
-    const end = { key: "end:later", eyebrow: "See all", title: "Watch later", line: count(saved.length, "title") };
+    const end = { key: "end:wants", eyebrow: "See all", title: "Want to watch", line: count(wants.length, "title") };
     rows.push(
-      <TvRow key="later" icon="bookmark" title="Watch later" count={saved.length}
-        end={<TvTile label="See all" {...linkProps(listPath("later"))} {...card(row, end)} />}>
-        {saved.map((e) => {
+      <TvRow key="wants" icon="bookmark" title="Want to watch" count={wants.length}
+        end={<TvTile label="See all" {...linkProps(wantsPath)} {...card(row, end)} />}>
+        {wants.map((e) => {
           const held = e.kind !== "show" ? byImdb.get(e.imdbId) : null;
           const href = e.kind === "show" ? showPath(e.imdbId, { category: e.category }) : held ? moviePath(held.id, held.category) : discoverFilmPath(e.imdbId);
           return (
             <TvCard key={e.imdbId} art={e.posterUrl} label={e.title} {...linkProps(href)}
-              {...card(row, entrySpot(e, held, "Watch later · saved " + since(e.addedAt).toLowerCase()))} />
+              {...card(row, entrySpot(e, held, "Want to watch · " + since(e.since).toLowerCase()))} />
           );
         })}
       </TvRow>,

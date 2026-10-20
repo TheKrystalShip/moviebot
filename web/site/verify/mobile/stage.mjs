@@ -17,7 +17,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export const VIEWER = { id: "verify-viewer", name: "Phone Check" };
 /** People a view may act as instead of the viewer, by the name views.mjs gives them. */
-export const PEOPLE = { viewer: VIEWER, player: { id: "verify-player", name: "Player Check" }, empty: { id: "verify-empty", name: "Empty Check" }, lister: { id: "verify-lister", name: "Lister Check" } };
+export const PEOPLE = { viewer: VIEWER, player: { id: "verify-player", name: "Player Check" }, empty: { id: "verify-empty", name: "Empty Check" } };
 const OTHERS = [{ id: "verify-ana", name: "Ana" }, { id: "verify-ben", name: "Ben" }];
 
 /** A person's access token, minted by the scratch site's identity provider: what signing in on the site holds. */
@@ -124,26 +124,25 @@ export async function stage(api, issuer, { tmdb = true } = {}) {
     await sitIn(api, issuer, OTHERS[1], "verify-ben", ready[4].id, 900, false),
   ];
 
-  // Lists: the viewer's Watch later with a note on one, a list of the viewer's shared with Ben, and
-  // one of Ana's the viewer may add to. Joining a room is what taught the API everybody's name.
-  const save = (who, list, title, note) => call(api, who, "PUT",
-    `/api/lists/${encodeURIComponent(list)}/entries/${encodeURIComponent(title.film.imdbId)}`, { kind: "film", note });
+  // Wants: three of the viewer's, the second kept to the viewer and the others visible, and Ana and Ben
+  // wanting some of the same, so a card counts others and a title page shows faces. Joining a room is
+  // what taught the API everybody's name. Wanting asks the film database about a title, so it needs the
+  // token that database is read with.
   const named = ready.filter((t) => t.film && t.film.imdbId);
-  for (const [i, title] of named.slice(0, 4).entries()) await save(token, "later", title, i === 1 ? "The one Ana keeps quoting" : undefined);
-  const mine = await call(api, token, "POST", "/api/lists", { name: "Rainy Sunday" });
-  for (const title of named.slice(2, 4)) await save(token, mine.list.id, title);
-  await call(api, token, "PUT", `/api/lists/${mine.list.id}/members/${OTHERS[1].id}`, { role: "viewer" });
-  const ana = memberToken(issuer, OTHERS[0]);
-  const theirs = await call(api, ana, "POST", "/api/lists", { name: "Friday night with the group" });
-  for (const title of named.slice(4, 7)) await save(ana, theirs.list.id, title);
-  await call(api, ana, "PUT", `/api/lists/${theirs.list.id}/members/${VIEWER.id}`, { role: "editor" });
-  await save(token, theirs.list.id, named[0]);
+  if (tmdb) {
+    const want = (who, title, visible) => call(api, who, "PUT", `/api/me/wants/${encodeURIComponent(title.film.imdbId)}`, { kind: "film", visible });
+    const ana = memberToken(issuer, OTHERS[0]);
+    const ben = memberToken(issuer, OTHERS[1]);
+    for (const [i, title] of named.slice(0, 4).entries()) await want(token, title, i !== 1);
+    for (const title of named.slice(0, 3)) await want(ana, title, true);
+    await want(ben, named[0], true);
+    await want(ben, named[1], false);
+  }
 
   const episode = ready.find((t) => t.episode);
   const screens = await televisions(api, issuer, ready[5], episode);
   return {
     token,
-    list: theirs.list.id,
     film: ready[0],
     /** The film the living room television holds, which no other view has played. */
     onTv: ready[5],

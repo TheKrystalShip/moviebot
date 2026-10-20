@@ -11,7 +11,8 @@ import { FilmMatchActions } from "../components/FilmActions.jsx";
 import { Spotlight } from "../components/Spotlight.jsx";
 import { useDiscoverSlides } from "../heroes.js";
 import { FilmScore } from "../components/FilmDetails.jsx";
-import { SaveButton } from "../components/SaveButton.jsx";
+import { WantButton } from "../components/WantButton.jsx";
+import { Wanters } from "../components/Wanters.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
 import { CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, LandingFilters, ShelfPage, surprisePool, useSurprise } from "./DiscoverShelves.jsx";
 import { openingEpisode, watchOpening } from "../watchNow.js";
@@ -266,7 +267,8 @@ function BestMatch({ found, here, held, shelf }) {
                   {playable && (
                     <Button variant="primary" size="xl" icon="play" onClick={() => navigate(watchHref(here.id))}>Watch</Button>
                   )}
-                  <SaveButton imdbId={found.imdbId} kind="film" title={found.title} />
+                  <WantButton imdbId={found.imdbId} kind="film" title={found.title} />
+                  <Wanters imdbId={found.imdbId} />
                 </div>
               )
               : <FilmMatchActions found={found} />}
@@ -306,7 +308,8 @@ function ShowMatchActions({ found, shelf }) {
       {!shelf && opening && (
         <Button variant="primary" size="xl" icon="play" disabled={starting} onClick={watchFirst}>Watch</Button>
       )}
-      <SaveButton imdbId={found.imdbId} kind="show" title={found.title} />
+      <WantButton imdbId={found.imdbId} kind="show" title={found.title} />
+      <Wanters imdbId={found.imdbId} />
     </div>
   );
 }
@@ -357,16 +360,4 @@ function useFocusOnceShown() {
     return () => cancelAnimationFrame(frame);
   }, []);
   return ref;
-}
-
-export function wishWords(reply, name) {
-  switch (reply && reply.outcome) {
-    case "subscribed": return `You will be told when ${name} can be watched.`;
-    case "alreadySubscribed": return `You are already waiting on ${name}.`;
-    case "alreadyAvailable":
-    case "inLibrary":
-    case "downloading": return `${(reply && reply.libraryName) || name} can be watched now.`;
-    case "notAFilm": return `${name} is not a film, and only films can be waited on.`;
-    default: return `Nothing in the catalogue answers to ${name}.`;
-  }
 }

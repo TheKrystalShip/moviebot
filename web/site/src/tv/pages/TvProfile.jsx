@@ -16,7 +16,7 @@ const SECTIONS = PROFILE_TAB_FACES.filter((t) => t.id !== "notifications");
 
 /**
  * Who is signed in and everything that is theirs, on a television: the person and their sections down
- * the left — History, Requests (which holds what they wait on), Following, Playback, Remote (the
+ * the left — History, Following, Playback, Remote (the
  * television's own: the code a phone scans to pair with it, and the phones paired with it), Subtitles,
  * Appearance, Account and About — with Sign out under them, and the open section on the right. The
  * page is the screen's height and never scrolls: the open section scrolls inside its panel, under its

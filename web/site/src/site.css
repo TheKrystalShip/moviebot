@@ -522,46 +522,14 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-bell__empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 16px; color: var(--fg-3); font-size: 13px; }
 .kc-bell__settings { justify-content: flex-start; margin: 4px 8px; align-self: flex-start; }
 
-/* ── Saving and lists ── a list's card is its newest posters. */
-.kc-save__menu { min-width: min(280px, calc(100vw - 32px)); padding: 6px; }
-.kc-save__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px; font-size: 14px; cursor: pointer; }
-.kc-save__name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
-.kc-save__name svg { color: var(--fg-3); flex-shrink: 0; }
-.kc-save__new { display: flex; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--border-subtle); }
-
-.kc-lists { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
-.kc-list-card { display: flex; flex-direction: column; gap: 4px; color: inherit; text-decoration: none; min-width: 0; }
-.kc-list-card:hover .kc-list-card__name { color: var(--krystal-teal-hover); }
-.kc-list-card__art {
-  aspect-ratio: 1; border-radius: var(--r-sm); overflow: hidden; background: var(--surface-2); color: var(--fg-4);
-  display: grid; place-items: center; margin-bottom: 6px; border: var(--edge);
-}
-.kc-list-card__art img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.kc-list-card__art--2, .kc-list-card__art--3, .kc-list-card__art--4 { grid-template-columns: 1fr 1fr; place-items: stretch; }
-.kc-list-card__art--2 { grid-template-rows: 1fr; }
-.kc-list-card__art--3, .kc-list-card__art--4 { grid-template-rows: 1fr 1fr; }
-.kc-list-card__art--3 img:first-child { grid-row: span 2; }
-.kc-list-card__name { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14.5px; min-width: 0; }
-.kc-list-card__name svg { color: var(--fg-3); flex-shrink: 0; }
-
-.kc-profile__saved { display: none; }
-@media (max-width: 768px) { .kc-profile__saved { display: block; } }
-
-.kc-list-actions { display: flex; gap: 8px; }
-.kc-list-rename { display: flex; gap: 8px; align-items: center; }
-/* The list's name, renamed where it stands, keeps the size of the heading it replaces. */
-.kc-list-rename__name { height: 44px; font-size: 20px; font-weight: 700; min-width: min(360px, 60vw); }
-.kc-list-group { display: flex; flex-direction: column; gap: 10px; }
-.kc-list-group__head { margin: 6px 0 0; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); }
-
-.kc-people { display: flex; flex-direction: column; }
-.kc-people__add { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; padding-top: 14px; }
-@media (max-width: 720px) {
-  .kc-lists { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .kc-list-actions { margin-left: 0; }
-  .kc-people__add { grid-template-columns: minmax(0, 1fr) auto; }
-  .kc-people__who { grid-column: 1 / -1; }
-}
+/* ── Wanting ── the faces of the people who want a title, and the Wants page's state switch. */
+.kc-wanters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.kc-wanters__face { display: inline-flex; border-radius: 50%; }
+.kc-wanters__avatar { width: 32px; height: 32px; font-size: 12px; border: var(--edge); }
+.kc-profile__wants { display: none; }
+@media (max-width: 768px) { .kc-profile__wants { display: block; } }
+.kc-wants-switch { width: min(100%, 420px); }
+@media (max-width: 768px) { .kc-wants-switch { width: 100%; } }
 
 /* ── Subtitle style ── the preview stays in view beside the choices, above them on a phone. */
 .kc-cue-style { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; align-items: start; padding: 10px 14px 14px; }

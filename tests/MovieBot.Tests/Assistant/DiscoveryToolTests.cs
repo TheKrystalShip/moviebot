@@ -249,9 +249,9 @@ public sealed class DiscoveryToolTests
         Assert.Contains("- Night Harbor: finished, last watched 2026-10-01.", result.Text);
         Assert.Contains("- Coastal Hours: stopped at 34%, last watched 2026-09-20.", result.Text);
         Assert.Contains("- The Salt Line S01E02: finished, last watched 2026-09-02.", result.Text);
-        Assert.Contains("List \"Watch later\" (1 saved, newest saved first):", result.Text);
-        Assert.Contains("- The Lantern Keeper (2019), film. Drama. Rated 7.5. Note: Rook, as Nina said id tt1000003.", result.Text);
-        Assert.Contains("List \"Friday night\" (0 saved, newest saved first):\nEmpty.", result.Text);
+        Assert.Contains("Wants to watch (newest first, 2 of 2):", result.Text);
+        Assert.Contains("- The Lantern Keeper (2019), film. Drama. Rated 7.5. Not out digitally yet. id tt1000003.", result.Text);
+        Assert.Contains("- The Salt Line, show. In the library. Their next episode is season 1 episode 3. id tt1000006.", result.Text);
         Assert.Contains("Following (newest first, 1 of 1):", result.Text);
         Assert.Contains("- The Salt Line: followed since 2026-01-04. Next episode season 3 episode 1, 2026-11-02. id tt1000006.", result.Text);
         Assert.Equal(["tt1000003", "tt1000006"], ToolRig.CardIds(result));
@@ -269,13 +269,13 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task A_part_the_account_may_not_read_is_said_and_the_others_still_come()
     {
-        var world = CinemaWorld.Build().Answer("/api/me/lists", "{}", 403);
+        var world = CinemaWorld.Build().Answer("/api/me/wants", "{}", 403);
         var rig = new ToolRig(world);
 
         ToolOutcome result = await rig.RunAsync(rig.Taste, new { });
 
         Assert.False(result.IsError);
-        Assert.Contains("Lists: could not be read (This account does not let the person do that in Krystal Cinema.).", result.Text);
+        Assert.Contains("Wants to watch: could not be read (This account does not let the person do that in Krystal Cinema.).", result.Text);
         Assert.Contains("- Night Harbor: finished", result.Text);
         Assert.Contains("Following (newest first, 1 of 1):", result.Text);
     }
@@ -343,12 +343,12 @@ public sealed class DiscoveryToolTests
             throw new HttpRequestException("connection refused");
     }
 
-    /// <summary>A person with no history, no lists and no follows.</summary>
+    /// <summary>A person with no history, no wants and no follows.</summary>
     private sealed class CinemaWorld_Empty
     {
         public ReplayHandler World { get; } = new ReplayHandler()
             .Answer("/api/me/history", new List<HistoryEntry>())
-            .Answer("/api/me/lists", new List<ListSummary>())
+            .Answer("/api/me/wants", new List<Want>())
             .Answer("/api/me/follows", new List<Follow>());
     }
 }

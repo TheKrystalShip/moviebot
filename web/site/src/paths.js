@@ -5,11 +5,10 @@
 const seg = encodeURIComponent;
 
 /** The tabs of the profile, in the order they are shown; the first is the page's own address. */
-export const PROFILE_TABS = ["history", "requests", "following", "notifications", "playback", "remote", "subtitles", "appearance", "account"];
+export const PROFILE_TABS = ["history", "following", "notifications", "playback", "remote", "subtitles", "appearance", "account"];
 
 export const homePath = "/";
-export const savedPath = "/saved";
-export const notifyPath = "/notify";
+export const wantsPath = "/wants";
 export const aboutPath = "/about";
 /** The assistant's page. Not `/assistant`, which is the assistant's own service on the same origin. */
 export const chatPath = "/chat";
@@ -80,9 +79,6 @@ export const discoverShowPath = (imdbId, season) => "/discover/show/" + seg(imdb
  * it is wrong.
  */
 export const showPath = (imdbId, { held = true, season, category } = {}) => (held ? tvPath(imdbId, season, category) : discoverShowPath(imdbId, season));
-
-/** One list; `later` is the person's own Watch later. */
-export const listPath = (id) => "/saved/" + seg(id);
 
 /** The profile at a tab; the first tab has no segment. */
 export const profilePath = (tab) => (tab && tab !== PROFILE_TABS[0] ? "/profile/" + seg(tab) : "/profile");

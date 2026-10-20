@@ -28,7 +28,7 @@ public sealed class NotifyOptions
     public Source MinimumSource { get; set; } = Source.Web;
 }
 
-/// <summary>One person waiting on a film, by the account the identity provider names them by.</summary>
+/// <summary>One person who wants a film and held <c>cinema:wish</c> when they did, by the account the identity provider names them by.</summary>
 public sealed record WishSubscriber
 {
     public required string UserId { get; init; }
@@ -37,11 +37,12 @@ public sealed record WishSubscriber
 }
 
 /// <summary>
-/// A film somebody wants that cannot be downloaded yet, and everybody waiting on it.
+/// A film somebody wants that cannot be downloaded yet, and everybody who can be told when it can.
 ///
-/// Keyed by the film rather than by the person: two people asking for the same film share one
-/// wish and one tracker call per sweep. What is kept about the film is what the catalogue said when
-/// it was asked, so a notification can name it and a page show its poster without asking again.
+/// Keyed by the film rather than by the person: two people wanting the same film share one wish and
+/// one tracker call per sweep. What is kept about the film is what the catalogue said when it was
+/// asked, so a notification can name it and a page show its poster without asking again. The people
+/// are the wants on the film whose token held <c>cinema:wish</c>.
 /// </summary>
 public sealed record Wish
 {
@@ -60,38 +61,16 @@ public sealed record Wish
 
     /// <summary>The one spelling of the name and the year together.</summary>
     public string Display => Year is { } year ? $"{Title} ({year})" : Title;
-
-    /// <summary>The wish as it crosses the wire, with the release that answers it once there is one.</summary>
-    public WishView View(ReleaseOffer? release = null) => new()
-    {
-        ImdbId = ImdbId,
-        Title = Title,
-        Year = Year,
-        Display = Display,
-        Starring = Starring,
-        PosterUrl = PosterUrl,
-        Subscribers = Subscribers.Select(s => new WishSubscriberView
-        {
-            UserId = s.UserId,
-            AskedAt = s.AskedAt,
-        }).ToList(),
-        Release = release,
-    };
-}
-
-public enum WishAdded
-{
-    Subscribed,
-    AlreadySubscribed,
 }
 
 /// <summary>
-/// The films people are waiting on.
+/// The films nothing has yet that people want.
 ///
 /// A download is kept as tags on the torrent and a room as its row, but a film that is not on the
-/// tracker yet has no torrent to tag and no manifest to write: a wish for it exists nowhere unless it
-/// is kept here. A wish is listed in the order it was first made, and its subscribers in the order
-/// they asked.
+/// tracker yet has no torrent to tag and no manifest to write: the catalogue's description of it
+/// exists nowhere unless it is kept here. A wish is listed in the order it was first made, and its
+/// people in the order they wanted it. Who is on it is <see cref="Wants.WantStore"/>'s to say, and the
+/// wish goes when the last of them does.
 /// </summary>
 public sealed class WishList(CinemaDatabase database)
 {
@@ -99,19 +78,17 @@ public sealed class WishList(CinemaDatabase database)
     // again on its first pass after a restart.
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Release> _out = new(StringComparer.OrdinalIgnoreCase);
 
-    public IReadOnlyList<Wish> All() => database.Read(c => Load(c, null, null));
-
-    /// <summary>The films one person is waiting on.</summary>
-    public IReadOnlyList<Wish> For(string userId) => database.Read(c => Load(c, null, userId));
+    public IReadOnlyList<Wish> All() => database.Read(c => Load(c, null));
 
     /// <summary>
-    /// Every wish with how many people wait on it and whether <paramref name="userId"/> is one, the
-    /// most waited on first and, among equals, the one most recently asked for. Names nobody.
+    /// Every wish with how many people want the film as the person asking may count them (every
+    /// visible want, and their own) and whether they are one, the most wanted first and, among equals,
+    /// the one most recently wanted. Names nobody.
     /// </summary>
     public IReadOnlyList<AnticipatedView> Anticipated(string userId) => database.Read(c => c.Query(
-        "SELECT w.imdb_id, w.title, w.year, w.poster_url, COUNT(*) AS waiters, MAX(s.user_id = $user) AS waiting "
-        + "FROM wishes w JOIN wish_subscribers s ON s.imdb_id = w.imdb_id "
-        + "GROUP BY w.imdb_id ORDER BY waiters DESC, MAX(s.asked_at) DESC, w.rowid",
+        "SELECT w.imdb_id, w.title, w.year, w.poster_url, COUNT(*) AS wanters, MAX(t.user_id = $user) AS wanting "
+        + "FROM wishes w JOIN title_wants t ON t.imdb_id = w.imdb_id AND (t.visible = 1 OR t.user_id = $user) "
+        + "GROUP BY w.imdb_id ORDER BY wanters DESC, MAX(t.since) DESC, w.rowid",
         r =>
         {
             var title = r.GetString(1);
@@ -125,88 +102,50 @@ public sealed class WishList(CinemaDatabase database)
         },
         ("$user", userId)));
 
-    public Wish? Find(string imdbId) => database.Read(c => Load(c, imdbId, null).FirstOrDefault());
+    public Wish? Find(string imdbId) => database.Read(c => Load(c, imdbId).FirstOrDefault());
 
     /// <summary>
-    /// Adds a person to a film's wish, making the wish if it is the first. What is kept about the
-    /// film is what the catalogue said now, which stands in for it until the film is out.
+    /// Keeps the catalogue's description of a film nothing has yet, if it is not kept already. What is
+    /// kept is what the catalogue said now, which stands in for the film until it is out.
     /// </summary>
-    public (WishAdded Outcome, Wish Wish) Add(ImdbTitle film, WishSubscriber subscriber) => database.Write(c =>
-    {
-        if (Load(c, film.ImdbId, null).FirstOrDefault() is { } existing)
-        {
-            if (existing.Subscribers.Any(s => s.UserId == subscriber.UserId)) return (WishAdded.AlreadySubscribed, existing);
-
-            Subscribe(c, existing.ImdbId, subscriber);
-            return (WishAdded.Subscribed, existing with { Subscribers = [.. existing.Subscribers, subscriber] });
-        }
-
-        var wish = new Wish
-        {
-            ImdbId = film.ImdbId,
-            Title = film.Title,
-            Year = film.Year,
-            Starring = film.Starring,
-            PosterUrl = film.PosterUrl?.ToString(),
-            Subscribers = [subscriber],
-        };
-        c.Execute(
-            "INSERT INTO wishes (imdb_id, title, year, starring, poster_url, made_at) VALUES ($imdb, $title, $year, $starring, $poster, $at)",
-            ("$imdb", wish.ImdbId), ("$title", wish.Title), ("$year", wish.Year), ("$starring", wish.Starring),
-            ("$poster", wish.PosterUrl), ("$at", subscriber.AskedAt));
-        Subscribe(c, wish.ImdbId, subscriber);
-        return (WishAdded.Subscribed, wish);
-    });
-
-    /// <summary>Takes one person off a film's wish. The wish goes with its last subscriber.</summary>
-    public Wish? Remove(string userId, string imdbId) => database.Write(c =>
-    {
-        if (Load(c, imdbId, null).FirstOrDefault() is not { } wish || wish.Subscribers.All(s => s.UserId != userId)) return null;
-
-        c.Execute("DELETE FROM wish_subscribers WHERE imdb_id = $imdb AND user_id = $user", ("$imdb", wish.ImdbId), ("$user", userId));
-        c.Execute("DELETE FROM wishes WHERE imdb_id = $imdb AND NOT EXISTS (SELECT 1 FROM wish_subscribers WHERE imdb_id = $imdb)",
-            ("$imdb", wish.ImdbId));
-        return wish;
-    });
+    public void Keep(ImdbTitle film, DateTimeOffset now) => database.Write(c => c.Execute(
+        "INSERT OR IGNORE INTO wishes (imdb_id, title, year, starring, poster_url, made_at) VALUES ($imdb, $title, $year, $starring, $poster, $at)",
+        ("$imdb", film.ImdbId), ("$title", film.Title), ("$year", film.Year), ("$starring", film.Starring),
+        ("$poster", film.PosterUrl?.ToString()), ("$at", now)));
 
     /// <summary>Notes that a wished film is out, as this release.</summary>
     public void MarkOut(string imdbId, Release release) => _out[imdbId] = release;
 
-    /// <summary>The release a wished film came out as, or null while it is not out or nobody waits on it.</summary>
+    /// <summary>The release a wished film came out as, or null while it is not out or nobody wants it.</summary>
     public Release? OutAs(string imdbId)
     {
         if (!_out.TryGetValue(imdbId, out var release)) return null;
         if (Find(imdbId) is not null) return release;
 
-        // A film nobody waits on any longer is nobody's news.
+        // A film nobody wants any longer is nobody's news.
         _out.TryRemove(imdbId, out _);
         return null;
     }
 
-    private static void Subscribe(SqliteConnection c, string imdbId, WishSubscriber subscriber) =>
-        c.Execute("INSERT INTO wish_subscribers (imdb_id, user_id, asked_at) VALUES ($imdb, $user, $at)",
-            ("$imdb", imdbId), ("$user", subscriber.UserId), ("$at", subscriber.AskedAt));
-
     /// <summary>
-    /// The wishes, all of them or the one <paramref name="imdbId"/> names (whatever its case), or the ones
-    /// <paramref name="subscriber"/> waits on, each with everybody waiting on it.
+    /// The wishes, all of them or the one <paramref name="imdbId"/> names (whatever its case), each with
+    /// the people whose wants can be told.
     /// </summary>
-    private static List<Wish> Load(SqliteConnection c, string? imdbId, string? subscriber)
+    private static List<Wish> Load(SqliteConnection c, string? imdbId)
     {
         var wishes = c.Query(
             "SELECT imdb_id, title, year, starring, poster_url FROM wishes "
-            + "WHERE ($imdb IS NULL OR imdb_id = $imdb COLLATE NOCASE) "
-            + "AND ($user IS NULL OR imdb_id IN (SELECT imdb_id FROM wish_subscribers WHERE user_id = $user)) ORDER BY rowid",
+            + "WHERE ($imdb IS NULL OR imdb_id = $imdb COLLATE NOCASE) ORDER BY rowid",
             r => new Wish
             {
                 ImdbId = r.GetString(0), Title = r.GetString(1), Year = r.GetIntOrNull(2), Starring = r.GetStringOrNull(3),
                 PosterUrl = r.GetStringOrNull(4),
             },
-            ("$imdb", imdbId), ("$user", subscriber));
+            ("$imdb", imdbId));
 
         return [.. wishes.Select(w => w with
         {
-            Subscribers = c.Query("SELECT user_id, asked_at FROM wish_subscribers WHERE imdb_id = $imdb ORDER BY rowid",
+            Subscribers = c.Query("SELECT user_id, since FROM title_wants WHERE imdb_id = $imdb AND may_wish = 1 ORDER BY since, user_id",
                 r => new WishSubscriber { UserId = r.GetString(0), AskedAt = r.GetInstant(1) }, ("$imdb", w.ImdbId)),
         })];
     }

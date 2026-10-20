@@ -13,7 +13,7 @@ import { useSession } from "./session.js";
 
 /** The pages that sort, by the name the API keeps each one's order under. */
 export const SORTED = {
-  list: "list",
+  wants: "wants",
   films: "library.film",
   shows: "library.show",
   shelf: "discover.shelf",

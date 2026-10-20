@@ -50,8 +50,8 @@ Playback starts seconds after a film is requested, while it is still being trans
    than being sent a ticking number.
 4. **The bot** is the Discord surface. It resolves a film, opens the room's session on the API and
    posts the launch. When the film is not in the library it asks the API, which finds and downloads
-   it through [moviebot-acquire](https://github.com/TheKrystalShip/moviebot-acquire) and keeps the
-   list of films people are waiting on.
+   it through [moviebot-acquire](https://github.com/TheKrystalShip/moviebot-acquire) and keeps a
+   wish for each film people want that nothing has yet.
 5. **The hand-off** watches for downloads, picks the feature file, and runs ingest while the
    download is still arriving, so the film is announced as soon as it can be played. It also
    removes a download's torrent and files once it has seeded long enough, and removes a settled film
@@ -61,7 +61,7 @@ Playback starts seconds after a film is requested, while it is still being trans
 6. **The assistant** helps people find films and shows: one they half remember, one by someone they
    like, one that fits a mood. It is a plugin to the organization's assistant harness, which runs the
    model, the conversations and the memory; the plugin reads the film database and each person's
-   history, lists and follows through the API, as that person, and answers with cards that open a
+   history, wants and follows through the API, as that person, and answers with cards that open a
    title's page. It acts on nothing: watching, getting a film and following are buttons on the page.
    It speaks the same chat protocol as the KGSM assistant, so one chat client serves both.
 7. **Krystal Cinema** is the site: the library in a browser, for the people the identity provider
@@ -78,7 +78,7 @@ A single transcode serves the whole room because there is only one playhead. On 
 |---|---|
 | `/watch title:<name>` | Loads a film into the room for the voice channel you are in, downloading it first if needed |
 | `/show show:<name> season:<n>` | Fetches episodes of a show, a season at a time |
-| `/notify add\|list\|cancel` | Waits on a film that cannot be downloaded yet, and announces when it can |
+| `/notify add\|list\|cancel` | Wants a film that cannot be downloaded yet, and announces when it can |
 | `/voice join\|status\|leave` | Listens in the voice channel for spoken commands |
 
 See [`src/MovieBot.Bot/README.md`](src/MovieBot.Bot/README.md) for the bot, and
@@ -225,7 +225,7 @@ secrets, the media ticket and service keys, the tracker account and its category
 when it starts.
 
 The API keeps everything it knows in one SQLite database, `moviebot.db` in the state directory
-systemd hands it (`Database:Path` names another): every person's records, the rooms, the wish list,
+systemd hands it (`Database:Path` names another): every person's records, the rooms, the wants and wishes,
 the push keys and what the film database said. Only served bytes sit beside it as files: fetched
 subtitles and the film database's artwork. It needs nothing installed; the native SQLite ships with
 the binary.

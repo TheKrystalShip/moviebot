@@ -31,7 +31,7 @@ public static class WishEmbed
     /// <summary>The reply to somebody who has just asked to be told.</summary>
     public static Embed Waiting(Wish wish)
     {
-        var others = wish.Subscribers.Count - 1;
+        var others = wish.Others;
 
         return Film(wish)
             .WithDescription(
@@ -72,9 +72,6 @@ public static class WishEmbed
         var builder = new EmbedBuilder()
             .WithTitle(wish.Display)
             .WithUrl(wish.Url);
-
-        if (wish.Starring is { Length: > 0 } starring)
-            builder.AddField("Starring", starring, inline: false);
 
         // Asked for at the size it will be seen, through the catalogue's own sizing rule.
         if (Uri.TryCreate(wish.PosterUrl, UriKind.Absolute, out var poster))

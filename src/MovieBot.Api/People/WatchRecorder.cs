@@ -1,5 +1,7 @@
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Sessions;
+using TheKrystalShip.MovieBot.Api.Shows;
+using TheKrystalShip.MovieBot.Api.Wants;
 
 namespace TheKrystalShip.MovieBot.Api.People;
 
@@ -13,16 +15,24 @@ namespace TheKrystalShip.MovieBot.Api.People;
 /// joined halfway is credited from where they joined: they watched it from there. What is happening
 /// in a room right now is newer than anything written down, and is read from the room itself
 /// (<see cref="SessionStore.Viewing"/>).
+///
+/// It is also where finishing is seen: a person who finishes a film no longer wants it, and one who
+/// finishes a show's last aired episode no longer wants the show.
 /// </summary>
 public sealed class WatchRecorder(
     SessionStore sessions,
     TitleLibrary library,
     WatchRecord record,
-    PersonDirectory people) : IHostedService
+    PersonDirectory people,
+    WantStore wants,
+    ShowStore shows,
+    LibraryListing listing,
+    TimeProvider clock) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
     {
         sessions.Watched += Credit;
+        record.Finished += EndWant;
         return Task.CompletedTask;
     }
 
@@ -31,6 +41,7 @@ public sealed class WatchRecorder(
     {
         sessions.EndAllSpans();
         sessions.Watched -= Credit;
+        record.Finished -= EndWant;
         return Task.CompletedTask;
     }
 
@@ -43,5 +54,23 @@ public sealed class WatchRecorder(
             people.Remember(viewer.UserId, viewer.DisplayName);
             record.Record(viewer.UserId, span.TitleId, span.PositionSeconds, manifest.DurationSeconds, span.At);
         }
+    }
+
+    /// <summary>Ends the want a person's finishing of a title satisfies: the film itself, or the show whose last aired episode it is.</summary>
+    private void EndWant(string userId, string titleId)
+    {
+        if (library.Get(titleId) is not { } manifest || manifest.Film?.ImdbId is not { } imdbId) return;
+        if (wants.Get(userId, imdbId) is not { } want) return;
+
+        if (manifest.Episode is null)
+        {
+            if (want.Kind == WantKinds.Film) wants.Remove(userId, imdbId);
+            return;
+        }
+
+        var finished = ShowProgress.Finished(listing.Titles(), record.Entries(userId)).GetValueOrDefault(imdbId);
+        if (want.Kind == WantKinds.Show
+            && ShowProgress.FinishedAired(shows.Held(imdbId), finished, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime)))
+            wants.Remove(userId, imdbId);
     }
 }

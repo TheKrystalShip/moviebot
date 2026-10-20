@@ -27,7 +27,7 @@ npm run verify:tv-perf -- --save-baseline                # this run becomes the 
 ```
 
 The lab stages the scratch site itself (`stage.mjs`): the viewer partway through films, two others
-watching in rooms, lists. A walk starts from its page loaded with the HTTP cache emptied, so a load is
+watching in rooms, wants. A walk starts from its page loaded with the HTTP cache emptied, so a load is
 measured cold on both targets.
 
 On the television:

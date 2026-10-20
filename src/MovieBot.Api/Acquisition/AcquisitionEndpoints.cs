@@ -10,7 +10,7 @@ using TheKrystalShip.MovieBot.Core;
 namespace TheKrystalShip.MovieBot.Api.Acquisition;
 
 /// <summary>
-/// Fetching films and waiting on them.
+/// Fetching films and finding what is anticipated.
 ///
 /// These spend things — the disk, the tracker's ratio, an hourly call to the tracker for every wish —
 /// so each takes its own action, checked on the token: downloading, wishing. Whoever the token names is
@@ -116,36 +116,13 @@ public static class AcquisitionEndpoints
                 : NoPerson())
             .RequireAction(CinemaActions.Download);
 
-        // A person's own wishes: whose they are is the token's to say.
-        // A wish is shown by the poster the film's page shows, which is the one its search result
-        // showed; what the title index said is kept for a film the film database has none for.
-        group.MapGet("/wishes", (HttpContext context, Wishes wishes, Films.TitleGlances glances) =>
-            CinemaPerson.Of(context) is { } person
-                ? Results.Ok(wishes.List(person.UserId).Select(w => Shown(w, glances)).ToList())
-                : NoPerson())
-            .RequireAction(CinemaActions.Wish);
-
-        // What everybody is waiting on, as counts: no one is named.
+        // What everybody wants that nothing has yet, as counts: no one is named. A film is shown by the
+        // poster its page shows, which is the one its search result showed; what the title index said is
+        // kept for a film the film database has none for.
         group.MapGet("/anticipated", (HttpContext context, Wishes wishes, Films.TitleGlances glances) =>
             CinemaPerson.Of(context) is { } person
                 ? Results.Ok(wishes.Anticipated(person.UserId)
                     .Select(a => a with { PosterUrl = glances.PosterUrl(a.ImdbId) ?? a.PosterUrl }).ToList())
-                : NoPerson())
-            .RequireAction(CinemaActions.Wish);
-
-        group.MapPost("/wishes", async (AddWishRequest request, HttpContext context, Wishes wishes, Films.TitleGlances glances, CancellationToken ct) =>
-            CinemaPerson.Of(context) is { } person
-                ? Results.Ok(await wishes.SubscribeAsync(request, person.Actor, ct) is var reply && reply.Wish is { } wish
-                    ? reply with { Wish = Shown(wish, glances) }
-                    : reply)
-                : NoPerson())
-            .RequireAction(CinemaActions.Wish);
-
-        group.MapDelete("/wishes/{imdbId}", (string imdbId, HttpContext context, Wishes wishes, Films.TitleGlances glances) =>
-            CinemaPerson.Of(context) is { } person
-                ? Results.Ok(wishes.Cancel(person.UserId, imdbId) is var reply && reply.Wish is { } wish
-                    ? reply with { Wish = Shown(wish, glances) }
-                    : reply)
                 : NoPerson())
             .RequireAction(CinemaActions.Wish);
 
@@ -154,10 +131,6 @@ public static class AcquisitionEndpoints
         group.MapGet("/library/due", (LibraryClock library) => Results.Ok(library.Due().ToArray()))
             .RequireService();
     }
-
-    /// <summary>An act a person performs, asked for by something that is nobody.</summary>
-    private static WishView Shown(WishView wish, Films.TitleGlances glances) =>
-        wish with { PosterUrl = glances.PosterUrl(wish.ImdbId) ?? wish.PosterUrl };
 
     private static IResult NoPerson() =>
         Results.Json(new ErrorReply("This is done as a person; sign in as one."), ApiJsonContext.Default.ErrorReply,

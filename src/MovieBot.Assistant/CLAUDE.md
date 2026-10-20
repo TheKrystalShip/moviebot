@@ -39,7 +39,7 @@ service says otherwise.
 ## The tools
 
 `search_titles`, `title_details`, `person_credits`, `discover`, `find_by_clues`, `whats_new`, `my_taste`,
-`anticipated`: all `read`, all always loaded. Nothing acts. Watching, getting a film, notify me, watch later and follows are buttons on a
+`anticipated`: all `read`, all always loaded. Nothing acts. Watching, getting a film, wanting a title and follows are buttons on a
 title's page; the assistant answers with cards that open it. `find_by_clues` is where a half-remembered
 film is found: the model extracts the clues and the tool resolves the people, reads their dated credits,
 runs `discover` on the look and the plot words, reads the best candidates' database pages, and ranks by how

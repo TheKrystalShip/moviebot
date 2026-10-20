@@ -6,7 +6,7 @@ namespace TheKrystalShip.MovieBot.Api.Auth;
 /// The issuer this API keeps its records against, written down the first time it starts.
 /// </summary>
 /// <remarks>
-/// Everything kept about a person — progress, history, preferences, wishes, lists, keeps — is keyed by
+/// Everything kept about a person — progress, history, preferences, wants, keeps — is keyed by
 /// the <c>sub</c> the provider names them by, and a <c>sub</c> means something only to the issuer that
 /// minted it. Against another issuer every record belongs to a stranger and the same string may name
 /// somebody else, so a changed <c>Oidc:Issuer</c> stops the API from starting until

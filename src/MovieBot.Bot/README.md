@@ -18,7 +18,7 @@ that could disagree with reality. A download's own notes live on the torrent.
 Everything in a reply was measured while the command ran. The bot never opens a manifest, never
 caches a title and never claims a state it did not read.
 
-Downloads and wishes are the API's: the bot asks it to start one or wait on a film, and words in
+Downloads and wants are the API's: the bot asks it to start a download or to want a film, and words in
 Discord what it answers (`docs/api-contract.md`, "Fetching films").
 
 ## It acts as the person who asked
@@ -238,18 +238,19 @@ and finds the card, not for the room that has already moved on.
 /notify cancel film:<one of the films you are waiting on>
 ```
 
-`/notify add` is for a film that cannot be downloaded yet: out in cinemas, say, with a digital
-release some months off. The film option autocompletes from the catalogue rather than from the
-tracker, because the tracker has nothing to offer yet, and a pasted IMDb link is recognised
-wherever the id appears in it, so somebody who found the film on IMDb does not search for it
-twice. What is kept is the film's IMDb id and what the catalogue said about it.
+`/notify add` wants a film on Krystal Cinema, and is for one that cannot be downloaded yet: out in
+cinemas, say, with a digital release some months off. The film option autocompletes from the
+catalogue rather than from the tracker, because the tracker has nothing to offer yet, and a pasted
+IMDb link is recognised wherever the id appears in it, so somebody who found the film on IMDb does not
+search for it twice. What is kept is the person's want of the film's IMDb id and, when nothing has the
+film, what the catalogue said about it.
 
-Before anything is written down, the places the film might already be are checked: the library,
-in which case the reply points at `/watch`; the torrent client, in which case it is already on
-its way; and the tracker, in which case the reply names the release and says to pick it from
-`/watch`'s search results.
+The places the film might already be are checked: the library, in which case the reply points at
+`/watch`; the torrent client, in which case it is already on its way; and the tracker, in which case
+the reply names the release and says to pick it from `/watch`'s search results. `/notify list` shows
+the films the person waits on, and `/notify cancel` ends the want.
 
-The API then asks the tracker about every film on the list on a slow clock, by IMDb id. A film
+The API asks the tracker about every film somebody waits on on a slow clock, by IMDb id. A film
 counts as available once a release is offered whose source is a web encode or better. When one is,
 everybody waiting on it is told on Krystal Cinema, in their notifications and by a push, and the
-wish shows the release found there; nothing more is said on Discord.
+want shows the release found there; nothing more is said on Discord.

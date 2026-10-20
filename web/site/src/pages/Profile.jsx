@@ -7,7 +7,7 @@ import { languageOptions } from "../languages.js";
 import { accountUrl, can, useCan, useSession } from "../session.js";
 import { leave } from "../leave.js";
 import { PROFILE_TAB_FACES } from "../nav.js";
-import { PROFILE_TABS, moviePath, profilePath, savedPath, showPath } from "../paths.js";
+import { PROFILE_TABS, moviePath, profilePath, showPath, wantsPath } from "../paths.js";
 import { useOnline } from "../connectivity.js";
 import { keptPreferences } from "../offline/preferences.js";
 import { offlineSupported } from "../offline/store.js";
@@ -17,7 +17,7 @@ import { linkProps, navigate } from "../router.js";
 import { ago, airDay } from "../time.js";
 import { Empty, Failed, PageHead, kindLine, watchHref } from "../components/Film.jsx";
 import { TabStage } from "../components/PageStage.jsx";
-import { CardsSkeleton, WishCard, keptArt } from "../components/TitleCards.jsx";
+import { CardsSkeleton, keptArt } from "../components/TitleCards.jsx";
 import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
 import { BufferAheadLevels, bufferAhead, setBufferAhead } from "../player/engine/media/bufferAhead.ts";
@@ -26,7 +26,7 @@ import { inActivity } from "../discord/launch.js";
 
 // The tabs that show what only the server holds. With no connection they are drawn disabled; the
 // others show what the device keeps (Playback and Subtitles, read-only) or the browser's own (Appearance).
-const SERVER_TABS = new Set(["history", "requests", "following", "notifications"]);
+const SERVER_TABS = new Set(["history", "following", "notifications"]);
 
 /** The tab a profile opened with no connection shows when its address names none it can. */
 const DEVICE_TAB = "playback";
@@ -53,10 +53,10 @@ export function Profile({ tab: named, fromDevice = false }) {
     if (tab !== (named || PROFILE_TABS[0])) navigate(profilePath(tab), { replace: true });
   }, [tab, named]);
 
-  const saved = (
-    <List className="kc-profile__saved">
-      <ListRow lead={<Icon name="bookmark" size={18} />} title="Saved" aside={<Icon name="chevron-right" size={18} />}
-        href={linkProps(savedPath).href} onOpen={linkProps(savedPath).onClick} />
+  const wants = (
+    <List className="kc-profile__wants">
+      <ListRow lead={<Icon name="bookmark" size={18} />} title="Want to watch" aside={<Icon name="chevron-right" size={18} />}
+        href={linkProps(wantsPath).href} onOpen={linkProps(wantsPath).onClick} />
     </List>
   );
   return (
@@ -64,7 +64,7 @@ export function Profile({ tab: named, fromDevice = false }) {
       <PageHead title={user ? user.name : "Profile"} sub={user && user.username ? "@" + user.username : null}>
         {!inActivity && <Button size="lg" icon="log-out" className="kc-head__action" onClick={leave}>Sign out</Button>}
       </PageHead>
-      {online ? saved : <Off>{saved}</Off>}
+      {online ? wants : <Off>{wants}</Off>}
       <SubTabs tabs={TABS.map((t) => ({ ...t, disabled: !online && SERVER_TABS.has(t.id) }))} active={tab}
         onChange={(id) => navigate(profilePath(id), { replace: true })} />
       <TabStage tab={tab} render={(shown) => (
@@ -81,7 +81,6 @@ export function Profile({ tab: named, fromDevice = false }) {
 
 export function panel(tab, session) {
   switch (tab) {
-    case "requests": return <Requests session={session} />;
     case "following": return <Following />;
     case "notifications": return <Notifications />;
     case "playback": return <Playback />;
@@ -149,48 +148,6 @@ function HistoryCard({ row, title, onForget }) {
   );
 }
 
-/** The films this person is waiting on. */
-function Requests({ session }) {
-  const user = session && session.user;
-  const wishing = can(session, "cinema:wish");
-  const downloading = can(session, "cinema:download");
-  const wishes = useLoad(() => (wishing ? api.wishes() : Promise.resolve([])), [wishing]);
-  const mine = (wishes.data || []).filter((w) => w.subscribers.some((s) => user && s.userId === user.id));
-
-  const cancel = async (wish) => {
-    try {
-      await api.cancelWish(wish.imdbId);
-      toast.info(`You are no longer waiting on ${wish.display}.`);
-      wishes.reload();
-    } catch (error) {
-      toast.fromError(error, "Could not stop waiting");
-    }
-  };
-
-  if (!wishes.data && !wishes.error) return <CardsSkeleton count={8} row />;
-
-  return (
-    <>
-      {wishing && <section className="kc-shelf">
-        <div className="kc-shelf__head"><h2>Waiting on</h2></div>
-        <Failed error={wishes.error} onRetry={wishes.reload} />
-        {wishes.data && mine.length === 0 && <Empty icon="bell" title="Nothing yet">A film that is not out yet can be waited on from Notify me.</Empty>}
-        {mine.length > 0 && (
-          <div className="kc-grid">
-            {mine.map((wish) => {
-              const asked = wish.subscribers.find((s) => s.userId === user.id);
-              return (
-                <WishCard key={wish.imdbId} wish={wish} downloading={downloading} onStop={cancel}
-                  status={wish.release ? null : { icon: "bell", label: `Asked ${ago(asked.askedAt)}` }} />
-              );
-            })}
-          </div>
-        )}
-      </section>}
-    </>
-  );
-}
-
 /** The shows this person follows, whether each is fetched when an episode airs, and unfollowing. */
 function Following() {
   const downloading = useCan("cinema:download");
@@ -255,10 +212,9 @@ function Following() {
 }
 
 const KINDS = [
-  { id: "available", title: "A title I'm waiting for can be watched", sub: "Anything on your Notify me list." },
+  { id: "available", title: "A title I want is out and can be fetched" },
   { id: "ready", title: "Something I asked for is ready to watch", sub: "Includes each episode of a season." },
   { id: "episode", title: "New episodes of shows you follow" },
-  { id: "shared", title: "Someone shares a list with me" },
 ];
 
 /** What this browser says about receiving pushes, when it cannot be switched on here. */

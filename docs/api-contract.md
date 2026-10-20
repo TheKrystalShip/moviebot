@@ -125,7 +125,7 @@ the people a room can invite, what the film database says of a title, a person o
 `cinema:offline` (saving a film onto a device, below), `cinema:download` and `cinema:wish` (below),
 `cinema:guests` (handing out a room's guest link, below), and the self
 actions `cinema:profile.read` and `cinema:profile.write`, which every approved account holds, for a
-person's own records under `/api/me`, `/api/lists` and push. `/.well-known/tks-actions.json` serves the
+person's own records under `/api/me` and push. `/.well-known/tks-actions.json` serves the
 same declarations the checks name.
 
 The **service key** (`X-MovieBot-Service`) proves machine work that names nobody and opens only the
@@ -411,7 +411,8 @@ when the unit entered its state. Each disk is `{name, freeBytes, totalBytes}`.
 ### Fetching films
 
 The API is the one writer of downloads and wishes. A download, its searches and Watch now take
-`cinema:download`; a wish takes `cinema:wish`; finding a film in the title index and asking whether
+`cinema:download`; a wish, kept for a film somebody wants that nothing has yet (Wanting, below), takes
+`cinema:wish` from the token that makes the want; finding a film in the title index and asking whether
 it can be watched take either. No request names who asked: the person is the token's, whichever
 client carried it, and the download's tags, the wish and the log record them. A download may name a
 Discord channel to be announced in, which the bot does. `GET /api/downloads` also answers the service
@@ -432,10 +433,7 @@ key, for the announcements the bot posts. The shapes are in
 | `POST /api/watch` | `WatchNowReply` for `{imdbId, torrentId?, quality?, episodes?, room?}` — `{outcome, room?, libraryId?, streams?}`. See Watch now below |
 | `GET /api/downloads` | `DownloadView[]`: `{hash, name, release, summary, progress, isFinished, isWatchable, libraryId?, imdbId?, requestedBy?}`, `requestedBy` the account of whoever asked |
 | `POST /api/downloads` | `StartDownloadReply` for `{torrentId, notifyChannelId?, roomId?, episodes?}`; `episodes` (`[{season, episode}]`) fetches only those files out of a show's release, and picking more from a release already downloading switches them on in it |
-| `GET /api/wishes` | `WishView[]` — the wishes the person waits on; one the tracker has answered carries `release`, the `ReleaseOffer` found for it. A wish's `posterUrl` is the poster the film's page shows, served from here at a relative address, or the title index's own, absolute, where the film database has none |
-| `GET /api/anticipated` | `AnticipatedView[]` — `{imdbId, kind, title, year?, display, posterUrl?, waiters, waiting}`, the films people wait on, most waited on first and, among equals, the one most recently asked for. `kind` is `film`; `waiters` counts the people on the wish and `waiting` says whether the person asking is one; `posterUrl` is the poster the film's page shows. A wish the tracker has answered, and one whose film is in the library, is left out. It names nobody. Takes `cinema:wish` |
-| `POST /api/wishes` | `AddWishReply` for `{chosen}` |
-| `DELETE /api/wishes/{imdbId}` | `CancelWishReply` — the person comes off the wish |
+| `GET /api/anticipated` | `AnticipatedView[]` — `{imdbId, kind, title, year?, display, posterUrl?, waiters, waiting}`, the films people wait on, most waited on first and, among equals, the one most recently asked for. `kind` is `film`; `waiters` counts the people with a visible want on the film, the asking person's own included, and `waiting` says whether the person asking has one; `posterUrl` is the poster the film's page shows. A wish the tracker has answered, and one whose film is in the library, is left out. It names nobody. Takes `cinema:wish` |
 | `GET /api/library/due` | `string[]` — the ids of the settled films whose time is up; the **service key** alone |
 | `GET /api/library/saving` | `string[]` — the ids of the titles a save still being made holds (Save offline, below); the **service key** alone |
 
@@ -459,10 +457,10 @@ key, for the announcements the bot posts. The shapes are in
 - **A service that could not be reached is a 502, not an empty list.** No downloads and a torrent
   client that did not answer are different answers, and the second carries `ErrorReply`.
 - **A wish stays until its people let it go.** The sweep finds what became available and tells every
-  subscriber with an `available` notification, and somebody who joins the wish after that is told on
-  the next pass. The wish then lists with the release found for it, which is what the site's Notify
-  page shows, until the person takes themselves off. Which wishes are out is held in memory and found
-  again by the first sweep after a restart.
+  wanter whose want carries `mayWish` with an `available` notification, and somebody who wants the film
+  after that is told on the next pass. The want then lists with the release found for it until the
+  person removes it. Which wishes are out is held in memory and found again by the first sweep after a
+  restart.
 
 ### Watch now
 
@@ -543,37 +541,60 @@ Every view that names a title carries `category`, `anime` or `general`, absent w
 `OfflinePackage`. A catalogue answer reads it from the title's kept description where there is one,
 else from the genres and language the answer carries.
 
-### Lists
+### Wanting
 
-A list holds films and shows somebody means to watch later. Every person has a Watch later, which is
-theirs alone, and makes as many named lists as they like, each of which its owner may share with
-people the server has a name for. A list is shown to its owner and its members and to nobody else:
-for anybody else a list's id is a `404`, never a `403`. The shapes are in `src/MovieBot.Api/Lists/`.
+A person says "I want to watch this" about a film or a show, whether or not the library holds it. The
+want is the one signal: the server decides what it means for the title (here and ready, arriving,
+waiting for a release). A want is keyed by the person and the title's IMDb id, so it outlives the title
+leaving the library and is the same want when it comes back. The shapes are in
+`src/MovieBot.Core/Wants.cs`. Everything here answers for whoever the token names.
 
 | Route | Returns |
 |---|---|
-| `GET /api/me/lists?holding=` | `ListSummary[]` — the lists the token's person can see, their Watch later first and then the rest most recently changed first: `{id, name, watchLater, role, owner, members, count, updatedAt, posters, holds?}`. `role` is `owner`, `editor` or `viewer`; `owner` is `{userId, name?}`; `members` are `{userId, name?, role, since}`; `posters` are the newest entries' posters, at most four. With `holding` (an IMDb id) each list says in `holds` whether it holds that title |
-| `GET /api/me/saved` | `string[]` — the IMDb ids on every list the token's person can save to (one they own or edit), each once. A title only on a list they view is not among them |
-| `POST /api/lists` | `ListView` for `{name}` — a new list the token's person owns. `400` for a name blank or over 80 characters once trimmed, `409` past 100 lists |
-| `GET /api/lists/{id}` | `ListView` — `{list: ListSummary, entries}`, the entries newest saved first: `{imdbId, kind, title, year?, posterUrl?, rating?, runtimeMinutes?, genres, addedAt, addedBy, note?, libraryId?, inLibrary, watched, category?}`. `addedBy` is `{userId, name?}`; `libraryId` is the title that plays a film the library holds; `inLibrary` is true for a film the library holds or a show with any episode here; `watched` is the asking person having watched the film through, and never set for a show |
-| `PATCH /api/lists/{id}` | `ListSummary` for `{name}` — the owner renames it |
-| `DELETE /api/lists/{id}` | `204` — the owner deletes it, for everyone on it |
-| `PUT /api/lists/{id}/entries/{imdbId}` | `ListEntryView` for `{kind, note?}` — saves a `film` or a `show` to the list, or changes the note of one already on it. An owner or an editor. `400` for an id that is not an IMDb id, a kind that is neither, or a note over 500 characters; `404` when the film database has no title of that kind under the id; `503` when it cannot be asked; `409` past 2000 entries |
-| `DELETE /api/lists/{id}/entries/{imdbId}` | `204` — takes it off; also when it was not on it |
-| `PUT /api/lists/{id}/members/{userId}` | `ListSummary` for `{role}` — the owner puts somebody on the list as an `editor` or a `viewer`, or changes which. `404` for somebody the server has no name for, `409` past 50 members |
-| `DELETE /api/lists/{id}/members/{userId}` | `204` — the owner takes somebody off, or a member takes themselves off, which is leaving |
+| `GET /api/me/wants` | `WantView[]` — the token's person's wants, newest first. Takes `cinema:profile.read` |
+| `PUT /api/me/wants/{imdbId}` | `SetWantReply` for `{kind, visible?}` — makes the want or changes `visible`. `kind` is `film` or `show`; `visible` defaults to `true` on create and leaves the want as it is when absent on an update. `400` for an id that is not an IMDb id or a kind that is neither; `404` when the film database has no title of that kind under the id; `503` when it cannot be asked. Takes `cinema:watch` |
+| `DELETE /api/me/wants/{imdbId}` | `204` — removes it; `404` when the person had none. Takes `cinema:watch` |
+| `GET /api/titles/{imdbId}/wanters` | `WanterView[]` — the people with a visible want on the title, the asking person left out, newest first. Takes `cinema:watch` |
 
-- **`later` is the asking person's Watch later.** It is listed before anybody saves anything and
-  written on the first save. It has no members and keeps its name, so renaming, deleting or sharing it
-  is a `409`.
-- **An entry keeps the moment it was first saved.** Saving a title that is already on the list changes
-  its note and nothing else: an absent `note` leaves it, an empty one clears it, and `addedAt` and
-  `addedBy` stay.
-- **What a list may do is its role.** An `owner` renames, deletes and says who is on it; an `editor`
-  saves and takes off; a `viewer` reads. A role that does not allow a change is a `403`.
-- **Somebody put on a list is told once**, by a `shared` notification opening `/saved/{id}`.
-- **An entry is described from what is kept.** Saving asks the film database about a title new to the
-  list; the API then keeps every listed title described, so reading a list never waits on the network.
+- **`WantView`** is `{imdbId, kind, title, year?, posterUrl?, rating?, runtimeMinutes?, genres, category?,
+  visible, since, state?, progress?, libraryId?, inLibrary, watched, nextEpisode?, others, wish?}`.
+  `state` is what is measured of the title: `ready` (the library holds it), `fetching` (the torrent
+  client has it, `progress` from 0 to 1), `available` (the tracker offers a release at the source floor,
+  the wish having come out) or `waiting` (a wish is kept and the tracker has nothing at the floor);
+  absent when none of those is known. `libraryId` is the title that plays a film the library holds;
+  `inLibrary` is true for a film the library holds or a show with any episode here; `watched` is the
+  asking person having watched the film through, never set for a show. `nextEpisode`
+  (`{season, episode, name?}`) is a show's next episode for the asking person: the one after the latest
+  episode they finished, else the show's first, read from the watch record when asked and never stored.
+  `others` counts the other people with a visible want on the title. `wish` is present while a wish is
+  kept for the film, `{release?}` carrying the `ReleaseOffer` found once the tracker offers one.
+- **`WanterView`** is `{userId, name?, since, nextEpisode?}`; `nextEpisode` is a show's next episode for
+  that person.
+- **`SetWantReply`** is `{outcome, want?, release?, libraryId?, libraryName?, downloadName?}`. `want` is
+  the want as it stands. `outcome` is `alreadyWanted` (the person had it), and for a want made now
+  what the checks found, in the order the library, the torrent client and the tracker answer: `inLibrary`
+  (`libraryId`, `libraryName`), `downloading` (`downloadName`), `available` (the tracker offers
+  `release` at the source floor), `waiting` (nothing has the film and a wish is kept for it) and
+  `wanted` (made, with nothing more known: a show, a film whose checks could not be made, or an account
+  that may not wish). A check that cannot be made is skipped rather than refused.
+- **Visible means named to everybody signed in.** `visible` defaults to true; a just-me want is counted
+  by nobody else and named nowhere, and still drives the wish sweep. Nobody else's want is ever
+  returned except through `wanters`, and only the visible ones.
+- **Wanting spends nothing by itself; what the server may spend is captured when the want is
+  written.** The want records whether the token held `cinema:download` (`mayFetch`) and `cinema:wish`
+  (`mayWish`), refreshed every time the person writes it. They are never on the wire.
+- **A film nothing has gets a wish.** Making a want for a film the library, the torrent client and the
+  tracker (at the source floor) do not have, by a token that holds `cinema:wish`, keeps the catalogue's
+  description of it. The hourly sweep asks the tracker for every film with a wanter whose `mayWish` is
+  set and tells each of them with an `available` notification, once. The wish lists with the release
+  found until the person removes the want.
+- **A want ends** when the person removes it, when they finish the film, or when they finish the last
+  aired episode of the show.
+- **An entry is described from what is kept.** Making a want asks the film database about a title new to
+  the person; the API then keeps every wanted title described, so reading wants never waits on the
+  network.
+- **`GET /api/anticipated`** (`AnticipatedView[]`, below in Fetching films) counts visible wants on films
+  with a wish, and the asking person's own.
 
 ### Notifications
 
@@ -585,7 +606,7 @@ names. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 |---|---|
 | `GET /api/me/notifications` | `NotificationsReply` — `{unread, items: [{id, kind, text, url?, action?, createdAt, read}]}`, newest first; a person keeps their newest 50, none older than 30 days |
 | `POST /api/me/notifications/read` | 204 for `{ids?}` — marks those read, or all of them when none are named |
-| `GET /api/me/notifications/preferences` | `NotificationPreferences` — `{available, ready, episode, shared}`, which kinds are pushed; each is on until switched off |
+| `GET /api/me/notifications/preferences` | `NotificationPreferences` — `{available, ready, episode}`, which kinds are pushed; each is on until switched off |
 | `PUT /api/me/notifications/preferences` | `NotificationPreferences`, as stored |
 | `GET /api/push/key` | `{publicKey}` — this server's VAPID key, base64url, which a browser subscribes with |
 | `GET /api/me/push?endpoint=` | `{subscribed, devices}` — whether that browser is registered to this person, and how many are |
@@ -599,13 +620,10 @@ names. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 
 - **Kinds.** `available`: a film somebody waits on can be downloaded. `ready`: a download they started
   can be watched, or could not be made watchable. `episode`: a new episode of a show they follow is
-  out and the tracker offers it, "Show S5 · E4 is out.", opening `/tv/{imdbId}/season/{n}`. `shared`:
-  somebody put them on one of their lists, "Ana shared
-  their list Friday night with you.", opening `/saved/{id}`. `invite`:
+  out and the tracker offers it, "Show S5 · E4 is out.", opening `/tv/{imdbId}/season/{n}`. `invite`:
   somebody asked them into a room; an invite is pushed whatever the person chose.
 - **One thing is said once.** Each notification carries the thing it is about, and a person holding a
-  notification about it is not told again: a download once, a wish once, an episode once, a list once
-  per person put on it.
+  notification about it is not told again: a download once, a wish once, an episode once.
 - **A switch holds back the push, not the record.** A kind switched off still lands in the bell.
 - **The text is written once for every surface.** It mentions nobody and names no command, so the
   bell and the push show it as it is.

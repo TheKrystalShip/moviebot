@@ -45,7 +45,7 @@ public sealed class WatchNow(
     TitleLibrary library,
     SessionStore sessions,
     RoomControls controls,
-    WishList wishes,
+    Wants.WantStore wants,
     ShowOfferCache showOffers,
     FilmStore films,
     ShowStore shows,
@@ -61,13 +61,13 @@ public sealed class WatchNow(
     {
         var all = await DownloadsOrNullAsync(ct);
         var streams = Slots(all);
-        var wish = wishes.Find(imdbId);
+        var (wanters, wanting) = wants.Count(imdbId, userId);
         var answer = new FilmAvailability
         {
             ImdbId = imdbId,
             Streams = streams,
-            Waiters = wish?.Subscribers.Count ?? 0,
-            Waiting = wish is not null && userId is not null && wish.Subscribers.Any(s => s.UserId == userId),
+            Waiters = wanters,
+            Waiting = wanting,
         };
 
         if (InLibrary(imdbId) is { } title) return answer with { LibraryId = title.Id };

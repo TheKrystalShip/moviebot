@@ -302,7 +302,7 @@
     },
     {
       "name": "my_taste",
-      "description": "What the asking person has watched, rated and saved: their history, their lists and the shows they follow, newest first.\n- Use to tailor a recommendation and to leave out what they have already seen.\n- Not for answering \"what did I watch\": the site shows that.",
+      "description": "What the asking person has watched, rated and saved: their history, the titles they want to watch and the shows they follow, newest first.\n- Use to tailor a recommendation and to leave out what they have already seen.\n- Not for answering \"what did I watch\": the site shows that.",
       "parameters": {
         "type": "object",
         "properties": {

@@ -4,8 +4,8 @@ using TheKrystalShip.MovieBot.Api.Library;
 namespace TheKrystalShip.MovieBot.Api.Films;
 
 /// <summary>
-/// Keeps every film and show in the library, every film somebody is waiting on, and every title on
-/// anybody's list described.
+/// Keeps every film and show in the library, every film with a wish, and every title anybody wants
+/// described.
 ///
 /// A listing reads only what is kept, so it never waits on the network; this is what makes sure
 /// something is kept. It runs shortly after start and then every few hours, asking the database
@@ -17,7 +17,7 @@ public sealed class FilmWarmer(
     Shows.ShowStore shows,
     TitleLibrary library,
     WishList wishes,
-    Lists.ListStore lists,
+    Wants.WantStore wants,
     ILogger<FilmWarmer> logger) : BackgroundService
 {
     private static readonly TimeSpan FirstPass = TimeSpan.FromSeconds(20);
@@ -43,12 +43,12 @@ public sealed class FilmWarmer(
     public async Task PassAsync(CancellationToken ct)
     {
         var titles = library.List();
-        var listed = lists.AllEntries();
+        var wanted = wants.All();
 
         // An episode names its show, which is described as a show and never as a film.
         var ids = titles.Where(t => t.Kind != Core.TitleKind.Show).Select(t => t.Film?.ImdbId)
             .Concat(wishes.All().Select(w => (string?)w.ImdbId))
-            .Concat(listed.Where(e => e.Kind == Lists.EntryKinds.Film).Select(e => (string?)e.ImdbId))
+            .Concat(wanted.Where(w => w.Kind == Wants.WantKinds.Film).Select(w => (string?)w.ImdbId))
             .Where(FilmStore.IsImdbId)
             .Select(id => id!)
             .Distinct()
@@ -65,7 +65,7 @@ public sealed class FilmWarmer(
         if (asked > 0) logger.LogInformation("Described {Asked} of {Films} films from the film database.", asked, ids.Count);
 
         var showIds = titles.Where(t => t.Kind == Core.TitleKind.Show).Select(t => t.Film?.ImdbId)
-            .Concat(listed.Where(e => e.Kind == Lists.EntryKinds.Show).Select(e => (string?)e.ImdbId))
+            .Concat(wanted.Where(w => w.Kind == Wants.WantKinds.Show).Select(w => (string?)w.ImdbId))
             .Where(FilmStore.IsImdbId)
             .Select(id => id!)
             .Distinct()

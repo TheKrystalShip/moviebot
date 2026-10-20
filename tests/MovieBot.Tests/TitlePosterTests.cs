@@ -96,7 +96,7 @@ public sealed class TitlePosterTests(SessionFixture fixture) : IClassFixture<Ses
     [InlineData("https://m.media-amazon.com/images/M/x._V1_.jpg", null, "https://m.media-amazon.com/images/M/x._V1_.jpg")]
     public void A_wish_s_poster_reaches_discord_only_at_an_address_it_can_fetch(string served, string? publicBase, string? shown)
     {
-        var view = new WishView { ImdbId = "tt0113277", Title = "Heat", Display = "Heat (1995)", PosterUrl = served };
+        var view = new WantView { ImdbId = "tt0113277", Kind = "film", Title = "Heat", Year = 1995, Visible = true, Since = DateTimeOffset.UnixEpoch, PosterUrl = served };
 
         Assert.Equal(shown, Wish.From(view, publicBase).PosterUrl);
     }

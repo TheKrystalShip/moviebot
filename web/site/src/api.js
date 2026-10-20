@@ -160,20 +160,18 @@ export const api = {
   offlineEstimate: (imdbId, season = null, episodes = null) => call("GET", `/api/offline/estimate?imdbId=${enc(imdbId)}`
     + (season != null ? `&season=${season}&episodes=${episodes.join(",")}` : "")),
   offlineWants: () => call("GET", "/api/me/offline/wants"),
-  unwant: (id) => call("DELETE", `/api/me/offline/wants/${enc(id)}`),
+  unwantOffline: (id) => call("DELETE", `/api/me/offline/wants/${enc(id)}`),
 
-  // Lists of films and shows to watch later. `later` names the signed-in person's own Watch later;
-  // asked about a title, each list says whether it holds it.
-  lists: (holding) => call("GET", "/api/me/lists" + (holding ? `?holding=${enc(holding)}` : "")),
-  saved: () => call("GET", "/api/me/saved"),
-  list: (id) => call("GET", `/api/lists/${enc(id)}`),
-  createList: (name) => call("POST", "/api/lists", { name }),
-  renameList: (id, name) => call("PATCH", `/api/lists/${enc(id)}`, { name }),
-  deleteList: (id) => call("DELETE", `/api/lists/${enc(id)}`),
-  saveToList: (id, imdbId, kind, note) => call("PUT", `/api/lists/${enc(id)}/entries/${enc(imdbId)}`, { kind, note }),
-  removeFromList: (id, imdbId) => call("DELETE", `/api/lists/${enc(id)}/entries/${enc(imdbId)}`),
-  setListMember: (id, userId, role) => call("PUT", `/api/lists/${enc(id)}/members/${enc(userId)}`, { role }),
-  removeListMember: (id, userId) => call("DELETE", `/api/lists/${enc(id)}/members/${enc(userId)}`),
+  // What the signed-in person wants to watch, film or show, here or not: the one signal the server acts
+  // on. Making a want answers what the checks found; removing one that is already gone is no failure.
+  // Who else wants a title is read from `wanters`, which names only the people with a visible want.
+  wants: () => call("GET", "/api/me/wants"),
+  want: (imdbId, kind, visible) => call("PUT", `/api/me/wants/${enc(imdbId)}`, visible === undefined ? { kind } : { kind, visible }),
+  unwant: (imdbId) => call("DELETE", `/api/me/wants/${enc(imdbId)}`).catch((error) => {
+    if (!(error instanceof ApiError) || error.status !== 404) throw error;
+    return null;
+  }),
+  wanters: (imdbId) => call("GET", `/api/titles/${enc(imdbId)}/wanters`),
 
   // Shelving a film or a show as anime (`anime`) or with its kind (`general`), against the API's rule.
 
@@ -202,10 +200,7 @@ export const api = {
   people: () => call("GET", "/api/people"),
   invite: (room, userId) => call("POST", `/api/rooms/${enc(room)}/invite`, { userId }),
 
-  wishes: () => call("GET", "/api/wishes"),
   anticipated: () => call("GET", "/api/anticipated"),
-  wish: (chosen) => call("POST", "/api/wishes", { chosen }),
-  cancelWish: (imdbId) => call("DELETE", `/api/wishes/${enc(imdbId)}`),
 };
 
 /**

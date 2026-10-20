@@ -93,8 +93,8 @@ hand-off, the one process that writes the media roots, deletes what it names. Th
 
 ## Wishes
 
-A wish is a film somebody wants that cannot be downloaded yet. Everything here is about not lying
-about when it can.
+A wish is a film somebody wants that cannot be downloaded yet. It is kept for the wants on the film
+(`Wants/`), and everything here is about not lying about when it can be had.
 
 - **The film is named by the catalogue, never by a search of the tracker.** The tracker has nothing
   yet, which is the premise. What is kept is the IMDb id, so the sweep asks the tracker for one exact
@@ -103,18 +103,19 @@ about when it can.
   tracker within days, and the selection policy offers them, weighed down, because somebody who asks
   for one on purpose should be able to have it. A film is available once a release at or above the
   configured source floor is offered, and the floor is a web encode.
-- **Nobody waits on something that is here.** The library, the torrent client and the tracker are
-  checked before a wish is made, in that order, and each answers with what to do instead. A check that
-  cannot be made is skipped rather than refused, because the sweep asks again within the hour and one
-  message too many is the worst that skipping costs.
-- **A wish is keyed by the film and shared.** Two people asking for the same film are one tracker call
-  per sweep.
-- **The wish list is kept because a wish exists nowhere else.** A film that is not on the tracker has
-  no torrent to tag and no manifest to write, so the wish and everybody waiting on it are rows in the
-  database.
+- **Nobody waits on something that is here.** Making a want for a film checks the library, the torrent
+  client and the tracker, in that order, and each answers with what to do instead; only a film none of
+  them has gets a wish, and only for a token that holds `cinema:wish`. A check that cannot be made is
+  skipped rather than refused, because the sweep asks again within the hour and one message too many
+  is the worst that skipping costs.
+- **A wish is keyed by the film and shared.** Two people wanting the same film are one tracker call
+  per sweep. The people on it are the wants on the film whose token held `cinema:wish`; the wish goes
+  with the last of them.
+- **The wish is kept because the catalogue's description of a film nothing has exists nowhere else.** A
+  film that is not on the tracker has no torrent to tag and no manifest to write, so the description is
+  a row in the database.
 - **A wish that came out stays until its people let it go.** The sweep marks what became available
-  and tells every subscriber with an `available` notification (`Notifications/`), which is said once
-  per person, so somebody joining a wish already out is told on the next pass. The wish then lists
-  with the release found for it, which is what the Notify page shows. Which wishes are out is held in
-  memory: the release found is the tracker's answer of the moment, and the first sweep after a
-  restart asks again.
+  and tells every person on it with an `available` notification (`Notifications/`), which is said once
+  per person, so somebody wanting a film already out is told on the next pass. The want then lists
+  with the release found for it. Which wishes are out is held in memory: the release found is the
+  tracker's answer of the moment, and the first sweep after a restart asks again.

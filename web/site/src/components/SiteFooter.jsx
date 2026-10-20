@@ -14,8 +14,7 @@ const page = (id, sub) => {
 const BROWSE = [
   page("movies", "Every movie on the shelf"),
   page("tv", "Every show on the shelf"),
-  page("saved", "What you saved for later"),
-  page("notify", "Movies you are waiting for"),
+  page("wants", "What you want to watch"),
   page("about", "This site, and where its details come from"),
 ];
 

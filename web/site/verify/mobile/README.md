@@ -57,8 +57,7 @@ as heavy from one day to the next, and `verify:tv-perf` counts what a page fetch
 directory fetches the artwork afresh, which moves the TV performance baseline's `kb` with it.
 
 `stage.mjs` then puts in what a person would see: the viewer partway through three films, two others
-watching in rooms of their own, a Watch later with a note on one film, a list of the viewer's shared with Ben, and one of Ana's the viewer may add
-to. It does it through the API and the room hub, never by writing a file. The viewer is signed in with a member's
+watching in rooms of their own, four wants of the viewer's, one kept to the viewer, with Ana and Ben wanting some of the same. It does it through the API and the room hub, never by writing a file. The viewer is signed in with a member's
 token signed by the scratch API's own key, which is what signing in on the site hands back.
 
 ## What is measured

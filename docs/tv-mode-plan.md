@@ -47,7 +47,7 @@ The reference device is the user's Xiaomi TV running Fire TV, reached over the L
 | Getting around on the TV | A top bar: the mark, then Home, Discover, Movies, TV Shows and Saved, then the bell and the avatar. It scrolls away with the page; Back, or Up from the top of the page, brings focus to it. A side rail is rejected: it costs width on a 960-pixel page and is a second area for focus to sit in |
 | Home on the TV | The top of the page is a spotlight on whatever has focus: its artwork, name, facts and two lines of overview. It arrives on the newest film with Watch focused. Rows run off the right edge, the focused row keeps one line on screen, and cards carry only their artwork |
 | A row's way to everything | A See all tile ends the row; a row's heading never takes focus |
-| Places off the bar | About is in Profile; Notify me folds into Profile's Requests |
+| Places off the bar | About is in Profile; wanting a title is a button on its page and the Wants page lists them |
 | Leaving soon | Not a page on any surface. The library clock runs internally and nobody sees it, since Discover reaches any film and it plays within minutes |
 | The primary button | Dark text on the accent, which holds contrast from a sofa |
 | How focus looks | A lift with a hairline: the focused card grows by about 15% and casts a deep shadow, a 1 px white edge sits on it with a faint glow of the accent, and its neighbours dim. A focused button or tab becomes a white pill with dark text, with the same shadow and glow. No outline and no underline |
@@ -91,13 +91,12 @@ through the app's debug build, from the page's long-animation-frame records:
   rastering a page drawn at 3840 by 2160, so the next press is taken at once. Settled: cards change
   opacity without a transition and are skipped off the screen (krystal-ui 0.17.2). Skipping whole
   rows made the frame after slower, and the stylesheet's size costs nothing measurable.
-- Profile draws the site's own panels inside the TV's frame. Requests is the desktop's cards rather
-  than the rows the design draws.
+- Profile draws the site's own panels inside the TV's frame.
 
 The pages, as designed and built:
 
 - **Home**: the top bar; a spotlight on whatever has focus, arriving on the newest film with Watch
-  focused; Continue watching, Watching now, Watch later, Recently added, Movies and TV Shows, the
+  focused; Continue watching, Watching now, Want to watch, Recently added, Movies and TV Shows, the
   last three ending in See all.
 - **A film**: no top bar, Back returns. The artwork fills the page; Resume (Watch when unstarted),
   Restart and Save; under them the progress bar and `1:36:10 of 2:35:00 - (59m remaining)`. Below,
@@ -110,10 +109,10 @@ The pages, as designed and built:
   the rest of what the catalogue answered.
 - **Movies and TV Shows**: Home's layout, one row per genre from the library, each ending in a
   Discover more tile that searches the catalogue for that genre.
-- **Saved**: Watch later as a row, the focused title's name and facts under it; the lists as cards.
-- **Profile**: no top bar; its sections down the left (History, Requests, Following, Playback,
-  Subtitles, Appearance, Account, About) and the open one on the right. Requests holds what this
-  person waits on (Notify me) with Stop waiting, and the downloads they asked for.
+- **Wants**: what the person wants to watch as rows by state (ready, fetching, waiting for a
+  release), the focused title's name and facts under the row.
+- **Profile**: no top bar; its sections down the left (History, Following, Playback,
+  Subtitles, Appearance, Account, About) and the open one on the right.
 - **The player**: the title and who is watching at the top; the scrub bar with elapsed and
   remaining time; Play or Pause, back and forward ten seconds, then Subtitles, Audio and Quality
   with their values. Subtitles at 26 pixels. Menu opens the subtitles as a panel from the right,

@@ -3,14 +3,15 @@ using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Acquisition;
+using TheKrystalShip.MovieBot.Api.Wants;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
 /// A wish exists nowhere but the API's wish list, so what matters is that it comes back the
-/// same once kept, that people are only ever dropped by stopping waiting, and that a film that came
-/// out says so for as long as anybody waits on it.
+/// same once kept, that it goes with the last want that could ask the tracker for it, and that a film
+/// that came out says so for as long as anybody wants it.
 /// </summary>
 public sealed class WishListTests : IDisposable
 {
@@ -28,30 +29,46 @@ public sealed class WishListTests : IDisposable
         PosterUrl = new Uri("https://m.media-amazon.com/images/M/MV5BZmM3._V1_.jpg"),
     };
 
-    private static WishSubscriber Person(string user) => new() { UserId = user, AskedAt = DateTimeOffset.UnixEpoch };
-
     private WishList List() => new(new CinemaDatabase(Database));
 
+    private WantStore Wants() => new(new CinemaDatabase(Database));
+
+    private static void Want(WantStore wants, string user, bool mayWish = true, int minute = 0) =>
+        wants.Set(user, Prada.ImdbId, WantKinds.Film, true, false, mayWish, DateTimeOffset.UnixEpoch.AddMinutes(minute));
+
     [Fact]
-    public void Two_people_asking_for_one_film_share_one_wish()
+    public void Two_people_wanting_one_film_share_one_wish()
     {
         var list = List();
+        var wants = Wants();
 
-        var (first, _) = list.Add(Prada, Person("local:usr_10"));
-        var (second, wish) = list.Add(Prada, Person("local:usr_20"));
-        var (again, _) = list.Add(Prada, Person("local:usr_10"));
+        list.Keep(Prada, DateTimeOffset.UnixEpoch);
+        Want(wants, "local:usr_10", minute: 1);
+        Want(wants, "local:usr_20", minute: 2);
+        list.Keep(Prada, DateTimeOffset.UnixEpoch.AddMinutes(5));
 
-        Assert.Equal(WishAdded.Subscribed, first);
-        Assert.Equal(WishAdded.Subscribed, second);
-        Assert.Equal(WishAdded.AlreadySubscribed, again);
-        Assert.Single(list.All());
+        var wish = Assert.Single(list.All());
         Assert.Equal(["local:usr_10", "local:usr_20"], wish.Subscribers.Select(s => s.UserId));
+        Assert.Equal(DateTimeOffset.UnixEpoch.AddMinutes(1), wish.Subscribers[0].AskedAt);
+    }
+
+    [Fact]
+    public void Only_a_want_that_may_wish_is_a_subscriber()
+    {
+        var list = List();
+        var wants = Wants();
+        Want(wants, "local:usr_20");
+        list.Keep(Prada, DateTimeOffset.UnixEpoch);
+        Want(wants, "local:usr_10", mayWish: false);
+
+        Assert.Equal(["local:usr_20"], list.Find("TT33612209")!.Subscribers.Select(s => s.UserId));
     }
 
     [Fact]
     public void What_was_kept_is_what_is_read_back()
     {
-        List().Add(Prada, Person("local:usr_10"));
+        List().Keep(Prada, DateTimeOffset.UnixEpoch);
+        Want(Wants(), "local:usr_10");
 
         var restored = List().All();
 
@@ -64,35 +81,52 @@ public sealed class WishListTests : IDisposable
     }
 
     [Fact]
-    public void A_wish_goes_with_its_last_subscriber_and_not_before()
+    public void A_wish_goes_with_the_last_want_that_may_wish_and_not_before()
     {
         var list = List();
-        list.Add(Prada, Person("10"));
-        list.Add(Prada, Person("20"));
+        var wants = Wants();
+        list.Keep(Prada, DateTimeOffset.UnixEpoch);
+        Want(wants, "10");
+        Want(wants, "20");
+        Want(wants, "30", mayWish: false);
 
-        Assert.NotNull(list.Remove("10", "tt33612209"));
+        Assert.True(wants.Remove("10", Prada.ImdbId));
         Assert.Single(list.All());
-        Assert.Empty(list.For("10"));
-        Assert.Single(list.For("20"));
+        Assert.False(wants.Remove("10", Prada.ImdbId));
 
-        Assert.Null(list.Remove("10", "tt33612209"));
-
-        Assert.NotNull(list.Remove("20", "TT33612209"));
+        // The want that asks nothing of the tracker does not keep the wish alive.
+        Assert.True(wants.Remove("20", Prada.ImdbId));
         Assert.Empty(List().All());
+        Assert.NotNull(wants.Get("30", Prada.ImdbId));
     }
 
     [Fact]
-    public void A_film_that_came_out_says_so_until_nobody_waits_on_it()
+    public void A_want_that_stops_wishing_takes_the_wish_with_it()
     {
         var list = List();
-        list.Add(Prada, Person("10"));
+        var wants = Wants();
+        list.Keep(Prada, DateTimeOffset.UnixEpoch);
+        Want(wants, "10");
+
+        Want(wants, "10", mayWish: false);
+
+        Assert.Empty(list.All());
+    }
+
+    [Fact]
+    public void A_film_that_came_out_says_so_until_nobody_wants_it()
+    {
+        var list = List();
+        var wants = Wants();
+        list.Keep(Prada, DateTimeOffset.UnixEpoch);
+        Want(wants, "10");
         var release = new Release { TorrentId = 7, ReleaseName = "The.Devil.Wears.Prada.2.2026.1080p.WEB-GRP", Title = "The Devil Wears Prada 2" };
 
         Assert.Null(list.OutAs("tt33612209"));
         list.MarkOut("tt33612209", release);
         Assert.Same(release, list.OutAs("tt33612209"));
 
-        list.Remove("10", "tt33612209");
+        wants.Remove("10", Prada.ImdbId);
         Assert.Null(list.OutAs("tt33612209"));
     }
 

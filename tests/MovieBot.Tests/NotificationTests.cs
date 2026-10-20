@@ -133,17 +133,17 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
         const string endpoint = "https://push.invalid/send/8141";
         await Subscribe(person, endpoint);
         var notifier = fixture.Services.GetRequiredService<Notifier>();
-        var draft = new NotificationDraft { Kind = NotificationKinds.Shared, Key = "shared:later:1", Text = "Alex shared Later with you." };
+        var draft = new NotificationDraft { Kind = NotificationKinds.Episode, Key = "episode:tt1:1", Text = "Show S1 · E1 is out." };
 
-        using var off = await person.PutAsJsonAsync("/api/me/notifications/preferences", new NotificationPreferences { Shared = false });
+        using var off = await person.PutAsJsonAsync("/api/me/notifications/preferences", new NotificationPreferences { Episode = false });
         var first = await notifier.TellAsync("8141", draft, CancellationToken.None);
         Assert.Equal(new Delivery(0), first);
         Assert.Null(await notifier.TellAsync("8141", draft, CancellationToken.None));
         Assert.Equal(0, fixture.PushService.SentTo(endpoint));
         Assert.Single((await Bell(person)).Items);
 
-        using var on = await person.PutAsJsonAsync("/api/me/notifications/preferences", new NotificationPreferences { Shared = true });
-        var pushed = await notifier.TellAsync("8141", draft with { Key = "shared:later:2" }, CancellationToken.None);
+        using var on = await person.PutAsJsonAsync("/api/me/notifications/preferences", new NotificationPreferences { Episode = true });
+        var pushed = await notifier.TellAsync("8141", draft with { Key = "episode:tt1:2" }, CancellationToken.None);
         Assert.Equal(new Delivery(1), pushed);
     }
 
@@ -153,7 +153,7 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
         var preferences = await As("8151").GetFromJsonAsync<NotificationPreferences>("/api/me/notifications/preferences");
 
         Assert.Equal(new NotificationPreferences(), preferences);
-        Assert.True(preferences!.Available && preferences.Ready && preferences.Episode && preferences.Shared);
+        Assert.True(preferences!.Available && preferences.Ready && preferences.Episode);
     }
 
     [Fact]

@@ -159,7 +159,7 @@
    "requests": 3,
    "kb": 43
   },
-  "bar/5:saved": {
+  "bar/5:wants": {
    "answerMs": 40,
    "focusMs": 10,
    "readyMs": 494,

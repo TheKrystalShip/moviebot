@@ -35,23 +35,21 @@ The dev server proxies `/api`, `/media`, `/films`, `/shows`, `/popular`, `/glanc
 
 | Path | What it is |
 |---|---|
-| `/` | The top (`components/Spotlight.jsx`, its slides chosen in `src/heroes.js`), turning through what is worth watching now: the film people are watching together (Join the room), the newest ready film on the shelf, the title most watched here in the last 30 days (`popular-here`), the film and the show the film database counts most popular this week, and the film most waited on here (`/api/anticipated`), or else the next one out; each is left out when there is none, a title is shown once, and they are chosen once and kept while the page is open. Each slide is the title's artwork, why it is here, its facts, story and maker, and what its own page offers (Watch, Watch or Notify for a film that has to be fetched, Save for a show) with More info. The slides turn every 8 seconds on krystal's `useCarousel`, the shown mark under them filling over the slide's time; they hold still under a mouse, under keyboard focus and on a hidden page, never turn by themselves under reduced motion, turn by a swipe, and lie in one place so the top keeps the height of its tallest and the artwork fades from one to the next. A slide is laid out as soon as it is described and turned to once its artwork has arrived, so the top has its height before it is shown, and the first slide is one of the page's first reads. Then a row each for where the person left off, their Watch later (with Watch on a film the library holds, and See all opening it), the rooms watching something now, what was recently added, and the shelf as Movies, TV Shows and Anime, each krystal's scroll-snapped `Rail`. Anime is one row of its films and shows together, and Movies and TV Shows hold the rest. The three are dealt in a new order on every visit, kept while the page is open, and Movies and TV Shows end in a tile that opens Discover |
+| `/` | The top (`components/Spotlight.jsx`, its slides chosen in `src/heroes.js`), turning through what is worth watching now: the film people are watching together (Join the room), the newest ready film on the shelf, the title most watched here in the last 30 days (`popular-here`), the film and the show the film database counts most popular this week, and the film most waited on here (`/api/anticipated`), or else the next one out; each is left out when there is none, a title is shown once, and they are chosen once and kept while the page is open. Each slide is the title's artwork, why it is here, its facts, story and maker, and what its own page offers (Watch, Watch or Want for a film that has to be fetched, Want for a show) with More info. The slides turn every 8 seconds on krystal's `useCarousel`, the shown mark under them filling over the slide's time; they hold still under a mouse, under keyboard focus and on a hidden page, never turn by themselves under reduced motion, turn by a swipe, and lie in one place so the top keeps the height of its tallest and the artwork fades from one to the next. A slide is laid out as soon as it is described and turned to once its artwork has arrived, so the top has its height before it is shown, and the first slide is one of the page's first reads. Then a row each for where the person left off, what they want to watch (each a want card, and See all opening `/wants`), the rooms watching something now, what was recently added, and the shelf as Movies, TV Shows and Anime, each krystal's scroll-snapped `Rail`. Anime is one row of its films and shows together, and Movies and TV Shows hold the rest. The three are dealt in a new order on every visit, kept while the page is open, and Movies and TV Shows end in a tile that opens Discover |
 | `/movies`, `/tv` | Every film, or every show (one card each, however many of its episodes are here), with krystal's `Toolbar`: a search by name, one Filters popover (state and genre for films, genre for shows, and Downloaded for either on a phone or a tablet that downloads) with the active ones as chips, and a sort with its direction. With a genre picked, the grid ends in a Discover more tile opening Discover's catalogue of that genre. A title the API shelves as anime is on neither (Categories in `docs/api-contract.md`). On a phone a Movies \| TV shows \| Anime switch under the heading moves between the three |
 | `/anime`, `/anime/films` | Anime: its series, or its films, as the same page as `/tv` and `/movies` with the titles the API shelves as anime. A Series \| Films switch under the heading moves between the two on every screen, and a genre's Discover more tile opens that genre's anime |
-| `/movies/<titleId>`, `/anime/films/<titleId>` | One film in the library: what it is, who played it last, save, Download, and watch or resume, under the shelf the API puts it on. An episode's id forwards to its show's page at its season |
-| `/tv/<imdbId>`, `/anime/<imdbId>`, each with `/season/<n>` | One show the library holds an episode of, under the shelf the API puts it on, at a season (the default season has no segment): what it is, its seasons as chips, each season's episodes with their stills and how far this person got, and resume. Every episode plays from its row, one that has to be fetched while it is prepared, and nothing on a row says which; with nothing of the show here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Save is beside them. Each episode that can be downloaded has Download at its row's end, and each season Download season in its head. A show the library holds nothing of forwards to its `/discover/show/` address |
+| `/movies/<titleId>`, `/anime/films/<titleId>` | One film in the library: what it is, who played it last, Want with the faces of the others who want it, Download, and watch or resume, under the shelf the API puts it on. An episode's id forwards to its show's page at its season |
+| `/tv/<imdbId>`, `/anime/<imdbId>`, each with `/season/<n>` | One show the library holds an episode of, under the shelf the API puts it on, at a season (the default season has no segment): what it is, its seasons as chips, each season's episodes with their stills and how far this person got, and resume. Every episode plays from its row, one that has to be fetched while it is prepared, and nothing on a row says which; with nothing of the show here Watch plays its first episode. A followable show has Follow beside its actions; once followed the button is a menu holding whether new episodes are downloaded automatically, and Unfollow, and the next episode's day is written beside it. Want is beside them, with the faces of the others who want the show. Each episode that can be downloaded has Download at its row's end, and each season Download season in its head. A show the library holds nothing of forwards to its `/discover/show/` address |
 | `/discover/show/<imdbId>`, `/discover/show/<imdbId>/season/<n>` | The same page for a show the library holds no episode of, where its episodes are picked to download. A show the library holds an episode of forwards to its `/tv/` address |
-| `/discover/film/<imdbId>` | A film that has to be fetched: what it is, and Watch (it plays while it is prepared) and Download when the tracker offers it, how far the preparing has got while it is under way (`preparing · N%`), or Notify when it is not out digitally yet, and Save. A film that plays now forwards to its `/movies/` address |
+| `/discover/film/<imdbId>` | A film that has to be fetched: what it is, and Watch (it plays while it is prepared) and Download when the tracker offers it, how far the preparing has got while it is under way (`preparing · N%`), and Want, which for a film not out digitally yet is how the person is told when it is, with the faces of the people who want it. A film that plays now forwards to its `/movies/` address |
 | `/discover?person=<personId>` | Discover's catalogue of one person's work: their portrait, name and what they are known for, then the films and shows they are credited on, most voted on first (`/api/catalogue/people/<personId>`), each card with the part they played or the job they did, leading to its page as any other answer does. Every cast member on a film's or show's page leads here, and so does each director, writer and creator in its credits |
 | `/discover?genre=<name>&kind=<film\|show>`, with `&category=anime` | Discover's catalogue of one genre: the most popular films or shows in it (`/api/catalogue/genre`), or its anime alone, as the same cards |
 | `/discover?browse=<id>` | One browse category: its name and how many shelves, Surprise me (from its shelves), and its shelves as rails, each asked for as it nears the screen; Franchises draws its series as a grid of `CollectionTile` strips instead |
 | `/discover?shelf=<id>` | Every title on one shelf, up to 40, under its category's name, with krystal's `Toolbar` as on the library's pages: one Filters popover (Watched, which the device keeps, the kind on a shelf of both, the decade, the least rating) with the active ones as chips, a sort (the shelf's own order, rating, release date) with its direction, the count, and Surprise me among what is shown |
 | `/discover?filter=<film\|show>`, with `&g=`, `&decade=`, `&length=`, `&rating=`, `&lang=` and `&sort=` | Discover's filter, with the same `Toolbar`: one Filters popover holding the kind, a genre (`g`, since `genre` is a genre's own page), a decade by its first year, a film's length (`short` under 90 minutes, `standard` 90 to 150, `long` over), the least rating, an original language from the ones `/api/discover` offers, and Watched; a sort by popularity, rating or release date. Every choice replaces the address. The matching titles (`/api/catalogue/discover`, 20 of them) as cards, with the count and Surprise me. Any rating still asks for 100 votes, so a title nobody has seen is not listed |
-| `/discover`, `/discover?q=` | Finding anything to watch, here or not. A large field with Filters beside it (the filter's popover; picking anything opens `/discover?filter=` at that choice) and, with nothing typed, a spotlight drawn and turning as Home's top is, on the films from the season's shelf or the week's trending films (`spotlight` on `/api/discover`), the first four the person has not watched with a different one leading each day: each one's artwork, facts and story, Watch (or Notify) as its own page offers it, More info, and Surprise me, which opens a title picked at random from a shelf picked at random, never one the person watched. Then the page's rows (`/api/discover`), each a krystal `Rail`: a shelf's first 20 posters with See all, asked for (`/api/discover/shelves/<id>`) only once it nears the screen and left out when it has nothing on it or could not be answered; the moods as `CollectionTile` fans and the franchises as strips, which follow the person through each series (the films ahead dimmed, a segment per film, the next named); and the browse categories as a grid of fans, three across and two on a phone. With a query, the catalogue's films and shows together in its own order (`/api/titles/find`, or films alone for somebody who may only wish), each by its poster, rating, year and cast: the first answer large, with what it is about and the actions its own page offers, asked for as soon as it is shown (`components/FilmActions.jsx` for a film, Watch from its seasons for a show), and the rest as cards under More results, a skeleton of both while the catalogue is asked. Anything the server can play by that name that the catalogue did not answer with joins those cards. A result is a result wherever it plays from: nothing on a card says whether it is here, and one that plays now plays from the card. `/`, Ctrl+K or Cmd+K anywhere outside a text field opens it with the field focused, and a fine pointer focuses the field on arrival |
-| `/saved` | Saved: the signed-in person's lists, Watch later first, then the rest most recently changed first, each its newest posters, name and size, and whose it is when it is somebody else's; and making a new one |
-| `/saved/<id>` | One list (`later` is the person's own Watch later): its titles, with krystal's `Toolbar` to search titles and notes, narrow by kind and watched, and sort, by when each was saved (newest first unless the person picked otherwise, under Today, Yesterday, This week and each month), name, year, rating or length. Each is a poster card with its rating, year and a film's length, its note or when it was saved and by whom on a shared list, and Watched when the person watched it; an owner or editor writes the note in a sheet over the page and takes it off, from the card's tools. Its owner renames it, deletes it, and puts people on it as editors or viewers; a member leaves it |
-| `/notify` | The films the signed-in person is waiting on, as poster cards marked Out now with the release once one is, each with Stop waiting; and finding a film by name in the catalogue, as `/discover`'s result cards, to wait on from its page |
-| `/profile`, `/profile/<tab>` | The signed-in person; History, the first tab, has no segment: History (each film a poster card with how far the person got along its foot, when they watched it, Resume, and a way to remove it), Requests (the films they wait on, each a poster card), Following (each followed show a poster card with its next episode, whether new episodes are downloaded, switched on the card, and Unfollow), Notifications, Playback (audio language, quality, skipping intros and recaps automatically, and the quality Download picks on a phone or a tablet that can download, its choices under its words on a phone), Subtitles (the language a film starts in, and how subtitles look with a preview of them), Appearance (the theme) and Account (who is signed in, and a link to the account's page at the provider, where it is managed); every tab one column at the page's width; signing out |
+| `/discover`, `/discover?q=` | Finding anything to watch, here or not. A large field with Filters beside it (the filter's popover; picking anything opens `/discover?filter=` at that choice) and, with nothing typed, a spotlight drawn and turning as Home's top is, on the films from the season's shelf or the week's trending films (`spotlight` on `/api/discover`), the first four the person has not watched with a different one leading each day: each one's artwork, facts and story, Watch (or Want) as its own page offers it, More info, and Surprise me, which opens a title picked at random from a shelf picked at random, never one the person watched. Then the page's rows (`/api/discover`), each a krystal `Rail`: a shelf's first 20 posters with See all, asked for (`/api/discover/shelves/<id>`) only once it nears the screen and left out when it has nothing on it or could not be answered; the moods as `CollectionTile` fans and the franchises as strips, which follow the person through each series (the films ahead dimmed, a segment per film, the next named); and the browse categories as a grid of fans, three across and two on a phone. With a query, the catalogue's films and shows together in its own order (`/api/titles/find`, or films alone for somebody who may only wish), each by its poster, rating, year and cast: the first answer large, with what it is about and the actions its own page offers, asked for as soon as it is shown (`components/FilmActions.jsx` for a film, Watch from its seasons for a show), and the rest as cards under More results, a skeleton of both while the catalogue is asked. Anything the server can play by that name that the catalogue did not answer with joins those cards. A result is a result wherever it plays from: nothing on a card says whether it is here, and one that plays now plays from the card. `/`, Ctrl+K or Cmd+K anywhere outside a text field opens it with the field focused, and a fine pointer focuses the field on arrival |
+| `/wants` | Want to watch: every title the signed-in person wants, newest first unless they picked otherwise, as poster cards with a year, a film's length or a show's next episode, how many others want it, and where it stands on the card's foot: Ready, Fetching with its progress along the poster, Waiting for a release, or Available; a want kept to the person is marked Just me. A state switch (All, Ready, Fetching, Waiting) sits over krystal's `Toolbar`, which searches by name and sorts by date added, name, year, rating or others, the order kept per person as every sorted page's is. Each card's ribbon is the want's menu and Watch opens a film the library holds. A title being fetched is asked after every ten seconds while the page is open |
+| `/profile`, `/profile/<tab>` | The signed-in person; History, the first tab, has no segment: History (each film a poster card with how far the person got along its foot, when they watched it, Resume, and a way to remove it), Following (each followed show a poster card with its next episode, whether new episodes are downloaded, switched on the card, and Unfollow), Notifications, Playback (audio language, quality, skipping intros and recaps automatically, and the quality Download picks on a phone or a tablet that can download, its choices under its words on a phone), Subtitles (the language a film starts in, and how subtitles look with a preview of them), Appearance (the theme) and Account (who is signed in, and a link to the account's page at the provider, where it is managed); every tab one column at the page's width; signing out |
 | `/about` | What the site is, and where its film details come from |
 | `/chat` | The assistant, as the page a phone's Assistant tab opens; a wide screen has it in the dock beside every other page (below) |
 | `/signed-in` | Where the identity provider sends the browser back with its code: the sign-in is completed and the page that was asked for opens; opened on its own it goes Home. `/signin` opens Home |
@@ -104,15 +102,18 @@ Every page but Home carries a breadcrumb trail above it (krystal's `Breadcrumbs`
 address a level at a time: Home, the section, then the film, show, list, season or profile tab, each
 crumb but the last a link to the address prefix it names. `src/crumbs.js` builds it from the route and
 `src/nav.js` holds the section and tab names the sidebar, the footer, the tab bar and the trail share. A
-film's, show's or list's name is known once its page has loaded, so the page gives it to the trail
+film's or show's name is known once its page has loaded, so the page gives it to the trail
 (`useCrumb`), keyed to its own page so a name never outlives the page; until then the crumb is the id,
 and a page that finds nothing names that. The trail is drawn once, from the route of the page shown, so
 it never runs ahead of the page while the next is prepared. A search is not a crumb.
 
-Save, on a film's and a show's page, puts it on the person's Watch later in one press. Once it is on
-any list the button reads Saved and opens the lists the person can add to, each switched on where it
-holds the title, and New list, which makes one and saves to it: a popover beside the button on a wide
-screen, the drawer on a phone.
+Want, on a film's and a show's page, wants it in one press: visible to everybody signed in, which is how
+the server knows to fetch it ahead, tell the person when a film nothing has yet is out, and show them to
+the others who want the same. Once it is made the button reads Wanted and opens a menu: Just me or
+Everyone, and Remove. A film nothing has yet carries a Waiting for a release mark beside it. Under the
+buttons of a film's, a show's and a catalogue page, the people with a visible want on the title are drawn as
+faces (`components/Wanters.jsx`, `GET /api/titles/<imdbId>/wanters`): their initials, with their name as the tooltip and the
+face's label, and nothing when nobody else wants it. A want kept to its person is named nowhere.
 
 Every poster card says on its poster, above the name, what it holds (`kindLine` in
 `src/components/Film.jsx`): Movie, or Series in the accent, each Anime movie or Anime series for a title
@@ -121,18 +122,18 @@ poster's foot, each filled by the share of its episodes the person watched throu
 on `GET /api/shows`), and gives its seasons and episodes where a film's gives its year and length.
 
 Every poster card of a film or a show, in the library, in Discover and in the Anticipated row, carries
-the same save as a ribbon hanging from its top edge (krystal's `ShowcaseCard` `ribbon`). A press on
-a title not saved puts it on Watch later; on one saved, the ribbon is filled and always shown, and
-opens the same lists beside it. Not saved, it shows on the card a mouse is over or that holds focus,
-and always on a touch screen. What is saved is one set for every card (`src/saved.js`): the ids
-`GET /api/me/saved` answers, read once, again whenever the page comes back into view, the connection
-comes back or somebody else signs in, and changed at once by every save made here, the ribbon's and the
-button's alike. A card draws no ribbon until the set is known, and a page being prepared out of sight
+the same want as a ribbon hanging from its top edge (krystal's `ShowcaseCard` `ribbon`). A press on
+a title not wanted wants it; on one wanted, the ribbon is filled and always shown, and
+opens the same menu beside it. Not wanted, it shows on the card a mouse is over or that holds focus,
+and always on a touch screen. What is wanted is one store for every card (`src/wants.js`): the wants
+`GET /api/me/wants` answers, read once, again whenever the page comes back into view, the connection
+comes back or somebody else signs in, and changed at once by every want made, changed or removed here, the ribbon's and the
+button's alike, then read again once the write is done. A card draws no ribbon until the store is read, and a page being prepared out of sight
 waits for it.
 
 Download keeps a film or an episode on this device to play with no connection (`src/offline/`,
-`components/DownloadButton.jsx`). It is an outline button beside Save on a film's page, in the
-library or not (on a phone Watch spans the column and Save and Download share the row under it),
+`components/DownloadButton.jsx`). It is an outline button beside Want on a film's page, in the
+library or not (on a phone Watch spans the column and Want and Download share the row under it),
 beside Watch on a film found in Discover, a square button at the end of each episode's row on a
 show's page, and Download season in each season's head, for whoever holds `cinema:offline`, on a
 phone or a tablet (a finger as the main pointer) in a browser with the Origin Private File System
@@ -173,7 +174,7 @@ Keep or Remove). Safari in a tab, rather than from the Home Screen, deletes a si
 seven days unvisited, and the sheet says so there. The Library marks a downloaded film's card with a
 Downloaded pill on its poster and one under way with Downloading and its percent and a bar along the
 poster's foot, and a show's card with how many of its episodes are downloaded; its Filters popover
-narrows to what is downloaded. Save is the lists' word, and Download is this one's.
+narrows to what is downloaded.
 
 A download moves only while the site is open: a phone slows a hidden page and stops it before long,
 and with the screen locked it stops sooner. While the page is hidden a notification says what is
@@ -182,10 +183,10 @@ server prepares it), and one says Downloaded when a download finishes then; tapp
 library. They need the browser's leave to notify, which the first Download on a device asks for
 (`src/offline/notice.js`).
 
-Wide screens get around by the sidebar, which has Discover and Saved under Home. A phone has
+Wide screens get around by the sidebar, which has Discover and Want to watch under Home. A phone has
 krystal's `TabBar` along its bottom edge instead, and no drawer: Home (lit on `/`),
 Library (lit under `/movies`, `/tv` and `/anime`), Discover (lit under `/discover`), Assistant
-(`/chat`), and Me (`/profile`, lit on `/notify` and `/saved` too), whose page leads to Saved. What each page lights is one table in `App.jsx`, by the route's
+(`/chat`), and Me (`/profile`, lit on `/wants` too), whose page leads to Want to watch. What each page lights is one table in `App.jsx`, by the route's
 view. The tab of the page already open scrolls it back to its top. The
 pages no tab names are linked from the footer every page ends with. A television has neither and
 gets around by its own bar (below).
@@ -228,7 +229,7 @@ connection, and signs in once there is one.
 
 The token lists the Cinema actions the person holds, in the claim `/api/config` names, and the page
 shows a control only to somebody holding the action it needs (`can` and `useCan` in `src/session.js`):
-Download and Watch on a film that is not here need `cinema:download`, Notify `cinema:wish`. An
+Download and Watch on a film that is not here need `cinema:download`; asking whether a film is out yet needs `cinema:wish`. An
 approved account without `cinema:watch` sees one page saying it has no access to
 Krystal Cinema, with Sign out and the account's page. The API checks every action again.
 
@@ -349,10 +350,10 @@ phone. How to run it, what it measures and how to add a page or a phone: `verify
 
 `npm run verify:tv` opens every page in TV mode at a Fire TV's 960×540 against the same scratch site,
 and walks it with the arrow keys from where focus starts: every control on it has to be reached, each
-on screen when it is, and focus never left on nothing. Then Saved and a list with nothing on
-them, for people made for the purpose: the empty state's Discover focused, and Up and Back reaching the
+on screen when it is, and focus never left on nothing. Then Want to watch with nothing on
+it, for a person made for the purpose: the empty state's Discover focused, and Up and Back reaching the
 bar from it. Then an overlay taking focus when OK opens it
-and handing it back on Back (Save's lists and the bell's), Back going back a page to the control it
+and handing it back on Back (a film's Want menu and the bell's), Back going back a page to the control it
 was left on, Back on Home going to the bar and then being the app's, and
 the player: play focused, OK playing, presses gathered into one skip, slower presses skipping from the
 scrub bar, a held key scrubbing and seeking once, Menu, Play/Pause and Back. The player's checks need
@@ -364,8 +365,8 @@ token, and stops answering; the check sees the code and its QR, approval opening
 the session renewing on its own and surviving a restart, signing out revoking it, a refusal, an expired
 code, a provider that cannot be reached, and a session that ends under a page. `--checks` and
 `--pages` narrow a run. The site has to be staged first (`node verify/mobile/run.mjs` does it once after
-`scratch.sh` starts, and saving a title needs `scratch.sh` started with a TMDB token); on a site not
-staged the run stops before checking anything, since Saved is then an empty page.
+`scratch.sh` starts, and wanting a title needs `scratch.sh` started with a TMDB token); on a site not
+staged the run stops before checking anything, since Want to watch is then an empty page.
 
 `npm run verify:tv-perf` times what a remote does, the way the reference television draws it: the
 walks in `verify/tvperf/walks.mjs` from pages loaded cold, each key measured for how long it goes
@@ -489,11 +490,11 @@ with what needs the server dimmed and out of reach.
   plays from the device and the rest are dimmed and cannot be played. Profile opens on Playback, which
   with Subtitles shows the preferences kept on the device and changes nothing; Appearance works, and
   Account signs out. About is drawn as ever.
-- **What needs the server** is drawn dimmed and does nothing: Discover, Saved and Notify me in the
-  sidebar, Discover and Assistant in the tab bar, the bell, Profile's History, Requests, Following and
-  Notifications, Save, Follow, Notify, Discover's search, the assistant's button, and every other
+- **What needs the server** is drawn dimmed and does nothing: Discover and Want to watch in the
+  sidebar, Discover and Assistant in the tab bar, the bell, Profile's History, Following and
+  Notifications, Want, Follow, Discover's search, the assistant's button, and every other
   control that asks the server. Discover, the assistant and every page the device cannot draw
-  (a film not downloaded, Saved, a list, Notify me, a room), reached by an address, Back or a push,
+  (a film not downloaded, Want to watch, a room), reached by an address, Back or a push,
   say "You're offline" and that the place is not available offline, and lead to the library.
 - **What is kept for it.** Beside the downloads themselves, the device keeps an account's preferences
   (`offline/preferences.js`), where the person got to (`offline/progress.js`: the last
@@ -527,7 +528,7 @@ in a WebView, driven by the remote. `src/tv/` is all of it that is the site's ow
 - **The television's own pages** (`src/tv/TvFrame.jsx`, `src/tv/pages/`), drawn to the TV design at
   the WebView's 960 by 540 page, on krystal's `TvBar`, `TvBackdrop`, `TvSpotlight`, `TvRow`,
   `TvCard`, `TvTile` and `CollectionTile`. No sidebar, footer or breadcrumb: a bar across the top holds Home, Discover,
-  Movies, TV Shows, Anime and Saved, with the bell and the person at its right, on those six pages; a
+  Movies, TV Shows, Anime and Want to watch, with the bell and the person at its right, on those six pages; a
   film's, a show's and the profile's pages have none, and Back leaves them. The bar moves away once
   a page scrolls or its rows hold focus, and comes back with focus. Home and Discover open on their tops' slides
   (`src/tv/hero.jsx`) over each one's artwork, turning by themselves as on a computer: a press starts a
@@ -544,8 +545,8 @@ in a WebView, driven by the remote. `src/tv/` is all of it that is the site's ow
   the cards around it dim, and a button or a place in the bar turns into a light pill. Nothing says
   whether the server holds a title: a film is watched the same way either way. Profile keeps its
   sections down the left and the open one on the right, About among them at its own address. A
-  list's page is headed by the list's name, with its count of titles under it once it holds one.
-  Saved with nothing saved and a list with no titles show krystal's `EmptyState`, "Nothing saved yet" over a
+  Want to watch holds a row each for what is ready, arriving and waiting for a release, then the rest, with the
+  focused title named under its row; with nothing wanted it shows krystal's `EmptyState`, "Nothing yet" over a
   Discover button, which takes initial focus (`data-tv-initial`) so a remote has somewhere to land. The player is the
   site's own, with its menus as a panel down the right and its subtitles sized for the distance.
 - **Moving focus** (`src/tv/navigator.js`, the page glue over krystal's `lib/spatialFocus`): every arrow key is taken and focus moves to the nearest
@@ -595,7 +596,7 @@ in a WebView, driven by the remote. `src/tv/` is all of it that is the site's ow
   site: Profile's account shows the provider's address as text, to open on a phone, and About's
   TMDB logo is not a link.
 - **Left out on a television**: the assistant, pushes (and Profile's Notifications with them),
-  installing the app, making and changing lists, and in the player the volume (the set's own buttons
+  installing the app, and in the player the volume (the set's own buttons
   hold it), full screen (the screen already is) and the invite (nobody across the room is handed a
   link to copy). Nothing is blurred behind anything, for the WebView's frame budget.
 
@@ -692,7 +693,7 @@ The bell lists what the API told this person (`src/notifications.js`, read every
 the page comes back into view): in the sidebar above the person on a wide screen, at the top right of
 the front page on a phone, and in the bar on a television. Profile's Notifications tab turns pushes on for this browser, through
 krystal's `pushBrowser` against `/api/push/key` and `/api/me/push`, and holds a switch
-for each kind that is pushed, new episodes of followed shows among them. A browser can be pushed to only once it has a service worker, which is a
+for each kind that is pushed (a wanted title that is out, a download that is ready, new episodes of followed shows). A browser can be pushed to only once it has a service worker, which is a
 production build; on an iPhone, only once the site is on the Home Screen, and the tab says so. The
 player's invite panel lists everybody who can be asked into the room and says, per person, whether
 the invite went out as a push or waits in their bell, never that it was seen.
@@ -729,7 +730,7 @@ leading to the title's page. The assistant holds no room controls and no buttons
   imported first and orders them: `site.reset` before the system's layers, `site.base` between its base
   and its components, so the document rules (`html`, `body`, `a`, `button`) in `site.css` give way to the
   system's components. Every other rule is unlayered and so restyles a component by an ordinary
-  selector. The system's classes carry `k-`; the site's own are `kc-` (the shell, pages and lists) and
+  selector. The system's classes carry `k-`; the site's own are `kc-` (the shell and pages) and
   `mp-` (the player).
 - **Everything is fetched from this origin.** Film details and their artwork come from TMDB through
   the API, which keeps them and serves its own copies (`/films/`, `/shows/`, `/popular/`, `/glances/`,

@@ -9,7 +9,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
 [AssistantTool("my_taste", ToolClass.Read, ResultLimit = 12000, Order = 7)]
 [Description("""
-    What the asking person has watched, rated and saved: their history, their lists and the shows they follow, newest first.
+    What the asking person has watched, rated and saved: their history, the titles they want to watch and the shows they follow, newest first.
     - Use to tailor a recommendation and to leave out what they have already seen.
     - Not for answering "what did I watch": the site shows that.
     """)]
@@ -19,7 +19,6 @@ internal sealed partial class MyTasteTool(CinemaApi api) : AssistantTool<MyTaste
         [property: Description("How many of each, default 30.")] [property: Range(1, 100)] int? Limit = null);
 
     private const int DefaultLimit = 30;
-    private const int ListsRead = 6;
 
     protected override async ValueTask<ToolResult> RunAsync(Args args, ToolCall<Caller> call)
     {
@@ -29,44 +28,18 @@ internal sealed partial class MyTasteTool(CinemaApi api) : AssistantTool<MyTaste
 
         // Each part is read on its own: an account that may not read one of them still has the others.
         Task<Attempt<List<HistoryEntry>>> history = Attempt.OfAsync(database.HistoryAsync(ct));
-        Task<Attempt<List<ListSummary>>> lists = Attempt.OfAsync(database.ListsAsync(ct));
+        Task<Attempt<List<Want>>> wants = Attempt.OfAsync(database.WantsAsync(ct));
         Task<Attempt<List<Follow>>> follows = Attempt.OfAsync(database.FollowsAsync(ct));
-        await Task.WhenAll(history, lists, follows);
+        await Task.WhenAll(history, wants, follows);
 
         var text = new StringBuilder();
         var cards = new List<TitleCard>();
 
         Section(text, "Watched", await history, limit, Watched);
-        if ((await lists).Value is { } summaries)
-        {
-            ListSummary[] read = [.. summaries.Take(ListsRead)];
-            var contents = await Task.WhenAll(read.Select(l => Attempt.OfAsync(database.ListAsync(l.Id, ct))));
-            for (int i = 0; i < read.Length; i++)
-            {
-                text.Append('\n');
-                if (contents[i].Value is not { } list)
-                {
-                    text.Append($"List \"{read[i].Name}\": could not be read ({contents[i].Error}).\n");
-                    continue;
-                }
-
-                text.Append($"List \"{read[i].Name}\" ({list.Entries.Count} saved, newest saved first"
-                    + (list.Entries.Count > limit ? $", the first {limit} shown" : "") + "):\n");
-                if (list.Entries.Count == 0) text.Append("Empty.\n");
-                foreach (ListEntry entry in list.Entries.Take(limit))
-                {
-                    text.Append(Saved(entry)).Append('\n');
-                    cards.Add(new TitleCard(entry.ImdbId, entry.Kind, entry.Title, entry.Year, entry.PosterUrl, entry.InLibrary, entry.Watched));
-                }
-            }
-
-            if (summaries.Count > ListsRead)
-                text.Append($"\n{summaries.Count - ListsRead} more lists were not read.\n");
-        }
-        else
-        {
-            text.Append($"\nLists: could not be read ({(await lists).Error}).\n");
-        }
+        text.Append('\n');
+        Section(text, "Wants to watch", await wants, limit, Wanted);
+        if ((await wants).Value is { } wanted)
+            cards.AddRange(wanted.Take(limit).Select(w => new TitleCard(w.ImdbId, w.Kind, w.Title, w.Year, w.PosterUrl, w.InLibrary, w.Watched)));
 
         text.Append('\n');
         Section(text, "Following", await follows, limit, Followed);
@@ -102,14 +75,21 @@ internal sealed partial class MyTasteTool(CinemaApi api) : AssistantTool<MyTaste
         return $"- {name}: {how}, last watched {e.LastWatchedAt:yyyy-MM-dd}.";
     }
 
-    private static string Saved(ListEntry e)
+    private static string Wanted(Want w)
     {
-        var text = new StringBuilder("- ").Append(TitleText.Named(e.Title, e.Year)).Append(", ").Append(TitleText.KindWord(e.Kind)).Append('.');
-        if (e.Genres.Count > 0) text.Append(' ').Append(string.Join(", ", e.Genres)).Append('.');
-        if (e.Rating is { } r) text.Append(" Rated ").Append(r.ToString("0.0", CultureInfo.InvariantCulture)).Append('.');
-        if (e.Watched && e.Kind != "show") text.Append(" The person has watched it.");
-        if (e.Note is { Length: > 0 } note) text.Append(" Note: ").Append(note);
-        text.Append($" id {e.ImdbId}.");
+        var text = new StringBuilder("- ").Append(TitleText.Named(w.Title, w.Year)).Append(", ").Append(TitleText.KindWord(w.Kind)).Append('.');
+        if (w.Genres.Count > 0) text.Append(' ').Append(string.Join(", ", w.Genres)).Append('.');
+        if (w.Rating is { } r) text.Append(" Rated ").Append(r.ToString("0.0", CultureInfo.InvariantCulture)).Append('.');
+        text.Append(w.State switch
+        {
+            "ready" => " In the library.",
+            "fetching" => w.Progress is { } p ? $" Arriving, {Math.Round(p * 100)}% there." : " Arriving.",
+            "available" => " Out digitally, not downloaded.",
+            "waiting" => " Not out digitally yet.",
+            _ => "",
+        });
+        if (w.NextEpisode is { } next) text.Append($" Their next episode is season {next.Season} episode {next.Episode}.");
+        text.Append($" id {w.ImdbId}.");
         return text.ToString();
     }
 

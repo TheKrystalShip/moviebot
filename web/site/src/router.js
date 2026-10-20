@@ -4,7 +4,7 @@
 import { createStore, useStore } from "@thekrystalship/krystal";
 import {
   ANIME, PROFILE_TABS, aboutPath, chatPath, discoverFilmPath, discoverPath, discoverShowPath, guestPath, homePath, libraryPath,
-  listPath, moviePath, notifyPath, pairPath, profilePath, roomPath, savedPath, signedInPath, tvPath,
+  moviePath, pairPath, profilePath, roomPath, signedInPath, tvPath, wantsPath,
 } from "./paths.js";
 
 const decode = (s) => {
@@ -47,10 +47,10 @@ function arrived(segments, search) {
  * `notfound` and keeps the address as typed.
  *
  *   view      which page: home, movies, movie, tv, show, anime, anime-films, discover, discover-film,
- *             discover-show, saved, list, notify, profile, about, chat, signed-in, room, guest, pair, embed,
+ *             discover-show, wants, profile, about, chat, signed-in, room, guest, pair, embed,
  *             notfound
  *   category  `anime` for a shelf or a title's page under Anime; null everywhere else
- *   arg       the id the path carries: a title, a show, a film, a list, a room or a code
+ *   arg       the id the path carries: a title, a show, a film, a room or a code
  *   season    the season a show's path names, or null for the show's own choice
  *   tab       the profile tab the path names, or null for the first
  *   segments  the canonical path, decoded, one entry per level
@@ -99,15 +99,12 @@ function parse(href) {
       else route = shaped("discover", discoverPath());
       break;
     }
-    case "saved":
-      route = rest[0] ? shaped("list", listPath(rest[0]), { arg: rest[0] }) : shaped("saved", savedPath);
-      break;
+    case "wants": route = shaped("wants", wantsPath); break;
     case "profile": {
       const tab = PROFILE_TABS.includes(rest[0]) && rest[0] !== PROFILE_TABS[0] ? rest[0] : null;
       route = shaped("profile", profilePath(tab), { tab, key: profilePath() });
       break;
     }
-    case "notify": route = shaped("notify", notifyPath); break;
     case "about": route = shaped("about", aboutPath); break;
     case "chat": route = shaped("chat", chatPath); break;
     case "signed-in": route = shaped("signed-in", signedInPath); break;

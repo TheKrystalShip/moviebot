@@ -274,15 +274,7 @@ public sealed record HistoryEntry
     public string? ShowImdbId { get; init; }
 }
 
-public sealed record ListSummary
-{
-    public string Id { get; init; } = "";
-    public string Name { get; init; } = "";
-    public bool WatchLater { get; init; }
-    public int Count { get; init; }
-}
-
-public sealed record ListEntry
+public sealed record Want
 {
     public string ImdbId { get; init; } = "";
     public string Kind { get; init; } = "film";
@@ -290,18 +282,16 @@ public sealed record ListEntry
     public int? Year { get; init; }
     public double? Rating { get; init; }
     public List<string> Genres { get; init; } = [];
-    public DateTimeOffset AddedAt { get; init; }
-    public string? Note { get; init; }
+    public DateTimeOffset Since { get; init; }
     public string? PosterUrl { get; init; }
+    public string? State { get; init; }
+    public double? Progress { get; init; }
     public bool InLibrary { get; init; }
     public bool Watched { get; init; }
+    public WantNext? NextEpisode { get; init; }
 }
 
-public sealed record ListContents
-{
-    public ListSummary List { get; init; } = new();
-    public List<ListEntry> Entries { get; init; } = [];
-}
+public sealed record WantNext(int Season, int Episode, string? Name = null);
 
 public sealed record Follow
 {

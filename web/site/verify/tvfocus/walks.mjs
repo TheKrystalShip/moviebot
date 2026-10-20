@@ -91,9 +91,9 @@ export const WALKS = {
       { key: "Up", expect: "bar/TV Shows" },
       { key: "Down", expect: "row/*/0", note: "back to the card it left" },
       { key: "Down", expect: "row/*/0" }, { key: "Up", expect: "row/*/0" }, { key: "Up", expect: "bar/TV Shows" },
-      { key: "Right" }, { key: "Right", expect: "bar/Saved" },
-      { key: "OK", open: true, path: "/saved" },
-      { key: "Up", expect: "bar/Saved" }, { key: "Down" }, { key: "Down" }, { key: "Up" }, { key: "Up", expect: "bar/Saved" },
+      { key: "Right" }, { key: "Right", expect: "bar/Want to watch" },
+      { key: "OK", open: true, path: "/wants" },
+      { key: "Up", expect: "bar/Want to watch" }, { key: "Down" }, { key: "Down" }, { key: "Up" }, { key: "Up", expect: "bar/Want to watch" },
     ],
   },
   "movies-deep": {

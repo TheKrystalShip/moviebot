@@ -160,51 +160,15 @@ public sealed record DownloadView
     public string? RequestedBy { get; init; }
 }
 
-/// <summary>One person waiting on a film.</summary>
-public sealed record WishSubscriberView
-{
-    public required string UserId { get; init; }
-
-    public required DateTimeOffset AskedAt { get; init; }
-}
-
-/// <summary>A film somebody wants that cannot be downloaded yet, and everybody waiting on it.</summary>
-public sealed record WishView
-{
-    public required string ImdbId { get; init; }
-
-    public required string Title { get; init; }
-
-    public int? Year { get; init; }
-
-    public required string Display { get; init; }
-
-    public string? Starring { get; init; }
-
-    /// <summary>
-    /// The poster the film's page shows, served from the API at an address relative to it; the title
-    /// index's own, absolute, for a film the film database has no poster for.
-    /// </summary>
-    public string? PosterUrl { get; init; }
-
-    public IReadOnlyList<WishSubscriberView> Subscribers { get; init; } = [];
-
-    /// <summary>
-    /// The release that would answer the wish, once the tracker offers one; absent while the film is
-    /// not out. A person stays on a wish that has come out until they stop waiting on it.
-    /// </summary>
-    public ReleaseOffer? Release { get; init; }
-}
-
 /// <summary>
-/// A film people are waiting on, as anybody browsing sees it: how many are waiting and whether the
-/// asker is one of them, and nobody by name.
+/// A film people want that nothing has yet, as anybody browsing sees it: how many want it and whether
+/// the asker is one of them, and nobody by name.
 /// </summary>
 public sealed record AnticipatedView
 {
     public required string ImdbId { get; init; }
 
-    /// <summary>What the title is. A wish is for a film, so this is <c>film</c>.</summary>
+    /// <summary>What the title is. A wish is kept for a film, so this is <c>film</c>.</summary>
     public string Kind { get; init; } = "film";
 
     public required string Title { get; init; }
@@ -213,51 +177,11 @@ public sealed record AnticipatedView
 
     public required string Display { get; init; }
 
-    /// <summary>The poster the film's page shows, as <see cref="WishView.PosterUrl"/> gives it.</summary>
+    /// <summary>The poster the film's page shows, served from the API at an address relative to it; the title index's own, absolute, for a film the film database has no poster for.</summary>
     public string? PosterUrl { get; init; }
 
     public required int Waiters { get; init; }
 
     /// <summary>Whether the person asking is one of the <see cref="Waiters"/>.</summary>
     public required bool Waiting { get; init; }
-}
-
-/// <summary>Wait on a film: an IMDb id, or what was typed over the suggestions, often a pasted link.</summary>
-public sealed record AddWishRequest
-{
-    public required string Chosen { get; init; }
-}
-
-/// <summary>
-/// How a wish went: <c>subscribed</c>, <c>alreadySubscribed</c>, <c>alreadyAvailable</c> (the
-/// tracker has it, in <see cref="Release"/>), <c>inLibrary</c>, <c>downloading</c> (as
-/// <see cref="DownloadName"/>), <c>notAFilm</c>, <c>notFound</c> or <c>nothingPicked</c>.
-/// <see cref="Wish"/> carries the film whenever the catalogue named it.
-/// </summary>
-public sealed record AddWishReply
-{
-    public required string Outcome { get; init; }
-
-    public WishView? Wish { get; init; }
-
-    public ReleaseOffer? Release { get; init; }
-
-    public string? LibraryId { get; init; }
-
-    public string? LibraryName { get; init; }
-
-    public string? DownloadName { get; init; }
-
-    /// <summary>What the catalogue calls the film, for the outcomes that carry no wish.</summary>
-    public string? FilmTitle { get; init; }
-
-    public string? ImdbId { get; init; }
-}
-
-/// <summary>How taking somebody off a wish went: <c>cancelled</c>, <c>notWaiting</c> or <c>nothingPicked</c>.</summary>
-public sealed record CancelWishReply
-{
-    public required string Outcome { get; init; }
-
-    public WishView? Wish { get; init; }
 }

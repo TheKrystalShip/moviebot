@@ -9,7 +9,8 @@ import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, WatchButton } from "../components/Film.jsx";
 import { WatchOnTvActions, useDriving } from "../components/WatchOnTv.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, Keywords, Tagline, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
-import { SaveButton } from "../components/SaveButton.jsx";
+import { WantButton } from "../components/WantButton.jsx";
+import { Wanters } from "../components/Wanters.jsx";
 import { DownloadButton, useOffersSaving } from "../components/DownloadButton.jsx";
 import { useDeviceTitle } from "../offline/hooks.js";
 import { Unreachable } from "./Offline.jsx";
@@ -127,7 +128,7 @@ export function Title({ id, category = null, fromDevice = false }) {
                   {!room && progress && <span className="kc-btn__sub">{timeLeft(m.durationSeconds - progress.positionSeconds)}</span>}
                 </WatchButton>
               )}
-              {film.imdbId && <SaveButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
+              {film.imdbId && <WantButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
               {saving && (m.status === "ready" || (fetching && m.status === "transcoding" && film.imdbId)) && (
                 <DownloadButton titleId={m.id} imdbId={film.imdbId || null} ready={m.status === "ready"} head={{
                   name: (d && d.title) || filmName(m), context: film.year || (d && d.year) || null,
@@ -135,6 +136,7 @@ export function Title({ id, category = null, fromDevice = false }) {
                 }} />
               )}
             </div>
+            {film.imdbId && !fromDevice && <Wanters imdbId={film.imdbId} />}
             {played && (
               <span className="kc-note">Played {ago(played.at)} by {playedBy}</span>
             )}

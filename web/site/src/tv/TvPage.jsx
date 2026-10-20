@@ -1,13 +1,12 @@
 import { ANIME } from "../paths.js";
 import { NotFound } from "../pages/NotFound.jsx";
-import { Notify } from "../pages/Notify.jsx";
 import { TvDiscover } from "./pages/TvDiscover.jsx";
 import { TvCatalogueFilm, TvTitle } from "./pages/TvFilm.jsx";
 import { TvHome } from "./pages/TvHome.jsx";
 import { TvLibrary } from "./pages/TvLibrary.jsx";
 import { TvProfile } from "./pages/TvProfile.jsx";
-import { TvList, TvSaved } from "./pages/TvSaved.jsx";
 import { TvShow } from "./pages/TvShow.jsx";
+import { TvWants } from "./pages/TvWants.jsx";
 
 /** The page a route shows on a television. */
 export function TvPage({ route }) {
@@ -23,9 +22,7 @@ export function TvPage({ route }) {
       return <TvShow key={route.arg} imdbId={route.arg} season={route.season} inLibrary={route.view === "show"} />;
     case "discover-film": return <TvCatalogueFilm key={route.arg} imdbId={route.arg} />;
     case "discover": return <TvDiscover query={route.query} />;
-    case "saved": return <TvSaved />;
-    case "list": return <TvList key={route.arg} id={route.arg} />;
-    case "notify": return <Notify />;
+    case "wants": return <TvWants />;
     case "profile": return <TvProfile tab={route.tab} />;
     case "about": return <TvProfile about />;
     default: return <NotFound />;

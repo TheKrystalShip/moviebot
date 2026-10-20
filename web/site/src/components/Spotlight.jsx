@@ -5,7 +5,7 @@ import { linkProps } from "../router.js";
 import { WatchButton } from "./Film.jsx";
 import { FilmMatchActions } from "./FilmActions.jsx";
 import { FilmScore } from "./FilmDetails.jsx";
-import { SaveButton } from "./SaveButton.jsx";
+import { WantButton } from "./WantButton.jsx";
 
 /** How long a slide is shown before the next, in milliseconds. */
 export const SLIDE_MS = 8000;
@@ -66,7 +66,7 @@ function Slide({ slide, more, where }) {
 
 /**
  * What can be done with a slide's title, as its own page offers it: Watch, or Join the room people
- * are watching it in, for a film here; Watch or Notify for a film that has to be fetched; Save for a
+ * are watching it in, for a film here; Watch or Want for a film that has to be fetched; Want for a
  * show; and More info for every one of them.
  */
 function SlideActions({ slide, more, where }) {
@@ -80,7 +80,7 @@ function SlideActions({ slide, more, where }) {
     return (
       <div className="kc-actions">
         <Button variant="primary" size="xl" icon="info" {...linkProps(page)}>More info</Button>
-        <SaveButton imdbId={slide.imdbId} kind="show" title={slide.spot.title} />
+        <WantButton imdbId={slide.imdbId} kind="show" title={slide.spot.title} />
         {more}
       </div>
     );

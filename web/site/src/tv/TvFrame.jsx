@@ -18,7 +18,7 @@ const BAR = [
   { id: "movies", views: ["movies"] },
   { id: "tv", views: ["tv"] },
   { id: "anime", views: ["anime", "anime-films"] },
-  { id: "saved", views: ["saved", "list"] },
+  { id: "wants", views: ["wants"] },
 ];
 
 /** How far a page scrolls before the bar moves out of its way. */

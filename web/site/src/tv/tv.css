@@ -141,7 +141,7 @@
 .kc-tvl__title { position: relative; z-index: 1; padding: 104px var(--tv-margin-x) 0; height: 230px; box-sizing: border-box; }
 .kc-tvl[data-spot] .kc-tvl__title { visibility: hidden; }
 
-/* ── Saved ── */
+/* ── Wants, and the grids Discover's shelves share ── */
 
 .kc-tvsv { padding: 84px 0 160px; display: flex; flex-direction: column; gap: 6px; }
 /* Nothing to show: the empty state centred in the page under the bar, inside the margins a television may crop. */
@@ -150,22 +150,6 @@
 .kc-tvsv__line { min-height: 44px; padding: 0 var(--tv-margin-x); display: flex; align-items: baseline; gap: 12px; }
 .kc-tvsv__name { font-size: var(--text-md); font-weight: var(--w-semibold); color: var(--fg-1); }
 .kc-tvsv__facts { font-size: var(--text-sm); color: var(--fg-2); }
-.kc-tvsv__list { flex: none; width: var(--tv-wide-w); display: flex; flex-direction: column; gap: 6px; text-decoration: none; outline: none; }
-:root[data-tv] .kc-tvsv__list:focus-visible { box-shadow: none; }
-.kc-tvsv__list .kc-tvsv__name { font-size: var(--text-sm); color: var(--fg-3); }
-.kc-tvsv__list .kc-tvsv__facts { font-size: var(--text-xs); color: var(--fg-4); }
-.kc-tvsv__list:focus-visible .kc-tvsv__name { color: var(--fg-1); }
-.kc-tvsv__list:focus-visible .kc-tvsv__facts { color: var(--fg-2); }
-.kc-tvsv__art { display: flex; gap: 3px; align-items: center; justify-content: center; color: var(--fg-3); opacity: var(--tv-dim); }
-.kc-tvsv__art img { flex: 1; min-width: 0; height: 100%; object-fit: cover; }
-.kc-tvsv__list:focus-visible .kc-tvsv__art {
-  opacity: 1; transform: scale(var(--tv-lift)); box-shadow: var(--glow-accent);
-}
-.kc-tvsv__list:focus-visible .kc-tvsv__art::after { opacity: 1; }
-.kc-tvsv__list:focus-visible :is(.kc-tvsv__name, .kc-tvsv__facts) { transform: translateY(12px); }
-.kc-tvsv__list :is(.kc-tvsv__name, .kc-tvsv__facts) { transition: transform var(--d-base) var(--ease-out); }
-.kc-tvsv__head { padding: 0 var(--tv-margin-x) 8px; display: flex; flex-direction: column; gap: 6px; }
-.kc-tvsv__title { margin: 0; font-size: var(--text-3xl); line-height: 1.05; font-weight: var(--w-bold); }
 .kc-tvsv__grid {
   display: flex; flex-wrap: wrap; gap: 22px var(--tv-gap);
   padding: 16px var(--tv-margin-x) 0;

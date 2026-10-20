@@ -248,8 +248,8 @@ async function walk(context, label) {
     `${label}: Home's rails hold the downloaded film and show and nothing else (${d.cards.join(", ")})`);
   const continuing = await page.locator(".kc-continue").count();
   check(continuing === 1, `${label}: Continue watching holds the film started on the device (${continuing})`);
-  check(["Discover", "Saved", "Notify me"].every((n) => d.navOff.includes(n)) && d.bellOff,
-    `${label}: Discover, Saved, Notify me and the bell are drawn disabled (${d.navOff.join(", ")})`);
+  check(["Discover", "Want to watch"].every((n) => d.navOff.includes(n)) && d.bellOff,
+    `${label}: Discover, Want to watch and the bell are drawn disabled (${d.navOff.join(", ")})`);
   check(["Home", "Movies", "TV Shows"].every((n) => d.navOn.includes(n)) && !d.navOn.includes("Offline") && !d.navOff.includes("Offline"),
     `${label}: Home, Movies and TV Shows stay live, and there is no Offline place (${d.navOn.join(", ")})`);
   check(!d.fab, `${label}: the assistant cannot be opened`);

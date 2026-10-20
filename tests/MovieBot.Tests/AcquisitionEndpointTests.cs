@@ -20,11 +20,11 @@ public sealed class AcquisitionEndpointTests(SessionFixture fixture) : IClassFix
         using var search = await viewer.GetAsync("/api/releases?q=inception");
         using var start = await viewer.PostAsJsonAsync("/api/downloads", new StartDownloadRequest { TorrentId = 41 },
             ManifestJsonContext.Default.StartDownloadRequest);
-        using var wishes = await viewer.GetAsync("/api/wishes");
+        using var anticipated = await viewer.GetAsync("/api/anticipated");
 
         Assert.Equal(HttpStatusCode.Forbidden, search.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, start.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, wishes.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, anticipated.StatusCode);
     }
 
     [Fact]
@@ -99,44 +99,20 @@ public sealed class AcquisitionEndpointTests(SessionFixture fixture) : IClassFix
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
     }
 
-    /// <summary>A wish is the person's the token names, whoever carried it, and is theirs to read and cancel.</summary>
-    [Fact]
-    public async Task A_wish_is_held_for_the_person_who_made_it()
-    {
-        const string film = "tt0449088";   // At World's End: in the title index, with no release on the tracker.
-        var bea = fixture.CreatePersonClient("77", "Bea", [CinemaActions.Wish]);
-
-        using var asked = await bea.PostAsJsonAsync("/api/wishes", new AddWishRequest { Chosen = film },
-            ManifestJsonContext.Default.AddWishRequest);
-        var reply = await asked.Content.ReadFromJsonAsync(ManifestJsonContext.Default.AddWishReply);
-        Assert.Equal("subscribed", reply?.Outcome);
-        Assert.Equal("77", Assert.Single(reply!.Wish!.Subscribers).UserId);
-
-        var held = await bea.GetFromJsonAsync("/api/wishes", ManifestJsonContext.Default.IReadOnlyListWishView);
-        Assert.Equal(film, Assert.Single(held!).ImdbId);
-        Assert.Null(held![0].Release);
-
-        var others = await fixture.CreatePersonClient("78", "Cy").GetFromJsonAsync("/api/wishes", ManifestJsonContext.Default.IReadOnlyListWishView);
-        Assert.Empty(others!);
-
-        using var cancelled = await bea.DeleteAsync($"/api/wishes/{film}");
-        Assert.Equal("cancelled", (await cancelled.Content.ReadFromJsonAsync(ManifestJsonContext.Default.CancelWishReply))?.Outcome);
-        Assert.Empty((await bea.GetFromJsonAsync("/api/wishes", ManifestJsonContext.Default.IReadOnlyListWishView))!);
-    }
-
     [Fact]
     public async Task What_is_anticipated_counts_people_and_names_none()
     {
-        const string film = "tt1790809";
-        var dee = fixture.CreatePersonClient("81", "Dee", [CinemaActions.Wish]);
-        var eli = fixture.CreatePersonClient("82", "Eli", [CinemaActions.Wish]);
-        using (await dee.PostAsJsonAsync("/api/wishes", new AddWishRequest { Chosen = film }, ManifestJsonContext.Default.AddWishRequest)) { }
-        using (await eli.PostAsJsonAsync("/api/wishes", new AddWishRequest { Chosen = film }, ManifestJsonContext.Default.AddWishRequest)) { }
+        const string film = "tt0325980";   // In the film database and the title index, with no release on the tracker.
+        var dee = fixture.CreatePersonClient("81", "Dee", [CinemaActions.Watch, CinemaActions.Wish]);
+        var eli = fixture.CreatePersonClient("82", "Eli", [CinemaActions.Watch, CinemaActions.Wish]);
+        using (var made = await dee.PutAsJsonAsync($"/api/me/wants/{film}", new SetWantRequest { Kind = "film" }, ManifestJsonContext.Default.SetWantRequest))
+            Assert.Equal("waiting", (await made.Content.ReadFromJsonAsync(ManifestJsonContext.Default.SetWantReply))?.Outcome);
+        using (await eli.PutAsJsonAsync($"/api/me/wants/{film}", new SetWantRequest { Kind = "film" }, ManifestJsonContext.Default.SetWantRequest)) { }
 
         var seenByDee = await dee.GetFromJsonAsync("/api/anticipated", ManifestJsonContext.Default.IReadOnlyListAnticipatedView);
         var entry = Assert.Single(seenByDee!, a => a.ImdbId == film);
         Assert.Equal("film", entry.Kind);
-        Assert.True(entry.Waiters >= 2);
+        Assert.Equal(2, entry.Waiters);
         Assert.True(entry.Waiting);
 
         var seenByStranger = await fixture.CreatePersonClient("83", "Fay", [CinemaActions.Wish])

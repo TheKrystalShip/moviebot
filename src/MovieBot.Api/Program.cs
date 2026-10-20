@@ -11,7 +11,7 @@ using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Library;
-using TheKrystalShip.MovieBot.Api.Lists;
+using TheKrystalShip.MovieBot.Api.Wants;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Subtitles;
 using TheKrystalShip.MovieBot.Acquire.Configuration;
@@ -240,9 +240,9 @@ builder.Services.AddSingleton<FollowStore>();
 builder.Services.AddSingleton<FollowWatcher>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FollowWatcher>());
 
-// Lists of films and shows to watch later, and what turns one into what a page shows.
-builder.Services.AddSingleton<ListStore>();
-builder.Services.AddSingleton<ListPresenter>();
+// What each person wants to watch, and what turns a want into what a page shows.
+builder.Services.AddSingleton<WantStore>();
+builder.Services.AddSingleton<WantPresenter>();
 
 // Save offline: what each person saved onto which device or asked one to download, the tracks
 // measured for it, and the transfers under way, which yield to the rooms.
@@ -428,7 +428,7 @@ app.MapCatalogueSearch();
 app.MapDiscover();
 app.MapShows();
 app.MapFollows();
-app.MapLists();
+app.MapWants();
 app.MapNotifications();
 app.MapOffline();
 

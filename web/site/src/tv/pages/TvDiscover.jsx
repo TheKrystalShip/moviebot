@@ -6,7 +6,7 @@ import { ANIME, discoverPath } from "../../paths.js";
 import { linkProps, navigate } from "../../router.js";
 import { useCan } from "../../session.js";
 import { watchHref } from "../../components/Film.jsx";
-import { SaveButton } from "../../components/SaveButton.jsx";
+import { WantButton } from "../../components/WantButton.jsx";
 import { foundPage } from "../../components/TitleCards.jsx";
 import { Failed } from "../../components/Film.jsx";
 import { startFilm } from "./TvFilm.jsx";
@@ -18,7 +18,7 @@ import { TvCategory, TvDiscoverFront, TvShelf } from "./TvDiscoverShelves.jsx";
  * With nothing typed, the spotlight and the page's rows (`/api/discover`), with the moods, the
  * franchises and the browse categories as rows of tiles; `browse` is one category and `shelf` every
  * title on one shelf. With a query, the catalogue's first answer large,
- * with Watch, More info and Save, then the rest of what it answered and whatever the library holds by
+ * with Watch, More info and Want, then the rest of what it answered and whatever the library holds by
  * that name, all as one row. The query is in the address, as on every surface.
  */
 export function TvDiscover({ query }) {
@@ -147,7 +147,7 @@ function GenreTitles({ kind, genre, category, where }) {
   );
 }
 
-/** The catalogue's first answer: its poster, name, facts and story, and Watch, More info and Save. */
+/** The catalogue's first answer: its poster, name, facts and story, and Watch, More info and Want. */
 function BestMatch({ found, here, held }) {
   const show = found.kind === "show";
   const page = foundPage(found, here, held);
@@ -172,7 +172,7 @@ function BestMatch({ found, here, held }) {
           {!show && <Button variant="primary" size="lg" icon="play" busy={busy} data-tv-initial="" onClick={watch}>Watch</Button>}
           <Button variant={show ? "primary" : "secondary"} size="lg" icon="info" data-tv-initial={show ? "" : undefined}
             {...linkProps(page)}>More info</Button>
-          <SaveButton imdbId={found.imdbId} kind={show ? "show" : "film"} title={found.title} />
+          <WantButton imdbId={found.imdbId} kind={show ? "show" : "film"} title={found.title} />
         </>} />
     </section>
   );

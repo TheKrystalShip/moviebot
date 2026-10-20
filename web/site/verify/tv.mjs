@@ -2,17 +2,15 @@
 // walked with the arrow keys from where focus starts, against the scratch site verify/mobile/scratch.sh
 // serves (staged first, by its run or `node verify/mobile/run.mjs`; an unstaged site stops this run).
 //
-//   node verify/tv.mjs [--checks pages,heads,empty,overlays,back,player,remote,driving,remoteui,settings,row,signin] [--pages home,title] [--out dir]
+//   node verify/tv.mjs [--checks pages,empty,overlays,back,player,remote,driving,remoteui,settings,row,signin] [--pages home,title] [--out dir]
 //
 // Each page is checked for:
 // - focus starting on a control when it opens, and on screen;
 // - every control on it reached from there with arrows alone (Menu into a card's own controls and
 //   Back out of them counted too), and each one on screen when it is reached;
 // - focus never falling to nothing after a key.
-// Then a list's page headed by the list's name, visible, with its count of titles; and Saved and a
-// list with nothing on them, for a person with nothing saved: the empty state's one
-// Discover button focused, the empty list headed by its name without a count, the page centred inside
-// the margins, Up and Back reaching the bar from it.
+// Then Want to watch with nothing on it, for a person who wants nothing: the empty state's one
+// Discover button focused, the page centred inside the margins, Up and Back reaching the bar from it.
 // Then what the keys do: an overlay taking focus when it opens and handing it back when it closes,
 // Back going back a page to the control it was left on, Back on Home going to the bar and then
 // being left to the app, and the player: the play button focused, OK playing, OK with the controls away
@@ -93,29 +91,27 @@ if (films.length === 0) {
   console.error("The scratch library holds no ready film.");
   process.exit(2);
 }
-// Saved's pages and the Save menu need what staging puts there: the first film on the viewer's Watch
-// later. Without it Saved is an empty page with nothing to focus, and a film's Save is a button that
-// saves on a press rather than a menu.
-const saved = await api("/api/me/saved");
-if (!films[0].film || !saved.includes(films[0].film.imdbId)) {
-  console.error("The scratch library is not staged: the first film is not on the viewer's Watch later. Run\n"
+// The Want to watch page and a film's Want menu need what staging puts there: the first film among the
+// viewer's wants. Without it the page is empty with nothing to focus, and a film's Want is a button that
+// wants on a press rather than a menu.
+const wanted = await api("/api/me/wants");
+if (!films[0].film || !wanted.some((w) => w.imdbId === films[0].film.imdbId)) {
+  console.error("The scratch library is not staged: the viewer does not want the first film. Run\n"
     + "`node verify/mobile/run.mjs` once after scratch.sh starts, which needs scratch.sh started with\n"
-    + "MOVIEBOT_VERIFY_TMDB_TOKEN_FILE, since saving a title asks the film database about it.");
+    + "MOVIEBOT_VERIFY_TMDB_TOKEN_FILE, since wanting a title asks the film database about it.");
   process.exit(2);
 }
 /** A film the scratch library holds video for, which the player checks play. */
 const playable = process.env.MOVIEBOT_VERIFY_TV_FILM || "coherence-2013";
 
-const PROFILE_TABS = ["", "/requests", "/following", "/notifications", "/playback", "/remote", "/subtitles", "/appearance", "/account"];
+const PROFILE_TABS = ["", "/following", "/notifications", "/playback", "/remote", "/subtitles", "/appearance", "/account"];
 const PAGES = [
   { name: "home", path: "/" },
   { name: "movies", path: "/movies" },
   { name: "tv", path: "/tv" },
   { name: "title", path: "/movies/" + encodeURIComponent(films[0].id) },
-  { name: "saved", path: "/saved" },
-  { name: "list", path: "/saved/later" },
+  { name: "wants", path: "/wants" },
   { name: "discover", path: "/discover" },
-  { name: "notify", path: "/notify" },
   ...PROFILE_TABS.map((tab) => ({ name: "profile" + (tab ? "-" + tab.slice(1) : ""), path: "/profile" + tab })),
   { name: "about", path: "/about" },
 ];
@@ -685,77 +681,16 @@ async function signIn() {
 }
 
 /**
- * A list page's heading: the list's name as the page's h1, drawn with a size, inside the screen, in a
- * colour that reads on the canvas; and the count of titles beside it only when there is a title.
- */
-async function checkHead(name, page, expected, counted) {
-  const head = await page.evaluate(() => {
-    const h = document.querySelector("main h1");
-    if (!h) return null;
-    const r = h.getBoundingClientRect();
-    const colour = getComputedStyle(h).color.match(/[\d.]+/g).map(Number);
-    let opacity = colour.length > 3 ? colour[3] : 1;
-    for (let el = h; el; el = el.parentElement) opacity *= Number(getComputedStyle(el).opacity);
-    const facts = document.querySelector("main .kc-tvsv__head .kc-tvsv__facts");
-    return {
-      text: h.textContent, width: r.width, height: r.height, left: r.left, top: r.top, right: r.right, bottom: r.bottom,
-      visibility: getComputedStyle(h).visibility, opacity, facts: facts && facts.textContent,
-    };
-  });
-  if (!head) return fail(name, "the page draws no heading");
-  if (head.text !== expected) fail(name, `the heading reads "${head.text}", not "${expected}"`);
-  if (head.width < 1 || head.height < 1 || head.visibility !== "visible") fail(name, "the heading has no size or is hidden");
-  if (head.left < 0 || head.top < 0 || head.right > Viewport.width || head.bottom > Viewport.height) fail(name, "the heading is outside the screen");
-  if (head.opacity < 0.9) fail(name, `the heading is drawn at ${head.opacity.toFixed(2)} opacity`);
-  if (counted && !/^\d+ titles?$/.test(head.facts || "")) fail(name, `the heading's count reads "${head.facts}"`);
-  if (!counted && head.facts) fail(name, `an empty list shows "${head.facts}" beside its name`);
-}
-
-/** A list with titles, as a person sees it: Watch later and one of their own, each headed by its name. */
-async function heads() {
-  const made = await fetch(base + "/api/lists", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "Friday night" }),
-  }).then((r) => r.json());
-  await fetch(base + `/api/lists/${made.list.id}/entries/${films[0].film.imdbId}`, {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ kind: "film" }),
-  });
-  for (const [name, path, expected] of [["head-later", "/saved/later", "Watch later"], ["head-list", "/saved/" + made.list.id, "Friday night"]]) {
-    console.log(`${name} (${path})`);
-    const { page, close } = await open(path);
-    try {
-      await page.screenshot({ path: join(out, `${name}.png`) });
-      const before = failures.length;
-      await checkHead(name, page, expected, true);
-      if (failures.length === before) pass("list heading: its name, visible, with the count of titles");
-    } finally {
-      await close();
-    }
-  }
-}
-
-/**
- * Saved and a list with nothing on them, as a person with nothing saved sees them: Discover is the one
- * control, it holds focus when the page opens, and Up and Back reach the bar from it.
+ * Want to watch with nothing on it, as a person who wants nothing sees it: Discover is the one control,
+ * it holds focus when the page opens, and Up and Back reach the bar from it.
  */
 async function empties() {
-  // The first has nothing at all; the second owns a list with nothing in it, and so has a Saved page of its own.
   const nobody = PEOPLE.empty;
-  const mine = await fetch(base + "/api/lists", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${issuer.mint(PEOPLE.lister)}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "Nothing yet" }),
-  }).then((r) => r.json());
-  const headed = { "empty-later": "Watch later", "empty-list": "Nothing yet" };
-  for (const [name, path, person] of [["empty-saved", "/saved", nobody], ["empty-later", "/saved/later", nobody], ["empty-list", "/saved/" + mine.list.id, PEOPLE.lister]]) {
+  for (const [name, path, person] of [["empty-wants", "/wants", nobody]]) {
     console.log(`${name} (${path})`);
     const { page, close } = await open(path, person);
     try {
       await page.screenshot({ path: join(out, `${name}.png`) });
-      if (headed[name]) await checkHead(name, page, headed[name], false);
       const start = await page.evaluate(focused);
       const shape = await page.evaluate(() => {
         const main = document.querySelector("main");
@@ -772,7 +707,7 @@ async function empties() {
         };
       });
       if (!shape.title) { fail(name, "the page draws no empty state"); continue; }
-      if (shape.title !== "Nothing saved yet") fail(name, `the title reads "${shape.title}"`);
+      if (shape.title !== "Nothing yet") fail(name, `the title reads "${shape.title}"`);
       if (shape.prose > 0) fail(name, "the empty state carries prose under its title");
       if (shape.controls !== 1 || shape.button !== "Discover") fail(name, `the page holds ${shape.controls} control(s), the button reading "${shape.button}"; wanted Discover alone`);
       if (!start || !shape.inMain) { fail(name, `focus starts on "${start && start.name}", not on Discover`); continue; }
@@ -889,11 +824,11 @@ async function remote() {
     pass(`Profile's Remote draws a ${drawn.modules}-module code ${Math.round(drawn.width)} px wide, read at the sofa's scale: ${url.length} characters`);
 
     await phone.page.goto(url, { waitUntil: "load" });
-    await phone.page.waitForFunction(() => location.pathname === "/" && document.querySelector(".toast"), null, { timeout: 15000 }).catch(() => {});
+    await phone.page.waitForFunction(() => location.pathname === "/" && document.querySelector(".k-toast"), null, { timeout: 15000 }).catch(() => {});
     const landed = await phone.page.evaluate(() => ({
       path: location.pathname,
-      toast: document.querySelector(".toast__title") && document.querySelector(".toast__title").textContent,
-      undo: document.querySelector(".toast__action") && document.querySelector(".toast__action").textContent,
+      toast: document.querySelector(".k-toast__title") && document.querySelector(".k-toast__title").textContent,
+      undo: document.querySelector(".k-toast__action") && document.querySelector(".k-toast__action").textContent,
       mode: localStorage.getItem("cinema:remote"),
     }));
     await phone.page.screenshot({ path: join(out, "remote-phone-paired.png") });
@@ -941,9 +876,9 @@ async function remote() {
     // Paired again by a fresh scan, and undone from the phone's toast.
     const again = await readQr(tv.page, ".kc-tvr__code", SofaScale);
     await phone.page.goto(again, { waitUntil: "load" });
-    await phone.page.waitForSelector(".toast__action", { timeout: 15000 }).catch(() => {});
+    await phone.page.waitForSelector(".k-toast__action", { timeout: 15000 }).catch(() => {});
     await tv.page.waitForSelector(".kc-tvr__phone", { timeout: 5000 }).catch(() => {});
-    await phone.page.click(".toast__action").catch(() => {});
+    await phone.page.click(".k-toast__action").catch(() => {});
     await tv.page.waitForFunction(() => !document.querySelector(".kc-tvr__phone"), null, { timeout: 5000 }).catch(() => {});
     const undone = await tv.page.evaluate(() => document.querySelectorAll(".kc-tvr__phone").length);
     await phone.page.waitForFunction(() => localStorage.getItem("cinema:remote") === "0", null, { timeout: 5000 }).catch(() => {});
@@ -954,7 +889,7 @@ async function remote() {
 
     // Paired once more, then the television plays a film and pauses it: the code beside the card.
     await phone.page.goto(await readQr(tv.page, ".kc-tvr__code", SofaScale), { waitUntil: "load" });
-    await phone.page.waitForSelector(".toast__action", { timeout: 15000 }).catch(() => {});
+    await phone.page.waitForSelector(".k-toast__action", { timeout: 15000 }).catch(() => {});
     const room = `verify-remote-${stamp}`;
     await tv.page.goto(`${base}/r/${room}?title=${encodeURIComponent(playable)}`, { waitUntil: "load" });
     await tv.page.waitForFunction(() => { const v = document.querySelector("video"); return v && v.readyState >= 3; }, null, { timeout: 30000 }).catch(() => {});
@@ -1255,7 +1190,7 @@ async function remoteUi() {
       const strip = document.querySelector(".kc-remote-strip").getBoundingClientRect();
       const main = document.querySelector(".k-app__main");
       const last = main ? [...main.querySelectorAll("*")].filter((e) => e.getBoundingClientRect().height > 0).reduce((a, e) => (e.getBoundingClientRect().bottom > a ? e.getBoundingClientRect().bottom : a), 0) : 0;
-      const field = document.querySelector(".chat-composer textarea");
+      const field = document.querySelector(".k-chat-composer textarea");
       const f = field ? field.getBoundingClientRect() : null;
       return { stripTop: strip.top, last, field: f && { top: f.top, bottom: f.bottom } };
     });
@@ -1271,7 +1206,7 @@ async function remoteUi() {
       else pass(`the end of ${name} scrolls clear of the strip (${Math.round(m.last)} against ${Math.round(m.stripTop)})`);
     }
     await phone.locator(".k-tabbar__tab", { hasText: "Assistant" }).click();
-    await phone.waitForSelector(".chat-composer textarea", { timeout: 8000 });
+    await phone.waitForSelector(".k-chat-composer textarea", { timeout: 8000 });
     await phone.waitForTimeout(800);
     const assistant = await under();
     await shot(`clearance-${label}-assistant.png`);
@@ -1332,8 +1267,8 @@ async function remoteUi() {
     else pass("the glyph is shown only while the television is paused");
     await phone.click(".kc-remote .k-toggle");
     const leftGone = await until(async () => !(await glyph()), 6000);
-    await phone.waitForSelector(".toast__action", { timeout: 5000 });
-    await phone.click(".toast__action");
+    await phone.waitForSelector(".k-toast__action", { timeout: 5000 });
+    await phone.click(".k-toast__action");
     const rejoined = await until(async () => await glyph(), 8000);
     if (!leftGone || !rejoined) fail("remoteui", `the glyph goes when the remote leaves ${leftGone} and returns when it rejoins ${rejoined}`);
     else pass("the glyph goes when the phone leaves as a remote and returns when it rejoins");
@@ -1414,14 +1349,14 @@ async function remoteUi() {
     await finger.drag({ x: strip3.x - 60, y: strip3.y }, { x: strip3.x + 60, y: strip3.y }, { lift: false, steps: 6, during: async () => { await shot("remoteui-16-swiping.png"); } });
     await finger.drag({ x: strip3.x + 60, y: strip3.y }, { x: strip3.x + 150, y: strip3.y }, { steps: 3 }).catch(() => {});
     const away = await until(() => phone.evaluate(() => localStorage.getItem("cinema:remote") === "0" && !document.querySelector(".kc-remote-strip")));
-    await phone.waitForSelector(".toast__action", { timeout: 5000 }).catch(() => {});
+    await phone.waitForSelector(".k-toast__action", { timeout: 5000 }).catch(() => {});
     await phone.waitForTimeout(300);
     await shot("remoteui-17-off.png");
-    const toast = await phone.evaluate(() => ({ title: document.querySelector(".toast__title")?.textContent, undo: document.querySelector(".toast__action")?.textContent }));
+    const toast = await phone.evaluate(() => ({ title: document.querySelector(".k-toast__title")?.textContent, undo: document.querySelector(".k-toast__action")?.textContent }));
     if (!away || toast.title !== "Remote off · Verify TV" || toast.undo !== "Undo") fail("remoteui", `swiping the strip away: off ${away}, toast ${JSON.stringify(toast)}`);
     else pass("swiping the strip sideways turns remote mode off with an Undo toast");
     const stillPaired = (await pairedWith(phoneSid)).length;
-    await phone.click(".toast__action");
+    await phone.click(".k-toast__action");
     const back2 = await until(() => phone.evaluate(() => localStorage.getItem("cinema:remote") === "1" && Boolean(document.querySelector(".kc-remote-strip"))));
     if (!back2 || stillPaired !== 1) fail("remoteui", `Undo: remote mode back ${back2}, pairings before it ${stillPaired}`);
     else pass("nothing is unpaired, and Undo brings the strip back");
@@ -2054,13 +1989,12 @@ async function rowWidths() {
 }
 
 
-const checks = option("checks", "pages,heads,empty,overlays,back,player,remote,driving,remoteui,settings,row,signin").split(",");
+const checks = option("checks", "pages,empty,overlays,back,player,remote,driving,remoteui,settings,row,signin").split(",");
 try {
   if (checks.includes("pages")) for (const p of PAGES) if (!pageNames || pageNames.includes(p.name)) await walk(p);
-  if (checks.includes("heads")) await heads();
   if (checks.includes("empty")) await empties();
   if (checks.includes("overlays")) {
-    await overlay("save", "/movies/" + encodeURIComponent(films[0].id), 'button.k-btn--accent[aria-haspopup="dialog"]');
+    await overlay("want", "/movies/" + encodeURIComponent(films[0].id), 'button.k-btn--accent[aria-haspopup="menu"]');
     await overlay("notifications", "/", '.k-tv-bar__button[aria-haspopup="dialog"]');
   }
   if (checks.includes("back")) await backs();

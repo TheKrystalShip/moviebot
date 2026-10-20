@@ -117,12 +117,13 @@ const TRAILS = {
   "/discover": [HOME, ["Discover", null]],
   "/discover?q=matrix": [HOME, ["Discover", null]],
   [`/discover/film/${ABSENT_FILM}`]: [HOME, ["Discover", "/discover"], ["Pulp Fiction", null]],
-  "/saved": [HOME, ["Saved", null]],
-  "/saved/later": [HOME, ["Saved", "/saved"], [/./, null]],
+  "/wants": [HOME, ["Want to watch", null]],
   "/profile": [HOME, ["Profile", null]],
-  "/profile/requests": [HOME, ["Profile", "/profile"], ["Requests", null]],
+  "/profile/following": [HOME, ["Profile", "/profile"], ["Following", null]],
   "/profile/playback": [HOME, ["Profile", "/profile"], ["Playback", null]],
-  "/notify": [HOME, ["Notify me", null]],
+  "/saved": [HOME, ["Not found", null]],
+  "/saved/later": [HOME, ["Not found", null]],
+  "/notify": [HOME, ["Not found", null]],
   "/about": [HOME, ["About", null]],
   "/nonsense": [HOME, ["Not found", null]],
   "/nonsense/": [HOME, ["Not found", null]],
@@ -198,19 +199,20 @@ await cold(`/discover/film/${ABSENT_FILM}`, { lands: `/discover/film/${ABSENT_FI
 await cold(`/discover/film/${ABSENT_FILM}/extra`, { lands: `/discover/film/${ABSENT_FILM}` });
 await cold(`/discover/film/${MATRIX.imdbId}`, { lands: M, h1: /Matrix/, ...here("Movies", "Library") });
 await cold(`/discover/film/${MATRIX.imdbId}/extra`, { lands: M });
-await cold("/saved", { lands: "/saved", ...here("Saved", "Me") });
-await cold("/saved/", { lands: "/saved" });
-await cold("/saved/later", { lands: "/saved/later", ...here("Saved", "Me") });
-await cold("/saved/later/extra", { lands: "/saved/later" });
+await cold("/wants", { lands: "/wants", ...here("Want to watch", "Me") });
+await cold("/wants/", { lands: "/wants" });
+await cold("/wants/extra", { lands: "/wants" });
 await cold("/profile", { lands: "/profile", subtab: "History", nav: null, tab: "Me" });
 await cold("/profile/", { lands: "/profile" });
 await cold("/profile/history", { lands: "/profile", subtab: "History" });
-await cold("/profile/requests", { lands: "/profile/requests", subtab: "Requests", tab: "Me" });
+await cold("/profile/following", { lands: "/profile/following", subtab: "Following", tab: "Me" });
+await cold("/profile/requests", { lands: "/profile", subtab: "History" });
 await cold("/profile/playback", { lands: "/profile/playback", subtab: "Playback" });
 await cold("/profile/offline", { lands: "/profile", subtab: "History" });
 await cold("/profile/nope", { lands: "/profile", subtab: "History" });
-await cold("/notify", { lands: "/notify", ...here("Notify me", "Me") });
-await cold("/notify/", { lands: "/notify" });
+await cold("/saved", { lands: "/saved", empty: "Not found" });
+await cold("/saved/later", { lands: "/saved/later", empty: "Not found" });
+await cold("/notify", { lands: "/notify", empty: "Not found" });
 await cold("/about", { lands: "/about", h1: /About/ });
 await cold("/about/x", { lands: "/about" });
 await cold("/r", { lands: "/" });
@@ -227,7 +229,7 @@ await cold("/show", { lands: "/tv" });
 await cold(`/film/${MATRIX.imdbId}`, { lands: M });
 await cold(`/film/${ABSENT_FILM}`, { lands: `/discover/film/${ABSENT_FILM}` });
 await cold("/film", { lands: "/discover" });
-await cold("/profile?tab=requests", { lands: "/profile/requests", subtab: "Requests" });
+await cold("/profile?tab=following", { lands: "/profile/following", subtab: "Following" });
 await cold("/profile?tab=history", { lands: "/profile", subtab: "History" });
 await cold("/profile?tab=nope", { lands: "/profile" });
 
@@ -366,7 +368,7 @@ for (const [from, crumb, lands] of [
   [`/discover/show/${SHOW}/season/3`, "Breaking Bad", `/discover/show/${SHOW}`],
   [`/discover/show/${SHOW}/season/3`, "Discover", "/discover"],
   ["/profile/playback", "Profile", "/profile"],
-  ["/saved/later", "Saved", "/saved"],
+  ["/wants", "Home", "/"],
 ]) {
   const { context, page } = await open();
   const problems = [];

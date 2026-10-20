@@ -319,21 +319,13 @@ internal static class CinemaWorld
                     Episode = new EpisodeRef(1, 2), ShowImdbId = "tt1000006",
                     LastWatchedAt = new DateTimeOffset(2026, 9, 2, 20, 0, 0, TimeSpan.Zero) },
         });
-        world.Answer("/api/me/lists", new List<ListSummary>
+        world.Answer("/api/me/wants", new List<Want>
         {
-            new() { Id = "later", Name = "Watch later", WatchLater = true, Count = 1 },
-            new() { Id = "friday", Name = "Friday night", Count = 0 },
+            new() { ImdbId = "tt1000003", Kind = "film", Title = "The Lantern Keeper", Year = 2019, Rating = 7.5, Genres = ["Drama"],
+                    Since = new DateTimeOffset(2026, 9, 30, 0, 0, 0, TimeSpan.Zero), PosterUrl = "/films/tt1000003/poster.jpg", State = "waiting" },
+            new() { ImdbId = "tt1000006", Kind = "show", Title = "The Salt Line", Since = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero),
+                    InLibrary = true, State = "ready", NextEpisode = new WantNext(1, 3) },
         });
-        world.Answer("/api/lists/later", new ListContents
-        {
-            List = new ListSummary { Id = "later", Name = "Watch later", WatchLater = true, Count = 1 },
-            Entries =
-            [
-                new() { ImdbId = "tt1000003", Kind = "film", Title = "The Lantern Keeper", Year = 2019, Rating = 7.5, Genres = ["Drama"],
-                        AddedAt = new DateTimeOffset(2026, 9, 30, 0, 0, 0, TimeSpan.Zero), Note = "Rook, as Nina said", PosterUrl = "/films/tt1000003/poster.jpg" },
-            ],
-        });
-        world.Answer("/api/lists/friday", new ListContents { List = new ListSummary { Id = "friday", Name = "Friday night" }, Entries = [] });
         world.Answer("/api/me/follows", new List<Follow>
         {
             new() { ImdbId = "tt1000006", Title = "The Salt Line", Since = new DateTimeOffset(2026, 1, 4, 0, 0, 0, TimeSpan.Zero),

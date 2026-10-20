@@ -18,15 +18,16 @@ film onto a device is `Offline/CLAUDE.md`.
 - **Everything the API keeps is one SQLite database, `Data/CinemaDatabase`** (`moviebot.db` in the
   state directory, or `Database:Path`; the tables are `Data/Schema`). Each read takes a pooled
   connection and each change is one immediate transaction, after every change before it, so a store
-  that reads before it writes (a list's limit, a notification's key, the first poster pin) decides
+  that reads before it writes (a want's flags, a notification's key, the first poster pin) decides
   inside the transaction it writes in. A store keeps nothing in memory but what a listing reads on
   every row (`PersonDirectory`, the film database caches), written through. What
   the film database said is kept as its own JSON, one value per row beside the columns it is looked
   up and aged by; what a person did is columns. Served bytes are files and nothing else is: artwork
   under the caches' directories, with what each image came from in `images`
   (`Films/KeptImages`), and fetched WebVTT under `Subtitles:Root`. The file is `0600`, since it holds
-  the push key pair. A file at an earlier schema version is brought forward by `Schema`'s steps, each
-  only adding to it, and a file at a version this build does not know stops the API from starting.
+  the push key pair. A file at an earlier schema version is brought forward by `Schema`'s steps, each taking
+  the file from one version to the next in one transaction and carrying across the records a changed
+  table held, and a file at a version this build does not know stops the API from starting.
 - **Resolve configuration inside the DI factory, not at the top of `Program.cs`.** Reading
   `builder.Configuration` while the builder is still being assembled misses sources added later — a
   test host's media root, for one — and the service silently points somewhere else.
@@ -62,7 +63,7 @@ film onto a device is `Offline/CLAUDE.md`.
   keeps each description and, under one directory per film, every image it names; it serves its own
   copies at `/films/{imdbId}/…`, and asks again only once a copy is
   `Tmdb:RefreshDays` old; a database that cannot be reached then costs freshness and nothing else.
-  `FilmWarmer` keeps every library film, every wished film and every listed title described, so a
+  `FilmWarmer` keeps every library film, every wished film and every wanted title described, so a
   listing reads only what is kept and never waits on the network. No page talks to the database or its image store.
   A show is kept the same way by `Shows/ShowStore`, its artwork under `shows/`, its description and every season's
   episodes asked for together with their stills, and served at `/shows/{imdbId}/…`; the warmer keeps
@@ -136,8 +137,8 @@ film onto a device is `Offline/CLAUDE.md`.
   `details` on `/api/titles` are its show's.
 - **A person's own settings are asked for by token, never by id.** `/api/me/preferences`,
   `/api/me/tracks/{titleId}` and `/api/me/sorts` answer for whoever the token names, so there is no route by which anybody reads or
-  writes anybody else's; the service key names nobody and is refused there. Progress, history, follows and lists
-  (`/api/me/progress`, `/api/me/history`, `/api/me/follows`, `/api/me/lists`) are asked for the same
+  writes anybody else's; the service key names nobody and is refused there. Progress, history, follows and wants
+  (`/api/me/progress`, `/api/me/history`, `/api/me/follows`, `/api/me/wants`) are asked for the same
   way.
 - **How a person watches is one record the API keeps, checks and pushes** (`People/Preferences`,
   `People/FilmTracks`, `People/ViewerPush`). Subtitle style and quality are the account's
@@ -162,14 +163,18 @@ film onto a device is `Offline/CLAUDE.md`.
   restart never tells anybody twice. A followed show's description is asked of
   the film database again after `Follow:RefreshHours`, which is what brings a new episode into view.
   The rules for who is told what are in `Notifications/CLAUDE.md`.
-- **A list is keyed by the title's IMDb id, never by a library id** (`Lists/`). The library is what
-  comes and goes; a film saved for later outlives leaving it and is the same entry when it comes
-  back, and a title that was never here is saved from its catalogue page the same way. Whether it is
-  here, and whether the asking person watched it, are joined in when the list is read, from the
-  library as listed and the watch record, and never stored. A list is shown to its owner and its
-  members only, so somebody else asking for it is answered as if it did not exist. `later` in a route
-  is the asking person's own Watch later, which has no members, and is stored only once something is
-  saved to it.
+- **A want is keyed by the person and the title's IMDb id, never by a library id** (`Wants/`). The
+  library is what comes and goes; a film wanted outlives leaving it and is the same want when it comes
+  back, and a title that was never here is wanted from its catalogue page the same way. Whether it is
+  here, whether the asking person watched it, where a show's person is and how many others want it are
+  joined in when the want is read, from the library as listed, the watch record and the other wants,
+  and never stored. Wanting takes `cinema:watch`; what the server may spend on a want is captured from
+  the token each time it is written (`may_fetch` from `cinema:download`, `may_wish` from `cinema:wish`),
+  as a follow's auto-download is. A want is named to others only while it is visible, and a just-me one
+  is counted by nobody else. It ends when its person removes it or finishes the title:
+  `WatchRecorder` sees the finishing, for a film and for a show's last aired episode. The wish for a
+  film nothing has yet is kept while some want on it has `may_wish`, and goes with the last, in the
+  transaction that ends that want (`Wants/WantStore`).
 - **What a person watched comes from the room, the one source of where a film is** (`People/`). A
   room's state is a position at an instant and everything between two changes follows from it, so
   nothing polls the rooms. `SessionStore` raises `Watched` when a stretch of playing ends — a pause,

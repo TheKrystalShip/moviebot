@@ -3,7 +3,7 @@ import { Icon, Rail } from "@thekrystalship/krystal";
 import { POSTERS, WIDE } from "../railDensity.js";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
-import { ANIME, isAnime, libraryPath, listPath } from "../paths.js";
+import { ANIME, isAnime, libraryPath, wantsPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { ago, clock } from "../time.js";
 import { useCan } from "../session.js";
@@ -16,7 +16,8 @@ import { AnticipatedCard, MoreTile } from "../components/TitleCards.jsx";
 import { Spotlight } from "../components/Spotlight.jsx";
 import { useHomeSlides, useSlides } from "../heroes.js";
 import { BellButton } from "../components/Bell.jsx";
-import { SavedCard } from "./Saved.jsx";
+import { WantCard } from "./Wants.jsx";
+import { useWantList } from "../wants.js";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { inActivity } from "../discord/launch.js";
 import { useDriving } from "../components/WatchOnTv.jsx";
@@ -30,7 +31,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * The front page: its top turning through what is worth watching now (`heroes.js`): the film people
  * are watching together, the newest film, the title most watched here, the week's most popular film
  * and show, and the film most waited on. Under it, where this person left off, the rooms watching something now,
- * their Watch later, what arrived lately, the films people are waiting on, and the shelf split into
+ * what they want to watch, what arrived lately, the films people are waiting on, and the shelf split into
  * films, shows and anime. Every row is something the API measured; a row with nothing in it is left
  * out rather than drawn empty.
  * `fromDevice` is the page opened with no connection, drawing what is downloaded (`DeviceHome`).
@@ -114,14 +115,14 @@ function ServerHome() {
   const driving = useDriving();
   const progress = useLoad(() => api.progress().catch(() => []), []);
   const showList = useLoad(() => api.shows().catch(() => []), []);
-  const later = useLoad(() => api.list("later").catch(() => null), []);
+  const wanted = useWantList().list;
   const canWish = useCan("cinema:wish");
   const anticipated = useLoad(() => (canWish ? api.anticipated().catch(() => []) : Promise.resolve([])), [canWish]);
   const waitedOn = anticipated.data || [];
   // The Movies, TV Shows and Anime rows are dealt in a new order on every visit, and keep it while the
   // page is open, so a read answered again never moves a poster out from under somebody.
   const [deal] = React.useState(() => Math.random().toString(36).slice(2));
-  const saved = (later.data && later.data.entries) || [];
+  const wants = wanted || [];
 
   const library = (titles.data || []).filter((t) => t.status !== "failed");
   const byId = new Map(library.map((t) => [t.id, t]));
@@ -199,12 +200,12 @@ function ServerHome() {
           )} />
       )}
 
-      {saved.length > 0 && (
+      {wants.length > 0 && (
         <Rail
-          perView={POSTERS} icon="bookmark" title="Watch later" count={saved.length}
-          onViewAll={() => navigate(listPath("later"))} viewAllLabel="See all"
-          items={saved} itemKey={(e) => e.imdbId}
-          renderItem={(e) => <SavedCard entry={e} />} />
+          perView={POSTERS} icon="bookmark" title="Want to watch" count={wants.length}
+          onViewAll={() => navigate(wantsPath)} viewAllLabel="See all"
+          items={wants} itemKey={(w) => w.imdbId}
+          renderItem={(w) => <WantCard want={w} />} />
       )}
 
       {recent.length > 0 && (

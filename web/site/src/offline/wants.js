@@ -97,7 +97,7 @@ export async function askDownload({ imdbId, episodes = null, height = null, audi
 
 /** Stops waiting on a want; its download on the server is the library's to keep or let go. */
 export async function letGo(want) {
-  await api.unwant(want.id);
+  await api.unwantOffline(want.id);
   forget(want.id);
 }
 
@@ -161,7 +161,7 @@ async function tend() {
     starting.add(want.id);
     try {
       // A title already here is not downloaded twice; the want is let go of.
-      if (await readSave(sub, want.titleId)) await api.unwant(want.id);
+      if (await readSave(sub, want.titleId)) await api.unwantOffline(want.id);
       else await downloadAt(want.titleId, want.height, { audioLanguage: want.audioLanguage, subtitleLanguage: want.subtitleLanguage });
       forget(want.id);
     } catch (error) {

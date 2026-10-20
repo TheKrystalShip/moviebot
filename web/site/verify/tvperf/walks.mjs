@@ -21,7 +21,7 @@ export const WALKS = {
       { name: "movies", keys: [...Bar, "Right", "Enter"], to: "/movies" },
       { name: "shows", keys: [...Bar, "Right", "Enter"], to: "/tv" },
       { name: "anime", keys: [...Bar, "Right", "Enter"], to: "/anime" },
-      { name: "saved", keys: [...Bar, "Right", "Enter"], to: "/saved" },
+      { name: "wants", keys: [...Bar, "Right", "Enter"], to: "/wants" },
       { name: "home", keys: [...Bar, "Left", "Left", "Left", "Left", "Left", "Enter"], to: "/" },
     ],
   },

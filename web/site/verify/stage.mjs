@@ -27,7 +27,7 @@ const HOLD_MS = 400;
 const MOVES = [
   // Discover's rows ask for their shelves; the spotlight's shelf comes with the page's index.
   { from: "/", to: "/discover", hold: /\/api\/discover\/shelves\// },
-  { from: "/discover", to: "/", hold: /\/api\/lists\/later/ },
+  { from: "/discover", to: "/", hold: /\/api\/me\/wants/ },
 ];
 const SCREENS = [
   { name: "desktop", viewport: { width: 1280, height: 800 } },

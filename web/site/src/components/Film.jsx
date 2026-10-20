@@ -3,7 +3,7 @@ import { Button, Icon, ShowcaseCard } from "@thekrystalship/krystal";
 import { episodeCode, filmName, posterUrl } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useSave } from "../offline/hooks.js";
-import { useSaveRibbon } from "./SaveButton.jsx";
+import { useWantRibbon } from "./WantButton.jsx";
 import { isAnime, moviePath, playSavedPath, roomPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, timeLeft } from "../time.js";
@@ -154,7 +154,7 @@ function downloadMarks(download) {
 
 /**
  * A film on a shelf, as krystal's ShowcaseCard: the poster with the name on it, its rating, year
- * and length, one line saying where it stands, Watch, and a ribbon that saves it. What a page knows
+ * and length, one line saying where it stands, Watch, and a ribbon that wants it. What a page knows
  * beside the film — a room watching it, whether it is new — is optional, and a card without it says
  * less rather than guessing. How far the person got comes with the title itself.
  *
@@ -169,7 +169,7 @@ export function FilmCard({ title, room, isNew, download }) {
   const poster = posterUrl(title);
   const ready = title.status === "ready";
   const link = useWatchLink(title.id, room && room.sessionId, progress && progress.positionSeconds);
-  const [ribbon, lists] = useSaveRibbon(film.imdbId, "film", film.name || title.title);
+  const [ribbon, wantMenu] = useWantRibbon(film.imdbId, "film", film.name || title.title);
 
   const status =
     title.status === "transcoding" ? { tone: "notice", icon: "loader", label: "Still preparing" }
@@ -198,7 +198,7 @@ export function FilmCard({ title, room, isNew, download }) {
           ? { label: room ? "Join" : progress ? "Resume" : "Watch", onClick: link.disabled ? undefined : () => navigate(link.href) }
           : { label: "View" }}
         ribbon={ribbon} />
-      {lists}
+      {wantMenu}
     </>
   );
 }
@@ -206,7 +206,7 @@ export function FilmCard({ title, room, isNew, download }) {
 /**
  * A show on a shelf: its poster named a series, a short bar per season along the poster's foot filled
  * as far as this person watched it, its rating, seasons and episodes, where this person picks up,
- * Watch or Resume into the episode that is next, and its ribbon. A show with episodes downloaded to
+ * Watch or Resume into the episode that is next, and its ribbon, which wants it. A show with episodes downloaded to
  * this device (`downloaded`) says how many on its poster.
  */
 export function ShowCard({ show, downloaded = 0 }) {
@@ -218,7 +218,7 @@ export function ShowCard({ show, downloaded = 0 }) {
     : null;
   const to = resume ? resume.titleId : show.firstTitleId;
   const link = useWatchLink(to, null, resume && resume.positionSeconds);
-  const [ribbon, lists] = useSaveRibbon(show.imdbId, "show", show.title);
+  const [ribbon, wantMenu] = useWantRibbon(show.imdbId, "show", show.title);
 
   return (
     <>
@@ -237,7 +237,7 @@ export function ShowCard({ show, downloaded = 0 }) {
         status={status}
         action={{ label: resume ? "Resume" : "Watch", onClick: link.disabled ? undefined : () => navigate(link.href) }}
         ribbon={ribbon} />
-      {lists}
+      {wantMenu}
     </>
   );
 }

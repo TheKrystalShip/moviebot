@@ -14,7 +14,7 @@ import { CastGrid, Credits, FactGrid, FilmScore, Genres, Keywords, Tagline, Titl
 /**
  * A film by its IMDb id, here or not: what it is, and the way to it. A film that plays now goes to its
  * own page. One being prepared or one the tracker offers is watched while it is prepared; one that is
- * not out digitally yet can be waited on.
+ * not out digitally yet is wanted, to be told when it is.
  */
 export function CatalogueFilm({ imdbId }) {
   const downloading = useCan("cinema:download");

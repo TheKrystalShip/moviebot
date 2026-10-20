@@ -8,13 +8,13 @@ import { useCan } from "../../session.js";
 import { airDay, clock, timeLeft } from "../../time.js";
 import { Failed, watchLink } from "../../components/Film.jsx";
 import { FollowButton } from "../../components/FollowButton.jsx";
-import { SaveButton } from "../../components/SaveButton.jsx";
+import { WantButton } from "../../components/WantButton.jsx";
 import { episodeRelease, watchNow, watchOpening, openingEpisode } from "../../watchNow.js";
 import { SpotFacts, SpotProgress, SpotStage, useSpotlight } from "../spot.jsx";
 import { TmdbCredit, TvCast, TvFacts } from "../TvCredits.jsx";
 
 /**
- * A show on a television: its artwork, name, facts and story, and Resume (or Watch), Follow and Save;
+ * A show on a television: its artwork, name, facts and story, and Resume (or Watch), Follow and Want;
  * then its seasons and the open season's episodes as stills. With an episode focused the top of the
  * page is about that episode — its place, name, length, air date, story and how far somebody got —
  * and OK plays it, arriving while it plays when the server does not hold it yet. Below, the cast and
@@ -108,7 +108,7 @@ export function TvShow({ imdbId, season, inLibrary }) {
               <Button variant="primary" size="lg" icon="play" busy={starting} data-tv-initial="" onClick={watchFirst}>Watch</Button>
             )}
             {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
-            {s.imdbId && <SaveButton imdbId={s.imdbId} kind="show" title={s.title} />}
+            {s.imdbId && <WantButton imdbId={s.imdbId} kind="show" title={s.title} />}
           </>}>
           {resume && resume.positionSeconds > 0 && (
             <SpotProgress fraction={resume.positionSeconds / resume.durationSeconds}

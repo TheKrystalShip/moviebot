@@ -98,11 +98,8 @@ public sealed class CinemaApi(HttpClient http)
         public Task<List<HistoryEntry>> HistoryAsync(CancellationToken ct) =>
             GetAsync<List<HistoryEntry>>("api/me/history", [], ct);
 
-        public Task<List<ListSummary>> ListsAsync(CancellationToken ct) =>
-            GetAsync<List<ListSummary>>("api/me/lists", [], ct);
-
-        public Task<ListContents> ListAsync(string id, CancellationToken ct) =>
-            GetAsync<ListContents>($"api/lists/{Uri.EscapeDataString(id)}", [], ct);
+        public Task<List<Want>> WantsAsync(CancellationToken ct) =>
+            GetAsync<List<Want>>("api/me/wants", [], ct);
 
         public Task<List<Follow>> FollowsAsync(CancellationToken ct) =>
             GetAsync<List<Follow>>("api/me/follows", [], ct);

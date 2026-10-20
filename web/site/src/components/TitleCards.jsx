@@ -2,11 +2,10 @@ import { Icon, ShowcaseCard, Skeleton } from "@thekrystalship/krystal";
 import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { kindLine, watchHref } from "./Film.jsx";
-import { useSaveRibbon } from "./SaveButton.jsx";
+import { useWantRibbon } from "./WantButton.jsx";
 
-// Poster cards for titles that are not on a shelf: a search's answers, what somebody waits on, what
-// they asked to be fetched. Every card is krystal's ShowcaseCard, so a page of them reads like
-// Home's rows.
+// Poster cards for titles that are not on a shelf: a search's answers and what somebody waits on. Every
+// card is krystal's ShowcaseCard, so a page of them reads like Home's rows.
 
 /**
  * The poster a title's page shows, kept by this server, as a card's art: the film's, else the
@@ -61,12 +60,12 @@ export function foundPage(found, here, held) {
  * A film or show the catalogue answered with: whether it is a film or a show on its poster, its rating
  * and year, and its cast, or `line` in its place (a person's part in it). `here` is the library's title for a film
  * it holds, `held` whether it holds an episode of a show; they decide where the card leads and whether
- * it plays from here, and nothing on the card says which. Its ribbon saves it.
+ * it plays from here, and nothing on the card says which. Its ribbon wants it.
  */
 export function FoundCard({ found, here, held, line = found.starring }) {
   const show = found.kind === "show";
   const playable = here && here.status === "ready";
-  const [ribbon, lists] = useSaveRibbon(found.imdbId, show ? "show" : "film", found.title);
+  const [ribbon, wantMenu] = useWantRibbon(found.imdbId, show ? "show" : "film", found.title);
   return (
     <>
       <ShowcaseCard compactFacts
@@ -83,7 +82,7 @@ export function FoundCard({ found, here, held, line = found.starring }) {
           ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) }
           : { label: "View" }}
         ribbon={ribbon} />
-      {lists}
+      {wantMenu}
     </>
   );
 }
@@ -97,7 +96,7 @@ export function waitersWords(waiters, waiting) {
 
 /** A film not out yet that people wait on, from the Anticipated row: its year, how many wait, and its ribbon. */
 export function AnticipatedCard({ film }) {
-  const [ribbon, lists] = useSaveRibbon(film.imdbId, "film", film.title);
+  const [ribbon, wantMenu] = useWantRibbon(film.imdbId, "film", film.title);
   return (
     <>
       <ShowcaseCard compactFacts
@@ -109,33 +108,7 @@ export function AnticipatedCard({ film }) {
         status={{ icon: "bell", label: waitersWords(film.waiters, film.waiting) }}
         action={{ label: "View" }}
         ribbon={ribbon} />
-      {lists}
+      {wantMenu}
     </>
-  );
-}
-
-/**
- * A film somebody is waiting on: out now with its release, or how many wait on it. `onStop` lets the
- * person stop waiting; `downloading` turns a film that is out into Get it.
- */
-export function WishCard({ wish, onStop, downloading, status }) {
-  const out = !!wish.release;
-  const waiting = wish.subscribers.length === 1 ? "Only you are waiting" : `${wish.subscribers.length} waiting`;
-  return (
-    <ShowcaseCard compactFacts
-      name={wish.title}
-      eyebrow={kindLine("film", wish)}
-      art={keptArt(wish.imdbId, wish.posterUrl)}
-      onPick={() => navigate(discoverFilmPath(wish.imdbId))}
-      badge={out ? { tone: "accent", label: "Out now" } : null}
-      specs={[
-        { icon: "calendar", value: wish.year || null, label: "Year" },
-        { icon: "users", value: wish.subscribers.length, label: "Waiting" },
-      ]}
-      status={status || (out
-        ? { tone: "success", icon: "circle-check", label: wish.release.summary, title: wish.release.summary }
-        : wish.starring ? { label: wish.starring, title: wish.starring } : { label: waiting })}
-      action={{ label: out && downloading ? "Get it" : "View" }}
-      tools={onStop ? [{ icon: "bell-off", label: `Stop waiting on ${wish.display}`, onClick: () => onStop(wish) }] : null} />
   );
 }

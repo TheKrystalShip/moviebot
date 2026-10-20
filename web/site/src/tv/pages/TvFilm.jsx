@@ -8,16 +8,15 @@ import { useCan } from "../../session.js";
 import { clock } from "../../time.js";
 import { formatTime } from "../../player/engine/format.ts";
 import { Failed, watchHref, watchLink } from "../../components/Film.jsx";
-import { SaveButton } from "../../components/SaveButton.jsx";
-import { wishWords } from "../../pages/Discover.jsx";
+import { WantButton } from "../../components/WantButton.jsx";
 import { defaultOffer, watchNow } from "../../watchNow.js";
 import { SpotFacts } from "../spot.jsx";
 import { TmdbCredit, TvCast, TvFacts } from "../TvCredits.jsx";
 
 /**
  * A film on a television, the same whether the server holds it or not: its artwork across the page,
- * its name, facts and story, who made it, and what can be done — Resume, Restart and Save for a film
- * somebody is part way through, otherwise Watch and Save. Under the buttons, how far they got. Below,
+ * its name, facts and story, who made it, and what can be done — Resume, Restart and Want for a film
+ * somebody is part way through, otherwise Watch and Want. Under the buttons, how far they got. Below,
  * the cast and the details.
  */
 function FilmFrame({ details: d, fallback, length, actions, progress, facts }) {
@@ -92,7 +91,7 @@ export function TvTitle({ id }) {
         </Button>
       )}
       {playable && !room && progress && <Button size="lg" icon="rotate-ccw" {...watchLink(m.id)}>Restart</Button>}
-      {film.imdbId && <SaveButton imdbId={film.imdbId} kind="film" title={film.name || m.title} />}
+      {film.imdbId && <WantButton imdbId={film.imdbId} kind="film" title={film.name || m.title} />}
     </>
   );
   const shown = progress && (
@@ -152,35 +151,18 @@ export function TvCatalogueFilm({ imdbId }) {
   const a = state.data;
   const offer = defaultOffer(a);
   const arriving = a && a.download;
-  const name = d.year ? `${d.title} (${d.year})` : d.title;
 
   const watch = async () => {
     setBusy(true);
     const started = await watchNow({ imdbId, torrentId: arriving ? undefined : offer && offer.torrentId }, { limit: a.streams.limit });
     if (!started) setBusy(false);
   };
-  const wish = async (on) => {
-    setBusy(true);
-    try {
-      if (on) toast.info(wishWords(await api.wish(imdbId), name));
-      else { await api.cancelWish(imdbId); toast.info(`Stopped notifying you about ${name}.`); }
-      state.reload();
-    } catch (error) {
-      toast.fromError(error, on ? "Could not wait on it" : "Could not stop waiting");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const actions = (
     <>
       {a && downloading && (arriving || offer) && (
         <Button variant="primary" size="lg" icon="play" busy={busy} data-tv-initial="" onClick={watch}>Watch</Button>
       )}
-      {a && wishing && a.notOut && (a.waiting
-        ? <Button variant="accent" size="lg" icon="bell-ring" disabled={busy} data-tv-initial="" onClick={() => wish(false)}>Notifying</Button>
-        : <Button variant="primary" size="lg" icon="bell-plus" disabled={busy} data-tv-initial="" onClick={() => wish(true)}>Notify me</Button>)}
-      <SaveButton imdbId={imdbId} kind="film" title={d.title} />
+      <WantButton imdbId={imdbId} kind="film" title={d.title} />
     </>
   );
 

@@ -11,15 +11,16 @@ using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Subtitles;
+using TheKrystalShip.MovieBot.Api.Wants;
 using TheKrystalShip.MovieBot.Core;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
-/// Waiting on a film, against a catalogue, a library, a torrent client and a tracker that each answer
-/// what the test says. What makes it wrong is watching for the wrong film, promising to watch for one
-/// that is already here, or losing the person who asked.
+/// What a film somebody wants already is, against a catalogue, a library, a torrent client and a
+/// tracker that each answer what the test says. What makes it wrong is watching for the wrong film,
+/// promising to watch for one that is already here, or counting people who did not want it in the open.
 /// </summary>
 public sealed class WishesTests : IDisposable
 {
@@ -72,6 +73,7 @@ public sealed class WishesTests : IDisposable
     };
 
     private WishList _wishes = null!;
+    private WantStore _wants = null!;
 
     private Wishes Desk(
         FilmIdentity? inLibrary = null,
@@ -117,6 +119,7 @@ public sealed class WishesTests : IDisposable
         var suggestions = new AutocompleteSearch(search, new AutocompleteOptions(), NullLogger<AutocompleteSearch>.Instance);
 
         _wishes = new WishList(Database);
+        _wants = new WantStore(Database);
 
         return new Wishes(
             imdb, search, library, acquisition, new OfferedReleases(suggestions), _wishes,
@@ -140,79 +143,70 @@ public sealed class WishesTests : IDisposable
             Subtitles = [],
         });
 
-    private static Asked Ask(string chosen, string user = "10") => new(new AddWishRequest { Chosen = chosen }, new Actor(user, "Alice"));
+    private static readonly Actor Alice = new("10", "Alice");
+
+    private static Task<WishCheck> Check(Wishes desk, string imdbId = "tt33612209", bool keep = true) =>
+        desk.CheckAsync(imdbId, keep, Alice, CancellationToken.None);
 
     [Fact]
-    public async Task A_pasted_link_puts_the_person_on_the_list_for_the_film_it_names()
+    public async Task A_film_nothing_has_gets_a_wish_kept_from_the_catalogue()
     {
-        var reply = await Desk().SubscribeAsync(Ask(Link), CancellationToken.None);
+        var check = await Check(Desk());
 
-        Assert.Equal("subscribed", reply.Outcome);
-        Assert.Equal("The Devil Wears Prada 2 (2026)", reply.Wish?.Display);
-        Assert.Equal("Meryl Streep, Anne Hathaway", reply.Wish?.Starring);
+        Assert.Equal(WantOutcomes.Waiting, check.Outcome);
 
         var kept = Assert.Single(_wishes.All());
         Assert.Equal("tt33612209", kept.ImdbId);
-        Assert.Equal("10", Assert.Single(kept.Subscribers).UserId);
+        Assert.Equal("The Devil Wears Prada 2 (2026)", kept.Display);
+        Assert.Equal("Meryl Streep, Anne Hathaway", kept.Starring);
+        Assert.Empty(kept.Subscribers);
     }
 
     [Fact]
-    public async Task A_picked_suggestion_arrives_as_the_id_and_works_the_same_way()
-    {
-        var reply = await Desk().SubscribeAsync(Ask("tt33612209"), CancellationToken.None);
-
-        Assert.Equal("subscribed", reply.Outcome);
-    }
-
-    [Fact]
-    public async Task Asking_twice_says_so_and_adds_nobody()
+    public async Task Checking_again_keeps_one_wish()
     {
         var desk = Desk();
-        await desk.SubscribeAsync(Ask(Link), CancellationToken.None);
+        await Check(desk);
 
-        var again = await desk.SubscribeAsync(Ask(Link), CancellationToken.None);
-
-        Assert.Equal("alreadySubscribed", again.Outcome);
-        Assert.Single(Assert.Single(_wishes.All()).Subscribers);
+        Assert.Equal(WantOutcomes.Waiting, (await Check(desk)).Outcome);
+        Assert.Single(_wishes.All());
     }
 
     [Fact]
-    public async Task Text_that_is_neither_a_suggestion_nor_a_link_is_refused()
+    public async Task Somebody_who_may_not_wish_keeps_no_wish()
     {
-        var reply = await Desk().SubscribeAsync(Ask("the devil wears prada"), CancellationToken.None);
+        var check = await Check(Desk(), keep: false);
 
-        Assert.Equal("nothingPicked", reply.Outcome);
+        Assert.Equal(WantOutcomes.Wanted, check.Outcome);
         Assert.Empty(_wishes.All());
     }
 
     [Fact]
-    public async Task A_series_is_not_a_film()
+    public async Task A_series_is_not_a_film_to_wish_for()
     {
-        var reply = await Desk().SubscribeAsync(
-            Ask("https://www.imdb.com/title/tt0903747/"), CancellationToken.None);
+        var check = await Check(Desk(), "tt0903747");
 
-        Assert.Equal("notAFilm", reply.Outcome);
-        Assert.Equal("Breaking Bad", reply.FilmTitle);
+        Assert.Equal(WantOutcomes.Wanted, check.Outcome);
         Assert.Empty(_wishes.All());
     }
 
     [Fact]
-    public async Task An_id_the_catalogue_does_not_know_is_refused()
+    public async Task An_id_the_catalogue_does_not_know_keeps_no_wish()
     {
-        var reply = await Desk().SubscribeAsync(Ask("tt0000001"), CancellationToken.None);
+        var check = await Check(Desk(), "tt0000001");
 
-        Assert.Equal("notFound", reply.Outcome);
+        Assert.Equal(WantOutcomes.Wanted, check.Outcome);
+        Assert.Empty(_wishes.All());
     }
 
     [Fact]
     public async Task A_film_already_in_the_library_is_pointed_at_the_player()
     {
-        var reply = await Desk(inLibrary: new FilmIdentity { ImdbId = "tt33612209", Name = "The Devil Wears Prada 2", Year = 2026 })
-            .SubscribeAsync(Ask(Link), CancellationToken.None);
+        var check = await Check(Desk(inLibrary: new FilmIdentity { ImdbId = "tt33612209", Name = "The Devil Wears Prada 2", Year = 2026 }));
 
-        Assert.Equal("inLibrary", reply.Outcome);
-        Assert.Equal("prada-2", reply.LibraryId);
-        Assert.Equal("The Devil Wears Prada 2 (2026)", reply.LibraryName);
+        Assert.Equal(WantOutcomes.InLibrary, check.Outcome);
+        Assert.Equal("prada-2", check.LibraryId);
+        Assert.Equal("The Devil Wears Prada 2 (2026)", check.LibraryName);
         Assert.Empty(_wishes.All());
     }
 
@@ -225,10 +219,10 @@ public sealed class WishesTests : IDisposable
               "seq_dl":true,"num_seeds":4,"tags":"notify:1, imdb:tt33612209, ingest"}]
             """;
 
-        var reply = await Desk(downloads: downloads).SubscribeAsync(Ask(Link), CancellationToken.None);
+        var check = await Check(Desk(downloads: downloads));
 
-        Assert.Equal("downloading", reply.Outcome);
-        Assert.Equal("The.Devil.Wears.Prada.2.2026.1080p.WEB-DL-GRP", reply.DownloadName);
+        Assert.Equal(WantOutcomes.Downloading, check.Outcome);
+        Assert.Equal("The.Devil.Wears.Prada.2.2026.1080p.WEB-DL-GRP", check.DownloadName);
         Assert.Empty(_wishes.All());
     }
 
@@ -237,10 +231,10 @@ public sealed class WishesTests : IDisposable
     {
         var offered = new[] { Offered("The.Devil.Wears.Prada.2.2026.1080p.WEB-DL-GRP", Source.Web) };
 
-        var reply = await Desk(offered: offered).SubscribeAsync(Ask(Link), CancellationToken.None);
+        var check = await Check(Desk(offered: offered));
 
-        Assert.Equal("alreadyAvailable", reply.Outcome);
-        Assert.Equal("The.Devil.Wears.Prada.2.2026.1080p.WEB-DL-GRP", reply.Release?.ReleaseName);
+        Assert.Equal(WantOutcomes.Available, check.Outcome);
+        Assert.Equal("The.Devil.Wears.Prada.2.2026.1080p.WEB-DL-GRP", check.Release?.ReleaseName);
         Assert.Empty(_wishes.All());
     }
 
@@ -250,45 +244,35 @@ public sealed class WishesTests : IDisposable
     {
         var offered = new[] { Offered("The.Devil.Wears.Prada.2.2026.HDCAM-GRP", Source.Cam) };
 
-        var reply = await Desk(offered: offered).SubscribeAsync(Ask(Link), CancellationToken.None);
+        var check = await Check(Desk(offered: offered));
 
-        Assert.Equal("subscribed", reply.Outcome);
+        Assert.Equal(WantOutcomes.Waiting, check.Outcome);
         Assert.Single(_wishes.All());
-    }
-
-    [Fact]
-    public async Task Cancelling_takes_the_person_off_the_list()
-    {
-        var desk = Desk();
-        await desk.SubscribeAsync(Ask(Link, user: "10"), CancellationToken.None);
-        await desk.SubscribeAsync(Ask(Link, user: "20"), CancellationToken.None);
-
-        var cancelled = desk.Cancel("10", "tt33612209");
-        var again = desk.Cancel("10", "tt33612209");
-
-        Assert.Equal("cancelled", cancelled.Outcome);
-        Assert.Equal("notWaiting", again.Outcome);
-        Assert.Empty(desk.List("10"));
-        Assert.Single(desk.List("20"));
     }
 
     private static ImdbTitle Film(string id, string title, int year) => new() { ImdbId = id, Title = title, Year = year };
 
-    private static WishSubscriber Asked(string user, int minute) =>
-        new() { UserId = user, AskedAt = DateTimeOffset.UnixEpoch.AddMinutes(minute) };
+    private void Want(string user, string imdbId, int minute, bool visible = true, bool wish = true) =>
+        _wants.Set(user, imdbId, WantKinds.Film, visible, false, wish, DateTimeOffset.UnixEpoch.AddMinutes(minute));
+
+    private void Keep(string imdbId, string title) => _wishes.Keep(Film(imdbId, title, 2026), DateTimeOffset.UnixEpoch);
 
     [Fact]
-    public void The_anticipated_are_the_most_waited_on_first_then_the_newest_ask()
+    public void The_anticipated_are_the_most_wanted_first_then_the_newest_want()
     {
         var desk = Desk();
-        _wishes.Add(Film("tt0000001", "Lone", 2026), Asked("10", 50));
-        _wishes.Add(Film("tt0000002", "Older Pair", 2026), Asked("10", 1));
-        _wishes.Add(Film("tt0000002", "Older Pair", 2026), Asked("20", 2));
-        _wishes.Add(Film("tt0000003", "Newer Pair", 2026), Asked("30", 3));
-        _wishes.Add(Film("tt0000003", "Newer Pair", 2026), Asked("40", 4));
-        _wishes.Add(Film("tt0000004", "Trio", 2026), Asked("10", 0));
-        _wishes.Add(Film("tt0000004", "Trio", 2026), Asked("20", 0));
-        _wishes.Add(Film("tt0000004", "Trio", 2026), Asked("30", 0));
+        Keep("tt0000001", "Lone");
+        Keep("tt0000002", "Older Pair");
+        Keep("tt0000003", "Newer Pair");
+        Keep("tt0000004", "Trio");
+        Want("10", "tt0000001", 50);
+        Want("10", "tt0000002", 1);
+        Want("20", "tt0000002", 2);
+        Want("30", "tt0000003", 3);
+        Want("40", "tt0000003", 4);
+        Want("10", "tt0000004", 0);
+        Want("20", "tt0000004", 0);
+        Want("30", "tt0000004", 0);
 
         var listed = desk.Anticipated("10");
 
@@ -299,13 +283,35 @@ public sealed class WishesTests : IDisposable
         Assert.Equal("Trio (2026)", listed[0].Display);
     }
 
+    /// <summary>A just-me want is counted by nobody else, and by its own person.</summary>
+    [Fact]
+    public void A_want_kept_to_oneself_is_counted_only_for_its_person()
+    {
+        var desk = Desk();
+        Keep("tt0000001", "Quiet");
+        Want("10", "tt0000001", 1, visible: false);
+        Want("20", "tt0000001", 2);
+
+        var own = Assert.Single(desk.Anticipated("10"));
+        Assert.Equal(2, own.Waiters);
+        Assert.True(own.Waiting);
+
+        var other = Assert.Single(desk.Anticipated("20"));
+        Assert.Equal(1, other.Waiters);
+
+        Assert.Equal(1, Assert.Single(desk.Anticipated("30")).Waiters);
+    }
+
     [Fact]
     public void A_wish_that_is_out_or_already_here_is_not_anticipated()
     {
         var desk = Desk(inLibrary: new FilmIdentity { ImdbId = "tt0000002", Name = "Here", Year = 2026 });
-        _wishes.Add(Film("tt0000001", "Out", 2026), Asked("10", 1));
-        _wishes.Add(Film("tt0000002", "Here", 2026), Asked("10", 2));
-        _wishes.Add(Film("tt0000003", "Pending", 2026), Asked("10", 3));
+        Keep("tt0000001", "Out");
+        Keep("tt0000002", "Here");
+        Keep("tt0000003", "Pending");
+        Want("10", "tt0000001", 1);
+        Want("10", "tt0000002", 2);
+        Want("10", "tt0000003", 3);
         _wishes.MarkOut("tt0000001", Offered("Out.2026.1080p.WEB-GRP", Source.Web));
 
         Assert.Equal("tt0000003", Assert.Single(desk.Anticipated("20")).ImdbId);
@@ -315,7 +321,8 @@ public sealed class WishesTests : IDisposable
     public void The_anticipated_name_nobody()
     {
         var desk = Desk();
-        _wishes.Add(Film("tt0000001", "Lone", 2026), Asked("local:usr_secret", 1));
+        Keep("tt0000001", "Lone");
+        Want("local:usr_secret", "tt0000001", 1);
 
         var json = System.Text.Json.JsonSerializer.Serialize(desk.Anticipated("local:usr_secret"), ManifestJsonContext.Default.ListAnticipatedView);
 
@@ -327,13 +334,4 @@ public sealed class WishesTests : IDisposable
     {
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
     }
-}
-
-/// <summary>A wish as somebody asks for it: what they asked, and who the token said they are.</summary>
-internal sealed record Asked(AddWishRequest Request, Actor Asker);
-
-internal static class WishesAsking
-{
-    public static Task<AddWishReply> SubscribeAsync(this Wishes desk, Asked asked, CancellationToken ct) =>
-        desk.SubscribeAsync(asked.Request, asked.Asker, ct);
 }

@@ -63,14 +63,12 @@ export function trailFor(route, name) {
     }
     case "discover": return [home, place("discover", true)];
     case "discover-film": return [home, place("discover"), { label: id }];
-    case "saved": return [home, place("saved", true)];
-    case "list": return [home, place("saved"), { label: id }];
+    case "wants": return [home, place("wants", true)];
     case "profile": {
       if (route.tab == null) return [home, place("profile", true)];
       const face = PROFILE_TAB_FACES.find((t) => t.id === route.tab);
       return [home, { label: PLACES.profile.label, href: profilePath() }, { label: face.label }];
     }
-    case "notify":
     case "about": return [home, place(route.view, true)];
     case "notfound": return [home, { label: "Not found" }];
     default: return [];

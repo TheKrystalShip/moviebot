@@ -61,5 +61,4 @@ export const KIND = {
   ready: { icon: "circle-check", tone: "success" },
   invite: { icon: "user-plus", tone: "teal" },
   episode: { icon: "tv", tone: "teal" },
-  shared: { icon: "bookmark", tone: "teal" },
 };

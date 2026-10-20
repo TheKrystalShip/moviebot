@@ -3,7 +3,7 @@ import { Button, CarouselPager, TvBackdrop, TvSpotlight, createStore, useCarouse
 import { discoverFilmPath, moviePath, showPath } from "../paths.js";
 import { linkProps } from "../router.js";
 import { watchLink } from "../components/Film.jsx";
-import { SaveButton } from "../components/SaveButton.jsx";
+import { WantButton } from "../components/WantButton.jsx";
 import { SLIDE_MS } from "../components/Spotlight.jsx";
 import { readySlides } from "../heroes.js";
 import { SpotFacts, SpotStage } from "./spot.jsx";
@@ -87,7 +87,7 @@ function useFocusBelow(section) {
 /**
  * What can be done with a slide's title on a television: Watch, or Join the room, for a film here;
  * Watch for a film that is out and has to be fetched, which fetches it into a room; More info for
- * every title; and Save.
+ * every title; and Want.
  */
 function TvSlideActions({ slide, initial, more }) {
   const [starting, setStarting] = React.useState(false);
@@ -114,7 +114,7 @@ function TvSlideActions({ slide, initial, more }) {
     <>
       {watch}
       <Button variant={watch ? undefined : "primary"} size="lg" icon="info" {...(watch ? {} : first)} {...linkProps(page)}>More info</Button>
-      {slide.imdbId && <SaveButton imdbId={slide.imdbId} kind={show ? "show" : "film"} title={slide.spot.title} />}
+      {slide.imdbId && <WantButton imdbId={slide.imdbId} kind={show ? "show" : "film"} title={slide.spot.title} />}
       {more}
     </>
   );

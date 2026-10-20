@@ -92,14 +92,7 @@ public sealed class SortsTests(SessionFixture fixture) : IClassFixture<SessionFi
         var path = Path.Combine(Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"), "moviebot.db");
         try
         {
-            new CinemaDatabase(path).SetMeta("issuer", "https://kept.test");
-            using (var connection = new SqliteConnection($"Data Source={path};Pooling=false"))
-            {
-                connection.Open();
-                using var step = connection.CreateCommand();
-                step.CommandText = "DROP TABLE viewer_sorts; PRAGMA user_version = 1;";
-                step.ExecuteNonQuery();
-            }
+            PreviousSchema.Build(path, ["Tables"], "INSERT INTO meta (key, value) VALUES ('issuer', 'https://kept.test');");
 
             var database = new CinemaDatabase(path);
             var sorts = new SortStore(database);

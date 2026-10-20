@@ -36,6 +36,9 @@ public sealed class WatchRecord : IPlayHistory
 
     private readonly CinemaDatabase _database;
 
+    /// <summary>Raised, with the person and the title, when a sample takes a title past the point it counts as finished.</summary>
+    public event Action<string, string>? Finished;
+
     public WatchRecord(CinemaDatabase database, TimeProvider clock)
     {
         _database = database;
@@ -72,6 +75,7 @@ public sealed class WatchRecord : IPlayHistory
                 "INSERT OR REPLACE INTO title_plays (title_id, last_played_at, last_played_by) VALUES ($title, $at, $user)",
                 ("$title", titleId), ("$at", now), ("$user", userId));
         });
+        if (position >= durationSeconds * FinishedFraction) Finished?.Invoke(userId, titleId);
     }
 
     /// <summary>
@@ -85,7 +89,7 @@ public sealed class WatchRecord : IPlayHistory
         if (durationSeconds <= 0) return false;
         var position = Math.Clamp(positionSeconds, 0, durationSeconds);
 
-        return _database.Write(c =>
+        var recorded = _database.Write(c =>
         {
             if (c.Exists("SELECT 1 FROM watch_progress WHERE user_id = $user AND title_id = $title AND last_watched_at >= $at",
                     ("$user", userId), ("$title", titleId), ("$at", at)))
@@ -99,6 +103,8 @@ public sealed class WatchRecord : IPlayHistory
                 ("$title", titleId), ("$at", at), ("$user", userId));
             return true;
         });
+        if (recorded && position >= durationSeconds * FinishedFraction) Finished?.Invoke(userId, titleId);
+        return recorded;
     }
 
     /// <summary>One person's films, newest first.</summary>

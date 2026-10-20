@@ -11,7 +11,8 @@ import { ago, airDay, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, WatchButton, useWatchLink } from "../components/Film.jsx";
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, Keywords, Tagline, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
-import { SaveButton } from "../components/SaveButton.jsx";
+import { WantButton } from "../components/WantButton.jsx";
+import { Wanters } from "../components/Wanters.jsx";
 import { DownloadMark, SeasonDownload, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
 import { EpisodeRow } from "../components/EpisodeRow.jsx";
 import { episodeRelease, openingEpisode, openingRequest, watchNow, watchOpening } from "../watchNow.js";
@@ -172,7 +173,7 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
                 <Button variant="primary" size="xl" icon="play" disabled={starting || !online} onClick={watchFirst}>Watch</Button>
               )}
               {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
-              {s.imdbId && <SaveButton imdbId={s.imdbId} kind="show" title={s.title} />}
+              {s.imdbId && <WantButton imdbId={s.imdbId} kind="show" title={s.title} />}
               {resume && (
                 <span className="kc-mono kc-quiet">
                   {episodeCode({ season: resume.season, number: resume.episode })}
@@ -180,6 +181,7 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
                 </span>
               )}
             </div>
+            {s.imdbId && <Wanters imdbId={s.imdbId} />}
             {s.nextEpisode && (
               <span className="kc-mono kc-quiet">
                 Next episode: {episodeCode({ season: s.nextEpisode.season, number: s.nextEpisode.episode })} · {airDay(s.nextEpisode.airDate)}

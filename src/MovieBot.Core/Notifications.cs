@@ -17,9 +17,6 @@ public static class NotificationKinds
 
     /// <summary>Somebody asked this person into their room.</summary>
     public const string Invite = "invite";
-
-    /// <summary>Somebody put this person on one of their lists.</summary>
-    public const string Shared = "shared";
 }
 
 /// <summary>One line in a person's notifications, as the bell lists it.</summary>
@@ -68,15 +65,12 @@ public sealed record NotificationPreferences
 
     public bool Episode { get; init; } = true;
 
-    public bool Shared { get; init; } = true;
-
     /// <summary>Whether a notification of this kind is pushed. An invite always is.</summary>
     public bool Allows(string kind) => kind switch
     {
         NotificationKinds.Available => Available,
         NotificationKinds.Ready => Ready,
         NotificationKinds.Episode => Episode,
-        NotificationKinds.Shared => Shared,
         _ => true,
     };
 }

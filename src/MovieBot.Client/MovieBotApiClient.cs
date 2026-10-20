@@ -143,7 +143,7 @@ public sealed class MovieBotApiClient
     }
 
     // ── Fetching films ─────────────────────────────────────────────────────────────────────────
-    // The API starts every download, holds every wish and records every keep; the bot asks it and
+    // The API starts every download, holds every want and records every keep; the bot asks it and
     // words what comes back for Discord.
 
     /// <summary>What to offer for something typed into a picker, debounced per <paramref name="session"/>.</summary>
@@ -209,20 +209,50 @@ public sealed class MovieBotApiClient
         }
     }
 
-    /// <summary>The wishes of the person this client acts as.</summary>
-    public async Task<IReadOnlyList<WishView>> ListWishesAsync(CancellationToken ct) =>
-        await GetAsync("api/wishes",
-            ManifestJsonContext.Default.IReadOnlyListWishView, "The wishes could not be read.", ct) ?? [];
+    /// <summary>The titles the person this client acts as wants, newest first.</summary>
+    public async Task<IReadOnlyList<WantView>> ListWantsAsync(CancellationToken ct) =>
+        await GetAsync("api/me/wants",
+            ManifestJsonContext.Default.IReadOnlyListWantView, "The wants could not be read.", ct) ?? [];
 
-    public Task<AddWishReply> AddWishAsync(AddWishRequest request, CancellationToken ct) =>
-        SendAsync(HttpMethod.Post, "api/wishes", request, ManifestJsonContext.Default.AddWishRequest,
-            ManifestJsonContext.Default.AddWishReply, "The wish could not be made.", ct);
+    /// <summary>Makes the person's want of a title. Null when the film database has no such title.</summary>
+    public async Task<SetWantReply?> SetWantAsync(string imdbId, SetWantRequest request, CancellationToken ct)
+    {
+        const string failure = "The want could not be made.";
+        try
+        {
+            using var message = Request(HttpMethod.Put, $"api/me/wants/{Uri.EscapeDataString(imdbId)}");
+            message.Content = JsonContent.Create(request, ManifestJsonContext.Default.SetWantRequest);
+            using var response = await _http.SendAsync(message, ct);
+            if (response.StatusCode == HttpStatusCode.NotFound) return null;
+            Ensure(response, failure);
+            return await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.SetWantReply, ct)
+                ?? throw new MovieBotApiException(failure);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
+                                   && !ct.IsCancellationRequested)
+        {
+            throw new MovieBotApiException(failure, ex);
+        }
+    }
 
-    public async Task<CancelWishReply> CancelWishAsync(string chosen, CancellationToken ct) =>
-        await GetAsync($"api/wishes/{Uri.EscapeDataString(chosen)}",
-            ManifestJsonContext.Default.CancelWishReply, "The wish could not be cancelled.", ct,
-            method: HttpMethod.Delete)
-        ?? new CancelWishReply { Outcome = "notWaiting" };
+    /// <summary>Ends the person's want of a title. False when they had none.</summary>
+    public async Task<bool> RemoveWantAsync(string imdbId, CancellationToken ct)
+    {
+        const string failure = "The want could not be removed.";
+        try
+        {
+            using var message = Request(HttpMethod.Delete, $"api/me/wants/{Uri.EscapeDataString(imdbId)}");
+            using var response = await _http.SendAsync(message, ct);
+            if (response.StatusCode == HttpStatusCode.NotFound) return false;
+            Ensure(response, failure);
+            return true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException
+                                   && !ct.IsCancellationRequested)
+        {
+            throw new MovieBotApiException(failure, ex);
+        }
+    }
 
     /// <summary>
     /// Whether the API is answering. Used at startup so an unreachable backend is reported once,

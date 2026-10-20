@@ -25,13 +25,17 @@ public static class ReleaseAvailability
         ranked.Candidates.FirstOrDefault(r => r.Source >= floor);
 }
 
+/// <summary>What the checks made before a film is waited on found, in <see cref="WantOutcomes"/>' words.</summary>
+public sealed record WishCheck(
+    string Outcome, ReleaseOffer? Release = null, string? LibraryId = null, string? LibraryName = null, string? DownloadName = null);
+
 /// <summary>
-/// Puts a person on the list for a film, and takes them off it.
+/// Finds out what a film that somebody wants already is, and keeps a wish for it when nothing has it.
 ///
-/// Before a wish is made, the places the film might already be are checked in the order that answers
-/// fastest and means most: the library, the torrent client, then the tracker. Each check that cannot
-/// be made is skipped rather than refused, because the sweep asks the tracker again within the hour
-/// and the worst outcome of skipping is one message too many.
+/// The places the film might already be are checked in the order that answers fastest and means most:
+/// the library, the torrent client, then the tracker. Each check that cannot be made is skipped rather
+/// than refused, because the sweep asks the tracker again within the hour and the worst outcome of
+/// skipping is one message too many.
 /// </summary>
 public sealed class Wishes(
     ImdbClient catalogue,
@@ -44,61 +48,47 @@ public sealed class Wishes(
     TimeProvider clock,
     ILogger<Wishes> logger)
 {
-    public async Task<AddWishReply> SubscribeAsync(AddWishRequest request, Actor asker, CancellationToken ct)
+    /// <summary>
+    /// What a film is to somebody who wants it. When nothing has it and <paramref name="keep"/> says the
+    /// person may wish, the catalogue's description is kept and the sweep watches the tracker for it.
+    /// </summary>
+    public async Task<WishCheck> CheckAsync(string imdbId, bool keep, Actor asker, CancellationToken ct)
     {
-        if (ImdbId.FromText(request.Chosen) is not { } imdbId)
-            return new AddWishReply { Outcome = "nothingPicked" };
-
-        var film = await catalogue.LookupAsync(imdbId, ct);
-        if (film is null)
-            return new AddWishReply { Outcome = "notFound", ImdbId = imdbId };
-
-        if (!film.IsFeature)
-            return new AddWishReply { Outcome = "notAFilm", FilmTitle = film.Title, ImdbId = imdbId };
-
-        var described = Describe(film).View();
-
         if (InLibrary(imdbId) is { } title)
-            return new AddWishReply
-            {
-                Outcome = "inLibrary", Wish = described,
-                LibraryId = title.Id, LibraryName = title.Film?.Display ?? title.Title,
-            };
+            return new WishCheck(WantOutcomes.InLibrary, LibraryId: title.Id, LibraryName: title.Film?.Display ?? title.Title);
 
         if (await DownloadingAsync(imdbId, ct) is { } download)
-            return new AddWishReply { Outcome = "downloading", Wish = described, DownloadName = download.Name };
+            return new WishCheck(WantOutcomes.Downloading, DownloadName: download.Name);
 
         if (await AvailableNowAsync(imdbId, ct) is { } release)
         {
             offered.Remember([release]);
-            return new AddWishReply
-            {
-                Outcome = "alreadyAvailable", Wish = described, Release = OfferedReleases.View(release),
-            };
+            return new WishCheck(WantOutcomes.Available, Release: OfferedReleases.View(release));
         }
 
-        var (outcome, wish) = wishes.Add(film, new WishSubscriber
+        if (!keep) return new WishCheck(WantOutcomes.Wanted);
+
+        ImdbTitle? film;
+        try
         {
-            UserId = asker.UserId,
-            AskedAt = clock.GetUtcNow(),
-        });
+            film = await catalogue.LookupAsync(imdbId, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "The catalogue could not be asked about {Imdb}.", imdbId);
+            return new WishCheck(WantOutcomes.Wanted);
+        }
 
-        if (outcome == WishAdded.AlreadySubscribed)
-            return new AddWishReply { Outcome = "alreadySubscribed", Wish = wish.View(Out(wish.ImdbId)) };
+        if (film is not { IsFeature: true }) return new WishCheck(WantOutcomes.Wanted);
 
-        logger.LogInformation("{User} is waiting on {Film} ({Imdb}).", asker.DisplayName, wish.Display, wish.ImdbId);
-        return new AddWishReply { Outcome = "subscribed", Wish = wish.View() };
+        wishes.Keep(film, clock.GetUtcNow());
+        logger.LogInformation("{User} is waiting on {Film} ({Imdb}).", asker.DisplayName, film.Display, imdbId);
+        return new WishCheck(WantOutcomes.Waiting);
     }
 
-    /// <summary>The films one person is waiting on, each with the release that answers it once the tracker offers one.</summary>
-    public List<WishView> List(string userId) =>
-        wishes.For(userId)
-            .Select(w => w.View(Out(w.ImdbId)))
-            .ToList();
-
     /// <summary>
-    /// The films people are waiting on that are neither out nor already in the library, with how many
-    /// wait on each. A film that is out or here is nothing to anticipate.
+    /// The films people want that are neither out nor already in the library, with how many want each.
+    /// A film that is out or here is nothing to anticipate.
     /// </summary>
     public List<AnticipatedView> Anticipated(string userId)
     {
@@ -110,20 +100,6 @@ public sealed class Wishes(
         return wishes.Anticipated(userId)
             .Where(w => !here.Contains(w.ImdbId) && wishes.OutAs(w.ImdbId) is null)
             .ToList();
-    }
-
-    /// <summary>The release a wished film came out as, as a page shows it; null while it is not out.</summary>
-    private ReleaseOffer? Out(string imdbId) => wishes.OutAs(imdbId) is { } release ? OfferedReleases.View(release) : null;
-
-    public CancelWishReply Cancel(string userId, string chosen)
-    {
-        if (ImdbId.FromText(chosen) is not { } imdbId)
-            return new CancelWishReply { Outcome = "nothingPicked" };
-
-        var wish = wishes.Remove(userId, imdbId);
-        return wish is null
-            ? new CancelWishReply { Outcome = "notWaiting" }
-            : new CancelWishReply { Outcome = "cancelled", Wish = wish.View() };
     }
 
     private TitleSummary? InLibrary(string imdbId) =>
@@ -159,26 +135,15 @@ public sealed class Wishes(
             return null;
         }
     }
-
-    /// <summary>The film as a wish would describe it, for an answer that needs no wish.</summary>
-    private static Wish Describe(ImdbTitle film) => new()
-    {
-        ImdbId = film.ImdbId,
-        Title = film.Title,
-        Year = film.Year,
-        Starring = film.Starring,
-        PosterUrl = film.PosterUrl?.ToString(),
-    };
 }
 
 /// <summary>
-/// Asks the tracker, on a slow clock, about every film somebody is waiting on, tells the people waiting
-/// on one when it is out, and remembers the release that answers it.
+/// Asks the tracker, on a slow clock, about every film somebody wants that nothing has, tells the people
+/// who can be told when it is out, and remembers the release that answers it.
 ///
-/// Telling is a notification to each person waiting, in their bell and to their devices
-/// (<c>Notifications/</c>), said once per film by its key. A person stays on a wish that has come out,
-/// and the wish lists the release beside it, until they stop waiting on it; a film already out is not
-/// asked about again. What came out is held in memory: a restarted API asks the tracker again on its
+/// Telling is a notification to each person on the wish, in their bell and to their devices
+/// (<c>Notifications/</c>), said once per film by its key. A wish that has come out stays, listing the
+/// release beside it, until its people remove their wants; a film already out is not asked about again. What came out is held in memory: a restarted API asks the tracker again on its
 /// first pass, a minute in, and nobody is told twice.
 /// </summary>
 public sealed class WishSweep(

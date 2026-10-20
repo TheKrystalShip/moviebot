@@ -6,9 +6,9 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// The tables everything this service keeps lives in, and the version they are at.
 ///
 /// The version is the database's <c>user_version</c>, and it counts the <see cref="Steps"/> the file
-/// has run: each step takes a file from the version before it to its own, only ever adding to it. A
-/// new file runs every step and a file behind runs the ones it lacks, so every file at a version holds
-/// the same tables. A file at a version this build does not know is refused rather than guessed at,
+/// has run: each step takes a file at the version before it to its own, in one transaction, bringing
+/// the records it holds across when a table changes shape. A new file runs every step and a file
+/// behind runs the ones it lacks, so every file at a version holds the same tables. A file at a version this build does not know is refused rather than guessed at,
 /// because a store reading columns that mean something else is a person's records read as somebody
 /// else's.
 ///
@@ -19,7 +19,7 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables, Sorts];
+    private static readonly string[] Steps = [Tables, Sorts, Wants];
 
     public static int Version => Steps.Length;
 
@@ -36,6 +36,44 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string Wants = """
+        -- What each person wants to watch, by the title's IMDb id. visible is whether the want is named
+        -- to everybody signed in; may_fetch and may_wish are whether the token that wrote it held
+        -- cinema:download and cinema:wish, which is what the server may spend on it.
+        CREATE TABLE title_wants (
+            user_id   TEXT NOT NULL,
+            imdb_id   TEXT NOT NULL,
+            kind      TEXT NOT NULL CHECK (kind IN ('film', 'show')),
+            visible   INTEGER NOT NULL,
+            may_fetch INTEGER NOT NULL,
+            may_wish  INTEGER NOT NULL,
+            since     TEXT NOT NULL,
+            PRIMARY KEY (user_id, imdb_id)
+        ) WITHOUT ROWID;
+        CREATE INDEX title_wants_title ON title_wants (imdb_id);
+
+        -- A saved title is a want of the person who saved it. Nobody agreed to be seen when they
+        -- saved it, so it comes across as just-me.
+        INSERT INTO title_wants (user_id, imdb_id, kind, visible, may_fetch, may_wish, since)
+        SELECT added_by, imdb_id, MIN(kind), 0, 0, 0, MIN(added_at) FROM list_entries GROUP BY added_by, imdb_id;
+
+        -- Somebody waiting on a film wants it, and held cinema:wish to wait. A title both saved and
+        -- waited on keeps the earlier of the two moments.
+        INSERT INTO title_wants (user_id, imdb_id, kind, visible, may_fetch, may_wish, since)
+        SELECT user_id, imdb_id, 'film', 0, 0, 1, asked_at FROM wish_subscribers WHERE true
+        ON CONFLICT (user_id, imdb_id) DO UPDATE SET
+            may_wish = 1,
+            since = MIN(title_wants.since, excluded.since);
+
+        DROP TABLE list_entries;
+        DROP TABLE list_members;
+        DROP TABLE lists;
+        DROP TABLE wish_subscribers;
+
+        DELETE FROM notifications WHERE kind = 'shared';
+        ALTER TABLE notification_preferences DROP COLUMN shared;
+        """;
 
     private const string Sorts = """
         -- The order each person last picked on each page that sorts, by the site's name for the page.
