@@ -296,9 +296,14 @@ reminder arrives; both join and watch; the plan ends `done`.
 
 ## 8. How to work through this
 
-- **One phase at a time, each its own version bump, CHANGELOG entry, tag and deploy**, per the repo
-  `CLAUDE.md`. Phase 2's tag vocabulary change is a commit in `moviebot-acquire` too, addressed with
-  `git -C`.
+- **Implement all four phases first, then test once.** The owner's rule: each phase is one tight
+  agent that writes the code and its tests, compiles (`dotnet build moviebot.slnx -c Release`, and
+  the site's build if touched), and commits locally with no version bump, CHANGELOG entry, tag or
+  deploy. It runs no tests, no verify suites and nothing live. The "Done when" checks under each
+  phase are run together in one final pass after Phase 4: `dotnet test`, the site's verify suites,
+  the migration against a copy of the live database, the deploy, and the live checks. That pass
+  makes the one version bump, CHANGELOG entry and tag. Phase 2's tag vocabulary change is a commit in
+  `moviebot-acquire` too, addressed with `git -C`.
 - **Do not `git add -A` in `moviebot/`**: the checkout has untracked scratch files (`*.err`,
   `*.jsonl`) that are not part of any change. Add paths explicitly.
 - **Testing:** `dotnet test` (hub integration tests with two real SignalR clients is the pattern for
