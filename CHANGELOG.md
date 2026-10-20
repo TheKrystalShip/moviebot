@@ -4,6 +4,35 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.53.0] - 2026-10-20
+
+### Added
+
+- **Want to watch.** One signal, "I want to watch this", replaces Watch later, custom lists and
+  wishes. A want is just a person and a title, visible to everybody by default with a per-title
+  Just me switch; a title nothing has yet is asked of the tracker hourly and its wanters are told
+  when it turns up, and finishing a title ends the want. The site has a Want button and ribbon on
+  every card, the people who want a title drawn as faces, and `/wants`; the television has its own
+  Want to watch page; the bot's notify and the assistant's `my_taste` read wants. Existing list
+  entries and wish subscriptions come across as just-me wants.
+- **Prefetch.** A wanted title the tracker offers is fetched ahead of time once the host is quiet:
+  no room playing, no Watch now arriving, the disk budget Ok. The torrent carries `want:<imdbId>`
+  and its first wanter is told when it is ready. A wanted, unwatched title is kept off
+  `/api/library/due`.
+- **Matching.** People who want the same title are shown to each other, and a daily digest names the
+  titles to watch together.
+- **Plans.** A plan is a title, up to three proposed times and the people invited. Answering in,
+  maybe or can't settles a time (fixed at `Plans:FixAt` or by the maker); `Plans:OpenMinutes` before
+  it the room is made, closed, with the people coming admitted and the title loaded, and a reminder
+  goes out at `Plans:RemindMinutes`. The site has `/plans`, `/plans/new` and `/plans/<id>`, and
+  Home's plans row. Site 0.98.0.
+
+### Fixed
+
+- The mobile harness's views for the footer, the Library tab and the Library's filter and sort
+  menus select the design system's current classes, and its overlap check boxes each line of a
+  wrapped link instead of the union of its lines.
+
 ## [3.52.1] - 2026-10-20
 
 ### Fixed

@@ -94,8 +94,11 @@ export function inspect() {
       if (n.nodeType !== 3 || !n.textContent.trim()) continue;
       const range = document.createRange();
       range.selectNodeContents(n);
-      const r = clipOf(e, range.getBoundingClientRect());
-      if (r.right - r.left > 0 && r.bottom - r.top > 0 && r.bottom > 0 && r.top < window.innerHeight && onTop(e, r)) boxes.push({ e, r });
+      // One box per line the text wraps onto: the union of a wrapped link's lines covers its neighbours.
+      for (const line of range.getClientRects()) {
+        const r = clipOf(e, line);
+        if (r.right - r.left > 0 && r.bottom - r.top > 0 && r.bottom > 0 && r.top < window.innerHeight && onTop(e, r)) boxes.push({ e, r });
+      }
     }
   }
   // An icon is read like a word: a value that runs into the next one's icon collides as surely. A
