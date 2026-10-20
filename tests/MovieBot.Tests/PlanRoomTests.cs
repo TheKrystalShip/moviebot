@@ -100,7 +100,7 @@ public sealed class PlanRoomTests(SessionFixture fixture) : IClassFixture<Sessio
     [Fact]
     public async Task A_film_that_is_not_out_cannot_be_planned()
     {
-        var alice = fixture.CreatePersonClient("plan-alice3", "Alice");
+        var alice = fixture.CreatePersonClient("plan-alice-notout", "Alice");
 
         // The film database describes it and the tracker holds no release of it at any source.
         var made = await alice.PostAsJsonAsync("/api/plans", new MakePlanRequest

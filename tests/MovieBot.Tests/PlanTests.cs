@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using TheKrystalShip.MovieBot.Acquire.Download;
+using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Plans;
+using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Subtitles;
 using TheKrystalShip.MovieBot.Api.Wants;
@@ -48,6 +50,37 @@ public sealed class PlanTests : IDisposable
         Assert.NotNull(PlanRules.Times([Now.AddDays(31)], Now).Refusal);
         Assert.NotNull(PlanRules.Times([], Now).Refusal);
         Assert.NotNull(PlanRules.Times([Now.AddHours(1), Now.AddHours(2), Now.AddHours(3), Now.AddHours(4)], Now).Refusal);
+    }
+
+    [Fact]
+    public void A_show_episode_the_database_dates_to_a_day_not_yet_due_is_not_aired_and_one_without_a_date_is_not_refused()
+    {
+        var today = new DateOnly(2026, 10, 20);
+        var show = new StoredShow
+        {
+            FetchedAt = Now,
+            Seasons =
+            [
+                new SeasonDetails
+                {
+                    Number = 1,
+                    Episodes =
+                    [
+                        new() { Season = 1, Number = 1, AirDate = "2026-10-19" },
+                        new() { Season = 1, Number = 2, AirDate = "2026-10-20" },
+                        new() { Season = 1, Number = 3, AirDate = "2026-11-02" },
+                        new() { Season = 1, Number = 4 },
+                    ],
+                },
+            ],
+        };
+
+        Assert.False(PlanEndpoints.NotAired(show, new WantEpisode { Season = 1, Episode = 1 }, today));
+        Assert.True(PlanEndpoints.NotAired(show, new WantEpisode { Season = 1, Episode = 2 }, today));
+        Assert.True(PlanEndpoints.NotAired(show, new WantEpisode { Season = 1, Episode = 3 }, today));
+        Assert.False(PlanEndpoints.NotAired(show, new WantEpisode { Season = 1, Episode = 4 }, today));
+        Assert.False(PlanEndpoints.NotAired(show, new WantEpisode { Season = 2, Episode = 1 }, today));
+        Assert.False(PlanEndpoints.NotAired(null, new WantEpisode { Season = 1, Episode = 1 }, today));
     }
 
     [Fact]

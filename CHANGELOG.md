@@ -40,7 +40,7 @@ and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   entries and wish subscriptions come across as just-me wants.
 - **Prefetch.** A wanted title the tracker offers is fetched ahead of time once the host is quiet:
   no room playing, no Watch now arriving, the disk budget Ok. The torrent carries `want:<imdbId>`
-  and its first wanter is told when it is ready. A wanted, unwatched title is kept off
+  and every wanter whose want may fetch is told when it is ready. A wanted, unwatched title is kept off
   `/api/library/due`.
 - **Matching.** People who want the same title are shown to each other, and a daily digest names the
   titles to watch together.
