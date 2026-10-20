@@ -65,6 +65,29 @@ and this directory is where the API calls them.
   every episode on it, Watch now and the prefetcher all read the same answer, and the tracker caps
   how often a member may call it.
 
+## Prefetch (`Wants/WantFetcher.cs`)
+
+What people want to watch is fetched ahead of them when it costs nobody anything. A pass runs every
+`Wants:PassSeconds` and starts at most one download.
+
+- **Every condition is measured, and one that cannot be read starts nothing.** No occupied room is
+  playing, no Watch now download is arriving, the prefetcher has fewer than `Wants:Concurrent` of its own
+  arriving (counted from the `want:` tag on the torrents), the disk budget reads Ok, and the release
+  fits the headroom the budget reports, which already keeps the transcode reserve. A download already
+  running carries on when somebody starts watching; the transcode planner puts rooms first.
+- **Only a want whose token held `cinema:download` is fetched for** (`StoredWant.MayFetch`). Wants that
+  keep to themselves still count towards how many people want a title.
+- **The order is a fixed plan first, then the most wanters, then the oldest want** (`WantFetchRules.Order`).
+- **A title is a candidate when the library does not hold it, the torrent client is not fetching it and
+  the tracker offers a digital release.** A film is picked as Watch now picks it (source floor,
+  `ReleaseLanguages`) at the best quality any wanter watches at, read from the width of the latest
+  title each watched. A show fetches the earliest next episode among its wanters out of the season's
+  pack, so a season stays one torrent, and is asked of the tracker through `ShowOfferCache`. A title the
+  tracker has nothing for is not asked again for `Wants:AskMinutes`.
+- **The torrent carries `want:<imdbId>`, and the first wanter is its requester.** `ReadyNotices` reads
+  the tag and tells every person whose want on the title can be fetched, so each is told once by the
+  notification's key, and a person already in a room playing the title is not.
+
 ## The library's clock
 
 How long a settled film stays in the library is this API's to say (`Library/LibraryClock`), and the
@@ -85,6 +108,9 @@ hand-off, the one process that writes the media roots, deletes what it names. Th
   the moment plays began to be recorded (`IPlayHistory.RecordingSince`): a film that settles long
   after it was last watched is not due the instant it lands, and a film with no recorded play is one
   nobody has played since recording began, which is all that can be known about it.
+- **A title somebody wants and has not watched is never due** (`Wants/WantHolds`): a want younger than
+  `Wants:HoldDays` from a person who has not finished the film, or every aired episode of the show, keeps
+  the title, and an episode's season with it. An older want holds nothing.
 - **A film that has not settled has no date.** A date for a film that is not on the clock would be
   invented.
 - **A film a room holds is never due**, whether or not anybody is in the room this second.

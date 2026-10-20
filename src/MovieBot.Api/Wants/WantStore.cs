@@ -76,6 +76,11 @@ public sealed class WantStore(CinemaDatabase database)
         $"SELECT {Columns} FROM title_wants WHERE imdb_id = $imdb AND may_wish = 1 ORDER BY since, user_id",
         Read, ("$imdb", imdbId)));
 
+    /// <summary>The people whose want on a title lets the server fetch it for them, in the order they wanted it.</summary>
+    public List<StoredWant> Fetchers(string imdbId) => database.Read(c => c.Query(
+        $"SELECT {Columns} FROM title_wants WHERE imdb_id = $imdb AND may_fetch = 1 ORDER BY since, user_id",
+        Read, ("$imdb", imdbId)));
+
     /// <summary>
     /// How many people want a title as the person asking may count them: every visible want and their
     /// own, and whether the person asking is one.

@@ -32,6 +32,9 @@ public sealed class LibraryOptions
 /// arrives. It never starts before plays began to be recorded: a film with no recorded play is one
 /// nobody has played since then, which is all that can be known.
 ///
+/// A title somebody wants and has not watched is held (<see cref="Wants.IWantHolds"/>) and never due,
+/// whether it is the film itself or an episode of the show.
+///
 /// A film is its own unit and an episode's is its season (<see cref="TitleLibrary.UnitOf(Manifest)"/>),
 /// and a unit stays and leaves as one: its count runs from the latest play of anything in it and the
 /// latest of its titles to settle, so every settled title in it falls due at the same moment.
@@ -42,6 +45,7 @@ public sealed class LibraryClock(
     IPlayHistory history,
     SessionStore sessions,
     Offline.ISaveHolds saves,
+    Wants.IWantHolds wanted,
     IOptions<LibraryOptions> options,
     TimeProvider clock)
 {
@@ -55,7 +59,8 @@ public sealed class LibraryClock(
     /// The ids of the settled titles whose time is up and that no room and no save holds. A title a
     /// room holds is never due, whether or not anybody is in the room this second, and neither is
     /// anything that leaves with it: a room on one episode holds its whole season. A save still being
-    /// made holds its title the same way, because the device is copying it file by file.
+    /// made holds its title the same way, because the device is copying it file by file, and so does a
+    /// want on it from somebody who has not watched it.
     /// </summary>
     public IReadOnlyList<string> Due()
     {
@@ -65,9 +70,12 @@ public sealed class LibraryClock(
             .Select(id => library.UnitOf(id) ?? id)
             .ToHashSet(StringComparer.Ordinal);
 
+        var wantedTitles = wanted.Holding(now);
+
         return [.. roots.Ids()
             .Where(IsSettled)
             .Where(id => !held.Contains(UnitOf(id)))
+            .Where(id => library.Get(id)?.Film?.ImdbId is not { } imdb || !wantedTitles.Contains(imdb))
             .Where(id => SettledLeavesAt(id) <= now)];
     }
 

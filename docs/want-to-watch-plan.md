@@ -24,9 +24,9 @@ fetched yet. One signal covers every state a title can be in, and the server dec
 | The title is | The server |
 |---|---|
 | here and ready | shows who else wants it, offers a plan |
-| fetchable from the tracker | prefetches it when the conditions in section 4 hold |
+| fetchable from the tracker | prefetches it when the conditions in `Acquisition/CLAUDE.md` "Prefetch" hold |
 | not on the tracker at the source floor | sweeps for it hourly (what a wish does today) and tells the wanters when it turns up |
-| wanted by somebody who has not watched it | keeps it in the library, within a limit (section 4) |
+| wanted by somebody who has not watched it | keeps it in the library, within a limit (`Acquisition/CLAUDE.md` "The library's clock") |
 
 ## 2. Decisions taken (by the owner, not to be re-opened)
 
@@ -59,53 +59,6 @@ each row before changing that area.
 | The database: one SQLite file, `Data/Schema` steps (`[Tables, Sorts]`), `user_version` counts steps | `Data/Schema.cs`, `Data/CinemaDatabase` | `src/MovieBot.Api/CLAUDE.md` |
 | Actions: `cinema:watch`, `cinema:download`, `cinema:wish`, `cinema:offline`, ... | `Auth/CinemaActions.cs` | `docs/api-contract.md` "Signing in" |
 | Settings: one file, every default declared | `src/moviebot.settings.json`; `MovieBotSettings` in moviebot-acquire | repo `CLAUDE.md` Conventions |
-
-## 4. Phase 2: Prefetch
-
-A new hosted service in the API, `Wants/WantFetcher`, on a short interval (a minute), deciding at most
-one fetch per pass.
-
-### When it may start a fetch (all must hold, each measured, never assumed)
-
-- **Nobody is watching.** No occupied room is playing (`SessionStore`), and no Watch now download is
-  arriving. A fetch already running carries on if somebody starts watching; the transcode planner
-  already puts rooms first.
-- **The disk has room.** `DiskBudget` reads Ok, and the release's size plus the transcode reserve fits
-  in the headroom it reports. A pass that cannot read the budget starts nothing.
-- **Nothing else this fetcher started is still arriving** (`Wants:Concurrent`, default 1).
-
-### What it fetches
-
-- Candidates are titles with at least one want whose wanter has `may_fetch`, that are not in the
-  library, not in the torrent client, and are offered by the tracker at the source floor.
-- **Order:** a title with a fixed plan, earliest first (phase 4); then the most wanters (just-me ones
-  count); then the oldest want.
-- **Release:** the same picker Watch now and FollowWatcher use (source floor, `ReleaseLanguages`), at
-  the best quality any of its wanters watches at. A show fetches the season holding the earliest
-  next episode among its wanters, as one torrent.
-- **Tags:** `want:<imdbId>` on the torrent, in moviebot-acquire's tag vocabulary (a cross-repo change:
-  one commit in each repo), plus `TorrentTags.Tell` for every `may_fetch` wanter, so `ReadyNotices`
-  tells them `ready` when it can be watched, unchanged.
-- The tracker is asked through the existing caches (`ShowOfferCache`, the title index) so prefetch
-  adds no tracker load beyond what the rate limits already allow.
-
-### The library's hold
-
-`LibraryClock` treats a settled title as not due while some want on it is from a person who has not
-watched it and is younger than `Wants:HoldDays` (default 90). A want older than that still prefetches
-nothing again by itself; it stays on the person's page. The hand-off is unchanged: it still deletes
-what the API names.
-
-### Settings (`src/moviebot.settings.json`, a new `Wants` block)
-
-`PassSeconds` (60), `Concurrent` (1), `HoldDays` (90). Anything else a pass needs, add here with its
-default and in `packaging/`'s env file.
-
-### Done when
-
-On hotbox, wanting a small fetchable film with no room playing starts its download within a pass,
-tagged `want:`, and the wanter gets `ready`; starting a room before it begins holds it back; the
-library's due list leaves a wanted, unwatched title off.
 
 ## 5. Phase 3: Matching
 
@@ -157,7 +110,7 @@ CREATE TABLE plan_answers (plan_id TEXT NOT NULL, at TEXT NOT NULL, user_id TEXT
 - **A time is fixed** when the maker fixes it, or when a time reaches `Plans:FixAt` `in` answers
   (default 2, counting the maker): the first to get there. Fixing tells everybody invited (`plan`
   kind), and the other times go. People may still answer `in` to the fixed time.
-- **A fixed plan's title goes first in prefetch** (phase 2). The plan reports `readiness` from what is
+- **A fixed plan's title goes first in prefetch** (`WantFetchRules.Order` orders by `WantCandidate.PlannedAt` before anything else; the fetcher leaves it null until plans fill it). The plan reports `readiness` from what is
   measured: `ready`, `fetching` with progress, `queued`, `waiting` (no release at the floor), never a
   guess at whether it will be in time.
 - **Reminder:** `Plans:RemindMinutes` (15) before the time, everybody `in` or `maybe` gets a `plan`
@@ -201,8 +154,7 @@ reminder arrives; both join and watch; the plan ends `done`.
   deploy. It runs no tests, no verify suites and nothing live. The "Done when" checks under each
   phase are run together in one final pass after Phase 4: `dotnet test`, the site's verify suites,
   the migration against a copy of the live database, the deploy, and the live checks. That pass
-  makes the one version bump, CHANGELOG entry and tag. Phase 2's tag vocabulary change is a commit in
-  `moviebot-acquire` too, addressed with `git -C`.
+  makes the one version bump, CHANGELOG entry and tag. The `want:` tag is a commit in `moviebot-acquire` too, addressed with `git -C`.
 - **Do not `git add -A` in `moviebot/`**: the checkout has untracked scratch files (`*.err`,
   `*.jsonl`) that are not part of any change. Add paths explicitly.
 - **Testing:** `dotnet test` (hub integration tests with two real SignalR clients is the pattern for

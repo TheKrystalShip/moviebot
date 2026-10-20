@@ -216,6 +216,12 @@ builder.Services.AddHostedService<WatchNowLoader>();
 builder.Services.AddOptions<LibraryOptions>().Bind(builder.Configuration.GetSection(LibraryOptions.Section));
 builder.Services.AddSingleton<LibraryClock>();
 
+// What people want to watch is fetched ahead of them when nobody is watching and the disk has room, and
+// a title somebody wants and has not watched stays in the library.
+builder.Services.AddOptions<WantOptions>().Bind(builder.Configuration.GetSection(WantOptions.Section));
+builder.Services.AddSingleton<IWantHolds, WantHolds>();
+builder.Services.AddHostedService<WantFetcher>();
+
 // What the GPU should be doing, published for the hand-off to carry out. The quality each viewer
 // wants is what their players report to the hub, and each output's head is the manifest's.
 builder.Services.AddOptions<TranscodeOptions>().Bind(builder.Configuration.GetSection(TranscodeOptions.Section));

@@ -51,13 +51,16 @@ public static class SitePaths
 ///
 /// Who is owed the news is written on the torrent when it starts (<see cref="TorrentTags.Tell"/>),
 /// beside who asked, and taken off once they have been told, so a restart in the middle of a long
-/// download tells them still and a download nobody was promised news of is never announced.
+/// download tells them still and a download nobody was promised news of is never announced. A
+/// download fetched for people's wants (<see cref="TorrentTags.Want"/>) tells every person whose want
+/// on the title lets the server fetch it, read from the wants when the news is told.
 /// </summary>
 public sealed class ReadyNotices(
     AcquisitionService acquisition,
     TitleLibrary library,
     SessionStore sessions,
     Notifier notifier,
+    Wants.WantStore wants,
     ILogger<ReadyNotices> logger) : BackgroundService
 {
     /// <summary>A person who started a film is waiting on it; this is how late the news may be.</summary>
@@ -90,13 +93,14 @@ public sealed class ReadyNotices(
             if (!failed && !download.Tags.Contains(TorrentTags.Watchable)) continue;
 
             var id = download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null);
-            if (download.Tags.Select(TorrentTags.ReadRequester).FirstOrDefault(r => r is not null) is { } requester
-                && !(id is not null && !failed && Watching(requester, id)))
-            {
-                var manifest = id is null ? null : library.Get(id);
-                var name = manifest is null ? ReleaseParser.ParseName(download.Name).Display : Naming.Name(manifest);
+            var manifest = id is null ? null : library.Get(id);
+            var name = manifest is null ? ReleaseParser.ParseName(download.Name).Display : Naming.Name(manifest);
 
-                await notifier.TellAsync(requester, new NotificationDraft
+            foreach (var person in Owed(download))
+            {
+                if (id is not null && !failed && Watching(person, id)) continue;
+
+                await notifier.TellAsync(person, new NotificationDraft
                 {
                     Kind = NotificationKinds.Ready,
                     Key = $"ready:{download.Hash}",
@@ -108,6 +112,17 @@ public sealed class ReadyNotices(
 
             await acquisition.ClearTagAsync(download.Hash, TorrentTags.Tell, ct);
         }
+    }
+
+    /// <summary>The person who asked, and for a download fetched for wants, everyone who can be told it is here.</summary>
+    private IEnumerable<string> Owed(DownloadStatus download)
+    {
+        var people = new List<string>();
+        if (download.Tags.Select(TorrentTags.ReadRequester).FirstOrDefault(r => r is not null) is { } requester)
+            people.Add(requester);
+        if (download.Tags.Select(TorrentTags.ReadWant).FirstOrDefault(i => i is not null) is { } title)
+            people.AddRange(wants.Fetchers(title).Select(w => w.UserId));
+        return people.Distinct(StringComparer.Ordinal);
     }
 
     /// <summary>

@@ -194,6 +194,17 @@
     "MaxStreams": 4
   },
 
+  // Wants. Every PassSeconds the prefetcher starts at most one download for what people want to watch,
+  // while no room plays and the disk has room, with at most Concurrent of its downloads arriving. A
+  // title nothing is offered for is asked of the tracker again after AskMinutes. A title somebody
+  // wants and has not watched stays in the library for HoldDays from the want.
+  "Wants": {
+    "PassSeconds": 60,
+    "Concurrent": 1,
+    "HoldDays": 90,
+    "AskMinutes": 60
+  },
+
   // Following a show. An episode is looked for from the day after its air date until GiveUpDays past
   // it, asked of the tracker at most once per AskMinutes, and a followed show's description is asked
   // of the film database again after RefreshHours.

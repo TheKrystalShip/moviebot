@@ -30,8 +30,12 @@ public sealed class Downloads(
     /// Whether whoever asked is told once it can be watched. A download onto a device is not: the device
     /// is what they wait on, and it says when it has the film.
     /// </param>
+    /// <param name="wanted">
+    /// The film or show people want, for a download the prefetcher starts on their behalf: the torrent
+    /// carries <see cref="TorrentTags.Want"/> and every wanter is told when it can be watched.
+    /// </param>
     public async Task<StartDownloadReply> StartAsync(StartDownloadRequest request, Actor? asker, CancellationToken ct,
-        string? watchRoom = null, EpisodeNumber? watchEpisode = null, bool tell = true)
+        string? watchRoom = null, EpisodeNumber? watchEpisode = null, bool tell = true, string? wanted = null)
     {
         if (offered.Resolve(request.TorrentId) is not { } release)
             return new StartDownloadReply { Outcome = "noLongerOffered" };
@@ -51,6 +55,7 @@ public sealed class Downloads(
                 if (watchEpisode is null && tell) tags.Add(TorrentTags.Tell);
             }
             if (watchRoom is not null) tags.Add(TorrentTags.Watch(watchRoom, watchEpisode));
+            if (wanted is not null) tags.Add(TorrentTags.Want(wanted));
 
             // The room is the reason for the download. Whichever pass sees the film become
             // watchable, in whichever process is running by then, loads it there.

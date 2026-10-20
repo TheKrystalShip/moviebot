@@ -588,6 +588,11 @@ leaving the library and is the same want when it comes back. The shapes are in
   description of it. The hourly sweep asks the tracker for every film with a wanter whose `mayWish` is
   set and tells each of them with an `available` notification, once. The wish lists with the release
   found until the person removes the want.
+- **A want whose token held `cinema:download` is fetched ahead of the person.** When no room is playing
+  and the disk has room, the server downloads a wanted title the tracker offers at the source floor
+  (`Wants:PassSeconds`, `Wants:Concurrent`), and the want reads `fetching` while it arrives. The person
+  is told with a `ready` notification once it can be watched. The library keeps a title wanted by
+  somebody who has not watched it for `Wants:HoldDays` from the want.
 - **A want ends** when the person removes it, when they finish the film, or when they finish the last
   aired episode of the show.
 - **An entry is described from what is kept.** Making a want asks the film database about a title new to

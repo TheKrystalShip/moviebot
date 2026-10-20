@@ -26,6 +26,10 @@ rest on. `Notifier` is the one way anything here tells anybody anything.
   requester's account). `ReadyNotices` tells them once it can be watched or could not be made
   watchable, and takes the tag off; a download that never carried them is news to
   nobody, which is also why the first start of this service announces nothing it finds already done.
+- **A download fetched for people's wants tells all of them.** The prefetcher (`Acquisition/CLAUDE.md`,
+  "Prefetch") tags the torrent `want:<imdbId>` and the first wanter as its requester; `ReadyNotices`
+  tells that person and every other person whose want on the title can be fetched, each once by the
+  `ready` notification's key.
 - **A new episode of a followed show is told once, and not twice to whoever is fetching it.**
   `FollowWatcher` tells every follower the episode is out (`episode`, keyed by show and episode), once
   it is due and the tracker offers it. The follower a download is started as carries the torrent's

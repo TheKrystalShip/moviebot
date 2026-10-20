@@ -68,6 +68,15 @@ public sealed class LibraryClockTests : IDisposable
 
     private readonly Saves _saves = new();
 
+    private readonly Wanted _wanted = new();
+
+    private sealed class Wanted : Api.Wants.IWantHolds
+    {
+        public HashSet<string> Held { get; } = [];
+
+        public IReadOnlySet<string> Holding(DateTimeOffset now) => Held;
+    }
+
     private sealed class Saves : Api.Offline.ISaveHolds
     {
         public HashSet<string> Held { get; } = [];
@@ -89,8 +98,23 @@ public sealed class LibraryClockTests : IDisposable
         Assert.Equal(["heat-1995"], clock.Due());
     }
 
+    [Fact]
+    public void A_title_somebody_wants_and_has_not_watched_is_not_due()
+    {
+        File.WriteAllText(Path.Combine(Settle("heat-1995"), "manifest.json"),
+            ManifestOf("heat-1995", "ready").Replace("\"audio\"", "\"film\": { \"imdbId\": \"tt0113277\", \"name\": \"Heat\" }, \"audio\""));
+        var clock = Clock();
+        SettledAt("heat-1995", TimeSpan.FromDays(8));
+
+        _wanted.Held.Add("tt0113277");
+        Assert.Empty(clock.Due());
+
+        _wanted.Held.Clear();
+        Assert.Equal(["heat-1995"], clock.Due());
+    }
+
     private LibraryClock Clock(double days = 7) => new(
-        _roots, _library, _plays, _sessions, _saves,
+        _roots, _library, _plays, _sessions, _saves, _wanted,
         Options.Create(new LibraryOptions { LeaveAfterDays = days }), _time);
 
     private string Settle(string id)
@@ -252,7 +276,7 @@ public sealed class LibraryClockTests : IDisposable
     {
         var hotOnly = new MediaRoots(Hot);
         var clock = new LibraryClock(
-            hotOnly, LibraryOn(hotOnly), _plays, _sessions, _saves,
+            hotOnly, LibraryOn(hotOnly), _plays, _sessions, _saves, _wanted,
             Options.Create(new LibraryOptions()), _time);
         Directory.CreateDirectory(Path.Combine(Hot, "heat-1995"));
         _time.SetUtcNow(DateTimeOffset.UtcNow.AddDays(365));
