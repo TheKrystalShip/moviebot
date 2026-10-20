@@ -241,7 +241,7 @@
 
   // The film database that describes a film: credits, certificate, genres, overview, artwork. The
   // API asks it, keeps what it said in its database and the artwork under the directories here,
-  // serves its own copies, and asks again after RefreshDays. The token is a credential and is set only
+  // serves its own copies, and asks again after RefreshDays (RecentRefreshDays for a film released within the last sixty days, whose rating moves daily). The token is a credential and is set only
   // in the environment as Tmdb__ReadAccessToken; without one, films are described by the title index
   // alone. Region picks whose certificate a film is shown with. A film's artwork is kept under
   // Directory and a show's under ShowsDirectory; the posters of what is trending this week, asked for
@@ -263,6 +263,7 @@
     "GlancesDirectory": "",
     "CatalogueDirectory": "",
     "RefreshDays": 14,
+    "RecentRefreshDays": 1,
     "ShelvesWarmMinutes": 60
   },
 

@@ -84,6 +84,7 @@ public static class FilmViews
     {
         if (stored.Details is not { } d) return null;
         string? Image(string file) => store.HasImage(d.ImdbId, file) ? ImageUrl(d.ImdbId, file) : null;
+        var (rating, votes) = store.Scores.Serve(d.TmdbId, "film", d.Rating, d.Votes);
 
         return new FilmView
         {
@@ -99,8 +100,8 @@ public static class FilmViews
             Overview = d.Overview,
             Tagline = d.Tagline,
             Keywords = [.. d.Keywords ?? []],
-            Rating = d.Rating,
-            Votes = d.Votes,
+            Rating = rating,
+            Votes = votes,
             Directors = [.. d.Directors],
             Writers = [.. d.Writers],
             PersonIds = new Dictionary<string, int>(d.PersonIds),
@@ -124,10 +125,11 @@ public static class FilmViews
     public static FilmFacts? Facts(this FilmStore store, string? imdbId)
     {
         if (imdbId is null || store.Held(imdbId)?.Details is not { } d) return null;
+        var (rating, votes) = store.Scores.Serve(d.TmdbId, "film", d.Rating, d.Votes);
         return new FilmFacts
         {
-            Rating = d.Rating,
-            Votes = d.Votes,
+            Rating = rating,
+            Votes = votes,
             Certification = d.Certification,
             Genres = [.. d.Genres],
             RuntimeMinutes = d.RuntimeMinutes,

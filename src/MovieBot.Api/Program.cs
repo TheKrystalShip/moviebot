@@ -108,6 +108,7 @@ builder.Services.AddHttpClient<TmdbClient>((sp, http) =>
     http.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<TmdbOptions>>().Value.TimeoutSeconds))
     .KeepConnectionsOpen();
 builder.Services.AddSingleton<PosterPins>();
+builder.Services.AddSingleton<TitleScores>();
 builder.Services.AddSingleton<KeptImages>();
 builder.Services.AddSingleton(sp => new FilmStore(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.Directory, "films"),
@@ -116,6 +117,7 @@ builder.Services.AddSingleton(sp => new FilmStore(
     sp.GetRequiredService<PosterPins>(),
     sp.GetRequiredService<KeptImages>(),
     sp.GetRequiredService<CinemaDatabase>(),
+    sp.GetRequiredService<TitleScores>(),
     TimeProvider.System,
     sp.GetRequiredService<ILogger<FilmStore>>()));
 builder.Services.AddSingleton<EpisodeNumbering>();
@@ -127,6 +129,7 @@ builder.Services.AddSingleton(sp => new ShowStore(
     sp.GetRequiredService<PosterPins>(),
     sp.GetRequiredService<KeptImages>(),
     sp.GetRequiredService<CinemaDatabase>(),
+    sp.GetRequiredService<TitleScores>(),
     sp.GetRequiredService<EpisodeNumbering>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<ShowStore>>()));
@@ -139,6 +142,7 @@ builder.Services.AddSingleton(sp => new TitleGlances(
     sp.GetRequiredService<PosterPins>(),
     sp.GetRequiredService<KeptImages>(),
     sp.GetRequiredService<CinemaDatabase>(),
+    sp.GetRequiredService<TitleScores>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<TitleGlances>>()));
@@ -147,6 +151,7 @@ builder.Services.AddSingleton(sp => new Catalogue(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.CatalogueDirectory, "catalogue"),
     sp.GetRequiredService<AnswerKeeper>(),
     sp.GetRequiredService<TitleGlances>(),
+    sp.GetRequiredService<TitleScores>(),
     sp.GetRequiredService<KeptImages>()));
 builder.Services.AddSingleton<CatalogueSearch>();
 builder.Services.AddSingleton<TitleSearch>();
@@ -157,6 +162,7 @@ builder.Services.AddSingleton(sp => new PopularNow(
     sp.GetRequiredService<PosterPins>(),
     sp.GetRequiredService<KeptImages>(),
     sp.GetRequiredService<CinemaDatabase>(),
+    sp.GetRequiredService<TitleScores>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<PopularNow>>()));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PopularNow>());

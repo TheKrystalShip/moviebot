@@ -27,6 +27,9 @@ public sealed class FilmStoreOptions
     /// <summary>How old a description may get before the database is asked again.</summary>
     public int RefreshDays { get; set; } = 14;
 
+    /// <summary>How old the description of a film released within the last sixty days may get before the database is asked again: its rating moves daily.</summary>
+    public int RecentRefreshDays { get; set; } = 1;
+
     /// <summary>How often the Discover shelves the same for everybody are asked for again ahead of anybody; zero asks nothing ahead.</summary>
     public int ShelvesWarmMinutes { get; set; } = 60;
 }
@@ -62,6 +65,7 @@ public sealed class FilmStore(
     PosterPins pins,
     KeptImages images,
     CinemaDatabase database,
+    TitleScores scores,
     TimeProvider clock,
     ILogger<FilmStore> logger)
 {
@@ -76,6 +80,9 @@ public sealed class FilmStore(
 
     public string Root => root;
 
+    /// <summary>The rating every view of a film shows.</summary>
+    public TitleScores Scores => scores;
+
     /// <summary>A portrait's file name, by the cast member's place in the billing.</summary>
     public static string Portrait(int billing) => $"cast-{billing}.jpg";
 
@@ -88,7 +95,11 @@ public sealed class FilmStore(
         if (!IsImdbId(imdbId)) return null;
         if (_held.TryGetValue(imdbId, out var held)) return held;
         var read = Read(imdbId);
-        if (read is not null) _held[imdbId] = read;
+        if (read is not null)
+        {
+            _held[imdbId] = read;
+            Observe(read);
+        }
         return read;
     }
 
@@ -115,14 +126,37 @@ public sealed class FilmStore(
     }
 
     /// <summary>
-    /// Whether a kept description is asked for again: once it is old, and at once when its cast names
-    /// nobody by the database's id, which is what leads from a cast member to their other work, or
-    /// when the database was never asked for its keywords.
+    /// Whether a kept description is asked for again: once it is old, a film released within
+    /// <see cref="RecentWindow"/> after <see cref="FilmStoreOptions.RecentRefreshDays"/> since its
+    /// rating moves daily, and at once when its cast names nobody by the database's id, which is
+    /// what leads from a cast member to their other work, or when the database was never asked for
+    /// its keywords.
     /// </summary>
     public bool IsDue(StoredFilm film) =>
-        clock.GetUtcNow() - film.FetchedAt > TimeSpan.FromDays(Math.Max(1, options.Value.RefreshDays))
+        clock.GetUtcNow() - film.FetchedAt > Keep(film)
         || film.Details is { Cast: [{ TmdbId: null }, ..] }
         || film.Details is { Keywords: null };
+
+    /// <summary>How recently a film must have been released for its description to be kept the shorter time.</summary>
+    internal static readonly TimeSpan RecentWindow = TimeSpan.FromDays(60);
+
+    private TimeSpan Keep(StoredFilm film)
+    {
+        var keep = TimeSpan.FromDays(Math.Max(1, options.Value.RefreshDays));
+        var recent = TimeSpan.FromDays(Math.Max(1, options.Value.RecentRefreshDays));
+        var age = film.Details is null ? null : clock.GetUtcNow() - Released(film.Details);
+        return recent < keep && age is { } since && since >= TimeSpan.Zero && since <= RecentWindow ? recent : keep;
+    }
+
+    private static DateTimeOffset? Released(FilmDetails details) =>
+        details.ReleaseDate is { } text && DateOnly.TryParseExact(text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var day)
+            ? new DateTimeOffset(day.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero)
+            : null;
+
+    private void Observe(StoredFilm film)
+    {
+        if (film.Details is { } d) scores.Observe(d.TmdbId, "film", d.Rating, d.Votes, film.FetchedAt);
+    }
 
     /// <summary>The kept image a request names, or null for anything that is not one.</summary>
     public string? ImageFile(string imdbId, string file)
@@ -152,6 +186,7 @@ public sealed class FilmStore(
             var stored = new StoredFilm { Details = details, FetchedAt = clock.GetUtcNow() };
             Write(imdbId, stored);
             _held[imdbId] = stored;
+            Observe(stored);
             return stored;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or IOException)

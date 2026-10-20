@@ -100,6 +100,18 @@ film onto a device is `Offline/CLAUDE.md`.
   at `/media/{id}/poster.jpg` and names it on `/api/titles`; the poster the hand-off put beside the
   title (the title index's) is served only for a title the database holds none for. A source's own
   cover art is never extracted (`src/MovieBot.Handoff/CLAUDE.md`).
+- **A title has one rating, the newest the film database has given.** Every answer the API keeps
+  carries the rating from when it was asked, and a new release's moves daily, so each surface would
+  show its own. `Films/TitleScores` holds one rating and vote count per database id and kind
+  (`title_scores`), in memory and written through, and every place that receives a rating from the
+  database records it as an observation stamped with when its answer was asked, kept only if newer
+  than what is held: `AnswerKeeper` for every kept answer it serves (credits, searches, discoveries,
+  charts, lists), and `FilmStore`, `ShowStore`, `TitleGlances` and `PopularNow` for theirs, each when
+  it fetches and when it first reads a row. Every view takes `rating` and `votes` from
+  `TitleScores.Serve`, falling back to the answer's own for a title nothing is held for, and a rating
+  with fewer than `CatalogueSearch.RatedVotes` votes is served as none. A film released within sixty
+  days is described again after `Tmdb:RecentRefreshDays`, since the observations only move as fast as
+  the database is asked.
 - **Finding is `Films/CatalogueSearch`, and every answer is kept by `Films/AnswerKeeper`.** A search by
   name, a person by name and every dated credit they have, a discovery by genre, years, people,
   keywords, language, a rating floor and similarity to another title, and the lists of what is out and

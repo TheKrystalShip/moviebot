@@ -106,6 +106,7 @@ public sealed partial class CatalogueSearch(
     LibraryListing library,
     WatchRecord record,
     TitleCategories categories,
+    TitleScores scores,
     TimeProvider clock)
 {
     /// <summary>The most titles a search lists.</summary>
@@ -469,7 +470,7 @@ public sealed partial class CatalogueSearch(
                     Title = facts?.Title ?? film.Film?.Name ?? film.Title,
                     Year = facts?.Year ?? film.Film?.Year,
                     Genres = [.. facts?.Genres ?? []],
-                    Rating = facts?.Rating,
+                    Rating = facts is null ? null : scores.Serve(facts.TmdbId, "film", facts.Rating, facts.Votes).Rating,
                     Plot = OneLine(facts?.Overview),
                     PosterUrl = film.Film?.ImdbId is { } imdb && films.HasImage(imdb, FilmStore.Poster) ? FilmViews.ImageUrl(imdb, FilmStore.Poster) : null,
                     LibraryId = film.Id,
@@ -493,7 +494,7 @@ public sealed partial class CatalogueSearch(
                     Title = facts?.Title ?? first.Film?.Name ?? first.Title,
                     Year = facts?.FirstYear,
                     Genres = [.. facts?.Genres ?? []],
-                    Rating = facts?.Rating,
+                    Rating = facts is null ? null : scores.Serve(facts.TmdbId, "show", facts.Rating, facts.Votes).Rating,
                     Plot = OneLine(facts?.Overview),
                     PosterUrl = imdb is not null && shows.HasImage(imdb, ShowStore.Poster) ? ShowViews.ImageUrl(imdb, ShowStore.Poster) : null,
                     LibraryId = first.Id,
@@ -521,6 +522,7 @@ public sealed partial class CatalogueSearch(
         var (listed, card) = (hit.Listed, hit.Card);
         var imdb = card?.ImdbId;
         var released = listed.Released ?? card?.Released;
+        var (rating, votes) = scores.Serve(listed.TmdbId, listed.Kind, listed.Rating, listed.Votes);
         return new TitleHitView
         {
             ImdbId = imdb,
@@ -530,8 +532,8 @@ public sealed partial class CatalogueSearch(
             Year = released?.Year,
             ReleaseDate = released is { } day ? Iso(day) : null,
             Genres = [.. card?.Genres ?? []],
-            Rating = listed.Rating,
-            Votes = listed.Votes,
+            Rating = rating,
+            Votes = votes,
             Plot = OneLine(listed.Overview),
             MadeBy = [.. card?.MadeBy ?? []],
             Starring = [.. card?.Starring ?? []],
@@ -548,6 +550,7 @@ public sealed partial class CatalogueSearch(
     {
         var (credit, card) = (hit.Credit, hit.Card);
         var imdb = card?.ImdbId;
+        var (rating, votes) = scores.Serve(credit.TmdbId, credit.Kind, credit.Rating, credit.Votes);
         return new CreditView
         {
             TmdbId = credit.TmdbId,
@@ -558,8 +561,8 @@ public sealed partial class CatalogueSearch(
             ReleaseDate = credit.Released is { } day ? Iso(day) : null,
             Status = hit.Status,
             Role = credit.Role,
-            Rating = credit.Rating,
-            Votes = credit.Votes,
+            Rating = rating,
+            Votes = votes,
             PosterUrl = imdb is null ? null : glances.PosterUrl(imdb, Glance(credit.AsListed())),
             InLibrary = shelf.Holds(credit.Kind, imdb),
             LibraryId = shelf.LibraryIdOf(credit.Kind, imdb),

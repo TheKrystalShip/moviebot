@@ -41,6 +41,9 @@ internal partial class TitleGlanceJson : JsonSerializerContext;
 /// A result shows the poster its title's page shows (<see cref="PosterUrl"/>): the described title's
 /// own kept poster, or else the one the glance names, fetched once in the background when the glance
 /// arrives, kept under this cache's directory and served from here at <c>/glances/{imdbId}/poster.jpg</c>.
+///
+/// A glance is served with the title's rating from <see cref="TitleScores"/>, and what it kept is
+/// recorded there as of when it was asked.
 /// </summary>
 public sealed class TitleGlances(
     string root,
@@ -49,6 +52,7 @@ public sealed class TitleGlances(
     PosterPins pins,
     KeptImages images,
     CinemaDatabase database,
+    TitleScores scores,
     IServiceScopeFactory scopes,
     TimeProvider clock,
     ILogger<TitleGlances> logger)
@@ -144,7 +148,7 @@ public sealed class TitleGlances(
             }
 
             if (IsDue(held)) _ = Ask(id, held);
-            if (held.Glance is { } glance) answered[id] = glance;
+            if (held.Glance is { } glance) answered[id] = Scored(glance);
         }
 
         if (waiting.Count == 0) return answered;
@@ -157,7 +161,7 @@ public sealed class TitleGlances(
         }
 
         foreach (var (id, asking) in waiting)
-            if (asking.IsCompletedSuccessfully && asking.Result?.Glance is { } glance) answered[id] = glance;
+            if (asking.IsCompletedSuccessfully && asking.Result?.Glance is { } glance) answered[id] = Scored(glance);
         return answered;
     }
 
@@ -174,16 +178,28 @@ public sealed class TitleGlances(
         var stored = new StoredGlance { Glance = glance, FetchedAt = clock.GetUtcNow() };
         Write(imdbId, stored);
         _held[imdbId] = stored;
+        Observe(stored);
     }
 
     /// <summary>A title described in full answers from that description.</summary>
     private TitleGlance? Described(string imdbId)
     {
         if (films.Held(imdbId)?.Details is { } film)
-            return new TitleGlance { TmdbId = film.TmdbId, Kind = "film", Rating = film.Rating, Votes = film.Votes, Overview = film.Overview, PosterPath = film.PosterPath };
+            return Scored(new TitleGlance { TmdbId = film.TmdbId, Kind = "film", Rating = film.Rating, Votes = film.Votes, Overview = film.Overview, PosterPath = film.PosterPath });
         if (shows.Held(imdbId)?.Details is { } show)
-            return new TitleGlance { TmdbId = show.TmdbId, Kind = "show", Rating = show.Rating, Votes = show.Votes, Overview = show.Overview, PosterPath = show.PosterPath };
+            return Scored(new TitleGlance { TmdbId = show.TmdbId, Kind = "show", Rating = show.Rating, Votes = show.Votes, Overview = show.Overview, PosterPath = show.PosterPath });
         return null;
+    }
+
+    private TitleGlance Scored(TitleGlance glance)
+    {
+        var (rating, votes) = scores.Serve(glance.TmdbId, glance.Kind, glance.Rating, glance.Votes);
+        return glance with { Rating = rating, Votes = votes };
+    }
+
+    private void Observe(StoredGlance stored)
+    {
+        if (stored.Glance is { } g) scores.Observe(g.TmdbId, g.Kind, g.Rating, g.Votes, stored.FetchedAt);
     }
 
     private StoredGlance? Held(string imdbId)
@@ -191,7 +207,11 @@ public sealed class TitleGlances(
         if (!FilmStore.IsImdbId(imdbId)) return null;
         if (_held.TryGetValue(imdbId, out var held)) return held;
         var read = Read(imdbId);
-        if (read is not null) _held[imdbId] = read;
+        if (read is not null)
+        {
+            _held[imdbId] = read;
+            Observe(read);
+        }
         return read;
     }
 
@@ -225,6 +245,7 @@ public sealed class TitleGlances(
             var stored = new StoredGlance { Glance = glance, FetchedAt = clock.GetUtcNow() };
             Write(imdbId, stored);
             _held[imdbId] = stored;
+            Observe(stored);
             if (glance?.PosterPath is not null && Described(imdbId) is null) _ = PosterFileAsync(imdbId);
             return stored;
         }

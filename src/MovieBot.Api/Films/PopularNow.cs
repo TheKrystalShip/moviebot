@@ -52,6 +52,7 @@ public sealed class PopularNow(
     PosterPins pins,
     KeptImages images,
     CinemaDatabase database,
+    TitleScores scores,
     TimeProvider clock,
     ILogger<PopularNow> logger) : BackgroundService
 {
@@ -76,6 +77,7 @@ public sealed class PopularNow(
             {
                 _held = Read();
                 _read = true;
+                if (_held is not null) Observe(_held);
             }
             return _held;
         }
@@ -84,18 +86,22 @@ public sealed class PopularNow(
     public PopularNowView View()
     {
         var held = Held();
-        PopularTitleView ToView(TrendingTitle t) => new()
+        PopularTitleView ToView(TrendingTitle t, string kind)
         {
-            ImdbId = t.ImdbId,
-            Title = t.Title,
-            Year = t.Year,
-            Rating = t.Rating,
-            Votes = t.Votes,
-            PosterUrl = File.Exists(Path.Combine(root, PosterName(t.ImdbId))) ? ImageUrl(t.ImdbId) : null,
-        };
+            var (rating, votes) = scores.Serve(t.TmdbId, kind, t.Rating, t.Votes);
+            return new PopularTitleView
+            {
+                ImdbId = t.ImdbId,
+                Title = t.Title,
+                Year = t.Year,
+                Rating = rating,
+                Votes = votes,
+                PosterUrl = File.Exists(Path.Combine(root, PosterName(t.ImdbId))) ? ImageUrl(t.ImdbId) : null,
+            };
+        }
         return held is null
             ? new PopularNowView([], [], null)
-            : new PopularNowView(held.Films.Select(ToView).ToList(), held.Shows.Select(ToView).ToList(), held.FetchedAt);
+            : new PopularNowView(held.Films.Select(t => ToView(t, "film")).ToList(), held.Shows.Select(t => ToView(t, "show")).ToList(), held.FetchedAt);
     }
 
     /// <summary>Where an entry's poster is served from. Artwork is not the film, so it needs no token.</summary>
@@ -152,6 +158,7 @@ public sealed class PopularNow(
                 _held = stored;
                 _read = true;
             }
+            Observe(stored);
             Prune(entries.Select(e => e.ImdbId).ToHashSet());
             logger.LogInformation("Kept {Films} trending films and {Shows} trending shows from the film database.", films.Count, shows.Count);
         }
@@ -179,6 +186,11 @@ public sealed class PopularNow(
             if (!kept.Contains(file[..^4])) images.Forget(Images, root, file);
         }
     }
+
+    private void Observe(StoredPopular popular) => scores.Observe(
+        [.. popular.Films.Select(t => new TitleScores.Reading(t.TmdbId, "film", t.Rating, t.Votes)),
+         .. popular.Shows.Select(t => new TitleScores.Reading(t.TmdbId, "show", t.Rating, t.Votes))],
+        popular.FetchedAt);
 
     private static string PosterName(string imdbId) => imdbId + ".jpg";
 

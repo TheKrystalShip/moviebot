@@ -96,7 +96,8 @@ public sealed class WantPresenter(
             var details = stored?.Details;
             view = view with
             {
-                Title = details?.Title ?? view.Title, Year = details?.FirstYear, Rating = details?.Rating,
+                Title = details?.Title ?? view.Title, Year = details?.FirstYear,
+                Rating = details is null ? null : shows.Scores.Serve(details.TmdbId, "show", details.Rating, details.Votes).Rating,
                 Genres = [.. details?.Genres ?? []],
                 PosterUrl = shows.HasImage(want.ImdbId, ShowStore.Poster) ? ShowViews.ImageUrl(want.ImdbId, ShowStore.Poster) : null,
                 InLibrary = shelf.Shows.Contains(want.ImdbId),
@@ -110,7 +111,8 @@ public sealed class WantPresenter(
             view = view with
             {
                 Title = details?.Title ?? wish?.Title ?? view.Title, Year = details?.Year ?? wish?.Year,
-                Rating = details?.Rating, RuntimeMinutes = details?.RuntimeMinutes, Genres = [.. details?.Genres ?? []],
+                Rating = details is null ? null : films.Scores.Serve(details.TmdbId, "film", details.Rating, details.Votes).Rating,
+                RuntimeMinutes = details?.RuntimeMinutes, Genres = [.. details?.Genres ?? []],
                 PosterUrl = films.HasImage(want.ImdbId, FilmStore.Poster)
                     ? FilmViews.ImageUrl(want.ImdbId, FilmStore.Poster)
                     : glances.PosterUrl(want.ImdbId) ?? wish?.PosterUrl,

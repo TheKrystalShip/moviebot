@@ -19,7 +19,7 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans];
+    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores];
 
     public static int Version => Steps.Length;
 
@@ -36,6 +36,44 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string TitleScores = """
+        -- The newest rating the film database has given each title, by its id and kind: the one every
+        -- view shows. seen_at is when the answer it came from was asked. What the descriptions and the
+        -- glances already hold seeds it, the newest of each title winning.
+        CREATE TABLE title_scores (
+            tmdb_id INTEGER NOT NULL,
+            kind    TEXT NOT NULL CHECK (kind IN ('film', 'show')),
+            rating  REAL NOT NULL,
+            votes   INTEGER NOT NULL,
+            seen_at TEXT NOT NULL,
+            PRIMARY KEY (tmdb_id, kind)
+        ) WITHOUT ROWID;
+
+        INSERT INTO title_scores (tmdb_id, kind, rating, votes, seen_at)
+        SELECT json_extract(glance, '$.tmdbId'), json_extract(glance, '$.kind'), json_extract(glance, '$.rating'),
+               COALESCE(json_extract(glance, '$.votes'), 0), fetched_at
+        FROM glances
+        WHERE json_extract(glance, '$.rating') IS NOT NULL AND json_extract(glance, '$.kind') IN ('film', 'show')
+        ON CONFLICT (tmdb_id, kind) DO UPDATE SET rating = excluded.rating, votes = excluded.votes, seen_at = excluded.seen_at
+        WHERE excluded.seen_at > title_scores.seen_at;
+
+        INSERT INTO title_scores (tmdb_id, kind, rating, votes, seen_at)
+        SELECT json_extract(details, '$.tmdbId'), 'film', json_extract(details, '$.rating'),
+               COALESCE(json_extract(details, '$.votes'), 0), fetched_at
+        FROM film_descriptions
+        WHERE json_extract(details, '$.rating') IS NOT NULL
+        ON CONFLICT (tmdb_id, kind) DO UPDATE SET rating = excluded.rating, votes = excluded.votes, seen_at = excluded.seen_at
+        WHERE excluded.seen_at > title_scores.seen_at;
+
+        INSERT INTO title_scores (tmdb_id, kind, rating, votes, seen_at)
+        SELECT json_extract(details, '$.tmdbId'), 'show', json_extract(details, '$.rating'),
+               COALESCE(json_extract(details, '$.votes'), 0), fetched_at
+        FROM show_descriptions
+        WHERE json_extract(details, '$.rating') IS NOT NULL
+        ON CONFLICT (tmdb_id, kind) DO UPDATE SET rating = excluded.rating, votes = excluded.votes, seen_at = excluded.seen_at
+        WHERE excluded.seen_at > title_scores.seen_at;
+        """;
 
     private const string Plans = """
         -- A plan to watch a title together: a few proposed times, the people invited and their answers.

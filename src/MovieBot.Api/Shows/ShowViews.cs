@@ -132,10 +132,11 @@ public static class ShowViews
     public static FilmFacts? Facts(this ShowStore store, string? imdbId)
     {
         if (imdbId is null || store.Held(imdbId)?.Details is not { } d) return null;
+        var (rating, votes) = store.Scores.Serve(d.TmdbId, "show", d.Rating, d.Votes);
         return new FilmFacts
         {
-            Rating = d.Rating,
-            Votes = d.Votes,
+            Rating = rating,
+            Votes = votes,
             Certification = d.Certification,
             Genres = [.. d.Genres],
             Overview = d.Overview,
@@ -172,6 +173,7 @@ public static class ShowViews
     {
         var d = stored?.Details;
         string? Image(string file) => store.HasImage(imdbId, file) ? ImageUrl(imdbId, file) : null;
+        var (rating, votes) = d is null ? (null, 0) : store.Scores.Serve(d.TmdbId, "show", d.Rating, d.Votes);
 
         var held = episodes
             .Where(e => e.Episode is not null)
@@ -239,8 +241,8 @@ public static class ShowViews
             Overview = d?.Overview,
             Tagline = d?.Tagline,
             Keywords = [.. d?.Keywords ?? []],
-            Rating = d?.Rating,
-            Votes = d?.Votes ?? 0,
+            Rating = rating,
+            Votes = votes,
             Creators = [.. d?.Creators ?? []],
             PersonIds = new Dictionary<string, int>(d?.PersonIds ?? new Dictionary<string, int>()),
             Cast = (d?.Cast ?? []).Select((c, i) => new CastView

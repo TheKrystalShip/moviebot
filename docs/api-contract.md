@@ -793,7 +793,7 @@ id), absent when nobody has; `byName` is absent when that person's name was neve
 {
   "imdbId": "tt0113277", "tmdbId": 949, "title": "Heat", "year": 1995, "releaseDate": "1995-12-15",
   "runtimeMinutes": 170, "certification": "R", "genres": ["Crime", "Drama", "Action"],
-  "overview": "…", "tagline": "…", "rating": 7.9, "votes": 8740,   // TMDB's own rating, absent with no votes
+  "overview": "…", "tagline": "…", "rating": 7.9, "votes": 8740,   // TMDB's rating, the same wherever the title is shown; absent below 25 votes
   "keywords": ["heist", "los angeles"],
   "libraryId": "heat-1995", "watched": false,                       // libraryId absent when the library does not hold it; watched is the asking person's
   "directors": ["Michael Mann"], "writers": ["Michael Mann"],
@@ -844,6 +844,13 @@ release counts is a special.
 A cast member's `personId` and the ids in `personIds` are the film database's own for those people,
 what `/api/catalogue/people/{personId}` takes. A kept description whose cast carries no id is asked of
 the database again the next time it is read, and until then `personId` is absent and `personIds` empty.
+
+**A title has one rating.** Every `rating` and `votes` on the wire (a film or show page, a search result,
+a person's credits, a shelf, `/api/popular`, a title's `details`, a want) is the film database's, and it is
+the same number for a title on every surface: the newest the database has given, whichever answer the
+view was built from. A title whose rating has fewer than 25 votes behind it carries no `rating`, and
+`votes` says how few. A film released within the last 60 days is described again after
+`Tmdb:RecentRefreshDays`, since its rating moves daily.
 
 `CatalogueTitleView` is `{imdbId, kind, title, year?, rating?, votes, overview?, posterUrl?, role?, category?}`:
 `kind` is `film` or `show`, `posterUrl` the poster the title's page shows, served from here, and

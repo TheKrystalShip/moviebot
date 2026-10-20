@@ -90,6 +90,7 @@ public sealed class Catalogue(
     string root,
     AnswerKeeper keeper,
     TitleGlances glances,
+    TitleScores scores,
     KeptImages images)
 {
     /// <summary>How many titles a person's credits or a genre lists.</summary>
@@ -173,18 +174,22 @@ public sealed class Catalogue(
         Titles = person.Titles.Select(View).ToList(),
     };
 
-    public CatalogueTitleView View(CatalogueTitle title) => new()
+    public CatalogueTitleView View(CatalogueTitle title)
     {
-        ImdbId = title.ImdbId,
-        Kind = title.Kind,
-        Title = title.Title,
-        Year = title.Released?.Year,
-        Rating = title.Rating,
-        Votes = title.Votes,
-        Overview = title.Overview,
-        PosterUrl = glances.PosterUrl(title.ImdbId, Glance(title)),
-        Role = title.Role,
-    };
+        var (rating, votes) = scores.Serve(title.TmdbId, title.Kind, title.Rating, title.Votes);
+        return new CatalogueTitleView
+        {
+            ImdbId = title.ImdbId,
+            Kind = title.Kind,
+            Title = title.Title,
+            Year = title.Released?.Year,
+            Rating = rating,
+            Votes = votes,
+            Overview = title.Overview,
+            PosterUrl = glances.PosterUrl(title.ImdbId, Glance(title)),
+            Role = title.Role,
+        };
+    }
 
     /// <summary>Where a person's portrait is served from. Artwork is not the film, so it needs no token.</summary>
     public static string PortraitUrl(int personId) => $"/catalogue/people/{personId}.jpg";

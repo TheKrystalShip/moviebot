@@ -41,6 +41,7 @@ public sealed class ShowStore(
     PosterPins pins,
     KeptImages images,
     CinemaDatabase database,
+    TitleScores scores,
     EpisodeNumbering numbering,
     TimeProvider clock,
     ILogger<ShowStore> logger)
@@ -67,13 +68,25 @@ public sealed class ShowStore(
     /// </summary>
     public StoredShow? Held(string imdbId) => Kept(imdbId) is { } kept ? numbering.Apply(imdbId, kept) : null;
 
+    /// <summary>The rating every view of a show shows.</summary>
+    public TitleScores Scores => scores;
+
+    private void Observe(StoredShow show)
+    {
+        if (show.Details is { } d) scores.Observe(d.TmdbId, "show", d.Rating, d.Votes, show.FetchedAt);
+    }
+
     /// <summary>What is kept for a show, as the film database numbers it.</summary>
     private StoredShow? Kept(string imdbId)
     {
         if (!FilmStore.IsImdbId(imdbId)) return null;
         if (_held.TryGetValue(imdbId, out var held)) return held;
         var read = Read(imdbId);
-        if (read is not null) _held[imdbId] = read;
+        if (read is not null)
+        {
+            _held[imdbId] = read;
+            Observe(read);
+        }
         return read;
     }
 
@@ -153,6 +166,7 @@ public sealed class ShowStore(
             var stored = new StoredShow { Details = details, Seasons = seasons, FetchedAt = clock.GetUtcNow() };
             Keep(imdbId, stored);
             _held[imdbId] = stored;
+            Observe(stored);
             return stored;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or IOException)

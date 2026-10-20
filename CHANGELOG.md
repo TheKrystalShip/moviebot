@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.53.2] - 2026-10-20
+
+### Fixed
+
+- **A title shows one rating everywhere.** Each kept answer carried the rating from when it was
+  asked, so a new release read 6.2 on its page, 4.0 in a search and 8.3 on an actor's page. The
+  newest rating the film database has given is kept once per title (`title_scores`, seeded from the
+  descriptions and glances already kept) and every view serves it: film and show pages, search
+  results, credits, Discover shelves, Popular, wants and the library's details. A rating with fewer
+  than 25 votes behind it is shown as none. A film released within sixty days is described again
+  after `Tmdb:RecentRefreshDays` (a day) instead of `Tmdb:RefreshDays`. Nothing new is asked of the
+  film database.
+
 ## [3.53.1] - 2026-10-20
 
 ### Fixed
