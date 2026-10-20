@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Menu, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Pill, toast } from "@thekrystalship/krystal";
+import { Button, Menu, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, toast } from "@thekrystalship/krystal";
 import { useOnline } from "../connectivity.js";
 import { removeWant, setWant, useWant, wantWords } from "../wants.js";
 
@@ -49,8 +49,7 @@ function WantItems({ want, actions, disabled }) {
 
 /**
  * Want to watch a film or a show, here or not. One press makes the want, visible to everybody; once
- * it is made the button opens a menu on itself: Just me or Everyone, and Remove. A film nothing has yet
- * says it is waiting for a release.
+ * it is made the button opens a menu on itself: Just me or Everyone, and Remove.
  */
 export function WantButton({ imdbId, kind, title }) {
   const want = useWant(imdbId);
@@ -75,7 +74,6 @@ export function WantButton({ imdbId, kind, title }) {
       <Menu open={open} onOpenChange={setOpen} anchorRef={anchor} placement="bottom-start" label="Want to watch">
         <WantItems want={want} actions={actions} disabled={actions.busy} />
       </Menu>
-      {want.state === "waiting" && <Pill tone="info" icon="calendar-clock">Waiting for a release</Pill>}
     </>
   );
 }

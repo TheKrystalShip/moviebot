@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.53.1] - 2026-10-20
+
+### Fixed
+
+- **A title that is not out cannot be planned.** `POST /api/plans` answers `409` for a film the
+  tracker shows is not out digitally, and for a show's episode the film database dates to a day not
+  yet due; a tracker that does not answer, or an episode with no date, refuses nothing. The site's
+  Plan a watch is disabled for such a title, the Want button no longer carries a "Waiting for a
+  release" pill, and on a phone Want and Plan a watch share a row when there is no Watch. Site 0.98.1.
+
 ## [3.53.0] - 2026-10-20
 
 ### Added

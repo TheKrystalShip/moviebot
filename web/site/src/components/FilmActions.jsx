@@ -90,7 +90,7 @@ export function FilmActions({ imdbId, film, state, compact = false, children }) 
         {arriving && <Pill tone="info">preparing · {Math.floor(arriving.progress * 100)}%</Pill>}
 
         {(!compact || (a && a.notOut)) && <WantButton imdbId={imdbId} kind="film" title={film.title} />}
-        {!compact && <PlanButton imdbId={imdbId} kind="film" />}
+        {!compact && <PlanButton imdbId={imdbId} kind="film" notOut={!!(a && a.notOut)} />}
         {!compact && a && downloading && saving && (arriving || offer) && (
           <DownloadButton imdbId={imdbId} head={{
             name: film.title, context: film.year || null, runtime: film.runtimeMinutes ? clock(film.runtimeMinutes * 60) : null,

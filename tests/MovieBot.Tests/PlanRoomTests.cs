@@ -64,6 +64,20 @@ public sealed class PlanRoomTests(SessionFixture fixture) : IClassFixture<Sessio
     }
 
     [Fact]
+    public async Task A_film_the_tracker_shows_is_not_out_is_refused_a_plan_and_one_the_library_holds_is_not()
+    {
+        var alice = fixture.CreatePersonClient("plan-alice3", "Alice");
+        var later = DateTimeOffset.UtcNow.AddDays(2);
+
+        var refused = await alice.PostAsJsonAsync("/api/plans", new MakePlanRequest { ImdbId = "tt0325980", Kind = "film", Times = [later], People = [] });
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Empty((await (await alice.GetAsync("/api/me/plans")).Content.ReadFromJsonAsync<List<PlanView>>())!);
+
+        var made = await alice.PostAsJsonAsync("/api/plans", new MakePlanRequest { ImdbId = Heat, Kind = "film", Times = [later], People = [] });
+        Assert.Equal(HttpStatusCode.OK, made.StatusCode);
+    }
+
+    [Fact]
     public async Task Only_the_maker_fixes_or_cancels_a_plan()
     {
         var alice = fixture.CreatePersonClient("plan-alice2", "Alice");
@@ -81,5 +95,20 @@ public sealed class PlanRoomTests(SessionFixture fixture) : IClassFixture<Sessio
         Assert.Equal(HttpStatusCode.Forbidden, (await bea.DeleteAsync($"/api/plans/{plan.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await alice.DeleteAsync($"/api/plans/{plan.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await alice.DeleteAsync($"/api/plans/{plan.Id}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_film_that_is_not_out_cannot_be_planned()
+    {
+        var alice = fixture.CreatePersonClient("plan-alice3", "Alice");
+
+        // The film database describes it and the tracker holds no release of it at any source.
+        var made = await alice.PostAsJsonAsync("/api/plans", new MakePlanRequest
+        {
+            ImdbId = "tt0325980", Kind = "film", Times = [DateTimeOffset.UtcNow.AddDays(1)], People = [],
+        });
+
+        Assert.Equal(HttpStatusCode.Conflict, made.StatusCode);
+        Assert.Empty((await (await alice.GetAsync("/api/me/plans")).Content.ReadFromJsonAsync<List<PlanView>>())!);
     }
 }

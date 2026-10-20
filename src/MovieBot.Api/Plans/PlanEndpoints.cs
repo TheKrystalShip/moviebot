@@ -1,4 +1,5 @@
 using System.Globalization;
+using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Library;
@@ -19,7 +20,7 @@ public static class PlanEndpoints
     {
         app.MapPost("/api/plans", async (MakePlanRequest body, HttpContext context, PlanService service, PlanPresenter present,
             PersonDirectory people, FilmStore films, ShowStore shows, LibraryListing library, People.WatchRecord record,
-            TimeProvider clock, CancellationToken ct) =>
+            WatchNow watch, TimeProvider clock, CancellationToken ct) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             if (body.ImdbId is not { } imdb || !FilmStore.IsImdbId(imdb)) return Error("That is not an IMDb id.", StatusCodes.Status400BadRequest);
@@ -42,6 +43,11 @@ public static class PlanEndpoints
             if (described is false)
                 return Error($"The film database has no {body.Kind} under that id.", StatusCodes.Status404NotFound);
 
+            // A title that is not out has nothing to watch at any time a plan could name. Only what is
+            // known refuses: a tracker that did not answer, or an episode with no air date, is let through.
+            if (body.Kind == WantKinds.Film && (await watch.AvailabilityAsync(imdb, person.UserId, ct)).NotOut)
+                return Error("That film is not out yet, so there is nothing to plan.", StatusCodes.Status409Conflict);
+
             int? season = null, number = null;
             if (body.Kind == WantKinds.Show)
             {
@@ -49,6 +55,8 @@ public static class PlanEndpoints
                     : Wants.ShowProgress.Next(shows.Held(imdb),
                         Wants.ShowProgress.Finished(library.Titles(), record.Entries(person.UserId)).GetValueOrDefault(imdb));
                 if (at is null) return Error("That show has no episode to start at.", StatusCodes.Status400BadRequest);
+                if (NotAired(shows.Held(imdb), at, FollowViews.Today(clock)))
+                    return Error("That episode has not aired yet, so there is nothing to plan.", StatusCodes.Status409Conflict);
                 (season, number) = (at.Season, at.Episode);
             }
 
@@ -126,6 +134,17 @@ public static class PlanEndpoints
         at = PlanRules.Minute(at);
         return true;
     }
+
+    /// <summary>
+    /// Whether the film database dates an episode to a day it is not yet due on (<see cref="FollowViews.IsDue"/>).
+    /// An episode the database holds no date for is not known to be unaired.
+    /// </summary>
+    internal static bool NotAired(StoredShow? show, WantEpisode at, DateOnly today) =>
+        (show?.Seasons ?? [])
+            .SelectMany(s => s.Episodes)
+            .FirstOrDefault(e => e.Season == at.Season && e.Number == at.Episode) is { } episode
+        && FollowViews.AirDate(episode.AirDate) is { } date
+        && !FollowViews.IsDue(date, today);
 
     private static IResult Missing() => Error("No such plan.", StatusCodes.Status404NotFound);
 
