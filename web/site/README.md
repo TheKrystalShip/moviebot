@@ -188,7 +188,9 @@ server prepares it), and one says Downloaded when a download finishes then; tapp
 library. They need the browser's leave to notify, which the first Download on a device asks for
 (`src/offline/notice.js`).
 
-Wide screens get around by the sidebar, which has Discover and Want to watch under Home. A phone has
+Wide screens get around by the sidebar: Home; then Library, holding Discover, Movies, TV Shows and
+Anime; then Yours, holding Want to watch, Plans, and Profile's History and Following tabs, each lit
+on its own tab. A phone has
 krystal's `TabBar` along its bottom edge instead, and no drawer: Home (lit on `/`),
 Library (lit under `/movies`, `/tv` and `/anime`), Discover (lit under `/discover`), Assistant
 (`/chat`), and Me (`/profile`, lit on `/wants` and `/plans` too), whose page leads to Want to watch. What each page lights is one table in `App.jsx`, by the route's

@@ -9,7 +9,7 @@ import { leave } from "./leave.js";
 import { goBack, navigate, useRoute } from "./router.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { PLACES } from "./nav.js";
-import { ANIME, OFFLINE_FLAG, chatPath, discoverPath, homePath, libraryPath, moviePath, profilePath, roomPath, signedInPath } from "./paths.js";
+import { ANIME, OFFLINE_FLAG, PROFILE_TABS, chatPath, discoverPath, homePath, libraryPath, moviePath, profilePath, roomPath, signedInPath } from "./paths.js";
 import { useOnline } from "./connectivity.js";
 import { sendProgress } from "./offline/progress.js";
 import { useOfflineSync } from "./offline/sync.js";
@@ -56,8 +56,9 @@ const ENDED = "Your session ended.";
 const ENDED_IN_ACTIVITY = "Your session ended. Close the Activity and start it again.";
 
 const place = (id) => ({ id, ...PLACES[id] });
-const HOME = ["home", "discover", "wants", "plans"].map(place);
-const LIBRARY = ["movies", "tv", "anime"].map(place);
+const HOME = ["home"].map(place);
+const LIBRARY = ["discover", "movies", "tv", "anime"].map(place);
+const YOURS = ["wants", "plans", "history", "following"].map(place);
 
 // A phone's way around: a tab for each place, the assistant's page among them.
 const TABS = [
@@ -240,7 +241,11 @@ function Frame({ session, route }) {
   }, []);
 
   // A film's or a show's page under Anime lights Anime rather than its kind's shelf.
-  const lit = (route.category === ANIME && route.view !== "discover-show" ? LIT.anime : LIT[route.view]) || {};
+  // A profile tab with a sidebar item of its own lights that item.
+  const profileTab = route.view === "profile" ? route.tab || PROFILE_TABS[0] : null;
+  const lit = (route.category === ANIME && route.view !== "discover-show" ? LIT.anime
+    : profileTab && PLACES[profileTab] ? { item: profileTab, tab: "me" }
+    : LIT[route.view]) || {};
   const go = (path) => navigate(path);
   const item = (n) => (online || !NEEDS_SERVER.has(n.id)
     ? <NavItem key={n.id} icon={n.icon} label={n.label} active={lit.item === n.id} onClick={() => go(n.path)} />
@@ -289,7 +294,8 @@ function Frame({ session, route }) {
                 ]} />
             </>}>
             <SidebarGroup>{HOME.map(item)}</SidebarGroup>
-            <SidebarGroup>{LIBRARY.map(item)}</SidebarGroup>
+            <SidebarGroup label="Library">{LIBRARY.map(item)}</SidebarGroup>
+            <SidebarGroup label="Yours">{YOURS.map(item)}</SidebarGroup>
           </Sidebar>
         }
         aside={docked && <>

@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.53.4] - 2026-10-20
+
+### Changed
+
+- **The site's sidebar is grouped by what each place is.** Home stands alone; Library holds Discover,
+  Movies, TV Shows and Anime; Yours holds Want to watch, Plans, History and Following, the last two
+  opening Profile on their tab. Site 0.98.3.
+
 ## [3.53.3] - 2026-10-20
 
 ### Changed
