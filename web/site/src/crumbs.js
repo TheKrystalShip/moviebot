@@ -64,6 +64,9 @@ export function trailFor(route, name) {
     case "discover": return [home, place("discover", true)];
     case "discover-film": return [home, place("discover"), { label: id }];
     case "wants": return [home, place("wants", true)];
+    case "plans": return [home, place("plans", true)];
+    case "plan-new": return [home, place("plans"), { label: "New" }];
+    case "plan": return [home, place("plans"), { label: name || "Plan" }];
     case "profile": {
       if (route.tab == null) return [home, place("profile", true)];
       const face = PROFILE_TAB_FACES.find((t) => t.id === route.tab);

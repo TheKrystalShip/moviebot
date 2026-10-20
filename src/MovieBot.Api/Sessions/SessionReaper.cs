@@ -35,9 +35,15 @@ public sealed class RoomOptions
     public int GuestsPerRoom { get; set; } = 10;
 }
 
-/// <summary>Forgets rooms that nobody is watching.</summary>
+/// <summary>
+/// Forgets rooms that nobody is watching, except the rooms of plans that have not run their course:
+/// a plan's room is made ahead of its time and is kept until <see cref="RoomOptions.IdleTimeout"/>
+/// past the time fixed.
+/// </summary>
 public sealed class SessionReaper(
     SessionStore sessions,
+    Plans.PlanStore plans,
+    TimeProvider clock,
     Microsoft.Extensions.Options.IOptions<RoomOptions> options,
     ILogger<SessionReaper> logger) : BackgroundService
 {
@@ -53,7 +59,7 @@ public sealed class SessionReaper(
         {
             try
             {
-                var dropped = sessions.Sweep(settings.IdleTimeout);
+                var dropped = sessions.Sweep(settings.IdleTimeout, plans.RoomsHeld(clock.GetUtcNow() - settings.IdleTimeout));
                 if (dropped.Count > 0)
                     logger.LogInformation("Forgot {Count} idle room(s): {Rooms}", dropped.Count, string.Join(", ", dropped));
             }

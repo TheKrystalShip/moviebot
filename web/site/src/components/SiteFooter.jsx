@@ -15,6 +15,7 @@ const BROWSE = [
   page("movies", "Every movie on the shelf"),
   page("tv", "Every show on the shelf"),
   page("wants", "What you want to watch"),
+  page("plans", "When you watch together"),
   page("about", "This site, and where its details come from"),
 ];
 

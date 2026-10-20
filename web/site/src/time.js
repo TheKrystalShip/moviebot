@@ -60,3 +60,8 @@ export function airDay(date) {
   if (!year || !month || !day) return String(date);
   return new Date(year, month - 1, day).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 }
+
+/** An instant as the day and time it falls at, for a plan: "Sat 24 Oct, 21:00". */
+export function when(iso) {
+  return new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}

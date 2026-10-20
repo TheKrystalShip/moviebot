@@ -269,7 +269,7 @@ function BestMatch({ found, here, held, shelf }) {
                     <Button variant="primary" size="xl" icon="play" onClick={() => navigate(watchHref(here.id))}>Watch</Button>
                   )}
                   <WantButton imdbId={found.imdbId} kind="film" title={found.title} />
-                  <PlanButton imdbId={found.imdbId} />
+                  <PlanButton imdbId={found.imdbId} kind="film" />
                   <Wanters imdbId={found.imdbId} />
                 </div>
               )
@@ -311,7 +311,7 @@ function ShowMatchActions({ found, shelf }) {
         <Button variant="primary" size="xl" icon="play" disabled={starting} onClick={watchFirst}>Watch</Button>
       )}
       <WantButton imdbId={found.imdbId} kind="show" title={found.title} />
-      <PlanButton imdbId={found.imdbId} />
+      <PlanButton imdbId={found.imdbId} kind="show" />
       <Wanters imdbId={found.imdbId} />
     </div>
   );

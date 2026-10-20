@@ -3,7 +3,7 @@ import { Icon, Rail } from "@thekrystalship/krystal";
 import { POSTERS, WIDE } from "../railDensity.js";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
-import { ANIME, isAnime, libraryPath, wantsPath } from "../paths.js";
+import { ANIME, isAnime, libraryPath, plansPath, wantsPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { ago, clock } from "../time.js";
 import { useCan } from "../session.js";
@@ -18,6 +18,7 @@ import { useHomeSlides, useSlides } from "../heroes.js";
 import { BellButton } from "../components/Bell.jsx";
 import { WantCard } from "./Wants.jsx";
 import { TogetherCard } from "../components/Together.jsx";
+import { PlanCard } from "../components/PlanCard.jsx";
 import { useWantList } from "../wants.js";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { inActivity } from "../discord/launch.js";
@@ -118,6 +119,8 @@ function ServerHome() {
   const showList = useLoad(() => api.shows().catch(() => []), []);
   const wanted = useWantList().list;
   const together = useLoad(() => api.together().catch(() => []), []).data || [];
+  const planned = (useLoad(() => api.plans().catch(() => []), []).data || [])
+    .filter((p) => p.state === "proposed" || p.state === "fixed" || p.state === "open");
   const canWish = useCan("cinema:wish");
   const anticipated = useLoad(() => (canWish ? api.anticipated().catch(() => []) : Promise.resolve([])), [canWish]);
   const waitedOn = anticipated.data || [];
@@ -200,6 +203,14 @@ function ServerHome() {
               </span>
             </a>
           )} />
+      )}
+
+      {planned.length > 0 && (
+        <Rail
+          perView={POSTERS} icon="calendar-clock" title="Plans" count={planned.length}
+          onViewAll={() => navigate(plansPath)} viewAllLabel="See all"
+          items={planned} itemKey={(p) => p.id}
+          renderItem={(p) => <PlanCard plan={p} />} />
       )}
 
       {together.length > 0 && (

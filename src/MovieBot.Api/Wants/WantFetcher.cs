@@ -37,8 +37,10 @@ public sealed class WantOptions
 /// <param name="Fetchers">The people whose want lets the server fetch it for them, in the order they wanted it.</param>
 /// <param name="Oldest">When the first of the wants was made.</param>
 /// <param name="PlannedAt">When the earliest plan fixed for the title begins; null when none is fixed.</param>
+/// <param name="Episode">For a show, the episode that plan starts at; null leaves it to the wanters' next episodes.</param>
 public sealed record WantCandidate(
-    string ImdbId, string Kind, int Wanters, IReadOnlyList<string> Fetchers, DateTimeOffset Oldest, DateTimeOffset? PlannedAt = null);
+    string ImdbId, string Kind, int Wanters, IReadOnlyList<string> Fetchers, DateTimeOffset Oldest,
+    DateTimeOffset? PlannedAt = null, WantEpisode? Episode = null);
 
 /// <summary>
 /// The rules that decide whether, and what, the prefetcher fetches. Pure, so each is settled by
@@ -56,6 +58,35 @@ public static class WantFetchRules
             g.Key, g.First().Kind, g.Count(),
             [.. g.Where(w => w.MayFetch).OrderBy(w => w.Since).ThenBy(w => w.UserId, StringComparer.Ordinal).Select(w => w.UserId)],
             g.Min(w => w.Since)))];
+
+    /// <summary>
+    /// The candidates with the titles of fixed plans in them. A title somebody wants carries the
+    /// earliest time a plan fixed for it begins, and the episode that plan starts at; a title only a
+    /// plan names is a candidate in its own right, fetched for the plan's maker, whose permission the
+    /// plan captured. The maker is a fetcher of every title their plan names.
+    /// </summary>
+    public static List<WantCandidate> WithPlans(IEnumerable<WantCandidate> candidates, IEnumerable<Plans.PlannedTitle> planned)
+    {
+        var all = candidates.ToDictionary(c => c.ImdbId, StringComparer.Ordinal);
+        foreach (var plan in planned.OrderBy(p => p.At).ThenBy(p => p.MadeAt))
+        {
+            var episode = plan is { Kind: WantKinds.Show, Season: { } season, Number: { } number }
+                ? new WantEpisode { Season = season, Episode = number }
+                : null;
+            if (!all.TryGetValue(plan.ImdbId, out var held))
+            {
+                all[plan.ImdbId] = new WantCandidate(plan.ImdbId, plan.Kind, 0, [plan.MadeBy], plan.MadeAt, plan.At, episode);
+                continue;
+            }
+            if (held.PlannedAt is not null) continue;
+            all[plan.ImdbId] = held with
+            {
+                PlannedAt = plan.At, Episode = episode,
+                Fetchers = held.Fetchers.Contains(plan.MadeBy) ? held.Fetchers : [.. held.Fetchers, plan.MadeBy],
+            };
+        }
+        return [.. all.Values];
+    }
 
     /// <summary>
     /// The order titles are tried in: one with a fixed plan first, the earliest plan first; then the
@@ -118,6 +149,7 @@ public static class WantFetchRules
 /// </summary>
 public sealed class WantFetcher(
     WantStore wants,
+    Plans.PlanStore plans,
     LibraryListing listing,
     TitleLibrary library,
     WatchRecord record,
@@ -133,7 +165,11 @@ public sealed class WantFetcher(
     TimeProvider clock,
     ILogger<WantFetcher> logger) : BackgroundService
 {
-    private readonly Dictionary<string, DateTimeOffset> _askedEmpty = new(StringComparer.Ordinal);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> _askedEmpty = new(StringComparer.Ordinal);
+
+    /// <summary>Whether the tracker was asked about the title lately and offered nothing at the source floor.</summary>
+    public bool AskedEmpty(string imdbId) =>
+        _askedEmpty.TryGetValue(imdbId, out var at) && clock.GetUtcNow() - at < TimeSpan.FromMinutes(Math.Max(1, options.Value.AskMinutes));
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -155,7 +191,8 @@ public sealed class WantFetcher(
     public async Task<string?> PassAsync(CancellationToken ct)
     {
         var settings = options.Value;
-        var candidates = WantFetchRules.Order(WantFetchRules.Candidates(wants.All()));
+        var candidates = WantFetchRules.Order(WantFetchRules.WithPlans(
+            WantFetchRules.Candidates(wants.All()), plans.Planned(clock.GetUtcNow())));
         if (candidates.Count == 0) return null;
 
         IReadOnlyList<DownloadStatus> all;
@@ -211,11 +248,15 @@ public sealed class WantFetcher(
         EpisodeNumber? episode = null;
         if (isShow)
         {
-            var finished = candidate.Fetchers.ToDictionary(
-                u => u, u => ShowProgress.Finished(titles, record.Entries(u)).GetValueOrDefault(imdb), StringComparer.Ordinal);
             var stored = shows.Held(imdb);
-            if (WantFetchRules.Earliest(candidate.Fetchers.Select(u => ShowProgress.Next(stored, finished[u]))) is not { } next)
-                return false;
+            var next = candidate.Episode;
+            if (next is null)
+            {
+                var finished = candidate.Fetchers.ToDictionary(
+                    u => u, u => ShowProgress.Finished(titles, record.Entries(u)).GetValueOrDefault(imdb), StringComparer.Ordinal);
+                next = WantFetchRules.Earliest(candidate.Fetchers.Select(u => ShowProgress.Next(stored, finished[u])));
+            }
+            if (next is null) return false;
 
             episode = new EpisodeNumber(next.Season, next.Episode);
             if (titles.Any(t => t is { Kind: TitleKind.Show, Episode: { } e } && t.Status != TitleStatus.Failed
@@ -240,7 +281,7 @@ public sealed class WantFetcher(
             _askedEmpty[imdb] = clock.GetUtcNow();
             return false;
         }
-        _askedEmpty.Remove(imdb);
+        _askedEmpty.TryRemove(imdb, out _);
 
         if (!WantFetchRules.Fits(budget, release.IsEpisodic ? release.SizePerEpisode : release.SizeBytes))
         {

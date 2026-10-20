@@ -531,6 +531,18 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-together { display: flex; flex-direction: column; }
 .kc-together .kc-wanters { margin-top: 8px; }
 .kc-wants-switch { width: min(100%, 420px); }
+.kc-plan-form { max-width: 560px; gap: 20px; }
+.kc-plan-form__time { display: flex; gap: 8px; align-items: center; }
+.kc-plan-form__time > :first-child { flex: 1; min-width: 0; }
+.kc-plan-form__people { display: flex; flex-direction: column; gap: 10px; }
+.kc-plan { gap: 20px; }
+.kc-plan__times { display: flex; flex-direction: column; gap: 14px; max-width: 640px; }
+.kc-plan-time { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: var(--edge); border-radius: var(--r-sm); }
+.kc-plan-time__head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.kc-plan-time__when { font-weight: 600; margin-right: auto; }
+.kc-plan-time__answer { width: min(100%, 360px); }
+.kc-plan-time__answers { display: flex; flex-wrap: wrap; gap: 6px; }
+.kc-plan__people { display: flex; align-items: center; gap: 10px; }
 @media (max-width: 768px) { .kc-wants-switch { width: 100%; } }
 
 /* ── Subtitle style ── the preview stays in view beside the choices, above them on a phone. */

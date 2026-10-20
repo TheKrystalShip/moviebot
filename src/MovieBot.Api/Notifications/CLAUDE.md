@@ -42,5 +42,11 @@ rest on. `Notifier` is the one way anything here tells anybody anything.
   /api/me/together`), keyed by person and day, and says nothing when it would repeat the last digest word
   for word. The `together` kind is always in the bell and pushed only to a person who switched it on,
   unlike every other switch, which starts on.
+- **A plan is said to the people in it, whatever their switches say.** The `plan` kind is addressed to
+  the maker and the people invited on purpose, as an invite is, and `Allows` is true for it. Each event
+  (`invited`, `fixed`, `reminder`, `cancelled`) is keyed by the plan and the event, so each is said once
+  to each person however often `PlanService` and `PlanKeeper` ask. The one who made or fixed a plan or
+  cancelled it is not told of their own act; a time fixed by the answers is told to everybody. The
+  reminder opens the plan's room. Times in the text are the host's local zone.
 - **Nothing is said about the library itself.** A film settling, moving between disks or leaving is
   the server's business; a person hears about what they asked for and what they follow.

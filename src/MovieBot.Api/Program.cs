@@ -11,6 +11,7 @@ using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Library;
+using TheKrystalShip.MovieBot.Api.Plans;
 using TheKrystalShip.MovieBot.Api.Wants;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Subtitles;
@@ -220,7 +221,8 @@ builder.Services.AddSingleton<LibraryClock>();
 // a title somebody wants and has not watched stays in the library.
 builder.Services.AddOptions<WantOptions>().Bind(builder.Configuration.GetSection(WantOptions.Section));
 builder.Services.AddSingleton<IWantHolds, WantHolds>();
-builder.Services.AddHostedService<WantFetcher>();
+builder.Services.AddSingleton<WantFetcher>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<WantFetcher>());
 
 // What the GPU should be doing, published for the hand-off to carry out. The quality each viewer
 // wants is what their players report to the hub, and each output's head is the manifest's.
@@ -251,6 +253,18 @@ builder.Services.AddSingleton<WantStore>();
 builder.Services.AddSingleton<WantMatcher>();
 builder.Services.AddSingleton<WantPresenter>();
 builder.Services.AddHostedService<TogetherDigest>();
+
+// Plans to watch something together: the record, what tells the people in a plan, the presenter that
+// measures its title's readiness, and the keeper that reminds them and makes the room ahead of time.
+builder.Services.AddOptions<PlanOptions>().Bind(builder.Configuration.GetSection(PlanOptions.Section));
+builder.Services.AddSingleton<PlanStore>();
+builder.Services.AddSingleton<PlanTitles>();
+builder.Services.AddSingleton<PlanNotices>();
+builder.Services.AddSingleton<PlanPush>();
+builder.Services.AddSingleton<PlanService>();
+builder.Services.AddSingleton<PlanPresenter>();
+builder.Services.AddSingleton<PlanKeeper>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PlanKeeper>());
 
 // Save offline: what each person saved onto which device or asked one to download, the tracks
 // measured for it, and the transfers under way, which yield to the rooms.
@@ -437,6 +451,7 @@ app.MapDiscover();
 app.MapShows();
 app.MapFollows();
 app.MapWants();
+app.MapPlans();
 app.MapNotifications();
 app.MapOffline();
 

@@ -23,6 +23,9 @@ import { Show } from "./pages/Show.jsx";
 import { CatalogueFilm } from "./pages/CatalogueFilm.jsx";
 import { Discover, DISCOVER_FIELD } from "./pages/Discover.jsx";
 import { Wants } from "./pages/Wants.jsx";
+import { Plans } from "./pages/Plans.jsx";
+import { PlanNew } from "./pages/PlanNew.jsx";
+import { Plan } from "./pages/Plan.jsx";
 import { Profile } from "./pages/Profile.jsx";
 import { ActivityProblem, Dark, NoAccess, Waiting } from "./pages/SignIn.jsx";
 import { Pairing } from "./pages/Pairing.jsx";
@@ -53,7 +56,7 @@ const ENDED = "Your session ended.";
 const ENDED_IN_ACTIVITY = "Your session ended. Close the Activity and start it again.";
 
 const place = (id) => ({ id, ...PLACES[id] });
-const HOME = ["home", "discover", "wants"].map(place);
+const HOME = ["home", "discover", "wants", "plans"].map(place);
 const LIBRARY = ["movies", "tv", "anime"].map(place);
 
 // A phone's way around: a tab for each place, the assistant's page among them.
@@ -80,12 +83,15 @@ const LIT = {
   "discover-show": { item: "discover", tab: "discover" },
   profile: { tab: "me" },
   wants: { item: "wants", tab: "me" },
+  plans: { item: "plans", tab: "me" },
+  "plan-new": { item: "plans", tab: "me" },
+  plan: { item: "plans", tab: "me" },
   chat: { tab: "assistant" },
 };
 
 // The places that need the server, drawn disabled with no connection. Every other place draws what the
 // device holds.
-const NEEDS_SERVER = new Set(["discover", "wants", "assistant"]);
+const NEEDS_SERVER = new Set(["discover", "wants", "plans", "assistant"]);
 
 /**
  * Krystal Cinema: the shelf, the films on their way and on their way out, and the assistant. Every page
@@ -441,6 +447,9 @@ function Page({ route, fromDevice }) {
     case "discover-film": return <CatalogueFilm key={route.arg} imdbId={route.arg} />;
     case "discover": return <Discover query={route.query} />;
     case "wants": return <Wants />;
+    case "plans": return <Plans />;
+    case "plan-new": return <PlanNew query={route.query} />;
+    case "plan": return <Plan key={route.arg} id={route.arg} />;
     case "chat": return <Assistant />;
     default: return <NotFound />;
   }

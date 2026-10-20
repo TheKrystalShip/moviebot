@@ -175,6 +175,15 @@ export const api = {
   together: () => call("GET", "/api/me/together"),
   wanters: (imdbId) => call("GET", `/api/titles/${enc(imdbId)}/wanters`),
 
+  // Plans to watch something together: the person's own, one by its id (a 404 for anybody not in it), making
+  // one, answering a time (`at` as the plan names it), the maker fixing a time, and the maker cancelling.
+  plans: () => call("GET", "/api/me/plans"),
+  plan: (id) => call("GET", `/api/plans/${enc(id)}`),
+  makePlan: (request) => call("POST", "/api/plans", request),
+  answerPlan: (id, at, answer) => call("PUT", `/api/plans/${enc(id)}/answers/${enc(at)}`, { answer }),
+  fixPlan: (id, at) => call("POST", `/api/plans/${enc(id)}/fix`, { at }),
+  cancelPlan: (id) => call("DELETE", `/api/plans/${enc(id)}`),
+
   // Shelving a film or a show as anime (`anime`) or with its kind (`general`), against the API's rule.
 
   // The television screens this session is paired with, pairing with the one whose code it scanned,

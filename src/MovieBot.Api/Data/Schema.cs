@@ -19,7 +19,7 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables, Sorts, Wants, Together];
+    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans];
 
     public static int Version => Steps.Length;
 
@@ -36,6 +36,50 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string Plans = """
+        -- A plan to watch a title together: a few proposed times, the people invited and their answers.
+        -- may_fetch is whether the maker's token held cinema:download, which lets the prefetcher fetch
+        -- the title once a time is fixed.
+        CREATE TABLE plans (
+            id         TEXT PRIMARY KEY,
+            imdb_id    TEXT NOT NULL,
+            kind       TEXT NOT NULL CHECK (kind IN ('film', 'show')),
+            season     INTEGER,
+            number     INTEGER,
+            made_by    TEXT NOT NULL,
+            made_at    TEXT NOT NULL,
+            may_fetch  INTEGER NOT NULL,
+            state      TEXT NOT NULL CHECK (state IN ('proposed', 'fixed', 'open', 'done', 'cancelled')),
+            fixed_time TEXT,
+            room_id    TEXT
+        ) WITHOUT ROWID;
+        CREATE INDEX plans_state ON plans (state);
+
+        CREATE TABLE plan_times (
+            plan_id TEXT NOT NULL REFERENCES plans (id) ON DELETE CASCADE,
+            at      TEXT NOT NULL,
+            PRIMARY KEY (plan_id, at)
+        ) WITHOUT ROWID;
+
+        CREATE TABLE plan_people (
+            plan_id    TEXT NOT NULL REFERENCES plans (id) ON DELETE CASCADE,
+            user_id    TEXT NOT NULL,
+            invited_at TEXT NOT NULL,
+            PRIMARY KEY (plan_id, user_id)
+        );
+        CREATE INDEX plan_people_user ON plan_people (user_id);
+
+        CREATE TABLE plan_answers (
+            plan_id     TEXT NOT NULL,
+            at          TEXT NOT NULL,
+            user_id     TEXT NOT NULL,
+            answer      TEXT NOT NULL CHECK (answer IN ('in', 'maybe', 'cant')),
+            answered_at TEXT NOT NULL,
+            PRIMARY KEY (plan_id, at, user_id),
+            FOREIGN KEY (plan_id, at) REFERENCES plan_times (plan_id, at) ON DELETE CASCADE
+        ) WITHOUT ROWID;
+        """;
 
     private const string Together = """
         -- Whether the together digest is pushed; it is always kept in the bell.

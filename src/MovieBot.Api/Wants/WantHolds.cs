@@ -17,10 +17,12 @@ public interface IWantHolds
 /// A title is held while some want on it is from a person who has not watched it and is younger than
 /// <see cref="WantOptions.HoldDays"/>. A film is watched when the person finished it; a show, when they
 /// finished every episode of it that has aired. A want older than the limit holds nothing and stays on
-/// the person's page.
+/// the person's page. The title of a plan with a time fixed is held until that time has passed, so a
+/// title fetched for a plan is still here when its people sit down.
 /// </summary>
 public sealed class WantHolds(
     WantStore wants,
+    Plans.PlanStore plans,
     LibraryListing listing,
     WatchRecord record,
     ShowStore shows,
@@ -30,7 +32,7 @@ public sealed class WantHolds(
     public IReadOnlySet<string> Holding(DateTimeOffset now)
     {
         var oldest = now - TimeSpan.FromDays(Math.Max(0, options.Value.HoldDays));
-        var held = new HashSet<string>(StringComparer.Ordinal);
+        var held = plans.Titles(now);
         var titles = listing.Titles();
         var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
 

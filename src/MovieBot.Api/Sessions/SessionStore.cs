@@ -99,7 +99,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
             return WithCurrentHead(entry.State);
     }
 
-    private SessionEntry NewRoom(string sessionId, IEnumerable<string> admitted) => new()
+    private SessionEntry NewRoom(string sessionId, IEnumerable<string> admitted, bool open = true) => new()
     {
         State = new SessionState
         {
@@ -113,7 +113,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
             Epoch = Guid.NewGuid().ToString("n")
         },
         LastActivityUtc = clock.GetUtcNow(),
-        Admission = new RoomAdmission(open: true, admitted),
+        Admission = new RoomAdmission(open, admitted),
         MembersGoneSince = clock.GetUtcNow()
     };
 
@@ -130,6 +130,18 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         lock (entry.Gate)
             if (!entry.Admission.Enter(userId)) return false;
 
+        Changed?.Invoke();
+        return true;
+    }
+
+    /// <summary>
+    /// Makes a room ahead of the people it is for: closed, with <paramref name="admitted"/> let in, so
+    /// anybody else knocks. False when there already is such a room, which is left as it is; the door's
+    /// own place (<see cref="RoomDoors"/>) changes who is let into it.
+    /// </summary>
+    public bool CreateClosed(string sessionId, IEnumerable<string> admitted)
+    {
+        if (!_sessions.TryAdd(sessionId, NewRoom(sessionId, admitted, open: false))) return false;
         Changed?.Invoke();
         return true;
     }
@@ -844,8 +856,11 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     ///
     /// Presence is what keeps a room alive: a film playing to a room full of people is activity
     /// even when hours pass without anyone touching a control.
+    ///
+    /// <paramref name="keep"/> names rooms that are not forgotten however idle they are: those a plan
+    /// made ahead of its time.
     /// </summary>
-    public IReadOnlyList<string> Sweep(TimeSpan idleFor)
+    public IReadOnlyList<string> Sweep(TimeSpan idleFor, IReadOnlySet<string>? keep = null)
     {
         var cutoff = clock.GetUtcNow() - idleFor;
         var dropped = new List<string>();
@@ -854,6 +869,7 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         {
             if (!entry.Participants.IsEmpty) continue;
             if (entry.LastActivityUtc > cutoff) continue;
+            if (keep is not null && keep.Contains(id)) continue;
             if (!_sessions.TryRemove(id, out _)) continue;
             dropped.Add(id);
             lock (entry.Gate)

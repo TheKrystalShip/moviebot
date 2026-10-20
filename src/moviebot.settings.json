@@ -205,6 +205,16 @@
     "AskMinutes": 60
   },
 
+  // Plans. A time is fixed once FixAt people, the maker counted, say in to it. The room is made
+  // OpenMinutes before the fixed time, closed, with the people coming let in, and everybody coming is
+  // reminded RemindMinutes before it. The keeper looks every PassSeconds.
+  "Plans": {
+    "FixAt": 2,
+    "RemindMinutes": 15,
+    "OpenMinutes": 30,
+    "PassSeconds": 15
+  },
+
   // Following a show. An episode is looked for from the day after its air date until GiveUpDays past
   // it, asked of the tracker at most once per AskMinutes, and a followed show's description is asked
   // of the film database again after RefreshHours.

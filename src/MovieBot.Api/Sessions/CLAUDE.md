@@ -117,6 +117,21 @@ name it gave itself, holding the link, and no record anywhere is keyed by one.
   in the room would be the library streamed to whoever holds it. A room takes `Rooms:GuestsPerRoom`
   guests at once.
 
+## Plan rooms
+
+A plan (`Plans/`, `docs/api-contract.md` "Plans") makes its room ahead of its time. `PlanKeeper` is the
+only thing that does, and it goes through the same places every room change goes through.
+
+- **The room is made closed with the people coming let in** (`SessionStore.CreateClosed`), the creation
+  beside first-entry creation (`Enter`): the plan's id is the room's id, so nobody else holds it. A room
+  that is already there (somebody entered it ahead of time) is closed and has the people coming let in
+  through `RoomDoors`, the one place the door changes. The title is loaded paused at the start through
+  `RoomControls.ApplyAsync`, as machine work (`WatchNow.Server`), once the library holds it.
+- **The reaper leaves a plan's room alone until `Rooms:IdleTimeout` past the fixed time**
+  (`SessionStore.Sweep` takes the rooms `PlanStore.RoomsHeld` names), then reaps it as any room. The
+  plan is `done` once its room is gone after that. A room lost before then (a restart past its idle
+  window drops it on the way back in) is made again.
+
 ## Screens
 
 A screen is a hub connection signed in through the television client (`Oidc:TvClientId`) with a `sid`

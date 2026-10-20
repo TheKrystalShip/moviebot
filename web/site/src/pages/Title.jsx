@@ -130,7 +130,7 @@ export function Title({ id, category = null, fromDevice = false }) {
                 </WatchButton>
               )}
               {film.imdbId && <WantButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
-              {film.imdbId && <PlanButton imdbId={film.imdbId} />}
+              {film.imdbId && <PlanButton imdbId={film.imdbId} kind="film" />}
               {saving && (m.status === "ready" || (fetching && m.status === "transcoding" && film.imdbId)) && (
                 <DownloadButton titleId={m.id} imdbId={film.imdbId || null} ready={m.status === "ready"} head={{
                   name: (d && d.title) || filmName(m), context: film.year || (d && d.year) || null,

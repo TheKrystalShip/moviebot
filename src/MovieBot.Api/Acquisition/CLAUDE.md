@@ -77,13 +77,20 @@ What people want to watch is fetched ahead of them when it costs nobody anything
   running carries on when somebody starts watching; the transcode planner puts rooms first.
 - **Only a want whose token held `cinema:download` is fetched for** (`StoredWant.MayFetch`). Wants that
   keep to themselves still count towards how many people want a title.
-- **The order is a fixed plan first, then the most wanters, then the oldest want** (`WantFetchRules.Order`).
+- **A fixed plan's title is a candidate in its own right** (`WantFetchRules.WithPlans`). A plan creates
+  no want, so the maker's `cinema:download`, captured on the plan when it is made (`plans.may_fetch`),
+  stands in for it: a title only a plan names is fetched for the maker, and a title also wanted carries
+  the plan's time and gains the maker as a fetcher. A show plan fetches the episode it starts at, not the
+  wanters' next. `WantCandidate.PlannedAt` is the earliest time a plan fixed for the title begins.
+- **The order is a fixed plan first, the earliest time first, then the most wanters, then the oldest
+  want** (`WantFetchRules.Order`).
 - **A title is a candidate when the library does not hold it, the torrent client is not fetching it and
   the tracker offers a digital release.** A film is picked as Watch now picks it (source floor,
   `ReleaseLanguages`) at the best quality any wanter watches at, read from the width of the latest
   title each watched. A show fetches the earliest next episode among its wanters out of the season's
   pack, so a season stays one torrent, and is asked of the tracker through `ShowOfferCache`. A title the
-  tracker has nothing for is not asked again for `Wants:AskMinutes`.
+  tracker has nothing for is not asked again for `Wants:AskMinutes`, and a plan reads it as `waiting`
+  (`WantFetcher.AskedEmpty`).
 - **The torrent carries `want:<imdbId>`, and the first wanter is its requester.** `ReadyNotices` reads
   the tag and tells every person whose want on the title can be fetched, so each is told once by the
   notification's key, and a person already in a room playing the title is not.
@@ -110,7 +117,8 @@ hand-off, the one process that writes the media roots, deletes what it names. Th
   nobody has played since recording began, which is all that can be known about it.
 - **A title somebody wants and has not watched is never due** (`Wants/WantHolds`): a want younger than
   `Wants:HoldDays` from a person who has not finished the film, or every aired episode of the show, keeps
-  the title, and an episode's season with it. An older want holds nothing.
+  the title, and an episode's season with it. An older want holds nothing. The title of a plan with a
+  time fixed is held until that time has passed.
 - **A film that has not settled has no date.** A date for a film that is not on the clock would be
   invented.
 - **A film a room holds is never due**, whether or not anybody is in the room this second.

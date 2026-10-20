@@ -9,8 +9,12 @@ export const PROFILE_TABS = ["history", "following", "notifications", "playback"
 
 export const homePath = "/";
 export const wantsPath = "/wants";
-/** The form that plans watching a title together, prefilled with the title. */
-export const planPath = (imdbId) => `/plans/new?title=${seg(imdbId)}`;
+/** The person's plans to watch something together. */
+export const plansPath = "/plans";
+/** The form that plans watching a title together, prefilled with the title and its kind (`film` or `show`). */
+export const newPlanPath = (imdbId, kind) => "/plans/new" + (imdbId ? `?title=${seg(imdbId)}` + (kind === "show" ? "&kind=show" : "") : "");
+/** One plan, by its id. */
+export const planPath = (id) => `/plans/${seg(id)}`;
 export const aboutPath = "/about";
 /** The assistant's page. Not `/assistant`, which is the assistant's own service on the same origin. */
 export const chatPath = "/chat";

@@ -175,7 +175,7 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
               )}
               {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
               {s.imdbId && <WantButton imdbId={s.imdbId} kind="show" title={s.title} />}
-              {s.imdbId && <PlanButton imdbId={s.imdbId} />}
+              {s.imdbId && <PlanButton imdbId={s.imdbId} kind="show" />}
               {resume && (
                 <span className="kc-mono kc-quiet">
                   {episodeCode({ season: resume.season, number: resume.episode })}

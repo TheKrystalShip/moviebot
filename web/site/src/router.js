@@ -4,7 +4,7 @@
 import { createStore, useStore } from "@thekrystalship/krystal";
 import {
   ANIME, PROFILE_TABS, aboutPath, chatPath, discoverFilmPath, discoverPath, discoverShowPath, guestPath, homePath, libraryPath,
-  moviePath, pairPath, profilePath, roomPath, signedInPath, tvPath, wantsPath,
+  moviePath, newPlanPath, pairPath, planPath, plansPath, profilePath, roomPath, signedInPath, tvPath, wantsPath,
 } from "./paths.js";
 
 const decode = (s) => {
@@ -47,7 +47,7 @@ function arrived(segments, search) {
  * `notfound` and keeps the address as typed.
  *
  *   view      which page: home, movies, movie, tv, show, anime, anime-films, discover, discover-film,
- *             discover-show, wants, profile, about, chat, signed-in, room, guest, pair, embed,
+ *             discover-show, wants, plans, plan-new, plan, profile, about, chat, signed-in, room, guest, pair, embed,
  *             notfound
  *   category  `anime` for a shelf or a title's page under Anime; null everywhere else
  *   arg       the id the path carries: a title, a show, a film, a room or a code
@@ -100,6 +100,13 @@ function parse(href) {
       break;
     }
     case "wants": route = shaped("wants", wantsPath); break;
+    case "plans": {
+      const [first] = rest;
+      route = first === "new" ? shaped("plan-new", newPlanPath())
+        : first ? shaped("plan", planPath(first), { arg: first })
+          : shaped("plans", plansPath);
+      break;
+    }
     case "profile": {
       const tab = PROFILE_TABS.includes(rest[0]) && rest[0] !== PROFILE_TABS[0] ? rest[0] : null;
       route = shaped("profile", profilePath(tab), { tab, key: profilePath() });

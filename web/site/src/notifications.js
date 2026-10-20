@@ -62,4 +62,5 @@ export const KIND = {
   invite: { icon: "user-plus", tone: "teal" },
   episode: { icon: "tv", tone: "teal" },
   together: { icon: "users", tone: "teal" },
+  plan: { icon: "calendar-clock", tone: "teal" },
 };

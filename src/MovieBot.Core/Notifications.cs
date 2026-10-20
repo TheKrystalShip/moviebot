@@ -2,7 +2,7 @@ namespace TheKrystalShip.MovieBot.Core;
 
 /// <summary>
 /// What a notification is about. Each is one of the switches a person turns pushes on and off by,
-/// except an invite, which is addressed to one person on purpose and always pushed.
+/// except an invite and a plan, which are addressed to people on purpose and always pushed.
 /// </summary>
 public static class NotificationKinds
 {
@@ -20,6 +20,9 @@ public static class NotificationKinds
 
     /// <summary>A title this person wants is ready and somebody else visibly wants it too.</summary>
     public const string Together = "together";
+
+    /// <summary>A plan to watch something together was proposed, fixed, is about to start or was cancelled.</summary>
+    public const string Plan = "plan";
 }
 
 /// <summary>One line in a person's notifications, as the bell lists it.</summary>
@@ -71,13 +74,14 @@ public sealed record NotificationPreferences
     /// <summary>Off until switched on: the digest is always in the bell, and a push is opt-in.</summary>
     public bool Together { get; init; }
 
-    /// <summary>Whether a notification of this kind is pushed. An invite always is.</summary>
+    /// <summary>Whether a notification of this kind is pushed. An invite and a plan always are.</summary>
     public bool Allows(string kind) => kind switch
     {
         NotificationKinds.Available => Available,
         NotificationKinds.Ready => Ready,
         NotificationKinds.Episode => Episode,
         NotificationKinds.Together => Together,
+        NotificationKinds.Plan => true,
         _ => true,
     };
 }
