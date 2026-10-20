@@ -248,7 +248,9 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<FollowWatcher>());
 
 // What each person wants to watch, and what turns a want into what a page shows.
 builder.Services.AddSingleton<WantStore>();
+builder.Services.AddSingleton<WantMatcher>();
 builder.Services.AddSingleton<WantPresenter>();
+builder.Services.AddHostedService<TogetherDigest>();
 
 // Save offline: what each person saved onto which device or asked one to download, the tracks
 // measured for it, and the transfers under way, which yield to the rooms.

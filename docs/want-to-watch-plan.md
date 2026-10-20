@@ -60,22 +60,6 @@ each row before changing that area.
 | Actions: `cinema:watch`, `cinema:download`, `cinema:wish`, `cinema:offline`, ... | `Auth/CinemaActions.cs` | `docs/api-contract.md` "Signing in" |
 | Settings: one file, every default declared | `src/moviebot.settings.json`; `MovieBotSettings` in moviebot-acquire | repo `CLAUDE.md` Conventions |
 
-## 5. Phase 3: Matching
-
-- **Home shelf "Watch together"**: titles the person wants that at least one other person wants
-  visibly, ready ones first, each with the other wanters' faces. Served by a new view on
-  `/api/me/wants` (or `GET /api/me/together`), computed at read.
-- **For a show**, two wanters are together when their next unwatched episode is the same.
-- **Notification kind `together`**, one digest per person per day at most, keyed by person and day:
-  sent when a title the person wants is ready and somebody else visibly wants it, naming the title and
-  the people. It has a push switch like every other kind, off by default for push and always in the
-  bell (`Notifications/CLAUDE.md`).
-- **The title page's "Plan a watch"** button opens the plan form (phase 4) prefilled with the
-  visible wanters.
-
-Done when two test accounts wanting the same ready film each see it on the shelf and each gets one
-digest.
-
 ## 6. Phase 4: Plans
 
 ### Data

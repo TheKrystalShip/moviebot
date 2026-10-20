@@ -12,6 +12,7 @@ import { Spotlight } from "../components/Spotlight.jsx";
 import { useDiscoverSlides } from "../heroes.js";
 import { FilmScore } from "../components/FilmDetails.jsx";
 import { WantButton } from "../components/WantButton.jsx";
+import { PlanButton } from "../components/PlanButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
 import { CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, LandingFilters, ShelfPage, surprisePool, useSurprise } from "./DiscoverShelves.jsx";
@@ -268,6 +269,7 @@ function BestMatch({ found, here, held, shelf }) {
                     <Button variant="primary" size="xl" icon="play" onClick={() => navigate(watchHref(here.id))}>Watch</Button>
                   )}
                   <WantButton imdbId={found.imdbId} kind="film" title={found.title} />
+                  <PlanButton imdbId={found.imdbId} />
                   <Wanters imdbId={found.imdbId} />
                 </div>
               )
@@ -309,6 +311,7 @@ function ShowMatchActions({ found, shelf }) {
         <Button variant="primary" size="xl" icon="play" disabled={starting} onClick={watchFirst}>Watch</Button>
       )}
       <WantButton imdbId={found.imdbId} kind="show" title={found.title} />
+      <PlanButton imdbId={found.imdbId} />
       <Wanters imdbId={found.imdbId} />
     </div>
   );

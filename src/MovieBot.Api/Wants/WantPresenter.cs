@@ -22,6 +22,7 @@ public sealed class WantPresenter(
     TitleCategories categories,
     TitleGlances glances,
     WantStore wants,
+    WantMatcher matcher,
     WishList wishes,
     AcquisitionService acquisition,
     ILogger<WantPresenter> logger)
@@ -41,10 +42,23 @@ public sealed class WantPresenter(
         (await ViewsAsync(want.UserId, [want], ct)).Single();
 
     /// <summary>The people with a visible want on a title, the one asking left out.</summary>
-    public List<WanterView> Wanters(string imdbId, string exceptUserId)
+    public List<WanterView> Wanters(string imdbId, string exceptUserId) =>
+        WanterViews(wants.Wanters(imdbId, exceptUserId));
+
+    /// <summary>The titles the person wants that others visibly want at the same point, ready ones first.</summary>
+    public async Task<List<TogetherView>> TogetherAsync(string userId, CancellationToken ct)
+    {
+        var matches = matcher.Of(userId);
+        if (matches.Count == 0) return [];
+
+        var views = await ViewsAsync(userId, [.. matches.Select(m => m.Mine)], ct);
+        return [.. matches.Select((m, i) => new TogetherView { Want = views[i], With = WanterViews(m.With) })];
+    }
+
+    private List<WanterView> WanterViews(IEnumerable<StoredWant> list)
     {
         var titles = library.Titles();
-        return [.. wants.Wanters(imdbId, exceptUserId).Select(w => new WanterView
+        return [.. list.Select(w => new WanterView
         {
             UserId = w.UserId,
             Name = people.NameOf(w.UserId),

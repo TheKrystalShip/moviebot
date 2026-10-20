@@ -215,6 +215,7 @@ const KINDS = [
   { id: "available", title: "A title I want is out and can be fetched" },
   { id: "ready", title: "Something I asked for is ready to watch", sub: "Includes each episode of a season." },
   { id: "episode", title: "New episodes of shows you follow" },
+  { id: "together", title: "A title I want is ready and others want it too" },
 ];
 
 /** What this browser says about receiving pushes, when it cannot be switched on here. */

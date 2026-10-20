@@ -9,7 +9,11 @@ import { useLoad } from "../data.js";
  */
 export function Wanters({ imdbId }) {
   const wanters = useLoad(() => (imdbId ? api.wanters(imdbId).catch(() => []) : Promise.resolve([])), [imdbId]);
-  const people = wanters.data || [];
+  return <Faces people={wanters.data || []} />;
+}
+
+/** People as faces, as the API names them (`userId`, `name`); nothing for none. */
+export function Faces({ people }) {
   if (people.length === 0) return null;
   return (
     <div className="kc-wanters" role="list">

@@ -71,6 +71,19 @@ public sealed class WantStore(CinemaDatabase database)
         + "AND imdb_id IN (SELECT imdb_id FROM title_wants WHERE user_id = $user) GROUP BY imdb_id",
         r => (r.GetString(0), r.GetInt32(1)), ("$user", userId)).ToDictionary(p => p.Item1, p => p.Item2, StringComparer.Ordinal));
 
+    /// <summary>
+    /// The visible wants of everybody else on the titles the person wants, which is what matching
+    /// reads. Wants kept to their person are never in it.
+    /// </summary>
+    public List<StoredWant> OthersOnMine(string userId) => database.Read(c => c.Query(
+        $"SELECT {Columns} FROM title_wants WHERE visible = 1 AND user_id <> $user "
+        + "AND imdb_id IN (SELECT imdb_id FROM title_wants WHERE user_id = $user) ORDER BY since, user_id",
+        Read, ("$user", userId)));
+
+    /// <summary>Everybody who has a want, which is who a pass for matches runs for.</summary>
+    public List<string> People() => database.Read(c => c.Query(
+        "SELECT DISTINCT user_id FROM title_wants ORDER BY user_id", r => r.GetString(0)));
+
     /// <summary>The people whose want on a film lets the sweep ask the tracker for it, in the order they wanted it.</summary>
     public List<StoredWant> Wishers(string imdbId) => database.Read(c => c.Query(
         $"SELECT {Columns} FROM title_wants WHERE imdb_id = $imdb AND may_wish = 1 ORDER BY since, user_id",

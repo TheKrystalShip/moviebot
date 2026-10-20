@@ -12,6 +12,7 @@ import { Empty, Failed, WatchButton, useWatchLink } from "../components/Film.jsx
 import { CastGrid, Credits, FactGrid, FilmScore, Genres, Keywords, Tagline, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { WantButton } from "../components/WantButton.jsx";
+import { PlanButton } from "../components/PlanButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
 import { DownloadMark, SeasonDownload, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
 import { EpisodeRow } from "../components/EpisodeRow.jsx";
@@ -174,6 +175,7 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
               )}
               {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
               {s.imdbId && <WantButton imdbId={s.imdbId} kind="show" title={s.title} />}
+              {s.imdbId && <PlanButton imdbId={s.imdbId} />}
               {resume && (
                 <span className="kc-mono kc-quiet">
                   {episodeCode({ season: resume.season, number: resume.episode })}

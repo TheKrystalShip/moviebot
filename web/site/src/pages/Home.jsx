@@ -17,6 +17,7 @@ import { Spotlight } from "../components/Spotlight.jsx";
 import { useHomeSlides, useSlides } from "../heroes.js";
 import { BellButton } from "../components/Bell.jsx";
 import { WantCard } from "./Wants.jsx";
+import { TogetherCard } from "../components/Together.jsx";
 import { useWantList } from "../wants.js";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { inActivity } from "../discord/launch.js";
@@ -116,6 +117,7 @@ function ServerHome() {
   const progress = useLoad(() => api.progress().catch(() => []), []);
   const showList = useLoad(() => api.shows().catch(() => []), []);
   const wanted = useWantList().list;
+  const together = useLoad(() => api.together().catch(() => []), []).data || [];
   const canWish = useCan("cinema:wish");
   const anticipated = useLoad(() => (canWish ? api.anticipated().catch(() => []) : Promise.resolve([])), [canWish]);
   const waitedOn = anticipated.data || [];
@@ -198,6 +200,13 @@ function ServerHome() {
               </span>
             </a>
           )} />
+      )}
+
+      {together.length > 0 && (
+        <Rail
+          perView={POSTERS} icon="users" title="Watch together" count={together.length}
+          items={together} itemKey={(t) => t.want.imdbId}
+          renderItem={(t) => <TogetherCard together={t} />} />
       )}
 
       {wants.length > 0 && (

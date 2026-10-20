@@ -37,5 +37,10 @@ rest on. `Notifier` is the one way anything here tells anybody anything.
   told the episode is out; every other follower, with or without `autoDownload`, gets the `episode`
   notice, and so does everyone when the download is refused. A follower who switched `episode` off
   still has it in the bell.
+- **Titles to watch together are told as one digest a day.** `TogetherDigest` names, in one sentence, the
+  ready titles a person wants that somebody else visibly wants too (the same matching as `GET
+  /api/me/together`), keyed by person and day, and says nothing when it would repeat the last digest word
+  for word. The `together` kind is always in the bell and pushed only to a person who switched it on,
+  unlike every other switch, which starts on.
 - **Nothing is said about the library itself.** A film settling, moving between disks or leaving is
   the server's business; a person hears about what they asked for and what they follow.

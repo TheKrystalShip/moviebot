@@ -11,6 +11,7 @@ import { watchOnTv } from "../remoteWatch.js";
 import { useDriving } from "./WatchOnTv.jsx";
 import { DownloadButton, useOffersSaving } from "./DownloadButton.jsx";
 import { WantButton } from "./WantButton.jsx";
+import { PlanButton } from "./PlanButton.jsx";
 import { Wanters } from "./Wanters.jsx";
 
 /**
@@ -89,6 +90,7 @@ export function FilmActions({ imdbId, film, state, compact = false, children }) 
         {arriving && <Pill tone="info">preparing · {Math.floor(arriving.progress * 100)}%</Pill>}
 
         {(!compact || (a && a.notOut)) && <WantButton imdbId={imdbId} kind="film" title={film.title} />}
+        {!compact && <PlanButton imdbId={imdbId} />}
         {!compact && a && downloading && saving && (arriving || offer) && (
           <DownloadButton imdbId={imdbId} head={{
             name: film.title, context: film.year || null, runtime: film.runtimeMinutes ? clock(film.runtimeMinutes * 60) : null,

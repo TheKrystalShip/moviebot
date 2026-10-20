@@ -19,7 +19,7 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables, Sorts, Wants];
+    private static readonly string[] Steps = [Tables, Sorts, Wants, Together];
 
     public static int Version => Steps.Length;
 
@@ -36,6 +36,11 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string Together = """
+        -- Whether the together digest is pushed; it is always kept in the bell.
+        ALTER TABLE notification_preferences ADD COLUMN together INTEGER NOT NULL DEFAULT 0;
+        """;
 
     private const string Wants = """
         -- What each person wants to watch, by the title's IMDb id. visible is whether the want is named

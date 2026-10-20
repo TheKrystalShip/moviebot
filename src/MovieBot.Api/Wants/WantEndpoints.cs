@@ -22,6 +22,13 @@ public static class WantEndpoints
                 : NoPerson())
             .RequireAction(CinemaActions.ProfileRead);
 
+        // The titles the person wants that somebody else visibly wants too, computed when asked.
+        app.MapGet("/api/me/together", async (HttpContext context, WantPresenter present, CancellationToken ct) =>
+            PeopleEndpoints.Person(context) is { } person
+                ? Results.Ok(await present.TogetherAsync(person.UserId, ct))
+                : NoPerson())
+            .RequireAction(CinemaActions.ProfileRead);
+
         // Makes the want, or changes whether it is named. A title new to the person is asked of the film
         // database as the kind it is said to be, which is what tells a film from a show and an id from a
         // typo, and what keeps its description for the want to show. What the server may spend on the

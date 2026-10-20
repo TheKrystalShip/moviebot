@@ -9,6 +9,8 @@ export const PROFILE_TABS = ["history", "following", "notifications", "playback"
 
 export const homePath = "/";
 export const wantsPath = "/wants";
+/** The form that plans watching a title together, prefilled with the title. */
+export const planPath = (imdbId) => `/plans/new?title=${seg(imdbId)}`;
 export const aboutPath = "/about";
 /** The assistant's page. Not `/assistant`, which is the assistant's own service on the same origin. */
 export const chatPath = "/chat";

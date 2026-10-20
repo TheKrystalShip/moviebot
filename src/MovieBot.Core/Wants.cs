@@ -122,6 +122,15 @@ public sealed record WanterView
     public WantEpisode? NextEpisode { get; init; }
 }
 
+/// <summary>A title the asking person wants that others visibly want too, with those others.</summary>
+public sealed record TogetherView
+{
+    public required WantView Want { get; init; }
+
+    /// <summary>The other wanters who are at the same point: for a show, the same next episode.</summary>
+    public required List<WanterView> With { get; init; }
+}
+
 /// <summary>Want a title: what kind it is, and whether the want is named to everybody. An absent <see cref="Visible"/> is visible on create and leaves an existing want as it is.</summary>
 public sealed record SetWantRequest
 {

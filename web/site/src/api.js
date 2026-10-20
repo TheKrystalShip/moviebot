@@ -171,6 +171,8 @@ export const api = {
     if (!(error instanceof ApiError) || error.status !== 404) throw error;
     return null;
   }),
+  // The titles the person wants that others visibly want too, ready ones first, each with those others.
+  together: () => call("GET", "/api/me/together"),
   wanters: (imdbId) => call("GET", `/api/titles/${enc(imdbId)}/wanters`),
 
   // Shelving a film or a show as anime (`anime`) or with its kind (`general`), against the API's rule.

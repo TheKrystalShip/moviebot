@@ -552,6 +552,7 @@ leaving the library and is the same want when it comes back. The shapes are in
 | Route | Returns |
 |---|---|
 | `GET /api/me/wants` | `WantView[]` — the token's person's wants, newest first. Takes `cinema:profile.read` |
+| `GET /api/me/together` | `TogetherView[]` — `{want: WantView, with: WanterView[]}`: the titles the person wants that somebody else visibly wants too, ready ones first and then the newest want, computed when asked. A film is together with everybody who wants it; a show with those whose next unwatched episode is the same as the person's. A film the person has watched is left out, and so is a want kept to its person on either side. Takes `cinema:profile.read` |
 | `PUT /api/me/wants/{imdbId}` | `SetWantReply` for `{kind, visible?}` — makes the want or changes `visible`. `kind` is `film` or `show`; `visible` defaults to `true` on create and leaves the want as it is when absent on an update. `400` for an id that is not an IMDb id or a kind that is neither; `404` when the film database has no title of that kind under the id; `503` when it cannot be asked. Takes `cinema:watch` |
 | `DELETE /api/me/wants/{imdbId}` | `204` — removes it; `404` when the person had none. Takes `cinema:watch` |
 | `GET /api/titles/{imdbId}/wanters` | `WanterView[]` — the people with a visible want on the title, the asking person left out, newest first. Takes `cinema:watch` |
@@ -611,7 +612,7 @@ names. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 |---|---|
 | `GET /api/me/notifications` | `NotificationsReply` — `{unread, items: [{id, kind, text, url?, action?, createdAt, read}]}`, newest first; a person keeps their newest 50, none older than 30 days |
 | `POST /api/me/notifications/read` | 204 for `{ids?}` — marks those read, or all of them when none are named |
-| `GET /api/me/notifications/preferences` | `NotificationPreferences` — `{available, ready, episode}`, which kinds are pushed; each is on until switched off |
+| `GET /api/me/notifications/preferences` | `NotificationPreferences` — `{available, ready, episode, together}`, which kinds are pushed; each is on until switched off, except `together`, which is off until switched on |
 | `PUT /api/me/notifications/preferences` | `NotificationPreferences`, as stored |
 | `GET /api/push/key` | `{publicKey}` — this server's VAPID key, base64url, which a browser subscribes with |
 | `GET /api/me/push?endpoint=` | `{subscribed, devices}` — whether that browser is registered to this person, and how many are |
