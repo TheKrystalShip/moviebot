@@ -118,8 +118,7 @@ buttons of a film's, a show's and a catalogue page, the people with a visible wa
 faces (`components/Wanters.jsx`, `GET /api/titles/<imdbId>/wanters`): their initials, with their name as the tooltip and the
 face's label, and nothing when nobody else wants it. A want kept to its person is named nowhere. Plan a
 watch sits beside Want on a film's, a show's and a catalogue page and opens `/plans/new?title=<imdbId>` (with `kind=show` for a show).
-Home's Watch together row (`GET /api/me/together`) holds the wanted titles others want too, each a want card with the
-others' faces under it.
+Home's Watch together row (`GET /api/me/together`) holds the wanted titles others want too, each a want card.
 
 Every poster card says on its poster, above the name, what it holds (`kindLine` in
 `src/components/Film.jsx`): Movie, or Series in the accent, each Anime movie or Anime series for a title

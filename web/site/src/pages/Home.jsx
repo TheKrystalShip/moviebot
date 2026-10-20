@@ -17,7 +17,6 @@ import { Spotlight } from "../components/Spotlight.jsx";
 import { useHomeSlides, useSlides } from "../heroes.js";
 import { BellButton } from "../components/Bell.jsx";
 import { WantCard } from "./Wants.jsx";
-import { TogetherCard } from "../components/Together.jsx";
 import { PlanCard } from "../components/PlanCard.jsx";
 import { useWantList } from "../wants.js";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
@@ -217,7 +216,7 @@ function ServerHome() {
         <Rail
           perView={POSTERS} icon="users" title="Watch together" count={together.length}
           items={together} itemKey={(t) => t.want.imdbId}
-          renderItem={(t) => <TogetherCard together={t} />} />
+          renderItem={(t) => <WantCard want={t.want} />} />
       )}
 
       {wants.length > 0 && (

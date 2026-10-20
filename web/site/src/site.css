@@ -528,8 +528,6 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-wanters__avatar { width: 32px; height: 32px; font-size: 12px; border: var(--edge); }
 .kc-profile__wants { display: none; }
 @media (max-width: 768px) { .kc-profile__wants { display: block; } }
-.kc-together { display: flex; flex-direction: column; }
-.kc-together .kc-wanters { margin-top: 8px; }
 .kc-wants-switch { width: min(100%, 420px); }
 .kc-plan-form { max-width: 560px; gap: 20px; }
 .kc-plan-form__time { display: flex; gap: 8px; align-items: center; }

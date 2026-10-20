@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.53.3] - 2026-10-20
+
+### Changed
+
+- **Home's Watch together cards are plain want cards**, with no faces of the others under them.
+  Site 0.98.2.
+
 ## [3.53.2] - 2026-10-20
 
 ### Fixed
