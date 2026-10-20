@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.52.1] - 2026-10-20
+
+### Fixed
+
+- **Declining a proposal in the assistant settles as declined.** The plugin is on
+  `TheKrystalShip.Agent.Plugin` 1.0.0-dev.19, which answers a decline as the stream's result frame
+  when the chat asks for a stream, so the dock no longer reports "The action ended without a result".
+
 ## [3.52.0] - 2026-10-19
 
 ### Added
