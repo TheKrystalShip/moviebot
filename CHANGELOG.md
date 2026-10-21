@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.55.0] - 2026-10-21
+
+### Changed
+
+- **Making a plan is laid out as the title's own page.** `/plans/new` opens with the title's hero
+  (facts, score, story, credits) holding a line that says the plan so far, Make the plan and More info.
+  When is a month to pick days from beside the chosen day's times every half hour, starting at the
+  first one at least 5 minutes away, with Another time for any minute; the times picked are listed
+  with their calendar tile, how far off they are and when the film ends. Who is everybody who can be
+  asked as person cards to press, the people who want the title first and pressed already, with a
+  search and Everyone. The site is on krystal 3.5.0, whose `Calendar`, `TimeGrid` and `TimeInput`
+  draw it.
+- **Every title page draws its hero from one component**, `TitleHero`, with `TitleStory` for the
+  score, tagline and overview: a film's, a show's, a catalogue film's, a plan's and a new plan's.
+
 ## [3.54.1] - 2026-10-21
 
 ### Added

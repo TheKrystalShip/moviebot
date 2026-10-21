@@ -99,9 +99,10 @@ function Portrait({ person }) {
  * A person as a card: their portrait (initials where there is none), their name with an optional tag
  * beside it, and a line under it, which `dot` leads with a mark in a tone (`ok`, `warn`, `muted`,
  * `none`). `face` stands in for the portrait. With `href` the card opens it, and with `onClick` it is
- * a button.
+ * a button; `pressed` makes that button a two-state one, the card tinted while it is on. `end` sits
+ * at the card's far end.
  */
-export function PersonCard({ person, line, tag, dot, face, href, onClick, className = "" }) {
+export function PersonCard({ person, line, tag, dot, face, href, onClick, pressed, end, className = "" }) {
   const body = (
     <>
       {face || <Portrait person={person} />}
@@ -117,11 +118,12 @@ export function PersonCard({ person, line, tag, dot, face, href, onClick, classN
           </span>
         )}
       </div>
+      {end}
     </>
   );
   const classes = "kc-cast__card" + (className ? " " + className : "");
   if (href) return <a className={classes + " kc-cast__card--link"} {...linkProps(href)}>{body}</a>;
-  if (onClick) return <Button variant="bare" className={classes + " kc-cast__card--link kc-cast__card--button"} onClick={onClick}>{body}</Button>;
+  if (onClick) return <Button variant="bare" pressed={pressed} className={classes + " kc-cast__card--link kc-cast__card--button"} onClick={onClick}>{body}</Button>;
   return <div className={classes}>{body}</div>;
 }
 

@@ -9,7 +9,8 @@ import { navigate } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago, airDay, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, WatchButton, useWatchLink } from "../components/Film.jsx";
-import { CastGrid, Credits, FactGrid, FilmScore, Genres, Keywords, Tagline, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FactGrid, Keywords, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
+import { HeroPoster, TitleHero, TitleStory } from "../components/TitleHero.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
@@ -126,72 +127,55 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
 
   return (
     <div className="kc-page kc-title">
-      <section className="kc-tt">
-        {(s.backdropUrl || s.posterUrl) && <div className="kc-tt__art" style={{ backgroundImage: `url("${s.backdropUrl || s.posterUrl}")` }} />}
-        <div className="kc-tt__shade" />
-        <div className="kc-tt__grid">
-          <div className="kc-poster-art kc-tt__poster">
-            {s.posterUrl ? <img src={s.posterUrl} alt="" /> : <span className="kc-poster-art__name">{s.title}</span>}
-          </div>
-          <div className="kc-tt__body">
-            <span className="kc-eyebrow kc-eyebrow--muted">{shelved === ANIME ? "Anime series" : "TV series"}</span>
-            <h1>{s.title}</h1>
-            <div className="kc-tt__meta">
-              {years && <span>{years}</span>}
-              {s.certification && <span className="kc-cert">{s.certification}</span>}
-              <span>{seasons.length} {seasons.length === 1 ? "season" : "seasons"} · {episodeCount} episodes</span>
-              {s.status && <span>{s.status}</span>}
-            </div>
-            {(s.rating || s.genres.length > 0) && (
-              <div className="kc-tt__score-row">
-                {s.rating && <FilmScore rating={s.rating} votes={s.votes} />}
-                <Genres names={s.genres} />
-              </div>
-            )}
-            <Tagline text={s.tagline} />
-            {s.overview && <p className="kc-tt__overview">{s.overview}</p>}
-            <Credits film={{ creators: s.creators, personIds: s.personIds, cast: s.cast }} />
-
-            <div className="kc-actions">
-              {play && driving && (
-                <WatchOnTvActions titleId={play.titleId} sessionId={room && room.sessionId} at={play.positionSeconds}
-                  target={{ name: `${s.title} · ${episodeCode({ season: play.season, number: play.episode })}`, art: s.backdropUrl || s.posterUrl }} />
-              )}
-              {play && !driving && (
-                <WatchButton variant="primary" size="xl" icon={room ? "users" : "play"}
-                  titleId={play.titleId} sessionId={room && room.sessionId} at={play.positionSeconds}>
-                  {room ? `Join the room (${room.participants})` : resume ? "Resume" : "Watch"}
-                </WatchButton>
-              )}
-              {!play && opening && driving && (
-                <>
-                  <Button variant="primary" size="xl" icon="tv" disabled={starting || !online} onClick={watchFirstOnTv}>Watch on TV</Button>
-                  <Button variant="secondary" size="xl" icon="smartphone" disabled={starting || !online}
-                    onClick={() => { setRemoteMode(false); void watchFirst(); }}>Watch</Button>
-                </>
-              )}
-              {!play && opening && !driving && (
-                <Button variant="primary" size="xl" icon="play" disabled={starting || !online} onClick={watchFirst}>Watch</Button>
-              )}
-              {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
-              {s.imdbId && <WantButton imdbId={s.imdbId} kind="show" title={s.title} />}
-              {s.imdbId && <PlanButton imdbId={s.imdbId} kind="show" />}
-              {resume && (
-                <span className="kc-mono kc-quiet">
-                  {episodeCode({ season: resume.season, number: resume.episode })}
-                  {resume.positionSeconds > 0 ? ` · ${timeLeft(resume.durationSeconds - resume.positionSeconds)}` : ""}
-                </span>
-              )}
-            </div>
-            {s.imdbId && <Wanters imdbId={s.imdbId} />}
-            {s.nextEpisode && (
-              <span className="kc-mono kc-quiet">
-                Next episode: {episodeCode({ season: s.nextEpisode.season, number: s.nextEpisode.episode })} · {airDay(s.nextEpisode.airDate)}
-              </span>
-            )}
-          </div>
+      <TitleHero art={s.backdropUrl || s.posterUrl} poster={<HeroPoster url={s.posterUrl} name={s.title} />}
+        eyebrow={shelved === ANIME ? "Anime series" : "TV series"} title={s.title}>
+        <div className="kc-tt__meta">
+          {years && <span>{years}</span>}
+          {s.certification && <span className="kc-cert">{s.certification}</span>}
+          <span>{seasons.length} {seasons.length === 1 ? "season" : "seasons"} · {episodeCount} episodes</span>
+          {s.status && <span>{s.status}</span>}
         </div>
-      </section>
+        <TitleStory rating={s.rating} votes={s.votes} genres={s.genres} tagline={s.tagline} overview={s.overview} />
+        <Credits film={{ creators: s.creators, personIds: s.personIds, cast: s.cast }} />
+
+        <div className="kc-actions">
+          {play && driving && (
+            <WatchOnTvActions titleId={play.titleId} sessionId={room && room.sessionId} at={play.positionSeconds}
+              target={{ name: `${s.title} · ${episodeCode({ season: play.season, number: play.episode })}`, art: s.backdropUrl || s.posterUrl }} />
+          )}
+          {play && !driving && (
+            <WatchButton variant="primary" size="xl" icon={room ? "users" : "play"}
+              titleId={play.titleId} sessionId={room && room.sessionId} at={play.positionSeconds}>
+              {room ? `Join the room (${room.participants})` : resume ? "Resume" : "Watch"}
+            </WatchButton>
+          )}
+          {!play && opening && driving && (
+            <>
+              <Button variant="primary" size="xl" icon="tv" disabled={starting || !online} onClick={watchFirstOnTv}>Watch on TV</Button>
+              <Button variant="secondary" size="xl" icon="smartphone" disabled={starting || !online}
+                onClick={() => { setRemoteMode(false); void watchFirst(); }}>Watch</Button>
+            </>
+          )}
+          {!play && opening && !driving && (
+            <Button variant="primary" size="xl" icon="play" disabled={starting || !online} onClick={watchFirst}>Watch</Button>
+          )}
+          {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
+          {s.imdbId && <WantButton imdbId={s.imdbId} kind="show" title={s.title} />}
+          {s.imdbId && <PlanButton imdbId={s.imdbId} kind="show" />}
+          {resume && (
+            <span className="kc-mono kc-quiet">
+              {episodeCode({ season: resume.season, number: resume.episode })}
+              {resume.positionSeconds > 0 ? ` · ${timeLeft(resume.durationSeconds - resume.positionSeconds)}` : ""}
+            </span>
+          )}
+        </div>
+        {s.imdbId && <Wanters imdbId={s.imdbId} />}
+        {s.nextEpisode && (
+          <span className="kc-mono kc-quiet">
+            Next episode: {episodeCode({ season: s.nextEpisode.season, number: s.nextEpisode.episode })} · {airDay(s.nextEpisode.airDate)}
+          </span>
+        )}
+      </TitleHero>
 
       {seasons.length > 0 && (
         <section className="kc-section">

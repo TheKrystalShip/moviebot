@@ -6,10 +6,10 @@ import { useCan } from "../session.js";
 import { useCrumb } from "../crumbs.js";
 import { ANIME, moviePath } from "../paths.js";
 import { navigate } from "../router.js";
-import { clock } from "../time.js";
 import { Empty, Failed } from "../components/Film.jsx";
 import { FilmActions } from "../components/FilmActions.jsx";
-import { CastGrid, Credits, FactGrid, FilmScore, Genres, Keywords, Tagline, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FactGrid, Keywords, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
+import { FilmFacts, HeroPoster, TitleHero, TitleStory } from "../components/TitleHero.jsx";
 
 /**
  * A film by its IMDb id, here or not: what it is, and the way to it. A film that plays now goes to its
@@ -51,40 +51,17 @@ export function CatalogueFilm({ imdbId }) {
 
   return (
     <div className="kc-page kc-title">
-      <section className="kc-tt">
-        {(d.backdropUrl || d.posterUrl) && <div className="kc-tt__art" style={{ backgroundImage: `url("${d.backdropUrl || d.posterUrl}")` }} />}
-        <div className="kc-tt__shade" />
-        <div className="kc-tt__grid">
-          <div className="kc-poster-art kc-tt__poster">
-            {d.posterUrl ? <img src={d.posterUrl} alt="" /> : <span className="kc-poster-art__name">{d.title}</span>}
-          </div>
-          <div className="kc-tt__body">
-            <span className="kc-eyebrow kc-eyebrow--muted">{d.category === ANIME ? "Anime movie" : "Movie"}</span>
-            <h1>{d.title}</h1>
-            {(d.year || d.certification || d.runtimeMinutes) && (
-              <div className="kc-tt__meta">
-                {d.year && <span>{d.year}</span>}
-                {d.certification && <span className="kc-cert">{d.certification}</span>}
-                {d.runtimeMinutes && <span>{clock(d.runtimeMinutes * 60)}</span>}
-              </div>
-            )}
-            {a && a.notOut && (
-              <Pill tone="warn" icon="calendar-clock" className="kc-tt__notout">Not out digitally yet</Pill>
-            )}
-            {(d.rating || d.genres.length > 0) && (
-              <div className="kc-tt__score-row">
-                {d.rating && <FilmScore rating={d.rating} votes={d.votes} />}
-                <Genres names={d.genres} />
-              </div>
-            )}
-            <Tagline text={d.tagline} />
-            {d.overview && <p className="kc-tt__overview">{d.overview}</p>}
-            <Credits film={d} />
+      <TitleHero art={d.backdropUrl || d.posterUrl} poster={<HeroPoster url={d.posterUrl} name={d.title} />}
+        eyebrow={d.category === ANIME ? "Anime movie" : "Movie"} title={d.title}>
+        <FilmFacts film={d} />
+        {a && a.notOut && (
+          <Pill tone="warn" icon="calendar-clock" className="kc-tt__notout">Not out digitally yet</Pill>
+        )}
+        <TitleStory rating={d.rating} votes={d.votes} genres={d.genres} tagline={d.tagline} overview={d.overview} />
+        <Credits film={d} />
 
-            <FilmActions imdbId={imdbId} film={d} state={state} />
-          </div>
-        </div>
-      </section>
+        <FilmActions imdbId={imdbId} film={d} state={state} />
+      </TitleHero>
 
       {d.cast.length > 0 && (
         <section className="kc-section">

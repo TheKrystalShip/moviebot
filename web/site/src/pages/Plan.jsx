@@ -10,6 +10,8 @@ import { MAX_TIMES, localInput, timeBounds, usePlanChanges } from "../plans.js";
 import { ahead, clock, hourOf } from "../time.js";
 import { Empty, Failed, kindLine, watchHref } from "../components/Film.jsx";
 import { PersonCard } from "../components/FilmDetails.jsx";
+import { DateTile } from "../components/DateTile.jsx";
+import { HeroPoster, TitleHero } from "../components/TitleHero.jsx";
 import { InvitePeople } from "../components/InvitePeople.jsx";
 
 const ANSWERS = [
@@ -37,18 +39,6 @@ function useNarrow() {
     return () => list.removeEventListener("change", change);
   }, []);
   return narrow;
-}
-
-/** A day as a wall calendar shows it: the weekday over the date, the month under it. */
-function DateTile({ at }) {
-  const day = new Date(at);
-  return (
-    <span className="kc-date-tile" aria-hidden="true">
-      <span className="kc-date-tile__weekday">{day.toLocaleDateString("en-GB", { weekday: "short" })}</span>
-      <span className="kc-date-tile__day">{day.getDate()}</span>
-      <span className="kc-date-tile__month">{day.toLocaleDateString("en-GB", { month: "short" })}</span>
-    </span>
-  );
 }
 
 /** Where the plan is on its way to its room. */
@@ -283,41 +273,31 @@ export function Plan({ id }) {
 
   return (
     <div className="kc-page kc-plan">
-      <section className="kc-tt">
-        {art && <div className="kc-tt__art" style={{ backgroundImage: `url("${art}")` }} />}
-        <div className="kc-tt__shade" />
-        <div className="kc-tt__grid">
-          <div className="kc-poster-art kc-tt__poster">
-            {p.posterUrl ? <img src={p.posterUrl} alt="" /> : <span className="kc-poster-art__name">{p.title}</span>}
-          </div>
-          <div className="kc-tt__body">
-            <span className="kc-eyebrow kc-eyebrow--muted">Plan · {kindLine(p.kind, d).label}</span>
-            <h1>{p.title}</h1>
-            <div className="kc-tt__meta">
-              {p.kind === "show" && p.season != null && <span>{episodeCode({ season: p.season, number: p.number })}</span>}
-              {p.year && <span>{p.year}</span>}
-              {d && d.certification && <span className="kc-cert">{d.certification}</span>}
-              {p.kind !== "show" && d && d.runtimeMinutes && <span>{clock(d.runtimeMinutes * 60)}</span>}
-            </div>
-            <span className="kc-plan__maker">
-              <Icon name="calendar-heart" size={15} />
-              <span><b>{maker}</b> planned this{invited > 0 ? ` · ${invited} invited` : ""}</span>
-            </span>
-            <Stages state={p.state} />
-            <Failed error={plan.error} onRetry={plan.reload} />
-            <div className="kc-actions">
-              {p.state === "open" && p.roomId && (
-                <Button variant="primary" size="xl" icon="users" disabled={!online}
-                  onClick={() => navigate(watchHref(p.libraryId, p.roomId))}>Join the room</Button>
-              )}
-              <Button size="xl" icon="info" onClick={() => navigate(titleHref(p))}>More info</Button>
-              {p.mine && (
-                <Button variant="danger" size="xl" icon="x" disabled={busy || !online} onClick={() => setCancelling(true)}>Cancel plan</Button>
-              )}
-            </div>
-          </div>
+      <TitleHero art={art} poster={<HeroPoster url={p.posterUrl} name={p.title} />}
+        eyebrow={`Plan · ${kindLine(p.kind, d).label}`} title={p.title}>
+        <div className="kc-tt__meta">
+          {p.kind === "show" && p.season != null && <span>{episodeCode({ season: p.season, number: p.number })}</span>}
+          {p.year && <span>{p.year}</span>}
+          {d && d.certification && <span className="kc-cert">{d.certification}</span>}
+          {p.kind !== "show" && d && d.runtimeMinutes && <span>{clock(d.runtimeMinutes * 60)}</span>}
         </div>
-      </section>
+        <span className="kc-plan__maker">
+          <Icon name="calendar-heart" size={15} />
+          <span><b>{maker}</b> planned this{invited > 0 ? ` · ${invited} invited` : ""}</span>
+        </span>
+        <Stages state={p.state} />
+        <Failed error={plan.error} onRetry={plan.reload} />
+        <div className="kc-actions">
+          {p.state === "open" && p.roomId && (
+            <Button variant="primary" size="xl" icon="users" disabled={!online}
+              onClick={() => navigate(watchHref(p.libraryId, p.roomId))}>Join the room</Button>
+          )}
+          <Button size="xl" icon="info" onClick={() => navigate(titleHref(p))}>More info</Button>
+          {p.mine && (
+            <Button variant="danger" size="xl" icon="x" disabled={busy || !online} onClick={() => setCancelling(true)}>Cancel plan</Button>
+          )}
+        </div>
+      </TitleHero>
 
       <section className="kc-section">
         <h2>When</h2>

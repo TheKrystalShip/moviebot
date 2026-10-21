@@ -8,7 +8,8 @@ import { useCan, useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, PosterArt, WatchButton } from "../components/Film.jsx";
 import { WatchOnTvActions, useDriving } from "../components/WatchOnTv.jsx";
-import { CastGrid, Credits, FactGrid, FilmScore, Genres, Keywords, Tagline, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
+import { CastGrid, Credits, FactGrid, Keywords, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
+import { TitleHero, TitleStory } from "../components/TitleHero.jsx";
 import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
@@ -90,61 +91,46 @@ export function Title({ id, category = null, fromDevice = false }) {
 
   return (
     <div className="kc-page kc-title">
-      <section className="kc-tt">
-        {backdrop && <div className="kc-tt__art" style={{ backgroundImage: `url("${backdrop}")` }} />}
-        <div className="kc-tt__shade" />
-        <div className="kc-tt__grid">
-          <PosterArt title={title} className="kc-tt__poster" />
-          <div className="kc-tt__body">
-            <span className="kc-eyebrow kc-eyebrow--muted">{shelved === ANIME ? "Anime movie" : "Movie"}</span>
-            <h1>{(d && d.title) || film.name || m.title}</h1>
-            <div className="kc-tt__meta">
-              {(film.year || (d && d.year)) && <span>{film.year || d.year}</span>}
-              {d && d.certification && <span className="kc-cert">{d.certification}</span>}
-              <span>{clock(m.durationSeconds)}</span>
-            </div>
-            {d && (d.rating || d.genres.length > 0) && (
-              <div className="kc-tt__score-row">
-                {d.rating && <FilmScore rating={d.rating} votes={d.votes} />}
-                <Genres names={d.genres} />
-              </div>
-            )}
-            {d && <Tagline text={d.tagline} />}
-            {d && d.overview && <p className="kc-tt__overview">{d.overview}</p>}
-            {m.status === "transcoding" && (
-              <span className="kc-note">Still being prepared{m.headSeconds ? `: watchable up to ${clock(m.headSeconds)}` : ""}.</span>
-            )}
-            {m.status === "failed" && <span className="kc-note kc-note--danger">This film could not be prepared, so it cannot be played.</span>}
-            {d ? <Credits film={d} /> : film.starring && <Credits film={{ directors: [], writers: [], cast: film.starring.split(", ").map((name) => ({ name })) }} />}
-
-            <div className="kc-actions">
-              {m.status !== "failed" && driving && (
-                <WatchOnTvActions titleId={m.id} sessionId={room && room.sessionId} at={progress && progress.positionSeconds}
-                  target={{ name: (d && d.title) || filmName(m), meta: [film.year || (d && d.year), clock(m.durationSeconds)].filter(Boolean).join(" · "), art: backdrop }} />
-              )}
-              {m.status !== "failed" && !driving && (
-                <WatchButton variant="primary" size="xl" icon={room ? "users" : "play"}
-                  titleId={m.id} sessionId={room && room.sessionId} at={progress && progress.positionSeconds}>
-                  {room ? `Join the room (${room.participants})` : progress ? "Resume" : "Watch"}
-                  {!room && progress && <span className="kc-btn__sub">{timeLeft(m.durationSeconds - progress.positionSeconds)}</span>}
-                </WatchButton>
-              )}
-              {film.imdbId && <WantButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
-              {film.imdbId && <PlanButton imdbId={film.imdbId} kind="film" />}
-              {saving && (m.status === "ready" || (fetching && m.status === "transcoding" && film.imdbId)) && (
-                <DownloadButton titleId={m.id} imdbId={film.imdbId || null} ready={m.status === "ready"} head={{
-                  name: (d && d.title) || filmName(m), context: film.year || (d && d.year) || null,
-                  runtime: clock(m.durationSeconds), still: posterUrl(title), portrait: true, backdrop,
-                }} />
-              )}
-            </div>
-            {film.imdbId && !fromDevice && <Wanters imdbId={film.imdbId} />}
-            {played && (
-              <span className="kc-note">Played {ago(played.at)} by {playedBy}</span>
-            )}
-          </div>
+      <TitleHero art={backdrop} poster={<PosterArt title={title} className="kc-tt__poster" />}
+        eyebrow={shelved === ANIME ? "Anime movie" : "Movie"} title={(d && d.title) || film.name || m.title}>
+        <div className="kc-tt__meta">
+          {(film.year || (d && d.year)) && <span>{film.year || d.year}</span>}
+          {d && d.certification && <span className="kc-cert">{d.certification}</span>}
+          <span>{clock(m.durationSeconds)}</span>
         </div>
-      </section>
+        {d && <TitleStory rating={d.rating} votes={d.votes} genres={d.genres} tagline={d.tagline} overview={d.overview} />}
+        {m.status === "transcoding" && (
+          <span className="kc-note">Still being prepared{m.headSeconds ? `: watchable up to ${clock(m.headSeconds)}` : ""}.</span>
+        )}
+        {m.status === "failed" && <span className="kc-note kc-note--danger">This film could not be prepared, so it cannot be played.</span>}
+        {d ? <Credits film={d} /> : film.starring && <Credits film={{ directors: [], writers: [], cast: film.starring.split(", ").map((name) => ({ name })) }} />}
+
+        <div className="kc-actions">
+          {m.status !== "failed" && driving && (
+            <WatchOnTvActions titleId={m.id} sessionId={room && room.sessionId} at={progress && progress.positionSeconds}
+              target={{ name: (d && d.title) || filmName(m), meta: [film.year || (d && d.year), clock(m.durationSeconds)].filter(Boolean).join(" · "), art: backdrop }} />
+          )}
+          {m.status !== "failed" && !driving && (
+            <WatchButton variant="primary" size="xl" icon={room ? "users" : "play"}
+              titleId={m.id} sessionId={room && room.sessionId} at={progress && progress.positionSeconds}>
+              {room ? `Join the room (${room.participants})` : progress ? "Resume" : "Watch"}
+              {!room && progress && <span className="kc-btn__sub">{timeLeft(m.durationSeconds - progress.positionSeconds)}</span>}
+            </WatchButton>
+          )}
+          {film.imdbId && <WantButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
+          {film.imdbId && <PlanButton imdbId={film.imdbId} kind="film" />}
+          {saving && (m.status === "ready" || (fetching && m.status === "transcoding" && film.imdbId)) && (
+            <DownloadButton titleId={m.id} imdbId={film.imdbId || null} ready={m.status === "ready"} head={{
+              name: (d && d.title) || filmName(m), context: film.year || (d && d.year) || null,
+              runtime: clock(m.durationSeconds), still: posterUrl(title), portrait: true, backdrop,
+            }} />
+          )}
+        </div>
+        {film.imdbId && !fromDevice && <Wanters imdbId={film.imdbId} />}
+        {played && (
+          <span className="kc-note">Played {ago(played.at)} by {playedBy}</span>
+        )}
+      </TitleHero>
 
       {d && d.cast.length > 0 && (
         <section className="kc-section">
