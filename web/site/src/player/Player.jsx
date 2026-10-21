@@ -1,5 +1,5 @@
 import React from "react";
-import { Avatar, Button, Drawer, Icon, MenuItem, Toggle } from "@thekrystalship/krystal";
+import { Button, Drawer, Icon, MenuItem, Toggle } from "@thekrystalship/krystal";
 import { PlayerRoom } from "./engine/room.ts";
 import { api } from "./engine/api.ts";
 import { environment } from "./engine/environment.ts";
@@ -16,7 +16,8 @@ import { GestureHud, useStageGestures } from "./Gestures.jsx";
 import { ScrubBar } from "./ScrubBar.jsx";
 import { SkipLabels, inClosingStretch, useSkipOffer } from "./stretches.js";
 import { Volume } from "./Volume.jsx";
-import { ago } from "../time.js";
+import { Person } from "../components/Person.jsx";
+import { InvitePeople } from "../components/InvitePeople.jsx";
 import { AboutButton, AboutPanel, PauseCard, useAbout, usePausedLong } from "./About.jsx";
 import {
   MenuButton, MenuTitles, PlayerMenu, reach, audioValue, episodeValue, hasEpisodes, hasQualityChoice, qualityValue, subtitleValue,
@@ -43,24 +44,6 @@ const TinyHeight = 260;
 
 const noSubscribe = () => () => {};
 const noView = () => null;
-
-const Tones = ["teal", "info", "warn", "ok"];
-
-/** A person's mark: the first letter of their name on a colour that stays theirs. */
-function toneFor(userId) {
-  let hash = 0;
-  for (const ch of String(userId)) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return Tones[hash % Tones.length];
-}
-
-export function Person({ person, className = "" }) {
-  const title = [person.displayName, person.guest ? "guest" : null, person.buffering ? "buffering" : null].filter(Boolean).join(" · ");
-  return (
-    <Avatar name={person.displayName || "?"} tone={toneFor(person.userId)} letters={1} size="css" title={title}
-      status={person.buffering ? "warn" : undefined} statusLabel={person.buffering ? "buffering" : undefined}
-      className={"mp-avatar" + (person.guest ? " is-guest" : "") + (className ? " " + className : "")} />
-  );
-}
 
 /**
  * The people in the room, once each. A person on two devices is one person watching, and waiting
@@ -906,39 +889,15 @@ function InviteButton({ open, onToggle, icon = false }) {
 /**
  * Who may come into the room, and everybody who can be asked in. The room is open until somebody
  * closes it, and only an open room has a link to hand out: on a phone it goes to the phone's own
- * share sheet, elsewhere it is copied. An invite lets the person in, and is a push to their devices,
- * or a Discord message where no push reaches them; the row says which went out and nothing about
- * whether they saw it. Somebody already in the room is marked as watching.
+ * share sheet, elsewhere it is copied. An invite lets the person in (`InvitePeople`). Somebody already
+ * in the room is marked as watching.
  */
 function InvitePanel({ view, room, everyone, compact }) {
   const link = roomLink(view);
   const open = Boolean(view.door && view.door.open);
-  const [people, setPeople] = React.useState(null);
-  const [sent, setSent] = React.useState({});
-  React.useEffect(() => {
-    let live = true;
-    api.people().then((list) => live && setPeople(list), () => live && setPeople([]));
-    return () => { live = false; };
-  }, []);
-
   const here = new Set(everyone.map((p) => p.userId));
-  const invite = async (person) => {
-    setSent((s) => ({ ...s, [person.userId]: "sending" }));
-    try {
-      const reply = await api.invite(environment().sessionId(), person.userId);
-      setSent((s) => ({ ...s, [person.userId]: reply.delivery }));
-    } catch {
-      setSent((s) => ({ ...s, [person.userId]: "failed" }));
-    }
-  };
-  const status = (person) => {
-    if (here.has(person.userId)) return "In this room";
-    const state = sent[person.userId];
-    if (state === "push") return "Push sent · waiting for them";
-    if (state === "bell") return "In their notifications · waiting for them";
-    if (state === "failed") return "Could not be invited";
-    return person.lastSeenAt ? `Active ${ago(person.lastSeenAt)}` : "Not seen on the site";
-  };
+  const invite = React.useCallback(
+    (person) => api.invite(environment().sessionId(), person.userId).then((reply) => reply.delivery), []);
   const share = Boolean(compact && navigator.share);
   const title = `Watch ${filmName(view.manifest)}`;
 
@@ -954,30 +913,8 @@ function InvitePanel({ view, room, everyone, compact }) {
         {link && <LinkRow url={link} share={share} title={title} />}
       </section>
       <GuestAccess view={view} everyone={everyone} share={share} title={title} />
-      {people && people.length > 0 && (
-        <section className="mp-invite-panel__section mp-invite-panel__people">
-          <span className="mp-invite-panel__label">Invite people</span>
-          <div className="mp-invite-panel__list">
-            {people.map((person) => {
-              const state = sent[person.userId];
-              return (
-                <div key={person.userId} className="mp-invite-panel__person">
-                  <Person person={{ userId: person.userId, displayName: person.name }} className="mp-invite-panel__avatar" />
-                  <div className="mp-invite-panel__who">
-                    <span className="mp-invite-panel__name">{person.name}</span>
-                    <span className={"mp-invite-panel__status" + (state === "failed" ? " is-failed" : "")}>{status(person)}</span>
-                  </div>
-                  {here.has(person.userId)
-                    ? <span className="mp-invite-panel__here">Watching</span>
-                    : state === "push" || state === "bell"
-                      ? <span className="mp-invite-panel__sent"><Icon name="check" size={13} />Invited</span>
-                      : <Button variant="outline" size="sm" busy={state === "sending"} onClick={() => invite(person)}>Invite</Button>}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
+      <InvitePeople load={api.people} invite={invite} here={here} hereMark="Watching" hereStatus="In this room"
+        className="mp-invite-panel__section mp-invite-panel__people" />
     </div>
   );
 }

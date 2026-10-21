@@ -6,28 +6,21 @@ import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
 import { planPath } from "../paths.js";
 import { navigate } from "../router.js";
-import { Empty, Failed, PageHead } from "../components/Film.jsx";
-
-const MIN_MINUTES = 15;
-const MAX_DAYS = 30;
-const MAX_TIMES = 3;
-
-/** An instant as a `datetime-local` input holds it: local, to the minute. */
-function local(at) {
-  const shifted = new Date(at.getTime() - at.getTimezoneOffset() * 60000);
-  return shifted.toISOString().slice(0, 16);
-}
+import { MAX_TIMES, localInput, timeBounds } from "../plans.js";
+import { Failed, PageHead } from "../components/Film.jsx";
+import { PlanTitlePicker } from "../components/PlanTitlePicker.jsx";
 
 /** A time to start from: an hour ahead, on the half hour. */
 function suggested() {
   const at = new Date(Date.now() + 60 * 60000);
   at.setMinutes(Math.ceil(at.getMinutes() / 30) * 30, 0, 0);
-  return local(at);
+  return localInput(at);
 }
 
 /**
- * Plans watching a title together: one to three times, and who is asked. The title comes in the
- * address (`title`, and `kind` for a show), and the people with a visible want on it start ticked.
+ * Plans watching a title together: one or more times, and who is asked. The title comes in the
+ * address (`title`, and `kind` for a show), and the people with a visible want on it start ticked;
+ * with none in the address, the page finds one first.
  */
 export function PlanNew({ query }) {
   const imdbId = query.get("title");
@@ -46,7 +39,7 @@ export function PlanNew({ query }) {
     return (
       <div className="kc-page">
         <PageHead title="Plan a watch" />
-        <Empty icon="calendar-clock" title="No title" />
+        <PlanTitlePicker autoFocus />
       </div>
     );
   }
@@ -59,8 +52,7 @@ export function PlanNew({ query }) {
   };
 
   const now = Date.now();
-  const min = local(new Date(now + MIN_MINUTES * 60000));
-  const max = local(new Date(now + MAX_DAYS * 24 * 3600000));
+  const { min, max } = timeBounds(now);
   const valid = (value) => value && value >= min && value <= max;
   const ready = times.every(valid) && new Set(times).size === times.length;
 

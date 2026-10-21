@@ -27,6 +27,23 @@ export function ago(iso, now = Date.now()) {
   return days === 1 ? "yesterday" : `${days} days ago`;
 }
 
+/** How far ahead an instant is: "in 40 minutes", "in 3 hours", "tomorrow", "in 5 days"; "now" once it has come. */
+export function ahead(iso, now = Date.now()) {
+  const seconds = (new Date(iso).getTime() - now) / 1000;
+  if (seconds < 60) return "now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `in ${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `in ${hours} ${hours === 1 ? "hour" : "hours"}`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? "tomorrow" : `in ${days} days`;
+}
+
+/** An instant's hour and minute: "21:00". */
+export function hourOf(iso) {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
 /**
  * The stretch of time an instant falls in, for heading a list ordered by when things happened:
  * "Today", "Yesterday", "This week", then the month, with its year when it is not this one.

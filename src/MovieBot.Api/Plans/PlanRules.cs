@@ -12,11 +12,11 @@ public static class PlanRules
     /// <summary>The fewest proposed times a plan carries.</summary>
     public const int MinTimes = 1;
 
-    /// <summary>The most proposed times a plan carries.</summary>
-    public const int MaxTimes = 3;
+    /// <summary>The most times a plan holds still ahead: what it is made with, and what is suggested after.</summary>
+    public const int MaxTimes = 6;
 
-    /// <summary>How soon a proposed time may be, in minutes.</summary>
-    public const int SoonestMinutes = 15;
+    /// <summary>How soon a time put forward may be, in minutes.</summary>
+    public const int SoonestMinutes = 5;
 
     /// <summary>How far ahead a proposed time may be, in days.</summary>
     public const int FurthestDays = 30;
@@ -32,8 +32,8 @@ public static class PlanRules
     }
 
     /// <summary>
-    /// The proposed times, to the minute and without repeats, or why they cannot be: one to three, none
-    /// sooner than fifteen minutes or later than thirty days from <paramref name="now"/>.
+    /// The proposed times, to the minute and without repeats, or why they cannot be: one to
+    /// <see cref="MaxTimes"/>, each <see cref="Ahead"/>.
     /// </summary>
     public static (List<DateTimeOffset> Times, string? Refusal) Times(IEnumerable<DateTimeOffset>? requested, DateTimeOffset now)
     {
@@ -41,25 +41,21 @@ public static class PlanRules
         if (times.Count < MinTimes || times.Count > MaxTimes)
             return (times, $"A plan proposes {MinTimes} to {MaxTimes} times.");
 
-        var soonest = Minute(now) + TimeSpan.FromMinutes(SoonestMinutes);
-        var furthest = now + TimeSpan.FromDays(FurthestDays);
-        return times.Any(t => t < soonest || t > furthest)
-            ? (times, $"A time is at least {SoonestMinutes} minutes and at most {FurthestDays} days ahead.")
-            : (times, null);
+        return times.Any(t => !Ahead(t, now)) ? (times, NotAhead) : (times, null);
     }
+
+    /// <summary>Whether a time may be put forward: at least <see cref="SoonestMinutes"/> and at most <see cref="FurthestDays"/> ahead.</summary>
+    public static bool Ahead(DateTimeOffset at, DateTimeOffset now) =>
+        at >= Minute(now) + TimeSpan.FromMinutes(SoonestMinutes) && at <= now + TimeSpan.FromDays(FurthestDays);
+
+    /// <summary>Why a time that is not <see cref="Ahead"/> is refused.</summary>
+    public static readonly string NotAhead = $"A time is at least {SoonestMinutes} minutes and at most {FurthestDays} days ahead.";
 
     /// <summary>How many people said <c>in</c> to a time.</summary>
     public static int In(StoredPlan plan, DateTimeOffset at) =>
         plan.Answers.Count(a => a.At == at && a.Answer == PlanAnswers.In);
 
-    /// <summary>
-    /// The time to fix after somebody answered <paramref name="answered"/>: that time, when the plan is
-    /// proposed and enough people said <c>in</c> to it. The first time to get there is the one.
-    /// </summary>
-    public static DateTimeOffset? AutoFix(StoredPlan plan, DateTimeOffset answered, int fixAt) =>
-        plan.State == PlanStates.Proposed && In(plan, answered) >= Math.Max(1, fixAt) ? answered : null;
-
-    /// <summary>The people who said <c>in</c> or <c>maybe</c> to the plan's fixed time, which is who the room lets in.</summary>
+    /// <summary>The people who said <c>in</c> or <c>maybe</c> to the plan's picked time, which is who the room lets in.</summary>
     public static List<string> Coming(StoredPlan plan) => plan.FixedTime is not { } at ? []
         : [.. plan.People.Where(u => plan.Answers.Any(a => a.At == at && a.UserId == u && a.Answer is PlanAnswers.In or PlanAnswers.Maybe))];
 

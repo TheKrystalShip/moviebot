@@ -411,20 +411,6 @@
 }
 .mp-invite-panel__end { align-self: flex-end; margin: -4px -9px -6px 0; }
 .mp-invite-panel__people { padding: 12px 8px 8px; gap: 4px; }
-.mp-invite-panel__people > .mp-invite-panel__label { padding: 0 8px 2px; }
-.mp-invite-panel__list { display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow-y: auto; }
-.mp-invite-panel__person { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 8px; border-radius: var(--r-sm); }
-.mp-invite-panel__person:hover { background: color-mix(in srgb, var(--art-fg-white) 4%, transparent); }
-.mp-invite-panel .mp-avatar.mp-invite-panel__avatar { width: 32px; height: 32px; margin-left: 0; border: 0; }
-.mp-invite-panel__who { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
-.mp-invite-panel__name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mp-invite-panel__status { font-size: 11.5px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mp-invite-panel__status.is-failed { color: var(--danger-fg); white-space: normal; }
-.mp-invite-panel__sent { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--fg-3); padding: 0 4px; }
-.mp-invite-panel__here {
-  font-size: 11.5px; font-weight: 600; color: var(--success-fg); background: var(--success-bg);
-  padding: 3px 9px; border-radius: var(--r-pill);
-}
 
 /* ── What is playing ── the (i) at the top bar's end, its pane down the right edge, and the card a
    pause leaves over the left of the film. */

@@ -121,7 +121,7 @@ public sealed record PersonView
     public DateTimeOffset? LastSeenAt { get; init; }
 }
 
-/// <summary>Ask one person into a room.</summary>
+/// <summary>Ask one person into a room or a plan.</summary>
 public sealed record InviteRequest
 {
     public required string UserId { get; init; }

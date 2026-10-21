@@ -39,17 +39,37 @@ public sealed class PlanTests : IDisposable
         id, imdb, WantKinds.Film, null, null, "maker", mayFetch,
         times.Length == 0 ? [Now.AddHours(1), Now.AddHours(3)] : times, ["bea", "cal"], Now);
 
+    // ---- Inviting -----------------------------------------------------------------
+
+    [Fact]
+    public void A_plan_takes_a_person_after_the_others_until_it_invites_its_most()
+    {
+        Make();
+        Assert.Equal(InviteOutcome.Invited, _plans.Invite("p1", "dee", Now));
+        Assert.Equal(["maker", "bea", "cal", "dee"], _plans.Get("p1")!.People);
+        Assert.Equal(InviteOutcome.AlreadyIn, _plans.Invite("p1", "dee", Now));
+
+        for (var i = 0; i < PlanRules.MaxInvited - 3; i++) Assert.Equal(InviteOutcome.Invited, _plans.Invite("p1", $"guest{i}", Now));
+        Assert.Equal(InviteOutcome.Full, _plans.Invite("p1", "one-too-many", Now));
+
+        Make("p2");
+        Assert.True(_plans.Cancel("p2"));
+        Assert.Equal(InviteOutcome.NoSuchPlan, _plans.Invite("p2", "dee", Now));
+        Assert.Equal(InviteOutcome.NoSuchPlan, _plans.Invite("missing", "dee", Now));
+    }
+
     // ---- The rules ----------------------------------------------------------------
 
     [Fact]
-    public void A_plan_proposes_one_to_three_times_between_fifteen_minutes_and_thirty_days_ahead()
+    public void A_plan_proposes_up_to_six_times_between_five_minutes_and_thirty_days_ahead()
     {
-        Assert.Null(PlanRules.Times([Now.AddMinutes(15)], Now).Refusal);
+        Assert.Null(PlanRules.Times([Now.AddMinutes(5)], Now).Refusal);
         Assert.Null(PlanRules.Times([Now.AddDays(30)], Now).Refusal);
-        Assert.NotNull(PlanRules.Times([Now.AddMinutes(10)], Now).Refusal);
+        Assert.NotNull(PlanRules.Times([Now.AddMinutes(4)], Now).Refusal);
         Assert.NotNull(PlanRules.Times([Now.AddDays(31)], Now).Refusal);
         Assert.NotNull(PlanRules.Times([], Now).Refusal);
-        Assert.NotNull(PlanRules.Times([Now.AddHours(1), Now.AddHours(2), Now.AddHours(3), Now.AddHours(4)], Now).Refusal);
+        Assert.Null(PlanRules.Times(Enumerable.Range(1, 6).Select(h => Now.AddHours(h)), Now).Refusal);
+        Assert.NotNull(PlanRules.Times(Enumerable.Range(1, 7).Select(h => Now.AddHours(h)), Now).Refusal);
     }
 
     [Fact]
@@ -93,21 +113,19 @@ public sealed class PlanTests : IDisposable
     }
 
     [Fact]
-    public void A_time_is_fixed_by_the_answer_that_brings_it_to_the_threshold()
+    public void Answers_never_pick_a_time()
     {
         var plan = Make();
-        var first = plan.Times[0];
-        Assert.Null(PlanRules.AutoFix(plan, first, fixAt: 3));
-        Assert.Equal(first, PlanRules.AutoFix(plan, first, fixAt: 1));
+        foreach (var user in new[] { "bea", "cal" }) _plans.Answer("p1", plan.Times[0], user, PlanAnswers.In, Now);
 
-        _plans.Answer("p1", first, "bea", PlanAnswers.In, Now);
         var after = _plans.Get("p1")!;
-        Assert.Equal(first, PlanRules.AutoFix(after, first, fixAt: 2));
-        Assert.Null(PlanRules.AutoFix(after, after.Times[1], fixAt: 2));
+        Assert.Equal(PlanStates.Proposed, after.State);
+        Assert.Null(after.FixedTime);
+        Assert.Equal(3, PlanRules.In(after, plan.Times[0]));
     }
 
     [Fact]
-    public void Maybe_and_cant_do_not_count_towards_fixing()
+    public void Maybe_and_cant_are_not_counted_in()
     {
         var plan = Make();
         _plans.Answer("p1", plan.Times[0], "bea", PlanAnswers.Maybe, Now);
@@ -152,23 +170,54 @@ public sealed class PlanTests : IDisposable
     }
 
     [Fact]
-    public void Fixing_drops_the_other_times_and_their_answers()
+    public void Picking_a_time_keeps_every_time_and_answer_and_the_maker_picks_again()
     {
         var plan = Make();
         _plans.Answer("p1", plan.Times[1], "bea", PlanAnswers.In, Now);
 
         Assert.True(_plans.Fix("p1", plan.Times[0]));
+        var picked = _plans.Get("p1")!;
+        Assert.Equal(PlanStates.Fixed, picked.State);
+        Assert.Equal(plan.Times[0], picked.FixedTime);
+        Assert.Equal(plan.Times, picked.Times);
+        Assert.Contains(new StoredAnswer(plan.Times[1], "bea", PlanAnswers.In), picked.Answers);
 
-        var fixedPlan = _plans.Get("p1")!;
-        Assert.Equal(PlanStates.Fixed, fixedPlan.State);
-        Assert.Equal(plan.Times[0], fixedPlan.FixedTime);
-        Assert.Equal([plan.Times[0]], fixedPlan.Times);
-        Assert.All(fixedPlan.Answers, a => Assert.Equal(plan.Times[0], a.At));
-        Assert.False(_plans.Fix("p1", plan.Times[0]));
+        Assert.True(_plans.Fix("p1", plan.Times[1]));
+        Assert.Equal(plan.Times[1], _plans.Get("p1")!.FixedTime);
+
+        _plans.Open("p1", "room");
+        Assert.True(_plans.Fix("p1", plan.Times[0]));
+        Assert.Equal(PlanStates.Open, _plans.Get("p1")!.State);
+        Assert.False(_plans.Fix("p1", Now.AddDays(9)));
     }
 
     [Fact]
-    public void Answers_change_until_the_plan_opens_and_only_for_the_people_in_it()
+    public void Anybody_in_a_plan_suggests_a_time_they_are_in_for_up_to_six_ahead()
+    {
+        var plan = Make();
+        var later = Now.AddHours(5);
+
+        Assert.Equal(SuggestOutcome.Suggested, _plans.Suggest("p1", later, "bea", Now));
+        var after = _plans.Get("p1")!;
+        Assert.Contains(later, after.Times);
+        Assert.Equal("bea", after.SuggestedBy[later]);
+        Assert.Equal("maker", after.SuggestedBy[plan.Times[0]]);
+        Assert.Contains(new StoredAnswer(later, "bea", PlanAnswers.In), after.Answers);
+
+        Assert.Equal(SuggestOutcome.AlreadyThere, _plans.Suggest("p1", later, "cal", Now));
+        Assert.Equal(SuggestOutcome.NotInPlan, _plans.Suggest("p1", Now.AddHours(6), "stranger", Now));
+        for (var h = 6; h <= 8; h++) Assert.Equal(SuggestOutcome.Suggested, _plans.Suggest("p1", Now.AddHours(h), "cal", Now));
+        Assert.Equal(SuggestOutcome.Full, _plans.Suggest("p1", Now.AddHours(9), "cal", Now));
+
+        // A time that has passed no longer counts against the plan.
+        Assert.Equal(SuggestOutcome.Suggested, _plans.Suggest("p1", Now.AddHours(9), "cal", Now.AddHours(2)));
+
+        _plans.Cancel("p1");
+        Assert.Equal(SuggestOutcome.NotInPlan, _plans.Suggest("p1", Now.AddHours(10), "cal", Now));
+    }
+
+    [Fact]
+    public void Answers_change_while_the_plan_is_kept_and_only_for_the_people_in_it()
     {
         var plan = Make();
         var at = plan.Times[0];
@@ -182,21 +231,30 @@ public sealed class PlanTests : IDisposable
         _plans.Fix("p1", at);
         Assert.Equal(AnswerOutcome.Stored, _plans.Answer("p1", at, "cal", PlanAnswers.In, Now));
         _plans.Open("p1", "room");
-        Assert.Equal(AnswerOutcome.Closed, _plans.Answer("p1", at, "cal", PlanAnswers.Cant, Now));
+        Assert.Equal(AnswerOutcome.Stored, _plans.Answer("p1", at, "cal", PlanAnswers.Cant, Now));
+        _plans.Finish("p1");
+        Assert.Equal(AnswerOutcome.NotInPlan, _plans.Answer("p1", at, "cal", PlanAnswers.In, Now));
     }
 
     [Fact]
-    public void A_plan_cancels_before_it_opens_and_not_after()
+    public void Cancelling_deletes_the_plan_whatever_it_is_at()
     {
         Make("a");
         Make("b");
+        Make("c");
         _plans.Fix("b", _plans.Get("b")!.Times[0]);
         _plans.Open("b", "room");
+        _plans.Fix("c", _plans.Get("c")!.Times[0]);
+        _plans.Open("c", "room-c");
+        _plans.Finish("c");
 
         Assert.True(_plans.Cancel("a"));
         Assert.False(_plans.Cancel("a"));
-        Assert.False(_plans.Cancel("b"));
-        Assert.Equal(PlanStates.Cancelled, _plans.Get("a")!.State);
+        Assert.True(_plans.Cancel("b"));
+        Assert.False(_plans.Cancel("c"));
+        Assert.Null(_plans.Get("a"));
+        Assert.Null(_plans.Get("b"));
+        Assert.Equal(0L, _database.Read(c => c.Count("SELECT COUNT(*) FROM plan_answers")));
     }
 
     [Fact]
@@ -208,7 +266,7 @@ public sealed class PlanTests : IDisposable
         Assert.False(_plans.Finish("p1"));
         Assert.True(_plans.Open("p1", "room"));
         Assert.True(_plans.Finish("p1"));
-        Assert.Equal(PlanStates.Done, _plans.Get("p1")!.State);
+        Assert.Null(_plans.Get("p1"));
     }
 
     [Fact]
@@ -235,15 +293,43 @@ public sealed class PlanTests : IDisposable
     }
 
     [Fact]
-    public void A_finished_plan_is_listed_for_a_week()
+    public void A_watched_or_cancelled_plan_is_listed_nowhere()
     {
         var plan = Make();
+        Make("p2");
         _plans.Fix("p1", plan.Times[0]);
         _plans.Open("p1", "room");
         _plans.Finish("p1");
+        _plans.Cancel("p2");
 
-        Assert.Single(_plans.For("bea", plan.Times[0].AddDays(6)));
-        Assert.Empty(_plans.For("bea", plan.Times[0].AddDays(8)));
+        Assert.Empty(_plans.For("bea", Now));
+    }
+
+    [Fact]
+    public void A_file_brought_forward_keeps_its_going_plans_with_their_times_credited_to_the_maker_and_drops_the_ended()
+    {
+        var path = Path.Combine(_root, "older.db");
+        PreviousSchema.Build(path, ["Tables", "Sorts", "Wants", "Together", "Plans", "TitleScores"], """
+            INSERT INTO plans (id, imdb_id, kind, made_by, made_at, may_fetch, state) VALUES
+                ('going', 'tt1', 'film', 'maker', '2026-10-01T00:00:00.0000000Z', 1, 'proposed'),
+                ('watched', 'tt1', 'film', 'maker', '2026-10-01T00:00:00.0000000Z', 1, 'done'),
+                ('off', 'tt1', 'film', 'maker', '2026-10-01T00:00:00.0000000Z', 1, 'cancelled');
+            INSERT INTO plan_people (plan_id, user_id, invited_at) VALUES
+                ('going', 'maker', '2026-10-01T00:00:00.0000000Z'), ('watched', 'maker', '2026-10-01T00:00:00.0000000Z'),
+                ('off', 'maker', '2026-10-01T00:00:00.0000000Z');
+            INSERT INTO plan_times (plan_id, at) VALUES
+                ('going', '2026-10-21T18:00:00.0000000Z'), ('watched', '2026-10-21T18:00:00.0000000Z'),
+                ('off', '2026-10-21T18:00:00.0000000Z');
+            INSERT INTO plan_answers (plan_id, at, user_id, answer, answered_at) VALUES
+                ('watched', '2026-10-21T18:00:00.0000000Z', 'maker', 'in', '2026-10-01T00:00:00.0000000Z');
+            """);
+
+        var store = new PlanStore(new CinemaDatabase(path));
+
+        Assert.Null(store.Get("watched"));
+        Assert.Null(store.Get("off"));
+        var going = store.Get("going")!;
+        Assert.Equal("maker", going.SuggestedBy[going.Times.Single()]);
     }
 
     // ---- Prefetch ------------------------------------------------------------------

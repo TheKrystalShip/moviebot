@@ -1,0 +1,19 @@
+/* The people who can be asked in, each with Invite (`InvitePeople.jsx`): the room's Invite panel and a plan's. */
+.kc-invite-people { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.kc-invite-people__label {
+  display: flex; align-items: baseline; gap: 8px; min-height: 16px; padding: 0 8px 2px;
+  font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-3); font-weight: 600;
+}
+.kc-invite-people__list { display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow-y: auto; }
+.kc-invite-people__person { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 8px; border-radius: var(--r-sm); }
+.kc-invite-people__person:hover { background: color-mix(in srgb, var(--art-fg-white) 4%, transparent); }
+.kc-invite-people .kc-invite-people__avatar { width: 32px; height: 32px; flex: none; margin-left: 0; border: 0; }
+.kc-invite-people__who { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.kc-invite-people__name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kc-invite-people__status { font-size: 11.5px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kc-invite-people__status.is-failed { color: var(--danger-fg); white-space: normal; }
+.kc-invite-people__sent { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--fg-3); padding: 0 4px; }
+.kc-invite-people__here {
+  font-size: 11.5px; font-weight: 600; color: var(--success-fg); background: var(--success-bg);
+  padding: 3px 9px; border-radius: var(--r-pill); white-space: nowrap;
+}

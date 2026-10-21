@@ -1,5 +1,5 @@
 import React from "react";
-import { Avatar, Icon, Pill, Skeleton } from "@thekrystalship/krystal";
+import { Avatar, Button, Icon, Pill, Skeleton } from "@thekrystalship/krystal";
 import { discoverPersonPath } from "../paths.js";
 import { linkProps } from "../router.js";
 
@@ -95,25 +95,44 @@ function Portrait({ person }) {
   return <Avatar src={person.portraitUrl} name={person.name} tone="muted" size="css" className="kc-cast__face" />;
 }
 
+/**
+ * A person as a card: their portrait (initials where there is none), their name with an optional tag
+ * beside it, and a line under it, which `dot` leads with a mark in a tone (`ok`, `warn`, `muted`,
+ * `none`). `face` stands in for the portrait. With `href` the card opens it, and with `onClick` it is
+ * a button.
+ */
+export function PersonCard({ person, line, tag, dot, face, href, onClick, className = "" }) {
+  const body = (
+    <>
+      {face || <Portrait person={person} />}
+      <div className="kc-cast__text">
+        <span className="kc-cast__name">
+          <span className="kc-cast__name-text">{person.name}</span>
+          {tag && <Pill size="sm" tone="accent">{tag}</Pill>}
+        </span>
+        {line && (
+          <span className="kc-cast__role">
+            {dot && <span className={"kc-cast__dot kc-cast__dot--" + dot} aria-hidden="true" />}
+            {line}
+          </span>
+        )}
+      </div>
+    </>
+  );
+  const classes = "kc-cast__card" + (className ? " " + className : "");
+  if (href) return <a className={classes + " kc-cast__card--link"} {...linkProps(href)}>{body}</a>;
+  if (onClick) return <Button variant="bare" className={classes + " kc-cast__card--link kc-cast__card--button"} onClick={onClick}>{body}</Button>;
+  return <div className={classes}>{body}</div>;
+}
+
 /** The billing, each person the film database has an id for leading to their work in Discover. */
 export function CastGrid({ cast }) {
   return (
     <div className="kc-cast">
-      {cast.map((c) => {
-        const body = (
-          <>
-            <Portrait person={c} />
-            <div className="kc-cast__text">
-              <span className="kc-cast__name">{c.name}</span>
-              {c.character && <span className="kc-cast__role">{c.character}</span>}
-            </div>
-          </>
-        );
-        const key = c.name + (c.character || "");
-        return c.personId
-          ? <a key={key} className="kc-cast__card kc-cast__card--link" {...linkProps(discoverPersonPath(c.personId))}>{body}</a>
-          : <div key={key} className="kc-cast__card">{body}</div>;
-      })}
+      {cast.map((c) => (
+        <PersonCard key={c.name + (c.character || "")} person={c} line={c.character}
+          href={c.personId ? discoverPersonPath(c.personId) : undefined} />
+      ))}
     </div>
   );
 }

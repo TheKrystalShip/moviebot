@@ -604,44 +604,51 @@ leaving the library and is the same want when it comes back. The shapes are in
 
 ### Plans
 
-A plan is a title, one to three proposed times and the people invited. The people answer, a time is
-settled, the room is made ahead of it, and everybody coming is reminded. A plan creates no want. It is
-shown to its maker and the people invited and to nobody else: for anybody else every route below answers
-`404`, as if the plan did not exist. The shapes are in `src/MovieBot.Core/Plans.cs`.
+A plan is a title, the times put forward for it and the people invited. Nothing about it locks: anybody
+in it suggests another time and answers any time, and the maker picks a time and picks again. A plan is
+kept only while it is going: the maker cancelling it, or its room going after the picked time (it was
+watched), deletes it with its times, people and answers. The room is made ahead of the picked time and everybody coming is reminded. A
+plan creates no want. It is shown to its maker and the people invited and to nobody else: for anybody
+else every route below answers `404`, as if the plan did not exist. The shapes are in
+`src/MovieBot.Core/Plans.cs`.
+
+A time is put forward at least 5 minutes and at most 30 days ahead, kept to the minute, and a plan holds
+at most 6 times still ahead (`PlanRules`).
 
 | Route | Returns |
 |---|---|
-| `POST /api/plans` | `PlanView` for `{imdbId, kind, times, people, season?, number?}`. `kind` is `film` or `show`; `times` is one to three instants, each between 15 minutes and 30 days ahead and kept to the minute; `people` are accounts `/api/people` names (the maker is in the plan whether named or not, at most 20 others). A show starts at `season` and `number`, else at the maker's next episode. The maker is `in` for every time. `400` for a bad id, kind, time or count, or a show with no episode to start at; `404` for somebody unknown or a title the film database does not have; `409` for a film the tracker shows is not out digitally, or a show's episode the film database dates to a day it is not yet due on (a tracker that does not answer, or an episode with no date, refuses nothing); `503` when the film database cannot be asked. Takes `cinema:watch` |
-| `GET /api/me/plans` | `PlanView[]` — the plans the person is in that are not over, soonest first, then those that ended in the last week. Takes `cinema:watch` |
+| `POST /api/plans` | `PlanView` for `{imdbId, kind, times, people, season?, number?}`. `kind` is `film` or `show`; `times` is one to six instants; `people` are accounts `/api/people` names (the maker is in the plan whether named or not, at most 20 others). A show starts at `season` and `number`, else at the maker's next episode. The maker is `in` for every time. `400` for a bad id, kind, time or count, or a show with no episode to start at; `404` for somebody unknown or a title the film database does not have; `409` for a film the tracker shows is not out digitally, or a show's episode the film database dates to a day it is not yet due on (a tracker that does not answer, or an episode with no date, refuses nothing); `503` when the film database cannot be asked. Takes `cinema:watch` |
+| `GET /api/me/plans` | `PlanView[]` — the plans the person is in, soonest first by the picked time, else the earliest time still ahead. Takes `cinema:watch` |
 | `GET /api/plans/{id}` | `PlanView`. Takes `cinema:watch` |
-| `PUT /api/plans/{id}/answers/{at}` | `PlanView` for `{answer}` — the person's answer to the time `at` (the instant as `times[].at` names it): `in`, `maybe` or `cant`, changeable until the plan opens. `400` for another answer or a bad time; `404` for a time the plan does not have; `409` once the plan has opened. Takes `cinema:watch` |
-| `POST /api/plans/{id}/fix` | `PlanView` for `{at}` — the maker settles the plan on one of its times, which must be ahead. `403` for anybody else; `404` for a time the plan does not have; `409` for a plan already settled. Takes `cinema:watch` |
-| `DELETE /api/plans/{id}` | `204` — the maker cancels a plan that has not opened. `403` for anybody else; `409` once it has opened. Takes `cinema:watch` |
+| `POST /api/plans/{id}/times` | `PlanView` for `{at}` — anybody in the plan suggests another time, and is `in` for it; everybody else is told (`plan` notification `suggested`). `400` for a time not ahead as above; `409` for a time the plan has, or a plan holding its most times ahead. Takes `cinema:watch` |
+| `PUT /api/plans/{id}/answers/{at}` | `PlanView` for `{answer}` — the person's answer to the time `at` (the instant as `times[].at` names it): `in`, `maybe` or `cant`, changeable at any time. Once the room is open, `in` or `maybe` to the picked time lets the person into it. `400` for another answer or a bad time; `404` for a time the plan does not have. Takes `cinema:watch` |
+| `POST /api/plans/{id}/people` | `InviteReply` for `{userId}` — anybody in the plan brings one more person into it, after everybody already in it; the person is told (`plan` notification `invited`, naming who asked), and once the room is open they are let into it. `delivery` is `push` or `bell`, as for a room's invite. `404` for a plan the asker is not in or somebody unknown; `409` for somebody already in it, or a plan inviting its most (20 besides the maker). Takes `cinema:watch` |
+| `POST /api/plans/{id}/fix` | `PlanView` for `{at}` — the maker picks one of the plan's times, which must be ahead, or moves the pick to another; every time and its answers stay. A `proposed` plan becomes `fixed`; a `fixed` or `open` one keeps its state, and once the room is open everybody `in` or `maybe` to the new time is let in. The others are told (`plan` notification `fixed`, saying the time moved when there was one). `403` for anybody else; `404` for a time the plan does not have ahead. Takes `cinema:watch` |
+| `DELETE /api/plans/{id}` | `204` — the maker cancels the plan, whatever it is at, which deletes it; the others are told (`plan` notification `cancelled`). `403` for anybody else. Takes `cinema:watch` |
 
 - **`PlanView`** is `{id, imdbId, kind, title, year?, posterUrl?, season?, number?, state, madeBy, madeAt,
   mine, fixedTime?, times, people, readiness?, progress?, libraryId?, roomId?}`. `state` is `proposed`,
-  `fixed`, `open`, `done` or `cancelled`. `madeBy` and each of `people` is `{userId, name?, maker}`.
-  `times` is each proposed time as `{at, in, mine?, answers: [{userId, name?, answer}]}` (`in` counts
-  who said so, `mine` the asking person's answer); once a time is fixed it is the only one left.
-  `libraryId` is the title that plays the plan's film or episode once the library holds it.
-- **A time is fixed** by the maker, or by the answer that brings a time to `Plans:FixAt` people saying
-  `in` (the maker counted): the first to get there. The other times and what was answered to them go.
-  Everybody invited is told (`plan` notification); people may still answer `in` to the fixed time.
+  `fixed` (a time is picked) or `open`. `madeBy`, each of `people` and each time's `suggestedBy` is `{userId, name?, maker}`.
+  `times` is every time put forward, earliest first, those already passed included, as
+  `{at, in, mine?, suggestedBy?, answers: [{userId, name?, answer}]}` (`in` counts who said so, `mine`
+  the asking person's answer). `fixedTime` is the picked one. `libraryId` is the title that plays the
+  plan's film or episode once the library holds it.
+- **Answers pick nothing.** However many say `in`, a time is the plan's only once the maker picks it.
 - **`readiness` is what is measured of the title, never a guess at whether it will be in time**: `ready`
   (the library holds the film, or the plan's episode), `fetching` (the torrent client has it, `progress`
   from 0 to 1), `waiting` (the tracker offered nothing at the source floor when last asked) or `queued`.
-  It is absent once the plan is over.
-- **A fixed plan's title is fetched first.** The maker's `cinema:download`, captured when the plan is
-  made, lets the prefetcher fetch the title for the plan (`Acquisition/CLAUDE.md`, "Prefetch"), ahead of
-  every title only wanted, and the library keeps it until the plan's time has passed.
-- **The room is made `Plans:OpenMinutes` ahead** of the fixed time: closed, holding the plan's title
+- **A plan with a picked time has its title fetched first.** The maker's `cinema:download`, captured
+  when the plan is made, lets the prefetcher fetch the title for the plan (`Acquisition/CLAUDE.md`,
+  "Prefetch"), ahead of every title only wanted, and the library keeps it until the plan's time has passed.
+- **The room is made `Plans:OpenMinutes` ahead** of the picked time: closed, holding the plan's title
   paused at the start (or the show's episode), with everybody who said `in` or `maybe` let in, so anybody
   else knocks. `roomId` names it and the plan is `open`. The room is kept until `Rooms:IdleTimeout` past
-  the fixed time; the plan is `done` once it is gone after that.
-- **Reminders and notices** are `plan` notifications, one for each event (`invited`, `fixed`,
-  `reminder`, `cancelled`), each said once to each person and pushed whatever their switches say. The
-  reminder goes to everybody `in` or `maybe` `Plans:RemindMinutes` before the fixed time and opens the
-  room. A proposed plan every one of whose times has passed ends without a notice.
+  the picked time; once it is gone after that, the plan was watched and is deleted.
+- **Reminders and notices** are `plan` notifications, one for each event (`invited`, `suggested`,
+  `fixed`, `reminder`, `cancelled`), each said once to each person and pushed whatever their switches
+  say; a pick and a reminder are said again for each time picked. The reminder goes to everybody `in` or
+  `maybe` `Plans:RemindMinutes` before the picked time and opens the room. A plan whose times have all
+  passed is never ended for it: it waits for somebody to suggest another.
 - **A plan's people are told it changed** over the hub: `PlanChanged(planId)` goes to the group of each
   person in it (`PersonGroups.Everything`), and a page reads the plan again.
 

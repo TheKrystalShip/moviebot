@@ -1,23 +1,21 @@
 namespace TheKrystalShip.MovieBot.Core;
 
-/// <summary>Where a plan stands (<see cref="PlanView.State"/>).</summary>
+/// <summary>
+/// Where a plan stands (<see cref="PlanView.State"/>). A plan exists only while it is going: cancelling it
+/// or its room going after its time deletes it.
+/// </summary>
 public static class PlanStates
 {
     /// <summary>Times are proposed and people are answering.</summary>
     public const string Proposed = "proposed";
 
-    /// <summary>One time is settled and the room is not made yet.</summary>
+    /// <summary>The maker picked a time and the room is not made yet.</summary>
     public const string Fixed = "fixed";
 
     /// <summary>The room exists, closed, with the people who said they come let in.</summary>
     public const string Open = "open";
 
-    /// <summary>The plan's room was reaped.</summary>
-    public const string Done = "done";
-
-    public const string Cancelled = "cancelled";
-
-    public static bool IsKnown(string? state) => state is Proposed or Fixed or Open or Done or Cancelled;
+    public static bool IsKnown(string? state) => state is Proposed or Fixed or Open;
 }
 
 /// <summary>What a person says of one proposed time (<see cref="PlanAnswerView.Answer"/>).</summary>
@@ -71,6 +69,9 @@ public sealed record PlanTimeView
 
     /// <summary>The asking person's answer, absent until they give one.</summary>
     public string? Mine { get; init; }
+
+    /// <summary>Who put the time forward.</summary>
+    public PlanPersonView? SuggestedBy { get; init; }
 }
 
 /// <summary>Somebody in a plan.</summary>
@@ -124,7 +125,7 @@ public sealed record PlanView
 
     public required List<PlanPersonView> People { get; init; }
 
-    /// <summary>One of <see cref="PlanReadiness"/>; absent once the plan is over.</summary>
+    /// <summary>One of <see cref="PlanReadiness"/>.</summary>
     public string? Readiness { get; init; }
 
     /// <summary>How much of the title has arrived, from 0 to 1, while it is <see cref="PlanReadiness.Fetching"/>.</summary>
@@ -159,7 +160,7 @@ public sealed record PlanAnswerRequest
     public string? Answer { get; init; }
 }
 
-/// <summary>The maker settling a plan on one of its times.</summary>
+/// <summary>A time of a plan: the one the maker picks, or one somebody in it suggests.</summary>
 public sealed record FixPlanRequest
 {
     public DateTimeOffset At { get; init; }

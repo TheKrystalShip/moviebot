@@ -319,9 +319,20 @@ button.kc-continue:disabled { cursor: progress; }
 .kc-cast__card--link { color: inherit; text-decoration: none; }
 .kc-cast__card--link:hover, .kc-cast__card--link:focus-visible { border-color: var(--border-strong); background: var(--surface-2); }
 .kc-cast__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.kc-cast__name, .kc-cast__role { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.kc-cast__name { font-size: 13.5px; font-weight: 600; }
-.kc-cast__role { font-size: 12px; color: var(--fg-3); }
+.kc-cast__name-text, .kc-cast__role { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kc-cast__name { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13.5px; font-weight: 600; }
+.kc-cast__name-text { min-width: 0; }
+.kc-cast__role { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-3); }
+.kc-cast__dot { width: 7px; height: 7px; flex: none; border-radius: var(--r-pill); background: var(--border-strong); }
+.kc-cast__dot--ok { background: var(--success-fg); }
+.kc-cast__dot--warn { background: var(--warning-fg); }
+.kc-cast__dot--muted { background: var(--fg-3); }
+.kc-cast__card--button { justify-content: flex-start; width: 100%; height: auto; text-align: left; font-weight: inherit; }
+.kc-cast__card--add { border-style: dashed; background: none; }
+.kc-cast__card--add .kc-cast__name { color: var(--krystal-teal); }
+.kc-cast__face--add {
+  display: grid; place-items: center; border-radius: var(--r-pill); border-style: dashed; color: var(--krystal-teal);
+}
 .kc-factgrid {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px;
   background: var(--border-subtle); border: var(--edge); border-radius: var(--r-sm); overflow: hidden;
@@ -530,17 +541,70 @@ button.kc-episode:disabled { cursor: progress; }
 @media (max-width: 768px) { .kc-profile__wants { display: block; } }
 .kc-wants-switch { width: min(100%, 420px); }
 .kc-plan-form { max-width: 560px; gap: 20px; }
+.kc-plan-picker { display: flex; flex-direction: column; gap: 20px; }
 .kc-plan-form__time { display: flex; gap: 8px; align-items: center; }
 .kc-plan-form__time > :first-child { flex: 1; min-width: 0; }
 .kc-plan-form__people { display: flex; flex-direction: column; gap: 10px; }
-.kc-plan { gap: 20px; }
-.kc-plan__times { display: flex; flex-direction: column; gap: 14px; max-width: 640px; }
-.kc-plan-time { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: var(--edge); border-radius: var(--r-sm); }
-.kc-plan-time__head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.kc-plan-time__when { font-weight: 600; margin-right: auto; }
-.kc-plan-time__answer { width: min(100%, 360px); }
-.kc-plan-time__answers { display: flex; flex-wrap: wrap; gap: 6px; }
-.kc-plan__people { display: flex; align-items: center; gap: 10px; }
+.kc-plan { gap: 28px; }
+.kc-plan__maker { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--fg-2); }
+.kc-plan__maker b { color: var(--fg-1); font-weight: 600; }
+.kc-plan__maker > svg { flex: none; color: var(--fg-3); }
+/* A plan's way to being watched: one bar per step, lit up to the step it is at. */
+.kc-plan-stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; max-width: 460px; }
+.kc-plan-stages__step { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: var(--fg-3); }
+.kc-plan-stages__step::before { content: ""; height: 3px; border-radius: var(--r-pill); background: var(--border-strong); }
+.kc-plan-stages__step.is-reached::before { background: var(--krystal-teal); }
+.kc-plan-stages__step[aria-current="step"] { color: var(--fg-1); }
+.kc-plan__times { display: flex; flex-direction: column; gap: 12px; }
+.kc-plan-time {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 18px; padding: 14px 16px;
+  background: var(--surface-1); border: var(--edge); border-radius: var(--r-sm);
+}
+.kc-plan-time.is-picked { border-color: color-mix(in srgb, var(--krystal-teal) 55%, transparent); }
+.kc-plan-time__main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.kc-plan-time__picked { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--krystal-teal); }
+.kc-plan-time__by { font-size: 12px; color: var(--fg-3); }
+.kc-plan-time__when { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.kc-plan-time__hour { font-family: var(--font-mono); font-size: 18px; font-weight: 500; color: var(--fg-1); }
+.kc-plan-time__ahead { font-size: 12.5px; color: var(--fg-3); }
+.kc-plan-time__tally { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.kc-plan-time__bar { display: flex; flex: 1; max-width: 240px; height: 6px; border-radius: var(--r-pill); overflow: hidden; background: var(--surface-3); }
+.kc-plan-time__bar-in { background: var(--success-fg); }
+.kc-plan-time__bar-maybe { background: var(--warning-fg); }
+.kc-plan-time__count { font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kc-plan-time__answer { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 300px; }
+.kc-plan-time__ask { font-size: 11.5px; font-weight: 600; color: var(--fg-3); }
+.kc-plan-time__ask.is-unanswered { color: var(--krystal-teal); }
+/* A day as a wall calendar shows it. */
+.kc-date-tile {
+  display: flex; flex-direction: column; align-items: center; width: 60px; overflow: hidden;
+  border: var(--edge); border-radius: var(--r-sm); background: var(--surface-2);
+}
+.kc-date-tile__weekday {
+  align-self: stretch; padding: 3px 0; text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; background: var(--krystal-teal); color: var(--on-accent);
+}
+.kc-date-tile__day { padding-top: 2px; font-size: 22px; font-weight: 700; line-height: 1.15; color: var(--fg-1); }
+.kc-date-tile__month { padding-bottom: 4px; font-size: 10.5px; font-weight: 600; text-transform: uppercase; color: var(--fg-3); }
+.kc-plan-suggest {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 16px;
+  border: var(--edge); border-style: dashed; border-radius: var(--r-sm);
+}
+.kc-plan-suggest__nudges { display: flex; flex-wrap: wrap; gap: 6px; }
+.kc-plan-suggest__row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.kc-plan-suggest__row > :first-child { flex: 1 1 220px; min-width: 0; }
+.kc-plan__invite { display: flex; min-width: 0; }
+.kc-plan__invite-panel { width: 360px; max-width: calc(100vw - 32px); }
+@media (max-width: 720px) {
+  .kc-plan-time { grid-template-columns: auto minmax(0, 1fr); gap: 12px; padding: 12px; }
+  .kc-plan-time__answer { grid-column: 1 / -1; width: auto; }
+  .kc-plan-stages { gap: 10px; }
+  .kc-plan-stages__step { font-size: 10.5px; line-height: 1.3; }
+  /* A plan's hero holds its poster small beside the name, so the times are in reach. */
+  .kc-plan .kc-tt__grid { grid-template-columns: 96px minmax(0, 1fr); gap: 16px; }
+  .kc-plan .kc-tt__poster { width: 96px; }
+  .kc-plan .kc-tt__body h1 { font-size: 22px; }
+}
 @media (max-width: 768px) { .kc-wants-switch { width: 100%; } }
 
 /* ── Subtitle style ── the preview stays in view beside the choices, above them on a phone. */

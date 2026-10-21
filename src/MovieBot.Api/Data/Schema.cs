@@ -19,7 +19,7 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores];
+    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions];
 
     public static int Version => Steps.Length;
 
@@ -36,6 +36,18 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string PlanSuggestions = """
+        -- Who put each of a plan's times forward: the maker for the times a plan is made with, anybody
+        -- in it for a time suggested after. A plan is kept only while it is going, so the ones that
+        -- ended go, their times, people and answers with them.
+        DELETE FROM plan_answers WHERE plan_id IN (SELECT id FROM plans WHERE state IN ('done', 'cancelled'));
+        DELETE FROM plan_times WHERE plan_id IN (SELECT id FROM plans WHERE state IN ('done', 'cancelled'));
+        DELETE FROM plan_people WHERE plan_id IN (SELECT id FROM plans WHERE state IN ('done', 'cancelled'));
+        DELETE FROM plans WHERE state IN ('done', 'cancelled');
+        ALTER TABLE plan_times ADD COLUMN suggested_by TEXT;
+        UPDATE plan_times SET suggested_by = (SELECT made_by FROM plans WHERE plans.id = plan_times.plan_id);
+        """;
 
     private const string TitleScores = """
         -- The newest rating the film database has given each title, by its id and kind: the one every
@@ -78,7 +90,8 @@ internal static class Schema
     private const string Plans = """
         -- A plan to watch a title together: a few proposed times, the people invited and their answers.
         -- may_fetch is whether the maker's token held cinema:download, which lets the prefetcher fetch
-        -- the title once a time is fixed.
+        -- the title once a time is picked. fixed_time is the time the maker picked, one of the plan's
+        -- times; picking another moves it, and every time and its answers stay.
         CREATE TABLE plans (
             id         TEXT PRIMARY KEY,
             imdb_id    TEXT NOT NULL,

@@ -4,6 +4,47 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.54.0] - 2026-10-21
+
+### Added
+
+- **Anybody in a plan suggests another time** (`POST /api/plans/{id}/times`),
+  and is in for it; everybody else is told who suggested what. A plan holds at most six times still
+  ahead, each 5 minutes to 30 days out. The plan page's Suggest a time offers +30 min, +1 h, +2 h and
+  Next day from the time the plan is on, or any time typed, and each time says who suggested it.
+- **Anybody in a plan invites more people into it**: `POST /api/plans/{id}/people`
+  with `{userId}` answers the delivery (`push` or `bell`) as a room's invite does. The person is told
+  who asked them, and a person brought in once the room is open is let into the room. A plan still
+  invites at most 20 besides its maker. The plan page's last people card, Invite people, opens the
+  room's own Invite list (`components/InvitePeople.jsx`, which the player's Invite panel draws too),
+  beside the card or as a sheet on a phone.
+
+- **Plans starts a plan.** Plan a watch in the page's head opens the new-plan form, which finds a
+  title by name when none is given (`components/PlanTitlePicker.jsx`). A person with no plans is
+  offered what they could plan: Watch together, then the rest of Want to watch, each card planning its
+  title, or the title search and Discover when they want nothing yet.
+
+### Changed
+
+- **A plan is kept only while it is going.** The maker cancelling it, or its room going after the
+  picked time, deletes it with its times, people and answers, so Plans lists only plans still to watch
+  and a cancelled or watched plan's page is a not-found page. The schema step that adds who suggested
+  each time deletes every plan already done or cancelled. The `done` and `cancelled` states are gone.
+- **Nothing about a plan locks.** Answers pick no time: the maker picks one and can
+  move the pick to any other time ahead, every time and its answers staying, and everybody is told the
+  plan moved. Answers change at any time, and saying in or maybe to the picked time once the
+  room is open lets the person in. The maker cancels at any point, and a plan whose times
+  have all passed is kept for a new one rather than ended. A pick and a reminder are said again for each
+  time picked. `Plans:FixAt` is gone from the settings.
+- **A plan's page is drawn as its title's page is.** The title's hero (poster, backdrop, year,
+  certification, runtime) leads, with who planned it and how many are invited, the plan's steps
+  (Proposed, Time picked, Room open), Join the room once it opens, More info opening the
+  title's page, and Cancel plan beside it for the maker. Each time still ahead is a row: a calendar
+  tile, the hour and how far off it is, the picked one marked, a bar of who is in and who might be, and
+  the viewer's answer, flagged while they have not given one, with Pick this time or Move to this time
+  for the maker. The people are cast cards (`PersonCard`, which the cast grid draws too): each name, the
+  maker tagged Planned it, and what they said to the picked time. Site 0.99.0.
+
 ## [3.53.4] - 2026-10-20
 
 ### Changed

@@ -36,9 +36,9 @@ export function stateLine(w) {
  * A wanted title as a card: its poster named a film or a series, its year, a film's length or a show's
  * next episode, how many others want it, where it stands (ready, fetching with its progress, waiting for
  * a release, available), and Just me when nobody else is shown it. Its ribbon changes or removes the
- * want, and Watch opens a film the library holds.
+ * want, and Watch opens a film the library holds; `action` puts another in its place.
  */
-export function WantCard({ want: w }) {
+export function WantCard({ want: w, action }) {
   const [ribbon, menu] = useWantRibbon(w.imdbId, w.kind, w.title);
   const next = w.nextEpisode;
   return (
@@ -58,9 +58,9 @@ export function WantCard({ want: w }) {
           { icon: "users", value: w.others > 0 ? w.others : null, label: "Others" },
         ]}
         status={stateLine(w)}
-        action={w.libraryId && w.kind !== "show"
+        action={action || (w.libraryId && w.kind !== "show"
           ? { label: "Watch", onClick: () => navigate(watchHref(w.libraryId)) }
-          : { label: "View" }}
+          : { label: "View" })}
         ribbon={ribbon} />
       {menu}
     </>

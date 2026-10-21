@@ -176,10 +176,14 @@ export const api = {
   wanters: (imdbId) => call("GET", `/api/titles/${enc(imdbId)}/wanters`),
 
   // Plans to watch something together: the person's own, one by its id (a 404 for anybody not in it), making
-  // one, answering a time (`at` as the plan names it), the maker fixing a time, and the maker cancelling.
+  // one, anybody in it inviting one more person (the reply's `delivery`, as for a room) or suggesting a
+  // time, answering a time (`at` as the plan names it), the maker picking a time or moving the pick, and
+  // the maker cancelling.
   plans: () => call("GET", "/api/me/plans"),
   plan: (id) => call("GET", `/api/plans/${enc(id)}`),
   makePlan: (request) => call("POST", "/api/plans", request),
+  invitePlan: (id, userId) => call("POST", `/api/plans/${enc(id)}/people`, { userId }),
+  suggestPlanTime: (id, at) => call("POST", `/api/plans/${enc(id)}/times`, { at }),
   answerPlan: (id, at, answer) => call("PUT", `/api/plans/${enc(id)}/answers/${enc(at)}`, { answer }),
   fixPlan: (id, at) => call("POST", `/api/plans/${enc(id)}/fix`, { at }),
   cancelPlan: (id) => call("DELETE", `/api/plans/${enc(id)}`),

@@ -41,11 +41,8 @@ public sealed class PlanPresenter(
         var name = isShow ? shows.Held(plan.ImdbId)?.Details?.Title : films.Held(plan.ImdbId)?.Details?.Title;
         var libraryId = PlanRules.LibraryId(titles, plan);
 
-        string? readiness = null;
-        double? progress = null;
-        if (plan.State is PlanStates.Proposed or PlanStates.Fixed or PlanStates.Open)
-            (readiness, progress) = PlanRules.Readiness(
-                libraryId is not null, WatchNow.DownloadOf(arriving, plan.ImdbId), fetcher.AskedEmpty(plan.ImdbId));
+        var (readiness, progress) = PlanRules.Readiness(
+            libraryId is not null, WatchNow.DownloadOf(arriving, plan.ImdbId), fetcher.AskedEmpty(plan.ImdbId));
 
         return new PlanView
         {
@@ -64,6 +61,7 @@ public sealed class PlanPresenter(
                 })],
                 In = PlanRules.In(plan, at),
                 Mine = plan.Answers.FirstOrDefault(a => a.At == at && a.UserId == viewer)?.Answer,
+                SuggestedBy = plan.SuggestedBy.TryGetValue(at, out var by) ? Person(plan, by) : null,
             })],
             People = [.. plan.People.Select(u => Person(plan, u))],
             Readiness = readiness, Progress = progress,

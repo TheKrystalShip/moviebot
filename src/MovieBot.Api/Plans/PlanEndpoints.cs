@@ -87,13 +87,46 @@ public static class PlanEndpoints
             if (!PlanAnswers.IsKnown(body.Answer)) return Error("Answer in, maybe or cant.", StatusCodes.Status400BadRequest);
             if (!TryInstant(at, out var time)) return Error("That is not a time.", StatusCodes.Status400BadRequest);
 
-            switch (await service.AnswerAsync(id, time, person.UserId, body.Answer!, ct))
+            switch (await service.AnswerAsync(id, time, person.Actor, body.Answer!, ct))
             {
                 case AnswerOutcome.NoSuchTime: return Error("The plan has no such time.", StatusCodes.Status404NotFound);
-                case AnswerOutcome.Closed: return Error("The plan has opened; its answers are in.", StatusCodes.Status409Conflict);
                 case AnswerOutcome.NotInPlan: return Missing();
                 default: return Results.Ok(await present.ViewAsync(person.UserId, plans.Get(id)!, ct));
             }
+        }).RequireAction(CinemaActions.Watch);
+
+        app.MapPost("/api/plans/{id}/people", async (string id, InviteRequest body, HttpContext context,
+            PlanStore plans, PlanService service, PersonDirectory people, CancellationToken ct) =>
+        {
+            if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
+            if (Of(plans, id, person.UserId) is null) return Missing();
+            if (people.NameOf(body.UserId) is null) return Error("Nobody by that id can be invited.", StatusCodes.Status404NotFound);
+
+            var (outcome, delivery) = await service.InviteAsync(id, body.UserId, person.Actor, ct);
+            return outcome switch
+            {
+                InviteOutcome.AlreadyIn => Error("They are in the plan already.", StatusCodes.Status409Conflict),
+                InviteOutcome.Full => Error($"A plan invites at most {PlanRules.MaxInvited} people.", StatusCodes.Status409Conflict),
+                InviteOutcome.NoSuchPlan => Missing(),
+                _ => Results.Ok(new InviteReply(delivery is { Pushed: > 0 } ? "push" : "bell")),
+            };
+        }).RequireAction(CinemaActions.Watch);
+
+        app.MapPost("/api/plans/{id}/times", async (string id, FixPlanRequest body, HttpContext context,
+            PlanStore plans, PlanService service, PlanPresenter present, TimeProvider clock, CancellationToken ct) =>
+        {
+            if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
+            if (Of(plans, id, person.UserId) is null) return Missing();
+            var at = PlanRules.Minute(body.At);
+            if (!PlanRules.Ahead(at, clock.GetUtcNow())) return Error(PlanRules.NotAhead, StatusCodes.Status400BadRequest);
+
+            return await service.SuggestAsync(id, at, person.Actor, ct) switch
+            {
+                SuggestOutcome.AlreadyThere => Error("That time is in the plan already.", StatusCodes.Status409Conflict),
+                SuggestOutcome.Full => Error($"A plan holds at most {PlanRules.MaxTimes} times ahead.", StatusCodes.Status409Conflict),
+                SuggestOutcome.NotInPlan => Missing(),
+                _ => Results.Ok(await present.ViewAsync(person.UserId, plans.Get(id)!, ct)),
+            };
         }).RequireAction(CinemaActions.Watch);
 
         app.MapPost("/api/plans/{id}/fix", async (string id, FixPlanRequest body, HttpContext context,
@@ -101,12 +134,12 @@ public static class PlanEndpoints
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             if (Of(plans, id, person.UserId) is not { } plan) return Missing();
-            if (plan.MadeBy != person.UserId) return Error("Only the person who made the plan fixes it.", StatusCodes.Status403Forbidden);
+            if (plan.MadeBy != person.UserId) return Error("Only the person who made the plan picks its time.", StatusCodes.Status403Forbidden);
 
-            return await service.FixAsync(id, PlanRules.Minute(body.At), ct) switch
+            return await service.FixAsync(id, PlanRules.Minute(body.At), person.Actor, ct) switch
             {
                 FixOutcome.NoSuchTime => Error("The plan has no such time ahead.", StatusCodes.Status404NotFound),
-                FixOutcome.NotProposed => Error("The plan is settled already.", StatusCodes.Status409Conflict),
+                FixOutcome.NoSuchPlan => Missing(),
                 _ => Results.Ok(await present.ViewAsync(person.UserId, plans.Get(id)!, ct)),
             };
         }).RequireAction(CinemaActions.Watch);
@@ -119,7 +152,7 @@ public static class PlanEndpoints
 
             return await service.CancelAsync(id, ct)
                 ? Results.NoContent()
-                : Error("The plan has opened and cannot be cancelled.", StatusCodes.Status409Conflict);
+                : Missing();
         }).RequireAction(CinemaActions.Watch);
     }
 

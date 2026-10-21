@@ -44,9 +44,11 @@ rest on. `Notifier` is the one way anything here tells anybody anything.
   unlike every other switch, which starts on.
 - **A plan is said to the people in it, whatever their switches say.** The `plan` kind is addressed to
   the maker and the people invited on purpose, as an invite is, and `Allows` is true for it. Each event
-  (`invited`, `fixed`, `reminder`, `cancelled`) is keyed by the plan and the event, so each is said once
-  to each person however often `PlanService` and `PlanKeeper` ask. The one who made or fixed a plan or
-  cancelled it is not told of their own act; a time fixed by the answers is told to everybody. The
-  reminder opens the plan's room. Times in the text are the host's local zone.
+  (`invited`, `suggested`, `fixed`, `reminder`, `cancelled`) is keyed by the plan, the event and the
+  time it names, so each is said once to each person however often `PlanService` and `PlanKeeper` ask;
+  a pick is keyed afresh each time the maker makes one, so moving back to an earlier time is said too.
+  The one who made, suggested, picked or cancelled is not told of their own act. The reminder opens the
+  plan's room, and so does `invited` for a person brought in once the room is open; an `invited` sent
+  by somebody other than the maker names them. Times in the text are the host's local zone.
 - **Nothing is said about the library itself.** A film settling, moving between disks or leaving is
   the server's business; a person hears about what they asked for and what they follow.

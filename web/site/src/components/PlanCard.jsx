@@ -18,27 +18,30 @@ export function readinessLine(plan) {
 /** What a plan's state is, in a word. */
 export const STATE_WORDS = {
   proposed: "Proposed",
-  fixed: "Fixed",
+  fixed: "Time picked",
   open: "Room open",
-  done: "Done",
-  cancelled: "Cancelled",
 };
 
-/** The line on a plan's foot: its title's readiness while it is going, else how it ended. */
+/** The plan's times still ahead; one that has passed is no longer on offer. */
+function upcoming(plan) {
+  const now = Date.now();
+  return plan.times.filter((t) => new Date(t.at).getTime() > now);
+}
+
+/** The line on a plan's foot: whether it waits on the person's answer, its room, or its title's readiness. */
 function statusOf(plan) {
-  if (plan.state === "done") return { icon: "circle-check", label: "Done" };
-  if (plan.state === "cancelled") return { icon: "x", label: "Cancelled" };
   if (plan.state === "open") return { tone: "active", icon: "door-open", label: "Room open" };
-  if (plan.state === "proposed" && plan.times.some((t) => !t.mine)) return { tone: "active", icon: "message-circle", label: "Answer" };
+  if (plan.state === "proposed" && upcoming(plan).some((t) => !t.mine)) return { tone: "active", icon: "message-circle", label: "Answer" };
   return readinessLine(plan) || { icon: "calendar-clock", label: STATE_WORDS[plan.state] };
 }
 
 /**
- * A plan as a card: the title's poster named a film or a series, when it is (the fixed time, else how
- * many times are proposed), how many are in it and where it stands.
+ * A plan as a card: the title's poster named a film or a series, when it is (the picked time, else how
+ * many times are still ahead, or that it needs one), how many are in it and where it stands.
  */
 export function PlanCard({ plan }) {
   const fixedAt = plan.fixedTime;
+  const ahead = upcoming(plan).length;
   return (
     <ShowcaseCard compactFacts
       name={plan.title}
@@ -47,7 +50,7 @@ export function PlanCard({ plan }) {
       onPick={() => navigate(planPath(plan.id))}
       progress={plan.readiness === "fetching" ? plan.progress || 0 : undefined}
       specs={[
-        { icon: "calendar", value: fixedAt ? when(fixedAt) : `${plan.times.length} ${plan.times.length === 1 ? "time" : "times"}`, label: "When" },
+        { icon: "calendar", value: fixedAt ? when(fixedAt) : ahead === 0 ? "Needs a time" : `${ahead} ${ahead === 1 ? "time" : "times"}`, label: "When" },
         { icon: "users", value: plan.people.length, label: "People" },
       ]}
       status={statusOf(plan)}

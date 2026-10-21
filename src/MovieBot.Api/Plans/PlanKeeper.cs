@@ -7,14 +7,15 @@ using TheKrystalShip.MovieBot.Core;
 namespace TheKrystalShip.MovieBot.Api.Plans;
 
 /// <summary>
-/// Carries plans through time. A fixed plan is reminded <see cref="PlanOptions.RemindMinutes"/> ahead
-/// and its room is made <see cref="PlanOptions.OpenMinutes"/> ahead: closed, with the title loaded and
-/// everybody who said <c>in</c> or <c>maybe</c> let in, so anybody else knocks. The room is made by
-/// the same store a first entry makes it in, and every change at its door goes through
-/// <see cref="RoomDoors"/>. The reaper leaves it alone until <see cref="RoomOptions.IdleTimeout"/> past
-/// the fixed time (<see cref="PlanStore.RoomsHeld"/>); a plan is <c>done</c> once its room is gone after
-/// that. A room lost sooner (a restart past its idle window) is made again. A proposed plan every one
-/// of whose times has passed ends without a word.
+/// Carries plans through time. A plan with a picked time is reminded
+/// <see cref="PlanOptions.RemindMinutes"/> ahead and its room is made <see cref="PlanOptions.OpenMinutes"/>
+/// ahead: closed, with the title loaded and everybody who said <c>in</c> or <c>maybe</c> let in, so
+/// anybody else knocks. The room is made by the same store a first entry makes it in, and every change at
+/// its door goes through <see cref="RoomDoors"/>. The reaper leaves it alone until
+/// <see cref="RoomOptions.IdleTimeout"/> past the picked time (<see cref="PlanStore.RoomsHeld"/>); a plan
+/// whose room is gone after that was watched, and is deleted. A room lost sooner (a restart past its idle
+/// window) is made again. A plan is never ended for want of a time: one whose times have all passed waits
+/// for somebody to suggest another.
 /// </summary>
 public sealed class PlanKeeper(
     PlanStore plans,
@@ -52,11 +53,6 @@ public sealed class PlanKeeper(
         {
             switch (plan.State)
             {
-                case PlanStates.Proposed:
-                    if (plan.Times.All(t => t <= now) && plans.Cancel(plan.Id))
-                        await push.ChangedAsync(plan with { State = PlanStates.Cancelled });
-                    break;
-
                 case PlanStates.Fixed:
                     if (PlanRules.OpenDue(plan, now, options.Value.OpenMinutes)) await OpenAsync(plan, ct);
                     await RemindAsync(plans.Get(plan.Id) ?? plan, now, ct);
@@ -103,8 +99,8 @@ public sealed class PlanKeeper(
             }
             else if (plans.Finish(plan.Id))
             {
-                logger.LogInformation("Plan {Plan} is done: room {Room} is gone.", plan.Id, room);
-                await push.ChangedAsync(plan with { State = PlanStates.Done });
+                logger.LogInformation("Plan {Plan} is over and deleted: room {Room} is gone.", plan.Id, room);
+                await push.ChangedAsync(plan);
             }
             return;
         }

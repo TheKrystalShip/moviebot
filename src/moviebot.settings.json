@@ -205,11 +205,10 @@
     "AskMinutes": 60
   },
 
-  // Plans. A time is fixed once FixAt people, the maker counted, say in to it. The room is made
-  // OpenMinutes before the fixed time, closed, with the people coming let in, and everybody coming is
-  // reminded RemindMinutes before it. The keeper looks every PassSeconds.
+  // Plans. The room is made OpenMinutes before the time the maker picked, closed, with the people
+  // coming let in, and everybody coming is reminded RemindMinutes before it. The keeper looks every
+  // PassSeconds.
   "Plans": {
-    "FixAt": 2,
     "RemindMinutes": 15,
     "OpenMinutes": 30,
     "PassSeconds": 15
