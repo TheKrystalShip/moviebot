@@ -195,10 +195,12 @@
   },
 
   // Wants. Every PassSeconds the prefetcher starts at most one download for what people want to watch,
-  // while no room plays and the disk has room, with at most Concurrent of its downloads arriving. A
+  // while no room plays and the disk has room, with at most Concurrent of its downloads arriving.
+  // Prefetch false leaves wants unfetched, and the prefetcher fetches only the titles of fixed plans. A
   // title nothing is offered for is asked of the tracker again after AskMinutes. A title somebody
   // wants and has not watched stays in the library for HoldDays from the want.
   "Wants": {
+    "Prefetch": true,
     "PassSeconds": 60,
     "Concurrent": 1,
     "HoldDays": 90,

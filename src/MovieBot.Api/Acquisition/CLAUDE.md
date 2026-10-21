@@ -68,7 +68,8 @@ and this directory is where the API calls them.
 ## Prefetch (`Wants/WantFetcher.cs`)
 
 What people want to watch is fetched ahead of them when it costs nobody anything. A pass runs every
-`Wants:PassSeconds` and starts at most one download.
+`Wants:PassSeconds` and starts at most one download. `Wants:Prefetch` false leaves wants unfetched,
+and a pass fetches only the titles of fixed plans.
 
 - **Every condition is measured, and one that cannot be read starts nothing.** No occupied room is
   playing, no Watch now download is arriving, the prefetcher has fewer than `Wants:Concurrent` of its own

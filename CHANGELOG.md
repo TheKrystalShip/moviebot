@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.54.1] - 2026-10-21
+
+### Added
+
+- **`Wants:Prefetch` switches the prefetcher's fetching of wants.** Off, nothing is fetched because
+  somebody wants it, and the prefetcher fetches only the titles of fixed plans. It defaults on; hotbox
+  sets it off.
+
 ## [3.54.0] - 2026-10-21
 
 ### Added

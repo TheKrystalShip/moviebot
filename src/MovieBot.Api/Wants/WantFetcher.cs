@@ -16,6 +16,12 @@ public sealed class WantOptions
 {
     public const string Section = "Wants";
 
+    /// <summary>
+    /// Whether what people want is fetched ahead of them. Off, the prefetcher fetches only the titles of
+    /// fixed plans.
+    /// </summary>
+    public bool Prefetch { get; set; } = true;
+
     /// <summary>Seconds between passes of the prefetcher.</summary>
     public int PassSeconds { get; set; } = 60;
 
@@ -192,7 +198,7 @@ public sealed class WantFetcher(
     {
         var settings = options.Value;
         var candidates = WantFetchRules.Order(WantFetchRules.WithPlans(
-            WantFetchRules.Candidates(wants.All()), plans.Planned(clock.GetUtcNow())));
+            settings.Prefetch ? WantFetchRules.Candidates(wants.All()) : [], plans.Planned(clock.GetUtcNow())));
         if (candidates.Count == 0) return null;
 
         IReadOnlyList<DownloadStatus> all;
