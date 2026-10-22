@@ -9,6 +9,7 @@
     "build": "vite build",
     "lint": "eslint src verify scripts public/sw.js",
     "lint:css": "stylelint \"src/**/*.css\"",
+    "check:theme": "krystal-check-theme src/themes.css",
     "check": "tsc -p .",
     "test": "node --test verify/heads.test.mjs verify/remote.test.mjs verify/devicePlaylist.test.mjs verify/revision.test.mjs verify/tracks.test.mjs verify/ordered.test.mjs verify/sessionMigration.test.mjs verify/sessionView.test.mjs verify/activitySession.test.mjs verify/bufferAhead.test.mjs verify/aheadPlaylist.test.mjs verify/aheadHorizon.test.mjs",
     "verify": "node verify/run.mjs",

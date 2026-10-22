@@ -12,10 +12,10 @@ export default {
   },
   overrides: [
     {
-      // The one sheet that names fixed colours. Each is a colour that holds in every theme (the
-      // black of a QR code, the ink laid over cover art, the cue preview's sample frame), so the
-      // other sheets read them as custom properties and carry no literal.
-      files: ["src/fixed-colours.css"],
+      // The sheets that name colours. `fixed-colours.css` holds the colours that hold in every theme
+      // (the black of a QR code, the ink laid over cover art, the cue preview's sample frame), which
+      // the other sheets read as custom properties; `themes.css` is the cinema palettes.
+      files: ["src/fixed-colours.css", "src/themes.css"],
       rules: {
         "color-no-hex": null,
         "declaration-property-value-disallowed-list": null,

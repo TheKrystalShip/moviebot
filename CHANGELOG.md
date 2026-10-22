@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.56.0] - 2026-10-22
+
+### Added
+
+- **Six cinema themes.** Noir, Velvet, Drive-In, Technicolor, Video Store and Silent Film join the
+  theme picker under Appearance. They are the site's own palettes, drawn in `src/themes.css` and
+  registered in `src/themes.js`; `npm run check:theme` holds them to the design system's palette
+  contract and its 4.5:1 ink rule.
+
 ## [3.55.0] - 2026-10-21
 
 ### Changed
