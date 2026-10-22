@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.57.0] - 2026-10-22
+
+### Added
+
+- **Twelve more cinema themes**, in the picker under Appearance: Crimson Reel, Enchanted Navy, Amber
+  Library, Fresh Green, Prime Night, Sunrise Violet, Streaming Gold, Big Screen, Film Diary, Popcorn
+  (light), Grindhouse and Sci-Fi Bridge. Each is a mood of a streaming service or a screening room
+  with no brand mark; all pass `npm run check:theme`.
+
 ## [3.56.0] - 2026-10-22
 
 ### Added
