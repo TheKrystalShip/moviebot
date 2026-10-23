@@ -179,6 +179,9 @@ public sealed record CatalogueQuestionView
     public DiscoverResolved? Resolved { get; init; }
     public required List<TitleHitView> Titles { get; init; }
 
+    /// <summary>The page of titles that follows this one; absent on the last.</summary>
+    public int? Next { get; init; }
+
     /// <summary>Why a question found nothing: the film database's refusal of a word in it.</summary>
     public string? Message { get; init; }
 }
@@ -189,6 +192,9 @@ public sealed record CatalogueDiscoverView
     public required string Kind { get; init; }
     public required DiscoverResolved Resolved { get; init; }
     public required List<TitleHitView> Titles { get; init; }
+
+    /// <summary>The page of titles that follows this one; absent on the last.</summary>
+    public int? Next { get; init; }
 }
 
 /// <summary>What <c>/api/catalogue/released</c> and <c>/api/catalogue/upcoming</c> answer.</summary>

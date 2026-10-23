@@ -45,6 +45,15 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
     /// <summary>The collection the Discover page's Star Wars shelf names, which here holds Heat and Pirates of the Caribbean.</summary>
     public const int Series = 10;
 
+    /// <summary>The keyword whose films run to <see cref="PagedFilms"/> across three pages of the database; the Date night and Top rated shelves are answered the same.</summary>
+    public const int PagedKeyword = 31337;
+
+    /// <summary>How many films the paged subject holds: two full pages of the database's and a short one.</summary>
+    public const int PagedFilms = 45;
+
+    /// <summary>The first film of the paged subject; the others follow by one.</summary>
+    public const int PagedFirst = 9000;
+
     /// <summary>An animated film made in Japanese, which is what anime is here.</summary>
     public const string DreamDetective = "tt9000401";
 
@@ -102,6 +111,19 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
           "release_dates": { "results": [ { "iso_3166_1": "US", "release_dates": [ { "certification": "R", "type": 3 } ] } ] }
         }
         """;
+
+    /// <summary>One page of the paged subject, whose films are voted and rated in an order of their own.</summary>
+    private static string PagedPage(int page)
+    {
+        var first = (page - 1) * 20;
+        var films = Enumerable.Range(first, Math.Max(0, Math.Min(20, PagedFilms - first)))
+            .Select(i => PagedFirst + i)
+            .Select(id => Listed(id, "Paged " + (id - PagedFirst), "2010-01-01", 6 + id * 7 % 30 / 10.0, 50 + id * 37 % 900, "35"));
+        return "{ \"page\": " + page + ", \"total_pages\": 3, \"results\": [ " + string.Join(", ", films) + " ] }";
+    }
+
+    [GeneratedRegex(@"/movie/(9\d{3})$")]
+    private static partial Regex PagedFilm();
 
     private string Answer(HttpRequestMessage request, string path)
     {
@@ -175,6 +197,7 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             return query["query"]?.ToLowerInvariant() switch
             {
                 "silent film" => """{ "results": [ { "id": 12999, "name": "silent film" } ] }""",
+                "paged" => """{ "results": [ { "id": 31337, "name": "paged" } ] }""",
                 "time loop" => """{ "results": [ { "id": 366519, "name": "time loops" }, { "id": 10854, "name": "time loop" } ] }""",
                 _ => Results(),
             };
@@ -209,6 +232,11 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         // What names a title: its IMDb id, who made it and who stars in it.
         var drama = Genre(18, "Drama");
         var horror = Genre(27, "Horror");
+        if (PagedFilm().Match(path) is { Success: true } paged)
+        {
+            var id = int.Parse(paged.Groups[1].Value, CultureInfo.InvariantCulture);
+            return Movie(id, "tt" + id.ToString("D7", CultureInfo.InvariantCulture), "Paged " + (id - PagedFirst), "2010-01-01", "Released", drama, Director(id + 1000, "Pat " + id), Cast(id + 2000, "Lee " + id, 0));
+        }
         if (path.EndsWith("/movie/22"))
             return Movie(22, "tt0325980", "Pirates of the Caribbean", "2003-07-09", "Released", Genre(12, "Adventure"), Director(5, "Gore Verbinski"),
                 string.Join(", ", Cast(11, "Johnny Depp", 0), Cast(12, "Orlando Bloom", 1), Cast(13, "Keira Knightley", 2)));
@@ -252,6 +280,8 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             var keywords = query["with_keywords"];
             var people = query["with_people"];
             var from = query["primary_release_date.gte"];
+            if (keywords == PagedKeyword.ToString(CultureInfo.InvariantCulture) || genres == "10749,35" || query["vote_count.gte"] == "5000")
+                return PagedPage(int.Parse(query["page"] ?? "1", CultureInfo.InvariantCulture));
             if (genres == "12") return Results(Listed(22, "Pirates of the Caribbean", "2003-07-09", 7.8, 21000, "12"));
             if (genres == "27")
                 return Results(Listed(7101, "The Cellar Door", "2002-10-31", 7.1, 1500, "27"), Listed(7102, "Hollow Hill", "2004-09-10", 6.8, 800, "27"));

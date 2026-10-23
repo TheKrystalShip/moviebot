@@ -20,7 +20,7 @@ database alone cannot make (award winners, adaptations, where a film is set, fin
 | A search by name, films and shows | `GET /api/films/find`, `GET /api/titles/find` |
 | The assistant's resolve-then-discover for half-remembered films | `src/MovieBot.Assistant/Tools/FindByCluesTool.cs` |
 
-A discovery answers one page of the database: at most 20 titles, a shelf at most 40.
+A discovery answers a page of the database at a time: 20 titles, a shelf 40.
 
 ## 3. The sources, as measured (2026-10-24)
 
@@ -61,9 +61,7 @@ Landed: `web/site/README.md` (Discover).
 
 ### 4·c Deeper shelves
 
-A discovery and a shelf answer more than one page: the route takes a page, the site loads the next
-as the row or the grid reaches its end. A shelf's warm copy stays its first page; later pages are
-asked when wanted and kept like any answer.
+Landed: `docs/api-contract.md` (`/api/catalogue/discover`, `/api/catalogue/ask`, `/api/discover/shelves/{id}`), `web/site/README.md` (Discover).
 
 ### 4·d IMDb ranking
 

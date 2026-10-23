@@ -1,7 +1,7 @@
 import React from "react";
 import { Avatar, Button, Icon, Pill, SearchField, Skeleton } from "@thekrystalship/krystal";
 import { api, filmName } from "../api.js";
-import { useLoad } from "../data.js";
+import { useLoad, usePaged } from "../data.js";
 import { useOnline } from "../connectivity.js";
 import { askAssistant } from "../assistantHandoff.js";
 import { useCan } from "../session.js";
@@ -16,7 +16,7 @@ import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
-import { CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, LandingFilters, ShelfPage, surprisePool, useSurprise } from "./DiscoverShelves.jsx";
+import { CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, LandingFilters, MoreCards, ShelfPage, surprisePool, useSurprise } from "./DiscoverShelves.jsx";
 import { openingEpisode, watchOpening } from "../watchNow.js";
 
 /** The class the page's field carries, so the shortcut that opens the page can find it. */
@@ -66,10 +66,12 @@ export function Discover({ query }) {
     : Promise.resolve([])).then((list) => ({ q, list })), [q, downloading, finding]);
   const answered = !finding || (foundFor.data && foundFor.data.q === q);
   const found = answered && foundFor.data && foundFor.data.q === q ? foundFor.data.list : [];
-  const askedFor = useLoad(() => (q && online ? api.ask(q).catch(() => null) : Promise.resolve(null)).then((ask) => ({ q, ask })), [q, online]);
+  // The question's titles are read a page at a time; the reading and any refusal are the first page's.
+  const askedFor = usePaged((page) => (q && online ? api.ask(q, page).catch(() => null) : Promise.resolve(null))
+    .then((ask) => ({ q, ask, titles: ask && ask.question ? ask.titles : [], next: ask ? ask.next : undefined })), [q, online]);
   const askAnswered = !q || !online || (askedFor.data && askedFor.data.q === q);
   const ask = askAnswered && askedFor.data && askedFor.data.q === q ? askedFor.data.ask : null;
-  const questionTitles = ask && ask.question ? ask.titles : [];
+  const questionTitles = ask && ask.question ? askedFor.titles : [];
   const libraryShows = useLoad(() => api.shows().catch(() => []), []);
   // The page's rows and categories, and what the filter picks from, for everything here that is not a
   // search, a person or a genre.
@@ -135,6 +137,7 @@ export function Discover({ query }) {
               {questionTitles.map((t) => <FoundCard key={t.kind + (t.imdbId || t.tmdbId)} found={t} {...where(t)} />)}
             </div>
           )}
+          {questionTitles.length > 0 && <MoreCards paged={askedFor} />}
           {best && <BestMatch key={best.imdbId} found={best} {...where(best)} shelf={showsHereById.get(best.imdbId)} />}
           {(rest.length + others > 0) && (
             <section className="kc-shelf">

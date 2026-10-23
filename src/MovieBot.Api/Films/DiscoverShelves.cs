@@ -217,7 +217,13 @@ public sealed record ShelfView
 
     public string? Kind { get; init; }
     public required List<ShelfTitleView> Titles { get; init; }
+
+    /// <summary>The page that follows this one; absent when the shelf ends here.</summary>
+    public int? Next { get; init; }
 }
+
+/// <summary>A page of a shelf's titles and the page that follows it, absent on the last.</summary>
+internal sealed record ShelfPage(List<ShelfTitleView> Titles, int? Next);
 
 /// <summary>
 /// The Discover page's shelves: what is new and what is popular, moods, the acclaimed, decades,
@@ -390,7 +396,7 @@ public sealed class DiscoverShelves(
     {
         var missing = shelves.Where(s => s.Shared && !_known.ContainsKey(s.Id)).ToList();
         await Parallel.ForEachAsync(missing, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
-            async (shelf, token) => await TitlesAsync(shelf, null, titles, token));
+            async (shelf, token) => await TitlesAsync(shelf, null, titles, 1, token));
     }
 
     /// <summary>A category's caption: how many shelves it holds.</summary>
@@ -421,14 +427,18 @@ public sealed class DiscoverShelves(
         return rest.Length > 0 ? rest : title;
     }
 
-    /// <summary>One shelf and its titles for a viewer, by its id; NotFound for an id that names no shelf.</summary>
-    public async Task<Outcome<ShelfView>> ShelfAsync(string id, string? viewerId, CancellationToken ct)
+    /// <summary>
+    /// One page of a shelf and its titles for a viewer, by its id; NotFound for an id that names no
+    /// shelf. A shelf made of the library or of a list held whole ends on its first page.
+    /// </summary>
+    public async Task<Outcome<ShelfView>> ShelfAsync(string id, string? viewerId, int page, CancellationToken ct)
     {
+        if (page < 1 || page > CatalogueSearch.PagesListed) return Outcome<ShelfView>.Failed(Problem.Invalid, $"Page is 1 to {CatalogueSearch.PagesListed}.");
         var titles = library.Titles();
         var shelf = ById.GetValueOrDefault(id) ?? Personal(viewerId, titles).FirstOrDefault(s => s.Id == id) ?? LikeShelf(id, titles);
         if (shelf is null) return Outcome<ShelfView>.Failed(Problem.NotFound, "There is no shelf by that name.");
 
-        var listed = await TitlesAsync(shelf, viewerId, titles, ct);
+        var listed = await TitlesAsync(shelf, viewerId, titles, page, ct);
         if (listed.Value is not { } found) return listed.Carry<ShelfView>();
         return Outcome<ShelfView>.Ok(new ShelfView
         {
@@ -437,7 +447,8 @@ public sealed class DiscoverShelves(
             Icon = shelf.Icon,
             Section = Sections.First(s => s.Id == shelf.Section).Label,
             Kind = shelf.Kind,
-            Titles = found,
+            Titles = found.Titles,
+            Next = found.Next,
         });
     }
 
@@ -452,43 +463,50 @@ public sealed class DiscoverShelves(
         foreach (var shelf in Fixed)
         {
             ct.ThrowIfCancellationRequested();
-            if ((await TitlesAsync(shelf, null, titles, ct)).Value is null) unanswered++;
+            if ((await TitlesAsync(shelf, null, titles, 1, ct)).Value is null) unanswered++;
         }
         return unanswered;
     }
 
     private static ShelfHeadView Head(Shelf shelf) => new() { Id = shelf.Id, Title = shelf.Title, Icon = shelf.Icon, Kind = shelf.Kind };
 
-    private async Task<Outcome<List<ShelfTitleView>>> TitlesAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, CancellationToken ct)
+    private async Task<Outcome<ShelfPage>> TitlesAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, CancellationToken ct)
     {
-        var answer = await AnsweredAsync(shelf, viewerId, titles, ct);
-        if (shelf.Shared && answer.Value is { } found) _known[shelf.Id] = found;
+        var answer = await AnsweredAsync(shelf, viewerId, titles, page, ct);
+        if (page == 1 && shelf.Shared && answer.Value is { } found) _known[shelf.Id] = found.Titles;
         return answer;
     }
 
-    private async Task<Outcome<List<ShelfTitleView>>> AnsweredAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, CancellationToken ct)
+    /// <summary>
+    /// A shelf's page. What the database pages (a discovery, a chart, a window of dates, the titles
+    /// like another) and the films a person directed are paged; a series, the week's trending list and
+    /// the library's shelves are whole in one answer, and any later page of them is empty.
+    /// </summary>
+    private async Task<Outcome<ShelfPage>> AnsweredAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, CancellationToken ct)
     {
         var held = LibraryShelf.Of(titles, record, viewerId);
-        var limit = CatalogueSearch.ShelfListed;
+        var ask = new PageAsk(CatalogueSearch.MostOnShelf, CatalogueSearch.ShelfListed, page);
+        if (page > 1 && shelf.Source is ShelfSource.Collection or ShelfSource.TrendingWeek or ShelfSource.PopularHere or ShelfSource.ReadyHere)
+            return Ok([]);
         switch (shelf.Source)
         {
             case ShelfSource.Query:
             {
                 var query = shelf.Query!;
                 if (query.To is null && query.AiringTo is null) query = query with { To = Today() };
-                return Hits(await search.ShelfAsync(query, limit, ct), held);
+                return Hits(await search.ShelfAsync(query, ask, ct), held);
             }
             case ShelfSource.Chart:
-                return Hits(await search.ChartAsync(shelf.Chart!.Value, limit, ct), held);
+                return Hits(await search.ChartAsync(shelf.Chart!.Value, ask, ct), held);
             case ShelfSource.Recent:
             {
-                var answer = await search.RecentAsync(shelf.Kind!, CatalogueSearch.RecentDays, false, ct);
-                return answer.Value is { } list ? Ok(Views(list.Hits, held)) : Failed(answer);
+                var answer = await search.RecentAsync(shelf.Kind!, CatalogueSearch.RecentDays, false, ct, page, ask.Size);
+                return answer.Value is { } list ? Ok(Views(list.Hits, held), list.Next) : Failed(answer);
             }
             case ShelfSource.Upcoming:
             {
-                var answer = await search.UpcomingAsync(shelf.Kind!, CatalogueSearch.UpcomingDays, false, ct);
-                return answer.Value is { } list ? Ok(Views(list.Hits, held)) : Failed(answer);
+                var answer = await search.UpcomingAsync(shelf.Kind!, CatalogueSearch.UpcomingDays, false, ct, page, ask.Size);
+                return answer.Value is { } list ? Ok(Views(list.Hits, held), list.Next) : Failed(answer);
             }
             case ShelfSource.Collection:
             {
@@ -496,11 +514,11 @@ public sealed class DiscoverShelves(
                 return answer.Value is { } series ? Ok(Views(series.Hits, held)) : Failed(answer);
             }
             case ShelfSource.Director:
-                return Hits(await search.DirectedAsync(shelf.DatabaseId!.Value, limit, ct), held);
+                return Hits(await search.DirectedAsync(shelf.DatabaseId!.Value, ask, ct), held);
             case ShelfSource.Like:
             {
-                var answer = await search.DiscoverAsync(new DiscoverRequest { Like = shelf.Seed, Kind = shelf.Kind }, ct);
-                return answer.Value is { } similar ? Ok(Views(similar.Hits, held)) : Failed(answer);
+                var answer = await search.DiscoverAsync(new DiscoverRequest { Like = shelf.Seed, Kind = shelf.Kind, Page = page }, ct);
+                return answer.Value is { } similar ? Ok(Views(similar.Hits, held), similar.Next) : Failed(answer);
             }
             case ShelfSource.TrendingWeek:
             {
@@ -528,15 +546,15 @@ public sealed class DiscoverShelves(
         }
     }
 
-    private Outcome<List<ShelfTitleView>> Hits(Outcome<List<TitleHit>> answer, LibraryShelf held) =>
-        answer.Value is { } hits ? Ok(Views(hits, held)) : Failed(answer);
+    private Outcome<ShelfPage> Hits(Outcome<PagedHits> answer, LibraryShelf held) =>
+        answer.Value is { } paged ? Ok(Views(paged.Hits, held), paged.Next) : Failed(answer);
 
     /// <summary>
     /// A shelf whose question the database could not answer. One it has nothing under (a series or a
     /// person it no longer holds) is a shelf with nothing on it; the shelf itself is still there.
     /// </summary>
-    private static Outcome<List<ShelfTitleView>> Failed<T>(Outcome<T> answer) where T : class =>
-        answer.Problem == Problem.NotFound ? Ok([]) : answer.Carry<List<ShelfTitleView>>();
+    private static Outcome<ShelfPage> Failed<T>(Outcome<T> answer) where T : class =>
+        answer.Problem == Problem.NotFound ? Ok([]) : answer.Carry<ShelfPage>();
 
     private List<ShelfTitleView> Views(IEnumerable<TitleHit> hits, LibraryShelf held)
     {
@@ -565,7 +583,7 @@ public sealed class DiscoverShelves(
         return views;
     }
 
-    private static Outcome<List<ShelfTitleView>> Ok(List<ShelfTitleView> titles) => Outcome<List<ShelfTitleView>>.Ok(titles);
+    private static Outcome<ShelfPage> Ok(List<ShelfTitleView> titles, int? next = null) => Outcome<ShelfPage>.Ok(new ShelfPage(titles, next));
 
     // The shelves that follow from the viewer and from the people here.
 

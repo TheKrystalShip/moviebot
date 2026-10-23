@@ -84,6 +84,7 @@ public sealed class TitleScores(CinemaDatabase database)
         PersonCredits person => person.Titles.Select(Of),
         IEnumerable<CatalogueTitle> titles => titles.Select(Of),
         IEnumerable<ListedTitle> titles => titles.Select(Of),
+        ListedPage page => page.Titles.Select(Of),
         Filmography filmography => filmography.Credits.Select(c => new Reading(c.TmdbId, c.Kind, c.Rating, c.Votes)),
         TitleCollection collection => collection.Films.Select(Of),
         _ => [],

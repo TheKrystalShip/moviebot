@@ -20,7 +20,7 @@ public sealed partial class CatalogueSearch
     /// database refuses (a genre a show does not have, nobody by a name after <c>starring</c>) is still a
     /// question, answered with the refusal's message and no titles.
     /// </summary>
-    public async Task<Outcome<QuestionAnswer>> AskAsync(string text, CancellationToken ct)
+    public async Task<Outcome<QuestionAnswer>> AskAsync(string text, int page, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(text)) return Invalid<QuestionAnswer>("Ask something.");
         var vocabulary = await VocabularyAsync(ct);
@@ -53,7 +53,7 @@ public sealed partial class CatalogueSearch
             if (at >= 0) parts[at] = new QuestionPart(name.Person ? "person" : "about", name.Name);
         }
 
-        var answer = await DiscoverAsync(request, ct);
+        var answer = await DiscoverAsync(request with { Page = page }, ct);
         if (answer.Value is not { } discovery)
             return answer.Problem is Problem.NotFound or Problem.Invalid
                 ? Outcome<QuestionAnswer>.Ok(new QuestionAnswer(true, parts, null, answer.Message))

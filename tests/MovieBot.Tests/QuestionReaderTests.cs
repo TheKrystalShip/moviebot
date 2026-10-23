@@ -204,9 +204,10 @@ public sealed class QuestionReaderTests
     }
 
     [Fact]
-    public void A_count_is_held_to_what_one_discovery_answers()
+    public void A_count_is_held_to_the_most_a_question_counts_and_none_is_the_whole_discovery()
     {
-        Assert.Equal(QuestionReader.MostCounted, Read("top 100 westerns").Request.Limit);
+        Assert.Equal(QuestionReader.MostCounted, Read("top 500 westerns").Request.Limit);
+        Assert.Equal(CatalogueSearch.MostListed, Read("horror shows").Request.Limit);
         Assert.Equal(5, Read("five best documentaries").Request.Limit);
         Assert.Equal(3, Read("3 best musicals").Request.Limit);
     }

@@ -18,6 +18,7 @@ public sealed record KeptAnswer<T> where T : class
 [JsonSerializable(typeof(List<CatalogueGenre>))]
 [JsonSerializable(typeof(List<CatalogueTitle>))]
 [JsonSerializable(typeof(List<ListedTitle>))]
+[JsonSerializable(typeof(ListedPage))]
 [JsonSerializable(typeof(List<PersonMatch>))]
 [JsonSerializable(typeof(List<KeywordMatch>))]
 [JsonSerializable(typeof(List<LanguageName>))]

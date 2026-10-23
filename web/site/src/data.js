@@ -15,6 +15,37 @@ import React from "react";
 export const LoadTracker = React.createContext(null);
 
 /**
+ * A list read a page at a time. `load(page)` answers `{ titles, next }` for the page asked, `next`
+ * being the page that follows and absent on the last. The first page is read as `useLoad` reads, and
+ * `loadMore` reads the page after the last one held and appends its titles; new `deps` start over.
+ * `titles` is every title held, null before the first page, and `next` is the page `loadMore` reads.
+ */
+export function usePaged(load, deps, options) {
+  const first = useLoad(() => load(1), deps, options);
+  const [more, setMore] = React.useState({ base: null, titles: [], next: undefined, loading: false, error: null });
+  const base = first.data;
+  const mine = more.base === base ? more : null;
+  const next = base ? (mine ? mine.next : base.next) : undefined;
+
+  const loadMore = () => {
+    if (!base || !next || (mine && mine.loading)) return;
+    setMore((cur) => ({ ...(cur.base === base ? cur : { base, titles: [], next: base.next }), loading: true, error: null }));
+    load(next).then(
+      (answer) => setMore((cur) => (cur.base !== base ? cur : { ...cur, titles: [...cur.titles, ...answer.titles], next: answer.next, loading: false })),
+      (error) => setMore((cur) => (cur.base !== base ? cur : { ...cur, loading: false, error })));
+  };
+
+  return {
+    ...first,
+    titles: base ? [...base.titles, ...(mine ? mine.titles : [])] : null,
+    next,
+    loadingMore: !!mine && mine.loading,
+    moreError: mine ? mine.error : null,
+    loadMore,
+  };
+}
+
+/**
  * One read for a page: `load` is asked when the page mounts and again when `deps` change, every
  * `every` milliseconds when given, and on `reload`. `known` is an answer the page already holds, from
  * a read that carried it: the read starts answered with it and asks nothing until a reload or new deps.

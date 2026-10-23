@@ -5,7 +5,7 @@ import {
 } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { POSTERS, TILES } from "../railDensity.js";
-import { useLoad } from "../data.js";
+import { useLoad, usePaged } from "../data.js";
 import { FILTER_PARAMS, discoverBrowsePath, discoverFilterPath, discoverShelfPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { SORTED, useSort } from "../sorts.js";
@@ -239,11 +239,44 @@ function sorted(titles, { key, dir }) {
 }
 
 /**
- * Every title on one shelf, up to 40, with krystal's Toolbar as on the library's pages: what to
- * leave off, an order, how many are shown, and Surprise me among them.
+ * The next page of a grid, read as its end comes near: a plain skeleton of cards while it is read, and
+ * the failure with a retry when it cannot be. `paged` is what `usePaged` returned for the grid.
+ */
+export function MoreCards({ paged }) {
+  const { next, loadingMore, moreError, loadMore } = paged;
+  const ref = React.useRef(null);
+  const latest = React.useRef(loadMore);
+  latest.current = loadMore;
+  const idle = !!next && !loadingMore && !moreError;
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el || !idle) return undefined;
+    if (typeof IntersectionObserver !== "function") {
+      latest.current();
+      return undefined;
+    }
+    const watcher = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) latest.current();
+    }, { rootMargin: "600px 0px" });
+    watcher.observe(el);
+    return () => watcher.disconnect();
+  }, [idle, next]);
+
+  if (!next) return null;
+  return (
+    <div ref={ref} style={{ minHeight: 1 }}>
+      {loadingMore && <CardsSkeleton count={6} row />}
+      {moreError && <Failed error={moreError} onRetry={loadMore} />}
+    </div>
+  );
+}
+
+/**
+ * Every title on one shelf, a page at a time as the grid reaches its end, with krystal's Toolbar as on
+ * the library's pages: what to leave off, an order, how many are shown, and Surprise me among them.
  */
 export function ShelfPage({ id, where }) {
-  const shelf = useLoad(() => api.discoverShelf(id), [id]);
+  const shelf = usePaged((page) => api.discoverShelf(id, page), [id]);
   const [hideWatched, setHideWatched] = useHideWatched();
   const [busy, surprise] = useSurprise(where);
   const [kind, setKind] = React.useState("all");
@@ -254,7 +287,7 @@ export function ShelfPage({ id, where }) {
   if (shelf.error && !s) return <Failed error={shelf.error} onRetry={shelf.reload} />;
   if (!s) return <BrowseSkeleton />;
 
-  const all = s.titles;
+  const all = shelf.titles;
   const mixed = all.some((t) => t.kind === "show") && all.some((t) => t.kind === "film");
   const decades = DECADES.filter((d) => all.some((t) => decadeOf(t.year) === d));
   const shown = sorted(all
@@ -293,6 +326,7 @@ export function ShelfPage({ id, where }) {
       {shown.length > 0
         ? <div className="kc-grid">{shown.map((t) => <FoundCard key={t.kind + t.imdbId} found={t} {...where(t)} />)}</div>
         : <Empty icon="compass" title={all.length ? "Nothing matches" : "Nothing on this shelf"} />}
+      <MoreCards paged={shelf} />
       <p className="kc-attribution-note">Titles and artwork from TMDB.</p>
     </section>
   );
@@ -341,7 +375,7 @@ export function readFilter(query) {
 
 /** What the catalogue is asked for a filter. Any rating still needs a hundred votes, so nobody's home video is listed. */
 function filterQuestion(f) {
-  const q = { kind: f.kind, limit: "20" };
+  const q = { kind: f.kind };
   if (f.genre) q.genre = f.genre;
   if (f.decade) {
     q.from = f.decade;
@@ -421,10 +455,10 @@ export function FilterPage({ query, index, where }) {
   const order = sortOrder(f.sort);
   const question = filterQuestion(f);
   const key = JSON.stringify(question);
-  const found = useLoad(() => api.catalogueDiscover(question), [key]);
+  const found = usePaged((page) => api.catalogueDiscover(question, page), [key]);
   const set = (change) => navigate(discoverFilterPath({ ...named, ...change }), { replace: true });
 
-  const all = found.data ? found.data.titles.filter((t) => t.imdbId).map((t) => ({ ...t, starring: t.starring.join(", ") })) : null;
+  const all = found.titles ? found.titles.filter((t) => t.imdbId).map((t) => ({ ...t, starring: t.starring.join(", ") })) : null;
   const titles = all && (hideWatched ? all.filter((t) => !t.watched) : all);
 
   return (
@@ -448,6 +482,7 @@ export function FilterPage({ query, index, where }) {
       {titles && (titles.length > 0
         ? <div className="kc-grid">{titles.map((t) => <FoundCard key={t.kind + t.imdbId} found={t} {...where(t)} />)}</div>
         : <Empty icon="sliders-horizontal" title="Nothing matches" />)}
+      <MoreCards paged={found} />
       <p className="kc-attribution-note">Titles and artwork from TMDB.</p>
     </section>
   );

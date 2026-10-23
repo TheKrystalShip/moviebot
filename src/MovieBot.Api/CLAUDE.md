@@ -119,7 +119,7 @@ film onto a device is `Offline/CLAUDE.md`.
   keywords, language, a rating floor and similarity to another title, and the lists of what is out and
   what is coming are asked of the film database once and kept (a question somebody typed is named
   under `queries/` and trimmed after thirty days unasked), for a day or for six hours, and a database
-  that cannot be reached costs freshness and nothing else. What names a title (its IMDb id, makers and
+  that cannot be reached costs freshness and nothing else. A discovery, a question and a shelf are served a page at a time (`PageAsk`: a page of 20 titles, a shelf's of 40, at most `CatalogueSearch.PagesListed` pages, a count bounding the total); each page of the database's own order is its own kept answer, while a sort by rating keeps the one ranked list of the most voted titles and slices it, so every page continues the same order. A source that is whole in one answer says there is no next page. What names a title (its IMDb id, makers and
   top-billed actors) is one call kept a week, so a title in many answers is asked about once. Every word
   that names a genre, a person, a keyword or a language is resolved to the database's and reported in
   `resolved`; a word the database does not know is refused (`404`) rather than dropped, because a

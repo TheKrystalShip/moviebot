@@ -32,7 +32,7 @@ public static class DiscoverEndpoints
             var ids = new List<string> { index.Spotlight };
             ids.AddRange(index.Rows.Where(r => r.Shelf is not null).Select(r => r.Shelf!.Id).Take(FirstRows));
             var asked = ids.Distinct(StringComparer.Ordinal)
-                .Select(id => shelves.ShelfAsync(id, viewer, CancellationToken.None)).ToList();
+                .Select(id => shelves.ShelfAsync(id, viewer, 1, CancellationToken.None)).ToList();
             await Task.WhenAny(Task.WhenAll(asked), deadline);
             var answered = asked.Where(t => t.IsCompletedSuccessfully && t.Result.Value is not null).Select(t => t.Result.Value!).ToList();
 
@@ -49,14 +49,20 @@ public static class DiscoverEndpoints
             return Results.Ok(index with { Shelves = answered, Films = described });
         }).RequireAction(CinemaActions.Watch);
 
-        // One shelf's titles, joined with the library and with what the asking person watched.
-        app.MapGet("/api/discover/shelves/{id}", async (string id, HttpContext context, DiscoverShelves shelves, CancellationToken ct) =>
+        // One page of a shelf's titles, joined with the library and with what the asking person
+        // watched; next names the page that follows.
+        app.MapGet("/api/discover/shelves/{id}", async (string id, int? page, HttpContext context, DiscoverShelves shelves, CancellationToken ct) =>
         {
-            var outcome = await shelves.ShelfAsync(id, PeopleEndpoints.Person(context)?.UserId, ct);
+            var outcome = await shelves.ShelfAsync(id, PeopleEndpoints.Person(context)?.UserId, page ?? 1, ct);
             return outcome.Value is { } shelf
                 ? Results.Ok(shelf)
                 : Results.Json(new ErrorReply(outcome.Message ?? "The film database could not answer."), ApiJsonContext.Default.ErrorReply,
-                    statusCode: outcome.Problem == Problem.NotFound ? StatusCodes.Status404NotFound : StatusCodes.Status503ServiceUnavailable);
+                    statusCode: outcome.Problem switch
+                    {
+                        Problem.Invalid => StatusCodes.Status400BadRequest,
+                        Problem.NotFound => StatusCodes.Status404NotFound,
+                        _ => StatusCodes.Status503ServiceUnavailable,
+                    });
         }).RequireAction(CinemaActions.Watch);
     }
 }

@@ -26,10 +26,10 @@ public static class CatalogueSearchEndpoints
         }).RequireAction(CinemaActions.Watch);
 
         // Words typed into Discover as a question (top 10 horror movies from 2000), or no question
-        // when they are a title's name.
-        app.MapGet("/api/catalogue/ask", async (string? q, HttpContext context, CatalogueSearch search, CancellationToken ct) =>
+        // when they are a title's name; page and next walk the titles it found.
+        app.MapGet("/api/catalogue/ask", async (string? q, int? page, HttpContext context, CatalogueSearch search, CancellationToken ct) =>
         {
-            var outcome = await search.AskAsync(q ?? "", ct);
+            var outcome = await search.AskAsync(q ?? "", page ?? 1, ct);
             if (outcome.Value is not { } answer) return Refused(outcome);
 
             var shelf = search.ShelfFor(Viewer(context));
@@ -41,6 +41,7 @@ public static class CatalogueSearchEndpoints
                 Kind = answer.Discovery?.Kind,
                 Resolved = answer.Discovery?.Resolved,
                 Titles = [.. (answer.Discovery?.Hits ?? []).Select(h => search.View(h, shelf))],
+                Next = answer.Discovery?.Next,
                 Message = answer.Message,
             });
         }).RequireAction(CinemaActions.Watch);
@@ -66,10 +67,11 @@ public static class CatalogueSearchEndpoints
                 : Refused(outcome);
         }).RequireAction(CinemaActions.Watch);
 
-        // Films or shows found by what they are like. Every filter is optional and they combine.
+        // Films or shows found by what they are like. Every filter is optional and they combine; a
+        // page of at most twenty, and next names the page that follows.
         app.MapGet("/api/catalogue/discover", async (
             string? kind, [FromQuery] string[]? genre, [FromQuery] string[]? exclude, bool? includeFamily, int? from, int? to, [FromQuery(Name = "with")] string[]? people, [FromQuery] string[]? about,
-            string? language, string? like, bool? goodOnly, double? minRating, int? minVotes, int? minRuntime, int? maxRuntime, string? sort, int? limit, string? category,
+            string? language, string? like, bool? goodOnly, double? minRating, int? minVotes, int? minRuntime, int? maxRuntime, string? sort, int? limit, int? page, string? category,
             HttpContext context, CatalogueSearch search, CancellationToken ct) =>
         {
             var outcome = await search.DiscoverAsync(new DiscoverRequest
@@ -90,7 +92,8 @@ public static class CatalogueSearchEndpoints
                 MinRuntime = minRuntime,
                 MaxRuntime = maxRuntime,
                 Sort = sort,
-                Limit = limit ?? CatalogueSearch.ResultsListed,
+                Limit = limit ?? CatalogueSearch.MostListed,
+                Page = page ?? 1,
                 Category = category,
             }, ct);
             if (outcome.Value is not { } answer) return Refused(outcome);
@@ -101,6 +104,7 @@ public static class CatalogueSearchEndpoints
                 Kind = answer.Kind,
                 Resolved = answer.Resolved,
                 Titles = [.. answer.Hits.Select(h => search.View(h, shelf))],
+                Next = answer.Next,
             });
         }).RequireAction(CinemaActions.Watch);
 

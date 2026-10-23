@@ -56,8 +56,8 @@ public sealed record QuestionVocabulary
 /// </summary>
 public static class QuestionReader
 {
-    /// <summary>The most a question's count asks for: what one discovery answers.</summary>
-    public const int MostCounted = CatalogueSearch.ResultsListed;
+    /// <summary>The most a question's count asks for, which the discovery lists across its pages.</summary>
+    public const int MostCounted = 100;
 
     /// <summary>The votes a question for the newest titles needs behind one, so what nobody has seen is left out.</summary>
     public const int NewestVotes = 20;
@@ -254,7 +254,7 @@ public static class QuestionReader
                     MinRuntime = _minRuntime,
                     MaxRuntime = _maxRuntime,
                     Sort = _sort,
-                    Limit = _count ?? CatalogueSearch.ResultsListed,
+                    Limit = _count ?? CatalogueSearch.MostListed,
                     Category = _anime ? "anime" : null,
                 },
                 Parts = _parts,

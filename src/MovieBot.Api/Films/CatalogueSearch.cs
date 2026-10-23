@@ -73,15 +73,44 @@ public sealed record DiscoverRequest
     /// <summary>The longest a film runs, or a show's episode, in minutes.</summary>
     public int? MaxRuntime { get; init; }
     public string? Sort { get; init; }
-    public int Limit { get; init; } = CatalogueSearch.ResultsListed;
+
+    /// <summary>The most titles the discovery lists across all its pages; a page holds at most <see cref="CatalogueSearch.ResultsListed"/>.</summary>
+    public int Limit { get; init; } = CatalogueSearch.MostListed;
+
+    /// <summary>Which page of the discovery is wanted, counting from 1.</summary>
+    public int Page { get; init; } = 1;
 
     /// <summary><c>anime</c> keeps the titles <see cref="TitleCategories"/> counts as anime: animated, and made in Japanese.</summary>
     public string? Category { get; init; }
 }
 
-public sealed record DiscoverAnswer(string Kind, DiscoverResolved Resolved, List<TitleHit> Hits);
+/// <summary>A discovery's page of titles; <paramref name="Next"/> is the page that follows it, absent on the last.</summary>
+public sealed record DiscoverAnswer(string Kind, DiscoverResolved Resolved, List<TitleHit> Hits, int? Next);
 
-public sealed record ListAnswer(string Kind, DateOnly From, DateOnly To, List<TitleHit> Hits);
+public sealed record ListAnswer(string Kind, DateOnly From, DateOnly To, List<TitleHit> Hits, int? Next);
+
+/// <summary>A page of titles each with its card; <paramref name="Next"/> is the page that follows it, absent on the last.</summary>
+public sealed record PagedHits(List<TitleHit> Hits, int? Next);
+
+/// <summary>A page of the film database's titles before they are named; <paramref name="Next"/> is as in <see cref="PagedHits"/>.</summary>
+internal sealed record TitlePage(List<ListedTitle> Titles, int? Next);
+
+/// <summary>
+/// Which page of a list is wanted: the pages are <paramref name="Size"/> titles each, the list holds
+/// at most <paramref name="Limit"/> in all, and <paramref name="Page"/> counts from 1.
+/// </summary>
+public readonly record struct PageAsk(int Limit, int Size, int Page)
+{
+    /// <summary>The titles before this page.</summary>
+    public int Skip => (Page - 1) * Size;
+
+    /// <summary>The titles this page holds: a full page, or what is left of the limit.</summary>
+    public int Take => Math.Clamp(Limit - Skip, 0, Size);
+
+    /// <summary>The page that follows when the source has titles beyond this one and the limit and the cap on pages allow it.</summary>
+    public int? Next(bool sourceHasMore) =>
+        sourceHasMore && Page * Size < Limit && Page < CatalogueSearch.PagesListed ? Page + 1 : null;
+}
 
 /// <summary>The films of one series, the first released first.</summary>
 public sealed record CollectionAnswer(string Name, List<TitleHit> Hits);
@@ -112,11 +141,20 @@ public sealed partial class CatalogueSearch(
     /// <summary>The most titles a search lists.</summary>
     public const int SearchListed = 10;
 
-    /// <summary>The most titles a discovery or a list of the week lists.</summary>
+    /// <summary>The most titles a page of a discovery or a list of the week holds.</summary>
     public const int ResultsListed = 20;
 
-    /// <summary>The most titles a shelf of the Discover page lists.</summary>
+    /// <summary>The most titles a page of a shelf of the Discover page holds.</summary>
     public const int ShelfListed = 40;
+
+    /// <summary>The most pages a discovery or a shelf serves, whatever the database holds beyond.</summary>
+    public const int PagesListed = 25;
+
+    /// <summary>The most titles a discovery lists in all.</summary>
+    public const int MostListed = PagesListed * ResultsListed;
+
+    /// <summary>The most titles a shelf lists in all.</summary>
+    public const int MostOnShelf = PagesListed * ShelfListed;
 
     /// <summary>The most credits a person's list holds; the newest are kept when there are more.</summary>
     public const int CreditsListed = 300;
@@ -237,7 +275,9 @@ public sealed partial class CatalogueSearch(
     /// </summary>
     public async Task<Outcome<DiscoverAnswer>> DiscoverAsync(DiscoverRequest request, CancellationToken ct)
     {
-        var limit = Math.Clamp(request.Limit, 1, ResultsListed);
+        var limit = Math.Clamp(request.Limit, 1, MostListed);
+        if (request.Page < 1 || request.Page > PagesListed) return Invalid<DiscoverAnswer>($"Page is 1 to {PagesListed}.");
+        var ask = new PageAsk(limit, Math.Min(limit, ResultsListed), request.Page);
         if (request.Kind is not null && !Catalogue.IsKind(request.Kind)) return Invalid<DiscoverAnswer>("Kind is film or show.");
         if (request.Sort is not null && !DiscoverSorts.IsSort(request.Sort)) return Invalid<DiscoverAnswer>("Sort is popular, rating, newest or oldest.");
         if (request.From > request.To) return Invalid<DiscoverAnswer>("From is after to.");
@@ -357,12 +397,12 @@ public sealed partial class CatalogueSearch(
             Sort = sort ?? DiscoverSorts.Popular,
         };
 
-        Outcome<List<ListedTitle>> listed = seed is null
-            ? await DiscoveredAsync(query, limit, ct)
-            : await SimilarToAsync(seed.Key, query, sort, limit, ct);
-        if (listed.Value is not { } titles) return listed.Carry<DiscoverAnswer>();
+        Outcome<TitlePage> listed = seed is null
+            ? await DiscoveredAsync("discover", DiscoverKept, query, ask, ct)
+            : await SimilarToAsync(seed.Key, query, sort, ask, ct);
+        if (listed.Value is not { } page) return listed.Carry<DiscoverAnswer>();
 
-        var hits = await HitsAsync(titles, limit, ct);
+        var hits = await HitsAsync(page.Titles, ask.Take, ct);
         var resolved = new DiscoverResolved
         {
             Genres = [.. genres.Select(g => g.Name)],
@@ -375,28 +415,28 @@ public sealed partial class CatalogueSearch(
             MinVotes = minVotes,
             Sort = sort ?? "similar",
         };
-        return Outcome<DiscoverAnswer>.Ok(new DiscoverAnswer(kind, resolved, hits));
+        return Outcome<DiscoverAnswer>.Ok(new DiscoverAnswer(kind, resolved, hits, page.Next));
     }
 
     /// <summary>
-    /// The titles a question put by the site rather than a person finds, at most
-    /// <paramref name="limit"/>, each with its card: the question names the database's own ids, so
-    /// nothing in it needs resolving.
+    /// A page of the titles a question put by the site rather than a person finds, each with its
+    /// card: the question names the database's own ids, so nothing in it needs resolving.
     /// </summary>
-    public async Task<Outcome<List<TitleHit>>> ShelfAsync(DiscoverQuery query, int limit, CancellationToken ct)
+    public async Task<Outcome<PagedHits>> ShelfAsync(DiscoverQuery query, PageAsk ask, CancellationToken ct)
     {
-        var listed = await DiscoveredAsync(query, limit, ct);
-        if (listed.Value is not { } titles) return listed.Carry<List<TitleHit>>();
-        return Outcome<List<TitleHit>>.Ok(await HitsAsync(titles, limit, ct));
+        var listed = await DiscoveredAsync("discover", DiscoverKept, query, ask, ct);
+        return await NamedPageAsync(listed, ask, ct);
     }
 
-    /// <summary>One of the database's own lists, at most <paramref name="limit"/>, kept as the lists of the week are.</summary>
-    public async Task<Outcome<List<TitleHit>>> ChartAsync(TitleChart chart, int limit, CancellationToken ct)
+    /// <summary>A page of one of the database's own lists, kept as the lists of the week are.</summary>
+    public async Task<Outcome<PagedHits>> ChartAsync(TitleChart chart, PageAsk ask, CancellationToken ct)
     {
-        var kept = await keeper.KeptAsync($"charts/{chart}-{limit}", AnswerJson.Default.ListListedTitle, ListKept,
-            async (tmdb, token) => (await tmdb.ChartAsync(chart, limit, token)).ToList(), null, ct);
-        if (kept is null) return Unavailable<List<TitleHit>>("The film database could not be asked what is on.");
-        return Outcome<List<TitleHit>>.Ok(await HitsAsync(kept.Value ?? [], limit, ct));
+        if (ask.Take <= 0) return Outcome<PagedHits>.Ok(new PagedHits([], null));
+        var kept = await keeper.KeptAsync($"charts/{chart}-{ask.Size}-p{ask.Page}", AnswerJson.Default.ListedPage, ListKept,
+            async (tmdb, token) => await tmdb.ChartPageAsync(chart, ask.Page, ask.Size, token), null, ct);
+        if (kept is null) return Unavailable<PagedHits>("The film database could not be asked what is on.");
+        var page = kept.Value ?? new ListedPage();
+        return Outcome<PagedHits>.Ok(new PagedHits(await HitsAsync([.. page.Titles.Take(ask.Take)], ask.Take, ct), ask.Next(ask.Page < page.Pages)));
     }
 
     /// <summary>The films of one series, the first released first, kept a week.</summary>
@@ -411,14 +451,14 @@ public sealed partial class CatalogueSearch(
     }
 
     /// <summary>
-    /// The films a person directed that are out, the most voted on first, at most
-    /// <paramref name="limit"/>, read from the same kept credits as everything else they did.
+    /// A page of the films a person directed that are out, the most voted on first, read from the same
+    /// kept credits as everything else they did.
     /// </summary>
-    public async Task<Outcome<List<TitleHit>>> DirectedAsync(int personId, int limit, CancellationToken ct)
+    public async Task<Outcome<PagedHits>> DirectedAsync(int personId, PageAsk ask, CancellationToken ct)
     {
         var kept = await FilmographyAsync(personId, ct);
-        if (kept is null) return Unavailable<List<TitleHit>>("The film database could not be asked about this person.");
-        if (kept.Value is not { } person) return NotFound<List<TitleHit>>("The film database has nobody under that id.");
+        if (kept is null) return Unavailable<PagedHits>("The film database could not be asked about this person.");
+        if (kept.Value is not { } person) return NotFound<PagedHits>("The film database has nobody under that id.");
 
         var today = Today();
         var directed = person.Credits
@@ -426,27 +466,28 @@ public sealed partial class CatalogueSearch(
             .OrderByDescending(c => c.Votes)
             .Select(c => c.AsListed())
             .ToList();
-        return Outcome<List<TitleHit>>.Ok(await HitsAsync(directed, limit, ct));
+        var page = directed.Skip(ask.Skip).Take(ask.Take).ToList();
+        return Outcome<PagedHits>.Ok(new PagedHits(await HitsAsync(page, ask.Take, ct), ask.Next(directed.Count > ask.Skip + ask.Size)));
     }
 
     /// <summary>
     /// The films or shows released in the last <paramref name="days"/> days, the most looked at, newest
     /// first; with <paramref name="anime"/>, the anime among them.
     /// </summary>
-    public Task<Outcome<ListAnswer>> RecentAsync(string kind, int days, bool anime, CancellationToken ct)
+    public Task<Outcome<ListAnswer>> RecentAsync(string kind, int days, bool anime, CancellationToken ct, int page = 1, int size = ResultsListed)
     {
         var today = Today();
-        return WindowAsync("released", kind, today.AddDays(-days), today, newestFirst: true, anime, ct);
+        return WindowAsync("released", kind, today.AddDays(-days), today, newestFirst: true, anime, new PageAsk(MostOnShelf, size, page), ct);
     }
 
     /// <summary>
     /// The films or shows with a date in the next <paramref name="days"/> days, the most looked at,
     /// soonest first; with <paramref name="anime"/>, the anime among them.
     /// </summary>
-    public Task<Outcome<ListAnswer>> UpcomingAsync(string kind, int days, bool anime, CancellationToken ct)
+    public Task<Outcome<ListAnswer>> UpcomingAsync(string kind, int days, bool anime, CancellationToken ct, int page = 1, int size = ResultsListed)
     {
         var today = Today();
-        return WindowAsync("upcoming", kind, today.AddDays(1), today.AddDays(days), newestFirst: false, anime, ct);
+        return WindowAsync("upcoming", kind, today.AddDays(1), today.AddDays(days), newestFirst: false, anime, new PageAsk(MostOnShelf, size, page), ct);
     }
 
     /// <summary>
@@ -604,18 +645,40 @@ public sealed partial class CatalogueSearch(
             : Outcome<List<ListedTitle>>.Ok(kept.Value ?? []);
     }
 
-    private async Task<Outcome<List<ListedTitle>>> DiscoveredAsync(DiscoverQuery query, int limit, CancellationToken ct)
+    /// <summary>
+    /// A page of a discovery, each page a distinct answer kept under its own name. A sort by rating
+    /// ranks the most voted titles of the whole discovery, so that ranked list is the one answer kept
+    /// and every page is a slice of it: page two continues page one's order whenever it is asked.
+    /// </summary>
+    private async Task<Outcome<TitlePage>> DiscoveredAsync(string family, TimeSpan keep, DiscoverQuery query, PageAsk ask, CancellationToken ct)
     {
-        var kept = await keeper.KeptAsync(AnswerKeeper.QueryName("discover", Canonical(query, limit)),
-            AnswerJson.Default.ListListedTitle, DiscoverKept,
-            async (tmdb, token) => (await tmdb.DiscoverAsync(query, limit, token)).ToList(), null, ct);
-        return kept is null
-            ? Unavailable<List<ListedTitle>>("The film database could not be asked to discover.")
-            : Outcome<List<ListedTitle>>.Ok(kept.Value ?? []);
+        if (ask.Take <= 0) return Outcome<TitlePage>.Ok(new TitlePage([], null));
+
+        if (query.Sort == DiscoverSorts.Rating)
+        {
+            var pool = await keeper.KeptAsync(AnswerKeeper.QueryName(family, Canonical(query, TmdbClient.RatingPoolSize, 0)),
+                AnswerJson.Default.ListListedTitle, keep,
+                async (tmdb, token) => (await tmdb.DiscoverAsync(query, TmdbClient.RatingPoolSize, token)).ToList(), null, ct);
+            if (pool is null) return Unavailable<TitlePage>("The film database could not be asked to discover.");
+            var ranked = pool.Value ?? [];
+            return Outcome<TitlePage>.Ok(new TitlePage([.. ranked.Skip(ask.Skip).Take(ask.Take)], ask.Next(ranked.Count > ask.Skip + ask.Size)));
+        }
+
+        var kept = await keeper.KeptAsync(AnswerKeeper.QueryName(family, Canonical(query, ask.Size, ask.Page)),
+            AnswerJson.Default.ListedPage, keep,
+            async (tmdb, token) => await tmdb.DiscoverPageAsync(query, ask.Page, ask.Size, token), null, ct);
+        if (kept is null) return Unavailable<TitlePage>("The film database could not be asked to discover.");
+        var page = kept.Value ?? new ListedPage();
+        return Outcome<TitlePage>.Ok(new TitlePage([.. page.Titles.Take(ask.Take)], ask.Next(ask.Page < page.Pages)));
     }
 
+    private async Task<Outcome<PagedHits>> NamedPageAsync(Outcome<TitlePage> listed, PageAsk ask, CancellationToken ct) =>
+        listed.Value is { } page
+            ? Outcome<PagedHits>.Ok(new PagedHits(await HitsAsync(page.Titles, ask.Take, ct), page.Next))
+            : listed.Carry<PagedHits>();
+
     /// <summary>The released and upcoming lists: the most looked at titles of a window of days.</summary>
-    private async Task<Outcome<ListAnswer>> WindowAsync(string family, string kind, DateOnly from, DateOnly to, bool newestFirst, bool anime, CancellationToken ct)
+    private async Task<Outcome<ListAnswer>> WindowAsync(string family, string kind, DateOnly from, DateOnly to, bool newestFirst, bool anime, PageAsk ask, CancellationToken ct)
     {
         if (!Catalogue.IsKind(kind)) return Invalid<ListAnswer>("Kind is film or show.");
 
@@ -628,18 +691,16 @@ public sealed partial class CatalogueSearch(
                 return NotFound<ListAnswer>($"The film database has no {kind} genre called {TitleCategories.AnimeGenre}.");
             query = query with { GenreIds = [animation.Id], Language = TitleCategories.AnimeLanguage };
         }
-        var kept = await keeper.KeptAsync(AnswerKeeper.QueryName(family, Canonical(query, ResultsListed)),
-            AnswerJson.Default.ListListedTitle, ListKept,
-            async (tmdb, token) => (await tmdb.DiscoverAsync(query, ResultsListed, token)).ToList(), null, ct);
-        if (kept is null) return Unavailable<ListAnswer>("The film database could not be asked what is on.");
+        var listed = await DiscoveredAsync(family, ListKept, query, ask, ct);
+        if (listed.Value is not { } page) return listed.Carry<ListAnswer>();
 
-        var ordered = (kept.Value ?? [])
+        var ordered = page.Titles
             .OrderBy(t => t.Released is null);
         var dated = newestFirst
             ? ordered.ThenByDescending(t => t.Released)
             : ordered.ThenBy(t => t.Released);
-        var hits = await HitsAsync(dated.ToList(), ResultsListed, ct);
-        return Outcome<ListAnswer>.Ok(new ListAnswer(kind, from, to, hits));
+        var hits = await HitsAsync(dated.ToList(), ask.Take, ct);
+        return Outcome<ListAnswer>.Ok(new ListAnswer(kind, from, to, hits, page.Next));
     }
 
     /// <summary>
@@ -647,12 +708,12 @@ public sealed partial class CatalogueSearch(
     /// The database filters nothing of its own here, so the filters are read off each candidate, and a
     /// person or a keyword is looked for in what each candidate is tagged with and credited to.
     /// </summary>
-    private async Task<Outcome<List<ListedTitle>>> SimilarToAsync(TitleKey seed, DiscoverQuery query, string? sort, int limit, CancellationToken ct)
+    private async Task<Outcome<TitlePage>> SimilarToAsync(TitleKey seed, DiscoverQuery query, string? sort, PageAsk ask, CancellationToken ct)
     {
         var space = seed.Kind == "film" ? "movie" : "tv";
         var kept = await keeper.KeptAsync($"similar/{space}-{seed.TmdbId}", AnswerJson.Default.ListListedTitle, DiscoverKept,
             async (tmdb, token) => (await tmdb.SimilarAsync(seed.Kind, seed.TmdbId, 2, token)).ToList(), null, ct);
-        if (kept is null) return Unavailable<List<ListedTitle>>("The film database could not be asked what is similar.");
+        if (kept is null) return Unavailable<TitlePage>("The film database could not be asked what is similar.");
 
         var narrowed = (kept.Value ?? [])
             .Where(t => query.GenreIds.All(id => t.GenreIds.Contains(id)))
@@ -672,9 +733,14 @@ public sealed partial class CatalogueSearch(
             DiscoverSorts.Oldest => narrowed.OrderBy(t => t.Released is null).ThenBy(t => t.Released),
             _ => narrowed,
         };
-        if (query.PersonIds.Count == 0 && query.KeywordIds.Count == 0) return Outcome<List<ListedTitle>>.Ok([.. ordered.Take(limit + NamedSlack)]);
+        if (query.PersonIds.Count == 0 && query.KeywordIds.Count == 0)
+        {
+            var all = ordered.ToList();
+            return Outcome<TitlePage>.Ok(new TitlePage([.. all.Skip(ask.Skip).Take(ask.Take)], ask.Next(all.Count > ask.Skip + ask.Size)));
+        }
 
-        // A title is asked about only as far as the answer needs: eight at a time until there are enough.
+        // A title is asked about only as far as the answer needs: eight at a time until the page is
+        // full and one title beyond it shows there is a page to follow.
         var matched = new List<ListedTitle>();
         foreach (var chunk in ordered.Chunk(CardsAtOnce))
         {
@@ -693,9 +759,9 @@ public sealed partial class CatalogueSearch(
                     && query.KeywordIds.All(t.Keywords.Contains)
                     && query.PersonIds.All(t.People.Contains))
                     matched.Add(chunk[i]);
-            if (matched.Count >= limit + NamedSlack) break;
+            if (matched.Count > ask.Skip + ask.Size) break;
         }
-        return Outcome<List<ListedTitle>>.Ok(matched);
+        return Outcome<TitlePage>.Ok(new TitlePage([.. matched.Skip(ask.Skip).Take(ask.Take)], ask.Next(matched.Count > ask.Skip + ask.Size)));
     }
 
     /// <summary>Everything a person is credited on, kept a day, their portrait kept with it.</summary>
@@ -910,10 +976,10 @@ public sealed partial class CatalogueSearch(
     };
 
     /// <summary>One question as one string, which is what its answer is kept under.</summary>
-    private static string Canonical(DiscoverQuery q, int limit) => string.Join('|',
+    private static string Canonical(DiscoverQuery q, int limit, int page) => string.Join('|',
         q.Kind, string.Join(',', q.GenreIds), string.Join(',', q.WithoutGenreIds), q.From?.ToString("O"), q.To?.ToString("O"), string.Join(',', q.PersonIds),
         string.Join(',', q.KeywordIds), q.Language, q.MinRating?.ToString(CultureInfo.InvariantCulture),
-        q.MinVotes?.ToString(CultureInfo.InvariantCulture), q.Sort, limit,
+        q.MinVotes?.ToString(CultureInfo.InvariantCulture), q.Sort, limit, page,
         string.Join(',', q.AnyGenreIds), string.Join(',', q.AnyKeywordIds), string.Join(',', q.AnyLanguages), q.OriginCountry,
         string.Join(',', q.CompanyIds), string.Join(',', q.NetworkIds), q.MinRuntime, q.MaxRuntime,
         q.MaxRating?.ToString(CultureInfo.InvariantCulture), q.MaxVotes, q.MaxCertification,
