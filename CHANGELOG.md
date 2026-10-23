@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.60.0] - 2026-10-23
+
+### Added
+
+- **Tools** in the chat's options menu: what the assistant can use on your behalf, each named and
+  described (krystal 5.1.0).
+
 ## [3.59.0] - 2026-10-23
 
 ### Added
