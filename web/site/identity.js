@@ -14,4 +14,5 @@ export default {
   ],
   palettes: ["src/themes.css"],
   android: "../../phone/res",
+  androidPalettes: true,
 };
