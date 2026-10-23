@@ -27,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="TheKrystalShip.Notifications" Version="1.0.0-dev.1" />
+    <PackageReference Include="TheKrystalShip.Notifications" Version="1.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.5" />
     <!-- Everything the API keeps, in one SQLite file. Raw ADO rather than EF Core, which is not
          AOT-safe; the bundle carries the native e_sqlite3 the publish puts beside the binary. -->
