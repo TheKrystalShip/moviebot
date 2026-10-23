@@ -504,7 +504,7 @@ button.kc-episode:disabled { cursor: progress; }
   .kc-phonehead { display: flex; align-items: center; gap: 10px; margin-bottom: -8px; }
   .kc-phonehead img { object-fit: contain; }
   .kc-phonehead__name { font-size: 17px; font-weight: 700; }
-  .kc-phonehead .k-notification-tray { margin-left: auto; }
+  .kc-phonehead__bell { margin-left: auto; }
 }
 .kc-bell-button { position: relative; display: flex; margin-right: -10px; }
 .kc-bell-button__dot {

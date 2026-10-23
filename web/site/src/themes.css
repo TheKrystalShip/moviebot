@@ -237,9 +237,6 @@
   --scrollbar-thumb: rgba(255, 208, 0, 0.26);
   --scrollbar-thumb-hover: rgba(255, 208, 0, 0.46);
   --r-sm: 2px;
-  --r-md: 4px;
-  --r-lg: 6px;
-  --r-xl: 8px;
 }
 
 /* Silent Film: aged paper and sepia ink, the one light cinema palette. */
@@ -288,9 +285,6 @@
   --scrollbar-thumb: rgba(42, 29, 18, 0.22);
   --scrollbar-thumb-hover: rgba(42, 29, 18, 0.38);
   --r-sm: 2px;
-  --r-md: 3px;
-  --r-lg: 4px;
-  --r-xl: 6px;
 }
 
 /* Crimson Reel: near-black with one red, used sparingly. */
@@ -813,9 +807,6 @@
   --scrollbar-thumb: rgba(216, 163, 26, 0.26);
   --scrollbar-thumb-hover: rgba(216, 163, 26, 0.46);
   --r-sm: 2px;
-  --r-md: 3px;
-  --r-lg: 4px;
-  --r-xl: 6px;
 }
 
 /* Sci-Fi Bridge: a ship's console, deep teal with amber readouts. */
@@ -864,7 +855,4 @@
   --scrollbar-thumb: rgba(255, 176, 0, 0.26);
   --scrollbar-thumb-hover: rgba(255, 176, 0, 0.46);
   --r-sm: 3px;
-  --r-md: 4px;
-  --r-lg: 6px;
-  --r-xl: 8px;
 }

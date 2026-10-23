@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.61.1] - 2026-10-23
+
+### Fixed
+
+- **Corners are the design system's two radii** (krystal 7.0.0): every surface of the site and the TV
+  takes the 4px UI radius, the notification tray among them, and only pills, avatars and round marks
+  take the pill. The palettes re-value only those two.
+- The phone's bell sits at the end of the front page's header through its own class.
+
 ## [3.61.0] - 2026-10-23
 
 ### Changed
