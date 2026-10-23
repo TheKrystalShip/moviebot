@@ -284,14 +284,11 @@ function Frame({ session, route }) {
               {online ? <BellNavItem /> : <Off><BellNavItem /></Off>}
               <SidebarAccount
                 user={session.user}
-                sub={session.user.username ? "@" + session.user.username : null}
-                detail={session.user.username ? "@" + session.user.username : null}
                 collapsed={dock.desktop && collapsed}
-                items={[
-                  { icon: "user", label: "Profile", onClick: () => go(profilePath()) },
-                  // In the Activity the session is the Discord account in it, which only leaving the Activity ends.
-                  ...(inActivity ? [] : [{ icon: "log-out", label: "Sign out", danger: true, onClick: leave }]),
-                ]} />
+                onProfile={() => go(profilePath())}
+                onSettings={() => go(profilePath("notifications"))}
+                // In the Activity the session is the Discord account in it, which only leaving the Activity ends.
+                onSignOut={inActivity ? undefined : leave} />
             </>}>
             <SidebarGroup>{HOME.map(item)}</SidebarGroup>
             <SidebarGroup label="Library">{LIBRARY.map(item)}</SidebarGroup>

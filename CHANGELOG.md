@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.62.0] - 2026-10-23
+
+### Changed
+
+- **The account menu every site shares** (krystal 8.0.0): the sidebar's account row is the avatar and
+  the name, and its menu is Profile, Settings (the profile's settings tabs, from Notifications), a rule
+  and Sign out. In the Discord Activity it has no Sign out, as before.
+
 ## [3.61.1] - 2026-10-23
 
 ### Fixed
