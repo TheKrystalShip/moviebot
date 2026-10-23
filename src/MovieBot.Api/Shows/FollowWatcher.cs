@@ -9,6 +9,7 @@ using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Core;
+using TheKrystalShip.Notifications;
 
 namespace TheKrystalShip.MovieBot.Api.Shows;
 
@@ -53,7 +54,7 @@ public sealed class FollowWatcher(
     AcquisitionService acquisition,
     WatchRecord record,
     PersonDirectory people,
-    Notifier notifier,
+    INotifier notifier,
     IOptions<FollowOptions> options,
     TimeProvider clock,
     ILogger<FollowWatcher> logger) : BackgroundService

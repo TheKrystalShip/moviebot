@@ -95,11 +95,15 @@ public sealed class WantMigrationTests : IDisposable
         Assert.DoesNotContain(Tables(Path_), t => t is "lists" or "list_members" or "list_entries" or "wish_subscribers");
 
         // The notification kind that went is gone from the bell, and from the switches.
-        var preferences = new Api.Notifications.NotificationPreferenceStore(database).For("ana");
-        Assert.False(preferences.Ready);
-        Assert.True(preferences.Available && preferences.Episode);
         using var connection = new SqliteConnection($"Data Source={Path_};Pooling=false");
         connection.Open();
+        using var switches = connection.CreateCommand();
+        switches.CommandText = "SELECT available, ready, episode FROM notification_preferences WHERE user_id = 'ana'";
+        using (var row = switches.ExecuteReader())
+        {
+            Assert.True(row.Read());
+            Assert.Equal((1L, 0L, 1L), (row.GetInt64(0), row.GetInt64(1), row.GetInt64(2)));
+        }
         using var count = connection.CreateCommand();
         count.CommandText = "SELECT group_concat(id) FROM notifications";
         Assert.Equal("n2", count.ExecuteScalar());

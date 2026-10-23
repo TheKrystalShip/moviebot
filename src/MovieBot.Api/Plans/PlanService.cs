@@ -1,6 +1,7 @@
 using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
+using TheKrystalShip.Notifications;
 
 namespace TheKrystalShip.MovieBot.Api.Plans;
 

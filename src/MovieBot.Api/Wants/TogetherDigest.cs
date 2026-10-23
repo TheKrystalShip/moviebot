@@ -1,23 +1,28 @@
+using System.Security.Cryptography;
+using System.Text;
 using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Core;
+using TheKrystalShip.Notifications;
 
 namespace TheKrystalShip.MovieBot.Api.Wants;
 
 /// <summary>
 /// Tells each person, at most once a day, which of the titles they want are ready and wanted by
-/// somebody else too. The digest is kept in the bell whatever the person chose, and pushed only to
-/// those who switched <c>together</c> on. It is keyed by the day, and a digest saying what the last
-/// one said is held back, so a title that stays ready is not announced again every day.
+/// somebody else too. The digest is told only to those who switched <c>together</c> on. It is keyed by
+/// what it says, so a title that stays ready is not announced again every day.
 /// </summary>
 public sealed class TogetherDigest(
     WantStore wants,
     WantPresenter present,
-    NotificationStore inbox,
-    Notifier notifier,
+    INotifier notifier,
     TimeProvider clock,
     ILogger<TogetherDigest> logger) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(10);
+
+    // The people told, or found to need no telling, today: a day's digest is one, however often it is asked.
+    private readonly HashSet<string> _settled = new(StringComparer.Ordinal);
+    private string? _day;
 
     /// <summary>How many titles or people a digest names before it counts the rest.</summary>
     private const int Named = 2;
@@ -41,11 +46,15 @@ public sealed class TogetherDigest(
     public async Task PassAsync(CancellationToken ct)
     {
         var day = clock.GetUtcNow().UtcDateTime.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        if (_day != day)
+        {
+            _day = day;
+            _settled.Clear();
+        }
+
         foreach (var userId in wants.People())
         {
-            var key = $"together:{day}";
-            var held = inbox.For(userId).Where(n => n.Kind == NotificationKinds.Together).ToList();
-            if (held.Any(n => n.Key == key)) continue;
+            if (_settled.Contains(userId)) continue;
 
             var ready = (await present.TogetherAsync(userId, ct)).Where(t => t.Want.State == WantStates.Ready).ToList();
             if (ready.Count == 0) continue;
@@ -53,16 +62,17 @@ public sealed class TogetherDigest(
             var text = Text(
                 [.. ready.Select(t => t.Want.Title)],
                 [.. ready.SelectMany(t => t.With).Select(w => w.Name ?? "Someone").Distinct(StringComparer.Ordinal)]);
-            if (held.FirstOrDefault()?.Text == text) continue;
 
+            // Keyed by what it says: a digest saying what one already held is not told again.
             await notifier.TellAsync(userId, new NotificationDraft
             {
                 Kind = NotificationKinds.Together,
-                Key = key,
+                Key = "together:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)))[..16],
                 Text = text,
                 Url = ready.Count == 1 ? Link(ready[0].Want) : "/",
                 Action = ready.Count == 1 ? "Open" : null,
             }, ct);
+            _settled.Add(userId);
         }
     }
 

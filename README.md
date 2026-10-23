@@ -226,7 +226,8 @@ when it starts.
 
 The API keeps everything it knows in one SQLite database, `moviebot.db` in the state directory
 systemd hands it (`Database:Path` names another): every person's records, the rooms, the wants and wishes,
-the push keys and what the film database said. Only served bytes sit beside it as files: fetched
+what the film database said. Only served bytes sit beside it as files: the
+notifications and push keys (`notifications.db`, `vapid.json`), fetched
 subtitles and the film database's artwork. It needs nothing installed; the native SQLite ships with
 the binary.
 

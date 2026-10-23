@@ -201,15 +201,8 @@ export const api = {
   follow: (imdbId, autoDownload) => call("PUT", `/api/me/follows/${enc(imdbId)}`, { autoDownload }),
   unfollow: (imdbId) => call("DELETE", `/api/me/follows/${enc(imdbId)}`),
 
-  // This person's notifications, the pushes their browsers take, and which kinds they are pushed.
-  notifications: () => call("GET", "/api/me/notifications"),
-  markRead: (ids) => call("POST", "/api/me/notifications/read", ids ? { ids } : {}),
-  notificationPreferences: () => call("GET", "/api/me/notifications/preferences"),
-  setNotificationPreferences: (preferences) => call("PUT", "/api/me/notifications/preferences", preferences),
-  pushKey: () => call("GET", "/api/push/key"),
-  pushStatus: (endpoint) => call("GET", "/api/me/push" + (endpoint ? `?endpoint=${enc(endpoint)}` : "")),
-  subscribePush: (subscription) => call("POST", "/api/me/push", subscription),
-  unsubscribePush: (endpoint) => call("DELETE", `/api/me/push?endpoint=${enc(endpoint)}`),
+  // A call under /api/me, for the notification routes the design system's client makes.
+  request: (method, path, body) => call(method, "/api/me" + path, body),
 
   // Who can be asked into a room, and asking them.
   people: () => call("GET", "/api/people"),

@@ -20,7 +20,6 @@ using TheKrystalShip.MovieBot.Acquire.Subtitles;
 using TheKrystalShip.MovieBot.Api.Media;
 using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Api.Offline;
-using TheKrystalShip.WebPush;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Api.Transcode;
@@ -239,13 +238,10 @@ builder.Services.AddSingleton<TranscodeCatalog>();
 builder.Services.AddSingleton<TranscodeStatusStore>();
 builder.Services.AddSingleton<TranscodePlanService>();
 
-// Telling people things: the bell, the pushes to their browsers, and the Discord messages the bot
-// sends where no push reaches them.
-builder.Services.AddSingleton<NotificationStore>();
-builder.Services.AddSingleton<PushDevices>();
-builder.Services.AddSingleton<NotificationPreferenceStore>();
-builder.Services.AddHttpClient<WebPushSender>(http => http.Timeout = TimeSpan.FromSeconds(15));
-builder.Services.AddSingleton<Notifier>();
+// Telling people things: the bell and the pushes to their browsers, kept by the shared library in a
+// file beside the database.
+builder.Services.AddCinemaNotifications(builder.Configuration,
+    () => Path.GetDirectoryName(StatePath(builder.Configuration["Database:Path"], CinemaDatabase.FileName)));
 builder.Services.AddHostedService<ReadyNotices>();
 
 // Following a show: who follows what, and the watcher that tells them when an episode is out.
@@ -458,7 +454,8 @@ app.MapShows();
 app.MapFollows();
 app.MapWants();
 app.MapPlans();
-app.MapNotifications();
+app.MapCinemaNotifications();
+app.MapInvites();
 app.MapOffline();
 
 // Every room, for the bot as much as the site: it holds no state of its own, so what to say about

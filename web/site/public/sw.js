@@ -23,6 +23,8 @@
 // Written by the build (vite.config.js); in development nothing registers this worker.
 const BUILD = { version: "dev", files: [] };
 
+importScripts("/krystal-notifications.js");
+
 const PREFIX = "krystal-cinema-build-";
 const CACHE = PREFIX + BUILD.version;
 
@@ -75,45 +77,14 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(caches.match(url.pathname, { cacheName: CACHE }).then((cached) => cached || fetch(req)));
 });
 
-// A push: the API's notification, shown as it was worded, opening the page it names. A browser
-// subscribes with `userVisibleOnly`, so every push shows something; one that cannot be read says
-// little rather than inventing what it was about.
-self.addEventListener("push", (event) => {
-  let payload = { title: "Krystal Cinema", body: "There is something new for you.", url: "/", tag: null };
-  try {
-    if (event.data) payload = { ...payload, ...event.data.json() };
-  } catch {
-    try { payload.body = event.data.text() || payload.body; } catch { /* the default stands */ }
-  }
-
-  event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      // The same news twice replaces itself on the lock screen rather than stacking.
-      tag: payload.tag ? "kc-" + payload.tag : undefined,
-      data: { url: payload.url || "/" },
-    })
-  );
-});
-
-// A tap opens the page the notification names: in a window of this site already open, else a new one.
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  const target = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin);
-  if (target.origin !== self.location.origin) return;
-
-  event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
-      for (const win of windows) {
-        if (new URL(win.url).origin !== self.location.origin) continue;
-        return win.focus().then((w) => (w && "navigate" in w ? w.navigate(target.href) : w));
-      }
-      return self.clients.openWindow(target.href);
-    })
-  );
-});
+// A push is shown as the API worded it, and a tap opens the page it names: krystal's notifications
+// worker script does both (`notificationsWorker()` in vite.config.js emits it).
+self.addEventListener("push", (event) => self.krystalNotifications.handleNotificationPush(event, {
+  title: "Krystal Cinema",
+  icon: "/icons/icon-192.png",
+  badge: "/icons/icon-192.png",
+}));
+self.addEventListener("notificationclick", (event) => self.krystalNotifications.handleNotificationClick(event));
 
 // A successful same-origin HTML document: the site's index, which the server answers for every page.
 function isShell(res) {

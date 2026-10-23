@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.61.0] - 2026-10-23
+
+### Changed
+
+- **Notifications are the shared system's.** The API keeps and pushes them with
+  `TheKrystalShip.Notifications` 1.0.0-dev.1: every notification is kept a year with no count limit, in
+  `notifications.db` beside `moviebot.db`, and the push key pair is the library's `vapid.json`, so every
+  browser subscribes again from Profile's Notifications. The routes are the library's under `/api/me`
+  (`/notifications`, `/notifications/read`, `/notifications/kinds`, `/notifications/preferences`,
+  `/push/key`, `/push/subscribe`, `/push/devices`) and the anonymous button route is
+  `/api/push/actions/{handle}`. The old `/api/push/key` and `/api/me/push` are gone.
+- **A kind a person switched off is neither kept nor pushed.** An invite and a plan cannot be switched
+  off. The digest of titles to watch together is kept only for a person who switched it on, and is keyed
+  by what it says, so a digest the person holds is not told again.
+- **The bell and Profile's notification settings are the design system's** (krystal 6.0.0-dev.2): the
+  `NotificationTray` and `NotificationList` in the sidebar, on the phone's front page and on the
+  television's bar, and `NotificationSettings` in Profile. The service worker shows a push and opens its
+  link through krystal's notifications worker script.
+
 ## [3.60.0] - 2026-10-23
 
 ### Added

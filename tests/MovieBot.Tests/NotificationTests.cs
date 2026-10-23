@@ -1,19 +1,18 @@
 using System.Buffers.Text;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using Microsoft.Extensions.DependencyInjection;
-using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Core;
+using TheKrystalShip.Notifications;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
-/// Telling a person something: it is kept for their bell and pushed to every browser they subscribed
-/// where their choices allow. Everything a person reads or changes is their own.
+/// Telling a person something through the shared library: it is kept for their bell and pushed to every
+/// browser they subscribed where their choices allow. Everything a person reads or changes is their own.
 /// </summary>
 public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<SessionFixture>
 {
@@ -24,29 +23,29 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
     }
 
     /// <summary>A subscription as a browser makes one: a P-256 public key and an auth secret, base64url.</summary>
-    private static PushSubscribeRequest Browser(string endpoint)
+    internal static object Browser(string endpoint)
     {
         using var ecdh = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
         var point = ecdh.ExportParameters(false).Q;
-        return new PushSubscribeRequest
+        return new
         {
-            Endpoint = endpoint,
-            Keys = new PushSubscriptionKeys
-            {
-                P256dh = Base64Url.EncodeToString([0x04, .. point.X!, .. point.Y!]),
-                Auth = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16)),
-            },
+            endpoint,
+            p256dh = Base64Url.EncodeToString([0x04, .. point.X!, .. point.Y!]),
+            auth = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16)),
         };
     }
 
     private static async Task Subscribe(HttpClient client, string endpoint)
     {
-        using var response = await client.PostAsJsonAsync("/api/me/push", Browser(endpoint));
+        using var response = await client.PostAsJsonAsync("/api/me/push/subscribe", Browser(endpoint));
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
-    private static async Task<NotificationsReply> Bell(HttpClient client) =>
-        (await client.GetFromJsonAsync<NotificationsReply>("/api/me/notifications"))!;
+    private static async Task<int> Devices(HttpClient client) =>
+        (await client.GetFromJsonAsync<DevicesPage>("/api/me/push/devices"))!.Endpoints.Count;
+
+    internal static Task<BellPage> Bell(HttpClient client) =>
+        client.GetFromJsonAsync<BellPage>("/api/me/notifications")!;
 
     [Fact]
     public async Task A_browser_is_registered_to_the_person_who_subscribed_it()
@@ -55,24 +54,21 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
         const string endpoint = "https://push.invalid/send/8101-phone";
         await Subscribe(mine, endpoint);
 
-        var status = await mine.GetFromJsonAsync<PushStatusReply>("/api/me/push?endpoint=" + Uri.EscapeDataString(endpoint));
-        Assert.True(status!.Subscribed);
-        Assert.Equal(1, status.Devices);
+        Assert.Equal([endpoint], (await mine.GetFromJsonAsync<DevicesPage>("/api/me/push/devices"))!.Endpoints);
+        Assert.Equal(0, await Devices(As("8102")));
 
-        // Somebody else asking about the same browser hears no, and cannot unsubscribe it.
-        var theirs = As("8102");
-        Assert.False((await theirs.GetFromJsonAsync<PushStatusReply>("/api/me/push?endpoint=" + Uri.EscapeDataString(endpoint)))!.Subscribed);
-        using var refused = await theirs.DeleteAsync("/api/me/push?endpoint=" + Uri.EscapeDataString(endpoint));
-        Assert.Equal(HttpStatusCode.NotFound, refused.StatusCode);
-
-        using var removed = await mine.DeleteAsync("/api/me/push?endpoint=" + Uri.EscapeDataString(endpoint));
+        using var removed = await mine.SendAsync(new HttpRequestMessage(HttpMethod.Delete, "/api/me/push/subscribe")
+        {
+            Content = JsonContent.Create(new { endpoint }),
+        });
         Assert.Equal(HttpStatusCode.NoContent, removed.StatusCode);
+        Assert.Equal(0, await Devices(mine));
     }
 
     [Fact]
     public async Task Anything_but_a_push_service_address_is_refused()
     {
-        using var response = await As("8103").PostAsJsonAsync("/api/me/push", Browser("http://push.invalid/plain"));
+        using var response = await As("8103").PostAsJsonAsync("/api/me/push/subscribe", Browser("http://push.invalid/plain"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -99,7 +95,7 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
         Assert.Equal("Alex invites you to their room.", invite.Text);
         Assert.Equal("/r/movie-night", invite.Url);
 
-        using var read = await guest.PostAsJsonAsync("/api/me/notifications/read", new MarkReadRequest());
+        using var read = await guest.PostAsJsonAsync("/api/me/notifications/read", new { });
         Assert.Equal(0, (await Bell(guest)).Unread);
     }
 
@@ -123,37 +119,59 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
         using var sent = await As("8132").PostAsJsonAsync("/api/rooms/r/invite", new InviteRequest { UserId = "8131" });
 
         Assert.Equal("bell", (await sent.Content.ReadFromJsonAsync<InviteReply>())!.Delivery);
-        Assert.Equal(0, (await guest.GetFromJsonAsync<PushStatusReply>("/api/me/push"))!.Devices);
+        Assert.Equal(0, await Devices(guest));
     }
 
     [Fact]
-    public async Task One_thing_is_said_once_and_a_switched_off_kind_reaches_only_the_bell()
+    public async Task One_thing_is_said_once_and_a_switched_off_kind_is_neither_kept_nor_pushed()
     {
         var person = As("8141");
         const string endpoint = "https://push.invalid/send/8141";
         await Subscribe(person, endpoint);
-        var notifier = fixture.Services.GetRequiredService<Notifier>();
+        var notifier = fixture.Services.GetRequiredService<INotifier>();
         var draft = new NotificationDraft { Kind = NotificationKinds.Episode, Key = "episode:tt1:1", Text = "Show S1 · E1 is out." };
 
-        using var off = await person.PutAsJsonAsync("/api/me/notifications/preferences", new NotificationPreferences { Episode = false });
-        var first = await notifier.TellAsync("8141", draft, CancellationToken.None);
-        Assert.Equal(new Delivery(0), first);
+        using var off = await person.PutAsJsonAsync("/api/me/notifications/preferences", new { kinds = new Dictionary<string, bool> { ["episode"] = false } });
         Assert.Null(await notifier.TellAsync("8141", draft, CancellationToken.None));
         Assert.Equal(0, fixture.PushService.SentTo(endpoint));
-        Assert.Single((await Bell(person)).Items);
+        Assert.Empty((await Bell(person)).Items);
 
-        using var on = await person.PutAsJsonAsync("/api/me/notifications/preferences", new NotificationPreferences { Episode = true });
-        var pushed = await notifier.TellAsync("8141", draft with { Key = "episode:tt1:2" }, CancellationToken.None);
-        Assert.Equal(new Delivery(1), pushed);
+        using var on = await person.PutAsJsonAsync("/api/me/notifications/preferences", new { kinds = new Dictionary<string, bool> { ["episode"] = true } });
+        Assert.Equal(new Delivery(1), await notifier.TellAsync("8141", draft, CancellationToken.None));
+        Assert.Null(await notifier.TellAsync("8141", draft, CancellationToken.None));
+        Assert.Single((await Bell(person)).Items);
     }
 
     [Fact]
-    public async Task Somebody_who_chose_nothing_has_every_kind()
+    public async Task Somebody_who_chose_nothing_has_every_switchable_kind_at_its_default()
     {
-        var preferences = await As("8151").GetFromJsonAsync<NotificationPreferences>("/api/me/notifications/preferences");
+        var reply = await As("8151").GetFromJsonAsync<PreferencesPage>("/api/me/notifications/preferences");
 
-        Assert.Equal(new NotificationPreferences(), preferences);
-        Assert.True(preferences!.Available && preferences.Ready && preferences.Episode);
+        Assert.Equal(new Dictionary<string, bool>
+        {
+            [NotificationKinds.Available] = true,
+            [NotificationKinds.Ready] = true,
+            [NotificationKinds.Episode] = true,
+            [NotificationKinds.Together] = false,
+        }, reply!.Kinds);
+    }
+
+    [Fact]
+    public async Task An_invite_and_a_plan_cannot_be_switched_off()
+    {
+        var kinds = (await As("8161").GetFromJsonAsync<KindsPage>("/api/me/notifications/kinds"))!.Kinds;
+
+        Assert.All(kinds.Where(k => k.Id is NotificationKinds.Invite or NotificationKinds.Plan), k => Assert.False(k.Switchable));
+        Assert.All(kinds.Where(k => k.Id is not (NotificationKinds.Invite or NotificationKinds.Plan)), k => Assert.True(k.Switchable));
+    }
+
+    [Fact]
+    public async Task The_button_route_is_anonymous_and_refuses_a_handle_it_does_not_know()
+    {
+        using var response = await fixture.CreateClient().PostAsync("/api/push/actions/nothing", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False((await response.Content.ReadFromJsonAsync<ActionPage>())!.Ok);
     }
 
     [Fact]
@@ -174,3 +192,16 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 }
+
+/// <summary>A person's notifications as <c>GET /api/me/notifications</c> answers.</summary>
+public sealed record BellPage(int Unread, List<Notification> Items, bool More);
+
+public sealed record DevicesPage(List<string> Endpoints);
+
+public sealed record PreferencesPage(Dictionary<string, bool> Kinds);
+
+public sealed record KindsPage(List<KindRow> Kinds);
+
+public sealed record KindRow(string Id, bool Switchable);
+
+public sealed record ActionPage(bool Ok, string Message);

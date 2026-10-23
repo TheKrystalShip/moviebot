@@ -5,6 +5,7 @@ using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
+using TheKrystalShip.Notifications;
 
 namespace TheKrystalShip.MovieBot.Api.Notifications;
 
@@ -59,7 +60,7 @@ public sealed class ReadyNotices(
     AcquisitionService acquisition,
     TitleLibrary library,
     SessionStore sessions,
-    Notifier notifier,
+    INotifier notifier,
     Wants.WantStore wants,
     ILogger<ReadyNotices> logger) : BackgroundService
 {

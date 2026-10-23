@@ -645,8 +645,7 @@ at most 6 times still ahead (`PlanRules`).
   else knocks. `roomId` names it and the plan is `open`. The room is kept until `Rooms:IdleTimeout` past
   the picked time; once it is gone after that, the plan was watched and is deleted.
 - **Reminders and notices** are `plan` notifications, one for each event (`invited`, `suggested`,
-  `fixed`, `reminder`, `cancelled`), each said once to each person and pushed whatever their switches
-  say; a pick and a reminder are said again for each time picked. The reminder goes to everybody `in` or
+  `fixed`, `reminder`, `cancelled`), each said once to each person; a pick and a reminder are said again for each time picked. The reminder goes to everybody `in` or
   `maybe` `Plans:RemindMinutes` before the picked time and opens the room. A plan whose times have all
   passed is never ended for it: it waits for somebody to suggest another.
 - **A plan's people are told it changed** over the hub: `PlanChanged(planId)` goes to the group of each
@@ -654,20 +653,24 @@ at most 6 times still ahead (`PlanRules`).
 
 ### Notifications
 
-A notification is one sentence for one person, kept for their bell and, where they allow its kind,
-pushed to every browser they subscribed. Everything under `/api/me` answers for whoever the token
-names. The shapes are in `src/MovieBot.Core/Notifications.cs`.
+A notification is one sentence for one person, kept for a year in the bell and pushed to every
+browser they subscribed. `TheKrystalShip.Notifications` keeps and serves them (its routes are the
+contract of `kgsm-docs/reference/notifications.md`); Cinema declares the kinds and maps the routes under
+`/api/me`, each taking `cinema:profile.read`, and the anonymous button route at `/api/push/actions/{handle}`
+(Cinema's pushes carry no buttons). The library keeps `notifications.db` and `vapid.json` beside
+`moviebot.db`. Everything under `/api/me` answers for whoever the token names.
 
 | Route | Returns |
 |---|---|
-| `GET /api/me/notifications` | `NotificationsReply` — `{unread, items: [{id, kind, text, url?, action?, createdAt, read}]}`, newest first; a person keeps their newest 50, none older than 30 days |
+| `GET /api/me/notifications?before=&limit=` | `{unread, items: [{id, kind, text, detail?, url?, action?, createdAt, read}], more}`, newest first |
 | `POST /api/me/notifications/read` | 204 for `{ids?}` — marks those read, or all of them when none are named |
-| `GET /api/me/notifications/preferences` | `NotificationPreferences` — `{available, ready, episode, together}`, which kinds are pushed; each is on until switched off, except `together`, which is off until switched on |
-| `PUT /api/me/notifications/preferences` | `NotificationPreferences`, as stored |
-| `GET /api/push/key` | `{publicKey}` — this server's VAPID key, base64url, which a browser subscribes with |
-| `GET /api/me/push?endpoint=` | `{subscribed, devices}` — whether that browser is registered to this person, and how many are |
-| `POST /api/me/push` | 204 for a browser's `PushSubscription.toJSON()`, `{endpoint, keys: {p256dh, auth}}`; a browser registered again replaces its own row, and belongs to whoever registered it last. An endpoint that is not `https` is a `400` |
-| `DELETE /api/me/push?endpoint=` | 204, or 404 for a browser that is not this person's |
+| `GET /api/me/notifications/kinds` | `{kinds: [{id, title, description?, icon, tone, switchable, enabledByDefault}]}` |
+| `GET /api/me/notifications/preferences` | `{kinds: {id: bool}}`, every switchable kind's effective value; each is on until switched off, except `together`, which is off until switched on |
+| `PUT /api/me/notifications/preferences` | `{kinds: {id: bool}}`, any subset → the same as `GET` |
+| `GET /api/me/push/key` | `{publicKey, enabled}` — this server's VAPID key, base64url, which a browser subscribes with |
+| `POST /api/me/push/subscribe` | 204 for `{endpoint, p256dh, auth}`; a browser registered again replaces its own row, and belongs to whoever registered it last. An endpoint that is not `https` is a `400` |
+| `DELETE /api/me/push/subscribe` | 204 for `{endpoint}` |
+| `GET /api/me/push/devices` | `{endpoints: [string]}`, the caller's |
 | `GET /api/people` | `PersonView[]` — everybody the server has a name for but the person asking, `{userId, name, lastSeenAt?}`, most recently seen first |
 | `POST /api/rooms/{room}/invite` | `InviteReply` for `{userId}` — lets them into the room and tells them: `{delivery}`, `push` when a push service took it for at least one of their devices and `bell` when it waits in their bell alone. 404 for somebody unknown, 403 for a room private to the person inviting |
 | `POST /api/rooms/{room}/guests` | `GuestLink` = `{path, expiresAt}` — the room's guest link, `path` being the site's `/g/<code>`: the one the room has while it is good, or a new one lasting `Rooms.GuestPassLifetime`, so everybody in the room who asks is handed the same. `cinema:guests`, and 403 for a room private to the person asking |
@@ -677,12 +680,12 @@ names. The shapes are in `src/MovieBot.Core/Notifications.cs`.
 - **Kinds.** `available`: a film somebody waits on can be downloaded. `ready`: a download they started
   can be watched, or could not be made watchable. `episode`: a new episode of a show they follow is
   out and the tracker offers it, "Show S5 · E4 is out.", opening `/tv/{imdbId}/season/{n}`. `invite`:
-  somebody asked them into a room; an invite is pushed whatever the person chose. `together`: titles
-  they want are ready and others want them too, one digest a day. `plan`: a plan they are in was
-  proposed to them, fixed, is about to start, or was cancelled; it is pushed whatever the person chose.
+  somebody asked them into a room. `together`: titles they want are ready and others want them too,
+  one digest a day. `plan`: a plan they are in was proposed to them, fixed, is about to start, or was
+  cancelled. An invite and a plan cannot be switched off: they are always kept and pushed.
 - **One thing is said once.** Each notification carries the thing it is about, and a person holding a
   notification about it is not told again: a download once, a wish once, an episode once.
-- **A switch holds back the push, not the record.** A kind switched off still lands in the bell.
+- **A kind switched off is neither kept nor pushed.**
 - **The text is written once for every surface.** It mentions nobody and names no command, so the
   bell and the push show it as it is.
 - **Taken is all that is known.** A push service accepting a push is not a phone showing it, and

@@ -3,7 +3,6 @@ import { Avatar, Toasts, TvBar, TvBarButton } from "@thekrystalship/krystal";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { Bell } from "../components/Bell.jsx";
 import { PageStage } from "../components/PageStage.jsx";
-import { useNotifications } from "../notifications.js";
 import { PLACES } from "../nav.js";
 import { homePath, profilePath } from "../paths.js";
 import { goBack, linkProps, navigate } from "../router.js";
@@ -132,10 +131,9 @@ const Pages = React.memo(function Pages({ route, session, onShown }) {
 });
 
 function TvBell() {
-  const { unread } = useNotifications();
   return (
-    <Bell placement="sheet">
-      {(open, toggle) => (
+    <Bell placement="bottom-end">
+      {({ open, toggle, unread }) => (
         <TvBarButton icon="bell" label={"Notifications" + (unread > 0 ? `, ${unread} unread` : "")} dot={unread > 0}
           onClick={toggle} aria-haspopup="dialog" aria-expanded={open} />
       )}

@@ -7,6 +7,7 @@ using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Core;
+using TheKrystalShip.Notifications;
 
 namespace TheKrystalShip.MovieBot.Api.Plans;
 
@@ -40,7 +41,7 @@ public sealed class PlanTitles(FilmStore films, ShowStore shows)
 /// the person's switches say: a plan is addressed to the people in it on purpose.
 /// </summary>
 public sealed class PlanNotices(
-    Notifier notifier, PlanTitles titles, PersonDirectory people, IOptions<PlanOptions> options)
+    INotifier notifier, PlanTitles titles, PersonDirectory people, IOptions<PlanOptions> options)
 {
     /// <summary>The zone times are said in: the host's, since the people in a plan are near each other.</summary>
     public TimeZoneInfo Zone { get; init; } = TimeZoneInfo.Local;

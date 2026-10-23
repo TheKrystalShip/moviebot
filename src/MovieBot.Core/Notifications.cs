@@ -1,8 +1,8 @@
 namespace TheKrystalShip.MovieBot.Core;
 
 /// <summary>
-/// What a notification is about. Each is one of the switches a person turns pushes on and off by,
-/// except an invite and a plan, which are addressed to people on purpose and always pushed.
+/// What a notification is about. Each is one of the switches a person turns it on and off by,
+/// except an invite and a plan, which are addressed to people on purpose and always kept and pushed.
 /// </summary>
 public static class NotificationKinds
 {
@@ -24,88 +24,6 @@ public static class NotificationKinds
     /// <summary>A plan to watch something together was proposed, fixed, is about to start or was cancelled.</summary>
     public const string Plan = "plan";
 }
-
-/// <summary>One line in a person's notifications, as the bell lists it.</summary>
-public sealed record NotificationView
-{
-    public required string Id { get; init; }
-
-    /// <summary>One of <see cref="NotificationKinds"/>.</summary>
-    public required string Kind { get; init; }
-
-    /// <summary>
-    /// The sentence, written once for every surface that shows it: the bell and the push say the same
-    /// thing, and neither mentions anybody or names a command.
-    /// </summary>
-    public required string Text { get; init; }
-
-    /// <summary>The site's own path the notification opens.</summary>
-    public string? Url { get; init; }
-
-    /// <summary>What the link is called where it is offered as an action, such as <c>Download</c>.</summary>
-    public string? Action { get; init; }
-
-    public required DateTimeOffset CreatedAt { get; init; }
-
-    public bool Read { get; init; }
-}
-
-/// <summary>A person's notifications, newest first, and how many they have not seen.</summary>
-public sealed record NotificationsReply(int Unread, List<NotificationView> Items);
-
-/// <summary>Marks some notifications read, or every one when none are named.</summary>
-public sealed record MarkReadRequest
-{
-    public List<string>? Ids { get; init; }
-}
-
-/// <summary>
-/// Which notifications a person is pushed, one switch per kind. Whatever is switched off still
-/// reaches the bell; it is the push that the switch holds back.
-/// </summary>
-public sealed record NotificationPreferences
-{
-    public bool Available { get; init; } = true;
-
-    public bool Ready { get; init; } = true;
-
-    public bool Episode { get; init; } = true;
-
-    /// <summary>Off until switched on: the digest is always in the bell, and a push is opt-in.</summary>
-    public bool Together { get; init; }
-
-    /// <summary>Whether a notification of this kind is pushed. An invite and a plan always are.</summary>
-    public bool Allows(string kind) => kind switch
-    {
-        NotificationKinds.Available => Available,
-        NotificationKinds.Ready => Ready,
-        NotificationKinds.Episode => Episode,
-        NotificationKinds.Together => Together,
-        NotificationKinds.Plan => true,
-        _ => true,
-    };
-}
-
-/// <summary>The application server key a browser subscribes with, base64url.</summary>
-public sealed record PushKeyReply(string PublicKey);
-
-/// <summary>A browser's push subscription, exactly as <c>PushSubscription.toJSON()</c> writes it.</summary>
-public sealed record PushSubscribeRequest
-{
-    public required string Endpoint { get; init; }
-
-    public required PushSubscriptionKeys Keys { get; init; }
-}
-
-public sealed record PushSubscriptionKeys
-{
-    public required string P256dh { get; init; }
-
-    public required string Auth { get; init; }
-}
-
-/// <summary>Whether this browser is registered to the person asking, and how many devices they have.</summary>
-public sealed record PushStatusReply(bool Subscribed, int Devices);
 
 /// <summary>Somebody the site knows, as an invite list shows them.</summary>
 public sealed record PersonView

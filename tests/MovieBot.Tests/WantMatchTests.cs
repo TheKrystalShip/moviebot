@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Api.Wants;
 using TheKrystalShip.MovieBot.Core;
 using Xunit;
@@ -71,9 +72,8 @@ public sealed class WantMatchTests
     }
 
     [Fact]
-    public void Together_is_pushed_only_when_switched_on()
+    public void Together_is_told_only_when_switched_on()
     {
-        Assert.False(new NotificationPreferences().Allows(NotificationKinds.Together));
-        Assert.True(new NotificationPreferences { Together = true }.Allows(NotificationKinds.Together));
+        Assert.False(NotificationSetup.Kinds.Single(k => k.Id == NotificationKinds.Together).EnabledByDefault);
     }
 }

@@ -23,6 +23,7 @@ using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Core;
+using TheKrystalShip.Notifications;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;
@@ -236,9 +237,9 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
 
     private Task Pass() => _fixture.Services.GetRequiredService<FollowWatcher>().PassAsync(CancellationToken.None);
 
-    private IReadOnlyList<StoredNotification> Told(string userId, string imdb) =>
-        [.. _fixture.Services.GetRequiredService<NotificationStore>().For(userId)
-            .Where(n => n.Kind == NotificationKinds.Episode && n.Key.StartsWith($"episode:{imdb}:", StringComparison.Ordinal))];
+    private IReadOnlyList<Notification> Told(string userId, string imdb) =>
+        [.. NotificationTests.Bell(As(userId)).GetAwaiter().GetResult().Items
+            .Where(n => n.Kind == NotificationKinds.Episode && n.Url is { } url && url.StartsWith($"/tv/{imdb}", StringComparison.Ordinal))];
 
     private int Asked(string imdb) => _fixture.Searches.GetValueOrDefault(imdb);
 
@@ -494,7 +495,7 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
             restarted, services.GetRequiredService<ShowStore>(), services.GetRequiredService<ShowOfferCache>(),
             services.GetRequiredService<TitleLibrary>(), services.GetRequiredService<Downloads>(),
             services.GetRequiredService<AcquisitionService>(), services.GetRequiredService<WatchRecord>(),
-            services.GetRequiredService<PersonDirectory>(), services.GetRequiredService<Notifier>(),
+            services.GetRequiredService<PersonDirectory>(), services.GetRequiredService<INotifier>(),
             Options.Create(new FollowOptions()), Clock, NullLogger<FollowWatcher>.Instance);
         Clock.Advance(TimeSpan.FromHours(3));
         await watcher.PassAsync(CancellationToken.None);
@@ -627,7 +628,7 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
     }
 
     [Fact]
-    public async Task A_follower_who_switched_the_episode_kind_off_has_it_in_the_bell_and_no_push()
+    public async Task A_follower_who_switched_the_episode_kind_off_is_neither_told_nor_pushed()
     {
         var imdb = AiringShow();
         _fixture.Offer(imdb);
@@ -635,10 +636,10 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
         var quiet = As("7072");
         foreach (var (client, id) in new[] { (loud, "7071"), (quiet, "7072") })
         {
-            using var subscribed = await client.PostAsJsonAsync("/api/me/push", Browser($"https://push.invalid/send/{id}"));
+            using var subscribed = await client.PostAsJsonAsync("/api/me/push/subscribe", NotificationTests.Browser($"https://push.invalid/send/{id}"));
             Assert.Equal(HttpStatusCode.NoContent, subscribed.StatusCode);
         }
-        using var off = await quiet.PutAsJsonAsync("/api/me/notifications/preferences", new NotificationPreferences { Episode = false });
+        using var off = await quiet.PutAsJsonAsync("/api/me/notifications/preferences", new { kinds = new Dictionary<string, bool> { ["episode"] = false } });
         await Follow(loud, imdb);
         await Follow(quiet, imdb);
 
@@ -646,32 +647,9 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
         await Pass();
 
         Assert.Single(Told("7071", imdb));
-        Assert.Single(Told("7072", imdb));
+        Assert.Empty(Told("7072", imdb));
         Assert.Equal(1, _fixture.PushService.SentTo("https://push.invalid/send/7071"));
         Assert.Equal(0, _fixture.PushService.SentTo("https://push.invalid/send/7072"));
-    }
-
-    [Fact]
-    public void The_episode_kind_is_pushed_unless_switched_off()
-    {
-        Assert.True(new NotificationPreferences().Allows(NotificationKinds.Episode));
-        Assert.False(new NotificationPreferences { Episode = false }.Allows(NotificationKinds.Episode));
-    }
-
-    /// <summary>A subscription as a browser makes one: a P-256 public key and an auth secret, base64url.</summary>
-    private static PushSubscribeRequest Browser(string endpoint)
-    {
-        using var ecdh = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
-        var point = ecdh.ExportParameters(false).Q;
-        return new PushSubscribeRequest
-        {
-            Endpoint = endpoint,
-            Keys = new PushSubscriptionKeys
-            {
-                P256dh = Base64Url.EncodeToString([0x04, .. point.X!, .. point.Y!]),
-                Auth = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16)),
-            },
-        };
     }
 }
 
@@ -700,8 +678,7 @@ public sealed class FollowRefusalTests(FullDiskFixture fixture) : IClassFixture<
         await fixture.Services.GetRequiredService<FollowWatcher>().PassAsync(CancellationToken.None);
 
         Assert.Empty(fixture.Torrents.Held);
-        var told = fixture.Services.GetRequiredService<NotificationStore>().For("7081")
-            .Single(n => n.Kind == NotificationKinds.Episode);
+        var told = (await NotificationTests.Bell(sam)).Items.Single(n => n.Kind == NotificationKinds.Episode);
         Assert.Contains("S1 · E3 is out", told.Text);
     }
 }

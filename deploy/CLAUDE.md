@@ -111,9 +111,10 @@ rsync phone/out/krystal-cinema-phone-<version>.apk hotbox:/var/lib/moviebot/phon
   identity is kept out of the repository the same way the passkey is. A unit's own `Environment=`
   lines are for the process, not for MovieBot: `PATH`.
 - **The state directories are what no re-ingest can rebuild.** systemd hands the API
-  `/var/lib/moviebot`: `moviebot.db`, which holds every person's records, the rooms, the wish list
-  and the push key pair every browser's subscription is bound to (it cannot be made again without
-  every device subscribing again), and the subtitles fetched from outside, each of which cost one of
+  `/var/lib/moviebot`: `moviebot.db`, which holds every person's records, the rooms and the wish list;
+  `notifications.db`, every person's notifications and push subscriptions; `vapid.json`, the push key pair
+  every browser's subscription is bound to (it cannot be made again without every device subscribing
+  again); and the subtitles fetched from outside, each of which cost one of
   a limited daily allowance. The artwork beside them is the film database's and is fetched again if
   lost. The bot has `/var/lib/moviebot-bot`, holding the launch cards still standing. The assistant keeps no state of its own: the conversations and what people
   asked it to remember are the harness's.

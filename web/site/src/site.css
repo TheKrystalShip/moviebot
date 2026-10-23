@@ -504,7 +504,7 @@ button.kc-episode:disabled { cursor: progress; }
   .kc-phonehead { display: flex; align-items: center; gap: 10px; margin-bottom: -8px; }
   .kc-phonehead img { object-fit: contain; }
   .kc-phonehead__name { font-size: 17px; font-weight: 700; }
-  .kc-phonehead .kc-bell { margin-left: auto; }
+  .kc-phonehead .k-notification-tray { margin-left: auto; }
 }
 .kc-bell-button { position: relative; display: flex; margin-right: -10px; }
 .kc-bell-button__dot {
@@ -512,28 +512,6 @@ button.kc-episode:disabled { cursor: progress; }
   background: var(--krystal-teal); border-width: 2px; border-style: solid; border-color: var(--canvas);
 }
 
-.kc-bell__panel { width: 380px; max-height: min(560px, calc(100vh - 32px)); overflow: hidden; }
-/* In the drawer, the list keeps the panel's rows, edge to edge. */
-.kc-bell__drawer .kc-bell__list { margin: 0 calc(var(--s-4) * -1); }
-.kc-bell__drawer .kc-bell__item:last-child { border-bottom: none; }
-.kc-bell__head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border-subtle); }
-.kc-bell__title { font-weight: 600; font-size: 14px; }
-.kc-bell__list { overflow-y: auto; min-height: 0; }
-.kc-bell__item { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); }
-.kc-bell__item.is-link { cursor: pointer; }
-.kc-bell__item.is-link:hover { background: var(--surface-2); }
-.kc-bell__item:not(.is-unread) .kc-bell__text { color: var(--fg-2); }
-.kc-bell__icon { width: 32px; height: 32px; flex-shrink: 0; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center; }
-.kc-bell__icon--teal { background: var(--krystal-teal-dim); color: var(--krystal-teal); }
-.kc-bell__icon--success { background: var(--success-bg); color: var(--success-fg); }
-.kc-bell__icon--warning { background: var(--warning-bg); color: var(--warning-fg); }
-.kc-bell__icon--neutral { background: var(--surface-3); color: var(--fg-2); }
-.kc-bell__body { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
-.kc-bell__text { font-size: 13px; line-height: 1.45; color: var(--fg-1); text-wrap: pretty; }
-.kc-bell__meta { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--fg-3); }
-.kc-bell__time { font-family: var(--font-mono); }
-.kc-bell__action { color: var(--krystal-teal); font-weight: 600; }
-.kc-bell__empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 16px; color: var(--fg-3); font-size: 13px; }
 .kc-bell__settings { justify-content: flex-start; margin: 4px 8px; align-self: flex-start; }
 
 /* ── Wanting ── the faces of the people who want a title, and the Wants page's state switch. */

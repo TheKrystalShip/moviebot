@@ -1,22 +1,30 @@
-import React from "react";
-import { Button, Drawer, Icon, IconButton, NavItem, Popover } from "@thekrystalship/krystal";
+import { Button, IconButton, NavItem, NotificationTray } from "@thekrystalship/krystal";
 import { profilePath } from "../paths.js";
 import { navigate } from "../router.js";
-import { ago } from "../time.js";
-import { KIND, markRead, useNotifications } from "../notifications.js";
+import { inbox } from "../notifications.js";
 
-/** How a kind this page does not know is drawn: plainly, as a notification. */
-const UNKNOWN_KIND = { icon: "bell", tone: "neutral" };
+/** The bell's list, opening the page a row names and ending in the way to the push settings. */
+export function Bell({ placement, children }) {
+  return (
+    <NotificationTray inbox={inbox} placement={placement} trigger={children}
+      onOpen={(n) => { if (n.url) navigate(n.url); }}
+      footer={({ close }) => (
+        <Button variant="ghost" size="sm" icon="settings-2" className="kc-bell__settings"
+          onClick={() => { close(); navigate(profilePath("notifications")); }}>
+          Push notification settings
+        </Button>
+      )} />
+  );
+}
 
 /**
  * The bell in the sidebar, above the person: "Notifications" and how many are unread, or the bell
  * alone with its count on the collapsed rail. It opens the list beside the sidebar.
  */
 export function BellNavItem() {
-  const { unread } = useNotifications();
   return (
-    <Bell placement="beside">
-      {(open, toggle) => (
+    <Bell>
+      {({ open, toggle, unread }) => (
         <NavItem icon="bell" label="Notifications" badge={unread} active={open} onClick={toggle} role="button"
           tip={"Notifications" + (unread > 0 ? " · " + unread : "")} aria-haspopup="dialog" aria-expanded={open}
           aria-label={"Notifications" + (unread > 0 ? `, ${unread} unread` : "")} />
@@ -27,10 +35,9 @@ export function BellNavItem() {
 
 /** The bell at the top right of a phone's front page, with a dot while something is unread. */
 export function BellButton() {
-  const { unread } = useNotifications();
   return (
-    <Bell placement="sheet">
-      {(open, toggle) => (
+    <Bell>
+      {({ open, toggle, unread }) => (
         <span className="kc-bell-button">
           <IconButton variant="ghost" size="xl" icon="bell" onClick={toggle} aria-haspopup="dialog" aria-expanded={open}
             label={"Notifications" + (unread > 0 ? `, ${unread} unread` : "")} />
@@ -38,79 +45,5 @@ export function BellButton() {
         </span>
       )}
     </Bell>
-  );
-}
-
-/**
- * A trigger and the list it opens: beside the sidebar on a wide screen, in the site's drawer on a
- * phone. A press outside it, or Escape, closes it.
- */
-export function Bell({ placement, children }) {
-  const [open, setOpen] = React.useState(false);
-  const triggerRef = React.useRef(null);
-  const { unread } = useNotifications();
-  const close = React.useCallback(() => setOpen(false), []);
-
-  const markAll = unread > 0 && <Button variant="link" size="xs" onClick={() => markRead()}>Mark all read</Button>;
-  return (
-    <div className="kc-bell" ref={triggerRef}>
-      {children(open, () => setOpen((o) => !o))}
-      {placement === "sheet" ? open && (
-        <Drawer title="Notifications" action={markAll} onClose={close} className="kc-bell__drawer">
-          <BellList onClose={close} />
-        </Drawer>
-      ) : (
-        <Popover open={open} onOpenChange={setOpen} anchorRef={triggerRef} placement="right-end" label="Notifications" className="kc-bell__panel">
-          <div className="kc-bell__head">
-            <span className="kc-bell__title">Notifications</span>
-            {markAll}
-          </div>
-          <BellList onClose={close} />
-        </Popover>
-      )}
-    </div>
-  );
-}
-
-/** What the API told this person, newest first, each opening the page it names. */
-function BellList({ onClose }) {
-  const { items, error } = useNotifications();
-
-  const open = (n) => {
-    onClose();
-    if (!n.read) markRead([n.id]);
-    if (n.url) navigate(n.url);
-  };
-
-  return (
-    <>
-      <div className="kc-bell__list">
-        {items && items.length === 0 && (
-          <div className="kc-bell__empty"><Icon name="bell-off" size={18} /><span>Nothing yet.</span></div>
-        )}
-        {!items && error && <div className="kc-bell__empty"><span>{error.message}</span></div>}
-        {(items || []).map((n) => {
-          const kind = KIND[n.kind] || UNKNOWN_KIND;
-          return (
-            <div key={n.id} className={"kc-bell__item" + (n.read ? "" : " is-unread") + (n.url ? " is-link" : "")}
-              role={n.url ? "button" : undefined} tabIndex={n.url ? 0 : undefined}
-              onClick={() => open(n)} onKeyDown={(e) => { if (e.key === "Enter") open(n); }}>
-              <span className={"kc-bell__icon kc-bell__icon--" + kind.tone}><Icon name={kind.icon} size={16} strokeWidth={2} /></span>
-              <div className="kc-bell__body">
-                <span className="kc-bell__text">{n.text}</span>
-                <span className="kc-bell__meta">
-                  <span className="kc-bell__time">{ago(n.createdAt)}</span>
-                  {n.action && n.url && <span className="kc-bell__action">{n.action} →</span>}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <Button variant="ghost" size="sm" icon="settings-2" className="kc-bell__settings"
-        onClick={() => { onClose(); navigate(profilePath("notifications")); }}>
-        Push notification settings
-      </Button>
-    </>
   );
 }

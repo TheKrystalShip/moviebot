@@ -468,7 +468,8 @@ The site installs as an app, Krystal Cinema, from Android Chrome's "Install app"
   untouched, so a cached answer can never outlive a session or hand one person's data to another, and
   a saved film is never in its cache. It is registered by `src/registerSW.js` in a production build
   only, and never in the Activity, which runs inside Discord at Discord's origin. It also shows the
-  API's pushes: the sentence as the API wrote it, opening the page it names in a window of the site
+  API's pushes through krystal's notifications worker script (`/krystal-notifications.js`, loaded with
+  `importScripts`): the sentence as the API wrote it, opening the page it names in a window of the site
   already open, or a new one.
 
 ## Without a connection
@@ -696,11 +697,13 @@ now with the television's room, or the phone's own for a television in none.
 
 ## Notifications
 
-The bell lists what the API told this person (`src/notifications.js`, read every minute and whenever
-the page comes back into view): in the sidebar above the person on a wide screen, at the top right of
-the front page on a phone, and in the bar on a television. Profile's Notifications tab turns pushes on for this browser, through
-krystal's `pushBrowser` against `/api/push/key` and `/api/me/push`, and holds a switch
-for each kind that is pushed (a wanted title that is out, a download that is ready, new episodes of followed shows). A browser can be pushed to only once it has a service worker, which is a
+The bell is krystal's `NotificationTray` over `src/notifications.js` (the notifications client on the
+site's api module, prefix `/api/me`, and the inbox that reads it every minute and whenever the page comes
+back into view): in the sidebar above the person on a wide screen, at the top right of the front page on
+a phone, and in the bar on a television. Profile's Notifications tab is krystal's `NotificationSettings`:
+it turns pushes on for this browser and holds a switch for each kind the API lets a person switch off (a
+wanted title that is out, a download that is ready, new episodes of followed shows, titles to watch
+together). A browser can be pushed to only once it has a service worker, which is a
 production build; on an iPhone, only once the site is on the Home Screen, and the tab says so. The
 player's invite panel lists everybody who can be asked into the room and says, per person, whether
 the invite went out as a push or waits in their bell, never that it was seen.

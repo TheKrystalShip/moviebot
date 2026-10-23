@@ -1,6 +1,6 @@
 import React from "react";
-import { Button, Icon, List, ListRow, RadioGroup, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, ThemePicker, Toggle, pushBrowser, toast } from "@thekrystalship/krystal";
-import { KIND } from "../notifications.js";
+import { Button, Icon, List, ListRow, NotificationSettings, RadioGroup, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, ThemePicker, Toggle, toast } from "@thekrystalship/krystal";
+import { notificationsClient } from "../notifications.js";
 import { api, episodeCode, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
 import { languageOptions } from "../languages.js";
@@ -82,7 +82,7 @@ export function Profile({ tab: named, fromDevice = false }) {
 export function panel(tab, session) {
   switch (tab) {
     case "following": return <Following />;
-    case "notifications": return <Notifications />;
+    case "notifications": return <NotificationSettings client={notificationsClient} />;
     case "playback": return <Playback />;
     case "subtitles": return <SubtitleLook />;
     case "appearance": return <Appearance />;
@@ -208,90 +208,6 @@ function Following() {
         </div>
       )}
     </section>
-  );
-}
-
-const KINDS = [
-  { id: "available", title: "A title I want is out and can be fetched" },
-  { id: "ready", title: "Something I asked for is ready to watch", sub: "Includes each episode of a season." },
-  { id: "episode", title: "New episodes of shows you follow" },
-  { id: "together", title: "A title I want is ready and others want it too" },
-];
-
-/** What this browser says about receiving pushes, when it cannot be switched on here. */
-const PUSH_BLOCKED = {
-  unsupported: "This browser cannot receive pushes.",
-  "needs-install": "Add Krystal Cinema to your Home Screen to get pushes on this phone.",
-  denied: "Notifications are blocked for this site in the browser's settings.",
-};
-
-/**
- * Whether this browser is pushed to, and which kinds of news are pushed at all. A kind switched off
- * still lands in the bell; without a push anywhere, what is switched on comes as a Discord message.
- */
-function Notifications() {
-  const stored = useLoad(() => api.notificationPreferences(), []);
-  const [saved, setSaved] = React.useState(null);
-  const preferences = saved || stored.data;
-  const [push, setPush] = React.useState({ on: false, checking: true, busy: false });
-  const support = pushBrowser.support();
-
-  React.useEffect(() => {
-    let live = true;
-    (async () => {
-      const endpoint = await pushBrowser.currentEndpoint();
-      const status = endpoint ? await api.pushStatus(endpoint).catch(() => null) : null;
-      if (live) setPush({ on: Boolean(status && status.subscribed), checking: false, busy: false });
-    })();
-    return () => { live = false; };
-  }, []);
-
-  const turnPush = async (on) => {
-    setPush((p) => ({ ...p, busy: true }));
-    try {
-      if (on) {
-        const { publicKey } = await api.pushKey();
-        const subscription = await pushBrowser.acquire(publicKey);
-        await api.subscribePush(subscription.toJSON());
-      } else {
-        await pushBrowser.release((endpoint) => api.unsubscribePush(endpoint).catch(() => {}));
-      }
-      setPush({ on, checking: false, busy: false });
-    } catch (error) {
-      setPush((p) => ({ ...p, busy: false }));
-      toast.fromError(error, on ? "Could not turn pushes on" : "Could not turn pushes off");
-    }
-  };
-
-  const change = async (id, on) => {
-    try {
-      setSaved(await api.setNotificationPreferences({ ...preferences, [id]: on }));
-    } catch (error) {
-      toast.fromError(error, "Could not save that");
-    }
-  };
-
-  const blocked = PUSH_BLOCKED[support.state];
-  const pushSub = blocked
-    || (push.on ? "This browser gets a push when something here is for you." : "Turn them on to hear about releases without checking the site.");
-
-  return (
-    <>
-      <SettingsSection icon="bell-ring" title="This device">
-        <SettingsRow icon="bell-ring" title="Browser push on this device" sub={pushSub} tone={blocked ? "warn" : push.on ? "success" : undefined}>
-          <Toggle on={push.on} disabled={Boolean(blocked) || push.checking || push.busy} label="Browser push on this device" onChange={turnPush} />
-        </SettingsRow>
-      </SettingsSection>
-      {!preferences ? <Failed error={stored.error} onRetry={stored.reload} /> : (
-        <SettingsSection icon="sliders-horizontal" title="Send me a push when">
-          {KINDS.map((k) => (
-            <SettingsRow key={k.id} icon={KIND[k.id].icon} title={k.title} sub={k.sub}>
-              <Toggle on={Boolean(preferences[k.id])} label={k.title} onChange={(on) => change(k.id, on)} />
-            </SettingsRow>
-          ))}
-        </SettingsSection>
-      )}
-    </>
   );
 }
 

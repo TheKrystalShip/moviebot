@@ -7,6 +7,7 @@ using TheKrystalShip.MovieBot.Acquire.Tracker;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Core;
+using TheKrystalShip.Notifications;
 
 namespace TheKrystalShip.MovieBot.Api.Acquisition;
 
@@ -150,7 +151,7 @@ public sealed class WishSweep(
     IReleaseSearch search,
     WishList wishes,
     OfferedReleases offered,
-    Notifier notifier,
+    INotifier notifier,
     IOptions<NotifyOptions> options,
     ILogger<WishSweep> logger) : BackgroundService
 {

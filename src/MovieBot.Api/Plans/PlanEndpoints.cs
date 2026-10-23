@@ -7,6 +7,7 @@ using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Api.Wants;
 using TheKrystalShip.MovieBot.Core;
+using TheKrystalShip.Notifications;
 
 namespace TheKrystalShip.MovieBot.Api.Plans;
 
