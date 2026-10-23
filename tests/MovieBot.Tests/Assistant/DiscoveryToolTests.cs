@@ -275,7 +275,7 @@ public sealed class DiscoveryToolTests
         ToolOutcome result = await rig.RunAsync(rig.Taste, new { });
 
         Assert.False(result.IsError);
-        Assert.Contains("Wants to watch: could not be read (This account does not let the person do that in Krystal Cinema.).", result.Text);
+        Assert.Contains("Wants to watch: could not be read (This account does not let the person do that in Cinema.).", result.Text);
         Assert.Contains("- Night Harbor: finished", result.Text);
         Assert.Contains("Following (newest first, 1 of 1):", result.Text);
     }

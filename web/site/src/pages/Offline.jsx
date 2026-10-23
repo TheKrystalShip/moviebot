@@ -59,7 +59,7 @@ export function FirstSignIn() {
     probe().finally(() => setBusy(false));
   };
   return (
-    <CardScreen mark={markUrl} wordmark="Krystal Cinema">
+    <CardScreen mark={markUrl} wordmark="Cinema">
       <Notice>Signing in needs a connection.</Notice>
       <Button variant="primary" size="xl" wide icon="refresh-cw" busy={busy} onClick={retry}>Try again</Button>
     </CardScreen>

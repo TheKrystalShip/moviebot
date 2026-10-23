@@ -179,7 +179,7 @@ public sealed partial class ProfileTests
     {
         string prompt = Load().PromptAppendix;
 
-        Assert.StartsWith("On Krystal Cinema a group of friends watch films and shows together.", prompt);
+        Assert.StartsWith("On Cinema a group of friends watch films and shows together.", prompt);
         Assert.Contains("Never state one from your own memory", prompt);
         Assert.Contains("load find-a-forgotten-film", prompt);
         Assert.Contains("(recall taste)", prompt);

@@ -1,4 +1,4 @@
-// Does a real Chromium accept Krystal Cinema as an installable app, and does its service worker keep
+// Does a real Chromium accept Cinema as an installable app, and does its service worker keep
 // to what it may cache? It asks the browser rather than the filesystem: CDP's Page.getAppManifest is
 // the parse Chrome's "Install app" decision uses, and serviceWorker.ready resolves only on an
 // activated worker.

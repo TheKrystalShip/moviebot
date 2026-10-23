@@ -5,7 +5,7 @@ Guidance for Claude Code working in this repository.
 ## What this is
 
 MovieBot plays films you already own to everyone in a Discord voice channel, on one shared timeline,
-inside a Discord Activity; the same player is the site, Krystal Cinema. It stands apart from the KGSM
+inside a Discord Activity; the same player is the site, Cinema. It stands apart from the KGSM
 ecosystem it sits beside in this workspace and follows its own conventions throughout. How it meets the
 shared systems (identity, assistant harness, speech, design system, build and publish):
 `../kgsm-docs/systems/moviebot/README.md`; its place in the workspace:
@@ -25,7 +25,7 @@ a file once it exists — probing it, transcoding it, serving it, and keeping a 
 
 - `README.md`: what MovieBot is, how it works, requirements, configuration, authentication.
 - `docs/api-contract.md`: what `MovieBot.Api` serves on the wire.
-- `web/site/README.md`: Krystal Cinema, the site, and its player (which is also the Discord Activity).
+- `web/site/README.md`: Cinema, the site, and its player (which is also the Discord Activity).
 - `src/MovieBot.Bot/README.md`: the Discord surface. `docs/voice-commands.md`: what can be said.
 - `docs/deploying.md`: a newcomer's install. `tv/README.md`: the Android TV and Fire TV app, Java built
   with the SDK's own tools, on a version clock of its own tagged `tv-v<version>`. `phone/README.md`:
@@ -46,7 +46,7 @@ Sign-in, the assistant and the design system are shared systems: read
 - **MovieBot signs nobody in.** It validates the provider's token and checks the action a route needs. A
   record is keyed by the provider's `sub` and nothing else; the service key is machine work that names
   nobody; a room's guest link names nobody and no record is keyed by a guest.
-- **The Krystal Cinema design is the UI, and the API is the authority for its data.** A feature the
+- **The Cinema design is the UI, and the API is the authority for its data.** A feature the
   design draws that the API lacks is added to the API, never drawn from a fixture and never left out for
   want of it.
 - **Everyone watches the same position in the same film.** One transcode serves the whole room; the

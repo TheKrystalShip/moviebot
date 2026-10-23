@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploys Krystal Cinema, the site and its player, to hotbox. Run it from hotrod, with no arguments:
+# Deploys Cinema, the site and its player, to hotbox. Run it from hotrod, with no arguments:
 #
 #   deploy/deploy-site.sh
 #

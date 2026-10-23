@@ -676,7 +676,7 @@ public sealed class DiscordBotService(
         var sentence = failure switch
         {
             AccountRefusedException refused => refused.Sentence,
-            MovieBotAccessDeniedException => "Your account does not let you do that in Krystal Cinema.",
+            MovieBotAccessDeniedException => "Your account does not let you do that in Cinema.",
             Core.TokenExchangeUnavailableException => "The sign-in service is not answering, so nothing happened. Try again in a minute.",
             _ => "That command did not work. The log has the reason.",
         };

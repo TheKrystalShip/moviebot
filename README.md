@@ -31,7 +31,7 @@ Playback starts seconds after a film is requested, while it is still being trans
      │ Activity (/embed/)                      │                              │   │ chat
      ▼                                         ▼                              ▼   │
   web/site ◄────── HLS, SignalR ──►     MovieBot.Api  ◄─────────────────── web/site
-  (the player)                           │        ▲                     (Krystal Cinema)
+  (the player)                           │        ▲                     (Cinema)
      moviebot-acquire: tracker,  ◄───────┘        └── manifests, segments ── MovieBot.Ingest
      downloads, wishes                                                           ▲
                                                   MovieBot.Handoff ──────────────┘
@@ -64,7 +64,7 @@ Playback starts seconds after a film is requested, while it is still being trans
    history, wants and follows through the API, as that person, and answers with cards that open a
    title's page. It acts on nothing: watching, getting a film and following are buttons on the page.
    It speaks the same chat protocol as the KGSM assistant, so one chat client serves both.
-7. **Krystal Cinema** is the site: the library in a browser, for the people the identity provider
+7. **Cinema** is the site: the library in a browser, for the people the identity provider
    lets watch. It searches,
    fetches and waits on films through the API as the person signed in, carries the assistant
    in a dock, and opens the player, in a room of its own or in one a voice channel is watching.
@@ -94,7 +94,7 @@ src/MovieBot.Api/       library, media serving, sessions, SignalR hub, downloads
 src/MovieBot.Assistant/ the assistant: the plugin that finds films, over the harness's chat protocol
 src/MovieBot.Bot/       the Discord bot
 src/MovieBot.Handoff/   moves finished downloads into the library
-web/site/               Krystal Cinema, the site, and its player, which is also the Discord Activity
+web/site/               Cinema, the site, and its player, which is also the Discord Activity
 packaging/              the release's installer, systemd units and configuration examples
 deploy/                 the maintainers' host configuration and native GPU builds
 docs/                   deployment guide, API contract, voice command reference
@@ -293,7 +293,7 @@ built and tested, with moviebot-acquire checked out beside this repository.
 
 - [`docs/deploying.md`](docs/deploying.md): deploying a release, step by step
 - [`docs/api-contract.md`](docs/api-contract.md): what the API serves on the wire
-- [`web/site/README.md`](web/site/README.md): Krystal Cinema, the site, and its player
+- [`web/site/README.md`](web/site/README.md): Cinema, the site, and its player
 - [`src/MovieBot.Bot/README.md`](src/MovieBot.Bot/README.md): the Discord bot and its configuration
 - [`docs/voice-commands.md`](docs/voice-commands.md): what can be said to the bot
 - [`CHANGELOG.md`](CHANGELOG.md): release history

@@ -1,4 +1,4 @@
-// How Krystal Cinema feels on a television: the walks in walks.mjs, each from a page loaded with an
+// How Cinema feels on a television: the walks in walks.mjs, each from a page loaded with an
 // empty cache, every key timed by the recorder in probe.js and measured by measure.mjs.
 //
 //   node verify/tvperf/run.mjs [--target lab|tv] [--walks home,bar] [--runs n] [--video] [--out dir]

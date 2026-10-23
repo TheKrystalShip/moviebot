@@ -1,4 +1,4 @@
-# Krystal Cinema on a television: performance
+# Cinema on a television: performance
 
 A plan, not canon. It holds where the television performance work stands, the numbers it is measured
 against, what has been tried and must not be tried again, and what comes next. What a step settles

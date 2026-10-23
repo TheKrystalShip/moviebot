@@ -52,7 +52,7 @@ public sealed class WatchCommand(
     ILogger<WatchCommand> logger)
 {
     /// <summary>What a person whose account may not watch is told.</summary>
-    public const string NotAllowed = "Your account does not have access to Krystal Cinema yet.";
+    public const string NotAllowed = "Your account does not have access to Cinema yet.";
 
     public async Task<WatchResult> ExecuteAsync(WatchRequest request, CancellationToken ct)
     {

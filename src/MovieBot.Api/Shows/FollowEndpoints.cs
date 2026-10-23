@@ -28,7 +28,7 @@ public static class FollowEndpoints
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             if (!FilmStore.IsImdbId(imdbId)) return Error("That is not an IMDb id.", StatusCodes.Status400BadRequest);
             if (body.AutoDownload && !person.Holds(CinemaActions.Download))
-                return Error("Your account does not let you download in Krystal Cinema.", StatusCodes.Status403Forbidden);
+                return Error("Your account does not let you download in Cinema.", StatusCodes.Status403Forbidden);
 
             var stored = await shows.GetAsync(imdbId, ct);
             if (stored is null)

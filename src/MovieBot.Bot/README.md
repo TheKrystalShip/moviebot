@@ -238,7 +238,7 @@ and finds the card, not for the room that has already moved on.
 /notify cancel film:<one of the films you are waiting on>
 ```
 
-`/notify add` wants a film on Krystal Cinema, and is for one that cannot be downloaded yet: out in
+`/notify add` wants a film on Cinema, and is for one that cannot be downloaded yet: out in
 cinemas, say, with a digital release some months off. The film option autocompletes from the
 catalogue rather than from the tracker, because the tracker has nothing to offer yet, and a pasted
 IMDb link is recognised wherever the id appears in it, so somebody who found the film on IMDb does not
@@ -252,5 +252,5 @@ the films the person waits on, and `/notify cancel` ends the want.
 
 The API asks the tracker about every film somebody waits on on a slow clock, by IMDb id. A film
 counts as available once a release is offered whose source is a web encode or better. When one is,
-everybody waiting on it is told on Krystal Cinema, in their notifications and by a push, and the
+everybody waiting on it is told on Cinema, in their notifications and by a push, and the
 want shows the release found there; nothing more is said on Discord.

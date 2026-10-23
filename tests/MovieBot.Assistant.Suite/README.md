@@ -1,7 +1,7 @@
 # MovieBot assistant suite
 
 The behavioural cases of the assistant plugin, run against the live harness through the deployed
-plugin, as a person who may watch in Krystal Cinema. `cases.json` holds the cases as data (a prompt,
+plugin, as a person who may watch in Cinema. `cases.json` holds the cases as data (a prompt,
 follow-up turns, the tools expected, and what the reply must and must not say); the runner is the
 plugin package's (`TheKrystalShip.Agent.Plugin.Testing`) and reports pass rate, tool-choice accuracy,
 median and p90 turn time and prompt tokens.

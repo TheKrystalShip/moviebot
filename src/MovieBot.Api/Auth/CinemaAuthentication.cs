@@ -317,7 +317,7 @@ internal sealed class RefusalWriter : IAuthorizationMiddlewareResultHandler
         {
             await context.ChallengeAsync(CinemaSchemes.Bearer);
             await context.Response.WriteAsJsonAsync(
-                new ErrorReply("Sign in to Krystal Cinema."), ApiJsonContext.Default.ErrorReply);
+                new ErrorReply("Sign in to Cinema."), ApiJsonContext.Default.ErrorReply);
             return;
         }
 
@@ -325,7 +325,7 @@ internal sealed class RefusalWriter : IAuthorizationMiddlewareResultHandler
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             await context.Response.WriteAsJsonAsync(
-                new ErrorReply("Your account does not let you do that in Krystal Cinema."), ApiJsonContext.Default.ErrorReply);
+                new ErrorReply("Your account does not let you do that in Cinema."), ApiJsonContext.Default.ErrorReply);
             return;
         }
 

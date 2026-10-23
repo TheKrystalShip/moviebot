@@ -25,7 +25,7 @@ const SUGGESTIONS = [
 ];
 
 /**
- * How Krystal Cinema reads what the assistant sends: a `titles` result is the titles a tool named,
+ * How Cinema reads what the assistant sends: a `titles` result is the titles a tool named,
  * kept as they came. Any other result draws nothing.
  */
 const cinemaProfile = {

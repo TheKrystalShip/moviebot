@@ -7,7 +7,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
 [AssistantTool("anticipated", ToolClass.Read, ResultLimit = 8000, Order = 8)]
 [Description("""
-    The films that are not out yet and that people on Krystal Cinema are waiting for, most waiters first, with how many wait on each and whether the asking person is one of them.
+    The films that are not out yet and that people on Cinema are waiting for, most waiters first, with how many wait on each and whether the asking person is one of them.
     - Use for "what are people waiting for", "what is anticipated", "anything coming that people are excited about".
     - Not the release calendar: whats_new upcoming lists films by date.
     """)]

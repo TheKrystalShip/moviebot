@@ -9,7 +9,7 @@ command and tells the channel what it answered.
   a pasted link; the id is read from what was sent here, and what names no film is refused before the
   API is asked.
 - **The want is made visible, as the site's is.** `/notify add` is the same act as wanting the film on
-  Krystal Cinema, so the person is named to others who want it there.
+  Cinema, so the person is named to others who want it there.
 - **Nothing about a wish is said on Discord afterwards.** A person waiting on a film is told it is out
-  on Krystal Cinema, in their notifications and by a push to their devices, and the want shows the
+  on Cinema, in their notifications and by a push to their devices, and the want shows the
   release beside it there. The bot needs no Discord id to remember for anybody, and keeps none.

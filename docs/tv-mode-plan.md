@@ -1,4 +1,4 @@
-# TV mode for Krystal Cinema
+# TV mode for Cinema
 
 A plan, not canon. What it settles moves into the docs beside the code it governs
 (`web/site/README.md`, `web/site/src/player/CLAUDE.md`, the wrapper's own README under `tv/`) when
@@ -10,7 +10,7 @@ written.
 
 ## 1. What this is for
 
-Krystal Cinema works on an Android TV or Fire TV: driven entirely by the remote, readable from across
+Cinema works on an Android TV or Fire TV: driven entirely by the remote, readable from across
 a room, signed in without typing a password, and playing films in the shared room like any other
 viewer. Apple TV is out of scope.
 
@@ -175,7 +175,7 @@ key of its own, so a sideloaded install and a store's do not update each other e
 app id: moving a TV between them is uninstalling, and signing in again. It needs:
 
 - A first screen asking for the server's address, taken with the system keyboard, accepted only once
-  `<origin>/api/config` answers as Krystal Cinema, and kept; and a way to change it.
+  `<origin>/api/config` answers as Cinema, and kept; and a way to change it.
 - A demo server for the store's reviewers holding only films that may be shown, with an account the
   provider has approved, since a reviewer signs in.
 - For the Amazon Appstore (Fire TV): a free account; it takes an APK, so the build chain stands. New

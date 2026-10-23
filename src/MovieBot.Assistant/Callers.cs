@@ -36,7 +36,7 @@ public sealed class AssistantOidcOptions
 /// against the provider's keys exactly as the API checks it. This service mints nothing and keeps no
 /// sessions, and it forwards the token on every call its tools make, so the API is the one place that
 /// decides what the person may see. Talking to the assistant takes <see cref="Watch"/>: a person who
-/// may not watch has no access to Krystal Cinema, and the assistant is part of it.
+/// may not watch has no access to Cinema, and the assistant is part of it.
 /// </remarks>
 public sealed class Callers(IOptions<AssistantOidcOptions> options)
 {
@@ -102,7 +102,7 @@ public sealed class CinemaPeople(Callers callers) : IPluginPeople
             throw PluginSignInException.UpstreamUnavailable("Sign-in is unavailable right now. Try again in a moment.");
 
         if (callers.IsSignedIn(http.Request))
-            throw PluginSignInException.Forbidden("This account does not let the person watch in Krystal Cinema, so the assistant is not available to it.");
+            throw PluginSignInException.Forbidden("This account does not let the person watch in Cinema, so the assistant is not available to it.");
 
         return ValueTask.FromResult<PluginPerson?>(null);
     }

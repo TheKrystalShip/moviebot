@@ -1,4 +1,4 @@
-# Krystal Cinema on a television, key by key
+# Cinema on a television, key by key
 
 `npm run verify:tv-sweep` times every key press of a walk on the reference television itself: how long
 focus takes to move, how many frames go over the panel's budget while the screen settles, and with

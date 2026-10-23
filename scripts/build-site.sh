@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds Krystal Cinema, whose player is also the Discord Activity, into web/site/dist.
+# Builds Cinema, whose player is also the Discord Activity, into web/site/dist.
 #
 # scripts/build-player.sh installs that build into the checkout's API wwwroot for a release;
 # deploy/deploy-site.sh installs it into the API's wwwroot on hotbox.

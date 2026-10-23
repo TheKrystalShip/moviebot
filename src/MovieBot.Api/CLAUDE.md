@@ -54,7 +54,7 @@ film onto a device is `Offline/CLAUDE.md`.
 - **CORS reflects the origin rather than enumerating one.** The Activity is served from Discord's
   proxy under an origin that is not known ahead of time, and a failed preflight is invisible: no
   status, no log, just a request that never happens.
-- **A path that is no route and names no file is a page.** Krystal Cinema names its pages and rooms by
+- **A path that is no route and names no file is a page.** Cinema names its pages and rooms by
   path, so the fallback answers any of them with the site's index; the Activity is the same page at
   `/embed/`. It is the fallback rather than the default-files middleware that does this, because an
   endpoint matched ahead of the static files means they never see the request. Paths under `/api`,

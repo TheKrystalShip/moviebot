@@ -1,4 +1,4 @@
-// Krystal Cinema's service worker.
+// Cinema's service worker.
 //
 // It does three things: satisfies the browser's installability criteria with a functional `fetch`
 // handler, holds the whole build so the installed app opens and gets around with no connection, and
@@ -80,7 +80,7 @@ self.addEventListener("fetch", (event) => {
 // A push is shown as the API worded it, and a tap opens the page it names: krystal's notifications
 // worker script does both (`notificationsWorker()` in vite.config.js emits it).
 self.addEventListener("push", (event) => self.krystalNotifications.handleNotificationPush(event, {
-  title: "Krystal Cinema",
+  title: "Cinema",
   icon: "/icons/icon-192.png",
   badge: "/icons/icon-192.png",
 }));

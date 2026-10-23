@@ -309,7 +309,7 @@ function PhoneHead() {
   return (
     <div className="kc-phonehead">
       <img src={markUrl} width="26" height="26" alt="" />
-      <span className="kc-phonehead__name">Krystal Cinema</span>
+      <span className="kc-phonehead__name">Cinema</span>
       {online ? <BellButton /> : <Off><BellButton /></Off>}
     </div>
   );

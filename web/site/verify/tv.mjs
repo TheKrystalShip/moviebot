@@ -1,4 +1,4 @@
-// Krystal Cinema driven by a remote alone: every page in TV mode at the reference television's size,
+// Cinema driven by a remote alone: every page in TV mode at the reference television's size,
 // walked with the arrow keys from where focus starts, against the scratch site verify/mobile/scratch.sh
 // serves (staged first, by its run or `node verify/mobile/run.mjs`; an unstaged site stops this run).
 //

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The debug build installs beside the release one, under its own app id, and says which it is. -->
 <resources>
-  <string name="app_name">Krystal Cinema Debug</string>
+  <string name="app_name">Cinema Debug</string>
 </resources>

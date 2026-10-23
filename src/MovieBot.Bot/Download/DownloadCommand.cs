@@ -131,7 +131,7 @@ public sealed class DownloadCommand(
     }
 
     /// <summary>What a person whose account may not download is told.</summary>
-    public const string NotAllowed = "Your account does not let you download in Krystal Cinema.";
+    public const string NotAllowed = "Your account does not let you download in Cinema.";
 
     /// <summary>
     /// What the API's answer to a download is told as in a channel.

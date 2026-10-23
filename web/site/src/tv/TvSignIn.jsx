@@ -24,7 +24,7 @@ export function TvSignIn({ over = false }) {
     <div className={"kc-tv-signin" + (over ? " is-over" : "")}>
       <div className="kc-tv-signin__head">
         <img src={markUrl} width="40" height="40" alt="" />
-        <span>Krystal Cinema</span>
+        <span>Cinema</span>
       </div>
       {state.phase === "code" && <Code code={state.code} />}
       {state.phase === "unreachable" && (

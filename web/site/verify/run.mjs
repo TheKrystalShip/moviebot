@@ -416,7 +416,7 @@ async function guestChecks(browser) {
   await ada.context().close();
 }
 
-console.log(`Krystal Cinema player checks against ${BASE} (API ${API}, film ${TITLE})`);
+console.log(`Cinema player checks against ${BASE} (API ${API}, film ${TITLE})`);
 const browser = await launch();
 try {
   await guestChecks(browser);

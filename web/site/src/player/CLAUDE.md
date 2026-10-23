@@ -1,7 +1,7 @@
 # The player
 
 The site's player, at `/r/<room>` on the site and in the Discord Activity, which is the site: the same
-React page in both, drawn to the Krystal Cinema design. `engine/` is framework-free TypeScript (the hub, the
+React page in both, drawn to the Cinema design. `engine/` is framework-free TypeScript (the hub, the
 sync controller, the stream, the room) and the components draw what `engine/room.ts` says.
 `npm run check` type-checks the engine; `npm run verify` drives it in a real browser
 (`web/site/README.md`).

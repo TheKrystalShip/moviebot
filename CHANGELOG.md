@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.64.0] - 2026-10-23
+
+### Changed
+- The product is Cinema wherever a person reads its name: the site's title and home-screen name, its
+  wordmark, the sign-in and offline screens, notifications and their pushes, the shared room's preview,
+  the Discord bot's replies, the assistant's prompt and errors, and the phone and television apps.
+
 ## [3.63.0] - 2026-10-23
 
 ### Changed

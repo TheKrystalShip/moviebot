@@ -1,4 +1,4 @@
-# Krystal Cinema on phones
+# Cinema on phones
 
 Every page of the site, and every state of a page a person reaches by tapping something, looked at on
 a set of iPhones and Galaxies, measured for what reads as broken on a phone, and photographed. One run

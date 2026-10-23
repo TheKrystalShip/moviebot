@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <!-- The plugin to the assistant harness: the harness client, profile registration, the tool host
-         and the routes this service relays to the people of Krystal Cinema. -->
+         and the routes this service relays to the people of Cinema. -->
     <PackageReference Include="TheKrystalShip.Agent.Plugin" Version="1.0.0-dev.25" />
 
     <!-- Checks the identity provider's access tokens, as the API does. -->

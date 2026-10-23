@@ -335,7 +335,7 @@ app.Services.GetRequiredService<SessionKeeper>().Restore();
 
 app.UseCors();
 
-// Krystal Cinema, whose player is also the Discord Activity, is served from this origin at its
+// Cinema, whose player is also the Discord Activity, is served from this origin at its
 // root, which is what lets an Activity reach the page, the API, the media and the hub through a
 // single declared URL mapping instead of a set of them. Static files sit under wwwroot, open to
 // anybody, and never shadow /api, /media or /hub, which are explicit routes. They are read from disk

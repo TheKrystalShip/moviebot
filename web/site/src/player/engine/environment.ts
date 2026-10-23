@@ -192,7 +192,7 @@ export function addressWithoutLaunch(): string | null {
 const noLandscape: Landscape = { enter: () => {}, release: () => {} };
 
 /**
- * The player on Krystal Cinema. The room and the film are the address, and the viewer is whoever
+ * The player on Cinema. The room and the film are the address, and the viewer is whoever
  * signed in to the site: their token is the proof, and the name it carries is what the room calls them.
  * `replaceAddress` puts the page at another address without a history entry, through the site's
  * router so its pages follow. `tv` is the site's own judgement of whether it is on a television, and

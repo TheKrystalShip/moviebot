@@ -1,4 +1,4 @@
-// Krystal Cinema on phones: every view in views.mjs, on every phone in devices.mjs, against the scratch
+// Cinema on phones: every view in views.mjs, on every phone in devices.mjs, against the scratch
 // site scratch.sh serves. Each view is opened in a fresh browser context signed in as the staged
 // viewer, measured (inspect.mjs), and photographed — the screen as a phone shows it and, for a page,
 // the whole page in one picture. A contact sheet per view puts every phone's screen side by side.

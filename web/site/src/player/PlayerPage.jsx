@@ -99,7 +99,7 @@ export function GuestRoom({ code }) {
     <Page>
       <form className="mp-arrive" onSubmit={enter}>
         <span className="mp-arrive__eyebrow">Invited to watch</span>
-        <span className="mp-arrive__name">{invitation.name || "Krystal Cinema"}</span>
+        <span className="mp-arrive__name">{invitation.name || "Cinema"}</span>
         <div className="mp-arrive__form">
           <Input size="lg" wide autoFocus value={name} maxLength={32} onChange={(e) => setName(e.target.value)}
             placeholder="Your name" aria-label="Your name" />

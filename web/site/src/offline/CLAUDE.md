@@ -194,7 +194,7 @@ The page posts it when the worker finishes, and `sync.js` posts it again for any
 
 ## Downloads in the phone app (`shell.js`)
 
-Inside Krystal Cinema for Android, the TKS shell (`phone/README.md`), the page finds
+Inside Cinema for Android, the TKS shell (`phone/README.md`), the page finds
 `window.TksShell`, and the tracks of a save of a title that is whole are the shell's to fetch: the
 shell keeps fetching with the screen off and the page frozen, which no page does. `metaOf` lists such
 a save's tracks with `store: "app"`, after the subtitles and the artwork, which are written before
@@ -227,7 +227,7 @@ The download sheet's defaults: the rung is the person's `offlineQualityHeight` m
 wider than that height at 16:9 (`rungFor`), else the smallest on a phone or a tablet (a coarse main pointer) and the step-down anywhere else; the audio in the person's language, else the
 title's default; the text subtitles in the person's subtitle language and the forced ones in each
 picked audio language. `deviceName()` is what this device is called on the API's records: the browser
-(Krystal Cinema inside the phone app), the system and a mark kept in localStorage, so saving a title
+(Cinema inside the phone app), the system and a mark kept in localStorage, so saving a title
 again from here replaces this device's save and never another's.
 
 ## Asking for what the library does not hold (`wants.js`)

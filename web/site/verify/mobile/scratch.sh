@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A scratch Krystal Cinema for the mobile harness: the site's production build served by a MovieBot
+# A scratch Cinema for the mobile harness: the site's production build served by a MovieBot
 # API of its own, over a library of its own, so nothing the harness does reaches a library people use.
 #
 # The library is the checkout's media/ hard-linked into two roots — most films on the media root, the
@@ -97,7 +97,7 @@ if [[ -n "${MOVIEBOT_VERIFY_TMDB_TOKEN_FILE:-}" ]]; then
   tmdb=("Tmdb__ReadAccessToken=$(cat "$MOVIEBOT_VERIFY_TMDB_TOKEN_FILE")" "Tmdb__ImageBaseUrl=http://127.0.0.1:$artwork_port/t/p")
 fi
 
-echo "Scratch Krystal Cinema on http://127.0.0.1:$port: $i films, $cold_count of them on the cold root."
+echo "Scratch Cinema on http://127.0.0.1:$port: $i films, $cold_count of them on the cold root."
 cd "$dir/api"
 # The API refuses to start without a tracker category; the harness reaches no tracker.
 env \

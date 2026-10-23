@@ -94,7 +94,7 @@ const LIT = {
 const NEEDS_SERVER = new Set(["discover", "wants", "plans", "assistant"]);
 
 /**
- * Krystal Cinema: the shelf, the films on their way and on their way out, and the assistant. Every page
+ * Cinema: the shelf, the films on their way and on their way out, and the assistant. Every page
  * needs somebody signed in: one opened with nothing held leaves for the provider at once, and is where
  * the browser returns once they are. A session that has ended is the one thing drawn in place of a
  * page, with the way back offered, never followed; a session being restored or recovered draws
@@ -274,7 +274,7 @@ function Frame({ session, route }) {
         sidebar={
           <Sidebar
             mark={markUrl}
-            wordmark="Krystal Cinema"
+            wordmark="Cinema"
             open={false}
             collapsed={dock.desktop && collapsed}
             onToggleCollapse={() => setCollapsed((c) => !c)}

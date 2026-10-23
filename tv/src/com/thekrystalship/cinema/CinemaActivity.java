@@ -13,7 +13,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 /**
- * Krystal Cinema on a television: the site in a full-screen WebView. The one thing of the app's own
+ * Cinema on a television: the site in a full-screen WebView. The one thing of the app's own
  * the page can reach is {@code window.KrystalCinemaTV} ({@link Television}), which answers the TV's
  * name and nothing else.
  *

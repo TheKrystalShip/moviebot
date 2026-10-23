@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Krystal Cinema on Android TV and Fire TV. The version is the build's (tv/build.sh, from
+<!-- Cinema on Android TV and Fire TV. The version is the build's (tv/build.sh, from
      tv/CHANGELOG.md), set on the command line rather than here. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.thekrystalship.cinema">

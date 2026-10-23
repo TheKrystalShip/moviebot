@@ -35,7 +35,7 @@ export function useBarAway(away) {
 }
 
 /**
- * Krystal Cinema on a television: one page at a time in a column that fills the screen, under the
+ * Cinema on a television: one page at a time in a column that fills the screen, under the
  * bar on the pages it leads to. A film's, a show's and the profile's pages have no bar; Back leaves
  * them. On a page with the bar, Back first brings focus up into it, and from there goes back a page,
  * or from Home leaves the app. `held` is the frame kept under the sign-in code after its session
@@ -99,7 +99,7 @@ export function TvFrame({ session, route, held = false }) {
         <div onFocus={toTop} onBlur={() => setInBar(false)}>
           <TvBar
             mark={markUrl}
-            name="Krystal Cinema"
+            name="Cinema"
             items={items}
             hidden={(scrolled || away) && !inBar}
             actions={<>

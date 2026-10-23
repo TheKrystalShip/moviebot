@@ -31,7 +31,7 @@ const SOURCE = [
  * the phone installs once it allows installing from the browser. Inside the app it is not offered.
  */
 const APP = [
-  { name: "Krystal Cinema for Android", href: "/phone.apk", icon: "smartphone", featured: true, sub: "Downloads that carry on with the screen off" },
+  { name: "Cinema for Android", href: "/phone.apk", icon: "smartphone", featured: true, sub: "Downloads that carry on with the screen off" },
 ];
 const offerApp = () => typeof navigator !== "undefined" && /Android/.test(navigator.userAgent) && !inApp();
 
@@ -47,7 +47,7 @@ export function SiteFooter() {
   return (
     <Footer
       mark={markUrl}
-      wordmark="Krystal Cinema"
+      wordmark="Cinema"
       tagline="The server's movies and shows, watched together: everyone in a room sees the same moment, from this site or from a Discord voice channel."
       note={playing > 0 ? (playing === 1 ? "A room is watching now" : `${playing} rooms are watching now`) : "Self-hosted and open source"}
       groups={[

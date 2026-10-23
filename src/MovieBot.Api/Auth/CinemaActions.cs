@@ -2,7 +2,7 @@ using System.Reflection;
 
 namespace TheKrystalShip.MovieBot.Api.Auth;
 
-/// <summary>One thing a person can be allowed to do in Krystal Cinema.</summary>
+/// <summary>One thing a person can be allowed to do in Cinema.</summary>
 /// <param name="Id">The full id, <c>cinema:&lt;local&gt;</c>, as the actions claim carries it.</param>
 /// <param name="Title">What the provider's role editor shows.</param>
 /// <param name="Effect"><c>read</c>, <c>write</c> or <c>execute</c>.</param>

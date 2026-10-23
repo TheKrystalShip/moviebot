@@ -1,6 +1,6 @@
 // Who is signed in, and the token that proves it.
 //
-// Krystal Cinema signs nobody in. It is a public client of the provider the API names on /api/config,
+// Cinema signs nobody in. It is a public client of the provider the API names on /api/config,
 // and `@thekrystalship/auth-client` keeps the session: the code flow, the renewal, the outage and the
 // tabs. This module is the site's glue over it: where to sign in (`config`), the Cinema actions the
 // access token lists, and the shape the pages read.

@@ -2,7 +2,7 @@ using System.Net.Http.Headers;
 using TheKrystalShip.Agent.Plugin.Testing.Suite;
 
 // The behavioural suite of the MovieBot assistant plugin: the cases in cases.json, played against the
-// live harness through the deployed plugin as a person who may watch in Krystal Cinema. The plugin is
+// live harness through the deployed plugin as a person who may watch in Cinema. The plugin is
 // the one behind MOVIEBOT_ASSISTANT_URL, and the person is whoever the access token in the file named
 // by MOVIEBOT_ASSISTANT_TOKEN_FILE names.
 const string Origin = "MOVIEBOT_ASSISTANT_URL";

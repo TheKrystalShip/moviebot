@@ -1,4 +1,4 @@
-# Krystal Cinema on a television, timed
+# Cinema on a television, timed
 
 How the site feels driven by a remote: how long a press goes unanswered, how long the screen stands
 still, and how many times a page rearranges itself before it settles. `verify:tv` says every control

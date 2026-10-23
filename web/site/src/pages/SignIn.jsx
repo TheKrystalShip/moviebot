@@ -32,7 +32,7 @@ export function Waiting({ note, returnTo }) {
 
   const shown = failed || note;
   return (
-    <CardScreen mark={markUrl} wordmark="Krystal Cinema">
+    <CardScreen mark={markUrl} wordmark="Cinema">
       {shown && <Notice tone="danger">{shown}</Notice>}
       <Button variant="primary" size="xl" wide icon="log-in" busy={busy} onClick={start}>
         {busy ? "Signing in…" : "Sign in"}
@@ -47,8 +47,8 @@ export function Waiting({ note, returnTo }) {
  */
 export function NoAccess({ onSignOut }) {
   return (
-    <CardScreen mark={markUrl} wordmark="Krystal Cinema">
-      <Notice>Your account has no access to Krystal Cinema yet.</Notice>
+    <CardScreen mark={markUrl} wordmark="Cinema">
+      <Notice>Your account has no access to Cinema yet.</Notice>
       {onSignOut && <Button variant="outline" size="xl" wide icon="log-out" onClick={onSignOut}>Sign out</Button>}
     </CardScreen>
   );
@@ -60,7 +60,7 @@ export function NoAccess({ onSignOut }) {
  */
 export function ActivityProblem({ note }) {
   return (
-    <CardScreen mark={markUrl} wordmark="Krystal Cinema">
+    <CardScreen mark={markUrl} wordmark="Cinema">
       <Notice tone="danger">{note}</Notice>
     </CardScreen>
   );

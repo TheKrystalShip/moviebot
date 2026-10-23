@@ -1,9 +1,9 @@
-# Krystal Cinema
+# Cinema
 
 MovieBot's site and its player: the library in a browser for the people the identity provider lets
 watch, and the Discord Activity, which is the same site. It is served by `MovieBot.Api` from the
 root of its `wwwroot` and built on `@thekrystalship/krystal`, the design system the KGSM Control
-Panel is built on too. The design is the Krystal Cinema project (desktop, mobile and embed pages); the
+Panel is built on too. The design is the Cinema project (desktop, mobile and embed pages); the
 API is the authority for everything it draws.
 
 ```bash
@@ -206,7 +206,7 @@ screen draws the same content in krystal's `Popover`, `Menu` or `Dialog`.
 
 ## Signing in
 
-Krystal Cinema signs nobody in. It is a public client of the provider `/api/config` names, with the client
+Cinema signs nobody in. It is a public client of the provider `/api/config` names, with the client
 id it names, and `@thekrystalship/auth-client` keeps the session (`src/session.js` is the site's glue
 over it: where to sign in, the Cinema actions, the shape the pages read). A page opened with nothing held
 sends the browser there at once, authorization code with PKCE, and the person signs in on the provider's
@@ -239,7 +239,7 @@ The token lists the Cinema actions the person holds, in the claim `/api/config` 
 shows a control only to somebody holding the action it needs (`can` and `useCan` in `src/session.js`):
 Download and Watch on a film that is not here need `cinema:download`; asking whether a film is out yet needs `cinema:wish`. An
 approved account without `cinema:watch` sees one page saying it has no access to
-Krystal Cinema, with Sign out and the account's page. The API checks every action again.
+Cinema, with Sign out and the account's page. The API checks every action again.
 
 A television signs in with the device authorization grant (RFC 8628) as the device client
 `/api/config` names (`tvClientId`), and never goes to the provider. It asks for its code with the name the
@@ -445,7 +445,7 @@ episode of is the one case it does not reach.
 
 ## Installing
 
-The site installs as an app, Krystal Cinema, from Android Chrome's "Install app" and from Safari's
+The site installs as an app, Cinema, from Android Chrome's "Install app" and from Safari's
 "Add to Home Screen", and opens standalone.
 
 - **`public/manifest.webmanifest`** is what Chrome reads: name, standalone display, the canvas colour

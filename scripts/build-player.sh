@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds Krystal Cinema, whose player is also the Discord Activity, and installs it where the API
+# Builds Cinema, whose player is also the Discord Activity, and installs it where the API
 # serves it from by default: the root of its wwwroot.
 #
 # One origin serves the site, the player, the API, the media and the hub, so a Discord Activity needs

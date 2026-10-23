@@ -23,7 +23,7 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
         {
             Directory.CreateDirectory(_root);
             File.WriteAllText(Path.Combine(_root, "index.html"),
-                "<!doctype html><html><head><title>Krystal Cinema</title></head><body></body></html>");
+                "<!doctype html><html><head><title>Cinema</title></head><body></body></html>");
             // As a host runs it: in Development the web root is the project's own build, whatever is set.
             _host = fixture.WithWebHostBuilder(b => b.UseEnvironment("Production").UseWebRoot(_root));
         }
@@ -82,7 +82,7 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
         using var response = await Client().GetAsync(path);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Krystal Cinema", await response.Content.ReadAsStringAsync());
+        Assert.Contains("Cinema", await response.Content.ReadAsStringAsync());
     }
 
     /// <summary>
@@ -104,12 +104,12 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
         // As a crawler asks: no token, no service key.
         var page = await Client().GetStringAsync($"/r/{room}");
 
-        Assert.Contains("<meta property=\"og:title\" content=\"Watch Heat on Krystal Cinema\" />", page);
+        Assert.Contains("<meta property=\"og:title\" content=\"Watch Heat on Cinema\" />", page);
         Assert.Contains("<meta property=\"og:description\" content=\"1995\" />", page);
         Assert.Contains("property=\"og:image\" content=\"http://localhost/films/tt0113277/poster.jpg\"", page);
         Assert.DoesNotContain("Alice", page);
         Assert.DoesNotContain("watching", page, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Krystal Cinema</title>", page);
+        Assert.Contains("Cinema</title>", page);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
     {
         var page = await Client().GetStringAsync($"/r/fresh-{Guid.NewGuid():N}?title={SessionFixture.Heat}");
 
-        Assert.Contains("Watch Heat on Krystal Cinema", page);
+        Assert.Contains("Watch Heat on Cinema", page);
     }
 
     /// <summary>A private room's link says nothing of it, not even its film, wherever it is pasted.</summary>
@@ -134,7 +134,7 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
 
         var page = await Client().GetStringAsync($"/r/{room}?title={SessionFixture.Heat}");
 
-        Assert.Contains("<meta property=\"og:title\" content=\"Krystal Cinema\" />", page);
+        Assert.Contains("<meta property=\"og:title\" content=\"Cinema\" />", page);
         Assert.DoesNotContain("Heat", page);
     }
 
@@ -154,7 +154,7 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
         var page = await Client().GetStringAsync(link.Path);
         var gone = await Client().GetStringAsync("/g/not-a-link");
 
-        Assert.Contains("<meta property=\"og:title\" content=\"Watch Heat on Krystal Cinema\" />", page);
+        Assert.Contains("<meta property=\"og:title\" content=\"Watch Heat on Cinema\" />", page);
         Assert.DoesNotContain("og:title", gone);
     }
 
@@ -163,7 +163,7 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
     {
         var page = await Client().GetStringAsync($"/r/empty-{Guid.NewGuid():N}");
 
-        Assert.Contains("<meta property=\"og:title\" content=\"Krystal Cinema\" />", page);
+        Assert.Contains("<meta property=\"og:title\" content=\"Cinema\" />", page);
         Assert.DoesNotContain("og:image", page);
     }
 

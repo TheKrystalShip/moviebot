@@ -381,7 +381,7 @@ function Appearance() {
 }
 
 /**
- * Where this person's account lives. Krystal Cinema keeps no sign-in of its own: the name, the
+ * Where this person's account lives. Cinema keeps no sign-in of its own: the name, the
  * password and every session are the provider's, on its account page. A television leaves the site for
  * nothing, so there its address is shown to open on a phone.
  */
@@ -394,7 +394,7 @@ function Account({ session }) {
   return (
     <SettingsSection icon="user-cog" title="Account">
       <SettingsRow icon="user" title={user ? user.name : "Signed in"} sub={user && user.username ? "@" + user.username : null} />
-      <SettingsRow icon="external-link" title="Managed outside Krystal Cinema"
+      <SettingsRow icon="external-link" title="Managed outside Cinema"
         sub={url ? `Your name, password and sessions are kept at ${new URL(url).host}.` : "Your name, password and sessions are kept by your account provider."}>
         {onTv
           ? url && <span className="kc-account-address">{url.replace(/^https?:\/\//, "")}</span>

@@ -5,6 +5,11 @@ tagged `tv-v<version>`; the newest heading here is the version `build.sh` builds
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-10-23
+
+### Changed
+- The app is named Cinema.
+
 ## [1.1.0] - 2026-10-11
 
 ### Added

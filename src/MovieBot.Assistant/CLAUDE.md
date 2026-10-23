@@ -1,6 +1,6 @@
 # moviebot-assistant
 
-The plugin that helps the people of Krystal Cinema find films and shows. The organization's assistant
+The plugin that helps the people of Cinema find films and shows. The organization's assistant
 harness (`tks-assistant`) is the assistant: the turn loop, the model, the conversations, the memory, the
 skills and the reply guards. This service brings the domain: a prompt appendix, read-only tools over
 the film database through MovieBot's API, five skills, the person's name, and the sign-in. It is built on

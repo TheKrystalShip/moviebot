@@ -1,4 +1,4 @@
-# Krystal Cinema for Android TV and Fire TV
+# Cinema for Android TV and Fire TV
 
 The site in an app a television launches from its home screen and drives with the remote. It is a
 single Java activity holding a full-screen WebView (`src/com/thekrystalship/cinema/`), with no
@@ -54,7 +54,7 @@ whether the build is a debug one into a generated `Built` class, and the APK to 
   `release.password`). That key is never in a repository and has to be kept: Android installs an
   update only under the key the app was installed with, so a TV whose app was signed with a lost key
   uninstalls it and signs in again. `build.sh` prints how to make one when there is none.
-- **A debug build** is `com.thekrystalship.cinema.debug`, named Krystal Cinema Debug, installed beside
+- **A debug build** is `com.thekrystalship.cinema.debug`, named Cinema Debug, installed beside
   a release one. It has remote debugging on, allows plain http to `127.0.0.1` and `localhost` (the
   `debug/res/` overlay), takes its start address from the launch's `url` extra, and is signed with a
   debug key made on first use. With `adb reverse` for the scratch site's ports, it opens that site on

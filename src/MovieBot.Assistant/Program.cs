@@ -7,7 +7,7 @@ using TheKrystalShip.MovieBot.Assistant.Tools;
 namespace TheKrystalShip.MovieBot.Assistant;
 
 /// <summary>
-/// moviebot-assistant: the plugin that helps the people of Krystal Cinema find films and shows. The
+/// moviebot-assistant: the plugin that helps the people of Cinema find films and shows. The
 /// assistant harness runs the model, the conversations and the memory; this service brings the domain,
 /// which is a prompt, seven read-only tools over the film database through the API, and five skills.
 /// </summary>
@@ -44,7 +44,7 @@ public partial class Program
         builder.Plugin
             .AddGeneratedTools()
             .Guard(CinemaGuards.Declare)
-            .Speech(speech => speech.Vocabulary("Krystal Cinema"))
+            .Speech(speech => speech.Vocabulary("Cinema"))
             .Cards(CardJson.Default)
             .AddPeople<CinemaPeople>()
             .AddTurnContext<CinemaTurnContext>();

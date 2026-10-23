@@ -18,7 +18,7 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// </summary>
 public static class RoomPreview
 {
-    private const string SiteName = "Krystal Cinema";
+    private const string SiteName = "Cinema";
 
     /// <summary>The room a page path names, or null for a path that is not a room's.</summary>
     public static string? RoomOf(PathString path)
@@ -58,7 +58,7 @@ public static class RoomPreview
         {
             tags.Add(("og:type", "website"));
             tags.Add(("og:title", SiteName));
-            tags.Add(("og:description", "A room on Krystal Cinema."));
+            tags.Add(("og:description", "A room on Cinema."));
             tags.Add(("twitter:card", "summary"));
             return Render(tags);
         }

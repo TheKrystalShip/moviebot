@@ -46,6 +46,6 @@ public sealed class AnticipatedToolTests
         ToolOutcome result = await rig.RunAsync(rig.Anticipated, new { });
 
         Assert.True(result.IsError);
-        Assert.Contains("This account may not wait on films in Krystal Cinema", result.Text);
+        Assert.Contains("This account may not wait on films in Cinema", result.Text);
     }
 }

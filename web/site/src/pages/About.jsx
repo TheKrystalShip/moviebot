@@ -9,7 +9,7 @@ import { onTv } from "../tv/tv.js";
 export function About({ head = true }) {
   return (
     <div className="kc-page kc-about">
-      {head && <PageHead title="About" sub="Krystal Cinema, MovieBot's library in a browser." />}
+      {head && <PageHead title="About" sub="Cinema, MovieBot's library in a browser." />}
 
       <section className="kc-about__block">
         <h2>The library and its rooms</h2>

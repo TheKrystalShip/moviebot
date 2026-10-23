@@ -137,7 +137,7 @@ public sealed class MovieBotApiClient
         return (null, response.StatusCode switch
         {
             HttpStatusCode.NotFound => "The library no longer has that film.",
-            HttpStatusCode.Forbidden => "Your account does not let you do that in Krystal Cinema.",
+            HttpStatusCode.Forbidden => "Your account does not let you do that in Cinema.",
             _ => $"The subtitle could not be fetched ({(int)response.StatusCode}).",
         });
     }

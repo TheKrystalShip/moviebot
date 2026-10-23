@@ -5,6 +5,11 @@ Krystal Cinema for Android phones, the app in this directory. Its version clock 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-10-23
+
+### Changed
+- The app is named Cinema. On the TKS shell 1.5.1, whose page for an unreachable site names no app.
+
 ## [1.2.0] - 2026-10-23
 
 ### Changed

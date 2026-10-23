@@ -7,7 +7,7 @@ using TheKrystalShip.Agent.Plugin;
 namespace TheKrystalShip.MovieBot.Assistant.Api;
 
 /// <summary>
-/// Krystal Cinema's API, asked as the person whose token a turn carries. This service holds no state of
+/// Cinema's API, asked as the person whose token a turn carries. This service holds no state of
 /// the API's and no credential of its own: what a person may see here is exactly what the API lets them,
 /// and every call is answered at the moment it is asked.
 /// </summary>
@@ -77,7 +77,7 @@ public sealed class CinemaApi(HttpClient http)
             Reply<List<AnticipatedTitle>> reply = await SendAsync<List<AnticipatedTitle>>("api/anticipated", [], ct);
             if (reply.Value is not null) return reply.Value;
             throw new ToolRefusal(reply.Status == HttpStatusCode.Forbidden
-                ? "This account may not wait on films in Krystal Cinema, so the list of films people are waiting for is not open to the person."
+                ? "This account may not wait on films in Cinema, so the list of films people are waiting for is not open to the person."
                 : reply.Message);
         }
 
@@ -134,13 +134,13 @@ public sealed class CinemaApi(HttpClient http)
 
                 return await response.Content.ReadFromJsonAsync<T>(Json, ct) is { } value
                     ? new Reply<T>(value, response.StatusCode, "")
-                    : new Reply<T>(null, HttpStatusCode.BadGateway, "Krystal Cinema answered with nothing.");
+                    : new Reply<T>(null, HttpStatusCode.BadGateway, "Cinema answered with nothing.");
             }
             catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
                                        && !ct.IsCancellationRequested)
             {
                 return new Reply<T>(null, HttpStatusCode.ServiceUnavailable,
-                    "Krystal Cinema could not be reached, so nothing is known about this.");
+                    "Cinema could not be reached, so nothing is known about this.");
             }
         }
     }
@@ -181,12 +181,12 @@ public sealed class CinemaApi(HttpClient http)
 
         return new Reply<T>(null, response.StatusCode, response.StatusCode switch
         {
-            HttpStatusCode.Unauthorized => "Krystal Cinema did not accept this sign-in. The person has to sign in again.",
-            HttpStatusCode.Forbidden => "This account does not let the person do that in Krystal Cinema.",
+            HttpStatusCode.Unauthorized => "Cinema did not accept this sign-in. The person has to sign in again.",
+            HttpStatusCode.Forbidden => "This account does not let the person do that in Cinema.",
             HttpStatusCode.ServiceUnavailable => said is { Length: > 0 }
                 ? $"The film database could not be asked just now ({said}), and nothing is kept for this."
                 : "The film database could not be asked just now, and nothing is kept for this.",
-            _ => said is { Length: > 0 } ? said : $"Krystal Cinema answered {(int)response.StatusCode}.",
+            _ => said is { Length: > 0 } ? said : $"Cinema answered {(int)response.StatusCode}.",
         });
     }
 }

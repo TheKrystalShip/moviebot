@@ -1,4 +1,4 @@
-// Leaving Krystal Cinema in this browser.
+// Leaving Cinema in this browser.
 //
 // Somebody with films saved on this device is asked first whether to remove them: they are the
 // account's, kept under its `sub`, and signing out alone leaves them for the next sign-in of the same

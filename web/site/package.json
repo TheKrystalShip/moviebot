@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.99.0",
   "type": "module",
-  "description": "Krystal Cinema: MovieBot's site, served by MovieBot.Api.",
+  "description": "Cinema: MovieBot's site, served by MovieBot.Api.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

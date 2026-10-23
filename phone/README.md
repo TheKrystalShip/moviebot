@@ -1,4 +1,4 @@
-# Krystal Cinema for Android phones
+# Cinema for Android phones
 
 Cinema's site as an Android app, for one thing a browser cannot do: download films that keep
 downloading with the screen off and the app out of view. It is the TKS shell built as Cinema. What the
@@ -9,7 +9,7 @@ to, are `kgsm-docs`' `systems/shell/README.md` and `reference/shell-bridge.md`.
 ## What is Cinema's
 
 - **`shell.conf`**: the app id every install was made under, which never changes; the mark
-  `KrystalCinemaApp`, by which the site names the device "Krystal Cinema on Android" on the API's
+  `KrystalCinemaApp`, by which the site names the device "Cinema on Android" on the API's
   records; the site; the artifact name (`krystal-cinema-phone`, also the key directory); and the
   `downloads` feature.
 - **`res/`**: the name, and the site's icon, Lucide's clapperboard on the PWA icon's ground

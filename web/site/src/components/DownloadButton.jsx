@@ -630,7 +630,7 @@ function PickSheet({ titleId, head, onClose }) {
           )}
           {evictedUnvisited() && (
             <Notice tone="warn" icon="smartphone">
-              Safari deletes downloads from a site left unvisited for 7 days. Add Krystal Cinema to the Home Screen to keep them.
+              Safari deletes downloads from a site left unvisited for 7 days. Add Cinema to the Home Screen to keep them.
             </Notice>
           )}
         </>

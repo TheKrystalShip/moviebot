@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds Krystal Cinema for Android TV and Fire TV with the SDK's own tools: javac, d8, aapt2,
+# Builds Cinema for Android TV and Fire TV with the SDK's own tools: javac, d8, aapt2,
 # zipalign and apksigner. No Gradle.
 #
 #   tv/build.sh [--debug] [--origin https://host] [--install] [--open [url]]
@@ -90,7 +90,7 @@ if $debug; then
   if [[ ! -f "$store" ]]; then
     mkdir -p "$keys" && chmod 700 "$keys"
     "$JAVA_HOME/bin/keytool" -genkeypair -keystore "$store" -storepass android -keypass android \
-      -alias debug -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Krystal Cinema Debug" >/dev/null 2>&1
+      -alias debug -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Cinema Debug" >/dev/null 2>&1
   fi
   apk="$here/out/krystal-cinema-tv-$version-debug.apk"
 else
@@ -99,7 +99,7 @@ else
     echo "No release key in $keys. Make it once, and keep a copy somewhere safe:" >&2
     echo "  mkdir -p $keys && chmod 700 $keys && umask 077 && head -c 24 /dev/urandom | base64 > $keys/release.password" >&2
     echo "  keytool -genkeypair -keystore $keys/release.keystore -storepass:file $keys/release.password \\" >&2
-    echo "    -alias release -keyalg RSA -keysize 4096 -validity 36500 -dname \"CN=Krystal Cinema\"" >&2
+    echo "    -alias release -keyalg RSA -keysize 4096 -validity 36500 -dname \"CN=Cinema\"" >&2
     exit 1
   }
   apk="$here/out/krystal-cinema-tv-$version.apk"

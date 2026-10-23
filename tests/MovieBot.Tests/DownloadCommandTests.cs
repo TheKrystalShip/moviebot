@@ -145,7 +145,7 @@ public sealed class DownloadCommandTests : IDisposable
         Assert.DoesNotContain(TorrentTags.RoomPrefix, form);
         Assert.Contains(TorrentTags.Notify(1), form);
 
-        // Whoever asked is owed the news, on Krystal Cinema.
+        // Whoever asked is owed the news, on Cinema.
         Assert.Contains(TorrentTags.Tell, form);
     }
 

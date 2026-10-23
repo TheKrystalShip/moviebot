@@ -11,7 +11,7 @@ namespace TheKrystalShip.MovieBot.Api.Notifications;
 public static class NotificationSetup
 {
     /// <summary>The title every push carries.</summary>
-    public const string PushTitle = "Krystal Cinema";
+    public const string PushTitle = "Cinema";
 
     /// <summary>The path of the anonymous route a push button posts to; Cinema's pushes carry no buttons.</summary>
     public const string ActionsPath = "/api/push/actions";

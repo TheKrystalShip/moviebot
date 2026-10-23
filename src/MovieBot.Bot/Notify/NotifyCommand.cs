@@ -73,13 +73,13 @@ public sealed record CancelResult(CancelStatus Status, string Message, Wish? Wis
 /// <summary>
 /// Makes a person's want of a film, and ends it, by asking the API as them — which keeps the want,
 /// checks the library, the torrent client and the tracker, keeps a wish when nothing has the film,
-/// sweeps the tracker for every wish, and tells the person on Krystal Cinema when one is out. What
+/// sweeps the tracker for every wish, and tells the person on Cinema when one is out. What
 /// stays here is how a Discord channel is told each answer.
 /// </summary>
 public sealed class NotifyCommand(MovieBotApiClient api, IOptions<ApiOptions> options, ILogger<NotifyCommand> logger)
 {
     /// <summary>What a person whose account may not want films is told.</summary>
-    public const string NotAllowed = "Your account does not let you want films in Krystal Cinema.";
+    public const string NotAllowed = "Your account does not let you want films in Cinema.";
 
     public async Task<NotifyResult> SubscribeAsync(NotifyRequest request, CancellationToken ct)
     {
@@ -122,11 +122,11 @@ public sealed class NotifyCommand(MovieBotApiClient api, IOptions<ApiOptions> op
         return reply.Outcome switch
         {
             WantOutcomes.Waiting => new NotifyResult(NotifyStatus.Subscribed,
-                $"You will be told on Krystal Cinema when {name} can be downloaded.", waiting),
+                $"You will be told on Cinema when {name} can be downloaded.", waiting),
             WantOutcomes.AlreadyWanted when waiting is not null => new NotifyResult(NotifyStatus.AlreadySubscribed,
-                $"You are already waiting on {name}. You will be told on Krystal Cinema when it can be downloaded.", waiting),
+                $"You are already waiting on {name}. You will be told on Cinema when it can be downloaded.", waiting),
             WantOutcomes.AlreadyWanted => new NotifyResult(NotifyStatus.AlreadySubscribed,
-                $"You already want {name} on Krystal Cinema."),
+                $"You already want {name} on Cinema."),
             WantOutcomes.Available => new NotifyResult(NotifyStatus.AlreadyAvailable,
                 $"{title} can be downloaded now. Pick it from the search results in /watch.",
                 want is null ? null : Wish.From(want, options.Value.PublicBaseUrl), reply.Release),
@@ -135,7 +135,7 @@ public sealed class NotifyCommand(MovieBotApiClient api, IOptions<ApiOptions> op
             WantOutcomes.Downloading => new NotifyResult(NotifyStatus.Downloading,
                 $"{title} is already on its way as {reply.DownloadName}. It will be announced when it is "
                 + "ready to watch."),
-            _ => new NotifyResult(NotifyStatus.Wanted, $"{name} is on your list on Krystal Cinema."),
+            _ => new NotifyResult(NotifyStatus.Wanted, $"{name} is on your list on Cinema."),
         };
     }
 

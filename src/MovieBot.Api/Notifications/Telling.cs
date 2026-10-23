@@ -25,7 +25,7 @@ public static class Naming
             : SitePaths.Title(manifest.Id);
 }
 
-/// <summary>The pages of Krystal Cinema that a notification opens, as paths on the site's own origin.</summary>
+/// <summary>The pages of Cinema that a notification opens, as paths on the site's own origin.</summary>
 public static class SitePaths
 {
     /// <summary>A title the library holds.</summary>

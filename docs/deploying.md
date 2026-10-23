@@ -303,7 +303,7 @@ told an administrator has to approve them.
 
 ### On a television
 
-Krystal Cinema has an app for Android TV and Fire TV, which shows the site in its television design
+Cinema has an app for Android TV and Fire TV, which shows the site in its television design
 and signs in with a code approved on a phone (the `cinema-tv` client from step 3b). It is built for one
 site, so build it for yours from a checkout of the repository, as `tv/README.md` says
 (`tv/build.sh --origin https://YOUR.DOMAIN`), and put it where the site serves it:
