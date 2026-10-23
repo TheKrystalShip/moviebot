@@ -2,8 +2,11 @@
    this is the shelf, the film pages and the lists, set in those tokens. */
 
 /* The scrolling column keeps its scrollbar's room whether or not the page is taller than the screen,
-   so a page growing past it, or shrinking back, never moves the page sideways. */
+   so a page growing past it, or shrinking back, never moves the page sideways. The chat is the one
+   page that never scrolls the column, scrolling inside itself, and it runs edge to edge: kept room
+   would stand as a strip at its right. */
 .kc-main { scrollbar-gutter: stable; }
+.kc-main:has(.kc-chat-page) { scrollbar-gutter: auto; }
 @layer site.reset {
   html, body, #root { height: 100%; }
   body { margin: 0; }

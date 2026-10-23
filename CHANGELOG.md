@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.58.0] - 2026-10-23
+
+### Added
+
+- **The assistant's memory, in the chat.** The chat's options menu holds Memory: what the assistant
+  has written down about you, across every product, listed in the chat's own panel, where each memory
+  is edited or forgotten (Forget asks twice). Compact is in the composer's options.
+
+### Fixed
+
+- **The chat runs to both edges at phone width.** The scrolling column keeps no scrollbar room while
+  it holds the chat, which scrolls inside itself, so its right gutter matches its left.
+
 ## [3.57.0] - 2026-10-22
 
 ### Added
