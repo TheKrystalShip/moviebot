@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.59.0] - 2026-10-23
+
+### Added
+
+- **What the assistant writes down, where it happens.** A line under an answer for each memory the
+  assistant wrote or forgot during it ("Remembered: …", "Forgot: …"), with Edit opening that memory.
+- **Skills** in the chat's options menu: what the assistant knows how to do, each skill named and
+  described (krystal 5.0.0).
+
 ## [3.58.1] - 2026-10-23
 
 ### Changed
