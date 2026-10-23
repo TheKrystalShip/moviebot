@@ -21,19 +21,13 @@ the index it just installed.
 `moviebot-assistant` is reached by the site at `/assistant/` on the vhost, which strips the prefix
 (`nginx-moviebot.conf`).
 
-The television app (`tv/README.md`) is built here and handed to hotbox on its own, into the API's
-state directory, where `/tv.apk` serves it and no deploy of the services touches it:
+The phone app (`phone/README.md`) and the television app (`tv/README.md`) deploy on their own, each
+built as a release here and installed in the API's state directory, where `/phone.apk` and `/tv.apk`
+serve it and no deploy of the services touches it:
 
 ```bash
-tv/build.sh
-rsync tv/out/krystal-cinema-tv-<version>.apk hotbox:/var/lib/moviebot/tv.apk
-```
-
-The phone app (`phone/README.md`) is handed over the same way, to `/phone.apk`:
-
-```bash
-phone/build.sh
-rsync phone/out/krystal-cinema-phone-<version>.apk hotbox:/var/lib/moviebot/phone.apk
+deploy/deploy-app.sh            # both
+deploy/deploy-app.sh phone      # one: phone or tv
 ```
 
 - **Settings are two files and the environment.** Every service reads `moviebot.settings.json`
@@ -100,6 +94,12 @@ rsync phone/out/krystal-cinema-phone-<version>.apk hotbox:/var/lib/moviebot/phon
   comes back as it was, the player reconnects its hub on its own, and the video it has buffered keeps
   playing through the gap, so nobody in a room notices the restart. `/health` counting occupied rooms
   is no reason to hold a deploy back.
+- **The hand-off is restarted only while it is making nothing.** A restart starts every transcode it
+  is running again from the beginning, which rewrites the playlists of a film people are watching
+  under them. While an `ffmpeg` or `fpcalc` runs in its unit's cgroup, `deploy-services.sh` restarts
+  the other three and leaves a transient unit on hotbox, `moviebot-handoff-restart`, that restarts the
+  hand-off once the last has ended; the new binary is already in place meanwhile. A later deploy
+  replaces a restart still waiting. Restarting it by hand while it transcodes costs the same.
 - **`/etc/moviebot/moviebot.env` holds the credentials** every unit reads — the bot's token, the
   Discord and identity-provider client secrets, `Auth__MediaTicketKey` that signs media tickets and
   the service key the hand-off and the bot's background passes present — **and which tracker
