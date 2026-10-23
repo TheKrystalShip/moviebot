@@ -132,7 +132,7 @@ const Pages = React.memo(function Pages({ route, session, onShown }) {
 
 function TvBell() {
   return (
-    <Bell placement="bottom-end">
+    <Bell drawer>
       {({ open, toggle, unread }) => (
         <TvBarButton icon="bell" label={"Notifications" + (unread > 0 ? `, ${unread} unread` : "")} dot={unread > 0}
           onClick={toggle} aria-haspopup="dialog" aria-expanded={open} />

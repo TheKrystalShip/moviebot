@@ -209,7 +209,7 @@ const drawn = (page) => page.evaluate(() => ({
   cards: [...document.querySelectorAll(".showcase-card__name")].map((e) => e.textContent.trim()),
   navOff: [...document.querySelectorAll(".kc-nav-off .nav-item__label")].map((e) => e.textContent.trim()),
   navOn: [...document.querySelectorAll(".sidebar__nav > .sidebar__group > .nav-item .nav-item__label")].map((e) => e.textContent.trim()),
-  bellOff: !!document.querySelector(".kc-nav-off .kc-bell-item"),
+  bellOff: !!document.querySelector(".kc-nav-off .k-notification-tray"),
   fab: !!document.querySelector(".dock-fab, .dockfab, [class*='dock-fab']"),
   subtab: [...document.querySelectorAll(".subtab--active")].map((e) => e.textContent.trim()),
   subtabs: [...document.querySelectorAll(".subtab")].map((e) => [e.textContent.trim(), e.disabled]),

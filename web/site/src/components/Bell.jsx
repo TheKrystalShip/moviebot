@@ -4,9 +4,9 @@ import { navigate } from "../router.js";
 import { inbox } from "../notifications.js";
 
 /** The bell's list, opening the page a row names and ending in the way to the push settings. */
-export function Bell({ placement, children }) {
+export function Bell({ drawer, children }) {
   return (
-    <NotificationTray inbox={inbox} placement={placement} trigger={children}
+    <NotificationTray inbox={inbox} drawer={drawer} trigger={children}
       onOpen={(n) => { if (n.url) navigate(n.url); }}
       footer={({ close }) => (
         <Button variant="ghost" size="sm" icon="settings-2" className="kc-bell__settings"
