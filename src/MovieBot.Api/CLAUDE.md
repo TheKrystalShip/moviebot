@@ -123,7 +123,7 @@ film onto a device is `Offline/CLAUDE.md`.
   top-billed actors) is one call kept a week, so a title in many answers is asked about once. Every word
   that names a genre, a person, a keyword or a language is resolved to the database's and reported in
   `resolved`; a word the database does not know is refused (`404`) rather than dropped, because a
-  discovery that ignores a filter answers a question nobody asked. The library join (`LibraryShelf`) and
+  discovery that ignores a filter answers a question nobody asked. Words typed into Discover are read by `Films/QuestionReader` (pure: a closed grammar over the database's own genre and language lists, passed in) and answered through that same discovery by `CatalogueSearch.AskAsync`, so a misread name is a refusal and never a wrong answer. The library join (`LibraryShelf`) and
   whether the asking person watched are made when an answer is read and are never kept with it. A title
   the database holds no IMDb id for is listed by its own id with no page and no poster. The Discover page's shelves are `Films/DiscoverShelves`: each shelf the same for everybody
   is a fixed question by the database's own ids (genres, keywords, companies, networks, collections,

@@ -163,6 +163,26 @@ public sealed record DiscoverResolved
 
 public sealed record ResolvedPerson(int PersonId, string Name, string? KnownFor);
 
+/// <summary>
+/// What <c>/api/catalogue/ask</c> answers: whether the words are a question, the parts they were read
+/// as, and the titles the question found, or why it found none.
+/// </summary>
+public sealed record CatalogueQuestionView
+{
+    public required string Query { get; init; }
+    public required bool Question { get; init; }
+    public required List<QuestionPart> Parts { get; init; }
+
+    /// <summary><c>film</c> or <c>show</c>; absent when nothing was discovered.</summary>
+    public string? Kind { get; init; }
+
+    public DiscoverResolved? Resolved { get; init; }
+    public required List<TitleHitView> Titles { get; init; }
+
+    /// <summary>Why a question found nothing: the film database's refusal of a word in it.</summary>
+    public string? Message { get; init; }
+}
+
 /// <summary>What <c>/api/catalogue/discover</c> answers.</summary>
 public sealed record CatalogueDiscoverView
 {

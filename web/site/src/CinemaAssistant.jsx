@@ -1,8 +1,10 @@
 import { Icon } from "@thekrystalship/krystal";
-import { Chat, createAssistantClient } from "@thekrystalship/krystal-chat";
+import React from "react";
+import { Chat, ChatSuggestionChips, createAssistantClient } from "@thekrystalship/krystal-chat";
 import { freshToken } from "./session.js";
 import { discoverFilmPath, showPath } from "./paths.js";
 import { linkProps } from "./router.js";
+import { HANDOFF_MS, settleHandoff, useHandoff } from "./assistantHandoff.js";
 
 // The assistant, behind /assistant on the same origin, spoken to as the signed-in person. One client
 // for the life of the page: the chat asks for it by the assistant's id on every render.
@@ -80,6 +82,37 @@ function TitleCards({ msg }) {
 }
 
 /**
+ * Sends the words a page handed over (`assistantHandoff.js`) as the first message of a new conversation,
+ * once the assistant answers. Draws nothing.
+ */
+function Handoff({ chat }) {
+  const request = useHandoff();
+  React.useEffect(() => {
+    if (!request || !chat.usable) return;
+    if (Date.now() - request.at > HANDOFF_MS) {
+      settleHandoff(request);
+      return;
+    }
+    if (!chat.empty) {
+      chat.newChat();
+      return;
+    }
+    settleHandoff(request);
+    chat.ask(request.text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a request is taken when the chat is ready for it
+  }, [request, chat.usable, chat.empty]);
+  return null;
+}
+
+/** What stands over the composer: the handoff, and the opening suggestions until the person writes. */
+const aboveComposer = (chat) => (
+  <>
+    <Handoff chat={chat} />
+    {chat.empty && !chat.input.trim() ? <ChatSuggestionChips /> : null}
+  </>
+);
+
+/**
  * The assistant, in the dock beside a page when `docked` (a wide screen), and as a page of its own
  * otherwise (`pages/Assistant.jsx`).
  */
@@ -104,6 +137,7 @@ export function CinemaAssistant({ session, docked = false, dock, onClose }) {
       assistantName="Assistant"
       profile={cinemaProfile}
       suggestions={SUGGESTIONS}
+      slots={{ aboveComposer }}
       noAssistant="The assistant isn't answering right now."
       renderCards={(msg) => <TitleCards msg={msg} />} />
   );

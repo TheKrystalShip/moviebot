@@ -114,6 +114,9 @@ export const api = {
   // poster and cast; and whether a film can be watched and how.
   findTitles: (q) => call("GET", `/api/titles/find?q=${enc(q)}`),
   findFilms: (q) => call("GET", `/api/films/find?q=${enc(q)}`),
+  // The words as a question of the catalogue (top 10 horror from 2000): whether they are one, the
+  // parts they were read as, and the titles that answer them or why none does.
+  ask: (q) => call("GET", `/api/catalogue/ask?q=${enc(q)}`),
   availability: (imdbId) => call("GET", `/api/films/${enc(imdbId)}/availability`),
   // Watch now: fetch it and play it in a room the moment it can be opened. Answers with the room at
   // once; a 409 is every slot for watching while it arrives in use, and carries them.

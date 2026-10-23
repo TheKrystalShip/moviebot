@@ -25,6 +25,26 @@ public static class CatalogueSearchEndpoints
             return Results.Ok(new CatalogueSearchView { Query = q!.Trim(), Titles = [.. hits.Select(h => search.View(h, shelf))] });
         }).RequireAction(CinemaActions.Watch);
 
+        // Words typed into Discover as a question (top 10 horror movies from 2000), or no question
+        // when they are a title's name.
+        app.MapGet("/api/catalogue/ask", async (string? q, HttpContext context, CatalogueSearch search, CancellationToken ct) =>
+        {
+            var outcome = await search.AskAsync(q ?? "", ct);
+            if (outcome.Value is not { } answer) return Refused(outcome);
+
+            var shelf = search.ShelfFor(Viewer(context));
+            return Results.Ok(new CatalogueQuestionView
+            {
+                Query = q!.Trim(),
+                Question = answer.Question,
+                Parts = answer.Parts,
+                Kind = answer.Discovery?.Kind,
+                Resolved = answer.Discovery?.Resolved,
+                Titles = [.. (answer.Discovery?.Hits ?? []).Select(h => search.View(h, shelf))],
+                Message = answer.Message,
+            });
+        }).RequireAction(CinemaActions.Watch);
+
         // The people a name could mean, with what each is known for: the way to a person's id.
         app.MapGet("/api/catalogue/people", async (string? q, CatalogueSearch search, CancellationToken ct) =>
         {

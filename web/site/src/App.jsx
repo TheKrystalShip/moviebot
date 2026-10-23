@@ -8,6 +8,7 @@ import { can, restore, signIn, useEnded, useSession } from "./session.js";
 import { leave } from "./leave.js";
 import { goBack, navigate, useRoute } from "./router.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
+import { useHandoff } from "./assistantHandoff.js";
 import { PLACES } from "./nav.js";
 import { ANIME, OFFLINE_FLAG, PROFILE_TABS, chatPath, discoverPath, homePath, libraryPath, moviePath, profilePath, roomPath, signedInPath } from "./paths.js";
 import { useOnline } from "./connectivity.js";
@@ -233,6 +234,16 @@ function Frame({ session, route }) {
   const dock = useDock({ storageKey: "cinema:dock" });
   const mainRef = React.useRef(null);
   useDiscoverKey(route.view === "discover");
+
+  // Words a page hands to the assistant open it: the dock beside the page on a wide screen, its page on
+  // a phone. The chat that opens sends them.
+  const handoff = useHandoff();
+  React.useEffect(() => {
+    if (!handoff || route.view === "chat") return;
+    if (dock.desktop) dock.setOpen(true);
+    else navigate(chatPath);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a request opens the assistant once
+  }, [handoff]);
 
   // A new page starts at its top, from the moment it is shown.
   const toTop = React.useCallback(() => {

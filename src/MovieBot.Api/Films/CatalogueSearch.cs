@@ -719,16 +719,25 @@ public sealed partial class CatalogueSearch(
             : Outcome<List<KeywordMatch>>.Ok(kept.Value ?? []);
     }
 
-    /// <summary>A language by its code or its English name.</summary>
-    private async Task<Outcome<LanguageName>> LanguageAsync(string text, CancellationToken ct)
+    /// <summary>The film database's languages with their English names, kept.</summary>
+    private async Task<Outcome<IReadOnlyList<LanguageName>>> LanguagesAsync(CancellationToken ct)
     {
         var kept = await keeper.KeptAsync("languages", AnswerJson.Default.ListLanguageName, VocabularyKept,
             async (tmdb, token) => (await tmdb.LanguagesAsync(token)).ToList() is { Count: > 0 } list ? list : null, null, ct);
-        if (kept is null) return Unavailable<LanguageName>("The film database could not be asked about its languages.");
+        return kept is null
+            ? Unavailable<IReadOnlyList<LanguageName>>("The film database could not be asked about its languages.")
+            : Outcome<IReadOnlyList<LanguageName>>.Ok(kept.Value ?? []);
+    }
+
+    /// <summary>A language by its code or its English name.</summary>
+    private async Task<Outcome<LanguageName>> LanguageAsync(string text, CancellationToken ct)
+    {
+        var languages = await LanguagesAsync(ct);
+        if (languages.Value is not { } known) return languages.Carry<LanguageName>();
 
         var wanted = text.Trim();
-        var language = (kept.Value ?? []).FirstOrDefault(l => string.Equals(l.Code, wanted, StringComparison.OrdinalIgnoreCase))
-                       ?? (kept.Value ?? []).FirstOrDefault(l => string.Equals(l.Name, wanted, StringComparison.OrdinalIgnoreCase));
+        var language = known.FirstOrDefault(l => string.Equals(l.Code, wanted, StringComparison.OrdinalIgnoreCase))
+                       ?? known.FirstOrDefault(l => string.Equals(l.Name, wanted, StringComparison.OrdinalIgnoreCase));
         return language is null
             ? NotFound<LanguageName>($"The film database has no language called \"{wanted}\".")
             : Outcome<LanguageName>.Ok(language);

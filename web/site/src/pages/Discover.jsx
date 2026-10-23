@@ -1,8 +1,9 @@
 import React from "react";
-import { Avatar, Button, Icon, SearchField, Skeleton } from "@thekrystalship/krystal";
+import { Avatar, Button, Icon, Pill, SearchField, Skeleton } from "@thekrystalship/krystal";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { useOnline } from "../connectivity.js";
+import { askAssistant } from "../assistantHandoff.js";
 import { useCan } from "../session.js";
 import { ANIME, discoverPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
@@ -29,7 +30,10 @@ export const DISCOVER_FIELD = "kc-discover-field";
  * address holds. With a query, the catalogue's films and shows in its own order, each by its poster: the first
  * answer large, the rest as cards, followed by anything the server can play by that name that the
  * catalogue did not answer with. A result is a result wherever it is played from: one that can be
- * played now plays from here, and nothing says where it comes from. With a person (`person`, the film database's id for them) instead, the films and shows
+ * played now plays from here, and nothing says where it comes from. The same words are also asked as a
+ * question of the catalogue (`/api/catalogue/ask`): when they are one, the reading as a line of parts
+ * and the titles it found come first. Ask the assistant is offered when nothing came back, when the
+ * question was refused, and when the words are no question and no title found carries them. With a person (`person`, the film database's id for them) instead, the films and shows
  * they are credited on, best known first; with a genre (`genre` and `kind`), the catalogue's most
  * popular films or shows in it. Every answer leads to its own page. What is shown is in the address,
  * so it can be shared and reloaded.
@@ -62,6 +66,10 @@ export function Discover({ query }) {
     : Promise.resolve([])).then((list) => ({ q, list })), [q, downloading, finding]);
   const answered = !finding || (foundFor.data && foundFor.data.q === q);
   const found = answered && foundFor.data && foundFor.data.q === q ? foundFor.data.list : [];
+  const askedFor = useLoad(() => (q && online ? api.ask(q).catch(() => null) : Promise.resolve(null)).then((ask) => ({ q, ask })), [q, online]);
+  const askAnswered = !q || !online || (askedFor.data && askedFor.data.q === q);
+  const ask = askAnswered && askedFor.data && askedFor.data.q === q ? askedFor.data.ask : null;
+  const questionTitles = ask && ask.question ? ask.titles : [];
   const libraryShows = useLoad(() => api.shows().catch(() => []), []);
   // The page's rows and categories, and what the filter picks from, for everything here that is not a
   // search, a person or a genre.
@@ -86,6 +94,10 @@ export function Discover({ query }) {
   const showsHereById = new Map((libraryShows.data || []).filter((s) => s.imdbId).map((s) => [s.imdbId, s]));
   const where = (t) => ({ here: t.kind === "film" ? filmsHere.get(t.imdbId) : null, held: t.kind === "show" && heldShows.has(t.imdbId) });
   const [best, ...rest] = found;
+  const everything = questionTitles.length + found.length + others;
+  const carriesWords = [...questionTitles, ...found].some((t) => named(t.title || ""));
+  const offerAssistant = online && q && answered && askAnswered
+    && (everything === 0 || !!(ask && ask.question && ask.message) || (!(ask && ask.question) && !carriesWords));
 
   const submit = (typed) => navigate(discoverPath(typed.trim()));
 
@@ -114,7 +126,15 @@ export function Discover({ query }) {
 
       {q && (
         <>
-          {!answered && <ResultsSkeleton />}
+          {!(answered && askAnswered) && <ResultsSkeleton />}
+          {ask && ask.question && (ask.parts.length > 0 || questionTitles.length > 0) && (
+            <div className="kc-keywords">{ask.parts.map((p, i) => <Pill key={i + p.part + p.text} tone="accent">{p.text}</Pill>)}</div>
+          )}
+          {questionTitles.length > 0 && (
+            <div className="kc-grid">
+              {questionTitles.map((t) => <FoundCard key={t.kind + (t.imdbId || t.tmdbId)} found={t} {...where(t)} />)}
+            </div>
+          )}
           {best && <BestMatch key={best.imdbId} found={best} {...where(best)} shelf={showsHereById.get(best.imdbId)} />}
           {(rest.length + others > 0) && (
             <section className="kc-shelf">
@@ -127,7 +147,8 @@ export function Discover({ query }) {
             </section>
           )}
 
-          {answered && found.length + others === 0 && <Empty icon="search" title="Nothing by that name" />}
+          {answered && askAnswered && everything === 0 && <Empty icon="search" title="Nothing by that name" />}
+          {offerAssistant && <Button size="xl" variant="primary" icon="bot" onClick={() => askAssistant(q)}>Ask the assistant</Button>}
         </>
       )}
     </div>
