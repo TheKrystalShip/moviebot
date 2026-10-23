@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.58.1] - 2026-10-23
+
+### Changed
+
+- **The assistant lists its skills.** The plugin is on `TheKrystalShip.Agent.Plugin` 1.0.0-dev.20, whose
+  `GET /skills` answers each skill's name and description for the chat's Skills page.
+
 ## [3.58.0] - 2026-10-23
 
 ### Added
