@@ -103,7 +103,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             return manifest;
         }
 
-        PrepareOutputDirectory(outputDirectory, ladder, audioStreams.Count, options.Force);
+        PrepareOutputDirectory(outputDirectory, ladder, audioStreams.Count, options.Force, log);
 
         // Put down before the manifest names it. A manifest is read the moment it exists — a film
         // is announced within seconds of the first segments landing, and an embed asking for a
@@ -209,7 +209,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
     }
 
     private static void PrepareOutputDirectory(
-        string outputDirectory, IReadOnlyList<VideoRung> ladder, int audioCount, bool force)
+        string outputDirectory, IReadOnlyList<VideoRung> ladder, int audioCount, bool force, Action<string> log)
     {
         if (Directory.Exists(outputDirectory) && Directory.EnumerateFileSystemEntries(outputDirectory).Any())
         {
@@ -219,6 +219,9 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
                     $"{outputDirectory} already holds output. Pass --force to replace it.");
             }
 
+            // Every playlist and segment goes with the directory, so a player reading them meets
+            // nothing until the transcode writes them again: said, because nothing else says it.
+            log(ReplacingLine(outputDirectory));
             Directory.Delete(outputDirectory, recursive: true);
         }
 
@@ -226,6 +229,27 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             Directory.CreateDirectory(Path.Combine(outputDirectory, rung.Directory));
         for (var i = 0; i < audioCount; i++)
             Directory.CreateDirectory(Path.Combine(outputDirectory, $"a{i}"));
+    }
+
+    /// <summary>What a transcode about to replace a title's output is throwing away, read from its manifest.</summary>
+    private static string ReplacingLine(string outputDirectory)
+    {
+        Manifest? before;
+        try
+        {
+            before = ManifestJson.Deserialize(File.ReadAllText(Path.Combine(outputDirectory, "manifest.json")));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            before = null;
+        }
+        return before switch
+        {
+            { Status: TitleStatus.Transcoding, HeadSeconds: { } head } =>
+                $"  starting again from nothing: {TimeSpan.FromSeconds(head):h\\:mm\\:ss} already written is deleted, and anybody watching it waits until it is written again",
+            { Status: var status } => $"  replacing the {status.ToString().ToLowerInvariant()} output already here",
+            null => "  replacing output already here",
+        };
     }
 
     // ---- Pre-passes -----------------------------------------------------------------

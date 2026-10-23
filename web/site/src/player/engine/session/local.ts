@@ -68,6 +68,10 @@ export class LocalTimeline implements Timeline {
     return Promise.resolve();
   }
 
+  reportTrouble(): Promise<void> {
+    return Promise.resolve();
+  }
+
   stop(): Promise<void> {
     return Promise.resolve();
   }

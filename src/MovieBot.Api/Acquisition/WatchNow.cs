@@ -47,6 +47,7 @@ public sealed class WatchNow(
     RoomControls controls,
     Wants.WantStore wants,
     ShowOfferCache showOffers,
+    FilmOfferCache filmOffers,
     FilmStore films,
     ShowStore shows,
     IOptions<NotifyOptions> notify,
@@ -56,7 +57,10 @@ public sealed class WatchNow(
     /// <summary>The server's own name on what it does to a room, for the log.</summary>
     internal static readonly Actor Server = new("moviebot", "MovieBot");
 
-    /// <summary>Whether a film can be watched, and how. The tracker is asked only for a film neither here nor arriving.</summary>
+    /// <summary>
+    /// Whether a film can be watched, and how. The tracker is asked only for a film neither here nor
+    /// arriving, and its answer is read through <see cref="FilmOfferCache"/>.
+    /// </summary>
     public async Task<FilmAvailability> AvailabilityAsync(string imdbId, string? userId, CancellationToken ct)
     {
         var all = await DownloadsOrNullAsync(ct);
@@ -87,7 +91,7 @@ public sealed class WatchNow(
         RankedReleases ranked;
         try
         {
-            ranked = await search.ByImdbAsync(imdbId, ct);
+            ranked = await filmOffers.GetAsync(imdbId, ct);
         }
         catch (TrackerException ex)
         {

@@ -4,6 +4,39 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.65.0] - 2026-10-23
+
+### Added
+- A player says what went wrong with its film (a fatal network or media error, a stuck playhead, a
+  device store that did not answer, a film that never started, giving up) over the hub
+  (`ReportTrouble`), written to the API's journal at most six lines a minute per connection, each
+  naming the playback by the CMCD session id its requests carry into the delivery log.
+- The API warns when a transcode an occupied room is watching begins again from nothing, and the
+  hand-off says how much it deletes when it replaces a transcode's output.
+- `web/site/verify/stalls.mjs`: a private file system that never answers, playlists missing for a
+  while, and a transcode begun again from nothing under two viewers, in a real browser.
+
+### Changed
+- Buffer ahead is Standard on a desktop that chose nothing, and Dynamic on a phone, a tablet or a
+  television.
+- What the tracker offers for a film is asked once per ten minutes for availability and wants
+  (`FilmOfferCache`); the wish sweep's answers are kept there too.
+- `deploy-services.sh` restarts the hand-off only while it is making nothing; while it transcodes,
+  a transient unit on hotbox restarts it once the last transcode ends.
+
+### Fixed
+- A player opening a film while its transcode had just begun again waits on the Preparing screen
+  for good: loading always starts at the position the player names, never at the live edge hls.js
+  picks for a playlist still being written, and a playhead that sits on nothing it can play while
+  the server holds that stretch has the element attached afresh after eight seconds.
+- A device store that stops answering no longer holds a film on the Preparing screen: the device has
+  three seconds to answer before the film streams without it.
+- A fatal network error is waited out at a doubling interval up to ten seconds rather than loaded
+  again at once, which asked for a missing playlist hundreds of times a second.
+- A growing playlist is served from one open copy of the file, so its length and its bytes always
+  agree.
+- A home page card asks for the poster of the kind its title is, not the film's and the show's both.
+
 ## [3.64.0] - 2026-10-23
 
 ### Changed

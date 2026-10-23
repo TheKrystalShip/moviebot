@@ -100,7 +100,8 @@ and does nothing that would be.
 - **Nothing that moves the room is answered.** A click or a tap on the film shows or hides the
   controls, sideways sweeps and double taps do nothing, and the room's own acts (`togglePlay`, `seek`,
   the episodes, the door) are no-ops in `engine/room.ts`. The player sends the room nothing but
-  `JoinAsGuest`, its quality and the clock probe: not even that it is waiting, which would hold nobody.
+  `JoinAsGuest`, its quality, what went wrong with its film and the clock probe: not even that it is
+  waiting, which would hold nobody.
 - **The element is put back, never published** (`SyncController`'s `viewOnly`). A play or pause the
   page did not apply itself (the browser's own controls, a headset's button, the system's media keys)
   is answered by applying the room's state again, at most once a second so a hand on those controls
@@ -245,10 +246,15 @@ and does nothing that would be.
   (`cinema.bufferAhead`) like volume and brightness, and chosen under This device on the profile's
   Playback tab, with or without a connection. Light is about 30 seconds ahead and Standard about 3
   minutes; A lot is Standard in memory and the rest of the episode and the start of the next on the
-  device; Dynamic, the default, is Standard in memory and as much on the device as the connection
-  calls for (below). A lot and Dynamic are offered only where the browser has a private file system,
-  and are Standard where it has none. Each says roughly what it costs in prose, not in figures the API
-  serves.
+  device; Dynamic is Standard in memory and as much on the device as the connection calls for
+  (below). A lot and Dynamic are offered only where the browser has a private file system, and are
+  Standard where it has none. Each says roughly what it costs in prose, not in figures the API serves.
+- **A device that chose nothing is on Standard if it is a desktop and on Dynamic otherwise**
+  (`defaultBufferAhead`). A desktop, a browser whose pointer is a mouse, sits on a fixed line and
+  streams as it plays; keeping the film on its disk as well fetches the whole film at the line's
+  speed, from a host that may still be transcoding it. A phone, a tablet or a television keeps the
+  film ahead for a connection that comes and goes. A television's WebView answers the pointer query
+  as a phone does and carries its wrapper's mark besides.
 - **Dynamic grows how far ahead the device keeps the film from what the connection does**
   (`engine/media/aheadHorizon.ts`). It starts at nothing past the player's own minutes in memory and,
   looked at no more than every thirty seconds, grows ten minutes while the network carries three times
@@ -272,6 +278,10 @@ and does nothing that would be.
 - **The device answers before the server, and the server is asked first only for a playlist**
   (`aheadLoader`): a segment the device holds is read from it, and a playlist is the server's, since
   one still being written grows, and the device's when the server cannot be reached.
+- **The device is never waited on** (`DeviceAnswerMs`). A private file system can stop answering
+  altogether, and the server holds every byte the device does: a store that cannot say what it holds
+  of the title in time leaves the film to stream without it, and a segment it does not hand over in
+  time is fetched from the server instead.
 - **With no connection, the player is held to what the device has** (`FilmStream.holdToDevice`).
   While a request to the server has just failed, or the browser says it is offline, hls.js is capped
   at the best rung the device holds where the buffer ends, so a stretch kept only at 480p plays at
@@ -306,6 +316,17 @@ and does nothing that would be.
   reports nothing and is taken to want the tallest rung. Segment requests cannot say this: a shared
   cache answers a whole room from one fetch.
 - **The scrub bar's shaded edge is the best rung's head**, the same limit the server holds seeks to.
+- **Loading always starts where the player says.** A transcoding film's playlist has no end yet, so
+  hls.js reads it as a live broadcast and, told nothing, loads at its newest segment; a player that
+  starts there buffers film on either side of a playhead the room then seeks back to, and waits on it
+  for good. Every restart of loading (after a network error, onto the device's rung) names the
+  playhead, or before the film has played the position it was asked to start at.
+- **A playhead sitting on nothing it can play is started again** (`FilmStream.unstick`). Once it has
+  held no buffered film for `StuckMs`, while the server holds that stretch, the browser has a connection
+  and no fetch of it is under way, the element is attached afresh, as a media error's recovery does, and
+  loading starts from the playhead. hls.js keeps its own account of what it appended, and a flush made
+  while the playlists could not be read (a transcode begun again from nothing deletes them) leaves it
+  counting film as buffered that the element no longer holds; attaching afresh empties both.
 
 ## What it fetches
 
@@ -317,10 +338,22 @@ and does nothing that would be.
 - **Everything except the poster needs the token or the film's ticket, including anything CSS
   fetches.** A background image is fetched by the browser and carries no header of ours, so the preview
   sheet is fetched in code and drawn from a blob.
+- **A fatal network error is waited out, longer each time** (`NetworkRetryFirstMs` doubling to
+  `NetworkRetryMaxMs`, back to the first once a playlist or a fragment lands). A playlist that is
+  missing or empty fails the instant it is asked for, and loading again at once asks for it hundreds
+  of times a second, every restart aborting the requests in flight, from every viewer at the same
+  moment.
 - **Every request hls.js makes says how playback is going** (CMCD, CTA-5004): the buffer left, the
-  throughput measured, the rung playing, a stall, and a session id random per playback. It travels in
+  throughput measured, the rung playing, a stall, and the playback's id, random per load and the one
+  its trouble reports name (`FilmStream.onTrouble`, below). It travels in
   `CMCD-*` request headers, which the ingress writes to its delivery log (`deploy/CLAUDE.md`), never in
   the query string, where it would split a segment's cache entry per viewer. It names no person.
+- **What went wrong with the film is told to the server, for its log and nothing else**
+  (`FilmStream.onTrouble`, `ReportTrouble`): a fatal network or media error, the playhead started again
+  from nothing it could play, a device store that did not answer in time, a film that never reached the
+  element, and the player giving up, each with the playhead, a short detail and the playback's id. A
+  player says each kind at most once every 30 seconds, and the server writes at most six lines a minute
+  per connection, so a player stuck in a loop costs the log a line, not a flood.
 - **Only the chosen subtitle is fetched.** A rip carries dozens; loading them all to show one is a
   megabyte of nothing. It is attached hidden and the page draws its cues itself, sized against the
   frame: a cue the browser draws takes the operating system's caption settings and nothing this page

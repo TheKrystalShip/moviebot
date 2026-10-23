@@ -8,15 +8,13 @@ import { useWantRibbon } from "./WantButton.jsx";
 // card is krystal's ShowcaseCard, so a page of them reads like Home's rows.
 
 /**
- * The poster a title's page shows, kept by this server, as a card's art: the film's, else the
- * show's, else `fallback`. Each is a layer, and a layer whose image is not there draws nothing, so the
- * first that exists is the one seen.
+ * The poster a title's page shows, kept by this server, as a card's art: the film's or the show's, as
+ * `kind` says, else `fallback`. Each is a layer, and a layer whose image is not there draws nothing, so
+ * the first that exists is the one seen. Every layer is fetched, so only the kind the title is gets one.
  */
-export function keptArt(imdbId, fallback) {
-  if (!imdbId) return fallback ? `url("${fallback}")` : null;
-  const id = encodeURIComponent(imdbId);
-  return [`url("/films/${id}/poster.jpg")`, `url("/shows/${id}/poster.jpg")`, fallback && `url("${fallback}")`]
-    .filter(Boolean).join(", ");
+export function keptArt(imdbId, kind, fallback) {
+  const kept = imdbId && `/${kind === "show" ? "shows" : "films"}/${encodeURIComponent(imdbId)}/poster.jpg`;
+  return [...new Set([kept, fallback].filter(Boolean))].map((url) => `url("${url}")`).join(", ") || null;
 }
 
 /**
@@ -102,7 +100,7 @@ export function AnticipatedCard({ film }) {
       <ShowcaseCard compactFacts
         name={film.title}
         eyebrow={kindLine("film", film)}
-        art={keptArt(film.imdbId, film.posterUrl)}
+        art={keptArt(film.imdbId, "film", film.posterUrl)}
         onPick={() => navigate(discoverFilmPath(film.imdbId))}
         specs={[{ icon: "calendar", value: film.year || null, label: "Year" }]}
         status={{ icon: "bell", label: waitersWords(film.waiters, film.waiting) }}

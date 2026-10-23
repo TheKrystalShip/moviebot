@@ -26,7 +26,8 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// </summary>
 public sealed class SessionHub(
     SessionStore sessions, RoomControls controls, RoomDoors doors, RoomEpisodes episodes, ViewerQuality quality,
-    RoomGuests guests, ScreenPresence screens, ScreenPairings pairings, IOptions<RoomOptions> rooms, IOptions<OidcOptions> oidc, ILogger<SessionHub> logger) : Hub
+    RoomGuests guests, ScreenPresence screens, ScreenPairings pairings, PlayerTrouble trouble,
+    IOptions<RoomOptions> rooms, IOptions<OidcOptions> oidc, ILogger<SessionHub> logger) : Hub
 {
     private const string SessionIdKey = "sessionId";
     private const string ActorKey = "actor";
@@ -260,6 +261,21 @@ public sealed class SessionHub(
     }
 
     /// <summary>
+    /// Says what went wrong with this viewer's film: a kind from <see cref="PlayerTrouble.Kinds"/>, the
+    /// playhead, a short detail and the playback its requests name. It answers nothing and tells
+    /// nobody: it is written to the log, a few lines a minute per connection at most. A connection that
+    /// is not in the room says nothing. A guest reports too.
+    /// </summary>
+    [GuestAllowed]
+    public void ReportTrouble(string kind, double atSeconds, string? detail, string? playback)
+    {
+        var sessionId = SessionId();
+        if (sessions.ParticipantOf(sessionId, Context.ConnectionId) is not { } viewer) return;
+        trouble.Report(Context.ConnectionId, viewer.DisplayName, sessionId, sessions.Get(sessionId)?.TitleId,
+            kind, atSeconds, detail, playback);
+    }
+
+    /// <summary>
     /// Answers with the server's clock so a client can estimate its offset. Position is derived
     /// from that offset, so a viewer whose machine is a minute fast must not drag the room with it.
     /// </summary>
@@ -357,6 +373,8 @@ public sealed class SessionHub(
         if (Context.Items.TryGetValue(SessionIdKey, out var value) && value is string sessionId)
         {
             quality.Leave(sessionId, Context.ConnectionId);
+            if (sessions.ParticipantOf(sessionId, Context.ConnectionId) is { } leaving)
+                trouble.Leave(Context.ConnectionId, leaving.DisplayName, sessionId);
             var participants = sessions.Leave(sessionId, Context.ConnectionId);
             logger.LogInformation(
                 "Connection {Connection} left session {SessionId} ({Count} left){Why}",

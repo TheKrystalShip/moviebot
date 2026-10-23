@@ -122,7 +122,7 @@ public sealed class WishesTests : IDisposable
         _wants = new WantStore(Database);
 
         return new Wishes(
-            imdb, search, library, acquisition, new OfferedReleases(suggestions), _wishes,
+            imdb, new FilmOfferCache(search, new FakeTimeProvider()), library, acquisition, new OfferedReleases(suggestions), _wishes,
             Options.Create(new NotifyOptions()), new FakeTimeProvider(), NullLogger<Wishes>.Instance);
     }
 

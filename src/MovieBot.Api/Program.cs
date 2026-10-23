@@ -61,6 +61,7 @@ builder.Services.AddSingleton<SessionStore>();
 // What each connected viewer would watch at, for the transcode planner. In memory and per
 // connection: a viewer's quality never joins a room's state.
 builder.Services.AddSingleton<ViewerQuality>();
+builder.Services.AddSingleton<PlayerTrouble>();
 
 // Every change to a room, whichever door it arrived by: the hub for a player in the room, HTTP for
 // the bot and for a spoken command.
@@ -211,6 +212,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<WishSweep>());
 // Watch now: a film fetched and played in a site room as soon as it can be opened.
 builder.Services.AddOptions<WatchOptions>().Bind(builder.Configuration.GetSection(WatchOptions.Section));
 builder.Services.AddSingleton<ShowOfferCache>();
+builder.Services.AddSingleton<FilmOfferCache>();
 builder.Services.AddSingleton<WatchNow>();
 builder.Services.AddSingleton<RoomEpisodes>();
 // The episode after the one a room is watching, fetched so next has something to play.

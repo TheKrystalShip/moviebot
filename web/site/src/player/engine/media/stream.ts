@@ -3,12 +3,12 @@ import Hls from 'hls.js';
 import { environment } from '../environment';
 import type { Manifest, ThumbnailStrip } from '../types';
 import { buildMasterPlaylist, masterPlaylistUrl, type MasterPlaylist } from './masterPlaylist';
-import { covers, rungReach, wantedHeight } from './heads';
+import { covers, playableHead, rungReach, wantedHeight } from './heads';
 import { DeviceAnswers, deviceLoader, type DeviceCopy } from './deviceLoader';
 import { carriesTicket, ensureTicket, ticketedLoader, ticketedMediaUrl } from './mediaTicket';
 import { findSubtitle } from './tracks';
 import { BufferAheadLevels, bufferAhead, bufferConfig } from './bufferAhead';
-import { AheadFetcher, AheadHeld, Reach, aheadLevel, aheadLoader, NextEpisodeSeconds, type AheadStore, type AheadTitle } from './ahead';
+import { AheadFetcher, AheadHeld, DeviceAnswerMs, Reach, aheadLevel, aheadLoader, NextEpisodeSeconds, within, type AheadStore, type AheadTitle } from './ahead';
 import { Horizon } from './aheadHorizon';
 
 export interface StreamEvents {
@@ -35,7 +35,19 @@ export interface StreamEvents {
    * plays the stream itself: it says nothing about what it chooses.
    */
   onViewerQuality(playingHeight: number | null, wantedHeight: number | null): void;
+  /**
+   * Something went wrong with the film that the server cannot see (`TroubleKind`), with where the
+   * playhead was, a short detail and the playback it happened to, which names this playback's requests
+   * in the ingress's delivery log. Raised at most once a kind every `TroubleEveryMs`.
+   */
+  onTrouble(kind: TroubleKind, atSeconds: number, detail: string | null, playback: string): void;
 }
+
+/** What a player says went wrong, in the server's words (`Sessions/PlayerTrouble`). */
+export type TroubleKind = 'network' | 'media' | 'stuck' | 'device-slow' | 'no-start' | 'gave-up';
+
+/** How often one kind of trouble is said: once is the news, and a loop says nothing new. */
+const TroubleEveryMs = 30_000;
 
 /** One rung of the film's ladder. */
 export interface QualityLevel {
@@ -59,6 +71,32 @@ const AudioCodec = 'audio/mp4; codecs="mp4a.40.2"';
  * that plays between two hiccups has both recoveries again for the second one.
  */
 const MediaRecoveries = 2;
+
+/**
+ * How long hls.js waits before loading again after a fatal network error: the first wait, doubled on
+ * each failure after it up to the last, and back to the first once a playlist or a fragment lands. A
+ * playlist that is missing or empty fails the instant it is asked for, and asked for again at once it
+ * is asked for hundreds of times a second, each restart aborting the requests already in flight.
+ */
+const NetworkRetryFirstMs = 1_000;
+const NetworkRetryMaxMs = 10_000;
+
+/**
+ * How long the playhead may sit on nothing buffered, on a stretch the server holds, before loading
+ * starts again from the playhead. A transcoding film's playlist has no end yet, so hls.js reads it as
+ * a live broadcast and, until playback has started, loads near the newest segment whenever it is not
+ * told where to load; and a flush made while the playlists cannot be read leaves hls.js counting film
+ * as buffered that the element no longer holds. Either way the player buffers film it never reaches
+ * and waits on the playhead for good.
+ */
+const StuckMs = 8_000;
+/** How far past the playhead the server must hold the film for the playhead to count as stuck rather than waiting on the transcode. */
+const HeldPastSeconds = 10;
+/**
+ * How long a fetch of the playhead's stretch holds the guard back. A segment is two seconds of film,
+ * so a connection that needs longer than this for one is six times too slow to play the film at all.
+ */
+const FetchingMs = 12_000;
 
 /**
  * Discord's desktop client decodes H.264 only on the graphics card. With hardware acceleration
@@ -140,6 +178,23 @@ export class FilmStream {
   /** Set once the loaded film reached metadata, and cleared by the next load or by giving up. */
   private ready = false;
   private recoveries = 0;
+  /** The load waiting out a fatal network error, and how long the next one waits. */
+  private networkRetry: number | null = null;
+  private networkRetryMs = NetworkRetryFirstMs;
+  /** Where the film was asked to start, and since when the playhead has sat on nothing it can play. */
+  private startAt = 0;
+  private stuckSince: number | null = null;
+  /**
+   * This playback's own name, new with every load: the CMCD session id each of its requests carries
+   * into the delivery log, and the playback a trouble report names. Random, so it names nobody.
+   */
+  private playback = '';
+  private readonly troubleSaid = new Map<TroubleKind, number>();
+  /**
+   * The stretch of film hls.js began fetching last and when, or null once it landed or failed. A fetch
+   * hls.js abandons says nothing, so one older than `FetchingMs` is taken to be over.
+   */
+  private fetching: { start: number; end: number; at: number } | null = null;
   /** Ends the wait in `load` early, when the stream gives up before metadata ever arrives. */
   private settleLoad: ((ok: boolean) => void) | null = null;
   private readonly listeners: [string, () => void][] = [];
@@ -176,6 +231,10 @@ export class FilmStream {
 
     this.manifest = manifest;
     this.ready = false;
+    this.startAt = startPosition ?? 0;
+    // `randomUUID` is only on a page served securely; a playback's name needs no more than to be unlikely to repeat.
+    this.playback = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+    this.troubleSaid.clear();
     this.recoveries = 0;
 
     // Only hls.js can be handed a saved file: the browser's own HLS fetches every byte itself.
@@ -267,11 +326,17 @@ export class FilmStream {
         // measured throughput, the rung playing, a stall. The ingress logs it beside the route's
         // round trip for the same request. Headers, not the query string: a segment's URL is its
         // cache key, and a query that differs per viewer would give every viewer their own copy.
-        // The session id is hls.js's own, random per playback.
-        cmcd: { useHeaders: true, contentId: titleId }
+        // The session id is this playback's, which a trouble report names too (`onTrouble`).
+        cmcd: { useHeaders: true, contentId: titleId, sessionId: this.playback }
       });
       this.hls = hls;
       hls.on(Hls.Events.ERROR, (_event, data) => this.onHlsError(data));
+      hls.on(Hls.Events.LEVEL_LOADED, () => { this.networkRetryMs = NetworkRetryFirstMs; });
+      hls.on(Hls.Events.FRAG_LOADING, (_event, { frag }) => {
+        if (frag.type === 'main') this.fetching = { start: frag.start, end: frag.start + frag.duration, at: Date.now() };
+      });
+      hls.on(Hls.Events.FRAG_LOADED, (_event, { frag }) => { if (frag.type === 'main') this.fetching = null; });
+      hls.on(Hls.Events.ERROR, (_event, { frag }) => { if (frag?.type === 'main') this.fetching = null; });
       // hls.js trims how far ahead it fetches whenever it meets a fragment still being appended,
       // which a switch between rungs makes, and never puts it back: a long trip of switches halves it
       // again and again. It is put back once a fragment lands, unless the browser said its buffer was
@@ -279,6 +344,7 @@ export class FilmStream {
       let full = false;
       hls.on(Hls.Events.ERROR, (_event, data) => { if (data.details === Hls.ErrorDetails.BUFFER_FULL_ERROR) full = true; });
       hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        this.networkRetryMs = NetworkRetryFirstMs;
         const { maxMaxBufferLength } = bufferConfig(level);
         if (!full && maxMaxBufferLength !== undefined && hls.config.maxMaxBufferLength < maxMaxBufferLength) {
           hls.config.maxMaxBufferLength = maxMaxBufferLength;
@@ -314,6 +380,7 @@ export class FilmStream {
     if (!(await ready)) {
       // Giving up has already said why, and says it for as long as it holds.
       if (this.manifest === manifest && !this.ready && this.hls !== null) {
+        this.trouble('no-start', `nothing in ${LoadTimeoutMs / 1000}s, ${this.bufferedText()}`);
         this.events.onError(`${manifest.title} did not start playing.`);
       }
       return;
@@ -485,6 +552,7 @@ export class FilmStream {
 
   /** Once per interval: the cap against where the playhead has got to, and what the viewer would choose. */
   private watch(): void {
+    this.unstick();
     this.limitLevels();
     this.holdToDevice();
     this.growAhead();
@@ -536,7 +604,55 @@ export class FilmStream {
     this.heldToDevice = level;
     hls.nextLoadLevel = level;
     hls.stopLoad();
-    hls.startLoad(-1);
+    hls.startLoad(this.loadPosition());
+  }
+
+  /**
+   * Where loading starts again from: the playhead once the film is playing, and before that where the
+   * film was asked to start. Never left to hls.js, which starts a playlist still being written at its
+   * newest segment (`StuckMs`).
+   */
+  private loadPosition(): number {
+    return this.ready ? this.video.currentTime : this.startAt;
+  }
+
+  /**
+   * Starts loading again from the playhead when it has sat on nothing it can play for `StuckMs`, while
+   * the server holds that stretch, the browser has a connection and no fetch of it is under way,
+   * whatever left it there.
+   */
+  private unstick(): void {
+    const hls = this.hls;
+    const manifest = this.manifest;
+    if (hls === null || manifest === null || this.networkRetry !== null) return;
+    const at = this.loadPosition();
+    const head = playableHead(manifest);
+    const { buffered, readyState } = this.video;
+    let held = false;
+    for (let i = 0; i < buffered.length; i++) {
+      if (buffered.start(i) <= at + 0.5 && buffered.end(i) > at + 0.5) held = true;
+    }
+    const fetching = this.fetching !== null && this.fetching.start <= at + 0.5 && this.fetching.end > at
+      && Date.now() - this.fetching.at < FetchingMs;
+    const stuck = !held && !fetching && readyState < HTMLMediaElement.HAVE_FUTURE_DATA && navigator.onLine !== false
+      && (head === null || head > at + HeldPastSeconds);
+    if (!stuck) {
+      this.stuckSince = null;
+      return;
+    }
+    const now = Date.now();
+    if (this.stuckSince === null) {
+      this.stuckSince = now;
+      return;
+    }
+    if (now - this.stuckSince < StuckMs) return;
+    this.stuckSince = null;
+    this.trouble('stuck', `${this.bufferedText()}, head ${head === null ? 'whole' : head.toFixed(0) + 's'}, readyState ${readyState}`);
+    // hls.js keeps its own account of what it appended, and a flush that account missed reads to it as
+    // film still buffered, which it never fetches again. Attaching the element afresh starts both the
+    // buffers and the account empty, as a media error's recovery does.
+    hls.recoverMediaError();
+    hls.startLoad(at);
   }
 
   /** Where what the element holds ahead of the playhead ends. */
@@ -551,12 +667,17 @@ export class FilmStream {
   /**
    * The device's store of what it keeps ahead, with what it holds of the title, where the level asks
    * for it and the device can keep it. Never for a film played from a save, which is all there already.
+   * A store that cannot say what it holds within `DeviceAnswerMs` is none: the film streams without it
+   * rather than waiting on it.
    */
   private async keepAhead(titleId: string, level: ReturnType<typeof bufferAhead>): Promise<FilmStream['ahead']> {
     const store = BufferAheadLevels[level].device && this.answers === null ? environment().aheadStore() : null;
     if (store === null) return null;
     const held = new AheadHeld();
-    await held.load(store, titleId);
+    if (!await within(held.load(store, titleId).then(() => true, () => true), DeviceAnswerMs, false)) {
+      this.trouble('device-slow', `the keep-ahead store said nothing in ${DeviceAnswerMs / 1000}s`);
+      return null;
+    }
     const reach = new Reach();
     const fetcher = new AheadFetcher(store, held, reach);
     fetcher.start();
@@ -776,20 +897,33 @@ export class FilmStream {
     this.ahead?.fetcher.stop();
     this.ahead = null;
     this.heldToDevice = -1;
+    if (this.networkRetry !== null) window.clearTimeout(this.networkRetry);
+    this.networkRetry = null;
+    this.networkRetryMs = NetworkRetryFirstMs;
+    this.stuckSince = null;
+    this.fetching = null;
     this.hls?.destroy();
     this.hls = null;
     if (this.masterUrl !== null && this.masterUrlIsBlob) URL.revokeObjectURL(this.masterUrl);
     this.masterUrl = null;
   }
 
-  private onHlsError(data: { fatal: boolean; type: string; details: string }): void {
+  private onHlsError(data: { fatal: boolean; type: string; details: string; response?: { code?: number } }): void {
     if (!data.fatal) return;
 
     if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-      this.hls?.startLoad();
+      const hls = this.hls;
+      if (hls === null || this.networkRetry !== null) return;
+      this.trouble('network', `${data.details}${data.response?.code ? ` (${data.response.code})` : ''}, again in ${this.networkRetryMs / 1000}s`);
+      this.networkRetry = window.setTimeout(() => {
+        this.networkRetry = null;
+        if (this.hls === hls) hls.startLoad(this.loadPosition());
+      }, this.networkRetryMs);
+      this.networkRetryMs = Math.min(this.networkRetryMs * 2, NetworkRetryMaxMs);
       return;
     }
     if (data.type === Hls.ErrorTypes.MEDIA_ERROR && this.recoveries < MediaRecoveries) {
+      this.trouble('media', `${data.details}, recovery ${this.recoveries + 1} of ${MediaRecoveries}`);
       if (this.recoveries > 0) this.hls?.swapAudioCodec();
       this.recoveries++;
       this.hls?.recoverMediaError();
@@ -815,11 +949,29 @@ export class FilmStream {
    * error again, and every attempt resets the element and fetches the film's opening over again.
    */
   private giveUp(message: string): void {
+    this.trouble('gave-up', message);
     this.teardownSource();
     this.ready = false;
     this.events.onStall(false);
     this.settleLoad?.(false);
     this.events.onUnplayable(message);
+  }
+
+  /** Says what went wrong, once a kind every `TroubleEveryMs`. */
+  private trouble(kind: TroubleKind, detail: string | null): void {
+    const now = Date.now();
+    const said = this.troubleSaid.get(kind);
+    if (said !== undefined && now - said < TroubleEveryMs) return;
+    this.troubleSaid.set(kind, now);
+    this.events.onTrouble(kind, this.video.currentTime, detail, this.playback);
+  }
+
+  /** What the element holds, as `buffered 0.1-2.5, 8.1-14.1`, for a trouble report. */
+  private bufferedText(): string {
+    const { buffered } = this.video;
+    const ranges: string[] = [];
+    for (let i = 0; i < Math.min(buffered.length, 4); i++) ranges.push(`${buffered.start(i).toFixed(1)}-${buffered.end(i).toFixed(1)}`);
+    return ranges.length === 0 ? 'nothing buffered' : `buffered ${ranges.join(', ')}`;
   }
 
   private listen(name: string, handler: () => void): void {

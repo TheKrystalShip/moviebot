@@ -42,6 +42,21 @@ const GrowingPlaylistMs = 60_000;
 /** Fetching stops while the browser would let the origin keep less than this. */
 const SpareBytes = 512 * 1024 * 1024;
 const MaxBackoffMs = 30_000;
+/**
+ * How long the device's storage has to say what it holds, and to hand over a file, before the player
+ * goes without it. A private file system can stop answering altogether, and a film waiting on it waits
+ * for nothing: the server has every byte the device does.
+ */
+export const DeviceAnswerMs = 3_000;
+
+/** Whether `work` settles within `ms`: its value when it does, `timedOut` when it does not. */
+export function within<T, U>(work: Promise<T>, ms: number, timedOut: U): Promise<T | U> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => resolve(timedOut), ms);
+    work.then((value) => { window.clearTimeout(timer); resolve(value); },
+      (error: unknown) => { window.clearTimeout(timer); reject(error); });
+  });
+}
 
 /** Which files of each title the device holds, kept in memory so a request is answered without asking the disk. */
 export class AheadHeld {
@@ -313,15 +328,21 @@ export function aheadLoader(titleId: string, store: AheadStore, held: AheadHeld,
         : relativeOf(context.url, titleId);
       const playlist = relative?.endsWith('.m3u8') ?? false;
       if (relative !== null && !playlist && held.has(titleId, relative)) {
-        this.fromDevice(relative, context, callbacks);
+        this.fromDevice(relative, context, callbacks, () => this.fromServer(relative, false, context, config, callbacks));
         return;
       }
+      this.fromServer(relative, playlist, context, config, callbacks);
+    }
 
+    private fromServer(relative: string | null, playlist: boolean, context: LoadContext, config: LoadArguments[1],
+                       callbacks: LoadCallbacks): void {
       const fromDevice = (): boolean => {
         if (relative === null || !playlist || !held.has(titleId, relative)) return false;
-        this.fromDevice(relative, context, callbacks);
+        this.fromDevice(relative, context, callbacks, null);
         return true;
       };
+      // A device that did not answer in time has already started this loader's clock.
+      this.stats.loading.start = 0;
       super.load(context, config, {
         ...callbacks,
         onSuccess: (response, stats, ctx, details) => {
@@ -348,16 +369,26 @@ export function aheadLoader(titleId: string, store: AheadStore, held: AheadHeld,
       });
     }
 
-    private fromDevice(relative: string, context: LoadContext, callbacks: LoadCallbacks): void {
+    /**
+     * Answers from the device. A read that takes longer than `DeviceAnswerMs` is abandoned for
+     * `otherwise`, the server, or fails where the server was already asked.
+     */
+    private fromDevice(relative: string, context: LoadContext, callbacks: LoadCallbacks, otherwise: (() => void) | null): void {
       const token = ++this.reading;
       const stats = this.stats;
       this.context = context;
       this.pending = { context, callbacks };
       stats.aborted = false;
       stats.loading.start = performance.now();
-      store.read(titleId, relative).then((bytes) => {
+      within(store.read(titleId, relative), DeviceAnswerMs, 'late' as const).then((bytes) => {
         if (token !== this.reading || stats.aborted) return;
         this.pending = null;
+        if (bytes === 'late') {
+          this.reading++;
+          if (otherwise !== null) otherwise();
+          else callbacks.onError({ code: 0, text: `${relative} took too long to read from the device` }, context, null, stats);
+          return;
+        }
         if (bytes === null) {
           held.delete(titleId, relative);
           callbacks.onError({ code: 0, text: `${relative} is no longer on the device` }, context, null, stats);

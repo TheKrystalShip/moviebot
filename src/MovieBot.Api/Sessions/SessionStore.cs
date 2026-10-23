@@ -697,6 +697,10 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
     public IReadOnlyList<Participant> Participants(string sessionId) =>
         _sessions.TryGetValue(sessionId, out var entry) ? entry.Participants.Values.ToList() : new List<Participant>();
 
+    /// <summary>Who a connection in the room is, or null for a connection that is not in it.</summary>
+    public Participant? ParticipantOf(string sessionId, string connectionId) =>
+        _sessions.TryGetValue(sessionId, out var entry) && entry.Participants.TryGetValue(connectionId, out var who) ? who : null;
+
     // ---- Internals ------------------------------------------------------------------
 
     /// <summary>

@@ -143,7 +143,7 @@ public sealed class GuestTests(GuestFixture fixture) : IClassFixture<GuestFixtur
                         && m.Name != nameof(SessionHub.OnDisconnectedAsync));
 
     /// <summary>The methods a guest may call; every other one is closed to them.</summary>
-    private static readonly string[] OpenToGuests = ["JoinAsGuest", "ReportQuality", "ServerTime"];
+    private static readonly string[] OpenToGuests = ["JoinAsGuest", "ReportQuality", "ReportTrouble", "ServerTime"];
 
     /// <summary>A plausible argument for a hub parameter, so a refusal is the method's and not the binder's.</summary>
     private static object? ArgumentFor(Type type, string room) =>

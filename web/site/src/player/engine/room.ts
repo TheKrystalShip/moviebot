@@ -7,6 +7,7 @@ import type { DeviceCopy } from './media/deviceLoader';
 import { FilmStream, type QualityLevel } from './media/stream';
 import { startingTracks } from './media/tracks';
 import { BufferAheadLevels, bufferAhead } from './media/bufferAhead';
+import { DeviceAnswerMs, within } from './media/ahead';
 import { describeChange } from './session/changes';
 import { SessionHub, type ConnectionStatus, type Timeline } from './session/hub';
 import { LocalTimeline } from './session/local';
@@ -222,7 +223,8 @@ export class PlayerRoom {
       onThumbnails: (strip, url) => this.set({ thumbnails: strip !== null && url !== null ? { strip, url } : null }),
       onSubtitleTrack: (track) => this.set({ subtitleTrack: track }),
       onQuality: (levels, playingHeight) => this.set({ qualityLevels: levels, playingHeight }),
-      onViewerQuality: (playing, wanted) => void this.hub?.reportQuality(playing, wanted)
+      onViewerQuality: (playing, wanted) => void this.hub?.reportQuality(playing, wanted),
+      onTrouble: (kind, at, detail, playback) => void this.hub?.reportTrouble(kind, at, detail, playback)
     });
   }
 
@@ -621,7 +623,14 @@ export class PlayerRoom {
         this.notice(`The film ${titleId} could not be read.`, 'error');
         return;
       }
-      copy = manifest.status === 'ready' ? await environment().deviceCopy(titleId).catch(() => null) : null;
+      // A device that cannot say in time whether it holds the film is taken not to: the server has it.
+      const saved = manifest.status === 'ready'
+        ? await within(environment().deviceCopy(titleId), DeviceAnswerMs, 'late' as const).catch(() => null)
+        : null;
+      if (saved === 'late') {
+        void this.hub?.reportTrouble('device-slow', 0, `the saved copies said nothing in ${DeviceAnswerMs / 1000}s`, null);
+      }
+      copy = saved === 'late' ? null : saved;
     }
     if (this.loadedTitleId !== titleId) return;
     this.copy = copy;

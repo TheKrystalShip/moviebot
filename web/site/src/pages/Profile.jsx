@@ -193,7 +193,7 @@ function Following() {
               <ShowcaseCard compactFacts
                 key={row.imdbId}
                 name={row.title}
-                art={row.posterUrl ? `url("${row.posterUrl}")` : keptArt(row.imdbId)}
+                art={row.posterUrl ? `url("${row.posterUrl}")` : keptArt(row.imdbId, "show")}
                 onPick={() => navigate(showPath(row.imdbId))}
                 specs={[
                   { icon: "calendar-clock", value: next ? episodeCode({ season: next.season, number: next.episode }) : null, label: "Next" },

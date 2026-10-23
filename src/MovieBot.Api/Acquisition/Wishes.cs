@@ -40,7 +40,7 @@ public sealed record WishCheck(
 /// </summary>
 public sealed class Wishes(
     ImdbClient catalogue,
-    IReleaseSearch search,
+    FilmOfferCache offers,
     TitleLibrary library,
     AcquisitionService acquisition,
     OfferedReleases offered,
@@ -127,7 +127,7 @@ public sealed class Wishes(
     {
         try
         {
-            var ranked = await search.ByImdbAsync(imdbId, ct);
+            var ranked = await offers.GetAsync(imdbId, ct);
             return ReleaseAvailability.Pick(ranked, options.Value.MinimumSource);
         }
         catch (TrackerException ex)
@@ -149,6 +149,7 @@ public sealed class Wishes(
 /// </summary>
 public sealed class WishSweep(
     IReleaseSearch search,
+    FilmOfferCache offers,
     WishList wishes,
     OfferedReleases offered,
     INotifier notifier,
@@ -198,6 +199,7 @@ public sealed class WishSweep(
             try
             {
                 ranked = await search.ByImdbAsync(wish.ImdbId, ct);
+                offers.Keep(wish.ImdbId, ranked);
             }
             catch (TrackerException ex)
             {

@@ -84,6 +84,7 @@ export interface Timeline {
   seek(toSeconds: number): Promise<SessionStatePush>;
   buffering(waiting: boolean, atSeconds: number): Promise<void>;
   reportQuality(playingHeight: number | null, wantedHeight: number | null): Promise<void>;
+  reportTrouble(kind: string, atSeconds: number, detail: string | null, playback: string | null): Promise<void>;
   stop(): Promise<void>;
 }
 
@@ -275,6 +276,19 @@ export class SessionHub implements Timeline {
       await this.connection.invoke('ReportQuality', playingHeight, wantedHeight);
     } catch {
       /* The heartbeat says it again. */
+    }
+  }
+
+  /**
+   * Tells the server what went wrong with this viewer's film, for its log (`FilmStream.onTrouble`).
+   * Said once and never again: a report lost to a reconnect is one line fewer, not a problem.
+   */
+  async reportTrouble(kind: string, atSeconds: number, detail: string | null, playback: string | null): Promise<void> {
+    if (!this.connected) return;
+    try {
+      await this.connection.invoke('ReportTrouble', kind, atSeconds, detail, playback);
+    } catch {
+      /* Not worth a retry. */
     }
   }
 

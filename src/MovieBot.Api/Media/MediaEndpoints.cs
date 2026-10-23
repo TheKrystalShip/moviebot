@@ -108,6 +108,15 @@ public static class MediaEndpoints
             _ => "public, max-age=31536000, immutable"
         };
 
+        // ffmpeg replaces a growing playlist by renaming a fresh copy over it. Served by path, its
+        // length is read from one copy and its bytes from the next, and the response breaks off
+        // mid-playlist; opened once, the length and the bytes are the same copy's.
+        if (isPlaylist && transcoding)
+        {
+            return Results.Stream(File.OpenRead(requested), contentType, enableRangeProcessing: true)
+                .WithCacheControl(cacheControl);
+        }
+
         return Results.File(requested, contentType, enableRangeProcessing: true)
             .WithCacheControl(cacheControl);
     }

@@ -28,6 +28,14 @@ public sealed class TitleChanges(
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(2);
 
     private readonly Dictionary<string, DateTime> _announced = [];
+    private readonly Dictionary<string, double> _heads = [];
+
+    /// <summary>
+    /// How far a transcode's head may fall back between two looks before it counts as begun again. A
+    /// head only ever grows, except when the hand-off starts the film again from nothing, which
+    /// rewrites every playlist under the people watching it.
+    /// </summary>
+    private const double RestartedBySeconds = 30;
     private readonly ConcurrentDictionary<string, byte> _nudged = new();
 
     /// <summary>A change the file's timestamp does not show: a subtitle fetched, confirmed or unconfirmed.</summary>
@@ -67,6 +75,8 @@ public sealed class TitleChanges(
         // A title nobody is watching any more is forgotten, so its next viewer is told once.
         foreach (var forgotten in _announced.Keys.Where(id => !held.ContainsKey(id)).ToList())
             _announced.Remove(forgotten);
+        foreach (var forgotten in _heads.Keys.Where(id => !held.ContainsKey(id)).ToList())
+            _heads.Remove(forgotten);
 
         foreach (var (titleId, rooms) in held)
         {
@@ -78,6 +88,7 @@ public sealed class TitleChanges(
 
             if (library.Get(titleId) is not { } manifest) continue;
             _announced[titleId] = written.Value;
+            Watch(titleId, manifest, rooms);
 
             foreach (var sessionId in rooms)
                 await hub.Clients.Group(RoomGroups.Everyone(sessionId)).SendAsync("TitleChanged", manifest, ct);
@@ -85,5 +96,20 @@ public sealed class TitleChanges(
             logger.LogDebug("Told {Rooms} room(s) that {TitleId} changed ({Status}, head {Head})",
                 rooms.Count, titleId, manifest.Status, manifest.HeadSeconds);
         }
+    }
+
+    /// <summary>Says so when the transcode of a title somebody is watching has begun again from nothing.</summary>
+    private void Watch(string titleId, Manifest manifest, IReadOnlyList<string> rooms)
+    {
+        if (manifest.Status != TitleStatus.Transcoding || manifest.HeadSeconds is not { } head)
+        {
+            _heads.Remove(titleId);
+            return;
+        }
+        if (_heads.TryGetValue(titleId, out var before) && head < before - RestartedBySeconds)
+            logger.LogWarning(
+                "The transcode of {TitleId} began again: its head fell from {Before:F0}s to {Head:F0}s while {Rooms} room(s) watch it ({SessionIds})",
+                titleId, before, head, rooms.Count, string.Join(", ", rooms));
+        _heads[titleId] = head;
     }
 }

@@ -145,7 +145,9 @@ deploy/deploy-app.sh phone      # one: phone or tv
   player's `CMCD-*` headers. Because hotrod faces the internet, the round trip is a measurement of the
   route to the viewer, taken all the time, so a complaint about a slow evening can be checked against
   that evening. The address is kept as its /24 or /48 and nothing else about the viewer is. A viewing
-  is one `sid` in `cmcd_session`:
+  is one `sid` in `cmcd_session`, the playback a player's trouble report in the API's journal names
+  (`journalctl -u moviebot-api | grep "player in"`, `src/MovieBot.Api/Sessions/PlayerTrouble.cs`), so a
+  person's report leads to every request that playback made:
 
   ```bash
   jq -c 'select(.cmcd_session | contains("<sid>"))
@@ -155,6 +157,11 @@ deploy/deploy-app.sh phone      # one: phone or tv
 
   A slow request with a long `request_time` and a short `upstream_response` was slow on the route; a
   long `upstream_response` was slow on hotbox. `bs` in `cmcd_status` marks the request after a stall.
+- **What went wrong where nobody can see it is in the journals, one line each.** A player says what
+  went wrong with its film (a fatal error, a stuck playhead, a device store that did not answer, a film
+  that never started) in the API's journal, at most six lines a minute per connection. The API says when
+  a transcode somebody is watching began again from nothing (`Library/TitleChanges`), and the hand-off
+  says so as it deletes what was already written (`starting again from nothing`).
 - **A 502 in the second after an nginx reload is usually the old worker.** A reload lets the workers
   already running drain rather than killing them, so both configurations answer for a moment. The
   error log names the upstream it tried, which is what tells a stale worker apart from a real

@@ -64,6 +64,10 @@ and this directory is where the API calls them.
 - **The tracker is asked about a show once per ten minutes** (`Shows/ShowOfferCache`): the show page,
   every episode on it, Watch now and the prefetcher all read the same answer, and the tracker caps
   how often a member may call it.
+- **The tracker is asked about a film once per ten minutes** (`FilmOfferCache`): a film page's
+  availability and the check a want makes read the same answer, which costs up to two seconds asked
+  live. The wish sweep asks the tracker itself, since noticing a release as it appears is its purpose,
+  and keeps what it heard there; Watch now asks afresh, since it picks the release it downloads.
 
 ## Prefetch (`Wants/WantFetcher.cs`)
 

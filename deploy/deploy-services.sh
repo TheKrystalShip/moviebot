@@ -5,14 +5,23 @@
 #
 # It publishes the API, the bot, the hand-off and the assistant here, copies them to /opt/moviebot,
 # installs hotbox's settings file, and restarts the units. A restart is safe while people are
-# watching: rooms come back as they were and the player reconnects through the gap. The site is not
-# part of this (deploy/deploy-site.sh); it is installed after the restart only when hotbox has none.
+# watching: rooms come back as they were and the player reconnects through the gap. The hand-off is
+# the exception: a restart starts every transcode it is running again from the beginning, so while
+# one runs, its restart waits on hotbox until the last has ended. The site is not part of this
+# (deploy/deploy-site.sh); it is installed after the restart only when hotbox has none.
 set -euo pipefail
 
 host=hotbox
 opt=/opt/moviebot
 api=http://127.0.0.1:8099
 units=(moviebot-api moviebot-bot moviebot-handoff moviebot-assistant)
+handoff=moviebot-handoff
+waiter=moviebot-handoff-restart
+
+# Whether the hand-off is making anything: its ffmpeg and fpcalc run inside its unit's cgroup.
+busy="for p in \$(cat /sys/fs/cgroup/system.slice/$handoff.service/cgroup.procs 2>/dev/null); do
+          case \$(cat /proc/\$p/comm 2>/dev/null) in ffmpeg|fpcalc) exit 0 ;; esac
+      done; exit 1"
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -40,7 +49,19 @@ rsync "$root/deploy/hotbox.settings.json" "$host:.config/moviebot/moviebot.setti
 # The API serves its web root only when that exists as it starts.
 ssh "$host" "mkdir -p '$opt/api/wwwroot'"
 
-rsudo "$host" systemctl restart "${units[@]}"
+# A restart still waiting from an earlier deploy is replaced by this one's.
+rsudo "$host" systemctl stop "$waiter" </dev/null 2>/dev/null || true
+if ssh "$host" "$busy"; then
+    now=()
+    for unit in "${units[@]}"; do [[ "$unit" == "$handoff" ]] || now+=("$unit"); done
+    rsudo "$host" systemctl restart "${now[@]}" </dev/null
+    rsudo "$host" systemd-run --unit="$waiter" --collect \
+        --description="Restarts the MovieBot hand-off once it is making nothing" \
+        /bin/sh -c "while ( $busy ); do sleep 30; done; systemctl restart $handoff" </dev/null
+    echo "$handoff is transcoding: it restarts on hotbox once that ends ($waiter)."
+else
+    rsudo "$host" systemctl restart "${units[@]}" </dev/null
+fi
 
 healthy=""
 for _ in $(seq 60); do

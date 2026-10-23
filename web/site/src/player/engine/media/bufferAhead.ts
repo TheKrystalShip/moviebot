@@ -21,7 +21,20 @@ export const BufferAheadLevels: Record<BufferAhead, { label: string; seconds: nu
   ahead: { label: 'A lot', seconds: 180, device: true, dynamic: false }
 };
 
-export const DefaultBufferAhead: BufferAhead = 'dynamic';
+/**
+ * What a device that chose nothing fetches: Standard on a desktop, a fixed line the film streams over
+ * as it plays, and Dynamic on a phone, a tablet or a television, which keep the film on the device for
+ * a connection that comes and goes. A desktop is a browser whose pointer is a mouse; a television's
+ * WebView answers that query as a phone does, and is named by its wrapper's mark besides.
+ */
+export function defaultBufferAhead(): BufferAhead {
+  try {
+    const mouse = window.matchMedia('(pointer: fine)').matches && window.matchMedia('(hover: hover)').matches;
+    return mouse && !window.navigator.userAgent.includes('KrystalCinemaTV') ? 'standard' : 'dynamic';
+  } catch {
+    return 'dynamic';
+  }
+}
 
 const Key = 'cinema.bufferAhead';
 
@@ -29,9 +42,9 @@ const Key = 'cinema.bufferAhead';
 export function bufferAhead(): BufferAhead {
   try {
     const kept = window.localStorage.getItem(Key);
-    return kept !== null && kept in BufferAheadLevels ? (kept as BufferAhead) : DefaultBufferAhead;
+    return kept !== null && kept in BufferAheadLevels ? (kept as BufferAhead) : defaultBufferAhead();
   } catch {
-    return DefaultBufferAhead;
+    return defaultBufferAhead();
   }
 }
 

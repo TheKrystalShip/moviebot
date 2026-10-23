@@ -31,8 +31,10 @@ film onto a device is `Offline/CLAUDE.md`.
 - **Resolve configuration inside the DI factory, not at the top of `Program.cs`.** Reading
   `builder.Configuration` while the builder is still being assembled misses sources added later — a
   test host's media root, for one — and the service silently points somewhere else.
-- **Playlists for a transcoding title are `no-store`.** A cached growing playlist makes the film
-  appear to end early, which looks exactly like a broken transcode.
+- **Playlists for a transcoding title are `no-store`, and served from one open file.** A cached
+  growing playlist makes the film appear to end early, which looks exactly like a broken transcode.
+  ffmpeg replaces the playlist by renaming a fresh copy over it, so one served by path takes its
+  length from one copy and its bytes from the next, and breaks off mid-playlist.
 - **MovieBot signs nobody in; every route names the action it needs** (`Auth/`; the token rules, the
   service key, the guest link, the media ticket and the issuer pin are `docs/api-contract.md`, "Signing
   in", and `../../../kgsm-docs/systems/moviebot/sign-in.md`). `CinemaActions` declares the actions once:
