@@ -25,10 +25,18 @@ is about not losing that.
   library, not by name, however much of it has arrived. They share one card and each runs slower for
   it — around twelve times realtime alone, six apiece with two — and every one of them still outruns a
   person watching several times over, which is the only rate that matters.
-- **A sweep never restarts what it is already running.** Sweeps carry on while a transcode does, and an
-  ingest replaces a title's directory wholesale, so a second start would delete what the first is
-  writing. The in-flight set, keyed by download hash for a film and by hash and file for an
-  episode, is what prevents it.
+- **A sweep never restarts what it is already running.** Sweeps carry on while a transcode does, and a
+  second start would rewind and rewrite what the first is writing. The in-flight set, keyed by download
+  hash for a film and by hash and file for an episode, is what prevents it.
+- **A transcode this process stopped is carried on where it stopped, by the next start.** The owed film
+  is ingested with `Resume` (`src/MovieBot.Ingest/CLAUDE.md`), on the disk its stopped transcode is on,
+  without placing it again: it already has the room, and a placement elsewhere would clear what it wrote.
+  A stopped transcode on the cold root waits while the volume is out. A film playing while the hand-off
+  restarts loses nothing it buffered, and its playlists fall back by about ten seconds until the
+  transcode passes them again.
+- **Only the hand-off is asked to stop** (`KillMode=mixed`). It kills its ffmpeg processes outright as
+  it cancels; an ffmpeg asked to stop would end its playlists, and every player would read the film as
+  over until the transcode is carried on.
 - **A transcode chooses its disk when it starts, against a reservation** (`TranscodePlacement`).
   The size is the ladder's bitrates and each audio track's, times the running time from a probe, plus
   an overhead for framing, playlists and artwork (`TranscodeEstimate`). The disk `TranscodeDisk`

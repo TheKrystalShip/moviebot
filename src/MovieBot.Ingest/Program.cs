@@ -75,6 +75,7 @@ public static class Program
         var segment = 2;
         bool? toneMap = null;
         var force = false;
+        var resume = false;
         var dryRun = false;
         var thumbnailsOnly = false;
         var dialogueBoost = false;
@@ -115,6 +116,9 @@ public static class Program
                 case "--force":
                     force = true;
                     break;
+                case "--resume":
+                    resume = true;
+                    break;
                 case "--dry-run":
                     dryRun = true;
                     break;
@@ -148,6 +152,7 @@ public static class Program
             SegmentSeconds = segment,
             ForceToneMap = toneMap,
             Force = force,
+            Resume = resume,
             DryRun = dryRun,
             ThumbnailsOnly = thumbnailsOnly,
             DialogueBoost = dialogueBoost
@@ -185,6 +190,8 @@ public static class Program
               --segment <sec>    Segment length; the GOP is pinned to match. Default: 2
               --tonemap <mode>   auto|on|off. Default: auto, from the source transfer function
               --force            Replace an existing output directory
+              --resume           Carry on a transcode of the same film that stopped part way
+                                 there, from a little before where it stopped
               --dry-run          Probe and print the manifest, transcode nothing
               --thumbnails       Rebuild the scrub previews for a title already ingested
               --dialogue-boost   Once the film is transcoded, add a second mix of each feature

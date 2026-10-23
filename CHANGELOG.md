@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.66.0] - 2026-10-24
+
+### Changed
+- A transcode the hand-off stops part way (a restart, a crash, a reboot) is carried on by its next
+  start from about ten seconds before where each track stopped, on the disk it was on, instead of
+  being deleted and made again from the beginning in front of the rooms watching it. The resumed
+  segments open on the same frames at the same times as an uninterrupted transcode's, so the rungs stay
+  aligned and players carry on across the seam (`TrackResume`, `Fmp4`; `--resume` on the ingest CLI).
+- The hand-off's unit stops with `KillMode=mixed`: only the hand-off is asked to stop, and it kills its
+  ffmpeg processes outright, so a stop no longer ends the playlists of a film still being made.
+- A transcode stopped with its process stays `transcoding` in its manifest rather than `failed`.
+
 ## [3.65.0] - 2026-10-23
 
 ### Added

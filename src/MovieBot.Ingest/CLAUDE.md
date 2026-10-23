@@ -193,6 +193,43 @@ Driven entirely by what the container says, because the sample film makes every 
   `system.slice`, which does not split CPU between its units: setting `CPUWeight` on any unit there
   gives each its own share, and from then on a niced thread yields only to its own unit's threads.
 
+## A transcode that stopped part way (`Pipeline/TrackResume.cs`, `Ffmpeg/Fmp4.cs`)
+
+A process stopped mid-transcode (a restart, a crash, a reboot) leaves every track's playlist where
+it got to, and `Resume` carries the transcode on from there rather than deleting it in front of the
+rooms watching it. Measured on hotrod's card and on hotbox's P2000 with its own ffmpeg, against an
+uninterrupted transcode of the same source,
+killed outright and stopped politely at several points: every video segment opens on the same frame,
+at the same decode and presentation time and as the same keyframe; every frame of every track decodes
+at the uninterrupted transcode's time, with no decode error; audio segments may be cut a frame apart,
+and the last carries one more frame of the encoder's padding.
+
+- **Only the same film made the same way is carried on**: a manifest still reporting itself
+  transcoding (or failed by being cancelled, which is how an earlier build recorded a stop), at the same
+  running time, ladder, quality and audio tracks, each track's playlist naming segments that are all on
+  disk. Anything else is replaced, and the hand-off's log says how much was thrown away.
+- **Each track is rewound by whole segments until at least `RewindSeconds` are gone**, so a segment the
+  stopped process listed but had not put on disk whole is written again rather than trusted. A track with
+  no more than that in it starts the whole transcode again.
+- **A track is finished only when its playlist is ended and runs the film's length.** ffmpeg asked to
+  stop, rather than killed, ends its playlists wherever it has got to, and a short ended playlist is a
+  stopped track with its end mark taken off.
+- **The new process starts where the first segment written again starts**, read from that segment's
+  own `tfdt` before it is deleted: exact on the track's clock, where the playlist's six-decimal durations
+  drift. A whole source is seeked as an input; one still arriving is decoded from its start up to the
+  point, because a seek reads wherever the container's index points and what has not arrived reads as
+  zeros. The keyframe expression needs no change: the point is on the grid.
+- **A resumed process's fragments are moved onto the stopped one's clock, not given an offset.** ffmpeg
+  starts each output's clock at zero and records an offset (`-output_ts_offset`, or a seek) in the edit
+  list of its initialisation file, and a player keeps the first initialisation file it was given. So the
+  process writes its own playlist (`resume.m3u8`) and its own initialisation file, which nothing reads,
+  and each segment it lists has its `tfdt` and its sequence number shifted in place before the pipeline
+  adds it to `index.m3u8`, which keeps naming the first initialisation file. `-hls_flags append_list` is
+  not used: it renumbers the playlist's media sequence and the segments it names.
+- **The kept initialisation file has to describe what the new process writes.** Its sample description
+  and clock are compared with the new process's own; a difference refuses the resume, and the transcode
+  starts again from the beginning.
+
 ## Reading a source that is still arriving (`Ffmpeg/ReadAheadGuard.cs`)
 
 Transcoding a file while it downloads is only safe while the reader stays behind the writer, and

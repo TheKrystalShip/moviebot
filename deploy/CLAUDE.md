@@ -94,12 +94,15 @@ deploy/deploy-app.sh phone      # one: phone or tv
   comes back as it was, the player reconnects its hub on its own, and the video it has buffered keeps
   playing through the gap, so nobody in a room notices the restart. `/health` counting occupied rooms
   is no reason to hold a deploy back.
-- **The hand-off is restarted only while it is making nothing.** A restart starts every transcode it
-  is running again from the beginning, which rewrites the playlists of a film people are watching
-  under them. While an `ffmpeg` or `fpcalc` runs in its unit's cgroup, `deploy-services.sh` restarts
-  the other three and leaves a transient unit on hotbox, `moviebot-handoff-restart`, that restarts the
-  hand-off once the last has ended; the new binary is already in place meanwhile. A later deploy
-  replaces a restart still waiting. Restarting it by hand while it transcodes costs the same.
+- **The hand-off is restarted only while it is making nothing.** A transcode a restart stops is
+  carried on by the next start (`src/MovieBot.Handoff/CLAUDE.md`), but the restart still pauses it and
+  rewinds each track by about ten seconds, and waiting costs nothing. While an `ffmpeg` or `fpcalc`
+  runs in its unit's cgroup, `deploy-services.sh` restarts the other three and leaves a transient unit
+  on hotbox, `moviebot-handoff-restart`, that restarts the hand-off once the last has ended; the new
+  binary is already in place meanwhile. A later deploy replaces a restart still waiting.
+- **The units are installed by hand**, as root, and a changed one is copied over its installed copy
+  and loaded: `rsudo hotbox install -m 0644 <unit> /etc/systemd/system/` with the file copied to hotbox
+  first, then `rsudo hotbox systemctl daemon-reload`. No deploy script installs a unit.
 - **`/etc/moviebot/moviebot.env` holds the credentials** every unit reads — the bot's token, the
   Discord and identity-provider client secrets, `Auth__MediaTicketKey` that signs media tickets and
   the service key the hand-off and the bot's background passes present — **and which tracker

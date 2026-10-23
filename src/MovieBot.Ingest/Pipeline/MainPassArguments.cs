@@ -64,10 +64,11 @@ internal sealed class MainPassArguments(IngestOptions options)
 
     /// <summary>
     /// One rung's process: the source video decoded once, filtered for the rung and encoded to
-    /// its own playlist.
+    /// its own playlist, from where <paramref name="resume"/> says when it carries on a stopped one.
     /// </summary>
     public List<string> Video(
-        ProbeStream video, VideoRung rung, string outputDirectory, bool toneMap, VideoDecode decode)
+        ProbeStream video, VideoRung rung, string outputDirectory, bool toneMap, VideoDecode decode,
+        TrackResume? resume = null)
     {
         var args = new List<string>();
 
@@ -86,7 +87,7 @@ internal sealed class MainPassArguments(IngestOptions options)
         // wants them. A rung below the source's size is scaled in the decoder where there is one,
         // and by the CPU where there is not.
         var decoderScales = decode == VideoDecode.Cuvid && rung.ScaleFilter is not null;
-        SourceInput(args, decode, video, decoderScales ? rung : null);
+        SourceInput(args, decode, video, decoderScales ? rung : null, resume);
 
         var gop = GopSize(video.FrameRate(), options.SegmentSeconds);
 
@@ -111,7 +112,7 @@ internal sealed class MainPassArguments(IngestOptions options)
             "-force_key_frames", $"expr:gte(t,n_forced*{options.SegmentSeconds})",
             "-an", "-sn"
         ]);
-        args.AddRange(HlsOutput(Path.Combine(outputDirectory, rung.Directory)));
+        args.AddRange(HlsOutput(Path.Combine(outputDirectory, rung.Directory), resume));
 
         return args;
     }
@@ -137,12 +138,14 @@ internal sealed class MainPassArguments(IngestOptions options)
     /// in and is killed. Separate demuxers each wait on their own consumer and hold flat.
     /// </summary>
     /// <param name="renditions">Indexes into <paramref name="audioStreams"/>; rendition <c>i</c> is written to <c>a{i}</c>.</param>
-    public List<string> Audio(List<ProbeStream> audioStreams, IReadOnlyList<int> renditions, string outputDirectory)
+    /// <param name="resumes">Where each rendition carries on a stopped one, by its index; absent for one made from the start.</param>
+    public List<string> Audio(List<ProbeStream> audioStreams, IReadOnlyList<int> renditions, string outputDirectory,
+        IReadOnlyDictionary<int, TrackResume>? resumes = null)
     {
         var args = new List<string> { "-y" };
 
-        foreach (var _ in renditions)
-            SourceInput(args, VideoDecode.Software, video: null, scaledTo: null);
+        foreach (var i in renditions)
+            SourceInput(args, VideoDecode.Software, video: null, scaledTo: null, resumes?.GetValueOrDefault(i));
 
         for (var k = 0; k < renditions.Count; k++)
         {
@@ -156,7 +159,7 @@ internal sealed class MainPassArguments(IngestOptions options)
             // Stereo everywhere: multichannel AAC over MSE is inconsistent across browsers, and
             // most of a movie night is on headphones or laptop speakers.
             args.Add("-ac"); args.Add("2");
-            args.AddRange(HlsOutput(Path.Combine(outputDirectory, $"a{i}")));
+            args.AddRange(HlsOutput(Path.Combine(outputDirectory, $"a{i}"), resumes?.GetValueOrDefault(i)));
         }
 
         return args;
@@ -178,9 +181,19 @@ internal sealed class MainPassArguments(IngestOptions options)
         return scale is null ? chain : $"{chain},{scale}";
     }
 
-    /// <summary>Opens the source as an input, through the decoder a rung asks for.</summary>
+    /// <summary>
+    /// Opens the source as an input, through the decoder a rung asks for, and from where a resumed
+    /// track carries on.
+    ///
+    /// A whole source is seeked as an input, which reads from the nearest keyframe before the point;
+    /// one still arriving is read from its start and decoded up to the point (<see cref="HlsOutput"/>),
+    /// because a seek reads wherever the container's index says, and what has not arrived reads as
+    /// zeros. Either way the first frame kept is the first one at or after the point, and the point is
+    /// a millisecond early so the frame the stopped track's next segment opened on is never the one
+    /// dropped.
+    /// </summary>
     public void SourceInput(
-        List<string> args, VideoDecode decode, ProbeStream? video, VideoRung? scaledTo)
+        List<string> args, VideoDecode decode, ProbeStream? video, VideoRung? scaledTo, TrackResume? resume = null)
     {
         args.Add("-probesize"); args.Add(ProbeWindow);
         args.Add("-analyzeduration"); args.Add(ProbeWindow);
@@ -206,11 +219,22 @@ internal sealed class MainPassArguments(IngestOptions options)
                 break;
         }
 
+        if (resume is not null && options.Availability is null) { args.Add("-ss"); args.Add(SeekPoint(resume)); }
         args.Add("-i"); args.Add(options.SourcePath);
     }
 
-    public IEnumerable<string> HlsOutput(string directory) =>
+    private static string SeekPoint(TrackResume resume) =>
+        Math.Max(0, resume.SourceSeconds - 0.001).ToString("0.######", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The playlist a track is written to. A resumed track numbers its segments on from the ones kept
+    /// and writes a playlist and initialisation file of its own, which the pipeline publishes from
+    /// (<see cref="TrackResume.Publish"/>); one still arriving is decoded up to where it carries on.
+    /// </summary>
+    public IEnumerable<string> HlsOutput(string directory, TrackResume? resume = null) =>
     [
+        .. resume is not null && options.Availability is not null ? ["-ss", SeekPoint(resume)] : Array.Empty<string>(),
+        .. resume is not null ? ["-start_number", resume.Segments.ToString(CultureInfo.InvariantCulture)] : Array.Empty<string>(),
         "-f", "hls",
         "-hls_time", options.SegmentSeconds.ToString(CultureInfo.InvariantCulture),
         // EVENT rather than VOD: the playlist only ever appends, so a player can join and seek
@@ -218,9 +242,9 @@ internal sealed class MainPassArguments(IngestOptions options)
         // completion, which turns it into an ordinary complete VOD with nothing to clean up.
         "-hls_playlist_type", "event",
         "-hls_segment_type", "fmp4",
-        "-hls_fmp4_init_filename", $"{options.SegmentPrefix}init.mp4",
+        "-hls_fmp4_init_filename", resume?.ResumeInit ?? $"{options.SegmentPrefix}init.mp4",
         "-hls_segment_filename", Path.Combine(directory, $"{options.SegmentPrefix}seg%05d.m4s"),
-        Path.Combine(directory, "index.m3u8")
+        Path.Combine(directory, resume is null ? "index.m3u8" : TrackResume.ResumePlaylist)
     ];
 
     private static int GopSize(double frameRate, int segmentSeconds)

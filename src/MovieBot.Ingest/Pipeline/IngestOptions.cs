@@ -145,6 +145,13 @@ public sealed record IngestOptions
     public bool Force { get; init; }
 
     /// <summary>
+    /// Carries on a transcode of the same film that stopped part way in the output directory, from a
+    /// little before where each of its playlists ends, rather than replacing it
+    /// (<see cref="TrackResume"/>). What cannot be carried on is replaced as <see cref="Force"/> says.
+    /// </summary>
+    public bool Resume { get; init; }
+
+    /// <summary>
     /// How much of the source has arrived, when it is still arriving. Null means the file is
     /// whole, which is the ordinary case and behaves exactly as it always has.
     ///

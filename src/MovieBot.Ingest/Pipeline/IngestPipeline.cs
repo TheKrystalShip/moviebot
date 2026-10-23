@@ -28,7 +28,23 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
     private readonly MainPassArguments arguments = new(options);
 
+    /// <summary>A resumed track that cannot be carried on after all, which the whole transcode then starts again for.</summary>
+    private sealed class ResumeRefused(string message, Exception inner) : Exception(message, inner);
+
     public async Task<Manifest> RunAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            return await RunOnceAsync(ct);
+        }
+        catch (ResumeRefused refused)
+        {
+            log($"  {refused.Message}; starting again from the beginning");
+            return await new IngestPipeline(options with { Resume = false }, log).RunOnceAsync(ct);
+        }
+    }
+
+    private async Task<Manifest> RunOnceAsync(CancellationToken ct)
     {
         log($"Probing {Path.GetFileName(options.SourcePath)}");
         var probe = await FfProbe.RunAsync(options.SourcePath, ct);
@@ -103,7 +119,18 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             return manifest;
         }
 
-        PrepareOutputDirectory(outputDirectory, ladder, audioStreams.Count, options.Force, log);
+        var resumes = FindResume(outputDirectory, manifest);
+        if (resumes is null)
+        {
+            PrepareOutputDirectory(outputDirectory, ladder, audioStreams.Count, options.Force, log);
+        }
+        else
+        {
+            foreach (var track in resumes.Values.Where(t => !t.Complete)) track.Apply();
+            log("  carrying on from where it stopped: " + string.Join(", ", resumes.Values.Select(t =>
+                t.Complete ? $"{t.Name} finished" : $"{t.Name} from {Format(t.SourceSeconds)}")));
+            UpdateHeads(manifest, ladder, Playlists(outputDirectory, ladder, audioStreams.Count));
+        }
 
         // Put down before the manifest names it. A manifest is read the moment it exists — a film
         // is announced within seconds of the first segments landing, and an embed asking for a
@@ -129,8 +156,12 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             if (options.Availability is null)
             {
                 // The whole file is present. Everything that reads it end to end is done before
-                // the main pass, so no output is ever appended to while a player reads it.
-                if (textSubtitles.Count > 0)
+                // the main pass, so no output is ever appended to while a player reads it. A resumed
+                // transcode of a whole file extracted them before it stopped, and a file a player may
+                // be reading is not written again.
+                var extracted = resumes is not null
+                    && textSubtitles.All(t => File.Exists(Path.Combine(outputDirectory, SubtitleFileName(t))));
+                if (textSubtitles.Count > 0 && !extracted)
                 {
                     log($"Extracting {textSubtitles.Count} subtitle tracks");
                     await ExtractSubtitlesAsync(textSubtitles, outputDirectory, ct);
@@ -152,7 +183,7 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             log("Transcoding — playback opens as soon as the first segments land");
             var transcoding = Stopwatch.StartNew();
             await RunMainPassAsync(video, audioStreams, ladder, outputDirectory, toneMap,
-                manifest, manifestPath, probe.Format.DurationSeconds, ct, makeGuard);
+                manifest, manifestPath, probe.Format.DurationSeconds, ct, makeGuard, resumes);
             log($"  transcoded in {transcoding.Elapsed:m\\:ss}"
                 + $" ({probe.Format.DurationSeconds / Math.Max(transcoding.Elapsed.TotalSeconds, 1):F1}x)");
 
@@ -199,13 +230,92 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             log($"Ready: {outputDirectory}");
             return manifest;
         }
-        catch (Exception ex)
+        // A transcode stopped with its process, or about to start again, has not failed: what it wrote
+        // stays playable, and the next start carries it on.
+        catch (Exception ex) when (ex is not ResumeRefused && !(ex is OperationCanceledException && ct.IsCancellationRequested))
         {
             manifest.Status = TitleStatus.Failed;
             manifest.Error = ex.Message;
             ManifestJson.WriteAtomic(manifestPath, manifest);
             throw;
         }
+    }
+
+    /// <summary>
+    /// The tracks a stopped transcode of this same film left in <paramref name="outputDirectory"/>,
+    /// each read for carrying on (<see cref="TrackResume"/>), or null when it starts from the beginning:
+    /// resuming was not asked for, nothing was stopped here, what was stopped was made differently (another
+    /// running time, ladder, quality or set of audio tracks), or a track of it cannot be carried on.
+    /// A transcode a process stopped reports itself transcoding; one an earlier build marked failed for
+    /// being cancelled was stopped too.
+    /// </summary>
+    private Dictionary<string, TrackResume>? FindResume(string outputDirectory, Manifest fresh)
+    {
+        if (!options.Resume || ReadManifest(outputDirectory) is not { } before) return null;
+
+        var stopped = before.Status == TitleStatus.Transcoding
+            || (before.Status == TitleStatus.Failed && before.Error is { } error
+                && error.Contains("cancel", StringComparison.OrdinalIgnoreCase));
+        static string Rung(Rendition r) => $"{r.Uri} {r.Width}x{r.Height} {r.BitrateKbps} {r.Cq}";
+        var same = Math.Abs(before.DurationSeconds - fresh.DurationSeconds) < 0.5
+            && before.Video.Renditions.Select(Rung).SequenceEqual(fresh.Video.Renditions.Select(Rung))
+            && before.Audio.Select(a => a.Uri).SequenceEqual(fresh.Audio.Select(a => a.Uri));
+        if (!stopped || !same) return null;
+
+        var resumes = new Dictionary<string, TrackResume>(StringComparer.Ordinal);
+        foreach (var uri in fresh.Video.Renditions.Select(r => r.Uri).Concat(fresh.Audio.Select(a => a.Uri)))
+        {
+            var directory = uri.Split('/')[0];
+            try
+            {
+                if (TrackResume.Read(Path.Combine(outputDirectory, directory), options.SegmentPrefix, fresh.DurationSeconds) is not { } track)
+                    return null;
+                resumes[directory] = track;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+            {
+                log($"  {directory} cannot be carried on: {ex.Message}");
+                return null;
+            }
+        }
+        return resumes;
+    }
+
+    private static Manifest? ReadManifest(string outputDirectory)
+    {
+        try
+        {
+            return ManifestJson.Deserialize(File.ReadAllText(Path.Combine(outputDirectory, "manifest.json")));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Every track's playlist: the rungs', then the audio renditions'.</summary>
+    private static List<string> Playlists(string outputDirectory, IReadOnlyList<VideoRung> ladder, int audioCount) =>
+    [
+        .. ladder.Select(r => Path.Combine(outputDirectory, r.Directory, "index.m3u8")),
+        .. Enumerable.Range(0, audioCount).Select(i => Path.Combine(outputDirectory, $"a{i}", "index.m3u8"))
+    ];
+
+    /// <summary>
+    /// The manifest's heads from what the playlists list: each rung's, the audio's, and the title's,
+    /// which is the shortest of them. Returns the title's.
+    /// </summary>
+    private static double UpdateHeads(Manifest manifest, IReadOnlyList<VideoRung> ladder, IReadOnlyList<string> playlists)
+    {
+        var heads = playlists.Select(path => HlsPlaylist.PlayableSeconds(path)).ToList();
+        var head = heads.Count == 0 ? 0 : heads.Min();
+        manifest.HeadSeconds = head;
+
+        // Rungs and audio advance at their own pace; a player picks among the rungs that cover its
+        // playhead, and the room's seek limit is the best of them.
+        for (var i = 0; i < ladder.Count && i < manifest.Video.Renditions.Count; i++)
+            manifest.Video.Renditions[i].HeadSeconds = heads[i];
+        manifest.AudioHeadSeconds = heads.Count == ladder.Count ? null : heads.Skip(ladder.Count).Min();
+        return head;
     }
 
     private static void PrepareOutputDirectory(
@@ -369,15 +479,36 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         string manifestPath,
         double durationSeconds,
         CancellationToken ct,
-        Func<ReadAheadGuard>? makeGuard = null)
+        Func<ReadAheadGuard>? makeGuard = null,
+        IReadOnlyDictionary<string, TrackResume>? resumes = null)
     {
-        var units = BuildUnits(video, audioStreams, ladder, outputDirectory, toneMap, makeGuard);
+        var owed = resumes?.Values.Where(t => !t.Complete).ToList() ?? [];
+        var units = BuildUnits(video, audioStreams, ladder, outputDirectory, toneMap, makeGuard, resumes);
+        var playlists = Playlists(outputDirectory, ladder, audioStreams.Count);
 
-        var playlists = ladder
-            .Select(r => Path.Combine(outputDirectory, r.Directory, "index.m3u8"))
-            .ToList();
-        for (var i = 0; i < audioStreams.Count; i++)
-            playlists.Add(Path.Combine(outputDirectory, $"a{i}", "index.m3u8"));
+        // The units are ended early, and the transcode started again, when a resumed track turns out
+        // to be encoded differently from what it continues.
+        using var running = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        Exception? refused = null;
+        void Publish()
+        {
+            foreach (var track in owed)
+            {
+                try
+                {
+                    track.Publish();
+                }
+                catch (InvalidDataException ex) when (refused is null)
+                {
+                    refused = ex;
+                    running.Cancel();
+                }
+                catch (IOException)
+                {
+                    // A file being renamed into place as it was read; the next look finds it there.
+                }
+            }
+        }
 
         using var polling = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
@@ -386,18 +517,10 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
             var announcedPlayable = false;
             while (!polling.Token.IsCancellationRequested)
             {
-                var heads = playlists.Select(path => HlsPlaylist.PlayableSeconds(path)).ToList();
-                var head = heads.Count == 0 ? 0 : heads.Min();
+                Publish();
+                var head = UpdateHeads(manifest, ladder, playlists);
                 if (head > 0)
                 {
-                    manifest.HeadSeconds = head;
-
-                    // Rungs and audio advance at their own pace; a player picks among the rungs
-                    // that cover its playhead, and the room's seek limit is the best of them.
-                    for (var i = 0; i < ladder.Count && i < manifest.Video.Renditions.Count; i++)
-                        manifest.Video.Renditions[i].HeadSeconds = heads[i];
-                    manifest.AudioHeadSeconds = audioStreams.Count == 0 ? null : heads.Skip(ladder.Count).Min();
-
                     ManifestJson.WriteAtomic(manifestPath, manifest);
 
                     if (!announcedPlayable)
@@ -418,13 +541,30 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
 
         try
         {
-            await TranscodeUnit.RunAllAsync(units, ct);
+            await TranscodeUnit.RunAllAsync(units, running.Token);
+        }
+        catch (OperationCanceledException) when (refused is not null && !ct.IsCancellationRequested)
+        {
+            // Said below, as the reason.
         }
         finally
         {
             await polling.CancelAsync();
             await headWatcher;
         }
+
+        if (refused is null)
+        {
+            try
+            {
+                foreach (var track in owed) track.Finish();
+            }
+            catch (InvalidDataException ex)
+            {
+                refused = ex;
+            }
+        }
+        if (refused is not null) throw new ResumeRefused(refused.Message, refused);
     }
 
     /// <summary>
@@ -438,38 +578,55 @@ public sealed class IngestPipeline(IngestOptions options, Action<string> log)
         IReadOnlyList<VideoRung> ladder,
         string outputDirectory,
         bool toneMap,
-        Func<ReadAheadGuard>? makeGuard)
+        Func<ReadAheadGuard>? makeGuard,
+        IReadOnlyDictionary<string, TrackResume>? resumes = null)
     {
         var units = new List<TranscodeUnit>();
         var decode = MainPassArguments.DecodeFor(video);
 
-        foreach (var rung in ladder)
+        // A track the stopped transcode finished is not made again, and one it left part way is
+        // carried on from where its playlist was rewound to.
+        TrackResume? ResumeOf(string directory) => resumes?.GetValueOrDefault(directory);
+        bool Owed(string directory) => ResumeOf(directory) is not { Complete: true };
+
+        foreach (var rung in ladder.Where(r => Owed(r.Directory)))
         {
             // The decoder that scales gives way to the generic hardware decode with a CPU scale
             // when it cannot open the source, so a source the cuvid decoder refuses still
             // transcodes.
+            var resume = ResumeOf(rung.Directory);
             var attempts = new List<IReadOnlyList<string>>
             {
-                arguments.Video(video, rung, outputDirectory, toneMap, decode)
+                arguments.Video(video, rung, outputDirectory, toneMap, decode, resume)
             };
             if (decode == VideoDecode.Cuvid)
-                attempts.Add(arguments.Video(video, rung, outputDirectory, toneMap, VideoDecode.Hwaccel));
+                attempts.Add(arguments.Video(video, rung, outputDirectory, toneMap, VideoDecode.Hwaccel, resume));
 
             var directory = Path.Combine(outputDirectory, rung.Directory);
             units.Add(new TranscodeUnit(rung.Directory, rung.Directory, attempts,
-                () => Directory.EnumerateFiles(directory, "*.m4s").Any(), makeGuard, log));
+                () => resume is null
+                    ? Directory.EnumerateFiles(directory, "*.m4s").Any()
+                    : File.Exists(Path.Combine(directory, TrackResume.ResumePlaylist)),
+                makeGuard, log));
         }
 
         // All of a title's audio is one group, so whatever holds or resumes it can address its
         // processes together.
         var groups = MainPassArguments.AudioGroups(audioStreams.Count, AudioProcesses);
+        var audioResumes = Enumerable.Range(0, audioStreams.Count)
+            .Where(i => ResumeOf($"a{i}") is { Complete: false })
+            .ToDictionary(i => i, i => ResumeOf($"a{i}")!);
         for (var g = 0; g < groups.Count; g++)
         {
-            var renditions = groups[g];
+            var renditions = groups[g].Where(i => Owed($"a{i}")).ToArray();
+            if (renditions.Length == 0) continue;
             var directories = renditions.Select(i => Path.Combine(outputDirectory, $"a{i}")).ToList();
             units.Add(new TranscodeUnit(groups.Count == 1 ? "audio" : $"audio.{g}", "audio",
-                [arguments.Audio(audioStreams, renditions, outputDirectory)],
-                () => directories.Any(d => Directory.EnumerateFiles(d, "*.m4s").Any()), makeGuard, log));
+                [arguments.Audio(audioStreams, renditions, outputDirectory, audioResumes)],
+                () => directories.Any(d => audioResumes.Count == 0
+                    ? Directory.EnumerateFiles(d, "*.m4s").Any()
+                    : File.Exists(Path.Combine(d, TrackResume.ResumePlaylist))),
+                makeGuard, log));
         }
 
         return units;

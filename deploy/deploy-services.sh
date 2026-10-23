@@ -5,10 +5,10 @@
 #
 # It publishes the API, the bot, the hand-off and the assistant here, copies them to /opt/moviebot,
 # installs hotbox's settings file, and restarts the units. A restart is safe while people are
-# watching: rooms come back as they were and the player reconnects through the gap. The hand-off is
-# the exception: a restart starts every transcode it is running again from the beginning, so while
-# one runs, its restart waits on hotbox until the last has ended. The site is not part of this
-# (deploy/deploy-site.sh); it is installed after the restart only when hotbox has none.
+# watching: rooms come back as they were and the player reconnects through the gap. The hand-off
+# carries a stopped transcode on from where it stopped, but a restart still pauses it and rewinds it a
+# little, so while one runs, its restart waits on hotbox until the last has ended. The site is not part
+# of this (deploy/deploy-site.sh); it is installed after the restart only when hotbox has none.
 set -euo pipefail
 
 host=hotbox

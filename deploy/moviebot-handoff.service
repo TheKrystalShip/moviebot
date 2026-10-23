@@ -27,6 +27,12 @@ Environment=DOTNET_EnableDiagnostics=0
 Restart=on-failure
 RestartSec=10s
 
+# Only the hand-off is asked to stop, and it ends its ffmpeg processes outright as it does. An ffmpeg
+# asked to stop ends its playlists as though the film were over, which every player watching would
+# believe until the transcode is carried on; one ended outright leaves them growing, and the next start
+# carries them on from where they stopped.
+KillMode=mixed
+
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

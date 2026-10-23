@@ -254,7 +254,12 @@ public sealed class HandoffWorker(
             var media = budget.ReadVolume(roots.Hot, pending);
             var coldRoom = roots.ColdReady ? budget.ReadVolume(roots.Cold!, pending) : null;
 
-            var placement = TranscodePlacement.Decide(needed, media, coldRoom, _options.TranscodeDisk);
+            // A transcode that stopped part way is carried on where it is, whatever the disks hold
+            // now: it already has the room it took, and placing it again would clear what it wrote.
+            var stopped = StoppedOn(id);
+            var placement = stopped is { } where
+                ? new Placement(where, null)
+                : TranscodePlacement.Decide(needed, media, coldRoom, _options.TranscodeDisk);
             if (placement.Disk is not { } disk)
             {
                 if (_waiting.TryAdd(key, 0))
@@ -277,7 +282,9 @@ public sealed class HandoffWorker(
             });
 
             logger.LogInformation(
-                "{Name} is made on {Disk}: {Needed:0.#} GiB reserved under {Root}.",
+                stopped is null
+                    ? "{Name} is made on {Disk}: {Needed:0.#} GiB reserved under {Root}."
+                    : "{Name} is carried on on {Disk}, where its transcode stopped: {Needed:0.#} GiB reserved under {Root}.",
                 name, disk == Disk.Cold ? "cold storage" : "the media root",
                 needed / (double)(1L << 30), root);
 
@@ -287,6 +294,32 @@ public sealed class HandoffWorker(
         {
             _placing.Release();
         }
+    }
+
+    /// <summary>
+    /// The disk a transcode of <paramref name="id"/> stopped part way on, or null when none did: a
+    /// manifest there still reporting itself transcoding, or failed by being cancelled, which is how a
+    /// stopped transcode reads. The cold root counts only while its volume is there; one stopped on it
+    /// while it is out is not made elsewhere meanwhile (<see cref="PrepareAsync"/> keeps it owed).
+    /// </summary>
+    private Disk? StoppedOn(string id)
+    {
+        static bool Stopped(string root, string id)
+        {
+            try
+            {
+                var manifest = ManifestJson.Deserialize(File.ReadAllText(Path.Combine(root, id, "manifest.json")));
+                return manifest is { Status: TitleStatus.Transcoding }
+                    || manifest is { Status: TitleStatus.Failed, Error: { } error } && error.Contains("cancel", StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                return false;
+            }
+        }
+
+        if (roots.Cold is { } cold && Stopped(cold, id)) return Disk.Cold;
+        return Stopped(roots.Hot, id) ? Disk.Media : null;
     }
 
     /// <summary>
@@ -578,6 +611,7 @@ public sealed class HandoffWorker(
                 DialogueBoost = _options.DialogueBoost,
                 Availability = whole ? null : new TorrentAvailability(acquisition, download.Hash, source, file.Path),
                 Force = true,
+                Resume = true,
             };
 
             var pipeline = new IngestPipeline(options, line => logger.LogInformation("  {Line}", line));
@@ -660,9 +694,10 @@ public sealed class HandoffWorker(
             DialogueBoost = _options.DialogueBoost,
             Availability = availability,
 
-            // Reaching here means the previous attempt did not finish, since the tag is removed
-            // as soon as one becomes watchable. Whatever it left behind is incomplete.
+            // Reaching here means the previous attempt did not finish. Whatever it left behind is
+            // carried on from where it stopped when it can be, and replaced when it cannot.
             Force = true,
+            Resume = true,
         };
 
         try
