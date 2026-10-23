@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.63.0] - 2026-10-23
+
+### Changed
+- The site's splash, favicon and install artwork are the design system's (krystal 8.1.0), from the
+  clapperboard in `web/site/identity.js`: the splash and the tab's icon take the theme the person chose,
+  and the launch screens and the phone app's launcher icon are written by `npm run icons`.
+
 ## [3.62.0] - 2026-10-23
 
 ### Changed

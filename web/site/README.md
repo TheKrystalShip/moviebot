@@ -84,10 +84,11 @@ show with an episode here at `/tv/`, or `/anime/` for anime, and one with none a
 the page forwards by replacing the entry when the address names another. A link that knows the title's
 category builds its address; one that does not lands on the general shelf's and is forwarded.
 
-Opening the site shows the splash (`src/splash.js`): the mark on the canvas, drawn by `index.html`
-with the document's first bytes. It is the drawing of every screen a device shows before the site runs
-(the iOS launch images, the colours the manifest gives Android's launch screen, the television app's
-WebView), so it takes over from them unseen. It stays while the session is restored and the first page
+Opening the site shows the splash, the design system's (`siteIdentity` and `holdSplash`): the mark on
+the canvas of the palette the person chose, drawn with the document's first bytes. In the default
+palette it is the drawing of every screen a device shows before the site runs (the iOS launch images,
+the colours the manifest gives Android's launch screen, the television app's WebView), so it takes
+over from them unseen. It stays while the session is restored and the first page
 is prepared beneath it, until that page's first reads are answered and the artwork on its first
 screen has decoded, then fades. A screen that is ready as soon as it is drawn, a sign-in code or a
 player, lets it go at once, and it is gone three seconds after the document started whatever is still
@@ -452,11 +453,13 @@ The site installs as an app, Krystal Cinema, from Android Chrome's "Install app"
   `orientation`, because any value there holds every page of the installed app to it against the
   phone's rotation lock. The player turns the screen sideways itself, for as long as it is open
   (`src/player/CLAUDE.md`).
-- **`index.html`** carries what Safari reads instead: the home-screen icons and title, standalone
-  display, the black status bar the page starts below, and a launch screen per iPhone and iPad size.
-- **The artwork** under `public/icons/` and `public/splash/` is written by `scripts/make-icons.mjs`
-  (needs `rsvg-convert`; no build runs it): the Movies entry's clapperboard on the accent's tile. Its
-  launch-screen list and the `index.html` tags mirror each other.
+- **`index.html`** carries what Safari reads instead: the home-screen title, standalone display and
+  the black status bar the page starts below. The build links the home-screen icons and a launch
+  screen per iPhone and iPad size (`siteIdentity`).
+- **The artwork** under `public/icons/` and `public/splash/`, and the phone app's launcher icon, are
+  written by `npm run icons` (Krystal's `krystal-icons`, which needs `rsvg-convert`; no build runs it)
+  from `identity.js`: the Movies entry's clapperboard on the accent's tile. The tab's icon follows the
+  palette shown.
 - **`public/sw.js`** is the service worker. It holds the whole build: `vite.config.js` writes every
   file the build put in `dist/` into it (the index as `/`; source maps and the launch screens left
   out) with a version hashed from their contents, and a worker installs only once every one of them

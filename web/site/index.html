@@ -6,20 +6,14 @@
     <title>Krystal Cinema</title>
     <meta name="description" content="Watch films together, on one shared timeline." />
     <meta name="theme-color" content="#0B0F14" />
-    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
-    <link rel="icon" href="/icons/icon-32.png" sizes="32x32" type="image/png" />
 
     <!-- The manifest is what Android's "Install app" reads. It names no orientation: any value there
          overrides the phone's own rotation lock in the installed app. -->
     <link rel="manifest" href="/manifest.webmanifest" />
 
-    <!-- Safari reads none of the manifest's install details; these are its home-screen icon, title and
-         standalone behaviour. iOS picks the icon whose size best matches the surface it draws, and the
-         unsized entry when none does. -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180.png" />
-    <link rel="apple-touch-icon" sizes="167x167" href="/icons/apple-touch-icon-167.png" />
-    <link rel="apple-touch-icon" sizes="152x152" href="/icons/apple-touch-icon-152.png" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png" />
+    <!-- Safari reads none of the manifest's install details; these are its home-screen title and
+         standalone behaviour. The icons, the launch screens and the splash are the design system's
+         (siteIdentity in vite.config.js). -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <!-- black: the status bar is black and the page starts below it. -->
@@ -28,49 +22,6 @@
     <meta name="application-name" content="Cinema" />
     <!-- Keeps iOS from turning a year, a runtime or a count in the text into a tap target. -->
     <meta name="format-detection" content="telephone=no, date=no, email=no, address=no" />
-
-    <!-- The screens iOS shows while an installed app starts, one per device: its portrait size in
-         points and pixel ratio. Written by scripts/make-icons.mjs, whose list these mirror. -->
-    <link rel="apple-touch-startup-image" href="/splash/splash-640x1136.png"
-          media="(device-width:320px) and (device-height:568px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-750x1334.png"
-          media="(device-width:375px) and (device-height:667px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-828x1792.png"
-          media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1125x2436.png"
-          media="(device-width:375px) and (device-height:812px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1242x2688.png"
-          media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1170x2532.png"
-          media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1284x2778.png"
-          media="(device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1179x2556.png"
-          media="(device-width:393px) and (device-height:852px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1290x2796.png"
-          media="(device-width:430px) and (device-height:932px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1206x2622.png"
-          media="(device-width:402px) and (device-height:874px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1260x2736.png"
-          media="(device-width:420px) and (device-height:912px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1320x2868.png"
-          media="(device-width:440px) and (device-height:956px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1488x2266.png"
-          media="(device-width:744px) and (device-height:1133px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1536x2048.png"
-          media="(device-width:768px) and (device-height:1024px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1620x2160.png"
-          media="(device-width:810px) and (device-height:1080px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1640x2360.png"
-          media="(device-width:820px) and (device-height:1180px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1668x2388.png"
-          media="(device-width:834px) and (device-height:1194px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-1668x2420.png"
-          media="(device-width:834px) and (device-height:1210px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-2048x2732.png"
-          media="(device-width:1024px) and (device-height:1366px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
-    <link rel="apple-touch-startup-image" href="/splash/splash-2064x2752.png"
-          media="(device-width:1032px) and (device-height:1376px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
 
     <!-- Discord launches the Activity at the address its URL mapping names, which is the root. A
          load carrying Discord's launch parameters is the Activity's, so its address becomes the
@@ -82,42 +33,8 @@
         }
       })();
     </script>
-
-    <!-- Theme: set before the stylesheet applies, so a light preference never flashes dark. -->
-    <script>
-      (function () {
-        try {
-          var p = localStorage.getItem("krystal:theme");
-          var t = p && p !== "auto" ? p
-                : (p === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches) ? "light"
-                : "dark";
-          document.documentElement.setAttribute("data-theme", t);
-        } catch (e) {}
-      })();
-    </script>
-    <!-- The splash (src/splash.js): the mark on the canvas, painted with the document's first bytes and
-         styled here because the stylesheet arrives after them. It is the iOS launch images' drawing,
-         the mark at 90 points over the manifest's background colour, which the television app's
-         WebView shares, so it takes over from any of them unseen. -->
-    <style>
-      #kc-splash {
-        position: fixed; inset: 0; z-index: 2147483647;
-        display: grid; place-items: center;
-        background: #0B0F14;
-        transition: opacity 280ms ease-out;
-      }
-      #kc-splash svg { display: block; width: 90px; height: 90px; }
-      #kc-splash.is-leaving { opacity: 0; pointer-events: none; }
-      @media (prefers-reduced-motion: reduce) { #kc-splash { transition: none; } }
-    </style>
   </head>
   <body>
-    <div id="kc-splash" aria-hidden="true">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#0B0F14"/><rect width="512" height="512" fill="#40A0C0" fill-opacity="0.14"/><g transform="translate(256,256) scale(9.904761904761905) translate(-12,-12)" fill="none" stroke="#40A0C0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/>
-      <path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/>
-      <path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></g></svg>
-    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

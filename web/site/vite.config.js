@@ -3,7 +3,8 @@ import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { notificationsWorker } from "@thekrystalship/krystal/vite";
+import { notificationsWorker, siteIdentity } from "@thekrystalship/krystal/vite";
+import identity from "./identity.js";
 
 // The site is served by MovieBot.Api from its wwwroot, beside the API it talks to, so every request
 // is same-origin and relative. The dev server stands in for that origin: the API, the media and the
@@ -51,7 +52,7 @@ function precache() {
 }
 
 export default defineConfig({
-  plugins: [react(), notificationsWorker(), precache()],
+  plugins: [react(), siteIdentity(identity), notificationsWorker(), precache()],
   server: {
     port: 5175,
     strictPort: true,

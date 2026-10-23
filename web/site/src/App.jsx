@@ -1,7 +1,7 @@
 import React from "react";
 import {
   AppShell, Dock, DockFab, NavItem, Sidebar, SidebarAccount, SidebarGroup, TabBar, Toasts,
-  useDock, useStoredFlag,
+  settleSplash, useDock, useStoredFlag,
 } from "@thekrystalship/krystal";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { can, restore, signIn, useEnded, useSession } from "./session.js";
@@ -35,7 +35,6 @@ import { NotFound } from "./pages/NotFound.jsx";
 import { SiteFooter } from "./components/SiteFooter.jsx";
 import { BellNavItem } from "./components/Bell.jsx";
 import { PageStage } from "./components/PageStage.jsx";
-import { settleSplash } from "./splash.js";
 import { Trail } from "./components/Trail.jsx";
 import { CallBar } from "./components/CallBar.jsx";
 import { RemoteDock } from "./components/RemoteDock.jsx";

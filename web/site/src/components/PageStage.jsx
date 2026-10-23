@@ -1,7 +1,7 @@
 import React from "react";
 import { PageKey } from "../crumbs.js";
 import { LoadTracker } from "../data.js";
-import { holdSplash } from "../splash.js";
+import { holdSplash } from "@thekrystalship/krystal";
 
 /** The longest a page waits out of sight for its reads before it is shown as it stands. */
 const READY_CAP_MS = 500;
@@ -22,7 +22,7 @@ const READY_CAP_MS = 500;
  * same page given new words, and is drawn in place. Both pages are children of one keyed list, so the
  * page prepared out of sight is the one shown, never mounted a second time.
  *
- * The first page is prepared the same way under the splash (`splash.js`), which it holds until its
+ * The first page is prepared the same way under the splash, which it holds until its
  * first reads are answered and its artwork has decoded; the splash's own cap stands in for
  * `READY_CAP_MS`.
  *

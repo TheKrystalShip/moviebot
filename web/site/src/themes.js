@@ -1,4 +1,4 @@
-import { registerThemes } from "@thekrystalship/krystal";
+import { registerThemes } from "@thekrystalship/krystal/lib/theme";
 
 // The cinema palettes, drawn in `themes.css`. Registered before the first render so the picker
 // lists them and a stored preference naming one takes effect.

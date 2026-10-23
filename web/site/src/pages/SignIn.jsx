@@ -2,13 +2,13 @@ import React from "react";
 import { Button, CardScreen, Notice } from "@thekrystalship/krystal";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { signIn } from "../session.js";
-import { holdSplash } from "../splash.js";
+import { holdSplash } from "@thekrystalship/krystal";
 
 const UNREACHABLE = "The sign-in service is not answering. Try again in a moment.";
 
 /**
  * Nothing to show yet: the page before a session is known, or while the browser leaves for the
- * provider. It keeps the splash up (`splash.js`), and is its canvas once the splash has gone.
+ * provider. It keeps the splash up, and is its canvas once the splash has gone.
  */
 export function Dark() {
   React.useLayoutEffect(() => holdSplash(), []);

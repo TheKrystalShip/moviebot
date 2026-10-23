@@ -39,7 +39,7 @@ export default [
   {
     // The checks under verify/ run in Node and drive a browser, so they see both; scripts/ are the
     // authoring tools, run in Node.
-    files: ["vite.config.*", "eslint.config.js", "verify/**/*.mjs", "scripts/**/*.mjs"],
+    files: ["vite.config.*", "eslint.config.js", "identity.js", "verify/**/*.mjs"],
     languageOptions: { globals: { ...globals.node } },
   },
 
