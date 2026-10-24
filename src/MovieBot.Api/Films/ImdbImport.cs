@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Api.Data;
 
@@ -113,7 +114,7 @@ public sealed class ImdbDatasets(HttpClient http, IOptions<ImdbOptions> options)
 /// nothing with fewer votes than the floor. The data is used to rank and to show a title's IMDb
 /// rating and votes, and is never served as a database.
 /// </summary>
-public static class ImdbImport
+public static partial class ImdbImport
 {
     /// <summary>The meta key holding which day's datasets the table holds.</summary>
     public const string EditionKey = "imdb_edition";
@@ -125,6 +126,11 @@ public static class ImdbImport
     public const string ImportedKey = "imdb_imported";
 
     private const string Staging = "imdb_titles_next";
+
+    // SQLite keeps a renamed table's definition with its name quoted, so the name is matched either way.
+    [GeneratedRegex("""^CREATE TABLE\s+"?imdb_titles"?""", RegexOptions.CultureInvariant)]
+    private static partial Regex TableName();
+
     private const int BatchRows = 20_000;
 
     private readonly record struct Row(long Id, string Kind, string Title, int? Year, int? Runtime, string Genres, double Rating, int Votes);
@@ -150,7 +156,7 @@ public static class ImdbImport
             c.Execute($"DROP TABLE IF EXISTS {Staging}");
             var definition = c.First("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'imdb_titles'", r => r.GetString(0))
                              ?? throw new InvalidOperationException("The database has no imdb_titles table.");
-            c.Execute(definition.Replace("TABLE imdb_titles", "TABLE " + Staging, StringComparison.Ordinal));
+            c.Execute(TableName().Replace(definition, "CREATE TABLE " + Staging));
         });
 
         try

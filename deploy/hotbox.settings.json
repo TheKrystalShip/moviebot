@@ -59,6 +59,11 @@
     "Prefetch": false
   },
 
+  // The people watching stream in Spain; certificates keep the US ratings the shelves name.
+  "Tmdb": {
+    "WatchRegion": "ES"
+  },
+
   // Voice commands are off, and no speech source is configured; the code that hears them is kept.
   "Voice": {
     "Enabled": false

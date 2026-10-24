@@ -655,7 +655,7 @@ public sealed class CatalogueSearchTests(SessionFixture fixture) : IClassFixture
         StoredFilm Kept(IReadOnlyList<string>? keywords) => new()
         {
             FetchedAt = DateTimeOffset.UtcNow,
-            Details = new FilmDetails { TmdbId = 1, ImdbId = "tt0000001", Title = "Kept", Keywords = keywords },
+            Details = new FilmDetails { TmdbId = 1, ImdbId = "tt0000001", Title = "Kept", Keywords = keywords, Trailers = [] },
         };
 
         Assert.True(films.IsDue(Kept(null)));

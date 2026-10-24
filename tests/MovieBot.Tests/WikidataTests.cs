@@ -153,6 +153,18 @@ public sealed class WikidataShelfTests(WikidataFixture fixture) : IClassFixture<
         Assert.Equal(kept, fixture.Wikidata.SetQueries.Count);
     }
 
+}
+
+/// <summary>An awards shelf once the cycle has kept its set. It has a host of its own because the shelves test above needs the sets cold.</summary>
+public sealed class WikidataAwardsShelfTests(WikidataFixture fixture) : IClassFixture<WikidataFixture>
+{
+    private HttpClient Signed()
+    {
+        var client = fixture.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", fixture.TokenFor("w1", "Gil"));
+        return client;
+    }
+
     [Fact]
     public async Task An_awards_shelf_lists_the_newest_first_joined_with_the_library()
     {
@@ -195,7 +207,7 @@ public sealed class WikidataQuestionTests(WikidataFixture fixture) : IClassFixtu
     {
         var view = await Ask("best stephen king adaptations");
 
-        Assert.Equal(["adaptation:Adaptations of Stephen King"], view.Parts.Select(p => $"{p.Part}:{p.Text}"));
+        Assert.Equal(["sort:Best rated", "adaptation:Adaptations of Stephen King"], view.Parts.Select(p => $"{p.Part}:{p.Text}"));
         Assert.Equal(["Pirates of the Caribbean", "Heat"], view.Titles.Select(t => t.Title));
         Assert.Contains(fixture.Wikidata.Queries, q => q.Contains("wdt:P144 ?work. ?work wdt:P50 wd:Q39829."));
     }

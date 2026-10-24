@@ -83,7 +83,7 @@ public sealed class ImdbRatings(CinemaDatabase database)
 
         var read = database.Read(c => c.First(
             "SELECT rating, votes FROM imdb_titles WHERE imdb_id = $id",
-            r => new Rating(r.GetDouble(0), r.GetInt32(1)), ("$id", number)));
+            r => (Rating?)new Rating(r.GetDouble(0), r.GetInt32(1)), ("$id", number)));
         if (_seen.Count >= MostRemembered) _seen.Clear();
         _seen[number] = read;
         return read;

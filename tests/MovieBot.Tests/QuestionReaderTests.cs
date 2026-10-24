@@ -135,7 +135,7 @@ public sealed class QuestionReaderTests
     [Fact]
     public void The_words_for_a_kind_are_never_a_genre_of_the_database()
     {
-        var question = Read("tv movies");
+        var question = Read("best tv movies");
 
         Assert.Empty(question.Request.Genres);
         Assert.Equal("film", question.Request.Kind);
@@ -144,8 +144,13 @@ public sealed class QuestionReaderTests
     [Fact]
     public void A_genre_the_vocabulary_lacks_is_not_read()
     {
-        Assert.Null(QuestionReader.Read("horror movies", Today, new QuestionVocabulary()));
-        Assert.Null(QuestionReader.Read("korean movies", Today, new QuestionVocabulary()));
+        var horror = QuestionReader.Read("horror movies", Today, new QuestionVocabulary())!;
+        Assert.Empty(horror.Request.Genres);
+        Assert.Equal("horror", horror.Named);
+
+        var korean = QuestionReader.Read("korean movies", Today, new QuestionVocabulary())!;
+        Assert.Null(korean.Request.Language);
+        Assert.Equal("korean", korean.Named);
     }
 
     [Fact]

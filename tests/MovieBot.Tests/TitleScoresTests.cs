@@ -179,7 +179,7 @@ public sealed class TitleScoresTests : IDisposable
             Details = new FilmDetails
             {
                 TmdbId = 1, ImdbId = "tt0000001", Title = "T", ReleaseDate = released,
-                Cast = [new CastMember { Name = "A", TmdbId = 5 }], Keywords = [],
+                Cast = [new CastMember { Name = "A", TmdbId = 5 }], Keywords = [], Trailers = [],
             },
         };
 

@@ -104,9 +104,11 @@ public sealed class StreamingTests(SessionFixture fixture) : IClassFixture<Sessi
         await Get<FilmView>("/api/films/tt0113277");
         await Get<FilmView>("/api/films/tt0113277");
 
-        var asked = fixture.FilmDatabase.Requests.Skip(before).Where(r => r.StartsWith("/3/movie/949?")).ToList();
-        Assert.True(asked.Count <= 1);
-        var all = fixture.FilmDatabase.Requests.Where(r => r.StartsWith("/3/movie/949?")).ToList();
+        // A title card (credits alone) is another, smaller question.
+        static bool Description(string r) => r.StartsWith("/3/movie/949?") && !r.Contains("append_to_response=credits&");
+        Assert.True(fixture.FilmDatabase.Requests.Skip(before).Count(Description) <= 1);
+        var all = fixture.FilmDatabase.Requests.Where(Description).ToList();
+        Assert.NotEmpty(all);
         Assert.All(all, r => Assert.Contains("append_to_response=credits,release_dates,keywords,videos,recommendations,reviews,images,watch/providers", r));
         Assert.DoesNotContain(fixture.FilmDatabase.Requests, r => r.Contains("/movie/949/videos") || r.Contains("/movie/949/reviews") || r.Contains("/movie/949/watch/providers"));
     }
@@ -128,12 +130,14 @@ public sealed class StreamingTests(SessionFixture fixture) : IClassFixture<Sessi
     [Fact]
     public async Task A_streaming_shelf_asks_for_the_regions_titles_on_that_service_and_pages_like_the_rest()
     {
-        var before = fixture.FilmDatabase.Requests.Count;
+        await Get<DiscoverIndexView>("/api/discover");
         var shelf = await Get<ShelfView>("/api/discover/shelves/streaming-8-film");
 
         Assert.Equal(("Netflix", "Streaming", "film"), (shelf!.Title, shelf.Section, shelf.Kind));
         Assert.Equal(["The Cellar Door", "Echo Valley"], shelf.Titles.Select(t => t.Title));
-        var discovery = Assert.Single(fixture.FilmDatabase.Requests.Skip(before), r => r.StartsWith("/3/discover/movie"));
+        // The answer is kept, so whichever call first needed it asked the database once.
+        var discovery = Assert.Single(fixture.FilmDatabase.Requests,
+            r => r.StartsWith("/3/discover/movie") && r.Contains("with_watch_providers=8") && !r.Contains("with_genres"));
         Assert.Contains("with_watch_providers=8", discovery);
         Assert.Contains("watch_region=US", discovery);
         Assert.Contains("with_watch_monetization_types=flatrate|free|ads", discovery);
@@ -146,14 +150,15 @@ public sealed class StreamingTests(SessionFixture fixture) : IClassFixture<Sessi
     [Fact]
     public async Task A_question_that_names_a_service_asks_the_database_for_it_in_any_order()
     {
-        var before = fixture.FilmDatabase.Requests.Count;
         var view = await Get<CatalogueQuestionView>("/api/catalogue/ask?q=" + Uri.EscapeDataString("horror on netflix"));
 
         Assert.True(view!.Question);
         Assert.Equal("genre:Horror | provider:Netflix", string.Join(" | ", view.Parts.Select(p => $"{p.Part}:{p.Text}")));
         Assert.Equal(["Netflix"], view.Resolved!.Providers);
         Assert.Equal(["The Cellar Door"], view.Titles.Select(t => t.Title));
-        var discovery = fixture.FilmDatabase.Requests.Skip(before).First(r => r.StartsWith("/3/discover/movie"));
+        // The answer is kept, so whichever call first needed it asked the database once.
+        var discovery = Assert.Single(fixture.FilmDatabase.Requests,
+            r => r.StartsWith("/3/discover/movie") && r.Contains("with_genres=27") && r.Contains("with_watch_providers=8"));
         Assert.Contains("with_genres=27", discovery);
         Assert.Contains("with_watch_providers=8", discovery);
         Assert.Contains("watch_region=US", discovery);

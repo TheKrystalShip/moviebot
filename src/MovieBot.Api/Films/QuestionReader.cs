@@ -103,6 +103,7 @@ public static class QuestionReader
         ["movie"] = "film", ["movies"] = "film", ["film"] = "film", ["films"] = "film", ["flick"] = "film", ["flicks"] = "film",
         ["show"] = "show", ["shows"] = "show", ["series"] = "show", ["tv"] = "show", ["tv shows"] = "show", ["tv show"] = "show",
         ["tv series"] = "show", ["miniseries"] = "show", ["television"] = "show",
+        ["tv movie"] = "film", ["tv movies"] = "film",
     };
 
     /// <summary>Words that order the answer, with what is shown for each order.</summary>
@@ -288,6 +289,8 @@ public static class QuestionReader
             {
                 var leading = _unread.Select((w, i) => w == i).All(b => b);
                 if (!leading || (_kind is null && _genres.Count == 0 && !_anime)) return null;
+                // One word before a genre alone is a title's name (star wars), not a person's.
+                if (_kind is null && !_anime && _unread.Count == 1) return null;
                 named = string.Join(' ', _unread.Select(i => words[i]));
             }
 
@@ -785,6 +788,9 @@ public static class QuestionReader
                 while (start + 1 < words.Count && words[start] is "the" or "a" or "an") start++;
             var end = start + 1;
             while (end < words.Count && !Ends(end)) end++;
+            // A kind word closing a subject whose kind is already named belongs to it: a keyword such as "silent film".
+            if (taken == "about" && _kind is not null && end < words.Count && Kind(end, consume: false) is > 0 and var kindWords && end + kindWords == words.Count)
+                end = words.Count;
 
             var span = words.Skip(start).Take(end - start).ToList();
             var names = taken is "like" or "adaptation" or "set" or "filmed"

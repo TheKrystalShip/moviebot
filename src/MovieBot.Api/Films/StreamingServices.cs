@@ -41,7 +41,7 @@ public sealed class StreamingServices(string root, AnswerKeeper keeper, KeptImag
     private const string Images = "catalogue";
 
     /// <summary>The region titles are asked about, an upper-case ISO 3166-1 code.</summary>
-    public string Region => tmdb.Value.Region.ToUpperInvariant();
+    public string Region => tmdb.Value.StreamingRegion.ToUpperInvariant();
 
     /// <summary>The names people say for a service besides the one the database lists, with the listed name each means.</summary>
     private static readonly Dictionary<string, string> Aliases = new(StringComparer.Ordinal)
