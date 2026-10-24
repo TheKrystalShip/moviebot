@@ -38,6 +38,12 @@ public sealed record FoundTitle
 
     public int Votes { get; init; }
 
+    /// <summary>IMDb's rating out of ten, to one decimal; absent when the IMDb import does not hold the title.</summary>
+    public double? ImdbRating { get; init; }
+
+    /// <summary>The votes behind <see cref="ImdbRating"/>.</summary>
+    public int? ImdbVotes { get; init; }
+
     public string? Overview { get; init; }
 
     /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>

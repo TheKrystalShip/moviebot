@@ -111,15 +111,29 @@ film onto a device is `Offline/CLAUDE.md`.
   charts, lists), and `FilmStore`, `ShowStore`, `TitleGlances` and `PopularNow` for theirs, each when
   it fetches and when it first reads a row. Every view takes `rating` and `votes` from
   `TitleScores.Serve`, falling back to the answer's own for a title nothing is held for, and a rating
-  with fewer than `CatalogueSearch.RatedVotes` votes is served as none. A film released within sixty
+  with fewer than `CatalogueSearch.RatedVotes` votes is served as none. IMDb's figure for a title is
+  a second one beside it, `imdbRating` and `imdbVotes` from `TitleScores.Imdb` on every view that
+  carries a title's IMDb id, and never replaces `rating`. A film released within sixty
   days is described again after `Tmdb:RecentRefreshDays`, since the observations only move as fast as
   the database is asked.
+- **IMDb's datasets are imported daily and used to rank, never served as a database**
+  (`Films/ImdbImport.cs`). `ImdbImporter` asks after `title.basics` and `title.ratings` with HEAD and
+  reads them (streamed, gzip-decoded, never held whole or written to disk) only when either differs
+  from the versions the table was made from; it keeps `movie` and `tvMovie` as films and `tvSeries` and
+  `tvMiniSeries` as shows, not adult, with at least `Imdb:MinVotes` votes, in `imdb_titles`. The rows
+  go into a table of their own in batches and are swapped in by one transaction, so a reader sees a
+  whole import or the last one and the database's writer is never held for the length of an import. The
+  licence is personal, non-commercial use: the data ranks and gives a title its IMDb rating and
+  votes, and no route lists it. `Films/ImdbRatings` reads the table (a title looked up once is
+  remembered, nothing is loaded ahead). A host where the import never ran has no IMDb data, and
+  everything built on it does what it does without it. Tests never reach IMDb: `ImdbDatasets` is a
+  typed client a test gives a handler, and the test host sets `Imdb:Enabled` false.
 - **Finding is `Films/CatalogueSearch`, and every answer is kept by `Films/AnswerKeeper`.** A search by
   name, a person by name and every dated credit they have, a discovery by genre, years, people,
   keywords, language, a rating floor and similarity to another title, and the lists of what is out and
   what is coming are asked of the film database once and kept (a question somebody typed is named
   under `queries/` and trimmed after thirty days unasked), for a day or for six hours, and a database
-  that cannot be reached costs freshness and nothing else. A discovery, a question and a shelf are served a page at a time (`PageAsk`: a page of 20 titles, a shelf's of 40, at most `CatalogueSearch.PagesListed` pages, a count bounding the total); each page of the database's own order is its own kept answer, while a sort by rating keeps the one ranked list of the most voted titles and slices it, so every page continues the same order. A source that is whole in one answer says there is no next page. What names a title (its IMDb id, makers and
+  that cannot be reached costs freshness and nothing else. A discovery, a question and a shelf are served a page at a time (`PageAsk`: a page of 20 titles, a shelf's of 40, at most `CatalogueSearch.PagesListed` pages, a count bounding the total); each page of the database's own order is its own kept answer, while a sort by rating keeps the one ranked list of the most voted titles and slices it, so every page continues the same order. Where `ImdbRatings` holds data that list is ranked by `Films/ImdbRanking`: the titles the database listed, and for a question of kind, genre and years alone the best rated titles IMDb files there that it did not list (resolved by IMDb id through `TitleGlances`, at most `ImdbRanking.Widened`), ordered by IMDb's rating weighted by votes over a floor that scales with the question's breadth, and kept under a name that holds the datasets' day (`docs/api-contract.md`, IMDb's datasets). A source that is whole in one answer says there is no next page. What names a title (its IMDb id, makers and
   top-billed actors) is one call kept a week, so a title in many answers is asked about once. Every word
   that names a genre, a person, a keyword or a language is resolved to the database's and reported in
   `resolved`; a word the database does not know is refused (`404`) rather than dropped, because a

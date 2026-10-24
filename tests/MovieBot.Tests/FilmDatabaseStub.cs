@@ -54,6 +54,9 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
     /// <summary>The first film of the paged subject; the others follow by one.</summary>
     public const int PagedFirst = 9000;
 
+    /// <summary>A horror film the database files nowhere its discovery lists, known to it only by its IMDb id.</summary>
+    public const string ForgottenReel = "tt9000777";
+
     /// <summary>An animated film made in Japanese, which is what anime is here.</summary>
     public const string DreamDetective = "tt9000401";
 
@@ -138,6 +141,8 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             return """{ "movie_results": [ { "id": 22, "overview": "A blacksmith and a pirate.", "vote_average": 7.81, "vote_count": 21000, "release_date": "2003-07-09", "poster_path": "/pearl.jpg" } ] }""";
         if (path.EndsWith("/find/" + SilverHarbour)) return """{ "movie_results": [ { "id": 7004 } ] }""";
         if (path.EndsWith("/find/" + DreamDetective)) return """{ "movie_results": [ { "id": 7401 } ] }""";
+        if (path.EndsWith("/find/" + ForgottenReel))
+            return """{ "movie_results": [ { "id": 7701, "overview": "Found only by IMDb.", "vote_average": 6.0, "vote_count": 12, "release_date": "2003-05-05", "poster_path": "/p7701.jpg" } ] }""";
         if (path.Contains("/find/")) return """{ "movie_results": [] }""";
         if (path.EndsWith("/movie/949")) return Heat;
         if (path.EndsWith("/trending/movie/week"))
@@ -252,6 +257,7 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         if (path.EndsWith("/movie/7005")) return Movie(7005, "tt9000005", "Quiet Money", "2010-06-01", "Released", drama, "", "");
         if (path.EndsWith("/movie/7101"))
             return Movie(7101, "tt9000101", "The Cellar Door", "2002-10-31", "Released", horror, Director(41, "Lou Frame"), Cast(42, "Ada Moor", 0) + ", " + Cast(43, "Ben Pike", 1));
+        if (path.EndsWith("/movie/7701")) return Movie(7701, ForgottenReel, "Forgotten Reel", "2003-05-05", "Released", horror, Director(46, "Fen Lowe"), Cast(47, "Gus Park", 0));
         if (path.EndsWith("/movie/7102")) return Movie(7102, "tt9000102", "Hollow Hill", "2004-09-10", "Released", horror, Director(44, "Eve Stone"), Cast(45, "Cal Rowe", 0));
         if (path.EndsWith("/movie/7201"))
             return Movie(7201, "tt9000201", "Echo Valley", "2019-05-05", "Released", horror, Director(51, "Una Fox"), Cast(52, "Dee Hale", 0), "{ \"id\": 10854, \"name\": \"time loop\" }");

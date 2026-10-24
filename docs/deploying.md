@@ -202,6 +202,10 @@ quotes.
 Leave the three keys under "Internal keys" as they are. `OpenSubtitles__ApiKey` and
 `Tmdb__ReadAccessToken` are optional; the second is the "API Read Access Token" from your TMDB
 account's API settings, not the shorter "API Key".
+`Imdb__Enabled` (default true) imports IMDb's non-commercial datasets once a day, so a question
+ranked by rating uses IMDb's votes and titles show IMDb's rating; the API reaches
+`datasets.imdbws.com` for it, about 240 MB a day, and keeps the result in its database. Set it to
+`false` to leave IMDb out.
 Save and exit the same way.
 
 ## Step 5: Start qBittorrent

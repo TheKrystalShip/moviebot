@@ -18,8 +18,11 @@ namespace TheKrystalShip.MovieBot.Api.Films;
 ///
 /// The key is the database's id and kind because a chart's answer names no IMDb id. A listing reads
 /// a score on every row, so all of them are held in memory, written through.
+///
+/// IMDb's rating and votes for a title (<see cref="Imdb"/>) ride beside it on every view that carries
+/// a title's IMDb id; they are a second figure, and <see cref="Serve"/> is unchanged by them.
 /// </summary>
-public sealed class TitleScores(CinemaDatabase database)
+public sealed class TitleScores(CinemaDatabase database, ImdbRatings imdb)
 {
     /// <summary>One rating as an answer carried it.</summary>
     internal readonly record struct Reading(int TmdbId, string Kind, double? Rating, int Votes);
@@ -77,6 +80,10 @@ public sealed class TitleScores(CinemaDatabase database)
         if (_held.TryGetValue((tmdbId, kind), out var held)) (rating, votes) = (held.Rating, held.Votes);
         return (rating is not null && votes >= CatalogueSearch.RatedVotes ? rating : null, votes);
     }
+
+    /// <summary>IMDb's rating and votes for a title, or none for one the IMDb import does not hold.</summary>
+    public (double? Rating, int? Votes) Imdb(string? imdbId) =>
+        imdb.Of(imdbId) is { } held ? (held.Value, held.Votes) : (null, null);
 
     /// <summary>Every rating in an answer the film database gave, for the answers that carry any.</summary>
     internal static IEnumerable<Reading> ReadingsOf(object answer) => answer switch

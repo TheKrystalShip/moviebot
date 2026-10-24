@@ -19,7 +19,7 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions];
+    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles];
 
     public static int Version => Steps.Length;
 
@@ -36,6 +36,24 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string ImdbTitles = """
+        -- IMDb's non-commercial datasets as the import keeps them: the films and shows with enough votes
+        -- to mean something, one row per IMDb id (its number without the tt), used to rank and to show a
+        -- title's IMDb rating and votes. genres is IMDb's names with a comma on each side of every one
+        -- (',Horror,Thriller,'), so a genre is looked for as ',Horror,'. An import fills a table of its own and
+        -- swaps it in, so this one is always a whole import or empty.
+        CREATE TABLE imdb_titles (
+            imdb_id    INTEGER PRIMARY KEY,
+            kind       TEXT NOT NULL CHECK (kind IN ('film', 'show')),
+            title      TEXT NOT NULL,
+            start_year INTEGER,
+            runtime    INTEGER,
+            genres     TEXT NOT NULL,
+            rating     REAL NOT NULL,
+            votes      INTEGER NOT NULL
+        );
+        """;
 
     private const string PlanSuggestions = """
         -- Who put each of a plan's times forward: the maker for the times a plan is made with, anybody

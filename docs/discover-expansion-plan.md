@@ -65,11 +65,7 @@ Landed: `docs/api-contract.md` (`/api/catalogue/discover`, `/api/catalogue/ask`,
 
 ### 4·d IMDb ranking
 
-A daily import of `title.basics` and `title.ratings` into the API's database (films and shows, the
-two files only), keyed by IMDb id. A question ordered by quality, and the acclaimed shelves, rank by
-IMDb rating with a vote floor scaled to the question's breadth, over the candidates TMDB's discovery
-finds and IMDb's own genre and year match. A title shows one rating wherever it is shown
-(`TitleScores`); which source that is, and whether both show, is the design phase's.
+Landed: `docs/api-contract.md` (IMDb's datasets), `src/MovieBot.Api/CLAUDE.md`.
 
 ### 4·e Wikidata shelves and facts
 

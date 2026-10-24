@@ -119,6 +119,8 @@ public class SessionFixture : WebApplicationFactory<Program>
                 ["Tmdb:CatalogueDirectory"] = Path.Combine(StateRoot, "catalogue"),
                 // A test asks for each shelf itself, and counts what the database was asked.
                 ["Tmdb:ShelvesWarmMinutes"] = "0",
+                // IMDb's datasets are never fetched; a test that wants them loads its own.
+                ["Imdb:Enabled"] = "false",
             }));
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(MoreSettings()));
 

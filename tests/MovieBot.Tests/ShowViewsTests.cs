@@ -119,7 +119,7 @@ public sealed class ShowViewsTests(SessionFixture fixture) : IClassFixture<Sessi
         var root = Path.Combine(Path.GetTempPath(), "moviebot-shows-" + Guid.NewGuid().ToString("n"));
         var database = new CinemaDatabase(Path.Combine(root, "moviebot.db"));
         return new ShowStore(root, Microsoft.Extensions.Options.Options.Create(new Api.Films.FilmStoreOptions()), null!,
-            new Api.Films.PosterPins(database), new Api.Films.KeptImages(database), database, new Api.Films.TitleScores(database), new EpisodeNumbering(), TimeProvider.System,
+            new Api.Films.PosterPins(database), new Api.Films.KeptImages(database), database, new Api.Films.TitleScores(database, new Api.Films.ImdbRatings(database)), new EpisodeNumbering(), TimeProvider.System,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<ShowStore>.Instance);
     }
 }

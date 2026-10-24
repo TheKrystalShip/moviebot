@@ -107,6 +107,13 @@ builder.Services.AddOptions<FilmStoreOptions>().Bind(builder.Configuration.GetSe
 builder.Services.AddHttpClient<TmdbClient>((sp, http) =>
     http.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<TmdbOptions>>().Value.TimeoutSeconds))
     .KeepConnectionsOpen();
+
+// IMDb's datasets, imported daily into the database: they rank a question asked by rating and give
+// every title its IMDb rating. A host where the import has not run has none and does without.
+builder.Services.AddOptions<ImdbOptions>().Bind(builder.Configuration.GetSection(ImdbOptions.Section));
+builder.Services.AddHttpClient<ImdbDatasets>(http => http.Timeout = Timeout.InfiniteTimeSpan);
+builder.Services.AddSingleton<ImdbRatings>();
+builder.Services.AddHostedService<ImdbImporter>();
 builder.Services.AddSingleton<PosterPins>();
 builder.Services.AddSingleton<TitleScores>();
 builder.Services.AddSingleton<KeptImages>();

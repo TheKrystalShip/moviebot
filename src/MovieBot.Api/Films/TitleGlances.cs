@@ -126,8 +126,11 @@ public sealed class TitleGlances(
         }
     }
 
-    /// <summary>The glance of each title the database knows, by IMDb id; a title it does not, or that is still being asked about, is absent.</summary>
-    public async Task<IReadOnlyDictionary<string, TitleGlance>> ForAsync(IReadOnlyList<string> imdbIds, CancellationToken ct)
+    /// <summary>
+    /// The glance of each title the database knows, by IMDb id; a title it does not, or that is still
+    /// being asked about after <paramref name="wait"/> (<see cref="Wait"/> when none is given), is absent.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, TitleGlance>> ForAsync(IReadOnlyList<string> imdbIds, CancellationToken ct, TimeSpan? wait = null)
     {
         var answered = new Dictionary<string, TitleGlance>(StringComparer.Ordinal);
         var waiting = new List<(string Id, Task<StoredGlance?> Asking)>();
@@ -154,7 +157,7 @@ public sealed class TitleGlances(
         if (waiting.Count == 0) return answered;
         try
         {
-            await Task.WhenAll(waiting.Select(w => w.Asking)).WaitAsync(Wait, clock, ct);
+            await Task.WhenAll(waiting.Select(w => w.Asking)).WaitAsync(wait ?? Wait, clock, ct);
         }
         catch (TimeoutException)
         {

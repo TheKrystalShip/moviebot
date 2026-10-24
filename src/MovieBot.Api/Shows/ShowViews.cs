@@ -31,6 +31,12 @@ public sealed record ShowView
 
     public double? Rating { get; init; }
     public int Votes { get; init; }
+
+    /// <summary>IMDb's rating out of ten, to one decimal; absent when the IMDb import does not hold the title.</summary>
+    public double? ImdbRating { get; init; }
+
+    /// <summary>The votes behind <see cref="ImdbRating"/>.</summary>
+    public int? ImdbVotes { get; init; }
     public required List<string> Creators { get; init; }
 
     /// <summary>Each creator's id in the film database, by the name they are listed under.</summary>
@@ -133,10 +139,13 @@ public static class ShowViews
     {
         if (imdbId is null || store.Held(imdbId)?.Details is not { } d) return null;
         var (rating, votes) = store.Scores.Serve(d.TmdbId, "show", d.Rating, d.Votes);
+        var (imdbRating, imdbVotes) = store.Scores.Imdb(d.ImdbId);
         return new FilmFacts
         {
             Rating = rating,
             Votes = votes,
+            ImdbRating = imdbRating,
+            ImdbVotes = imdbVotes,
             Certification = d.Certification,
             Genres = [.. d.Genres],
             Overview = d.Overview,
@@ -174,6 +183,7 @@ public static class ShowViews
         var d = stored?.Details;
         string? Image(string file) => store.HasImage(imdbId, file) ? ImageUrl(imdbId, file) : null;
         var (rating, votes) = d is null ? (null, 0) : store.Scores.Serve(d.TmdbId, "show", d.Rating, d.Votes);
+        var (imdbRating, imdbVotes) = store.Scores.Imdb(imdbId);
 
         var held = episodes
             .Where(e => e.Episode is not null)
@@ -243,6 +253,8 @@ public static class ShowViews
             Keywords = [.. d?.Keywords ?? []],
             Rating = rating,
             Votes = votes,
+            ImdbRating = imdbRating,
+            ImdbVotes = imdbVotes,
             Creators = [.. d?.Creators ?? []],
             PersonIds = new Dictionary<string, int>(d?.PersonIds ?? new Dictionary<string, int>()),
             Cast = (d?.Cast ?? []).Select((c, i) => new CastView

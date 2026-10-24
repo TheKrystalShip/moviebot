@@ -34,7 +34,7 @@ public sealed class TitleScoresTests : IDisposable
     [Fact]
     public void The_newest_observation_wins_whatever_order_they_arrive_in()
     {
-        var scores = new TitleScores(Database);
+        var scores = new TitleScores(Database, new ImdbRatings(Database));
 
         scores.Observe(1288069, "film", 6.2, 40, Oct16);
         scores.Observe(1288069, "film", 4.0, 30, Oct9);
@@ -47,15 +47,15 @@ public sealed class TitleScoresTests : IDisposable
     [Fact]
     public void A_score_is_kept_across_a_restart()
     {
-        new TitleScores(Database).Observe(7, "show", 7.7, 500, Oct16);
+        new TitleScores(Database, new ImdbRatings(Database)).Observe(7, "show", 7.7, 500, Oct16);
 
-        Assert.Equal((7.7, 500), new TitleScores(Database).Serve(7, "show", null, 0));
+        Assert.Equal((7.7, 500), new TitleScores(Database, new ImdbRatings(Database)).Serve(7, "show", null, 0));
     }
 
     [Fact]
     public void A_film_and_a_show_with_one_id_are_two_titles()
     {
-        var scores = new TitleScores(Database);
+        var scores = new TitleScores(Database, new ImdbRatings(Database));
         scores.Observe(5, "film", 6.0, 100, Oct16);
         scores.Observe(5, "show", 9.0, 100, Oct16);
 
@@ -66,7 +66,7 @@ public sealed class TitleScoresTests : IDisposable
     [Fact]
     public void A_title_nothing_is_held_for_is_served_as_its_answer_has_it()
     {
-        var scores = new TitleScores(Database);
+        var scores = new TitleScores(Database, new ImdbRatings(Database));
 
         Assert.Equal((7.1, 300), scores.Serve(99, "film", 7.1, 300));
         Assert.Equal((null, 0), scores.Serve(99, "film", null, 0));
@@ -75,7 +75,7 @@ public sealed class TitleScoresTests : IDisposable
     [Fact]
     public void Too_few_votes_is_no_rating_but_the_votes_are_still_said()
     {
-        var scores = new TitleScores(Database);
+        var scores = new TitleScores(Database, new ImdbRatings(Database));
 
         Assert.Equal((null, CatalogueSearch.RatedVotes - 1), scores.Serve(1, "film", 9.5, CatalogueSearch.RatedVotes - 1));
         Assert.Equal((9.5, CatalogueSearch.RatedVotes), scores.Serve(1, "film", 9.5, CatalogueSearch.RatedVotes));
@@ -87,7 +87,7 @@ public sealed class TitleScoresTests : IDisposable
     [Fact]
     public void A_rating_nobody_gave_is_not_recorded()
     {
-        var scores = new TitleScores(Database);
+        var scores = new TitleScores(Database, new ImdbRatings(Database));
         scores.Observe(3, "film", 7.0, 400, Oct9);
         scores.Observe(3, "film", null, 0, Oct20);
 
@@ -109,7 +109,7 @@ public sealed class TitleScoresTests : IDisposable
               ('tt0000004', '2026-10-12T10:00:00.0000000Z', '{"tmdbId":2,"rating":7.4,"votes":60}', '[]');
             """);
 
-        var scores = new TitleScores(Database);
+        var scores = new TitleScores(Database, new ImdbRatings(Database));
 
         Assert.Equal((null, 4), scores.Serve(1288069, "film", null, 0));
         Assert.Equal((8.1, 900), scores.Serve(2, "film", null, 0));
@@ -123,7 +123,7 @@ public sealed class TitleScoresTests : IDisposable
         Database.Write(c => c.Execute(
             "INSERT INTO film_descriptions (imdb_id, fetched_at, details) VALUES ('tt6262770', $at, $details)",
             ("$at", Oct16), ("$details", """{"tmdbId":1288069,"imdbId":"tt6262770","title":"Tenzing","rating":6.2,"votes":4,"genres":[],"directors":[]}""")));
-        new TitleScores(Database).Observe(1288069, "film", 8.3, 105, Oct20);
+        new TitleScores(Database, new ImdbRatings(Database)).Observe(1288069, "film", 8.3, 105, Oct20);
 
         var facts = films.Store.Facts("tt6262770");
 
@@ -148,7 +148,7 @@ public sealed class TitleScoresTests : IDisposable
     [Fact]
     public void An_answer_kept_by_the_catalogue_is_recorded_as_it_is_read()
     {
-        var scores = new TitleScores(Database);
+        var scores = new TitleScores(Database, new ImdbRatings(Database));
         var clock = new FakeTimeProvider(Oct20);
         var keeper = new AnswerKeeper(Database, scores, null!, clock, NullLogger<AnswerKeeper>.Instance);
         var person = new PersonCredits
@@ -192,7 +192,7 @@ public sealed class TitleScoresTests : IDisposable
 
     private (FilmStore Store, TitleScores Scores) NewFilmStore(DateTimeOffset now)
     {
-        var scores = new TitleScores(Database);
+        var scores = new TitleScores(Database, new ImdbRatings(Database));
         var store = new FilmStore(Path.Combine(_dir, "films"), Options.Create(new FilmStoreOptions()), null!,
             new PosterPins(Database), new KeptImages(Database), Database, scores, new FakeTimeProvider(now),
             NullLogger<FilmStore>.Instance);

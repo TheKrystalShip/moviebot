@@ -125,6 +125,11 @@ public sealed record CollectionAnswer(string Name, List<TitleHit> Hits);
 /// for six hours. What names a title (its IMDb id, who made it and who stars in it) is one call per
 /// title kept for a week, so a title that turns up in many answers is asked about once. A title's
 /// poster is the one its page shows, served by <see cref="TitleGlances"/>.
+///
+/// A question ordered by rating is ranked by IMDb's ratings and votes where the IMDb import holds
+/// them (<see cref="ImdbRanking"/>), over the titles the film database listed and, for a question of
+/// kind, genre and years alone, the best rated titles IMDb itself files there that the film database
+/// did not list.
 /// </summary>
 public sealed partial class CatalogueSearch(
     AnswerKeeper keeper,
@@ -136,6 +141,7 @@ public sealed partial class CatalogueSearch(
     WatchRecord record,
     TitleCategories categories,
     TitleScores scores,
+    ImdbRatings imdbRatings,
     TimeProvider clock)
 {
     /// <summary>The most titles a search lists.</summary>
@@ -564,6 +570,7 @@ public sealed partial class CatalogueSearch(
         var imdb = card?.ImdbId;
         var released = listed.Released ?? card?.Released;
         var (rating, votes) = scores.Serve(listed.TmdbId, listed.Kind, listed.Rating, listed.Votes);
+        var (imdbRating, imdbVotes) = scores.Imdb(imdb);
         return new TitleHitView
         {
             ImdbId = imdb,
@@ -575,6 +582,8 @@ public sealed partial class CatalogueSearch(
             Genres = [.. card?.Genres ?? []],
             Rating = rating,
             Votes = votes,
+            ImdbRating = imdbRating,
+            ImdbVotes = imdbVotes,
             Plot = OneLine(listed.Overview),
             MadeBy = [.. card?.MadeBy ?? []],
             Starring = [.. card?.Starring ?? []],
@@ -592,6 +601,7 @@ public sealed partial class CatalogueSearch(
         var (credit, card) = (hit.Credit, hit.Card);
         var imdb = card?.ImdbId;
         var (rating, votes) = scores.Serve(credit.TmdbId, credit.Kind, credit.Rating, credit.Votes);
+        var (imdbRating, imdbVotes) = scores.Imdb(imdb);
         return new CreditView
         {
             TmdbId = credit.TmdbId,
@@ -604,6 +614,8 @@ public sealed partial class CatalogueSearch(
             Role = credit.Role,
             Rating = rating,
             Votes = votes,
+            ImdbRating = imdbRating,
+            ImdbVotes = imdbVotes,
             PosterUrl = imdb is null ? null : glances.PosterUrl(imdb, Glance(credit.AsListed())),
             InLibrary = shelf.Holds(credit.Kind, imdb),
             LibraryId = shelf.LibraryIdOf(credit.Kind, imdb),
@@ -660,7 +672,15 @@ public sealed partial class CatalogueSearch(
                 AnswerJson.Default.ListListedTitle, keep,
                 async (tmdb, token) => (await tmdb.DiscoverAsync(query, TmdbClient.RatingPoolSize, token)).ToList(), null, ct);
             if (pool is null) return Unavailable<TitlePage>("The film database could not be asked to discover.");
-            var ranked = pool.Value ?? [];
+            IReadOnlyList<ListedTitle> ranked = pool.Value ?? [];
+            if (imdbRatings.Edition is { } edition)
+            {
+                var byImdb = await keeper.KeptAsync(
+                    AnswerKeeper.QueryName(family, Canonical(query, TmdbClient.RatingPoolSize, 0) + "|imdb|" + edition),
+                    AnswerJson.Default.ListListedTitle, keep,
+                    async (_, token) => await RankedByImdbAsync(query, ranked, token), null, ct);
+                if (byImdb?.Value is { Count: > 0 } better) ranked = better;
+            }
             return Outcome<TitlePage>.Ok(new TitlePage([.. ranked.Skip(ask.Skip).Take(ask.Take)], ask.Next(ranked.Count > ask.Skip + ask.Size)));
         }
 
@@ -728,7 +748,7 @@ public sealed partial class CatalogueSearch(
         IEnumerable<ListedTitle> ordered = sort switch
         {
             DiscoverSorts.Popular => narrowed.OrderByDescending(t => t.Popularity),
-            DiscoverSorts.Rating => WeightedRating.Order(narrowed),
+            DiscoverSorts.Rating => await RatedAsync(narrowed, ct),
             DiscoverSorts.Newest => narrowed.OrderBy(t => t.Released is null).ThenByDescending(t => t.Released),
             DiscoverSorts.Oldest => narrowed.OrderBy(t => t.Released is null).ThenBy(t => t.Released),
             _ => narrowed,
@@ -762,6 +782,118 @@ public sealed partial class CatalogueSearch(
             if (matched.Count > ask.Skip + ask.Size) break;
         }
         return Outcome<TitlePage>.Ok(new TitlePage([.. matched.Skip(ask.Skip).Take(ask.Take)], ask.Next(matched.Count > ask.Skip + ask.Size)));
+    }
+
+    /// <summary>The titles best rated first: by IMDb where the import holds it, else by the film database's weighted rating.</summary>
+    private async Task<IReadOnlyList<ListedTitle>> RatedAsync(IReadOnlyList<ListedTitle> titles, CancellationToken ct)
+    {
+        if (imdbRatings.Edition is null) return WeightedRating.Order(titles);
+        try
+        {
+            return await RankedByImdbAsync(null, titles, ct);
+        }
+        catch (HttpRequestException)
+        {
+            return WeightedRating.Order(titles);
+        }
+    }
+
+    /// <summary>The most a title may be short of its card before the ranking is left unmade rather than kept without it.</summary>
+    private static int CardsMayBeMissing(int titles) => Math.Max(2, titles / 4);
+
+    /// <summary>
+    /// The listed titles, and with a <paramref name="query"/> of kind, genre and years alone the best
+    /// rated titles IMDb files there that were not listed, ranked by <see cref="ImdbRanking"/>. Each
+    /// listed title is matched to IMDb through its card, which names its IMDb id. Throws
+    /// <see cref="HttpRequestException"/> when too many cards could not be had for the ranking to stand.
+    /// </summary>
+    private async Task<List<ListedTitle>> RankedByImdbAsync(DiscoverQuery? query, IReadOnlyList<ListedTitle> listed, CancellationToken ct)
+    {
+        var cards = await CardsAsync(listed.Select(t => (t.Kind, t.TmdbId)), ct);
+        var missing = listed.Count(t => cards.GetValueOrDefault((t.Kind, t.TmdbId)) is null);
+        if (missing > CardsMayBeMissing(listed.Count))
+            throw new HttpRequestException($"{missing} of {listed.Count} titles could not be named by the film database.");
+
+        var entries = listed
+            .Select(t => new ImdbRanking.Entry(t, imdbRatings.Of(cards.GetValueOrDefault((t.Kind, t.TmdbId))?.ImdbId)))
+            .ToList();
+
+        var spec = query is null ? null : await ImdbSpecAsync(query, ct);
+        var mostVoted = spec is null ? [] : imdbRatings.MostVoted(spec, ImdbRanking.Breadth);
+        var floor = mostVoted.Count > 0
+            ? ImdbRanking.FloorFor(mostVoted)
+            : ImdbRanking.FloorFor([.. entries.Where(e => e.Imdb is not null).Select(e => e.Imdb!.Value.Votes).OrderDescending()]);
+
+        if (spec is not null && query is not null)
+        {
+            var present = listed.Select(t => cards.GetValueOrDefault((t.Kind, t.TmdbId))?.ImdbId).OfType<string>().ToHashSet(StringComparer.Ordinal);
+            var found = imdbRatings.Candidates(spec, Math.Max(floor, query.MinVotes ?? 0), query.MinRating, ImdbRanking.Widened + present.Count)
+                .Where(c => !present.Contains(c.ImdbId))
+                .Take(ImdbRanking.Widened)
+                .ToList();
+            if (found.Count > 0)
+            {
+                var glanced = await glances.ForAsync([.. found.Select(c => c.ImdbId)], ct, WideningWait);
+                var taken = listed.Select(t => (t.Kind, t.TmdbId)).ToHashSet();
+                foreach (var candidate in found)
+                {
+                    if (!glanced.TryGetValue(candidate.ImdbId, out var glance) || glance.Kind != spec.Kind || !taken.Add((glance.Kind, glance.TmdbId)))
+                        continue;
+                    entries.Add(new ImdbRanking.Entry(new ListedTitle
+                    {
+                        TmdbId = glance.TmdbId,
+                        Kind = glance.Kind,
+                        Title = candidate.Title,
+                        Released = glance.Released,
+                        Rating = glance.Rating,
+                        Votes = glance.Votes,
+                        Overview = glance.Overview,
+                        PosterPath = glance.PosterPath,
+                    }, new ImdbRatings.Rating(candidate.Rating, candidate.Votes)));
+                }
+            }
+        }
+
+        return ImdbRanking.Order(entries, floor);
+    }
+
+    /// <summary>How long a ranking waits for the film database to name the titles IMDb adds to it.</summary>
+    private static readonly TimeSpan WideningWait = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// The question in IMDb's terms, or null when it asks for anything IMDb's two files cannot answer
+    /// (people, keywords, a language, a country, companies, networks, a runtime, a ceiling on rating or
+    /// votes, a certificate, a show's airing, status or type) or names a genre IMDb has no name for.
+    /// </summary>
+    private async Task<ImdbSpec?> ImdbSpecAsync(DiscoverQuery q, CancellationToken ct)
+    {
+        if (q.PersonIds.Count + q.KeywordIds.Count + q.AnyGenreIds.Count + q.AnyKeywordIds.Count + q.AnyLanguages.Count
+            + q.CompanyIds.Count + q.NetworkIds.Count > 0
+            || !string.IsNullOrWhiteSpace(q.Language) || !string.IsNullOrWhiteSpace(q.OriginCountry)
+            || q.MinRuntime is not null || q.MaxRuntime is not null || q.MaxRating is not null || q.MaxVotes is not null
+            || !string.IsNullOrWhiteSpace(q.MaxCertification) || q.AiringFrom is not null || q.AiringTo is not null
+            || q.ShowStatus is not null || q.ShowType is not null)
+            return null;
+
+        var all = q.GenreIds.Count + q.WithoutGenreIds.Count > 0 ? await catalogue.GenresAsync(q.Kind, ct) : [];
+        if (all is null) return null;
+
+        var allOf = new List<IReadOnlyList<string>>();
+        foreach (var id in q.GenreIds)
+        {
+            if (all.FirstOrDefault(g => g.Id == id) is not { } genre || ImdbGenres.Of(genre.Name) is not { } names) return null;
+            allOf.Add(names);
+        }
+
+        var noneOf = new List<string>();
+        foreach (var id in q.WithoutGenreIds)
+        {
+            if (all.FirstOrDefault(g => g.Id == id) is not { } genre || ImdbGenres.Of(genre.Name) is not { } names) return null;
+            noneOf.AddRange(names);
+        }
+        if (q.Kind == "show" && q.GenreIds.Count == 0) noneOf.AddRange(ImdbGenres.Unscripted);
+
+        return new ImdbSpec(q.Kind, allOf, noneOf, q.From?.Year, q.To?.Year);
     }
 
     /// <summary>Everything a person is credited on, kept a day, their portrait kept with it.</summary>

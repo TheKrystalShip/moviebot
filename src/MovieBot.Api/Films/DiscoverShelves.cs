@@ -100,6 +100,12 @@ public sealed record ShelfTitleView
     public double? Rating { get; init; }
     public int Votes { get; init; }
 
+    /// <summary>IMDb's rating out of ten, to one decimal; absent when the IMDb import does not hold the title.</summary>
+    public double? ImdbRating { get; init; }
+
+    /// <summary>The votes behind <see cref="ImdbRating"/>.</summary>
+    public int? ImdbVotes { get; init; }
+
     /// <summary>The poster its page shows, served from here; absent when none is kept.</summary>
     public string? PosterUrl { get; init; }
 
@@ -532,6 +538,8 @@ public sealed class DiscoverShelves(
                     Year = t.Year,
                     Rating = t.Rating,
                     Votes = t.Votes,
+                    ImdbRating = t.ImdbRating,
+                    ImdbVotes = t.ImdbVotes,
                     PosterUrl = t.PosterUrl,
                     InLibrary = held.Holds(kind, t.ImdbId),
                     LibraryId = held.LibraryIdOf(kind, t.ImdbId),
@@ -572,6 +580,8 @@ public sealed class DiscoverShelves(
                 Year = view.Year,
                 Rating = view.Rating,
                 Votes = view.Votes,
+                ImdbRating = view.ImdbRating,
+                ImdbVotes = view.ImdbVotes,
                 PosterUrl = view.PosterUrl,
                 Starring = view.Starring.Count > 0 ? string.Join(", ", view.Starring) : null,
                 InLibrary = view.InLibrary,
@@ -691,6 +701,8 @@ public sealed class DiscoverShelves(
                 Title = show?.Title ?? title.Film?.Name ?? title.Title,
                 Year = show?.FirstYear,
                 Rating = show is null ? null : shows.Scores.Serve(show.TmdbId, "show", show.Rating, show.Votes).Rating,
+                ImdbRating = shows.Scores.Imdb(imdb).Rating,
+                ImdbVotes = shows.Scores.Imdb(imdb).Votes,
                 PosterUrl = shows.HasImage(imdb, ShowStore.Poster) ? ShowViews.ImageUrl(imdb, ShowStore.Poster) : null,
                 Starring = Starring(show?.Cast),
                 InLibrary = true,
@@ -706,6 +718,8 @@ public sealed class DiscoverShelves(
             Title = film?.Title ?? title.Film?.Name ?? title.Title,
             Year = film?.Year ?? title.Film?.Year,
             Rating = film is null ? null : films.Scores.Serve(film.TmdbId, "film", film.Rating, film.Votes).Rating,
+            ImdbRating = films.Scores.Imdb(imdb).Rating,
+            ImdbVotes = films.Scores.Imdb(imdb).Votes,
             PosterUrl = films.HasImage(imdb, FilmStore.Poster) ? FilmViews.ImageUrl(imdb, FilmStore.Poster) : null,
             Starring = Starring(film?.Cast),
             InLibrary = true,
