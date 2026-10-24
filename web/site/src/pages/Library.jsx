@@ -1,47 +1,45 @@
 import { RadioGroup } from "@thekrystalship/krystal";
-import { filmName } from "../api.js";
+import { api, filmName } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLibrary } from "../offline/hooks.js";
 import { ANIME, discoverGenrePath, isAnime, libraryPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { SORTED, useSort } from "../sorts.js";
-import { shownOf, withOrder } from "../orders.js";
+import { orderOf, shownOf, withOrder } from "../orders.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard } from "../components/Film.jsx";
-import { FilterField, useTitleFilter } from "../components/FilterField.jsx";
+import { FilterField, useListedFilter, useTitleFilter } from "../components/FilterField.jsx";
 import { MoreTile } from "../components/TitleCards.jsx";
-import { useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
+import { useDownloadMarks, useDownloads, useOffersSaving } from "../components/DownloadButton.jsx";
 
 /** The Download section, where this browser downloads: only the titles downloaded to this device. */
 const downloadedSection = { id: "downloaded", label: "Download", kind: "toggle", option: "Downloaded here" };
 
-const rating = (t) => (t.details && t.details.rating) || 0;
-const year = (t) => (t.film && t.film.year) || 0;
-
-// Each comparator orders ascending; an order's direction reverses it.
-export const SORTS = [
-  { value: "added", defaultDir: "desc", compare: (a, b) => (a.addedAt || "").localeCompare(b.addedAt || "") },
-  { value: "name", defaultDir: "asc", compare: (a, b) => filmName(a).localeCompare(filmName(b)) },
-  { value: "rating", defaultDir: "desc", compare: (a, b) => rating(a) - rating(b) },
-  { value: "year", defaultDir: "desc", compare: (a, b) => year(a) - year(b) },
-  { value: "length", defaultDir: "asc", compare: (a, b) => a.durationSeconds - b.durationSeconds },
+/** The keys a shelf keeps its order under (`useSort`), the first the one it opens in. */
+const KEYS = [
+  { value: "added", defaultDir: "desc" },
+  { value: "name", defaultDir: "asc" },
+  { value: "rating", defaultDir: "desc" },
+  { value: "year", defaultDir: "desc" },
+  { value: "length", defaultDir: "asc" },
 ];
 
-/** The orders the drawer offers a shelf of films, and of shows, which have no length. */
-export const SHOW_ORDERS = [
-  { key: "added", dir: "desc", label: "Recently added" },
-  { key: "added", dir: "asc", label: "First added" },
-  { key: "name", dir: "asc", label: "Name A–Z" },
-  { key: "name", dir: "desc", label: "Name Z–A" },
-  { key: "rating", dir: "desc", label: "Highest rated" },
-  { key: "rating", dir: "asc", label: "Lowest rated" },
-  { key: "year", dir: "desc", label: "Newest first" },
-  { key: "year", dir: "asc", label: "Oldest first" },
-];
-export const FILM_ORDERS = [
-  ...SHOW_ORDERS,
-  { key: "length", dir: "asc", label: "Shortest first" },
-  { key: "length", dir: "desc", label: "Longest first" },
-];
+// What every order compares on the device's saved titles, offline; each ascends.
+const COMPARED = {
+  added: (a, b) => (a.addedAt || "").localeCompare(b.addedAt || ""),
+  name: (a, b) => (a.kind === "show" || a.seasons ? a.title : filmName(a)).localeCompare(b.kind === "show" || b.seasons ? b.title : filmName(b)),
+  rating: (a, b) => ((a.details && a.details.rating) || 0) - ((b.details && b.details.rating) || 0),
+  year: (a, b) => ((a.film && a.film.year) || a.firstYear || 0) - ((b.film && b.film.year) || b.firstYear || 0),
+  length: (a, b) => (a.durationSeconds || 0) - (b.durationSeconds || 0),
+};
+
+/** The orders the device offers its saved titles, offline, where there is no API to list them. */
+const SAVED_SORTS = {
+  film: ["added", "first-added", "name", "name-desc", "rating", "lowest", "newest", "oldest", "shortest", "longest"],
+  show: ["added", "first-added", "name", "name-desc", "rating", "lowest", "newest", "oldest"],
+};
+
+/** The words of the states a film can stand in, by the API's names for them. */
+const FILM_STATES = { ready: "Ready", preparing: "Preparing", failed: "Could not be prepared" };
 
 // What each shelf calls itself and its titles: the general shelves by kind, and Anime's by kind under it.
 const SHELVES = {
@@ -50,13 +48,6 @@ const SHELVES = {
   "anime:film": { title: "Anime", unit: ["film", "films"], empty: "No anime films yet", icon: "swords" },
   "anime:show": { title: "Anime", unit: ["series", "series"], empty: "No anime series yet", icon: "swords" },
 };
-
-/** The states a film on the shelf can be in, by the words the State section and its address use. */
-const FILM_STATES = [
-  { value: "ready", label: "Ready", test: (t) => t.status === "ready" },
-  { value: "preparing", label: "Preparing", test: (t) => t.status === "transcoding" },
-  { value: "failed", label: "Could not be prepared", test: (t) => t.status === "failed" },
-];
 
 const shelfOf = (kind, category) => SHELVES[(category === ANIME ? "anime:" : "") + kind] || SHELVES.film;
 
@@ -68,15 +59,16 @@ const onShelf = (title, category) => isAnime(title) === (category === ANIME);
 
 /**
  * Every title of one kind and category on the shelf, searched by name, narrowed by the filter drawer
- * (genre, decade, length, rating and language, the shelf's options counted over its titles, and a
- * film's state and download), and ordered the way somebody asks; with one genre picked, the last tile
- * leads on to Discover's catalogue of that genre. The kind and the category are the API's words for
- * what a title is and where it is shelved.
+ * (genre, decade, length, rating and language, a film's state, and a title's download) and ordered the
+ * way somebody asks; with one genre picked, the last tile leads on to Discover's catalogue of that
+ * genre. The API searches, narrows and orders the shelf (`/api/library/<scope>`) and says which orders
+ * it is served in; opened with no connection, the page is the device's saved titles, which it searches,
+ * narrows and orders itself, there being nothing to ask.
  */
 export function Library({ kind = "film", category = null, fromDevice = false }) {
-  return kind === "show"
-    ? <ShowLibrary category={category} fromDevice={fromDevice} />
-    : <FilmLibrary category={category} fromDevice={fromDevice} />;
+  return fromDevice
+    ? <SavedShelf key={kind + category} kind={kind} category={category} />
+    : <ListedShelf key={kind + category} kind={kind} category={category} />;
 }
 
 /** A row of options, one of them on, each replacing the page with its own rather than stacking on it. */
@@ -120,95 +112,86 @@ function Switches({ kind, category }) {
   );
 }
 
-export const SHOW_SORTS = [
-  { value: "added", defaultDir: "desc", compare: (a, b) => (a.addedAt || "").localeCompare(b.addedAt || "") },
-  { value: "name", defaultDir: "asc", compare: (a, b) => a.title.localeCompare(b.title) },
-  { value: "rating", defaultDir: "desc", compare: (a, b) => rating(a) - rating(b) },
-  { value: "year", defaultDir: "desc", compare: (a, b) => (a.firstYear || 0) - (b.firstYear || 0) },
-];
+/** Whether the device holds a title of a shelf of `kind`: a film downloaded whole, a show with an episode downloaded. */
+const holding = (kind, marks) => (kind === "show"
+  ? (s) => marks.episodes(s.imdbId) > 0
+  : (t) => !!marks.film(t.id) && marks.film(t.id).kind === "done");
 
-/**
- * Every show the library holds, one card each however many of its episodes are here, searched by
- * name, narrowed by the filter drawer, and ordered the way somebody asks.
- */
-function ShowLibrary({ category, fromDevice }) {
-  const shows = useLibrary("show", fromDevice);
-  const words = shelfOf("show", category);
-  const online = useOnline();
+/** What the device holds of a kind: the title ids of films downloaded whole, the IMDb ids of shows with an episode downloaded. */
+function heldIds(kind, downloads) {
+  const done = [...downloads.entries()].filter(([, d]) => d.kind === "done");
+  return kind === "show"
+    ? [...new Set(done.map(([, d]) => d.save.meta.show && d.save.meta.show.imdbId).filter(Boolean))]
+    : done.filter(([, d]) => !d.save.meta.show).map(([id]) => id);
+}
+
+/** What the API is told the device holds when it holds nothing, which no title is. */
+const NOTHING_HELD = "-";
+
+/** The shelf as the API lists it. */
+function ListedShelf({ kind, category }) {
   const offered = useOffersSaving();
   const marks = useDownloadMarks();
-  const held = (s) => marks.episodes(s.imdbId) > 0;
-  const [sort, setSort] = useSort(SORTED.shows, SHOW_SORTS);
+  const downloads = useDownloads();
+  const held = holding(kind, marks);
+  const scope = kind === "show" ? "shows" : "films";
+  const filter = useListedFilter(
+    (params) => api.libraryPage(scope, { ...params, shelf: category === ANIME ? "anime" : "general" })
+      .then((page) => ({ titles: page.items.map((i) => i.film || i.show), total: page.total, facets: page.facets })),
+    {
+      surface: kind === "show" ? SORTED.shows : SORTED.films, keys: KEYS, stateWords: FILM_STATES,
+      device: offered ? [downloadedSection] : [], deps: [scope, category],
+      // The API keeps the titles this device holds, which it is told: a film by its title id, a show by its IMDb id.
+      deviceAsk: (v) => (v.downloaded ? { held: heldIds(kind, downloads).join(",") || NOTHING_HELD } : {}),
+    });
+  // Download is offered while the device holds any of the shelf's titles.
+  const holds = !!filter.titles && filter.titles.some(held);
+  const field = holds ? filter.field : { ...filter.field, sections: filter.field.sections.filter((s) => s.id !== downloadedSection.id) };
+  return <Shelf kind={kind} category={category} filter={{ ...filter, field }} marks={marks} />;
+}
 
-  const all = (shows.data || []).filter((s) => onShelf(s, category));
-  const own = offered && all.some(held) ? [downloadedSection] : [];
-  const filter = useTitleFilter(all, { own, passes: (s, v) => !v.downloaded || held(s), named: (s) => s.title });
-  const order = SHOW_SORTS.find((s) => s.value === sort.key) || SHOW_SORTS[0];
-  const shown = [...filter.shown].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
-  const genre = filter.picks.genre.length === 1 ? filter.picks.genre[0] : null;
-
+/** The device's saved titles of the shelf, offline, searched, narrowed and ordered here. */
+function SavedShelf({ kind, category }) {
+  const saved = useLibrary(kind, true);
+  const marks = useDownloadMarks();
+  const held = holding(kind, marks);
+  const [order, pick] = useSort(kind === "show" ? SORTED.shows : SORTED.films, KEYS);
+  const all = (saved.data || []).filter((t) => (kind === "show" || t.kind !== "show") && onShelf(t, category));
+  const own = all.some(held) ? [downloadedSection] : [];
+  const filter = useTitleFilter(all, { own, passes: (t, v) => !v.downloaded || held(t), named: (t) => (kind === "show" ? t.title : filmName(t)) });
+  const compare = COMPARED[order.key] || COMPARED.added;
+  const titles = [...filter.shown].sort((a, b) => (order.dir === "asc" ? 1 : -1) * compare(a, b));
+  const field = { ...filter.field, ...withOrder(filter.field, SAVED_SORTS[kind].map(orderOf), order, pick) };
   return (
-    <div className="kc-page">
-      <PageHead title={words.title} sub={shows.data ? shownOf(shown.length, all.length, words.unit) : null} />
-      <Switches kind="show" category={category} />
-
-      {all.length > 0 && (
-        <FilterField placeholder={`Search ${words.unit[1]}`} {...filter.field} {...withOrder(filter.field, SHOW_ORDERS, sort, setSort)} />
-      )}
-
-      <Failed error={shows.error} onRetry={shows.reload} />
-      {shows.data && all.length === 0 && <Empty icon={words.icon} title={words.empty}>Search for a show to fetch its episodes.</Empty>}
-      {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
-      {(shown.length > 0 || genre) && (
-        <div className="kc-grid">
-          {shown.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} downloaded={marks.episodes(s.imdbId)} />)}
-          {online && genre && <MoreTile label="Discover more" to={discoverGenrePath("show", genre, category)} />}
-        </div>
-      )}
-    </div>
+    <Shelf kind={kind} category={category} marks={marks}
+      filter={{ titles: saved.data ? titles : null, total: saved.data ? all.length : null, error: saved.error, reload: saved.reload, picks: filter.picks, field }} />
   );
 }
 
-function FilmLibrary({ category, fromDevice }) {
-  const kind = "film";
-  const titles = useLibrary("film", fromDevice);
-  const online = useOnline();
-  const offered = useOffersSaving();
-  const marks = useDownloadMarks();
-  const held = (t) => !!marks.film(t.id) && marks.film(t.id).kind === "done";
-  const [sort, setSort] = useSort(SORTED.films, SORTS);
+/** A shelf's page: its heading over how many it shows, the field, and the titles. */
+function Shelf({ kind, category, filter, marks }) {
   const words = shelfOf(kind, category);
-
-  const all = (titles.data || []).filter((t) => t.kind !== "show" && onShelf(t, category));
-
-  // A film's state is offered when the shelf holds films in more than one; a state nothing is in is no filter.
-  const heldStates = FILM_STATES.filter((s) => all.some(s.test));
-  const own = [
-    ...(heldStates.length >= 2 ? [{ id: "state", label: "State", kind: "optional", options: heldStates.map(({ value, label }) => ({ value, label })) }] : []),
-    ...(offered && all.some(held) ? [downloadedSection] : []),
-  ];
-  const passes = (t, v) => (!v.state || !!FILM_STATES.find((s) => s.value === v.state && s.test(t))) && (!v.downloaded || held(t));
-  const filter = useTitleFilter(all, { own, passes, named: filmName });
-  const order = SORTS.find((s) => s.value === sort.key) || SORTS[0];
-  const shown = [...filter.shown].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
+  const online = useOnline();
+  const { titles, total } = filter;
   const genre = filter.picks.genre.length === 1 ? filter.picks.genre[0] : null;
 
   return (
     <div className="kc-page">
-      <PageHead title={words.title} sub={titles.data ? shownOf(shown.length, all.length, words.unit) : null} />
+      <PageHead title={words.title} sub={titles ? shownOf(titles.length, total, words.unit) : null} />
       <Switches kind={kind} category={category} />
 
-      {all.length > 0 && (
-        <FilterField placeholder={`Search ${words.unit[1]}`} {...filter.field} {...withOrder(filter.field, FILM_ORDERS, sort, setSort)} />
+      {total > 0 && <FilterField placeholder={`Search ${words.unit[1]}`} {...filter.field} />}
+
+      <Failed error={titles ? null : filter.error} onRetry={filter.reload} />
+      {total === 0 && (
+        <Empty icon={words.icon} title={words.empty}>{kind === "show" ? "Search for a show to fetch its episodes." : null}</Empty>
       )}
-
-      <Failed error={titles.error} onRetry={titles.reload} />
-
-      {titles.data && all.length === 0 && <Empty icon={words.icon} title={words.empty} />}
-      {all.length > 0 && shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
-      {(shown.length > 0 || genre) && (
+      {total > 0 && titles.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
+      {titles && (titles.length > 0 || genre) && (
         <div className="kc-grid">
-          {shown.map((t) => <FilmCard key={t.id} title={t} download={marks.film(t.id)} />)}
+          {kind === "show"
+            ? titles.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} downloaded={marks.episodes(s.imdbId)} />)
+            : titles.map((t) => <FilmCard key={t.id} title={t} download={marks.film(t.id)} />)}
           {online && genre && <MoreTile label="Discover more" to={discoverGenrePath(kind, genre, category)} />}
         </div>
       )}

@@ -5,6 +5,36 @@
 /** The id of the drawer's order section. */
 export const ORDER = "sort";
 
+/**
+ * The words for each order the API serves a list in, by the name its routes take (`sort`), and the key
+ * and direction a page keeps the order as (`useSort`). An order the API names that has none here is
+ * offered by its name.
+ */
+export const ORDER_WORDS = {
+  order: { label: "Shelf order", key: "order", dir: "asc" },
+  popular: { label: "Most popular", key: "popular", dir: "desc" },
+  "least-popular": { label: "Least popular", key: "popular", dir: "asc" },
+  added: { label: "Recently added", key: "added", dir: "desc" },
+  "first-added": { label: "First added", key: "added", dir: "asc" },
+  name: { label: "Name A–Z", key: "name", dir: "asc" },
+  "name-desc": { label: "Name Z–A", key: "name", dir: "desc" },
+  rating: { label: "Highest rated", key: "rating", dir: "desc" },
+  lowest: { label: "Lowest rated", key: "rating", dir: "asc" },
+  newest: { label: "Newest first", key: "year", dir: "desc" },
+  oldest: { label: "Oldest first", key: "year", dir: "asc" },
+  shortest: { label: "Shortest first", key: "length", dir: "asc" },
+  longest: { label: "Longest first", key: "length", dir: "desc" },
+  "most-wanted": { label: "Most wanted", key: "others", dir: "desc" },
+  "least-wanted": { label: "Least wanted", key: "others", dir: "asc" },
+};
+
+/** An order as the API names it, with its words, key and direction. */
+export const orderOf = (sort) => ({ sort, ...(ORDER_WORDS[sort] || { label: sort, key: sort, dir: "desc" }) });
+
+/** The API's name for an order kept as a key and a direction, among `sorts` when given. */
+export const sortOf = ({ key, dir }, sorts = Object.keys(ORDER_WORDS)) =>
+  sorts.find((s) => ORDER_WORDS[s] && ORDER_WORDS[s].key === key && ORDER_WORDS[s].dir === dir);
+
 const valueOf = ({ key, dir }) => key + ":" + dir;
 
 /** The drawer's sort section over a page's `orders`, each `{ key, dir, label }`, the first the page's own. */

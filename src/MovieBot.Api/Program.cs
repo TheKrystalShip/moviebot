@@ -429,19 +429,8 @@ app.MapMethods("/phone.apk", [HttpMethods.Get, HttpMethods.Head], (IConfiguratio
 // person's progress and when the film was last played, and a caller that is nobody gets no progress.
 app.MapGet("/api/titles", (HttpContext context, LibraryListing library, FilmStore films, ShowStore shows,
     TitleCategories categories, TitlePosters posters, WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
-{
-    var person = PeopleEndpoints.Person(context);
-    var viewing = sessions.Viewing();
-    var now = clock.GetUtcNow();
-    return Results.Ok(library.Titles()
-        .Select(t => (posters.Listed(t) with
-        {
-            // An episode is described by its show.
-            Details = t.Kind == TitleKind.Show ? shows.Facts(t.Film?.ImdbId) : films.Facts(t.Film?.ImdbId),
-            Category = categories.Of(t.Kind, t.Film?.ImdbId),
-        }).WithPlays(person, record, people, viewing, now))
-        .ToList());
-}).RequireActionOrService(CinemaActions.Watch);
+    Results.Ok(ListedPages.Listed(context, library, films, shows, categories, posters, record, people, sessions, clock)))
+    .RequireActionOrService(CinemaActions.Watch);
 
 // A guest reads the film their room holds, and no other.
 app.MapGet("/api/titles/{id}", (string id, TitleLibrary library) =>
@@ -470,6 +459,7 @@ app.MapFilms();
 app.MapCatalogueSearch();
 app.MapDiscover();
 app.MapShows();
+app.MapListedPages();
 app.MapFollows();
 app.MapWants();
 app.MapPlans();

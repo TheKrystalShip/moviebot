@@ -117,17 +117,7 @@ public static class PeopleEndpoints
         app.MapGet("/api/me/history", (HttpContext context, WatchRecord record, TitleLibrary library, SessionStore sessions, TimeProvider clock) =>
         {
             if (Person(context) is not { } person) return NoPerson();
-
-            var entries = new List<HistoryEntry>();
-            foreach (var (titleId, entry) in EntriesOf(person.UserId, record, sessions, library, clock))
-            {
-                if (library.Get(titleId) is not { } manifest) continue;
-                entries.Add(new HistoryEntry(titleId, NameOf(manifest), entry.PositionSeconds, entry.DurationSeconds,
-                    entry.Finished, entry.LastWatchedAt,
-                    manifest.Episode, manifest.Episode is null ? null : manifest.Film?.ImdbId));
-            }
-
-            return Results.Ok(entries);
+            return Results.Ok(HistoryOf(person.UserId, record, sessions, library, clock));
         }).RequireAction(CinemaActions.ProfileRead);
 
         // Forgetting a film that was never watched is the same end state, so it is not an error.
@@ -138,6 +128,20 @@ public static class PeopleEndpoints
             record.Forget(person.UserId, titleId);
             return Results.NoContent();
         }).RequireAction(CinemaActions.ProfileWrite);
+    }
+
+    /// <summary>What a person watched of what the library still holds, newest first, as <c>/api/me/history</c> lists it.</summary>
+    public static List<HistoryEntry> HistoryOf(string userId, WatchRecord record, SessionStore sessions, TitleLibrary library, TimeProvider clock)
+    {
+        var entries = new List<HistoryEntry>();
+        foreach (var (titleId, entry) in EntriesOf(userId, record, sessions, library, clock))
+        {
+            if (library.Get(titleId) is not { } manifest) continue;
+            entries.Add(new HistoryEntry(titleId, NameOf(manifest), entry.PositionSeconds, entry.DurationSeconds,
+                entry.Finished, entry.LastWatchedAt,
+                manifest.Episode, manifest.Episode is null ? null : manifest.Film?.ImdbId));
+        }
+        return entries;
     }
 
     /// <summary>

@@ -9,6 +9,7 @@ import { discoverBrowsePath, discoverShelfPath } from "../paths.js";
 import { apiPicks, filterQuestion, pickCount } from "../filters.js";
 import { linkProps, navigate } from "../router.js";
 import { SORTED, useSort } from "../sorts.js";
+import { orderOf, sortOf } from "../orders.js";
 import { Empty, Failed } from "../components/Film.jsx";
 import { CardsSkeleton, FoundCard } from "../components/TitleCards.jsx";
 import { ViewAll } from "../components/ViewAll.jsx";
@@ -22,7 +23,13 @@ import { counted } from "../counts.js";
 /** How many of a shelf's titles its rail shows; its own page shows the rest. */
 const RAIL_TITLES = 20;
 
-/** Whether the person leaves what they watched off a shelf and the filter's answers, kept on the device. */
+/** What the API is asked for to leave what the person watched off an answer. */
+export const UNWATCHED = { unwatched: "true" };
+
+/**
+ * Whether the person leaves what they watched off a shelf, the filter's answers and a question's,
+ * kept on the device; the API leaves them off when asked with `UNWATCHED`.
+ */
 export function useHideWatched() {
   return useStoredFlag("cinema:discover:hide-watched");
 }
@@ -143,12 +150,11 @@ export function LazyShelf({ head, kept, where, skip, least = 1, picks }) {
  */
 function ShelfRail({ head, kept, where, skip, least = 1, picks }) {
   const [hideWatched] = useHideWatched();
-  const asked = picks ? apiPicks(picks) : {};
-  const filtered = !!picks && pickCount(picks) > 0;
+  const asked = picks ? { ...apiPicks(picks), ...(hideWatched ? UNWATCHED : {}) } : {};
+  const filtered = !!picks && (pickCount(picks) > 0 || hideWatched);
   const shelf = useLoad(() => api.discoverShelf(head.id, 1, null, asked), [head.id, JSON.stringify(asked)], { known: filtered ? undefined : kept });
   if (!shelf.data) return shelf.error ? null : <RailSkeleton />;
-  const all = skip ? shelf.data.titles.filter((t) => t.imdbId !== skip) : shelf.data.titles;
-  const titles = picks && hideWatched ? all.filter((t) => !t.watched) : all;
+  const titles = skip ? shelf.data.titles.filter((t) => t.imdbId !== skip) : shelf.data.titles;
   if (titles.length === 0 || titles.length < least) return null;
   return (
     <Shelf perView={POSTERS} title={head.title} sub={counted(atLeast(titles.length, shelf.data.next), "title")}
@@ -193,33 +199,12 @@ export function CategoryPage({ id, index, where, picks }) {
   );
 }
 
-/**
- * The words for each order the API serves Discover's answers in (their facets' `sorts`), and the sort
- * key and direction each is kept as. An order the API names that has no words here is offered by its
- * name.
- */
-const ORDER_WORDS = {
-  order: { label: "Shelf order", key: "order", dir: "asc" },
-  popular: { label: "Most popular", key: "popular", dir: "desc" },
-  "least-popular": { label: "Least popular", key: "popular", dir: "asc" },
-  rating: { label: "Highest rated", key: "rating", dir: "desc" },
-  lowest: { label: "Lowest rated", key: "rating", dir: "asc" },
-  newest: { label: "Newest first", key: "year", dir: "desc" },
-  oldest: { label: "Oldest first", key: "year", dir: "asc" },
-};
-
 /** The filter's sort keys as `useSort` keeps them, each in the direction it opens in. */
 const FILTER_SORTS = [
   { value: "popular", defaultDir: "desc" },
   { value: "rating", defaultDir: "desc" },
   { value: "year", defaultDir: "desc" },
 ];
-
-/** An order as the API names it, with its words, key and direction. */
-const orderOf = (sort) => ({ sort, ...(ORDER_WORDS[sort] || { label: sort, key: sort, dir: "desc" }) });
-
-/** The API's name for an order kept as a key and a direction. */
-const sortOf = ({ key, dir }) => Object.keys(ORDER_WORDS).find((s) => ORDER_WORDS[s].key === key && ORDER_WORDS[s].dir === dir);
 
 /**
  * The order of what Discover shows, when what it shows is a shelf or the filter's answers, and the orders
@@ -285,15 +270,14 @@ export function MoreCards({ paged }) {
  * watched is left off when they hide it.
  */
 export function ShelfPage({ id, sort: order, where, picks }) {
-  const asked = apiPicks(picks);
-  const shelf = usePaged((page) => api.discoverShelf(id, page, order, asked), [id, order, JSON.stringify(asked)]);
   const [hideWatched] = useHideWatched();
+  const asked = { ...apiPicks(picks), ...(hideWatched ? UNWATCHED : {}) };
+  const shelf = usePaged((page) => api.discoverShelf(id, page, order, asked), [id, order, JSON.stringify(asked)]);
   const s = shelf.data;
   if (shelf.error && !s) return <Failed error={shelf.error} onRetry={shelf.reload} />;
   if (!s) return <BrowseSkeleton />;
 
-  const all = shelf.titles;
-  const shown = hideWatched ? all.filter((t) => !t.watched) : all;
+  const shown = shelf.titles;
   const filtered = pickCount(picks) > 0 || hideWatched;
 
   return (
@@ -311,12 +295,11 @@ export function ShelfPage({ id, sort: order, where, picks }) {
 /** Discover's filter: the catalogue's films and shows at the drawer's picks, in the order the route names `sort`. */
 export function FilterPage({ picks, where, sort }) {
   const [hideWatched] = useHideWatched();
-  const question = filterQuestion(picks, sort);
+  const question = { ...filterQuestion(picks, sort), ...(hideWatched ? UNWATCHED : {}) };
   const key = JSON.stringify(question);
   const found = usePaged((page) => api.catalogueDiscover(question, page), [key]);
 
-  const all = found.titles ? found.titles.filter((t) => t.imdbId).map((t) => ({ ...t, starring: t.starring.join(", ") })) : null;
-  const titles = all && (hideWatched ? all.filter((t) => !t.watched) : all);
+  const titles = found.titles ? found.titles.filter((t) => t.imdbId).map((t) => ({ ...t, starring: t.starring.join(", ") })) : null;
 
   return (
     <section className="kc-shelf">

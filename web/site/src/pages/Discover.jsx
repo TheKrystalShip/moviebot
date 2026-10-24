@@ -1,6 +1,6 @@
 import React from "react";
 import { Avatar, Button, FilterDrawer, Icon, Pill, SearchField, Skeleton } from "@thekrystalship/krystal";
-import { api, filmName } from "../api.js";
+import { api } from "../api.js";
 import { useLoad, usePaged } from "../data.js";
 import { useOnline } from "../connectivity.js";
 import { askAssistant } from "../assistantHandoff.js";
@@ -17,7 +17,7 @@ import { PlanButton } from "../components/PlanButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
 import {
-  CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, MoreCards, ShelfPage, useDiscoverOrder, useHideWatched,
+  CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, MoreCards, ShelfPage, UNWATCHED, useDiscoverOrder, useHideWatched,
 } from "./DiscoverShelves.jsx";
 import { withOrder } from "../orders.js";
 import { apiPicks, drawerValues, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, useFacets, withPicks } from "../filters.js";
@@ -84,22 +84,24 @@ export function Discover({ query }) {
   const answered = !finding || (foundFor.data && foundFor.data.q === q);
   const found = answered && foundFor.data && foundFor.data.q === q ? foundFor.data.list : [];
   // The question's titles are read a page at a time; the reading and any refusal are the first page's.
-  const askedFor = usePaged((page) => (q && online ? api.ask(q, page, asked).catch(() => null) : Promise.resolve(null))
-    .then((ask) => ({ q, ask, titles: ask && ask.question ? ask.titles : [], next: ask ? ask.next : undefined })), [q, online, pickKey]);
+  const askedFor = usePaged((page) => (q && online ? api.ask(q, page, hideWatched ? { ...asked, ...UNWATCHED } : asked).catch(() => null) : Promise.resolve(null))
+    .then((ask) => ({ q, ask, titles: ask && ask.question ? ask.titles : [], next: ask ? ask.next : undefined })), [q, online, pickKey, hideWatched]);
   const askAnswered = !q || !online || (askedFor.data && askedFor.data.q === q);
   const ask = askAnswered && askedFor.data && askedFor.data.q === q ? askedFor.data.ask : null;
-  const questionTitles = ask && ask.question ? askedFor.titles.filter((t) => !hideWatched || !t.watched) : [];
+  const questionTitles = ask && ask.question ? askedFor.titles : [];
   const libraryShows = useLoad(() => api.shows().catch(() => []), []);
   // The page's rows and categories, and what the filter picks from, for everything here that is not a
   // search, a person or a genre.
   const index = useLoad(() => (q || person || genre ? Promise.resolve(null) : api.discover()), [!!(q || person || genre)]);
 
+  // What the library holds by those words, every shelf of it, as the API searches it.
+  const held = useLoad(() => (q && online ? api.libraryPage("all", { q }).catch(() => null) : Promise.resolve(null))
+    .then((page) => ({ q, items: page ? page.items : [] })), [q, online]);
+  const heldNow = held.data && held.data.q === q ? held.data.items : [];
+  const inLibrary = heldNow.filter((i) => i.film).map((i) => i.film);
+  const showsHere = heldNow.filter((i) => i.show).map((i) => i.show);
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const named = (name) => words.every((w) => name.toLowerCase().includes(w));
-  const inLibrary = q
-    ? (titles.data || []).filter((t) => t.kind !== "show" && named(filmName(t) + " " + t.id))
-    : [];
-  const showsHere = q ? (libraryShows.data || []).filter((s) => named(s.title)) : [];
   const heldShows = new Set((libraryShows.data || []).map((s) => s.imdbId));
 
   const filmsHere = new Map((titles.data || []).filter((t) => t.kind !== "show" && t.film).map((t) => [t.film.imdbId, t]));

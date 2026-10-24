@@ -15,13 +15,14 @@ public static class InviteEndpoints
     public static void MapInvites(this WebApplication app)
     {
         // Who can be invited: everybody the service has a name for, but the person asking, most
-        // recently seen first. Asking somebody into a room is a room's act, so it takes watching.
-        app.MapGet("/api/people", (HttpContext context, PersonDirectory people) =>
+        // recently seen first, and with q those whose name holds every word of it. Asking somebody
+        // into a room is a room's act, so it takes watching.
+        app.MapGet("/api/people", (string? q, HttpContext context, PersonDirectory people) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             var seen = people.LastSeen();
             return Results.Ok(people.All()
-                .Where(p => p.Key != person.UserId)
+                .Where(p => p.Key != person.UserId && ListedPages.Holds(p.Value, q))
                 .Select(p => new PersonView { UserId = p.Key, Name = p.Value, LastSeenAt = seen.TryGetValue(p.Key, out var at) ? at : null })
                 .OrderByDescending(p => p.LastSeenAt ?? DateTimeOffset.MinValue)
                 .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)

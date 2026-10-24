@@ -120,6 +120,8 @@ export const api = {
 
   // Shows: the library's, one by its IMDb id (in the library or not), and what the tracker offers of one.
   shows: () => call("GET", "/api/shows"),
+  // A library shelf's page, searched, narrowed and ordered: `scope` is films, shows or all.
+  libraryPage: (scope, params) => call("GET", withQuery(`/api/library/${scope}`, params)),
   show: (imdbId) => call("GET", `/api/shows/${enc(imdbId)}`),
   showReleases: (imdbId) => call("GET", `/api/shows/${enc(imdbId)}/releases`),
   rooms: () => call("GET", "/api/sessions"),
@@ -150,6 +152,7 @@ export const api = {
   // Where films played from the device got to, sent once there is a connection (`offline/progress.js`).
   sendProgress: (entries) => call("POST", "/api/me/progress", entries),
   history: () => call("GET", "/api/me/history"),
+  historyPage: (params) => call("GET", withQuery("/api/me/history/page", params)),
   forgetHistory: (id) => call("DELETE", `/api/me/history/${enc(id)}`),
   // Each answer is kept on the device for the account, which is what offline pages and the player
   // read with no connection (`offline/preferences.js`).
@@ -188,6 +191,7 @@ export const api = {
   // on. Making a want answers what the checks found; removing one that is already gone is no failure.
   // Who else wants a title is read from `wanters`, which names only the people with a visible want.
   wants: () => call("GET", "/api/me/wants"),
+  wantsPage: (params) => call("GET", withQuery("/api/me/wants/page", params)),
   want: (imdbId, kind, visible) => call("PUT", `/api/me/wants/${enc(imdbId)}`, visible === undefined ? { kind } : { kind, visible }),
   unwant: (imdbId) => call("DELETE", `/api/me/wants/${enc(imdbId)}`).catch((error) => {
     if (!(error instanceof ApiError) || error.status !== 404) throw error;
@@ -227,7 +231,7 @@ export const api = {
   request: (method, path, body) => call(method, "/api/me" + path, body),
 
   // Who can be asked into a room, and asking them.
-  people: () => call("GET", "/api/people"),
+  people: (q = null) => call("GET", withQuery("/api/people", { q })),
   invite: (room, userId) => call("POST", `/api/rooms/${enc(room)}/invite`, { userId }),
 
   anticipated: () => call("GET", "/api/anticipated"),

@@ -180,6 +180,18 @@ public sealed class DiscoverShelvesTests(SessionFixture fixture) : IClassFixture
     }
 
     [Fact]
+    public async Task A_shelf_asked_without_what_the_person_watched_leaves_it_off()
+    {
+        Finished("d-unwatched", SessionFixture.Heat);
+
+        var all = await Get<ShelfView>("/api/discover/shelves/star-wars", "d-unwatched");
+        var unwatched = await Get<ShelfView>("/api/discover/shelves/star-wars?unwatched=true", "d-unwatched");
+
+        Assert.Contains(all.Titles, t => t.Title == "Heat" && t.Watched);
+        Assert.Equal(["Pirates of the Caribbean"], unwatched.Titles.Select(t => t.Title));
+    }
+
+    [Fact]
     public async Task A_series_in_another_order_is_ordered_whole_before_it_is_paged()
     {
         var series = await Get<ShelfView>("/api/discover/shelves/star-wars?sort=newest");

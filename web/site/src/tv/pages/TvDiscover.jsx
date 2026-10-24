@@ -1,6 +1,6 @@
 import React from "react";
 import { Avatar, Button, FilterDrawer, Icon, SearchField, TvCard, TvHeading, TvRow, TvSpotlight } from "@thekrystalship/krystal";
-import { api, filmName, posterUrl } from "../../api.js";
+import { api, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { ANIME, discoverFilterPath, discoverPath } from "../../paths.js";
 import { linkProps, navigate } from "../../router.js";
@@ -66,12 +66,13 @@ export function TvDiscover({ query }) {
   const heldShows = new Set((libraryShows.data || []).map((s) => s.imdbId));
   const where = (t) => ({ here: t.kind === "film" ? filmsHere.get(t.imdbId) : null, held: t.kind === "show" && heldShows.has(t.imdbId) });
 
-  // What the library holds by that name that the catalogue did not answer with.
-  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const named = (name) => words.every((w) => name.toLowerCase().includes(w));
+  // What the library holds by those words, as the API searches it, that the catalogue did not answer with.
+  const held = useLoad(() => (q ? api.libraryPage("all", { q }).catch(() => null) : Promise.resolve(null))
+    .then((page) => ({ q, items: page ? page.items : [] })), [q]);
+  const heldNow = held.data && held.data.q === q ? held.data.items : [];
   const answeredIds = new Set(found.map((t) => t.imdbId));
-  const libraryFilms = q ? (titles.data || []).filter((t) => t.kind !== "show" && named(filmName(t)) && !(t.film && answeredIds.has(t.film.imdbId))) : [];
-  const libraryShowsNamed = q ? (libraryShows.data || []).filter((s) => named(s.title) && !answeredIds.has(s.imdbId)) : [];
+  const libraryFilms = heldNow.filter((i) => i.film && !(i.film.film && answeredIds.has(i.film.film.imdbId))).map((i) => i.film);
+  const libraryShowsNamed = heldNow.filter((i) => i.show && !answeredIds.has(i.show.imdbId)).map((i) => i.show);
   const [best, ...rest] = found;
 
   const submit = (value) => navigate(discoverPath(value.trim()));

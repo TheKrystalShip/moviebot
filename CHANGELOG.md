@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.79.0] - 2026-10-25
+
+### Added
+- `/api/library/{scope}`: a library page searched, narrowed and ordered by the API, its films, its
+  shows or both, of the Anime shelf, of the rest or of both, with the whole page's total, its facets (a film's
+  state among them) and the orders it is served in. `/api/me/wants/page` is the same for the person's
+  wants.
+
+- `/api/me/history/page`: the person's history searched and narrowed, each entry with the library's
+  title it names. `/api/people` takes `q`. `unwatched=true` on `/api/discover/shelves/{id}`,
+  `/api/catalogue/discover` and `/api/catalogue/ask` leaves off what the asking person watched. A
+  library page takes `held`, the titles the asking device says it holds, and `shelf=general`.
+
+### Changed
+- Online, every search, filter and sort is the API's, on the site and on a television: Movies, TV
+  Shows, Anime, Want to watch and History; Discover's Hide watched; the library's titles a Discover
+  search finds by name; and the people a new plan can invite. The Download section asks the API for
+  the titles the device holds. Only a shelf opened with no connection, the device's saved titles, is
+  searched, filtered and sorted in the page.
+- A library page's search, like every search here, holds every word typed, in any order.
+
 ## [3.78.0] - 2026-10-24
 
 ### Added

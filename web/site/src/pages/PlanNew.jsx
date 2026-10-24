@@ -1,5 +1,5 @@
 import React from "react";
-import { BriefCard, Button, Calendar, Icon, Input, TimeGrid, TimeInput, toast } from "@thekrystalship/krystal";
+import { BriefCard, Button, Calendar, Icon, Input, TimeGrid, TimeInput, toast, useDebouncedValue } from "@thekrystalship/krystal";
 import { dateKey, momentKey, nextStep, parseDate, parseMoment } from "@thekrystalship/krystal/lib/datetime";
 import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
@@ -81,13 +81,15 @@ export function PlanNew({ query }) {
   const now = useNow();
   const title = useLoad(() => (imdbId ? (kind === "show" ? api.show(imdbId) : api.film(imdbId)) : Promise.resolve(null)), [imdbId, kind]);
   const people = useLoad(() => api.people().catch(() => []), []);
+  const [find, setFind] = React.useState("");
+  const q = useDebouncedValue(find.trim(), 250);
+  const found = useLoad(() => (q ? api.people(q).catch(() => []) : Promise.resolve(null)).then((list) => ({ q, people: list })), [q]);
   const wanters = useLoad(() => (imdbId ? api.wanters(imdbId).catch(() => []) : Promise.resolve([])), [imdbId]);
   const [first] = React.useState(() => momentKey(nextStep(Date.now() + 60 * 60000, STEP)));
   const [times, setTimes] = React.useState([first]);
   const [day, setDay] = React.useState(first.slice(0, 10));
   const [exact, setExact] = React.useState("");
   const [picked, setPicked] = React.useState(null);
-  const [find, setFind] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
   useCrumb(title.data ? title.data.title : null);
@@ -132,9 +134,9 @@ export function PlanNew({ query }) {
     setPicked(next);
   };
   const everyone = everybody.length > 0 && everybody.every((p) => chosen.has(p.userId));
-  const q = find.trim().toLowerCase();
-  const shown = [...everybody.filter((p) => wanted.has(p.userId)), ...everybody.filter((p) => !wanted.has(p.userId))]
-    .filter((p) => !q || (p.name || "").toLowerCase().includes(q));
+  // The people the words name, as the API finds them, the ones who want the title first.
+  const named = found.data && found.data.q === q ? found.data.people : everybody;
+  const shown = [...named.filter((p) => wanted.has(p.userId)), ...named.filter((p) => !wanted.has(p.userId))];
 
   const make = async () => {
     setBusy(true);

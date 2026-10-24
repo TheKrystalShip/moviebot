@@ -60,7 +60,9 @@ public static class DiscoverEndpoints
             if (CatalogueSearchEndpoints.Picks(kind, category, anyGenre, decade, length, minRating, language) is not { } picks) return CatalogueSearchEndpoints.BadDecade();
             var outcome = await shelves.ShelfAsync(id, PeopleEndpoints.Person(context)?.UserId, page ?? 1, ct,
                 string.IsNullOrWhiteSpace(sort) || sort == DiscoverShelves.OwnOrder ? null : sort, picks);
-            return outcome.Value is { } shelf ? Results.Ok(shelf) : Refused(outcome);
+            return outcome.Value is { } shelf
+                ? Results.Ok(CatalogueSearchEndpoints.Unwatched(context) ? shelf with { Titles = [.. shelf.Titles.Where(t => !t.Watched)] } : shelf)
+                : Refused(outcome);
         }).RequireAction(CinemaActions.Watch);
 
         // Which options each section of a shelf holds, with the filter's picks on it, and the orders the

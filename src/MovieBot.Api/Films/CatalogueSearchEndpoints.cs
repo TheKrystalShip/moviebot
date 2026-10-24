@@ -44,7 +44,7 @@ public static class CatalogueSearchEndpoints
                 Parts = answer.Parts,
                 Kind = answer.Discovery?.Kind,
                 Resolved = answer.Discovery?.Resolved,
-                Titles = [.. (answer.Discovery?.Hits ?? []).Select(h => search.View(h, shelf))],
+                Titles = [.. (answer.Discovery?.Hits ?? []).Select(h => search.View(h, shelf)).Where(t => !Unwatched(context) || !t.Watched)],
                 Next = answer.Discovery?.Next,
                 Message = answer.Message,
             });
@@ -95,7 +95,7 @@ public static class CatalogueSearchEndpoints
             {
                 Kind = answer.Kind,
                 Resolved = answer.Resolved,
-                Titles = [.. answer.Hits.Select(h => search.View(h, shelf))],
+                Titles = [.. answer.Hits.Select(h => search.View(h, shelf)).Where(t => !Unwatched(context) || !t.Watched)],
                 Next = answer.Next,
             });
         }).RequireAction(CinemaActions.Watch);
@@ -226,6 +226,13 @@ public static class CatalogueSearchEndpoints
             : (null, Results.Json(new ErrorReply($"{bad} is not a {(bad is "includeFamily" or "goodOnly" ? "true or false" : "number")}."),
                 ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status400BadRequest));
     }
+
+    /// <summary>
+    /// Whether the asking person leaves what they watched off the answer (<c>unwatched=true</c>). It is
+    /// applied to each page as it is answered, so a page that held watched titles comes back shorter.
+    /// </summary>
+    internal static bool Unwatched(HttpContext context) =>
+        bool.TryParse(context.Request.Query["unwatched"], out var unwatched) && unwatched;
 
     /// <summary>A filter's picks on a question; null for a decade that is not a number.</summary>
     internal static DiscoverPicks? Picks(string? kind, string? category, string[]? anyGenre, string[]? decade, string[]? length, double? minRating, string[]? language) =>

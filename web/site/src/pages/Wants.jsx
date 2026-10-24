@@ -1,14 +1,14 @@
 import React from "react";
 import { PosterCard } from "@thekrystalship/krystal";
-import { episodeCode } from "../api.js";
+import { api, episodeCode } from "../api.js";
 import { discoverFilmPath, moviePath, showPath } from "../paths.js";
 import { navigate } from "../router.js";
-import { SORTED, useSort } from "../sorts.js";
-import { shownOf, withOrder } from "../orders.js";
+import { SORTED } from "../sorts.js";
+import { shownOf } from "../orders.js";
 import { ago, clock } from "../time.js";
 import { refreshWants, useWantList } from "../wants.js";
 import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
-import { FilterField, useTitleFilter } from "../components/FilterField.jsx";
+import { FilterField, useListedFilter } from "../components/FilterField.jsx";
 import { CardsSkeleton } from "../components/TitleCards.jsx";
 import { useWantRibbon } from "../components/WantButton.jsx";
 
@@ -66,60 +66,40 @@ export function WantCard({ want: w, action }) {
   );
 }
 
-// Each comparator orders ascending; an order's direction reverses it.
-export const WANT_SORTS = [
-  { value: "since", defaultDir: "desc", compare: (a, b) => a.since.localeCompare(b.since) },
-  { value: "name", defaultDir: "asc", compare: (a, b) => a.title.localeCompare(b.title) },
-  { value: "year", defaultDir: "desc", compare: (a, b) => (a.year || 0) - (b.year || 0) },
-  { value: "rating", defaultDir: "desc", compare: (a, b) => (a.rating || 0) - (b.rating || 0) },
-  { value: "others", defaultDir: "desc", compare: (a, b) => a.others - b.others },
+/** The keys the wants keep their order under (`useSort`), the first the one they open in. */
+const WANT_KEYS = [
+  { value: "added", defaultDir: "desc" },
+  { value: "name", defaultDir: "asc" },
+  { value: "rating", defaultDir: "desc" },
+  { value: "year", defaultDir: "desc" },
+  { value: "others", defaultDir: "desc" },
 ];
 
-/** The orders the drawer offers the wants; "wanted" counts the other people who want a title too. */
-export const WANT_ORDERS = [
-  { key: "since", dir: "desc", label: "Recently added" },
-  { key: "since", dir: "asc", label: "First added" },
-  { key: "name", dir: "asc", label: "Name A–Z" },
-  { key: "name", dir: "desc", label: "Name Z–A" },
-  { key: "rating", dir: "desc", label: "Highest rated" },
-  { key: "rating", dir: "asc", label: "Lowest rated" },
-  { key: "year", dir: "desc", label: "Newest first" },
-  { key: "year", dir: "asc", label: "Oldest first" },
-  { key: "others", dir: "desc", label: "Most wanted" },
-  { key: "others", dir: "asc", label: "Least wanted" },
-];
-
-/** A want's order as `useSort` keeps it, applied to the wants a filter shows. */
-export const ordered = (wants, sort) => {
-  const order = WANT_SORTS.find((s) => s.value === sort.key) || WANT_SORTS[0];
-  return [...wants].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
-};
-
-/** Where a want can stand, by the words the State section and its address use. */
-export const WANT_STATES = [
-  { value: "ready", label: "Ready", test: (w) => w.state === "ready" },
-  { value: "fetching", label: "Fetching", test: (w) => w.state === "fetching" },
-  { value: "waiting", label: "Waiting", test: (w) => w.state === "waiting" },
-];
+/** The words of the states a want can stand in, by the API's names for them. */
+const WANT_STATE_WORDS = { ready: "Ready", fetching: "Fetching", available: "Available", waiting: "Waiting" };
 
 /**
- * The filter of the wants: the drawer's sections over them (kind, genre, decade, length, rating and
- * language), and where a want stands when the wants stand in more than one place.
+ * The wants as their page shows them: searched, narrowed and ordered by the API (`/api/me/wants/page`),
+ * asked again whenever the person's wants change, and each shown as the wants held now say it is, so a
+ * want removed or changed shows at once.
  */
-export function useWantFilter(all) {
-  const held = WANT_STATES.filter((s) => all.some(s.test));
-  const own = held.length >= 2 ? [{ id: "state", label: "State", kind: "optional", options: held.map(({ value, label }) => ({ value, label })) }] : [];
-  const passes = (w, v) => !v.state || !!WANT_STATES.find((s) => s.value === v.state && s.test(w));
-  return useTitleFilter(all, { fixed: [], own, passes, named: (w) => w.title });
+export function useWantsPage(list) {
+  const changed = (list || []).map((w) => w.imdbId + ":" + w.state).join(",");
+  const filter = useListedFilter(
+    (params) => api.wantsPage(params).then((page) => ({ titles: page.wants, total: page.total, facets: page.facets })),
+    { surface: SORTED.wants, keys: WANT_KEYS, fixed: [], stateWords: WANT_STATE_WORDS, deps: [changed] });
+  const held = new Map((list || []).map((w) => [w.imdbId, w]));
+  const titles = filter.titles && filter.titles.filter((w) => held.has(w.imdbId)).map((w) => held.get(w.imdbId));
+  return { ...filter, titles };
 }
 
 /**
  * What the person wants to watch: every want searched, narrowed by the filter drawer and ordered the
- * way they last picked. A title being fetched is asked after while the page is open.
+ * way they last picked (`useWantsPage`). A title being fetched is asked after while the page is open.
  */
 export function Wants() {
   const { list, error, reload } = useWantList();
-  const [sort, setSort] = useSort(SORTED.wants, WANT_SORTS);
+  const filter = useWantsPage(list);
 
   const fetching = !!list && list.some((w) => w.state === "fetching");
   React.useEffect(() => {
@@ -129,22 +109,19 @@ export function Wants() {
   }, [fetching]);
 
   const all = list || [];
-  const filter = useWantFilter(all);
-  const shown = ordered(filter.shown, sort);
+  const shown = filter.titles;
 
   return (
     <div className="kc-page">
-      <PageHead title="Want to watch" sub={list ? shownOf(shown.length, all.length, ["title", "titles"]) : null} />
+      <PageHead title="Want to watch" sub={list && shown ? shownOf(shown.length, all.length, ["title", "titles"]) : null} />
 
-      {all.length > 0 && (
-        <FilterField placeholder="Search what you want to watch" {...filter.field} {...withOrder(filter.field, WANT_ORDERS, sort, setSort)} />
-      )}
+      {all.length > 0 && <FilterField placeholder="Search what you want to watch" {...filter.field} />}
 
-      <Failed error={list ? null : error} onRetry={reload} />
-      {!list && !error && <CardsSkeleton count={8} />}
+      <Failed error={list ? filter.error && !shown ? filter.error : null : error} onRetry={list ? filter.reload : reload} />
+      {(!list || (all.length > 0 && !shown)) && !error && <CardsSkeleton count={8} />}
       {list && all.length === 0 && <Empty icon="bookmark" title="Nothing yet" />}
-      {all.length > 0 && shown.length === 0 && <Empty title="Nothing here" />}
-      {shown.length > 0 && (
+      {all.length > 0 && shown && shown.length === 0 && <Empty title="Nothing here" />}
+      {shown && shown.length > 0 && (
         <div className="kc-grid">
           {shown.map((w) => <WantCard key={w.imdbId} want={w} />)}
         </div>

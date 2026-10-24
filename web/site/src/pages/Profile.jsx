@@ -18,7 +18,7 @@ import { ago, airDay } from "../time.js";
 import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
 import { TabStage } from "../components/PageStage.jsx";
 import { CardsSkeleton, keptArt } from "../components/TitleCards.jsx";
-import { FilterField, useTitleFilter } from "../components/FilterField.jsx";
+import { FilterField, useListedFilter } from "../components/FilterField.jsx";
 import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
 import { BufferAheadLevels, bufferAhead, setBufferAhead } from "../player/engine/media/bufferAhead.ts";
@@ -94,21 +94,21 @@ export function panel(tab, session) {
 
 /**
  * What this person watched, newest first, and how far they got, searched by name and narrowed by the
- * filter drawer over what each entry is: the library's title it names, so an entry whose title left
- * the library is known only as a film or a show. On a television the entries under the open drawer are inert.
+ * filter drawer over what each entry is, the API answering both (`/api/me/history/page`): an entry is
+ * what the library's title it names is, so one whose title left the library is known only as a film or
+ * a show. On a television the entries under the open drawer are inert.
  */
 function History() {
-  const history = useLoad(() => api.history(), []);
-  const titles = useLoad(() => api.titles().catch(() => []), []);
-  const byId = new Map((titles.data || []).map((t) => [t.id, t]));
-  const rows = history.data || [];
-  const entries = rows.map((row) => ({ ...(byId.get(row.titleId) || { kind: row.episode ? "show" : "film" }), row }));
-  const filter = useTitleFilter(entries, { fixed: [], named: (e) => e.row.name || "" });
+  const [changed, setChanged] = React.useState(0);
+  const filter = useListedFilter(
+    (params) => api.historyPage(params).then((page) => ({ titles: page.entries, total: page.total, facets: page.facets })),
+    { surface: null, keys: null, fixed: [], deps: [changed] });
+  const entries = filter.titles;
 
   const forget = async (row) => {
     try {
       await api.forgetHistory(row.titleId);
-      history.reload();
+      setChanged((n) => n + 1);
     } catch (error) {
       toast.fromError(error, "Could not remove it from your history");
     }
@@ -116,14 +116,14 @@ function History() {
 
   return (
     <section className="kc-shelf">
-      <Failed error={history.error} onRetry={history.reload} />
-      {!history.data && !history.error && <CardsSkeleton count={8} row />}
-      {history.data && rows.length === 0 && <Empty icon="history" title="Nothing watched yet" />}
-      {rows.length > 0 && <FilterField placeholder="Search what you watched" {...filter.field} />}
-      {rows.length > 0 && filter.shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
-      {filter.shown.length > 0 && (
+      <Failed error={entries ? null : filter.error} onRetry={filter.reload} />
+      {!entries && !filter.error && <CardsSkeleton count={8} row />}
+      {filter.total === 0 && <Empty icon="history" title="Nothing watched yet" />}
+      {filter.total > 0 && <FilterField placeholder="Search what you watched" {...filter.field} />}
+      {filter.total > 0 && entries.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
+      {entries && entries.length > 0 && (
         <div className="kc-grid" inert={filter.drawer.open && onTv ? "" : undefined}>
-          {filter.shown.map(({ row }) => <HistoryCard key={row.titleId} row={row} title={byId.get(row.titleId)} onForget={forget} />)}
+          {entries.map(({ entry, title }) => <HistoryCard key={entry.titleId} row={entry} title={title} onForget={forget} />)}
         </div>
       )}
     </section>

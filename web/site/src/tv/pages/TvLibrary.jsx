@@ -1,56 +1,48 @@
 import { TvCard, TvRow, TvSpotlight, TvTile } from "@thekrystalship/krystal";
-import { api, filmName, posterUrl } from "../../api.js";
-import { useLoad } from "../../data.js";
-import { ANIME, discoverGenrePath, isAnime, moviePath, showPath } from "../../paths.js";
+import { api, posterUrl } from "../../api.js";
+import { ANIME, discoverGenrePath, moviePath, showPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { Empty, Failed } from "../../components/Film.jsx";
-import { FilterField, useTitleFilter } from "../../components/FilterField.jsx";
-import { FILM_ORDERS, SHOW_ORDERS, SHOW_SORTS, SORTS } from "../../pages/Library.jsx";
-import { withOrder } from "../../orders.js";
-import { SORTED, useSort } from "../../sorts.js";
+import { FilterField, useListedFilter } from "../../components/FilterField.jsx";
+import { SORTED } from "../../sorts.js";
 import { SpotStage, useSpot, useSpotlight } from "../spot.jsx";
 import { showSpot, titleSpot } from "../../spots.js";
 import { useBarAway } from "../TvFrame.jsx";
 
 /**
  * Movies, TV Shows or Anime on a television: what the server holds of that shelf as one row per genre,
- * the genres most held first, each row in the shelf's order, with the spotlight on the focused card as
- * on Home. A title is in every row of its genres; one with none is in a last row of its own. Anime
+ * the genres most held first, each row in the order the API serves the shelf in (`/api/library/<scope>`),
+ * with the spotlight on the focused card as on Home. A title is in every row of its genres; one with none is in a last row of its own. Anime
  * (`category`) holds films and shows together, and is the one shelf whose rows mix the two, so it is
- * the one whose filter has a Kind, and it is ordered as shows are. The field at the top searches the
- * shelf by name and its filter drawer orders and narrows it, the order being the one the site's page of
- * the shelf keeps; the rows under the open drawer are inert.
+ * the one whose filter has a Kind, and it keeps its order as shows do. The field at the top searches the
+ * shelf by name and its filter drawer orders and narrows it, the API answering both, in the order the
+ * site's page of the shelf keeps; the rows under the open drawer are inert.
  */
 export function TvLibrary({ kind, category = null }) {
   const anime = category === ANIME;
-  const wantsFilms = anime || kind === "film";
-  const wantsShows = anime || kind === "show";
-  const titles = useLoad(() => (wantsFilms ? api.titles() : Promise.resolve(null)), [wantsFilms]);
-  const showList = useLoad(() => (wantsShows ? api.shows() : Promise.resolve(null)), [wantsShows]);
-  const { store, pageRef, regionRef, focusOn } = useSpotlight();
-
-  const onShelf = (t) => isAnime(t) === anime;
-  const all = [
-    ...(wantsShows && showList.data ? showList.data.filter(onShelf) : []),
-    ...(wantsFilms && titles.data ? titles.data.filter((t) => t.kind !== "show" && t.status !== "failed" && onShelf(t)) : []),
-  ];
-  const filter = useTitleFilter(all, { fixed: anime ? [] : ["kind"], named: (t) => t.title || "" });
+  const scope = anime ? "all" : kind === "show" ? "shows" : "films";
   const films = kind === "film" && !anime;
-  const [sort, setSort] = useSort(films ? SORTED.films : SORTED.shows, films ? SORTS : SHOW_SORTS);
-  // On Anime every title is anime, so its Kind offers films and series alone.
-  const sections = filter.field.sections.map((s) => (s.id === "kind" ? { ...s, options: s.options.filter((o) => o.value !== ANIME) } : s));
+  const { store, pageRef, regionRef, focusOn } = useSpotlight();
+  // A film that could not be prepared cannot be played, so a television leaves it off.
+  const filter = useListedFilter(
+    (params) => api.libraryPage(scope, { ...params, shelf: anime ? "anime" : "general" })
+      .then((page) => ({ titles: page.items.map((i) => i.film || i.show), total: page.total, facets: page.facets })),
+    { surface: films ? SORTED.films : SORTED.shows, keys: films ? FILM_KEYS : SHOW_KEYS, fixed: anime ? [] : ["kind"],
+      passes: (t) => t.status !== "failed", deps: [scope] });
+  // On Anime every title is anime, so its Kind offers films and series alone; a television picks no state.
+  const sections = filter.field.sections
+    .filter((s) => s.id !== "state")
+    .map((s) => (s.id === "kind" ? { ...s, options: s.options.filter((o) => o.value !== ANIME) } : s));
 
-  const sources = [wantsFilms && titles, wantsShows && showList].filter(Boolean);
-  const failed = sources.find((s) => s.error && !s.data);
-  if (failed) return <div className="kc-tv-page kc-tv-pad"><Failed error={failed.error} onRetry={failed.reload} /></div>;
-  if (sources.some((s) => !s.data)) return <div className="kc-tv-page" />;
+  if (filter.error && !filter.titles) return <div className="kc-tv-page kc-tv-pad"><Failed error={filter.error} onRetry={filter.reload} /></div>;
+  if (!filter.titles) return <div className="kc-tv-page" />;
 
-  const items = filter.shown.map((t) => (t.kind === "show" || t.seasons
+  const items = filter.titles.map((t) => (t.kind === "show" || t.seasons
     ? { key: "show:" + (t.imdbId || t.firstTitleId), genres: (t.details && t.details.genres) || [], show: t }
     : { key: t.id, genres: (t.details && t.details.genres) || [], film: t }));
   const label = anime ? "Anime" : kind === "show" ? "TV Shows" : "Movies";
   const unit = anime ? ["title", "titles"] : kind === "show" ? ["show", "shows"] : ["film", "films"];
-  if (all.length === 0) return <div className="kc-tv-page kc-tv-pad"><Empty title={anime ? "No anime yet" : kind === "show" ? "No shows yet" : "No movies yet"} /></div>;
+  if (filter.total === 0) return <div className="kc-tv-page kc-tv-pad"><Empty title={anime ? "No anime yet" : kind === "show" ? "No shows yet" : "No movies yet"} /></div>;
 
   const byGenre = new Map();
   for (const item of items) {
@@ -61,7 +53,7 @@ export function TvLibrary({ kind, category = null }) {
   }
   const rows = [...byGenre.entries()]
     .sort(([a, x], [b, y]) => (a === null) - (b === null) || y.length - x.length || String(a).localeCompare(String(b)))
-    .map(([genre, list]) => ({ genre, list: list.sort(inOrder(sort)) }));
+    .map(([genre, list]) => ({ genre, list }));
 
   // The page opens on its first card, the field above it a press of Up away.
   const first = rows.length > 0 ? rows[0].list[0] : null;
@@ -76,8 +68,7 @@ export function TvLibrary({ kind, category = null }) {
       <BarAwayInRows store={store} />
       <SpotStage store={store} art={null} idleSize="short" />
       <div className="kc-tvl__field">
-        <FilterField placeholder={`Search ${label}`} {...filter.field}
-          {...withOrder({ ...filter.field, sections }, films ? FILM_ORDERS : SHOW_ORDERS, sort, setSort)} />
+        <FilterField placeholder={`Search ${label}`} {...filter.field} sections={sections} />
       </div>
       <div className="kc-tvl__title">
         <TvSpotlight size="md" title={label} meta={`${items.length} ${items.length === 1 ? unit[0] : unit[1]}`} />
@@ -100,25 +91,14 @@ export function TvLibrary({ kind, category = null }) {
   );
 }
 
-// What each order compares in a row's cards, which hold a film or a show; each ascends.
-const KEYS = {
-  added: (i) => (i.film || i.show).addedAt || "",
-  name: (i) => (i.film ? filmName(i.film) : i.show.title) || "",
-  rating: (i) => ((i.film || i.show).details && (i.film || i.show).details.rating) || 0,
-  year: (i) => (i.film ? (i.film.film && i.film.film.year) : i.show.firstYear) || 0,
-  length: (i) => (i.film ? i.film.durationSeconds : 0) || 0,
-};
-
-/** A comparator of a row's cards in `sort`, the order `useSort` keeps. */
-function inOrder({ key, dir }) {
-  const of = KEYS[key] || KEYS.added;
-  const sign = dir === "asc" ? 1 : -1;
-  return (x, y) => {
-    const a = of(x);
-    const b = of(y);
-    return sign * (typeof a === "string" ? a.localeCompare(b) : a - b);
-  };
-}
+/** The keys a shelf keeps its order under (`useSort`), as the site's page of the shelf keeps them. */
+const SHOW_KEYS = [
+  { value: "added", defaultDir: "desc" },
+  { value: "name", defaultDir: "asc" },
+  { value: "rating", defaultDir: "desc" },
+  { value: "year", defaultDir: "desc" },
+];
+const FILM_KEYS = [...SHOW_KEYS, { value: "length", defaultDir: "asc" }];
 
 /** Puts the bar away while focus is in the rows, where the spotlight takes the top of the screen. */
 function BarAwayInRows({ store }) {

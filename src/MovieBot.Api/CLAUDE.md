@@ -170,8 +170,8 @@ film onto a device is `Offline/CLAUDE.md`.
   the warmer has run. The shelves that follow from a person read the watch record and the library as
   listed, and "Popular here" names nobody and no count.
 - **The shelf is listed from memory.** `Library/LibraryListing` rebuilds the library's list every
-  ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/shows/{imdbId}` and a title's
-  neighbours read that list. Building it asks the filesystem about every title, and on a host short
+  ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/shows/{imdbId}`, the library's
+  pages (`/api/library/{scope}`, `Library/ListedPages`) and a title's neighbours read that list. Building it asks the filesystem about every title, and on a host short
   of memory while a transcode runs, the kernel forgets those answers within seconds and the cold
   root is a spinning disk: built per request, a listing costs a second. A change on disk reaches the
   shelf within ten seconds. What must be exact reads `TitleLibrary` directly: a title's own
