@@ -31,6 +31,12 @@ public enum ShelfSource
     /// <summary>The films one person directed.</summary>
     Director,
 
+    /// <summary>The films one person directed, for a title's page (<c>directed-&lt;personId&gt;</c>).</summary>
+    DirectedBy,
+
+    /// <summary>The acting work of one person, films and shows, for a title's page (<c>starring-&lt;personId&gt;</c>).</summary>
+    Starring,
+
     /// <summary>What the database counts as similar to a title the viewer watched.</summary>
     Like,
 
@@ -87,7 +93,7 @@ public sealed record Shelf
     public ShelfSeason? Season { get; init; }
 
     /// <summary>Whether it reads the same for everybody, which is what is kept fresh ahead of anybody asking.</summary>
-    public bool Shared => Source is not (ShelfSource.Like or ShelfSource.PopularHere or ShelfSource.ReadyHere);
+    public bool Shared => Source is not (ShelfSource.Like or ShelfSource.DirectedBy or ShelfSource.Starring or ShelfSource.PopularHere or ShelfSource.ReadyHere);
 }
 
 /// <summary>A tab of the Discover page.</summary>
@@ -124,6 +130,9 @@ public sealed record ShelfTitleView
     public bool Watched { get; init; }
 
     public TitleCategory? Category { get; init; }
+
+    /// <summary>The part the shelf's person had on the title (<c>Director</c>, or the character played); absent on any other shelf.</summary>
+    public string? Role { get; init; }
 }
 
 /// <summary>A shelf as Discover lists it, before its titles are asked for.</summary>
@@ -234,7 +243,7 @@ public sealed record ShelfView
 }
 
 /// <summary>A page of a shelf's titles and the page that follows it, absent on the last.</summary>
-internal sealed record ShelfPage(List<ShelfTitleView> Titles, int? Next);
+internal sealed record ShelfPage(List<ShelfTitleView> Titles, int? Next, string? Title = null);
 
 /// <summary>
 /// The Discover page's shelves: what is new and what is popular, moods, the acclaimed, decades,
@@ -461,7 +470,7 @@ public sealed class DiscoverShelves(
         if (page < 1 || page > CatalogueSearch.PagesListed) return Outcome<ShelfView>.Failed(Problem.Invalid, $"Page is 1 to {CatalogueSearch.PagesListed}.");
         if (sort is not null && !Sorts.Contains(sort)) return Outcome<ShelfView>.Failed(Problem.Invalid, "Sort is rating, newest or oldest.");
         var titles = library.Titles();
-        var shelf = ById.GetValueOrDefault(id) ?? Personal(viewerId, titles).FirstOrDefault(s => s.Id == id) ?? LikeShelf(id, titles);
+        var shelf = ById.GetValueOrDefault(id) ?? Personal(viewerId, titles).FirstOrDefault(s => s.Id == id) ?? LikeShelf(id, titles) ?? PersonShelf(id);
         if (shelf is null) return Outcome<ShelfView>.Failed(Problem.NotFound, "There is no shelf by that name.");
 
         var listed = await TitlesAsync(shelf, viewerId, titles, page, sort, ct);
@@ -469,7 +478,7 @@ public sealed class DiscoverShelves(
         return Outcome<ShelfView>.Ok(new ShelfView
         {
             Id = shelf.Id,
-            Title = shelf.Title,
+            Title = found.Title ?? shelf.Title,
             Icon = shelf.Icon,
             Section = Sections.First(s => s.Id == shelf.Section).Label,
             Kind = shelf.Kind,
@@ -552,6 +561,10 @@ public sealed class DiscoverShelves(
             }
             case ShelfSource.Director:
                 return Hits(await search.DirectedAsync(shelf.DatabaseId!.Value, ask, ct, sort), held);
+            case ShelfSource.DirectedBy:
+                return PersonPage(await search.DirectedWorkAsync(shelf.DatabaseId!.Value, ask, ct, sort), held);
+            case ShelfSource.Starring:
+                return PersonPage(await search.StarringAsync(shelf.DatabaseId!.Value, ask, ct, sort), held);
             case ShelfSource.Like:
             {
                 var answer = await search.DiscoverAsync(new DiscoverRequest { Like = shelf.Seed, Kind = shelf.Kind, Page = page, Sort = sort }, ct);
@@ -622,7 +635,18 @@ public sealed class DiscoverShelves(
     private static Outcome<ShelfPage> Failed<T>(Outcome<T> answer) where T : class =>
         answer.Problem == Problem.NotFound ? Ok([]) : answer.Carry<ShelfPage>();
 
-    private List<ShelfTitleView> Views(IEnumerable<TitleHit> hits, LibraryShelf held)
+    /// <summary>
+    /// A person's shelf: titled by their name, each title with the part they had on it. A person the
+    /// database holds nobody under is a shelf with nothing on it.
+    /// </summary>
+    private Outcome<ShelfPage> PersonPage(Outcome<PersonWork> answer, LibraryShelf held)
+    {
+        if (answer.Value is not { } work) return Failed(answer);
+        var views = Views(work.Page.Hits, held, work.Roles);
+        return Outcome<ShelfPage>.Ok(new ShelfPage(views, work.Page.Next, $"More from {work.Name}"));
+    }
+
+    private List<ShelfTitleView> Views(IEnumerable<TitleHit> hits, LibraryShelf held, IReadOnlyDictionary<(string Kind, int TmdbId), string?>? roles = null)
     {
         var views = new List<ShelfTitleView>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -645,6 +669,7 @@ public sealed class DiscoverShelves(
                 LibraryId = view.LibraryId,
                 Watched = view.Watched,
                 Category = view.Category,
+                Role = roles is not null && roles.GetValueOrDefault((hit.Listed.Kind, hit.Listed.TmdbId)) is { Length: > 0 } role ? role : null,
             });
         }
         return views;
@@ -688,6 +713,22 @@ public sealed class DiscoverShelves(
         var kind = parts[1];
         var held = titles.FirstOrDefault(t => t.Film?.ImdbId == imdb && (t.Kind == TitleKind.Show) == (kind == "show"));
         return Like(kind, imdb, held is null ? null : NameOf(held));
+    }
+
+    /// <summary>
+    /// The shelf of one person's work by its id: <c>directed-&lt;personId&gt;</c> or
+    /// <c>starring-&lt;personId&gt;</c>, the person's id in the film database; null for any other id.
+    /// Its title is the person's name, known once the database has been asked.
+    /// </summary>
+    private static Shelf? PersonShelf(string id)
+    {
+        var parts = id.Split('-', 2);
+        if (parts is not [var which and ("directed" or "starring"), var digits]
+            || digits.Length > 9 || !digits.All(char.IsAsciiDigit)
+            || !int.TryParse(digits, System.Globalization.CultureInfo.InvariantCulture, out var person) || person <= 0) return null;
+        return which == "directed"
+            ? new Shelf { Id = id, Title = "More from this person", Icon = "megaphone", Section = "directors", Source = ShelfSource.DirectedBy, DatabaseId = person }
+            : new Shelf { Id = id, Title = "More from this person", Icon = "user", Section = "for-you", Kind = null, Source = ShelfSource.Starring, DatabaseId = person };
     }
 
     private static Shelf Like(string kind, string imdb, string? name) => new()

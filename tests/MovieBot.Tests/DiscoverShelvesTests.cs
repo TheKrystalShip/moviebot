@@ -291,4 +291,54 @@ public sealed class DiscoverShelvesTests(SessionFixture fixture) : IClassFixture
         Assert.Contains(fixture.FilmDatabase.Requests.Skip(before), r => r.Contains("with_runtime.gte=60&with_runtime.lte=90"));
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
     }
+
+    [Fact]
+    public async Task A_director_s_shelf_lists_only_the_films_they_directed_each_as_its_director()
+    {
+        var shelf = await Get<ShelfView>($"/api/discover/shelves/directed-{FilmDatabaseStub.Jo}");
+
+        Assert.Equal(($"directed-{FilmDatabaseStub.Jo}", "More from Jo Test", "megaphone", "film"), (shelf.Id, shelf.Title, shelf.Icon, shelf.Kind));
+        var only = Assert.Single(shelf.Titles);
+        Assert.Equal(("Silver Harbour", "Director"), (only.Title, only.Role));
+        Assert.Null(shelf.Next);
+    }
+
+    [Fact]
+    public async Task A_person_s_acting_shelf_leaves_out_appearances_uncredited_parts_unreleased_titles_and_short_guest_spots()
+    {
+        var shelf = await Get<ShelfView>($"/api/discover/shelves/starring-{FilmDatabaseStub.Kim}");
+
+        Assert.Equal(("More from Kim Test", "user", null), (shelf.Title, shelf.Icon, shelf.Kind));
+        Assert.Equal([("Old Letters", "film", "Vera"), ("Long Winter", "show", "Nora")], shelf.Titles.Select(t => (t.Title, t.Kind, t.Role)));
+    }
+
+    [Fact]
+    public async Task A_person_s_shelf_is_ordered_whole_by_a_sort_and_ends_on_its_page()
+    {
+        var newest = await Get<ShelfView>($"/api/discover/shelves/starring-{FilmDatabaseStub.Kim}?sort=newest");
+        var later = await Get<ShelfView>($"/api/discover/shelves/starring-{FilmDatabaseStub.Kim}?page=2");
+
+        Assert.Equal(["Long Winter", "Old Letters"], newest.Titles.Select(t => t.Title));
+        Assert.Empty(later.Titles);
+    }
+
+    [Fact]
+    public async Task A_shelf_of_a_person_the_database_does_not_know_is_empty_and_one_with_no_id_is_not_found()
+    {
+        var unknown = await Get<ShelfView>("/api/discover/shelves/directed-999999");
+        using var word = await Signed("d1").GetAsync("/api/discover/shelves/starring-kim");
+        using var zero = await Signed("d1").GetAsync("/api/discover/shelves/directed-0");
+
+        Assert.Empty(unknown.Titles);
+        Assert.Equal(HttpStatusCode.NotFound, word.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, zero.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_title_on_any_other_shelf_has_no_role()
+    {
+        var series = await Get<ShelfView>("/api/discover/shelves/star-wars");
+
+        Assert.All(series.Titles, t => Assert.Null(t.Role));
+    }
 }

@@ -37,6 +37,9 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
     /// <summary>A person of the invented world: credits from 1999 to a film with no date.</summary>
     public const int Jo = 7777;
 
+    /// <summary>A person whose acting work has a lead, an uncredited part, an appearance, a coming film and shows of 12 and 2 episodes.</summary>
+    public const int Kim = 7778;
+
     /// <summary>A person who is in <see cref="SilverHarbour"/>.</summary>
     public const int Ray = 8001;
 
@@ -253,6 +256,20 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             ];
             return "{ \"id\": 7777, \"name\": \"Jo Test\", \"known_for_department\": \"Acting\", \"profile_path\": \"/jo.jpg\", \"combined_credits\": { \"cast\": [ "
                 + string.Join(", ", cast) + " ], \"crew\": [ " + string.Join(", ", crew) + " ] } }";
+        }
+
+        if (path.EndsWith("/person/" + Kim))
+        {
+            string[] cast =
+            [
+                Listed(7000, "Old Letters", "1999-03-04", 7.5, 2000, "18", "movie", "Vera"),
+                Listed(7001, "Spring Letters", released, 7.2, 400, "18", "movie", "Passer-by (uncredited)"),
+                Listed(7002, "Winter Orchard", coming, 0, 0, "18", "movie", "Ines"),
+                "{ \"id\": 8, \"media_type\": \"movie\", \"title\": \"A Documentary\", \"release_date\": \"" + released + "\", \"vote_count\": 30, \"character\": \"Self - Interviewee\" }",
+                "{ \"id\": 6001, \"media_type\": \"tv\", \"name\": \"Long Winter\", \"first_air_date\": \"2021-01-10\", \"vote_average\": 8.1, \"vote_count\": 700, \"character\": \"Nora\", \"episode_count\": 12, \"genre_ids\": [18] }",
+                "{ \"id\": 6000, \"media_type\": \"tv\", \"name\": \"Heat Wave\", \"first_air_date\": \"2019-04-01\", \"vote_average\": 7.0, \"vote_count\": 300, \"character\": \"Guest\", \"episode_count\": 2, \"genre_ids\": [18] }",
+            ];
+            return "{ \"id\": 7778, \"name\": \"Kim Test\", \"known_for_department\": \"Acting\", \"combined_credits\": { \"cast\": [ " + string.Join(", ", cast) + " ], \"crew\": [] } }";
         }
 
         // What names a title: its IMDb id, who made it and who stars in it.

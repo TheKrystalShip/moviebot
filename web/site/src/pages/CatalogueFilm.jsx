@@ -4,12 +4,14 @@ import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { useCan } from "../session.js";
 import { useCrumb } from "../crumbs.js";
+import { clock } from "../time.js";
 import { ANIME, moviePath } from "../paths.js";
 import { navigate } from "../router.js";
 import { Empty, Failed } from "../components/Film.jsx";
 import { FilmActions } from "../components/FilmActions.jsx";
-import { CastGrid, Credits, FactGrid, Keywords, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
-import { FilmFacts, HeroPoster, TitleHero, TitleStory } from "../components/TitleHero.jsx";
+import { CastGrid, FactGrid, Keywords, TitleSkeleton, dollars, originalTitle } from "../components/FilmDetails.jsx";
+import { HeroGroup, TitleAbout, TitleAwards, TitleFacts, TitleHero, TitleHonours, TrailerButton } from "../components/TitleHero.jsx";
+import { TitleShelves } from "./DiscoverShelves.jsx";
 
 /**
  * A film by its IMDb id, here or not: what it is, and the way to it. A film that plays now goes to its
@@ -46,21 +48,26 @@ export function CatalogueFilm({ imdbId }) {
     ["Released", d.releaseDate ? new Date(d.releaseDate).getFullYear() : d.year],
     ["Language", d.languages.length ? d.languages.join(", ") : null],
     ["Country", d.countries.length ? d.countries.join(", ") : null],
+    ["Budget", dollars(d.budget)],
+    ["Box office", dollars(d.revenue)],
     ["IMDb", d.imdbId, true],
   ];
 
   return (
     <div className="kc-page kc-title">
-      <TitleHero art={d.backdropUrl || d.posterUrl} poster={<HeroPoster url={d.posterUrl} name={d.title} />}
-        eyebrow={d.category === ANIME ? "Anime movie" : "Movie"} title={d.title}>
-        <FilmFacts film={d} />
-        {a && a.notOut && (
-          <Pill tone="warn" icon="calendar-clock" className="kc-tt__notout">Not out digitally yet</Pill>
-        )}
-        <TitleStory rating={d.rating} votes={d.votes} ratedBy={d.ratedBy} genres={d.genres} tagline={d.tagline} overview={d.overview} />
-        <Credits film={d} />
-
-        <FilmActions imdbId={imdbId} film={d} state={state} />
+      <TitleHero art={d.backdropUrl || d.posterUrl} eyebrow={d.category === ANIME ? "Anime movie" : "Movie"} title={d.title}
+        trailer={d.trailers && d.trailers[0]}
+        facts={<TitleFacts rating={d.rating} votes={d.votes} ratedBy={d.ratedBy} kind="film" category={d.category === ANIME ? ANIME : null}
+          parts={[d.year, d.certification && { cert: d.certification }, d.runtimeMinutes && clock(d.runtimeMinutes * 60)]}
+          genres={d.genres} />}>
+        <TitleHonours awards={d.awards} basedOn={d.basedOn} />
+        <TitleAbout overview={d.overview} credits={d} />
+        <HeroGroup>
+          {a && a.notOut && (
+            <Pill tone="warn" icon="calendar-clock" className="kc-tt__notout">Not out digitally yet</Pill>
+          )}
+          <FilmActions imdbId={imdbId} film={d} state={state} afterWatch={<TrailerButton />} />
+        </HeroGroup>
       </TitleHero>
 
       {d.cast.length > 0 && (
@@ -69,6 +76,11 @@ export function CatalogueFilm({ imdbId }) {
           <CastGrid cast={d.cast} />
         </section>
       )}
+
+      <TitleShelves kind="film" imdbId={d.imdbId}
+        directors={d.directors.map((name) => ({ name, personId: (d.personIds || {})[name] }))} stars={d.cast.slice(0, 2)} />
+
+      <TitleAwards awards={d.awards} />
 
       <section className="kc-section">
         <h2>Details</h2>

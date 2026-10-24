@@ -91,6 +91,7 @@ export function SpotFacts({ facts }) {
         <span className="kc-tv-rating">
           <Icon name="star" size={13} />
           <span className="kc-mono">{facts.rating.toFixed(1)}</span>
+          {facts.ratedBy && <span className="kc-tv-rating__by">{facts.ratedBy === "imdb" ? "IMDb" : "TMDB"}</span>}
         </span>
       ) : null}
       {facts.year && <span>{facts.year}</span>}

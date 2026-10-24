@@ -73,17 +73,16 @@ Landed: `docs/api-contract.md` (Wikidata), `src/MovieBot.Api/CLAUDE.md`.
 
 Landed: `docs/api-contract.md` (What a description carries, `/api/catalogue/discover`, `/api/catalogue/ask`, `/api/discover`), `src/MovieBot.Api/CLAUDE.md`.
 
-### 4·g Design phase (required before 4·c–4·f reach the page)
+### 4·g Design phase
 
-**Not to be skipped.** Once the data of 4·c–4·f is served, Discover and the title page are designed
-around it in the Cinema design: how a question's reading is drawn and edited, how many shelves the
-page holds and in what order, where award, adaptation and place shelves sit, how trailers sit on a
-title page, and the attribution TMDB and IMDb require. Until it is done, 4·c–4·f are served by the API
-and drawn only as the existing components already draw them.
-4·f serves the design a title's official YouTube trailers (embedded from `youtube-nocookie.com`),
-recommendations, reviews, logo, tagline, box office, keyword links and Wikidata awards and sources to
-place. Settled: IMDb's rating is the one shown; nothing points at another streaming service; no shelf
-or setting is tied to one country.
+The title page landed: `web/site/README.md` (a film's and a show's page), `docs/api-contract.md`
+(`directed-`, `starring-`).
+
+Still to design: Discover itself, around the data 4·a–4·f serve. How a question's reading is drawn and
+edited, how many shelves the page holds and in what order, and where the award, adaptation and place
+shelves sit. Until then they are drawn as the existing components already draw them. What the title
+page settled holds here too: IMDb's rating is the one shown, nothing points at another streaming
+service, no shelf or setting is tied to one country, and every corner is 4px but a circle's.
 
 ## 5. Order
 

@@ -21,9 +21,9 @@ import { Wanters } from "./Wanters.jsx";
  * library film's page puts them. `state` is the `useLoad` of
  * `api.availability`, which the caller asks for and can reload; `film` is the film as `api.film`
  * describes it. `compact` keeps to the actions that watch or wait, for a film shown among others;
- * `children` follow the actions on their row.
+ * `afterWatch` follows Watch (a page's Trailer), and `children` follow the actions on their row.
  */
-export function FilmActions({ imdbId, film, state, compact = false, children }) {
+export function FilmActions({ imdbId, film, state, compact = false, afterWatch = null, children }) {
   const downloading = useCan("cinema:download");
   const saving = useOffersSaving();
   const online = useOnline();
@@ -87,6 +87,7 @@ export function FilmActions({ imdbId, film, state, compact = false, children }) 
             Watch
           </Button>
         )}
+        {afterWatch}
         {arriving && <Pill tone="info">preparing · {Math.floor(arriving.progress * 100)}%</Pill>}
 
         {(!compact || (a && a.notOut)) && <WantButton imdbId={imdbId} kind="film" title={film.title} />}

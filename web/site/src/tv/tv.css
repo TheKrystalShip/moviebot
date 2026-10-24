@@ -362,3 +362,36 @@
 .kc-tv-hero { animation: k-rise 500ms var(--ease-out) both; }
 .kc-tv-hero__pager { margin-top: 22px; }
 .kc-tv-hero__actions { display: contents; }
+
+/* ── A film's and a show's head: groups under the name, with room between them ── */
+
+.kc-tvf__groups { display: flex; flex-direction: column; gap: 26px; margin-top: 18px; }
+.kc-tvf__group { display: flex; flex-direction: column; gap: 10px; }
+.kc-tvf__spot, .kc-tvs__spot { max-width: 620px; }
+.kc-tv-rating__by { font-size: var(--text-xs); color: var(--fg-3); }
+.kc-tvf__honour { display: flex; align-items: center; gap: 10px; font-size: var(--text-md); color: var(--fg-2); }
+.kc-tvf__honour > svg { flex-shrink: 0; color: var(--fg-3); }
+.kc-tvf__honour b { font-weight: var(--w-semibold, 600); color: var(--fg-1); }
+.kc-tvf__honour i { color: var(--fg-1); }
+.kc-tvf__overview {
+  margin: 0; font-size: var(--text-base); line-height: var(--lh-normal); color: var(--fg-2);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+}
+.kc-tvf__credits { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 6px 12px; font-size: var(--text-sm); color: var(--fg-1); }
+.kc-tvf__credits-label { color: var(--fg-3); }
+.kc-tvf__next { display: flex; gap: 16px; align-items: flex-start; }
+.kc-tvf__still {
+  position: relative; flex-shrink: 0; width: 200px; aspect-ratio: 16 / 9; overflow: hidden;
+  border-radius: var(--r-sm); background: var(--surface-2) center / cover;
+}
+.kc-tvf__still-progress { position: absolute; left: 0; bottom: 0; height: 4px; background: var(--krystal-teal); }
+.kc-tvf__next-text { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.kc-tvf__next-label { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-3); }
+.kc-tvf__next-name { font-size: var(--text-lg); font-weight: var(--w-semibold, 600); }
+.kc-tvf__next-story {
+  font-size: var(--text-sm); color: var(--fg-2);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.kc-tvf__shelves { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 8px; }
+.kc-tvf__head.is-trailer > .kc-tvf__spot, .kc-tvs__head.is-trailer > .kc-tvs__spot { opacity: 0; }
+.kc-tvs__head { position: relative; }

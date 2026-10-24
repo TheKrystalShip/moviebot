@@ -126,6 +126,29 @@ the API shelves as anime. A show's card in the library draws a short bar per sea
 poster's foot, each filled by the share of its episodes the person watched through (`seasonProgress`
 on `GET /api/shows`), and gives its seasons and episodes where a film's gives its year and length.
 
+A film's and a show's page, at every address above and on a television, opens with its hero
+(`components/TitleHero.jsx`, `tv/TvHero.jsx`): the backdrop across the page and a column of text over its
+faded side, the backdrop a band at the top on a phone. The column is groups with room between them: the
+kind, the name and the facts line (the rating and whose it is, the year, the certificate, the length or
+the seasons, and the genres, each opening Discover's catalogue of that genre); for a film, what it won
+and what it is based on, as Wikidata says, the awards line opening the page's Awards section and the
+author their adaptations; for a show with an episode here, the episode to watch next, Continue or Up next
+with its still, how far into it, its name, story and length, the whole of it a way into it; the overview
+(three lines until More opens it) and the credits table, every name opening the person in Discover; and
+the buttons, Watch (Resume with the time left, and the progress under the buttons once a minute is
+watched), Trailer, Want and Plan a watch, a show's Follow among them, two to a row under a full-width
+Watch on a phone. A television's names and lines are text, the remote reaching the buttons alone.
+Trailer plays the title's first official YouTube trailer (`components/TrailerPlayer.jsx`,
+`youtube-nocookie.com`, sound on) in the hero's place, the hero kept beneath so the page keeps its
+height; on a phone and a television it takes the whole screen, the phone's sideways as the player's
+does. Its close button, Esc, Back on a television, leaving full screen and the trailer's end close it.
+A title without an official trailer has no Trailer. Under the hero: a show's seasons, the cast, then
+shelves as Discover draws them (`TitleShelves`, `TvTitleShelves`): More like this (`like-<kind>-<imdbId>`)
+and More from the first director (`directed-<personId>`) and from the first two stars
+(`starring-<personId>`), each without the page's own title, a person's with their part on each card and
+left out when they have fewer than four other titles; then a film's Awards, the details (a film's
+budget and box office among them) and the keywords.
+
 Every poster card of a film or a show, in the library, in Discover and in the Anticipated row, carries
 the same want as a ribbon hanging from its top edge (krystal's `ShowcaseCard` `ribbon`). A press on
 a title not wanted wants it; on one wanted, the ribbon is filled and always shown, and

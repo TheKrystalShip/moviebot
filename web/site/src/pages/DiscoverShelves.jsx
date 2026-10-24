@@ -141,7 +141,7 @@ function BrowseGrid({ sections }) {
  * screen, so a page of many shelves asks only for what is looked at. A shelf with nothing on it, or that
  * could not be answered, is left out.
  */
-function LazyShelf({ head, kept, where }) {
+export function LazyShelf({ head, kept, where, skip, least = 1 }) {
   const ref = React.useRef(null);
   const [near, setNear] = React.useState(!!kept);
   React.useEffect(() => {
@@ -160,21 +160,26 @@ function LazyShelf({ head, kept, where }) {
 
   return (
     <div ref={ref} className="kc-lazy-shelf">
-      {near ? <ShelfRail head={head} kept={kept} where={where} /> : <RailSkeleton />}
+      {near ? <ShelfRail head={head} kept={kept} where={where} skip={skip} least={least} /> : <RailSkeleton />}
     </div>
   );
 }
 
-function ShelfRail({ head, kept, where }) {
+/**
+ * A shelf's rail: its first titles as cards, with how many it holds and See all. `skip` leaves one title
+ * off it (the page the rail is on), and a shelf with fewer than `least` titles is left out. A title
+ * carrying a `role` (a person's shelf) is shown with that part in place of its cast.
+ */
+function ShelfRail({ head, kept, where, skip, least = 1 }) {
   const shelf = useLoad(() => api.discoverShelf(head.id), [head.id], { known: kept });
   if (!shelf.data) return shelf.error ? null : <RailSkeleton />;
-  const titles = shelf.data.titles;
-  if (titles.length === 0) return null;
+  const titles = skip ? shelf.data.titles.filter((t) => t.imdbId !== skip) : shelf.data.titles;
+  if (titles.length === 0 || titles.length < least) return null;
   return (
     <Rail
       perView={POSTERS} icon={head.icon} title={head.title} count={atLeast(titles.length, shelf.data.next)}
       items={titles.slice(0, RAIL_TITLES)} itemKey={(t) => t.kind + t.imdbId}
-      renderItem={(t) => <FoundCard found={t} {...where(t)} />}
+      renderItem={(t) => <FoundCard found={t} {...where(t)} line={t.role || t.starring} />}
       onViewAll={() => navigate(discoverShelfPath(head.id))} viewAllLabel="See all" />
   );
 }
@@ -537,4 +542,46 @@ function BrowseSkeleton() {
       <CardsSkeleton count={12} />
     </section>
   );
+}
+
+/** Which of the library's titles a card is: the film here by its IMDb id, or whether the show is held. */
+export function useWhere() {
+  const titles = useLoad(() => api.titles().catch(() => []), []);
+  const shows = useLoad(() => api.shows().catch(() => []), []);
+  const filmsHere = new Map((titles.data || []).filter((t) => t.kind !== "show" && t.film).map((t) => [t.film.imdbId, t]));
+  const heldShows = new Set((shows.data || []).map((x) => x.imdbId));
+  return (t) => ({ here: t.kind === "film" ? filmsHere.get(t.imdbId) : null, held: t.kind === "show" && heldShows.has(t.imdbId) });
+}
+
+/** The fewest titles a person's shelf on a title's page has; one with fewer is left out. */
+const PERSON_LEAST = 4;
+
+/**
+ * The shelves under a title's page: what is like it, then more from its director and from its first two
+ * stars, each a Discover shelf (`like-`, `directed-`, `starring-`) without the title itself. A person
+ * with too little other work has no shelf.
+ */
+export function TitleShelves({ kind, imdbId, directors = [], stars = [] }) {
+  const where = useWhere();
+  return (
+    <div className="kc-title-shelves">
+      {titleShelfHeads(kind, imdbId, directors, stars).map((h) => (
+        <LazyShelf key={h.id} head={h} where={where} skip={imdbId} least={h.least} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The shelves a title's page has, each `{id, title, icon, least}`: what is like it, then its first
+ * director's films and its first two stars' work, for a person the film database has an id for.
+ */
+export function titleShelfHeads(kind, imdbId, directors = [], stars = []) {
+  return [
+    { id: `like-${kind}-${imdbId}`, title: "More like this", icon: "sparkles", least: 1 },
+    ...directors.filter((p) => p.personId).slice(0, 1)
+      .map((p) => ({ id: `directed-${p.personId}`, title: `More from ${p.name}`, icon: "megaphone", least: PERSON_LEAST })),
+    ...stars.filter((p) => p.personId).slice(0, 2)
+      .map((p) => ({ id: `starring-${p.personId}`, title: `More from ${p.name}`, icon: "user", least: PERSON_LEAST })),
+  ];
 }

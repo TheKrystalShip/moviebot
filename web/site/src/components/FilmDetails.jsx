@@ -11,6 +11,14 @@ export function votes(n) {
   return String(n);
 }
 
+/** US dollars the way a fact prints them: 272,742,922 is $272.7M. */
+export function dollars(n) {
+  if (!n) return null;
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  return `$${Math.round(n / 1000)}K`;
+}
+
 export function bytes(n) {
   if (!n) return null;
   const gb = n / 1024 ** 3;

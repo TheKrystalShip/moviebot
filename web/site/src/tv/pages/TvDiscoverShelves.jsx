@@ -6,7 +6,7 @@ import { discoverBrowsePath, discoverShelfPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { Failed } from "../../components/Film.jsx";
 import { foundPage } from "../../components/TitleCards.jsx";
-import { atLeast, surprisePool, useSurprise } from "../../pages/DiscoverShelves.jsx";
+import { atLeast, surprisePool, titleShelfHeads, useSurprise, useWhere } from "../../pages/DiscoverShelves.jsx";
 import { useDiscoverSlides } from "../../heroes.js";
 import { TvHero } from "../hero.jsx";
 
@@ -38,9 +38,10 @@ function TvShelfTile({ head, series, ...rest }) {
  * A shelf's row of posters, drawn at once from what the index carried for it, else asked for once it
  * nears the screen; one with nothing on it is left out.
  */
-function TvShelfRow({ head, kept, where }) {
+export function TvShelfRow({ head, kept, where, skip, least = 1, reserve = 0, cards = 20 }) {
   const ref = React.useRef(null);
   const [near, setNear] = React.useState(!!kept);
+  const [answered, setAnswered] = React.useState(!!kept);
   React.useEffect(() => {
     const el = ref.current;
     if (!el || near) return undefined;
@@ -54,16 +55,26 @@ function TvShelfRow({ head, kept, where }) {
     watcher.observe(el);
     return () => watcher.disconnect();
   }, [near]);
-  return <div ref={ref} className="kc-tvd__lazy">{near && <TvShelfCards head={head} kept={kept} where={where} />}</div>;
+  // `reserve` holds a row's height until the shelf has answered, so what is under it does not move
+  // when the row fills in.
+  return (
+    <div ref={ref} className="kc-tvd__lazy" style={reserve && !answered ? { minHeight: reserve } : undefined}>
+      {near && <TvShelfCards head={head} kept={kept} where={where} skip={skip} least={least} cards={cards} onAnswer={() => setAnswered(true)} />}
+    </div>
+  );
 }
 
-function TvShelfCards({ head, kept, where }) {
+/** A shelf's cards, without `skip` (the page the row is on); a shelf with fewer than `least` is left out. */
+function TvShelfCards({ head, kept, where, skip, least = 1, cards = 20, onAnswer }) {
   const shelf = useLoad(() => api.discoverShelf(head.id), [head.id], { known: kept });
-  const titles = shelf.data ? shelf.data.titles : [];
-  if (titles.length === 0) return null;
+  const done = !!(shelf.data || shelf.error);
+  React.useEffect(() => { if (done && onAnswer) onAnswer(); }, [done, onAnswer]);
+  const all = shelf.data ? shelf.data.titles : [];
+  const titles = skip ? all.filter((t) => t.imdbId !== skip) : all;
+  if (titles.length === 0 || titles.length < least) return null;
   return (
     <TvRow icon={head.icon} title={head.title} count={atLeast(titles.length, shelf.data && shelf.data.next)}>
-      {titles.slice(0, 20).map((t) => {
+      {titles.slice(0, cards).map((t) => {
         const w = where(t);
         return <TvCard key={t.kind + t.imdbId} art={t.posterUrl} label={t.title} {...linkProps(foundPage(t, w.here, w.held))} />;
       })}
@@ -149,5 +160,23 @@ export function TvShelf({ id, where }) {
       </div>
       <p className="kc-tv-tmdb">Titles and artwork from TMDB.</p>
     </section>
+  );
+}
+
+/** How many posters a title's shelf shows on a television, fewer than Discover's so its rows draw quickly. */
+const TITLE_ROW_CARDS = 12;
+
+/** A row of posters' height on a television, held for a title's shelf until it answers. */
+const TV_ROW_HEIGHT = 232;
+
+/** A title's page's shelves on a television: what is like it, and more from its director and first two stars. */
+export function TvTitleShelves({ kind, imdbId, directors = [], stars = [] }) {
+  const where = useWhere();
+  return (
+    <div className="kc-tvf__shelves">
+      {titleShelfHeads(kind, imdbId, directors, stars).map((h) => (
+        <TvShelfRow key={h.id} head={h} where={where} skip={imdbId} least={h.least} reserve={TV_ROW_HEIGHT} cards={TITLE_ROW_CARDS} />
+      ))}
+    </div>
   );
 }

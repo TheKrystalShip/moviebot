@@ -17,6 +17,37 @@
 const right = (n) => Array.from({ length: n }, () => ({ key: "Right" }));
 
 export const WALKS = {
+  "title-trailer": {
+    about: "A film's page: Trailer plays its trailer over the page, Back closes it and focus is back on Trailer",
+    start: "/discover/film/tt0102926",
+    ready: "hero/*",
+    optional: true,
+    stepMs: 1500,
+    steps: [
+      { key: "Right", expect: "hero/Trailer" },
+      { key: "OK", allow: true },
+      { wait: 6000 },
+      { key: "Down", allow: true, note: "the trailer playing; the page under it takes no press" },
+      { key: "Back", expect: "hero/Trailer", note: "the trailer closed and focus came back" },
+      { key: "Down", expect: "*", note: "into the cast" },
+      { key: "Down", expect: "*", note: "into More like this" },
+    ],
+  },
+  "show-trailer": {
+    about: "A show's page leading with its next episode: Watch the episode, Trailer, and Back out of the trailer",
+    start: "/tv/tt7366338",
+    ready: "hero/*",
+    optional: true,
+    stepMs: 1500,
+    steps: [
+      { key: "Right", expect: "hero/Trailer" },
+      { key: "OK", allow: true },
+      { wait: 6000 },
+      { key: "Down", allow: true, note: "the trailer playing; the page under it takes no press" },
+      { key: "Back", expect: "hero/Trailer" },
+      { key: "Left", expect: "hero/*" },
+    ],
+  },
   "home-down": {
     about: "Home: from the slides down through the rows and back up into the bar",
     start: "/",

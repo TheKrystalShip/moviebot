@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, TvCard, TvRow, TvSpotlight } from "@thekrystalship/krystal";
+import { Button, TvCard, TvRow } from "@thekrystalship/krystal";
 import { api, episodeCode } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { showPath } from "../../paths.js";
@@ -10,8 +10,11 @@ import { Failed, watchLink } from "../../components/Film.jsx";
 import { FollowButton } from "../../components/FollowButton.jsx";
 import { WantButton } from "../../components/WantButton.jsx";
 import { episodeRelease, watchNow, watchOpening, openingEpisode } from "../../watchNow.js";
-import { SpotFacts, SpotProgress, SpotStage, useSpotlight } from "../spot.jsx";
+import { SpotFacts, SpotStage, useSpotlight } from "../spot.jsx";
 import { TmdbCredit, TvCast, TvFacts } from "../TvCredits.jsx";
+import { TvAbout, TvGroup, TvNextEpisode, TvTitleHero } from "../TvHero.jsx";
+import { TrailerButton } from "../../components/TitleHero.jsx";
+import { TvTitleShelves } from "./TvDiscoverShelves.jsx";
 
 /**
  * A show on a television: its artwork, name, facts and story, and Resume (or Watch), Follow and Want;
@@ -52,8 +55,10 @@ export function TvShow({ imdbId, season, inLibrary }) {
   const play = resume || (first && { titleId: first.titleId, season: first.season, episode: first.number, positionSeconds: 0 });
   const room = play && (rooms.data || []).find((r) => r.titleId === play.titleId && r.participants > 0);
   const opening = openingEpisode(s);
-  const years = s.firstYear ? `${s.firstYear}–${s.inProduction ? "" : s.lastYear || ""}` : null;
-  const resumeEpisode = resume && seasons.find((x) => x.number === resume.season)?.episodes.find((e) => e.number === resume.episode);
+  const years = !s.firstYear ? null
+    : !s.inProduction && s.lastYear === s.firstYear ? String(s.firstYear)
+      : `${s.firstYear}–${s.inProduction ? "" : s.lastYear || ""}`;
+  const nextEpisode = play && seasons.find((x) => x.number === play.season)?.episodes.find((e) => e.number === play.episode);
 
   const watchFirst = async () => {
     setStarting(true);
@@ -90,32 +95,35 @@ export function TvShow({ imdbId, season, inLibrary }) {
     <div className="kc-tv-page kc-tvs" ref={pageRef}>
       <SpotStage store={store} art={s.backdropUrl || s.posterUrl} idleSize="page" />
 
-      <section className="kc-tvs__head" data-tv-top="">
-        <TvSpotlight className="kc-tvs__spot" size="lg" titleSize="lg" eyebrow="TV series" title={s.title}
-          meta={<SpotFacts facts={{
-            rating: s.rating, year: years, cert: s.certification,
-            length: `${seasons.length} ${seasons.length === 1 ? "season" : "seasons"}`, genres: s.genres,
-          }} />} overview={s.overview}
-          credit={s.creators.length > 0 ? <>Created by <b>{s.creators.join(", ")}</b></> : undefined}
-          actions={<>
+      <TvTitleHero kind="tvs" eyebrow="TV series" title={s.title} trailer={s.trailers && s.trailers[0]}
+        facts={<SpotFacts facts={{
+          rating: s.rating, ratedBy: s.ratedBy, year: years, cert: s.certification,
+          length: `${seasons.length} ${seasons.length === 1 ? "season" : "seasons"}`, genres: s.genres,
+        }} />}>
+        {play && nextEpisode && (
+          <TvNextEpisode episode={nextEpisode} at={resume && resume.positionSeconds > 0 ? resume.positionSeconds : 0}
+            label={`${resume && resume.positionSeconds > 0 ? "Continue" : "Up next"} · ${episodeCode({ season: play.season, number: play.episode })}`}
+            meta={resume && resume.positionSeconds > 0 ? `${clock(resume.durationSeconds - resume.positionSeconds)} remaining` : null} />
+        )}
+        <TvAbout overview={s.overview} credits={{ creators: s.creators, cast: s.cast }} />
+        <TvGroup>
+          <div className="k-tv-spot__actions">
             {play && (
               <Button variant="primary" size="lg" icon={room ? "users" : "play"} data-tv-initial=""
                 {...watchLink(play.titleId, room && room.sessionId, play.positionSeconds)}>
-                {room ? `Join the room (${room.participants})` : resume ? `Resume ${episodeCode({ season: resume.season, number: resume.episode })}` : "Watch"}
+                {room ? `Join the room (${room.participants})`
+                  : `${resume && resume.positionSeconds > 0 ? "Resume" : "Watch"} ${episodeCode({ season: play.season, number: play.episode })}`}
               </Button>
             )}
             {!play && opening && (
               <Button variant="primary" size="lg" icon="play" busy={starting} data-tv-initial="" onClick={watchFirst}>Watch</Button>
             )}
+            <TrailerButton size="lg" />
             {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
             {s.imdbId && <WantButton imdbId={s.imdbId} kind="show" title={s.title} />}
-          </>}>
-          {resume && resume.positionSeconds > 0 && (
-            <SpotProgress fraction={resume.positionSeconds / resume.durationSeconds}
-              left={`${resumeEpisode && resumeEpisode.name ? resumeEpisode.name + " - " : ""}(${clock(resume.durationSeconds - resume.positionSeconds)} remaining)`} />
-          )}
-        </TvSpotlight>
-      </section>
+          </div>
+        </TvGroup>
+      </TvTitleHero>
 
       {current && (
         <div ref={regionRef}>
@@ -141,6 +149,7 @@ export function TvShow({ imdbId, season, inLibrary }) {
       )}
 
       <TvCast cast={s.cast} />
+      <TvTitleShelves kind="show" imdbId={s.imdbId} stars={s.cast.slice(0, 2)} />
       <TvFacts facts={facts} />
       <TmdbCredit />
     </div>

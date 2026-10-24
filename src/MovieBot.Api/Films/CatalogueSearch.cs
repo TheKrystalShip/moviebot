@@ -93,6 +93,9 @@ public sealed record ListAnswer(string Kind, DateOnly From, DateOnly To, List<Ti
 /// <summary>A page of titles each with its card; <paramref name="Next"/> is the page that follows it, absent on the last.</summary>
 public sealed record PagedHits(List<TitleHit> Hits, int? Next);
 
+/// <summary>A page of one person's work: their name, the titles, and the part they had on each by kind and database id.</summary>
+public sealed record PersonWork(string Name, PagedHits Page, IReadOnlyDictionary<(string Kind, int TmdbId), string?> Roles);
+
 /// <summary>A page of the film database's titles before they are named; <paramref name="Next"/> is as in <see cref="PagedHits"/>.</summary>
 internal sealed record TitlePage(List<ListedTitle> Titles, int? Next);
 
@@ -501,17 +504,53 @@ public sealed partial class CatalogueSearch(
     /// </summary>
     public async Task<Outcome<PagedHits>> DirectedAsync(int personId, PageAsk ask, CancellationToken ct, string? sort = null)
     {
+        var work = await DirectedWorkAsync(personId, ask, ct, sort);
+        return work.Value is { } found ? Outcome<PagedHits>.Ok(found.Page) : work.Carry<PagedHits>();
+    }
+
+    /// <summary>
+    /// A page of the films a person directed that are out, as <see cref="DirectedAsync"/> reads them,
+    /// with the person's name and <c>Director</c> as the part on each.
+    /// </summary>
+    public Task<Outcome<PersonWork>> DirectedWorkAsync(int personId, PageAsk ask, CancellationToken ct, string? sort = null) =>
+        PersonWorkAsync(personId, ask, ct, sort, (c, today) => c.Kind == "film" && c.Directing && c.Released is { } day && day <= today, _ => "Director");
+
+    /// <summary>
+    /// A page of the acting work of a person that is out, the most voted on first or in the order a
+    /// <paramref name="sort"/> names: films and shows, leaving out an appearance as oneself, a part
+    /// only ever uncredited and a show they played in for fewer than <see cref="StarringEpisodes"/>
+    /// episodes (a show whose episodes the database does not count is left out). Each title carries
+    /// the part played.
+    /// </summary>
+    public Task<Outcome<PersonWork>> StarringAsync(int personId, PageAsk ask, CancellationToken ct, string? sort = null) =>
+        PersonWorkAsync(personId, ask, ct, sort,
+            (c, today) => c.Acting && !c.Appearance && !OnlyUncredited(c.Role) && c.Released is { } day && day <= today
+                          && (c.Kind != "show" || c.Episodes >= StarringEpisodes),
+            c => c.Role);
+
+    /// <summary>How many episodes of a show a person plays in for it to count as their work.</summary>
+    public const int StarringEpisodes = 3;
+
+    /// <summary>Whether every part of a role is credited as uncredited.</summary>
+    private static bool OnlyUncredited(string? role) =>
+        !string.IsNullOrWhiteSpace(role)
+        && role.Split(" · ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .All(part => part.EndsWith("(uncredited)", StringComparison.OrdinalIgnoreCase));
+
+    private async Task<Outcome<PersonWork>> PersonWorkAsync(int personId, PageAsk ask, CancellationToken ct, string? sort,
+        Func<FilmCredit, DateOnly, bool> keep, Func<FilmCredit, string?> roleOf)
+    {
         var kept = await FilmographyAsync(personId, ct);
-        if (kept is null) return Unavailable<PagedHits>("The film database could not be asked about this person.");
-        if (kept.Value is not { } person) return NotFound<PagedHits>("The film database has nobody under that id.");
+        if (kept is null) return Unavailable<PersonWork>("The film database could not be asked about this person.");
+        if (kept.Value is not { } person) return NotFound<PersonWork>("The film database has nobody under that id.");
 
         var today = Today();
-        var directed = await OrderedAsync([.. person.Credits
-            .Where(c => c.Kind == "film" && c.Directing && c.Released is { } day && day <= today)
-            .OrderByDescending(c => c.Votes)
-            .Select(c => c.AsListed())], sort, ct);
-        var page = directed.Skip(ask.Skip).Take(ask.Take).ToList();
-        return Outcome<PagedHits>.Ok(new PagedHits(await HitsAsync(page, ask.Take, ct), ask.Next(directed.Count > ask.Skip + ask.Size)));
+        var credits = person.Credits.Where(c => keep(c, today)).OrderByDescending(c => c.Votes).ToList();
+        var roles = credits.ToDictionary(c => (c.Kind, c.TmdbId), roleOf);
+        var ordered = await OrderedAsync([.. credits.Select(c => c.AsListed())], sort, ct);
+        var page = ordered.Skip(ask.Skip).Take(ask.Take).ToList();
+        var hits = new PagedHits(await HitsAsync(page, ask.Take, ct), ask.Next(ordered.Count > ask.Skip + ask.Size));
+        return Outcome<PersonWork>.Ok(new PersonWork(person.Name, hits, roles));
     }
 
     /// <summary>

@@ -9,8 +9,9 @@ import { navigate } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago, airDay, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, WatchButton, useWatchLink } from "../components/Film.jsx";
-import { CastGrid, Credits, FactGrid, Keywords, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
-import { HeroPoster, TitleHero, TitleStory } from "../components/TitleHero.jsx";
+import { CastGrid, FactGrid, Keywords, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
+import { HeroGroup, TitleAbout, TitleFacts, TitleHero, TrailerButton } from "../components/TitleHero.jsx";
+import { TitleShelves } from "./DiscoverShelves.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
@@ -111,13 +112,16 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
     if (request) await watchOnTv({ request, name: `${s.title} · ${episodeCode({ season: opening.season, number: opening.number })}`, art: s.backdropUrl || s.posterUrl });
     setStarting(false);
   };
-  const years = s.firstYear ? `${s.firstYear}–${s.inProduction ? "" : s.lastYear || ""}` : null;
+  const years = !s.firstYear ? null
+    : !s.inProduction && s.lastYear === s.firstYear ? String(s.firstYear)
+      : `${s.firstYear}–${s.inProduction ? "" : s.lastYear || ""}`;
   const episodeCount = seasons.reduce((n, x) => n + x.episodes.length, 0);
 
   const facts = [
     ["Original title", originalTitle(s.title, s.originalTitle)],
     ["Aired", years],
     ["Status", s.status],
+    ["Episodes", episodeCount || null],
     ["Network", s.networks.join(", ") || null],
     ["Language", s.languages.length ? s.languages.join(", ") : null],
     ["Country", s.countries.length ? s.countries.join(", ") : null],
@@ -127,54 +131,48 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
 
   return (
     <div className="kc-page kc-title">
-      <TitleHero art={s.backdropUrl || s.posterUrl} poster={<HeroPoster url={s.posterUrl} name={s.title} />}
-        eyebrow={shelved === ANIME ? "Anime series" : "TV series"} title={s.title}>
-        <div className="kc-tt__meta">
-          {years && <span>{years}</span>}
-          {s.certification && <span className="kc-cert">{s.certification}</span>}
-          <span>{seasons.length} {seasons.length === 1 ? "season" : "seasons"} · {episodeCount} episodes</span>
-          {s.status && <span>{s.status}</span>}
-        </div>
-        <TitleStory rating={s.rating} votes={s.votes} ratedBy={s.ratedBy} genres={s.genres} tagline={s.tagline} overview={s.overview} />
-        <Credits film={{ creators: s.creators, personIds: s.personIds, cast: s.cast }} />
-
-        <div className="kc-actions">
-          {play && driving && (
-            <WatchOnTvActions titleId={play.titleId} sessionId={room && room.sessionId} at={play.positionSeconds}
-              target={{ name: `${s.title} · ${episodeCode({ season: play.season, number: play.episode })}`, art: s.backdropUrl || s.posterUrl }} />
-          )}
-          {play && !driving && (
-            <WatchButton variant="primary" size="xl" icon={room ? "users" : "play"}
-              titleId={play.titleId} sessionId={room && room.sessionId} at={play.positionSeconds}>
-              {room ? `Join the room (${room.participants})` : resume ? "Resume" : "Watch"}
-            </WatchButton>
-          )}
-          {!play && opening && driving && (
-            <>
-              <Button variant="primary" size="xl" icon="tv" disabled={starting || !online} onClick={watchFirstOnTv}>Watch on TV</Button>
-              <Button variant="secondary" size="xl" icon="smartphone" disabled={starting || !online}
-                onClick={() => { setRemoteMode(false); void watchFirst(); }}>Watch</Button>
-            </>
-          )}
-          {!play && opening && !driving && (
-            <Button variant="primary" size="xl" icon="play" disabled={starting || !online} onClick={watchFirst}>Watch</Button>
-          )}
-          {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
-          {s.imdbId && <WantButton imdbId={s.imdbId} kind="show" title={s.title} />}
-          {s.imdbId && <PlanButton imdbId={s.imdbId} kind="show" />}
-          {resume && (
+      <TitleHero art={s.backdropUrl || s.posterUrl} eyebrow={shelved === ANIME ? "Anime series" : "TV series"} title={s.title}
+        trailer={s.trailers && s.trailers[0]}
+        facts={<TitleFacts rating={s.rating} votes={s.votes} ratedBy={s.ratedBy} kind="show" category={shelved}
+          parts={[years, s.certification && { cert: s.certification }, `${seasons.length} ${seasons.length === 1 ? "season" : "seasons"}`]}
+          genres={s.genres} />}>
+        {play && <NextEpisode play={play} resume={resume} seasons={seasons} room={room} />}
+        <TitleAbout overview={s.overview} credits={{ creators: s.creators, personIds: s.personIds, cast: s.cast }} />
+        <HeroGroup>
+          <div className="kc-actions">
+            {play && driving && (
+              <WatchOnTvActions titleId={play.titleId} sessionId={room && room.sessionId} at={play.positionSeconds}
+                target={{ name: `${s.title} · ${episodeCode({ season: play.season, number: play.episode })}`, art: s.backdropUrl || s.posterUrl }} />
+            )}
+            {play && !driving && (
+              <WatchButton variant="primary" size="xl" icon={room ? "users" : "play"}
+                titleId={play.titleId} sessionId={room && room.sessionId} at={play.positionSeconds}>
+                {room ? `Join the room (${room.participants})`
+                  : `${resume && resume.positionSeconds > 0 ? "Resume" : "Watch"} ${episodeCode({ season: play.season, number: play.episode })}`}
+              </WatchButton>
+            )}
+            {!play && opening && driving && (
+              <>
+                <Button variant="primary" size="xl" icon="tv" disabled={starting || !online} onClick={watchFirstOnTv}>Watch on TV</Button>
+                <Button variant="secondary" size="xl" icon="smartphone" disabled={starting || !online}
+                  onClick={() => { setRemoteMode(false); void watchFirst(); }}>Watch</Button>
+              </>
+            )}
+            {!play && opening && !driving && (
+              <Button variant="primary" size="xl" icon="play" disabled={starting || !online} onClick={watchFirst}>Watch</Button>
+            )}
+            <TrailerButton />
+            {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
+            {s.imdbId && <WantButton imdbId={s.imdbId} kind="show" title={s.title} />}
+            {s.imdbId && <PlanButton imdbId={s.imdbId} kind="show" />}
+          </div>
+          {s.imdbId && <Wanters imdbId={s.imdbId} />}
+          {s.nextEpisode && (
             <span className="kc-mono kc-quiet">
-              {episodeCode({ season: resume.season, number: resume.episode })}
-              {resume.positionSeconds > 0 ? ` · ${timeLeft(resume.durationSeconds - resume.positionSeconds)}` : ""}
+              Next episode: {episodeCode({ season: s.nextEpisode.season, number: s.nextEpisode.episode })} · {airDay(s.nextEpisode.airDate)}
             </span>
           )}
-        </div>
-        {s.imdbId && <Wanters imdbId={s.imdbId} />}
-        {s.nextEpisode && (
-          <span className="kc-mono kc-quiet">
-            Next episode: {episodeCode({ season: s.nextEpisode.season, number: s.nextEpisode.episode })} · {airDay(s.nextEpisode.airDate)}
-          </span>
-        )}
+        </HeroGroup>
       </TitleHero>
 
       {seasons.length > 0 && (
@@ -202,6 +200,8 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
         </section>
       )}
 
+      {!fromDevice && <TitleShelves kind="show" imdbId={s.imdbId} stars={s.cast.slice(0, 2)} />}
+
       <section className="kc-section">
         <h2>Details</h2>
         <FactGrid facts={facts} />
@@ -212,6 +212,36 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
       <p className="kc-attribution-note">Show details and artwork from TMDB.</p>
     </div>
   );
+}
+
+/**
+ * The episode to watch next, leading a show's hero: its still with how far into it this person is, the
+ * episode by its number, its name, its story and its length, and the whole of it a way into it. Where
+ * this person is part way through an episode it is Continue, else Up next.
+ */
+function NextEpisode({ play, resume, seasons, room }) {
+  const e = seasons.find((x) => x.number === play.season)?.episodes.find((x) => x.number === play.episode);
+  const at = resume && resume.positionSeconds > 0 ? resume.positionSeconds : 0;
+  const link = useWatchLink(play.titleId, room && room.sessionId, at);
+  if (!e) return null;
+  const length = e.runtimeMinutes ? e.runtimeMinutes * 60 : e.durationSeconds || (resume && resume.durationSeconds) || 0;
+  const meta = [length ? clock(length) : null, at && length ? timeLeft(length - at) : null].filter(Boolean).join(" · ");
+  const body = (
+    <>
+      <span className="kc-next__still" style={e.stillUrl ? { backgroundImage: `url("${e.stillUrl}")` } : undefined}>
+        {at > 0 && length > 0 && <span className="kc-next__progress" style={{ width: `${Math.min(100, (at / length) * 100)}%` }} />}
+      </span>
+      <span className="kc-next__text">
+        <span className="kc-next__label">{at > 0 ? "Continue" : "Up next"} · {episodeCode({ season: e.season, number: e.number })}</span>
+        <span className="kc-next__name">{e.name || `Episode ${e.number}`}</span>
+        {e.overview && <span className="kc-next__story">{e.overview}</span>}
+        {meta && <span className="kc-next__meta">{meta}</span>}
+      </span>
+    </>
+  );
+  return link.disabled
+    ? <div className="kc-next">{body}</div>
+    : <a className="kc-next kc-next--link" {...link}>{body}</a>;
 }
 
 /**

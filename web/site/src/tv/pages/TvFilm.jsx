@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, TvBackdrop, TvSpotlight, toast } from "@thekrystalship/krystal";
+import { Button, TvBackdrop, toast } from "@thekrystalship/krystal";
 import { api, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
 import { discoverFilmPath, moviePath } from "../../paths.js";
@@ -12,36 +12,40 @@ import { WantButton } from "../../components/WantButton.jsx";
 import { defaultOffer, watchNow } from "../../watchNow.js";
 import { SpotFacts } from "../spot.jsx";
 import { TmdbCredit, TvCast, TvFacts } from "../TvCredits.jsx";
+import { TvAbout, TvGroup, TvHonours, TvTitleHero } from "../TvHero.jsx";
+import { TrailerButton } from "../../components/TitleHero.jsx";
+import { TvTitleShelves } from "./TvDiscoverShelves.jsx";
+import { dollars } from "../../components/FilmDetails.jsx";
 
 /**
- * A film on a television, the same whether the server holds it or not: its artwork across the page,
- * its name, facts and story, who made it, and what can be done — Resume, Restart and Want for a film
- * somebody is part way through, otherwise Watch and Want. Under the buttons, how far they got. Below,
- * the cast and the details.
+ * A film on a television, the same whether the server holds it or not: its artwork across the page, the
+ * site's hero at a television's size (its name and facts, what it won and is based on, its story and
+ * credits, and what can be done: Resume, Restart, Trailer and Want for a film somebody is part way
+ * through, otherwise Watch, Trailer and Want, with how far they got under the buttons), then the cast,
+ * the shelves of what is like it and of its director's and stars' work, and the details.
  */
-function FilmFrame({ details: d, fallback, length, actions, progress, facts }) {
+function FilmFrame({ details: d, fallback, imdbId, length, actions, progress, facts }) {
   const name = (d && d.title) || fallback.title;
-  const credit = d && [
-    d.directors.length > 0 ? ["Directed by", d.directors.join(", ")] : null,
-    d.cast.length > 0 ? ["Starring", d.cast.slice(0, 2).map((c) => c.name).join(", ")] : null,
-  ].filter(Boolean);
   return (
     <div className="kc-tv-page kc-tvf">
       <TvBackdrop src={(d && (d.backdropUrl || d.posterUrl)) || fallback.art} size="page" />
-      <section className="kc-tvf__head" data-tv-top="">
-        <TvSpotlight className="kc-tvf__spot" size="lg" titleSize="lg" eyebrow="Movie" title={name}
-          meta={<SpotFacts facts={{
-            rating: d && d.rating, year: (d && d.year) || fallback.year, cert: d && d.certification,
-            length, genres: d ? d.genres : [],
-          }} />} overview={d && d.overview}
-          credit={credit && credit.length > 0 ? credit.map(([label, names], i) => (
-            <React.Fragment key={label}>{i > 0 && " · "}{label} <b>{names}</b></React.Fragment>
-          )) : undefined}
-          actions={actions}>
+      <TvTitleHero eyebrow="Movie" title={name} trailer={d && d.trailers && d.trailers[0]}
+        facts={<SpotFacts facts={{
+          rating: d && d.rating, ratedBy: d && d.ratedBy, year: (d && d.year) || fallback.year, cert: d && d.certification,
+          length, genres: d ? d.genres : [],
+        }} />}>
+        {d && <TvHonours awards={d.awards} basedOn={d.basedOn} />}
+        <TvAbout overview={d && d.overview} credits={d} />
+        <TvGroup>
+          <div className="k-tv-spot__actions">{actions}</div>
           {progress}
-        </TvSpotlight>
-      </section>
+        </TvGroup>
+      </TvTitleHero>
       {d && <TvCast cast={d.cast} />}
+      {d && imdbId && (
+        <TvTitleShelves kind="film" imdbId={imdbId}
+          directors={d.directors.map((n) => ({ name: n, personId: (d.personIds || {})[n] }))} stars={d.cast.slice(0, 2)} />
+      )}
       {facts && <TvFacts facts={facts} />}
       {d && <TmdbCredit />}
     </div>
@@ -53,6 +57,8 @@ const factsOf = (d, extra = []) => d && [
   ["Language", d.languages.length ? d.languages.join(", ") : null],
   ["Country", d.countries.length ? d.countries.join(", ") : null],
   ["Rating", d.rating ? `${d.rating.toFixed(1)} from ${d.votes.toLocaleString("en-GB")}` : null],
+  ["Budget", dollars(d.budget)],
+  ["Box office", dollars(d.revenue)],
   ["Written by", d.writers.join(", ")],
   ...extra,
 ];
@@ -91,6 +97,7 @@ export function TvTitle({ id }) {
         </Button>
       )}
       {playable && !room && progress && <Button size="lg" icon="rotate-ccw" {...watchLink(m.id)}>Restart</Button>}
+      <TrailerButton size="lg" />
       {film.imdbId && <WantButton imdbId={film.imdbId} kind="film" title={film.name || m.title} />}
     </>
   );
@@ -105,7 +112,7 @@ export function TvTitle({ id }) {
   );
 
   return (
-    <FilmFrame details={d} fallback={{ title: film.name || m.title, year: film.year, art: posterUrl({ id: m.id, poster: m.poster, details: d }) }}
+    <FilmFrame details={d} imdbId={film.imdbId} fallback={{ title: film.name || m.title, year: film.year, art: posterUrl({ id: m.id, poster: m.poster, details: d }) }}
       length={clock(m.durationSeconds)} actions={actions} progress={shown}
       facts={factsOf(d, [["IMDb", film.imdbId, true]])} />
   );
@@ -162,12 +169,13 @@ export function TvCatalogueFilm({ imdbId }) {
       {a && downloading && (arriving || offer) && (
         <Button variant="primary" size="lg" icon="play" busy={busy} data-tv-initial="" onClick={watch}>Watch</Button>
       )}
+      <TrailerButton size="lg" />
       <WantButton imdbId={imdbId} kind="film" title={d.title} />
     </>
   );
 
   return (
-    <FilmFrame details={d} fallback={{ title: d.title, year: d.year }}
+    <FilmFrame details={d} imdbId={imdbId} fallback={{ title: d.title, year: d.year }}
       length={d.runtimeMinutes ? clock(d.runtimeMinutes * 60) : null} actions={actions}
       facts={factsOf(d, [["IMDb", imdbId, true]])} />
   );

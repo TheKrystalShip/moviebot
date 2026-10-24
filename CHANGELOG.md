@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.70.0] - 2026-10-24
+
+### Added
+- Two shelves of a person's work for a title's page, asked through `GET /api/discover/shelves/{id}`:
+  `directed-<personId>`, the films the person directed that are out, and `starring-<personId>`, their
+  acting work in films and shows, each titled `More from <name>` and most voted first. Starring leaves
+  out appearances as oneself, parts only ever uncredited and shows of fewer than 3 episodes. A title on
+  these shelves carries `role`, the part the person had (`Director`, or the character played).
+- A title's page has the new hero, on the site and the television: the backdrop across the page and a
+  column of grouped text over it in place of the poster card; IMDb's rating with its votes and the
+  genres as links on the facts line; what a film won and what it is based on; the episode to watch next
+  leading a show's; the credits table with every name a link; Resume's progress under the buttons; and
+  Trailer, which plays the first official trailer in the hero's place, full screen on a phone and a
+  television. Under it, after the cast: More like this and More from the director and the first two
+  stars, and a film's Awards; a film's budget and box office move to its details.
+
+### Fixed
+- A link drawn as a button keeps the button's colours: the site's base rule for links outranked them, so
+  a television's Watch drawn as a link lost its label while not focused.
+
 ## [3.69.0] - 2026-10-24
 
 ### Removed
