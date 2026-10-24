@@ -126,7 +126,9 @@
 .kc-tvd.has-query { padding-top: 84px; }
 .kc-tvd.has-query .kc-tv-search { height: 46px; background: var(--surface-2); }
 .kc-tvd__rows { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 8px; padding-top: 18px; }
-.kc-tvd__spot { position: relative; z-index: 1; padding: 36px var(--tv-margin-x) 8px; max-width: 62%; }
+/* The top is one height whatever its slide says, the tallest a slide's words take, so the rows under it
+   never move as it turns. */
+.kc-tvd__spot { position: relative; z-index: 1; box-sizing: border-box; height: 360px; padding: 36px var(--tv-margin-x) 8px; max-width: 62%; }
 .kc-tvd__lazy { min-height: 1px; }
 .kc-tvd__q { text-transform: none; letter-spacing: 0; color: var(--fg-1); }
 

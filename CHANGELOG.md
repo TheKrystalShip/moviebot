@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.79.2] - 2026-10-25
+
+### Fixed
+- On a television, Discover's rows no longer jump down when its spotlight arrives, nor move as it
+  turns: the spotlight holds its place while its slides are described and is one height whatever a
+  slide says, as Home's does.
+
 ## [3.79.1] - 2026-10-25
 
 ### Fixed

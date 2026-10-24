@@ -18,7 +18,9 @@ import { TvHero } from "../hero.jsx";
 /** The spotlight: the films on the season's shelf, as Home's top turns through its own. */
 function TvDiscoverSpotlight({ index, where }) {
   const slides = useDiscoverSlides(index, where);
-  if (!slides || slides.length === 0) return null;
+  // The top's place is held while its slides are described, so the rows never move under it.
+  if (slides === null) return <div className="kc-tvd__spot" aria-hidden="true" />;
+  if (slides.length === 0) return null;
   return <TvHero slides={slides} className="kc-tvd__spot" data-tv-row="" />;
 }
 
