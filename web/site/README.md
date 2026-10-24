@@ -436,7 +436,8 @@ staged the run stops before checking anything, since Want to watch is then an em
 walks in `verify/tvperf/walks.mjs` from pages loaded cold, each key measured for how long it goes
 unanswered, how long the screen stands still and how many times the page rearranges before it
 settles. The lab runs Chromium against the same scratch site at the television's page, pixel ratio
-and pace, and fails on a step past `verify/tvperf/baseline.json`; a release passes it. With
+and pace, and fails on a step past `verify/tvperf/baseline.json`; it is run when a change might move
+those, and no release waits on it. With
 `--target tv` the same walks run on the television itself over adb. How to run it, what each measure
 is and how the lab is fitted to the television: `verify/tvperf/README.md`.
 

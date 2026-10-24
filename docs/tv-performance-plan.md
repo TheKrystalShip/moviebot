@@ -12,9 +12,9 @@ deleted.
   `--reduced`, `--eager` and `--shrink`. `--scratch` runs it against the scratch site through
   `adb reverse`, so a local build (or a patched `node_modules/@thekrystalship/krystal`) is measured
   on the television before anything is published or deployed.
-- **The release gate is `npm run verify:tv-perf`** in the lab, against `verify/tvperf/baseline.json`.
-  It catches regressions in load time, layout and downloads, which the workbench does not; it cannot
-  see GPU cost. Run it before every deploy.
+- **The lab check is `npm run verify:tv-perf`**, against `verify/tvperf/baseline.json`. It catches
+  regressions in load time, layout and downloads, which the workbench does not; it cannot see GPU
+  cost. It is run when a change might move them, and no release waits on it.
 - **The television stays awake by itself**: each harness wakes it and holds it awake for the run
   (`verify/awake.mjs`).
 - **Two runs of each**, baseline and change, before believing a difference: the same walk on the same

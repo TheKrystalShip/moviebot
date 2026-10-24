@@ -3,7 +3,7 @@
 `npm run verify:tv-sweep` times every key press of a walk on the reference television itself: how long
 focus takes to move, how many frames go over the panel's budget while the screen settles, and with
 `--trace` where the time went. It is the tool for finding why something stutters and for proving that
-a change helps. `verify:tv-perf` (`../tvperf/`) is the release gate; this is the workbench.
+a change helps. `verify:tv-perf` (`../tvperf/`) is the lab's check against a baseline; this is the workbench.
 
 It measures the television, never a lab: the costs that make the television stutter are its GPU and
 its image decoding at the panel's resolution, which no CPU throttling on this machine models.
