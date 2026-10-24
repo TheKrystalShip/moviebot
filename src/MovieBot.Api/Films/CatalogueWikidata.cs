@@ -39,6 +39,8 @@ public sealed partial class CatalogueSearch
             return Said("A question about awards, adaptations, places or subgenres cannot also name people, subjects or another title.");
         if (request.MinRuntime is not null || request.MaxRuntime is not null)
             return Said("A question about awards, adaptations, places or subgenres cannot be narrowed by runtime.");
+        if (request.Providers.Count > 0)
+            return Said("A question about awards, adaptations, places or subgenres cannot be narrowed by streaming service.");
 
         var item = ask.Item;
         var name = ask.Name;

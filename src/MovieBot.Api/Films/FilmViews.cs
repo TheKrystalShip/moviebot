@@ -21,7 +21,7 @@ public sealed record FilmView
     public string? Tagline { get; init; }
 
     /// <summary>The database's keywords for the film (<c>time loop</c>, <c>heist</c>); empty while the description is being asked for them.</summary>
-    public required List<string> Keywords { get; init; }
+    public required List<KeywordView> Keywords { get; init; }
 
     public double? Rating { get; init; }
     public int Votes { get; init; }
@@ -43,6 +43,30 @@ public sealed record FilmView
     public required List<string> Countries { get; init; }
     public string? PosterUrl { get; init; }
     public string? BackdropUrl { get; init; }
+
+    /// <summary>The title set as a logo, a transparent PNG served from here; absent when the database has none.</summary>
+    public string? LogoUrl { get; init; }
+
+    /// <summary>What the film cost to make, in US dollars; absent when the database does not know.</summary>
+    public long? Budget { get; init; }
+
+    /// <summary>What the film took, in US dollars; absent when the database does not know.</summary>
+    public long? Revenue { get; init; }
+
+    /// <summary>The trailers and teasers on YouTube, the best first; empty while the description is being asked for them.</summary>
+    public List<TrailerView> Trailers { get; init; } = [];
+
+    /// <summary>Where it can be watched in the configured region (JustWatch's data); absent when the database lists nothing there.</summary>
+    public WatchView? Watch { get; init; }
+
+    /// <summary>The titles the database recommends after it, joined with the library like any list of titles.</summary>
+    public List<TitleHitView> Recommendations { get; init; } = [];
+
+    /// <summary>The first reviews the database holds.</summary>
+    public List<ReviewView> Reviews { get; init; } = [];
+
+    /// <summary>How many reviews the database holds.</summary>
+    public int ReviewCount { get; init; }
 
     /// <summary>The title that plays the film when the library holds it.</summary>
     public string? LibraryId { get; init; }
@@ -119,7 +143,7 @@ public static class FilmViews
     /// <summary>Where a kept image is served from. Artwork is not the film, so it needs no token.</summary>
     public static string ImageUrl(string imdbId, string file) => $"/films/{imdbId}/{file}";
 
-    public static FilmView? View(this FilmStore store, StoredFilm stored, string? libraryId = null, bool watched = false, WikidataTitleFacts? wikidata = null)
+    public static FilmView? View(this FilmStore store, StoredFilm stored, string? libraryId = null, bool watched = false, WikidataTitleFacts? wikidata = null, StreamingServices? streaming = null)
     {
         if (stored.Details is not { } d) return null;
         string? Image(string file) => store.HasImage(d.ImdbId, file) ? ImageUrl(d.ImdbId, file) : null;
@@ -139,7 +163,7 @@ public static class FilmViews
             Genres = [.. d.Genres],
             Overview = d.Overview,
             Tagline = d.Tagline,
-            Keywords = [.. d.Keywords ?? []],
+            Keywords = TitleExtrasViews.Of(d.KeywordTags),
             Rating = rating,
             Votes = votes,
             ImdbRating = imdbRating,
@@ -159,6 +183,13 @@ public static class FilmViews
             Countries = [.. d.Countries],
             PosterUrl = Image(FilmStore.Poster),
             BackdropUrl = Image(FilmStore.Backdrop),
+            LogoUrl = Image(FilmStore.Logo),
+            Budget = d.Budget,
+            Revenue = d.Revenue,
+            Trailers = TitleExtrasViews.Of(d.Trailers),
+            Watch = streaming?.View(d.Providers),
+            Reviews = TitleExtrasViews.Of(d.Reviews),
+            ReviewCount = d.ReviewCount,
             LibraryId = libraryId,
             Watched = watched,
             Awards = wikidata is null ? null : new FilmAwardsView

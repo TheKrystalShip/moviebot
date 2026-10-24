@@ -40,6 +40,7 @@ public sealed class ShowStore(
     IServiceScopeFactory scopes,
     PosterPins pins,
     KeptImages images,
+    StreamingServices streaming,
     CinemaDatabase database,
     TitleScores scores,
     EpisodeNumbering numbering,
@@ -48,6 +49,9 @@ public sealed class ShowStore(
 {
     public const string Poster = "poster.jpg";
     public const string Backdrop = "backdrop.jpg";
+
+    /// <summary>The title set as a logo: a transparent PNG.</summary>
+    public const string Logo = "logo.png";
 
     /// <summary>What the images this keeps are named under in <see cref="KeptImages"/>.</summary>
     private const string Images = "shows";
@@ -73,7 +77,9 @@ public sealed class ShowStore(
 
     private void Observe(StoredShow show)
     {
-        if (show.Details is { } d) scores.Observe(d.TmdbId, "show", d.Rating, d.Votes, show.FetchedAt);
+        if (show.Details is not { } d) return;
+        scores.Observe(d.TmdbId, "show", d.Rating, d.Votes, show.FetchedAt);
+        scores.Observe(TitleScores.ReadingsOf(d.Recommendations), show.FetchedAt);
     }
 
     /// <summary>What is kept for a show, as the film database numbers it.</summary>
@@ -120,7 +126,8 @@ public sealed class ShowStore(
     public bool IsDue(StoredShow show) =>
         clock.GetUtcNow() - show.FetchedAt > TimeSpan.FromDays(Math.Max(1, options.Value.RefreshDays))
         || show.Details is { Cast: [{ TmdbId: null }, ..] }
-        || show.Details is { Keywords: null };
+        || show.Details is { Keywords: null }
+        || show.Details is { Trailers: null };
 
     /// <summary>
     /// The kept image a request names, or null for anything that is not one. A still is named by the
@@ -184,6 +191,7 @@ public sealed class ShowStore(
         {
             (pins.Pin(imdbId, images.Source(Images, root, $"{imdbId}/{Poster}"), details.PosterPath), "w500", Poster),
             (details.BackdropPath, "w1280", Backdrop),
+            (details.LogoPath, "w500", Logo),
         };
         wanted.AddRange(details.Cast.Select((c, i) => (c.ProfilePath, "w185", Portrait(i))));
         wanted.AddRange(seasons.SelectMany(s => s.Episodes).Select(e => (e.StillPath, "w300", Still(e.Season, e.Number))));
@@ -191,6 +199,7 @@ public sealed class ShowStore(
         // Asked side by side, as a film's are: a page opened on a show nothing is kept for waits on them.
         await Parallel.ForEachAsync(wanted, new ParallelOptions { MaxDegreeOfParallelism = FilmStore.ImagesAtOnce, CancellationToken = ct },
             async (image, token) => await images.KeepAsync(tmdb, Images, root, $"{imdbId}/{image.File}", image.Path, image.Size, token));
+        await streaming.KeepLogosAsync(tmdb, details.Providers, ct);
     }
 
     private StoredShow? Read(string imdbId)
@@ -229,7 +238,7 @@ public sealed class ShowStore(
 
     private static bool IsImageName(string file)
     {
-        if (file is Poster or Backdrop) return true;
+        if (file is Poster or Backdrop or Logo) return true;
         if (!file.EndsWith(".jpg", StringComparison.Ordinal)) return false;
         var stem = file[..^4];
         if (stem.StartsWith("cast-", StringComparison.Ordinal))

@@ -61,6 +61,9 @@ public sealed record DiscoverRequest
     public int? To { get; init; }
     public IReadOnlyList<string> With { get; init; } = [];
     public IReadOnlyList<string> About { get; init; } = [];
+
+    /// <summary>Streaming services by name, a title on at least one of them in the configured region.</summary>
+    public IReadOnlyList<string> Providers { get; init; } = [];
     public string? Language { get; init; }
     public string? Like { get; init; }
     public bool GoodOnly { get; init; } = true;
@@ -143,6 +146,7 @@ public sealed partial class CatalogueSearch(
     TitleScores scores,
     ImdbRatings imdbRatings,
     WikidataSets wikidata,
+    StreamingServices streaming,
     TimeProvider clock)
 {
     /// <summary>The most titles a search lists.</summary>
@@ -291,6 +295,8 @@ public sealed partial class CatalogueSearch(
         if (request.MinRuntime > request.MaxRuntime) return Invalid<DiscoverAnswer>("The shortest runtime is longer than the longest.");
         if (!string.IsNullOrWhiteSpace(request.Like) && (request.MinRuntime is not null || request.MaxRuntime is not null))
             return Invalid<DiscoverAnswer>("A discovery like another title cannot be narrowed by runtime; the titles it starts from carry none.");
+        if (!string.IsNullOrWhiteSpace(request.Like) && request.Providers.Any(p => !string.IsNullOrWhiteSpace(p)))
+            return Invalid<DiscoverAnswer>("A discovery like another title cannot be narrowed by streaming service; the titles it starts from carry none.");
         if (request.Category is not null)
         {
             if (TitleCategories.Parse(request.Category) != TitleCategory.Anime)
@@ -373,6 +379,19 @@ public sealed partial class CatalogueSearch(
             if (keywords.All(k => k.Id != keyword.Id)) keywords.Add(keyword);
         }
 
+        var services = new List<WatchProvider>();
+        if (request.Providers.Any(p => !string.IsNullOrWhiteSpace(p)))
+        {
+            var offered = await streaming.AllAsync(ct);
+            if (offered.Count == 0) return Unavailable<DiscoverAnswer>("The film database could not be asked about its streaming services.");
+            foreach (var name in request.Providers.Where(p => !string.IsNullOrWhiteSpace(p)))
+            {
+                if (StreamingServices.Match(offered, name) is not { } service)
+                    return NotFound<DiscoverAnswer>($"The film database lists no streaming service called \"{name.Trim()}\" in {streaming.Region}.");
+                if (services.All(p => p.ProviderId != service.ProviderId)) services.Add(service);
+            }
+        }
+
         LanguageName? language = null;
         if (!string.IsNullOrWhiteSpace(request.Language))
         {
@@ -396,6 +415,8 @@ public sealed partial class CatalogueSearch(
             To = request.To is { } to ? new DateOnly(to, 12, 31) : sort == DiscoverSorts.Newest ? today : null,
             PersonIds = [.. people.Select(p => p.TmdbId)],
             KeywordIds = [.. keywords.Select(k => k.Id)],
+            WatchProviderIds = [.. services.Select(p => p.ProviderId)],
+            WatchRegion = services.Count > 0 ? streaming.Region : null,
             Language = language?.Code,
             MinRating = minRating,
             MinVotes = minVotes,
@@ -416,6 +437,7 @@ public sealed partial class CatalogueSearch(
             Excluded = [.. excluded.Select(g => g.Name)],
             People = [.. people.Select(p => new ResolvedPerson(p.TmdbId, p.Name, p.KnownFor))],
             Keywords = [.. keywords.Select(k => k.Name)],
+            Providers = [.. services.Select(p => p.Name)],
             Language = language?.Name,
             Like = seed?.Name,
             MinRating = minRating,
@@ -869,7 +891,7 @@ public sealed partial class CatalogueSearch(
     private async Task<ImdbSpec?> ImdbSpecAsync(DiscoverQuery q, CancellationToken ct)
     {
         if (q.PersonIds.Count + q.KeywordIds.Count + q.AnyGenreIds.Count + q.AnyKeywordIds.Count + q.AnyLanguages.Count
-            + q.CompanyIds.Count + q.NetworkIds.Count > 0
+            + q.CompanyIds.Count + q.NetworkIds.Count + q.WatchProviderIds.Count > 0
             || !string.IsNullOrWhiteSpace(q.Language) || !string.IsNullOrWhiteSpace(q.OriginCountry)
             || q.MinRuntime is not null || q.MaxRuntime is not null || q.MaxRating is not null || q.MaxVotes is not null
             || !string.IsNullOrWhiteSpace(q.MaxCertification) || q.AiringFrom is not null || q.AiringTo is not null
@@ -999,6 +1021,10 @@ public sealed partial class CatalogueSearch(
         return new Dictionary<(string Kind, int Id), TitleCard?>(cards);
     }
 
+    /// <summary>The titles a description recommends, each with its card and joined with the library as <paramref name="shelf"/> holds it.</summary>
+    public async Task<List<TitleHitView>> RecommendedAsync(IReadOnlyList<ListedTitle> titles, LibraryShelf shelf, CancellationToken ct) =>
+        [.. (await HitsAsync(titles, ResultsListed, ct)).Where(h => h.Card?.ImdbId is not null).Select(h => View(h, shelf))];
+
     /// <summary>The first <paramref name="limit"/> of the titles, each with its card.</summary>
     private async Task<List<TitleHit>> HitsAsync(IReadOnlyList<ListedTitle> titles, int limit, CancellationToken ct)
     {
@@ -1116,7 +1142,8 @@ public sealed partial class CatalogueSearch(
         string.Join(',', q.AnyGenreIds), string.Join(',', q.AnyKeywordIds), string.Join(',', q.AnyLanguages), q.OriginCountry,
         string.Join(',', q.CompanyIds), string.Join(',', q.NetworkIds), q.MinRuntime, q.MaxRuntime,
         q.MaxRating?.ToString(CultureInfo.InvariantCulture), q.MaxVotes, q.MaxCertification,
-        q.AiringFrom?.ToString("O"), q.AiringTo?.ToString("O"), q.ShowStatus, q.ShowType);
+        q.AiringFrom?.ToString("O"), q.AiringTo?.ToString("O"), q.ShowStatus, q.ShowType,
+        string.Join(',', q.WatchProviderIds), q.WatchRegion);
 
     private static Outcome<T> Invalid<T>(string message) where T : class => Outcome<T>.Failed(Problem.Invalid, message);
 

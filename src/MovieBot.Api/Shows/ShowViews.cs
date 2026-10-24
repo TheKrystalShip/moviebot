@@ -27,7 +27,7 @@ public sealed record ShowView
     public string? Tagline { get; init; }
 
     /// <summary>The database's keywords for the show; empty while the description is being asked for them.</summary>
-    public required List<string> Keywords { get; init; }
+    public required List<KeywordView> Keywords { get; init; }
 
     public double? Rating { get; init; }
     public int Votes { get; init; }
@@ -48,6 +48,25 @@ public sealed record ShowView
     public required List<string> Networks { get; init; }
     public string? PosterUrl { get; init; }
     public string? BackdropUrl { get; init; }
+
+    /// <summary>The title set as a logo, a transparent PNG served from here; absent when the database has none.</summary>
+    public string? LogoUrl { get; init; }
+
+    /// <summary>The trailers and teasers on YouTube, the best first; empty while the description is being asked for them.</summary>
+    public List<TrailerView> Trailers { get; init; } = [];
+
+    /// <summary>Where it can be watched in the configured region (JustWatch's data); absent when the database lists nothing there.</summary>
+    public WatchView? Watch { get; init; }
+
+    /// <summary>The titles the database recommends after it, joined with the library like any list of titles.</summary>
+    public List<TitleHitView> Recommendations { get; init; } = [];
+
+    /// <summary>The first reviews the database holds.</summary>
+    public List<ReviewView> Reviews { get; init; } = [];
+
+    /// <summary>How many reviews the database holds.</summary>
+    public int ReviewCount { get; init; }
+
     public required List<SeasonView> Seasons { get; init; }
 
     /// <summary>Where the asking person picks up: absent when they have nothing in progress here.</summary>
@@ -178,7 +197,7 @@ public static class ShowViews
     /// <summary>The page of one show, from what is kept and what the library holds of it.</summary>
     public static ShowView View(
         this ShowStore store, string imdbId, StoredShow? stored,
-        IReadOnlyList<TitleSummary> episodes, StoredFollow? follow = null)
+        IReadOnlyList<TitleSummary> episodes, StoredFollow? follow = null, StreamingServices? streaming = null)
     {
         var d = stored?.Details;
         string? Image(string file) => store.HasImage(imdbId, file) ? ImageUrl(imdbId, file) : null;
@@ -250,7 +269,7 @@ public static class ShowViews
             Genres = [.. d?.Genres ?? []],
             Overview = d?.Overview,
             Tagline = d?.Tagline,
-            Keywords = [.. d?.Keywords ?? []],
+            Keywords = TitleExtrasViews.Of(d?.KeywordTags),
             Rating = rating,
             Votes = votes,
             ImdbRating = imdbRating,
@@ -269,6 +288,11 @@ public static class ShowViews
             Networks = [.. d?.Networks ?? []],
             PosterUrl = Image(ShowStore.Poster),
             BackdropUrl = Image(ShowStore.Backdrop),
+            LogoUrl = Image(ShowStore.Logo),
+            Trailers = TitleExtrasViews.Of(d?.Trailers),
+            Watch = streaming?.View(d?.Providers),
+            Reviews = TitleExtrasViews.Of(d?.Reviews ?? []),
+            ReviewCount = d?.ReviewCount ?? 0,
             Seasons = seasons,
             Resume = ResumeIn(Ordered(episodes)),
             Followable = FollowViews.Followable(d),

@@ -74,7 +74,7 @@ public sealed partial class CatalogueSearch
         return Outcome<QuestionAnswer>.Ok(new QuestionAnswer(true, parts, discovery, null));
     }
 
-    /// <summary>The database's own genre and language lists, which the reader recognises those words from.</summary>
+    /// <summary>The database's own genre, language and streaming service lists, which the reader recognises those words from.</summary>
     private async Task<Outcome<QuestionVocabulary>> VocabularyAsync(CancellationToken ct)
     {
         var films = await catalogue.GenresAsync("film", ct);
@@ -82,7 +82,10 @@ public sealed partial class CatalogueSearch
         var languages = await LanguagesAsync(ct);
         if (films is null || shows is null) return Unavailable<QuestionVocabulary>("The film database could not be asked about its genres.");
         if (languages.Value is not { } known) return languages.Carry<QuestionVocabulary>();
-        return Outcome<QuestionVocabulary>.Ok(new QuestionVocabulary { FilmGenres = films, ShowGenres = shows, Languages = known });
+
+        // A region whose services cannot be listed costs the questions that name one and nothing else.
+        var services = await streaming.AllAsync(ct);
+        return Outcome<QuestionVocabulary>.Ok(new QuestionVocabulary { FilmGenres = films, ShowGenres = shows, Languages = known, Providers = services });
     }
 
     private sealed record NamedAs(string Name, bool Person);

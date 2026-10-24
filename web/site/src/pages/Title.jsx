@@ -144,7 +144,7 @@ export function Title({ id, category = null, fromDevice = false }) {
         <FactGrid facts={facts} />
       </section>
 
-      {d && <Keywords names={d.keywords} />}
+      {d && <Keywords tags={d.keywords} />}
 
       {d && <p className="kc-attribution-note">Film details and artwork from TMDB.</p>}
     </div>

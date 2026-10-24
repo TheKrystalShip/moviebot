@@ -75,7 +75,7 @@ export function CatalogueFilm({ imdbId }) {
         <FactGrid facts={facts} />
       </section>
 
-      <Keywords names={d.keywords} />
+      <Keywords tags={d.keywords} />
 
       <p className="kc-attribution-note">Film details and artwork from TMDB.</p>
     </div>

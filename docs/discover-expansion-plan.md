@@ -73,9 +73,7 @@ Landed: `docs/api-contract.md` (Wikidata), `src/MovieBot.Api/CLAUDE.md`.
 
 ### 4·f TMDB extras
 
-The title page's trailers (TMDB `videos`, not fetched yet), where it streams in the region, its
-recommendations, its reviews, its logo, tagline and box office; keywords as links to the shelf of
-their titles. Shelves by streaming service in the region.
+Landed: `docs/api-contract.md` (What a description carries, `/api/catalogue/discover`, `/api/catalogue/ask`, `/api/discover`), `src/MovieBot.Api/CLAUDE.md`.
 
 ### 4·g Design phase (required before 4·c–4·f reach the page)
 
@@ -85,6 +83,7 @@ page holds and in what order, where award, adaptation and place shelves sit, how
 shown or one chosen, how trailers and where-to-watch sit on a title page, and the attribution TMDB,
 JustWatch and IMDb require. Until it is done, 4·c–4·f are served by the API and drawn only as the
 existing components already draw them.
+4·f serves the design a title's trailers, providers with JustWatch's attribution, recommendations, reviews, logo, tagline, box office, keyword links, IMDb rating and Wikidata awards and sources to place.
 
 ## 5. Order
 

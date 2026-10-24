@@ -64,6 +64,7 @@ public sealed class FilmStore(
     IServiceScopeFactory scopes,
     PosterPins pins,
     KeptImages images,
+    StreamingServices streaming,
     CinemaDatabase database,
     TitleScores scores,
     TimeProvider clock,
@@ -71,6 +72,9 @@ public sealed class FilmStore(
 {
     public const string Poster = "poster.jpg";
     public const string Backdrop = "backdrop.jpg";
+
+    /// <summary>The title set as a logo: a transparent PNG.</summary>
+    public const string Logo = "logo.png";
 
     /// <summary>What the images this keeps are named under in <see cref="KeptImages"/>.</summary>
     private const string Images = "films";
@@ -130,12 +134,13 @@ public sealed class FilmStore(
     /// <see cref="RecentWindow"/> after <see cref="FilmStoreOptions.RecentRefreshDays"/> since its
     /// rating moves daily, and at once when its cast names nobody by the database's id, which is
     /// what leads from a cast member to their other work, or when the database was never asked for
-    /// its keywords.
+    /// its keywords, trailers and the rest of what a description carries.
     /// </summary>
     public bool IsDue(StoredFilm film) =>
         clock.GetUtcNow() - film.FetchedAt > Keep(film)
         || film.Details is { Cast: [{ TmdbId: null }, ..] }
-        || film.Details is { Keywords: null };
+        || film.Details is { Keywords: null }
+        || film.Details is { Trailers: null };
 
     /// <summary>How recently a film must have been released for its description to be kept the shorter time.</summary>
     internal static readonly TimeSpan RecentWindow = TimeSpan.FromDays(60);
@@ -155,7 +160,9 @@ public sealed class FilmStore(
 
     private void Observe(StoredFilm film)
     {
-        if (film.Details is { } d) scores.Observe(d.TmdbId, "film", d.Rating, d.Votes, film.FetchedAt);
+        if (film.Details is not { } d) return;
+        scores.Observe(d.TmdbId, "film", d.Rating, d.Votes, film.FetchedAt);
+        scores.Observe(TitleScores.ReadingsOf(d.Recommendations), film.FetchedAt);
     }
 
     /// <summary>The kept image a request names, or null for anything that is not one.</summary>
@@ -203,6 +210,7 @@ public sealed class FilmStore(
         {
             (pins.Pin(imdbId, images.Source(Images, root, $"{imdbId}/{Poster}"), details.PosterPath), "w500", Poster),
             (details.BackdropPath, "w1280", Backdrop),
+            (details.LogoPath, "w500", Logo),
         };
         wanted.AddRange(details.Cast.Select((c, i) => (c.ProfilePath, "w185", Portrait(i))));
 
@@ -210,6 +218,7 @@ public sealed class FilmStore(
         // the wait is the slowest image rather than the sum of them.
         await Parallel.ForEachAsync(wanted, new ParallelOptions { MaxDegreeOfParallelism = ImagesAtOnce, CancellationToken = ct },
             async (image, token) => await images.KeepAsync(tmdb, Images, root, $"{imdbId}/{image.File}", image.Path, image.Size, token));
+        await streaming.KeepLogosAsync(tmdb, details.Providers, ct);
     }
 
     /// <summary>How many images are asked of the database's store at once.</summary>
@@ -246,7 +255,7 @@ public sealed class FilmStore(
         id is { Length: >= 9 and <= 12 } && id.StartsWith("tt", StringComparison.Ordinal) && id[2..].All(char.IsAsciiDigit);
 
     private static bool IsImageName(string file) =>
-        file is Poster or Backdrop
+        file is Poster or Backdrop or Logo
         || (file.StartsWith("cast-", StringComparison.Ordinal) && file.EndsWith(".jpg", StringComparison.Ordinal)
             && file[5..^4] is { Length: > 0 and <= 2 } n && n.All(char.IsAsciiDigit));
 }

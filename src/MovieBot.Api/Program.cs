@@ -117,12 +117,19 @@ builder.Services.AddHostedService<ImdbImporter>();
 builder.Services.AddSingleton<PosterPins>();
 builder.Services.AddSingleton<TitleScores>();
 builder.Services.AddSingleton<KeptImages>();
+builder.Services.AddSingleton<AnswerKeeper>();
+builder.Services.AddSingleton(sp => new StreamingServices(
+    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.CatalogueDirectory, "catalogue"),
+    sp.GetRequiredService<AnswerKeeper>(),
+    sp.GetRequiredService<KeptImages>(),
+    sp.GetRequiredService<IOptions<TmdbOptions>>()));
 builder.Services.AddSingleton(sp => new FilmStore(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.Directory, "films"),
     sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<PosterPins>(),
     sp.GetRequiredService<KeptImages>(),
+    sp.GetRequiredService<StreamingServices>(),
     sp.GetRequiredService<CinemaDatabase>(),
     sp.GetRequiredService<TitleScores>(),
     TimeProvider.System,
@@ -135,6 +142,7 @@ builder.Services.AddSingleton(sp => new ShowStore(
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<PosterPins>(),
     sp.GetRequiredService<KeptImages>(),
+    sp.GetRequiredService<StreamingServices>(),
     sp.GetRequiredService<CinemaDatabase>(),
     sp.GetRequiredService<TitleScores>(),
     sp.GetRequiredService<EpisodeNumbering>(),
@@ -153,7 +161,6 @@ builder.Services.AddSingleton(sp => new TitleGlances(
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<TitleGlances>>()));
-builder.Services.AddSingleton<AnswerKeeper>();
 
 // Wikidata, asked in the background only: the sets of films the Discover shelves are made of and each
 // film's awards and sources, kept like any answer. A host that cannot reach it does without.

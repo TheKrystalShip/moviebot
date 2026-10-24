@@ -633,7 +633,7 @@ public sealed class CatalogueSearchTests(SessionFixture fixture) : IClassFixture
         var watcher = await Get<FilmView>("/api/films/tt0113277", "9105");
         var other = await Get<FilmView>("/api/films/tt0113277", "9106");
 
-        Assert.Equal(["heist", "Los Angeles"], watcher!.Keywords);
+        Assert.Equal(["heist", "Los Angeles"], watcher!.Keywords.Select(k => k.Name));
         Assert.Equal((SessionFixture.Heat, true), (watcher.LibraryId, watcher.Watched));
         Assert.Equal((SessionFixture.Heat, false), (other!.LibraryId, other.Watched));
     }
@@ -643,7 +643,7 @@ public sealed class CatalogueSearchTests(SessionFixture fixture) : IClassFixture
     {
         var film = await Get<FilmView>($"/api/films/{FilmDatabaseStub.SilverHarbour}");
 
-        Assert.Equal(["silent film", "harbour"], film!.Keywords);
+        Assert.Equal(["silent film", "harbour"], film!.Keywords.Select(k => k.Name));
         Assert.Null(film.LibraryId);
         Assert.False(film.Watched);
     }

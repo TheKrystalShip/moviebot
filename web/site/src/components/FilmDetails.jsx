@@ -34,13 +34,13 @@ export function Tagline({ text }) {
   return text ? <p className="kc-tt__tagline">{text}</p> : null;
 }
 
-/** The film database's keywords for a title, as a section of quiet chips; none, no section. */
-export function Keywords({ names }) {
-  if (!names || names.length === 0) return null;
+/** The film database's keywords for a title (`{id, name}`), as a section of quiet chips; none, no section. */
+export function Keywords({ tags }) {
+  if (!tags || tags.length === 0) return null;
   return (
     <section className="kc-section">
       <h2>Keywords</h2>
-      <div className="kc-keywords">{names.map((k) => <Pill key={k} tone="muted">{k}</Pill>)}</div>
+      <div className="kc-keywords">{tags.map((k) => <Pill key={k.id} tone="muted">{k.name}</Pill>)}</div>
     </section>
   );
 }

@@ -163,6 +163,9 @@ public sealed record DiscoverResolved
 
     public required List<ResolvedPerson> People { get; init; }
     public required List<string> Keywords { get; init; }
+
+    /// <summary>The streaming services the results are on, by the names the film database lists them under.</summary>
+    public List<string> Providers { get; init; } = [];
     public string? Language { get; init; }
 
     /// <summary>The title the results are similar to, as <c>Name (year)</c>.</summary>

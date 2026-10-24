@@ -261,6 +261,7 @@ public sealed class DiscoverShelves(
     ShowStore shows,
     TitleCategories categories,
     WikidataSets wikidata,
+    StreamingServices streaming,
     TimeProvider clock)
 {
     /// <summary>How many shelves of what a viewer watched their tab shows.</summary>
@@ -276,6 +277,7 @@ public sealed class DiscoverShelves(
         new("moods", "Moods", "smile"),
         new("movies", "Movies", "trophy"),
         new("shows", "TV Shows", "tv"),
+        new("streaming", "Streaming", "tv-minimal-play"),
         new("genres", "Genres", "shapes"),
         new("themes", "Themes", "tags"),
         new("awards", "Awards", "award"),
@@ -327,7 +329,8 @@ public sealed class DiscoverShelves(
         var titles = library.Titles();
         var held = LibraryShelf.Of(titles, record, viewerId);
         var personal = Personal(viewerId, titles);
-        var shown = Fixed.Where(s => (s.Season is null || s.Season.Holds(today)) && Kept(s)).ToList();
+        await streaming.AllAsync(ct);
+        var shown = Every().Where(s => (s.Season is null || s.Season.Holds(today)) && Kept(s)).ToList();
         var seasonal = shown.Where(s => s.Season is not null).ToList();
 
         // What a tile draws: every mood and series, and the first shelves of each category.
@@ -458,7 +461,7 @@ public sealed class DiscoverShelves(
     {
         if (page < 1 || page > CatalogueSearch.PagesListed) return Outcome<ShelfView>.Failed(Problem.Invalid, $"Page is 1 to {CatalogueSearch.PagesListed}.");
         var titles = library.Titles();
-        var shelf = ById.GetValueOrDefault(id) ?? Personal(viewerId, titles).FirstOrDefault(s => s.Id == id) ?? LikeShelf(id, titles);
+        var shelf = ById.GetValueOrDefault(id) ?? Streaming().FirstOrDefault(s => s.Id == id) ?? Personal(viewerId, titles).FirstOrDefault(s => s.Id == id) ?? LikeShelf(id, titles);
         if (shelf is null) return Outcome<ShelfView>.Failed(Problem.NotFound, "There is no shelf by that name.");
 
         var listed = await TitlesAsync(shelf, viewerId, titles, page, ct);
@@ -483,12 +486,59 @@ public sealed class DiscoverShelves(
     {
         var unanswered = 0;
         var titles = library.Titles();
-        foreach (var shelf in Fixed)
+        await streaming.AllAsync(ct);
+        foreach (var shelf in Every())
         {
             ct.ThrowIfCancellationRequested();
             if ((await TitlesAsync(shelf, null, titles, 1, ct)).Value is null) unanswered++;
         }
         return unanswered;
+    }
+
+    /// <summary>The shelves the same for everybody: the fixed ones, then those of the region's streaming services.</summary>
+    private List<Shelf> Every() => [.. Fixed, .. Streaming()];
+
+    /// <summary>
+    /// The services with a shelf, by the names the database lists them under, and whether the service has
+    /// enough series for a shelf of them too. A service the region's list does not hold has no shelf, so
+    /// the section is whatever the region offers of these.
+    /// </summary>
+    private static readonly (string Name, bool Series)[] MajorServices =
+    [
+        ("Netflix", true), ("Amazon Prime Video", true), ("Disney Plus", true), ("HBO Max", true), ("Movistar Plus+", true),
+        ("Apple TV", false), ("Filmin", false), ("SkyShowtime", true),
+    ];
+
+    /// <summary>The fewest votes a title on a streaming shelf has.</summary>
+    private const int StreamingVotes = 100;
+
+    /// <summary>
+    /// A shelf of films, and for most a shelf of series, for each major service the region's kept list
+    /// holds. Nothing is asked: until the list is kept (the warmer asks for it) the section is absent.
+    /// </summary>
+    private List<Shelf> Streaming()
+    {
+        var films = streaming.Kept("film");
+        var shows = streaming.Kept("show");
+        var shelves = new List<Shelf>();
+        foreach (var (name, series) in MajorServices)
+        {
+            if (StreamingServices.Match(films, name) is { } film)
+                shelves.Add(Streams("film", film, film.Name, "monitor-play"));
+            if (series && StreamingServices.Match(shows, name) is { } show)
+                shelves.Add(Streams("show", show, show.Name + " series", "tv"));
+        }
+        return shelves;
+
+        Shelf Streams(string kind, WatchProvider service, string title, string icon) => new()
+        {
+            Section = "streaming",
+            Id = $"streaming-{service.ProviderId}-{kind}",
+            Title = title,
+            Icon = icon,
+            Kind = kind,
+            Query = new DiscoverQuery { Kind = kind, WatchProviderIds = [service.ProviderId], WatchRegion = streaming.Region, MinVotes = StreamingVotes },
+        };
     }
 
     private static ShelfHeadView Head(Shelf shelf) => new() { Id = shelf.Id, Title = shelf.Title, Icon = shelf.Icon, Kind = shelf.Kind };

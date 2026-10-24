@@ -207,7 +207,7 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
         <FactGrid facts={facts} />
       </section>
 
-      <Keywords names={s.keywords} />
+      <Keywords tags={s.keywords} />
 
       <p className="kc-attribution-note">Show details and artwork from TMDB.</p>
     </div>
