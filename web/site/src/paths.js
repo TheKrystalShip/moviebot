@@ -56,18 +56,10 @@ export const discoverBrowsePath = (id) => "/discover?browse=" + seg(id);
 export const discoverShelfPath = (id, sort) => "/discover?shelf=" + seg(id) + (sort ? "&sort=" + seg(sort) : "");
 
 /**
- * What Discover's filter reads from the address besides the kind, by the choice's name and the
- * parameter that holds it. The genre is `g`, since `genre` is the address of a genre's own page.
+ * Discover's filter: the catalogue's films and shows at the filter drawer's picks, which the address
+ * holds beside `filter` (`discoverFilters.js`).
  */
-export const FILTER_PARAMS = { genre: "g", decade: "decade", length: "length", rating: "rating", lang: "lang", sort: "sort" };
-
-/**
- * Discover's filter, at the choices made: `kind` (`film` or `show`), `genre`, `decade` (its first
- * year), `length` (`short`, `standard` or `long`), `rating` (the least), `lang` and `sort`. A choice
- * left at any is left out.
- */
-export const discoverFilterPath = (filter = {}) => "/discover?filter=" + (filter.kind === "show" ? "show" : "film")
-  + Object.entries(FILTER_PARAMS).filter(([k]) => filter[k]).map(([k, param]) => "&" + param + "=" + seg(filter[k])).join("");
+export const discoverFilterPath = () => "/discover?filter=1";
 
 /** Discover's catalogue of the films and shows one person is credited on, by the film database's id for them. */
 export const discoverPersonPath = (personId) => "/discover?person=" + seg(personId);

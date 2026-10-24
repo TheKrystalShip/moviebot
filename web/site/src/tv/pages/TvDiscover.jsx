@@ -1,8 +1,8 @@
 import React from "react";
-import { Avatar, Button, Icon, SearchField, TvCard, TvHeading, TvRow, TvSpotlight } from "@thekrystalship/krystal";
+import { Avatar, Button, FilterDrawer, Icon, SearchField, TvCard, TvHeading, TvRow, TvSpotlight } from "@thekrystalship/krystal";
 import { api, filmName, posterUrl } from "../../api.js";
 import { useLoad } from "../../data.js";
-import { ANIME, discoverPath } from "../../paths.js";
+import { ANIME, discoverFilterPath, discoverPath } from "../../paths.js";
 import { linkProps, navigate } from "../../router.js";
 import { useCan } from "../../session.js";
 import { watchHref } from "../../components/Film.jsx";
@@ -10,7 +10,11 @@ import { WantButton } from "../../components/WantButton.jsx";
 import { foundPage } from "../../components/TitleCards.jsx";
 import { Failed } from "../../components/Film.jsx";
 import { startFilm } from "./TvFilm.jsx";
-import { TvCategory, TvDiscoverFront, TvShelf } from "./TvDiscoverShelves.jsx";
+import { TvCategory, TvDiscoverFront, TvFilter, TvShelf } from "./TvDiscoverShelves.jsx";
+import { Rank, onBack } from "../tv.js";
+import {
+  apiPicks, drawerValues, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, useDrawerOpen, useFacets, withPicks,
+} from "../../discoverFilters.js";
 
 /**
  * Finding anything to watch, on a television. The field is focused when the page opens; OK on it
@@ -20,6 +24,11 @@ import { TvCategory, TvDiscoverFront, TvShelf } from "./TvDiscoverShelves.jsx";
  * title on one shelf. With a query, the catalogue's first answer large,
  * with Watch, More info and Want, then the rest of what it answered and whatever the library holds by
  * that name, all as one row. The query is in the address, as on every surface.
+ *
+ * The filter drawer in the field filters what the page shows with nothing typed: the catalogue, a
+ * person's titles, a genre's, a shelf and a category's shelves, by the sections the answer's facets
+ * report. Picking anything on the front opens the filter's answers. Back goes to the drawer first, and
+ * the page under the open drawer is inert, so the remote's arrows stay in it.
  */
 export function TvDiscover({ query }) {
   const q = (query.get("q") || "").trim();
@@ -29,7 +38,11 @@ export function TvDiscover({ query }) {
   const genreCategory = query.get("category") === ANIME ? ANIME : null;
   const shelf = (query.get("shelf") || "").trim();
   const category = (query.get("browse") || "").trim();
-  const browsing = !q && !!(person || genre || shelf || category);
+  const filtering = query.has("filter");
+  const browsing = !q && !!(person || genre || shelf || category || filtering);
+  const picks = readPicks(query);
+  const asked = apiPicks(picks);
+  const pickKey = JSON.stringify(asked);
   const [draft, setDraft] = React.useState(q);
   React.useEffect(() => setDraft(q), [q]);
   const downloading = useCan("cinema:download");
@@ -59,16 +72,41 @@ export function TvDiscover({ query }) {
 
   const submit = (value) => navigate(discoverPath(value.trim()));
 
+  const field = React.useRef(null);
+  const drawerRef = React.useRef(null);
+  React.useEffect(() => onBack(() => (drawerRef.current ? drawerRef.current.back() : false), Rank.screen), []);
+  const drawerOpen = useDrawerOpen(field);
+  const section = category && index.data ? index.data.sections.find((s) => s.id === category) : null;
+  const facetsFor = q ? null
+    : person ? () => api.cataloguePersonFacets(person, asked)
+      : genre ? () => api.catalogueGenreFacets(genreKind, genre, genreCategory, asked)
+        : shelf ? () => api.discoverShelfFacets(shelf, asked)
+          : category ? (section && !section.series ? () => api.discoverSectionFacets(category, asked) : null)
+            : () => api.catalogueDiscoverFacets(filterQuestion(picks));
+  const facets = useFacets(facetsFor, [q, person, genre, genreKind, genreCategory, shelf, category, !!section, pickKey].join("|"));
+  const sections = facetsFor ? sectionsOf(facets, picks, { watched: false }) : [];
+  const change = (next) => {
+    const nextPicks = picksOfValues(next);
+    if (JSON.stringify(apiPicks(nextPicks)) === pickKey) return;
+    const landing = !q && !browsing;
+    navigate(withPicks(landing ? new URLSearchParams(discoverFilterPath().split("?")[1]) : query, nextPicks), { replace: !landing });
+  };
+  const drawer = sections.length > 0
+    ? <FilterDrawer ref={drawerRef} sections={sections} values={drawerValues(picks, false)} onChange={change} />
+    : undefined;
+
   return (
     <div className={"kc-tv-page kc-tvd" + (q ? " has-query" : "")}>
-      <SearchField size="xl" className="kc-tvd__search" data-tv-top="" value={draft} onChange={setDraft} onSubmit={submit} submit={false}
-        placeholder="Any movie or show" inputProps={{ className: "kc-tvd__input", "data-tv-initial": q || browsing ? undefined : "" }} />
+      <SearchField ref={field} size="xl" className={"kc-tvd__search" + (drawerOpen ? " kc-tvd__search--open" : "")} data-tv-top="" value={draft} onChange={setDraft} onSubmit={submit} submit={false}
+        placeholder="Any movie or show" filters={drawer} inputProps={{ className: "kc-tvd__input", "data-tv-initial": q || browsing ? undefined : "" }} />
 
-      {!q && person && <PersonWork key={person} personId={person} where={where} />}
-      {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} where={where} />}
+      <div className="kc-tvd__answer" inert={drawerOpen ? "" : undefined} style={{ display: "contents" }}>
+      {!q && person && <PersonWork key={person} personId={person} picks={picks} where={where} />}
+      {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} picks={picks} where={where} />}
 
-      {!q && !person && !genre && shelf && <TvShelf key={shelf} id={shelf} where={where} />}
-      {!q && !person && !genre && !shelf && category && <TvCategory key={category} id={category} index={index} where={where} />}
+      {!q && !person && !genre && shelf && <TvShelf key={shelf} id={shelf} picks={picks} where={where} />}
+      {!q && !person && !genre && !shelf && category && <TvCategory key={category} id={category} index={index} picks={picks} where={where} />}
+      {!q && !person && !genre && !shelf && !category && filtering && <TvFilter picks={picks} where={where} />}
       {!q && !browsing && index.error && !index.data && <div className="kc-tv-pad"><Failed error={index.error} onRetry={index.reload} /></div>}
       {!q && !browsing && index.data && <TvDiscoverFront index={index.data} where={where} />}
 
@@ -93,6 +131,7 @@ export function TvDiscover({ query }) {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -116,8 +155,9 @@ function Posters({ titles, where }) {
 }
 
 /** Everything one person is credited on, best known first, under their portrait and name. */
-function PersonWork({ personId, where }) {
-  const work = useLoad(() => api.cataloguePerson(personId), [personId]);
+function PersonWork({ personId, picks, where }) {
+  const asked = apiPicks(picks);
+  const work = useLoad(() => api.cataloguePerson(personId, asked), [personId, JSON.stringify(asked)]);
   const p = work.data;
   if (work.error && !p) return <div className="kc-tv-pad"><Failed error={work.error} onRetry={work.reload} /></div>;
   if (!p) return null;
@@ -125,6 +165,7 @@ function PersonWork({ personId, where }) {
     <section className="kc-tvd__browse">
       <TvHeading as="h1" size="lg" count={p.titles.length} title={p.name} eyebrow={p.knownFor && (KNOWN_AS[p.knownFor] || p.knownFor)}
         lead={<Avatar src={p.portraitUrl} name={p.name} tone="muted" size="css" imagePosition="center 20%" className="kc-tv-person__face kc-tvd__face" />} />
+      {p.titles.length === 0 && pickCount(picks) > 0 && <p className="kc-tvd__none">Nothing matches.</p>}
       <Posters titles={p.titles} where={where} />
       <p className="kc-tv-tmdb">Credits and artwork from TMDB.</p>
     </section>
@@ -132,8 +173,9 @@ function PersonWork({ personId, where }) {
 }
 
 /** The catalogue's most popular films or shows in one genre; of its anime alone with `category`. */
-function GenreTitles({ kind, genre, category, where }) {
-  const listed = useLoad(() => api.catalogueGenre(kind, genre, category), [kind, genre, category]);
+function GenreTitles({ kind, genre, category, picks, where }) {
+  const asked = apiPicks(picks);
+  const listed = useLoad(() => api.catalogueGenre(kind, genre, category, asked), [kind, genre, category, JSON.stringify(asked)]);
   const g = listed.data;
   if (listed.error && !g) return <div className="kc-tv-pad"><Failed error={listed.error} onRetry={listed.reload} /></div>;
   if (!g) return null;
@@ -141,6 +183,7 @@ function GenreTitles({ kind, genre, category, where }) {
     <section className="kc-tvd__browse">
       <TvHeading as="h1" size="lg" count={g.titles.length} title={g.genre}
         eyebrow={category === ANIME ? (kind === "show" ? "Anime series" : "Anime films") : kind === "show" ? "TV Shows" : "Movies"} />
+      {g.titles.length === 0 && pickCount(picks) > 0 && <p className="kc-tvd__none">Nothing matches.</p>}
       <Posters titles={g.titles} where={where} />
       <p className="kc-tv-tmdb">Popular titles and artwork from TMDB.</p>
     </section>

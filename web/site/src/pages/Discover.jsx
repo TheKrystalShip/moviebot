@@ -1,11 +1,11 @@
 import React from "react";
-import { Avatar, Button, Icon, Pill, SearchField, Skeleton } from "@thekrystalship/krystal";
+import { Avatar, Button, FilterDrawer, Icon, Pill, SearchField, Skeleton } from "@thekrystalship/krystal";
 import { api, filmName } from "../api.js";
 import { useLoad, usePaged } from "../data.js";
 import { useOnline } from "../connectivity.js";
 import { askAssistant } from "../assistantHandoff.js";
 import { useCan } from "../session.js";
-import { ANIME, discoverPath } from "../paths.js";
+import { ANIME, discoverFilterPath, discoverPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard, watchHref } from "../components/Film.jsx";
 import { FilmMatchActions } from "../components/FilmActions.jsx";
@@ -16,14 +16,17 @@ import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
-import { CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, LandingFilters, MoreCards, ShelfPage, surprisePool, useSurprise } from "./DiscoverShelves.jsx";
+import {
+  CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, MoreCards, ShelfPage, surprisePool, useHideWatched, useSurprise,
+} from "./DiscoverShelves.jsx";
+import { apiPicks, drawerValues, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, useFacets, withPicks } from "../discoverFilters.js";
 import { openingEpisode, watchOpening } from "../watchNow.js";
 
 /** The class the page's field carries, so the shortcut that opens the page can find it. */
 export const DISCOVER_FIELD = "kc-discover-field";
 
 /**
- * Finding anything to watch, here or not. With nothing typed, the field with the filter beside it, a
+ * Finding anything to watch, here or not. With nothing typed, the field with the filter in it, a
  * spotlight on a film from the season's shelf, and the page's rows (`/api/discover`): shelves of
  * posters, the moods and the franchises as tiles, and the browse categories. `browse` is one
  * category, `shelf` every title on one shelf, and `filter` the filter's answers at the choices the
@@ -37,6 +40,11 @@ export const DISCOVER_FIELD = "kc-discover-field";
  * they are credited on, best known first; with a genre (`genre` and `kind`), the catalogue's most
  * popular films or shows in it. Every answer leads to its own page. What is shown is in the address,
  * so it can be shared and reloaded.
+ *
+ * The filter drawer in the field filters whatever the page answers: Discover's catalogue, a question, a
+ * person's titles, a genre's, a shelf and a category's shelves. Its sections are the ones the answer's
+ * facets report, and picking anything with nothing typed opens the filter's answers. With picks on a
+ * search, the question's titles alone are shown, since nothing else found by name answers them.
  */
 export function Discover({ query }) {
   const online = useOnline();
@@ -52,6 +60,11 @@ export function Discover({ query }) {
   const [draft, setDraft] = React.useState(q);
   React.useEffect(() => setDraft(q), [q]);
   const field = useFocusOnceShown();
+  const picks = readPicks(query);
+  const asked = apiPicks(picks);
+  const pickKey = JSON.stringify(asked);
+  const narrowed = pickCount(picks) > 0;
+  const [hideWatched, setHideWatched] = useHideWatched();
 
   const downloading = useCan("cinema:download");
   const wishing = useCan("cinema:wish");
@@ -67,11 +80,11 @@ export function Discover({ query }) {
   const answered = !finding || (foundFor.data && foundFor.data.q === q);
   const found = answered && foundFor.data && foundFor.data.q === q ? foundFor.data.list : [];
   // The question's titles are read a page at a time; the reading and any refusal are the first page's.
-  const askedFor = usePaged((page) => (q && online ? api.ask(q, page).catch(() => null) : Promise.resolve(null))
-    .then((ask) => ({ q, ask, titles: ask && ask.question ? ask.titles : [], next: ask ? ask.next : undefined })), [q, online]);
+  const askedFor = usePaged((page) => (q && online ? api.ask(q, page, asked).catch(() => null) : Promise.resolve(null))
+    .then((ask) => ({ q, ask, titles: ask && ask.question ? ask.titles : [], next: ask ? ask.next : undefined })), [q, online, pickKey]);
   const askAnswered = !q || !online || (askedFor.data && askedFor.data.q === q);
   const ask = askAnswered && askedFor.data && askedFor.data.q === q ? askedFor.data.ask : null;
-  const questionTitles = ask && ask.question ? askedFor.titles : [];
+  const questionTitles = ask && ask.question ? askedFor.titles.filter((t) => !hideWatched || !t.watched) : [];
   const libraryShows = useLoad(() => api.shows().catch(() => []), []);
   // The page's rows and categories, and what the filter picks from, for everything here that is not a
   // search, a person or a genre.
@@ -95,28 +108,50 @@ export function Discover({ query }) {
   const others = libraryFilms.length + libraryShowsNamed.length;
   const showsHereById = new Map((libraryShows.data || []).filter((s) => s.imdbId).map((s) => [s.imdbId, s]));
   const where = (t) => ({ here: t.kind === "film" ? filmsHere.get(t.imdbId) : null, held: t.kind === "show" && heldShows.has(t.imdbId) });
-  const [best, ...rest] = found;
-  const everything = questionTitles.length + found.length + others;
+  const [best, ...rest] = narrowed ? [] : found;
+  const everything = questionTitles.length + (narrowed ? 0 : found.length + others);
   const carriesWords = [...questionTitles, ...found].some((t) => named(t.title || ""));
   const offerAssistant = online && q && answered && askAnswered
     && (everything === 0 || !!(ask && ask.question && ask.message) || (!(ask && ask.question) && !carriesWords));
 
   const submit = (typed) => navigate(discoverPath(typed.trim()));
 
+  // The facets of what the page answers, and whether its titles say what the person watched.
+  const section = category && index.data ? index.data.sections.find((s) => s.id === category) : null;
+  const facetsFor = q ? (online ? () => api.askFacets(q, asked) : null)
+    : person ? () => api.cataloguePersonFacets(person, asked)
+      : genre ? () => api.catalogueGenreFacets(genreKind, genre, genreCategory, asked)
+        : shelf ? () => api.discoverShelfFacets(shelf, asked)
+          : category ? (section && !section.series ? () => api.discoverSectionFacets(category, asked) : null)
+            : online ? () => api.catalogueDiscoverFacets(filterQuestion(picks)) : null;
+  const facets = useFacets(facetsFor, [q, person, genre, genreKind, genreCategory, shelf, category, !!section, online, pickKey].join("|"));
+  const sections = facetsFor ? sectionsOf(facets, picks, { watched: !person && !genre }) : [];
+  // A search that is no question has nothing to filter; its drawer appears once its facets say otherwise.
+  const filterable = sections.some((s) => s.kind !== "toggle") && (!q || narrowed || (facets && facets.sections.length > 0));
+  const change = (next) => {
+    if (next.watched !== hideWatched) setHideWatched(next.watched);
+    const nextPicks = picksOfValues(next);
+    if (JSON.stringify(apiPicks(nextPicks)) === pickKey) return;
+    const landing = !q && !browsing;
+    navigate(withPicks(landing ? new URLSearchParams(discoverFilterPath().split("?")[1]) : query, nextPicks), { replace: !landing });
+  };
+  const drawer = filterable
+    ? <FilterDrawer sections={sections} values={drawerValues(picks, hideWatched)} onChange={change} />
+    : undefined;
+
   return (
     <div className="kc-page kc-discover">
       <PageHead title="Discover" />
       <div className="kc-discover-bar">
       <SearchField ref={field} size="xl" className={DISCOVER_FIELD} value={draft} onChange={setDraft} onSubmit={submit}
-        disabled={!online} placeholder="Any movie or show" />
-      {!q && !browsing && online && <LandingFilters index={index.data} />}
+        disabled={!online} placeholder="Any movie or show" filters={drawer} />
       </div>
 
-      {!q && person && <PersonWork key={person} personId={person} where={where} />}
-      {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} where={where} />}
-      {!q && !person && !genre && shelf && <ShelfPage key={shelf} id={shelf} sort={query.get("sort")} where={where} />}
-      {!q && !person && !genre && !shelf && category && <CategoryPage key={category} id={category} index={index} where={where} />}
-      {!q && !person && !genre && !shelf && !category && filtering && <FilterPage query={query} index={index} where={where} />}
+      {!q && person && <PersonWork key={person} personId={person} picks={picks} where={where} />}
+      {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} picks={picks} where={where} />}
+      {!q && !person && !genre && shelf && <ShelfPage key={shelf} id={shelf} sort={query.get("sort")} picks={picks} where={where} />}
+      {!q && !person && !genre && !shelf && category && <CategoryPage key={category} id={category} index={index} picks={picks} where={where} />}
+      {!q && !person && !genre && !shelf && !category && filtering && <FilterPage query={query} picks={picks} where={where} />}
       {!q && !browsing && index.error && !index.data && <Failed error={index.error} onRetry={index.reload} />}
       {!q && !browsing && !index.data && !index.error && <FrontSkeleton />}
       {!q && !browsing && index.data && (
@@ -176,8 +211,9 @@ const KNOWN_AS = { Acting: "Actor", Directing: "Director", Writing: "Writer", Pr
  * The films and shows one person is credited on, best known first, each card with the part they
  * played or the job they did, marked and played like any other answer when the library holds it.
  */
-function PersonWork({ personId, where }) {
-  const work = useLoad(() => api.cataloguePerson(personId), [personId]);
+function PersonWork({ personId, picks, where }) {
+  const asked = apiPicks(picks);
+  const work = useLoad(() => api.cataloguePerson(personId, asked), [personId, JSON.stringify(asked)]);
   const p = work.data;
   return (
     <>
@@ -199,7 +235,7 @@ function PersonWork({ personId, where }) {
                 {p.titles.map((t) => <FoundCard key={t.kind + t.imdbId} found={t} {...where(t)} line={t.role} />)}
               </div>
             )
-            : <Empty icon="user" title="No credits" />}
+            : <Empty icon="user" title={pickCount(picks) > 0 ? "Nothing matches" : "No credits"} />}
           <p className="kc-attribution-note">Credits and artwork from TMDB.</p>
         </section>
       )}
@@ -208,8 +244,9 @@ function PersonWork({ personId, where }) {
 }
 
 /** The catalogue's most popular films or shows in one genre, as the film database names it; of its anime alone with `category`. */
-function GenreTitles({ kind, genre, category, where }) {
-  const listed = useLoad(() => api.catalogueGenre(kind, genre, category), [kind, genre, category]);
+function GenreTitles({ kind, genre, category, picks, where }) {
+  const asked = apiPicks(picks);
+  const listed = useLoad(() => api.catalogueGenre(kind, genre, category, asked), [kind, genre, category, JSON.stringify(asked)]);
   const g = listed.data;
   return (
     <>
@@ -230,7 +267,7 @@ function GenreTitles({ kind, genre, category, where }) {
                 {g.titles.map((t) => <FoundCard key={t.imdbId} found={t} {...where(t)} />)}
               </div>
             )
-            : <Empty icon={category === ANIME ? "swords" : kind === "show" ? "tv" : "clapperboard"} title="Nothing in this genre" />}
+            : <Empty icon={category === ANIME ? "swords" : kind === "show" ? "tv" : "clapperboard"} title={pickCount(picks) > 0 ? "Nothing matches" : "Nothing in this genre"} />}
           <p className="kc-attribution-note">Popular titles and artwork from TMDB.</p>
         </section>
       )}

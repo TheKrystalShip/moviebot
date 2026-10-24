@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.74.0] - 2026-10-24
+
+### Added
+- Discover's filter is krystal's filter drawer (`@thekrystalship/krystal` 8.3.0), in the page's field on
+  the site and on a television. It filters whatever Discover answers: the catalogue, a question, a
+  person's titles, a genre's, a shelf and a browse category's shelves. Its sections are the ones the
+  answer's facets report, several picks per section, each kept in the address (`k`, `g`, `decade`,
+  `length`, `rating`, `lang`), and the results follow each pick behind the open drawer. Picking on the
+  front opens `/discover?filter=1`, the catalogue's films and shows at the picks.
+- On a television Back goes to the drawer first, and the page under the open drawer is inert and steps
+  back behind the column's veil.
+
+### Changed
+- The filter's catalogue question asks for films and shows together unless a kind is picked, and for
+  100 votes with a rating picked as without one.
+- A shelf's page and the filter's page carry a sort, the count and Surprise me in their toolbar; their
+  filters are the drawer's.
+
 ## [3.73.0] - 2026-10-24
 
 ### Added

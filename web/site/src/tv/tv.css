@@ -29,6 +29,11 @@
   transition: opacity var(--d-slow) var(--ease-out);
 }
 .kc-tv-main.is-under-bar::after { opacity: calc(1 - var(--tv-dim)); }
+/* Under Discover's open filter drawer the page steps back behind the same veil. The column is fixed, so
+   the drawer cannot rise out of it over a dimming laid on the whole document: the column rises over
+   that dimming instead, which then falls on the bar alone. */
+.kc-tv-main:has(.kc-tvd__search--open) { z-index: 36; }
+.kc-tv-main:has(.kc-tvd__search--open)::after { opacity: calc(1 - var(--tv-dim)); }
 
 /* A page is shown at once: an entering page's slide would carry the fixed backdrop with it. */
 :root[data-tv] .kc-stage__page.is-entering { animation: none; }
@@ -114,6 +119,8 @@
 .kc-tvd__input { font-size: var(--text-lg); }
 .kc-tvd__input::placeholder { color: var(--fg-3); }
 :root[data-tv] .kc-tvd__input:focus-visible { box-shadow: none; }
+/* With the filter drawer open the field and its drawer rise over the column's veil. */
+.kc-tvd__search--open { z-index: 6; }
 .kc-tvd__search:focus-within {
   transform: scale(1.015);
   box-shadow: inset 0 0 0 1px var(--fg-1), var(--glow-accent);

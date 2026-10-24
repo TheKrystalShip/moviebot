@@ -1,20 +1,21 @@
 import React from "react";
 import {
-  BriefCard, CollectionTile, Icon, Rail, Skeleton, Toolbar, ToolbarButton, ToolbarCount, ToolbarFilters, ToolbarSort,
-  ToolbarSpacer, useStoredFlag,
+  BriefCard, CollectionTile, Icon, Rail, Skeleton, Toolbar, ToolbarButton, ToolbarCount, ToolbarSort, ToolbarSpacer, useStoredFlag,
 } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { POSTERS, TILES } from "../railDensity.js";
 import { useLoad, usePaged } from "../data.js";
-import { FILTER_PARAMS, discoverBrowsePath, discoverFilterPath, discoverShelfPath } from "../paths.js";
+import { discoverBrowsePath, discoverShelfPath } from "../paths.js";
+import { apiPicks, filterQuestion, pickCount } from "../discoverFilters.js";
 import { linkProps, navigate } from "../router.js";
 import { SORTED, useSort } from "../sorts.js";
 import { Empty, Failed } from "../components/Film.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
 
 // Discover with nothing typed: its rows of shelves, the moods and the franchises as tiles, and the
-// browse categories; a category's shelves; one shelf whole; and the filter. Every shelf comes from
-// `/api/discover`, and what is shown is in the address.
+// browse categories; a category's shelves; one shelf whole; and the filter's answers. Every shelf comes
+// from `/api/discover`, and what is shown is in the address, the filter drawer's picks with it
+// (`discoverFilters.js`).
 
 /** How many of a shelf's titles its rail shows; its own page shows the rest. */
 const RAIL_TITLES = 20;
@@ -139,9 +140,9 @@ function BrowseGrid({ sections }) {
 /**
  * One shelf's rail, drawn at once from what the index carried for it, else asked for once it nears the
  * screen, so a page of many shelves asks only for what is looked at. A shelf with nothing on it, or that
- * could not be answered, is left out.
+ * could not be answered, is left out. `picks` are the filter's, which the shelf is asked with.
  */
-export function LazyShelf({ head, kept, where, skip, least = 1 }) {
+export function LazyShelf({ head, kept, where, skip, least = 1, picks }) {
   const ref = React.useRef(null);
   const [near, setNear] = React.useState(!!kept);
   React.useEffect(() => {
@@ -160,7 +161,7 @@ export function LazyShelf({ head, kept, where, skip, least = 1 }) {
 
   return (
     <div ref={ref} className="kc-lazy-shelf">
-      {near ? <ShelfRail head={head} kept={kept} where={where} skip={skip} least={least} /> : <RailSkeleton />}
+      {near ? <ShelfRail head={head} kept={kept} where={where} skip={skip} least={least} picks={picks} /> : <RailSkeleton />}
     </div>
   );
 }
@@ -170,10 +171,14 @@ export function LazyShelf({ head, kept, where, skip, least = 1 }) {
  * off it (the page the rail is on), and a shelf with fewer than `least` titles is left out. A title
  * carrying a `role` (a person's shelf) is shown with that part in place of its cast.
  */
-function ShelfRail({ head, kept, where, skip, least = 1 }) {
-  const shelf = useLoad(() => api.discoverShelf(head.id), [head.id], { known: kept });
+function ShelfRail({ head, kept, where, skip, least = 1, picks }) {
+  const [hideWatched] = useHideWatched();
+  const asked = picks ? apiPicks(picks) : {};
+  const filtered = !!picks && pickCount(picks) > 0;
+  const shelf = useLoad(() => api.discoverShelf(head.id, 1, null, asked), [head.id, JSON.stringify(asked)], { known: filtered ? undefined : kept });
   if (!shelf.data) return shelf.error ? null : <RailSkeleton />;
-  const titles = skip ? shelf.data.titles.filter((t) => t.imdbId !== skip) : shelf.data.titles;
+  const all = skip ? shelf.data.titles.filter((t) => t.imdbId !== skip) : shelf.data.titles;
+  const titles = picks && hideWatched ? all.filter((t) => !t.watched) : all;
   if (titles.length === 0 || titles.length < least) return null;
   return (
     <Rail
@@ -197,8 +202,8 @@ function BrowseHead({ eyebrow, icon, title, count }) {
   );
 }
 
-/** One browse category: a series' tiles in a grid, any other's shelves as rails. */
-export function CategoryPage({ id, index, where }) {
+/** One browse category: a series' tiles in a grid, any other's shelves as rails, each asked with the filter's `picks`. */
+export function CategoryPage({ id, index, where, picks }) {
   const [busy, surprise] = useSurprise(where);
   const narrow = useNarrow();
   if (index.error && !index.data) return <Failed error={index.error} onRetry={index.reload} />;
@@ -219,22 +224,11 @@ export function CategoryPage({ id, index, where }) {
             {section.shelves.filter((h) => h.total !== 0).map((h) => <ShelfTile key={h.id} head={h} series size={narrow ? "sm" : "md"} />)}
           </div>
         )
-        : section.shelves.map((h) => <LazyShelf key={h.id} head={h} where={where} />)}
+        : section.shelves.map((h) => <LazyShelf key={h.id} head={h} where={where} picks={picks} />)}
       <p className="kc-attribution-note">Titles and artwork from TMDB.</p>
     </section>
   );
 }
-
-/** The decades a filter offers, newest first, by their first year. */
-const DECADES = [2020, 2010, 2000, 1990, 1980, 1970, 1960, 1950, 1940];
-
-const decadeOf = (year) => (year ? Math.floor(year / 10) * 10 : null);
-
-/** The filter field that leaves off what the person watched, which the device keeps for them. */
-const watchedField = (hide, setHide) => ({
-  id: "watched", label: "Watched", value: hide ? "hide" : "show", default: "show", onChange: (v) => setHide(v === "hide"),
-  options: [{ value: "show", label: "Show everything" }, { value: "hide", label: "Hide what I watched" }],
-});
 
 const SHELF_SORTS = [
   { value: "order", label: "Shelf order", defaultDir: "asc" },
@@ -290,54 +284,35 @@ export function MoreCards({ paged }) {
 
 /**
  * Every title on one shelf, a page at a time as the grid reaches its end, with krystal's Toolbar as on
- * the library's pages: what to leave off, an order, how many are shown, and Surprise me among them.
- * It opens in the order its rail shows; an order picked here is the address's (`sort`), so it holds
- * through a reload and Back and is no other shelf's.
+ * the library's pages: an order, how many are shown, and Surprise me. It opens in the order its rail
+ * shows; an order picked here is the address's (`sort`), so it holds through a reload and Back and is no
+ * other shelf's. The filter drawer's `picks` are asked of the shelf, and what the person watched is left
+ * off when they hide it.
  */
-export function ShelfPage({ id, sort: param, where }) {
+export function ShelfPage({ id, sort: param, where, picks }) {
   const sort = shelfOrder(param);
   const order = shelfSort(sort);
-  const setSort = (key, dir) => navigate(discoverShelfPath(id, shelfSort({ key, dir })), { replace: true });
-  const shelf = usePaged((page) => api.discoverShelf(id, page, order), [id, order]);
-  const [hideWatched, setHideWatched] = useHideWatched();
+  const setSort = (key, dir) => {
+    const next = new URLSearchParams(window.location.search);
+    if (shelfSort({ key, dir })) next.set("sort", shelfSort({ key, dir })); else next.delete("sort");
+    navigate("/discover?" + next.toString(), { replace: true });
+  };
+  const asked = apiPicks(picks);
+  const shelf = usePaged((page) => api.discoverShelf(id, page, order, asked), [id, order, JSON.stringify(asked)]);
+  const [hideWatched] = useHideWatched();
   const [busy, surprise] = useSurprise(where);
-  const [kind, setKind] = React.useState("all");
-  const [decade, setDecade] = React.useState("any");
-  const [rating, setRating] = React.useState("any");
   const s = shelf.data;
   if (shelf.error && !s) return <Failed error={shelf.error} onRetry={shelf.reload} />;
   if (!s) return <BrowseSkeleton />;
 
   const all = shelf.titles;
-  const mixed = all.some((t) => t.kind === "show") && all.some((t) => t.kind === "film");
-  const decades = DECADES.filter((d) => all.some((t) => decadeOf(t.year) === d));
-  const shown = all
-    .filter((t) => !hideWatched || !t.watched)
-    .filter((t) => kind === "all" || t.kind === kind)
-    .filter((t) => decade === "any" || decadeOf(t.year) === Number(decade))
-    .filter((t) => rating === "any" || (t.rating || 0) >= Number(rating));
-
-  const fields = [
-    watchedField(hideWatched, setHideWatched),
-    {
-      id: "kind", label: "Kind", value: kind, default: "all", onChange: setKind, hidden: !mixed,
-      options: [{ value: "all", label: "Movies and shows" }, { value: "film", label: "Movies" }, { value: "show", label: "TV shows" }],
-    },
-    {
-      id: "decade", label: "Decade", value: decade, default: "any", onChange: setDecade, hidden: decades.length < 2,
-      options: [{ value: "any", label: "Any decade" }, ...decades.map((d) => ({ value: String(d), label: d + "s", count: all.filter((t) => decadeOf(t.year) === d).length }))],
-    },
-    {
-      id: "rating", label: "Rating", value: rating, default: "any", onChange: setRating,
-      options: [{ value: "any", label: "Any rating" }, { value: "7", label: "7 and up" }, { value: "8", label: "8 and up" }],
-    },
-  ];
+  const shown = hideWatched ? all.filter((t) => !t.watched) : all;
+  const filtered = pickCount(picks) > 0 || hideWatched;
 
   return (
     <section className="kc-shelf">
       <BrowseHead eyebrow={s.section} icon={s.icon} title={s.title} />
       <Toolbar>
-        <ToolbarFilters fields={fields} />
         <ToolbarSort value={sort.key} dir={sort.dir} onChange={setSort} options={SHELF_SORTS} />
         <ToolbarSpacer />
         <ToolbarCount shown={shown.length} total={atLeast(all.length, shelf.next)} unit="titles" />
@@ -346,21 +321,12 @@ export function ShelfPage({ id, sort: param, where }) {
       </Toolbar>
       {shown.length > 0
         ? <div className="kc-grid">{shown.map((t) => <FoundCard key={t.kind + t.imdbId} found={t} {...where(t)} />)}</div>
-        : <Empty icon="compass" title={all.length ? "Nothing matches" : "Nothing on this shelf"} />}
+        : <Empty icon="compass" title={filtered ? "Nothing matches" : "Nothing on this shelf"} />}
       <MoreCards paged={shelf} />
       <p className="kc-attribution-note">Titles and artwork from TMDB.</p>
     </section>
   );
 }
-
-/** A film's length as the filter words it, in minutes either side. */
-const LENGTHS = {
-  short: { label: "Under 90 min", max: 89 },
-  standard: { label: "90 to 150 min", min: 90, max: 150 },
-  long: { label: "Over 150 min", min: 151 },
-};
-
-const RATINGS = ["8", "7", "6"];
 
 const FILTER_SORTS = [
   { value: "popular", label: "Popularity", defaultDir: "desc" },
@@ -378,106 +344,25 @@ const sortOrder = (param) => (param === "newest" || param === "oldest"
 
 const SORT_PARAMS = ["popular", "rating", "newest", "oldest"];
 
-/** The filter's choices as the address holds them; anything it does not offer is any. */
-export function readFilter(query) {
-  const kind = query.get("filter") === "show" ? "show" : "film";
-  const get = (key) => query.get(FILTER_PARAMS[key]) || "";
-  const decade = Number(get("decade"));
-  return {
-    kind,
-    genre: get("genre").trim(),
-    decade: DECADES.includes(decade) ? String(decade) : "",
-    length: kind === "film" && LENGTHS[get("length")] ? get("length") : "",
-    rating: RATINGS.includes(get("rating")) ? get("rating") : "",
-    lang: /^[a-z]{2}$/.test(get("lang")) ? get("lang") : "",
-    sort: SORT_PARAMS.includes(get("sort")) ? get("sort") : "",
-  };
-}
-
-/** What the catalogue is asked for a filter. Any rating still needs a hundred votes, so nobody's home video is listed. */
-function filterQuestion(f) {
-  const q = { kind: f.kind };
-  if (f.genre) q.genre = f.genre;
-  if (f.decade) {
-    q.from = f.decade;
-    q.to = String(Number(f.decade) + 9);
-  }
-  if (f.length) {
-    if (LENGTHS[f.length].min) q.minRuntime = String(LENGTHS[f.length].min);
-    if (LENGTHS[f.length].max) q.maxRuntime = String(LENGTHS[f.length].max);
-  }
-  if (f.rating) {
-    q.minRating = f.rating;
-    q.minVotes = "200";
-  } else {
-    q.goodOnly = "false";
-    q.minVotes = "100";
-  }
-  if (f.lang) q.language = f.lang;
-  if (f.sort && f.sort !== "popular") q.sort = f.sort;
-  return q;
-}
-
-/** The filter's fields, as krystal's ToolbarFilters draws them, each changing `f` through `set`. */
-function filterFields(f, set, index, hideWatched, setHideWatched) {
-  const genres = index ? (f.kind === "show" ? index.showGenres : index.filmGenres) : [];
-  const languages = index ? index.languages : [];
-  return [
-    {
-      id: "kind", label: "Kind", value: f.kind, default: "film", onChange: (v) => set({ kind: v, genre: "", length: "" }),
-      options: [{ value: "film", label: "Movies" }, { value: "show", label: "TV shows" }],
-    },
-    {
-      id: "genre", label: "Genre", value: f.genre, default: "", onChange: (v) => set({ genre: v }),
-      options: [{ value: "", label: "Any genre" }, ...genres.map((g) => ({ value: g, label: g }))],
-    },
-    {
-      id: "decade", label: "Decade", value: f.decade, default: "", onChange: (v) => set({ decade: v }),
-      options: [{ value: "", label: "Any decade" }, ...DECADES.map((d) => ({ value: String(d), label: d + "s" }))],
-    },
-    {
-      id: "length", label: "Length", value: f.length, default: "", onChange: (v) => set({ length: v }), hidden: f.kind !== "film",
-      options: [{ value: "", label: "Any length" }, ...Object.entries(LENGTHS).map(([value, l]) => ({ value, label: l.label }))],
-    },
-    {
-      id: "rating", label: "Rating", value: f.rating, default: "", onChange: (v) => set({ rating: v }),
-      options: [{ value: "", label: "Any rating" }, ...RATINGS.map((r) => ({ value: r, label: r + " and up" }))],
-    },
-    {
-      id: "lang", label: "Language", value: f.lang, default: "", onChange: (v) => set({ lang: v }),
-      options: [{ value: "", label: "Any language" }, ...languages.map((l) => ({ value: l.code, label: l.name }))],
-    },
-    watchedField(hideWatched, setHideWatched),
-  ];
-}
-
-/** The filter's control beside Discover's field: picking anything opens the filter at that choice. */
-export function LandingFilters({ index }) {
-  const [hideWatched, setHideWatched] = useHideWatched();
-  const f = readFilter(new URLSearchParams());
-  const open = (change) => navigate(discoverFilterPath({ ...f, ...change }));
-  const fields = filterFields(f, open, index, hideWatched, (hide) => {
-    setHideWatched(hide);
-    open({});
-  });
-  return <ToolbarFilters fields={fields} framed compact="phone" />;
-}
-
 /**
- * Discover's filter: a kind, a genre, a decade, a length, a least rating, a language and an order. An
- * address that names no order is in the order the person last picked here.
+ * Discover's filter: the catalogue's films and shows at the drawer's picks, in an order. An address
+ * that names no order is in the order the person last picked here.
  */
-export function FilterPage({ query, index, where }) {
-  const [hideWatched, setHideWatched] = useHideWatched();
+export function FilterPage({ query, picks, where }) {
+  const [hideWatched] = useHideWatched();
   const [busy, surprise] = useSurprise(where);
   const [picked, pick] = useSort(SORTED.filter, FILTER_SORTS);
-  const named = readFilter(query);
-  const f = { ...named, sort: named.sort || sortParam(picked) };
-  const order = sortOrder(f.sort);
-  const question = filterQuestion(f);
+  const named = SORT_PARAMS.includes(query.get("sort")) ? query.get("sort") : "";
+  const sort = named || sortParam(picked);
+  const order = sortOrder(sort);
+  const question = filterQuestion(picks, sort);
   const key = JSON.stringify(question);
   const found = usePaged((page) => api.catalogueDiscover(question, page), [key]);
-  const set = (change) => navigate(discoverFilterPath({ ...named, ...change }), { replace: true });
+  const setSort = (s) => {
+    const next = new URLSearchParams(query);
+    next.set("sort", s);
+    navigate("/discover?" + next.toString(), { replace: true });
+  };
 
   const all = found.titles ? found.titles.filter((t) => t.imdbId).map((t) => ({ ...t, starring: t.starring.join(", ") })) : null;
   const titles = all && (hideWatched ? all.filter((t) => !t.watched) : all);
@@ -486,11 +371,10 @@ export function FilterPage({ query, index, where }) {
     <section className="kc-shelf">
       <BrowseHead eyebrow="Discover" icon="sliders-horizontal" title="Filter" />
       <Toolbar>
-        <ToolbarFilters fields={filterFields(f, set, index.data, hideWatched, setHideWatched)} />
         <ToolbarSort value={order.key} dir={order.dir}
-          onChange={(key, dir) => {
-            pick(key, dir);
-            set({ sort: sortParam({ key, dir }) });
+          onChange={(k, dir) => {
+            pick(k, dir);
+            setSort(sortParam({ key: k, dir }));
           }}
           options={FILTER_SORTS} />
         <ToolbarSpacer />

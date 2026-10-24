@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, CollectionTile, TvCard, TvHeading, TvRow } from "@thekrystalship/krystal";
 import { api } from "../../api.js";
+import { apiPicks, filterQuestion, pickCount } from "../../discoverFilters.js";
 import { useLoad } from "../../data.js";
 import { discoverBrowsePath, discoverShelfPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
@@ -36,9 +37,10 @@ function TvShelfTile({ head, series, ...rest }) {
 
 /**
  * A shelf's row of posters, drawn at once from what the index carried for it, else asked for once it
- * nears the screen; one with nothing on it is left out.
+ * nears the screen; one with nothing on it is left out. `picks` are the filter's, which the shelf is
+ * asked with.
  */
-export function TvShelfRow({ head, kept, where, skip, least = 1, reserve = 0, cards = 20 }) {
+export function TvShelfRow({ head, kept, where, skip, least = 1, reserve = 0, cards = 20, picks }) {
   const ref = React.useRef(null);
   const [near, setNear] = React.useState(!!kept);
   const [answered, setAnswered] = React.useState(!!kept);
@@ -59,14 +61,16 @@ export function TvShelfRow({ head, kept, where, skip, least = 1, reserve = 0, ca
   // when the row fills in.
   return (
     <div ref={ref} className="kc-tvd__lazy" style={reserve && !answered ? { minHeight: reserve } : undefined}>
-      {near && <TvShelfCards head={head} kept={kept} where={where} skip={skip} least={least} cards={cards} onAnswer={() => setAnswered(true)} />}
+      {near && <TvShelfCards head={head} kept={kept} where={where} skip={skip} least={least} cards={cards} picks={picks} onAnswer={() => setAnswered(true)} />}
     </div>
   );
 }
 
 /** A shelf's cards, without `skip` (the page the row is on); a shelf with fewer than `least` is left out. */
-function TvShelfCards({ head, kept, where, skip, least = 1, cards = 20, onAnswer }) {
-  const shelf = useLoad(() => api.discoverShelf(head.id), [head.id], { known: kept });
+function TvShelfCards({ head, kept, where, skip, least = 1, cards = 20, picks, onAnswer }) {
+  const asked = picks ? apiPicks(picks) : {};
+  const filtered = !!picks && pickCount(picks) > 0;
+  const shelf = useLoad(() => api.discoverShelf(head.id, 1, null, asked), [head.id, JSON.stringify(asked)], { known: filtered ? undefined : kept });
   const done = !!(shelf.data || shelf.error);
   React.useEffect(() => { if (done && onAnswer) onAnswer(); }, [done, onAnswer]);
   const all = shelf.data ? shelf.data.titles : [];
@@ -117,8 +121,11 @@ export function TvDiscoverFront({ index, where }) {
   );
 }
 
-/** One browse category on a television: a series' tiles in rows that wrap, any other's shelves as rows. */
-export function TvCategory({ id, index, where }) {
+/**
+ * One browse category on a television: a series' tiles in rows that wrap, any other's shelves as rows,
+ * each asked with the filter's `picks`.
+ */
+export function TvCategory({ id, index, where, picks }) {
   if (index.error && !index.data) return <div className="kc-tv-pad"><Failed error={index.error} onRetry={index.reload} /></div>;
   if (!index.data) return null;
   const section = index.data.sections.find((s) => s.id === id);
@@ -134,23 +141,50 @@ export function TvCategory({ id, index, where }) {
             ))}
           </div>
         )
-        : <div className="kc-tvd__rows">{section.shelves.map((h) => <TvShelfRow key={h.id} head={h} where={where} />)}</div>}
+        : <div className="kc-tvd__rows">{section.shelves.map((h) => <TvShelfRow key={h.id} head={h} where={where} picks={picks} />)}</div>}
       <p className="kc-tv-tmdb">Titles and artwork from TMDB.</p>
     </section>
   );
 }
 
-/** Every title on one shelf, on a television, in rows that wrap. */
-export function TvShelf({ id, where }) {
-  const shelf = useLoad(() => api.discoverShelf(id), [id]);
+/** Every title on one shelf, on a television, in rows that wrap, at the filter's `picks`. */
+export function TvShelf({ id, where, picks }) {
+  const asked = apiPicks(picks);
+  const shelf = useLoad(() => api.discoverShelf(id, 1, null, asked), [id, JSON.stringify(asked)]);
   const s = shelf.data;
   if (shelf.error && !s) return <div className="kc-tv-pad"><Failed error={shelf.error} onRetry={shelf.reload} /></div>;
   if (!s) return null;
   return (
     <section className="kc-tvd__browse">
       <TvHeading as="h1" size="lg" eyebrow={s.section} title={s.title} count={atLeast(s.titles.length, s.next)} />
+      {s.titles.length === 0 && <p className="kc-tvd__none">Nothing matches.</p>}
       <div className="kc-tvsv__grid">
         {s.titles.map((t, i) => {
+          const w = where(t);
+          return (
+            <TvCard key={t.kind + t.imdbId} art={t.posterUrl} label={t.title} data-tv-initial={i === 0 ? "" : undefined}
+              {...linkProps(foundPage(t, w.here, w.held))} />
+          );
+        })}
+      </div>
+      <p className="kc-tv-tmdb">Titles and artwork from TMDB.</p>
+    </section>
+  );
+}
+
+/** The catalogue's films and shows at the filter's `picks`, on a television, in rows that wrap. */
+export function TvFilter({ picks, where }) {
+  const question = filterQuestion(picks);
+  const found = useLoad(() => api.catalogueDiscover(question), [JSON.stringify(question)]);
+  const titles = found.data ? found.data.titles.filter((t) => t.imdbId) : null;
+  if (found.error && !titles) return <div className="kc-tv-pad"><Failed error={found.error} onRetry={found.reload} /></div>;
+  if (!titles) return null;
+  return (
+    <section className="kc-tvd__browse">
+      <TvHeading as="h1" size="lg" eyebrow="Discover" title="Filter" count={atLeast(titles.length, found.data.next)} />
+      {titles.length === 0 && <p className="kc-tvd__none">Nothing matches.</p>}
+      <div className="kc-tvsv__grid">
+        {titles.map((t, i) => {
           const w = where(t);
           return (
             <TvCard key={t.kind + t.imdbId} art={t.posterUrl} label={t.title} data-tv-initial={i === 0 ? "" : undefined}
