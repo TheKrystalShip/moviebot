@@ -10,7 +10,7 @@ namespace TheKrystalShip.MovieBot.Api.Films;
 /// The vote floor scales with how broad the question is. It is the votes of the
 /// <see cref="Breadth"/>th most voted IMDb title the question names, kept between
 /// <see cref="Narrowest"/> and <see cref="Broadest"/>: a question about one year and one genre has few
-/// titles, so its hundredth sits low, while "the best films of all time" has thousands above the
+/// titles, so its thirtieth sits low, while "the best films of all time" has thousands above the
 /// ceiling, which is the vote count IMDb's own top list asks. A question whose filters IMDb cannot
 /// express takes the floor from the least voted of the titles the film database listed for it.
 ///
@@ -23,7 +23,7 @@ namespace TheKrystalShip.MovieBot.Api.Films;
 public static class ImdbRanking
 {
     /// <summary>How many of a question's most voted titles the floor is read from.</summary>
-    public const int Breadth = 100;
+    public const int Breadth = 30;
 
     /// <summary>The fewest votes a floor is, so a rating built on a handful of voters never ranks.</summary>
     public const int Narrowest = 500;

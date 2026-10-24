@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.67.1] - 2026-10-24
+
+### Fixed
+- A question narrowed to one genre and one year ranks on the votes of the thirtieth most voted title it
+  names rather than the hundredth, so a film a few hundred people rated no longer heads the best horror
+  of a year, and documentaries filed under a genre are left out of its IMDb ranking unless asked for.
+
 ## [3.67.0] - 2026-10-24
 
 ### Added

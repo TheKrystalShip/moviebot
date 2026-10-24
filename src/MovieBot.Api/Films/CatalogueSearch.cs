@@ -699,7 +699,7 @@ public sealed partial class CatalogueSearch(
             if (imdbRatings.Edition is { } edition)
             {
                 var byImdb = await keeper.KeptAsync(
-                    AnswerKeeper.QueryName(family, Canonical(query, TmdbClient.RatingPoolSize, 0) + "|imdb|" + edition),
+                    AnswerKeeper.QueryName(family, Canonical(query, TmdbClient.RatingPoolSize, 0) + "|imdb|" + edition + "|" + ImdbRanking.Breadth),
                     AnswerJson.Default.ListListedTitle, keep,
                     async (_, token) => await RankedByImdbAsync(query, ranked, token), null, ct);
                 if (byImdb?.Value is { Count: > 0 } better) ranked = better;
@@ -915,6 +915,8 @@ public sealed partial class CatalogueSearch(
             noneOf.AddRange(names);
         }
         if (q.Kind == "show" && q.GenreIds.Count == 0) noneOf.AddRange(ImdbGenres.Unscripted);
+        // IMDb files a documentary about a genre under that genre too; it is a documentary's answer only when asked.
+        if (!allOf.Any(names => names.Contains("Documentary"))) noneOf.Add("Documentary");
 
         return new ImdbSpec(q.Kind, allOf, noneOf, q.From?.Year, q.To?.Year);
     }
