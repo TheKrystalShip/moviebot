@@ -109,7 +109,7 @@ public sealed class CatalogueFacetsTests(SessionFixture fixture) : IClassFixture
         var facets = await Get<CatalogueFacetsView>("/api/catalogue/ask/facets?q=prism");
 
         Assert.Equal(["film", "show", "anime"], Options(facets, FacetSections.Kind));
-        Assert.Equal(["Adventure", "Animation", "Crime", "Family", "Horror"], Options(facets, FacetSections.Genre));
+        Assert.Equal(["Adventure", "Animation", "Crime", "Family", "Horror", "Science Fiction"], Options(facets, FacetSections.Genre));
         Assert.Equal(["2020", "2010", "1990"], Options(facets, FacetSections.Decade));
         Assert.Equal(["short", "standard", "long"], Options(facets, FacetSections.Length));
         Assert.Equal(["8", "7", "6"], Options(facets, FacetSections.Rating));
@@ -123,7 +123,7 @@ public sealed class CatalogueFacetsTests(SessionFixture fixture) : IClassFixture
     {
         var facets = await Get<CatalogueFacetsView>("/api/catalogue/ask/facets?q=prism&anyGenre=Adventure");
 
-        Assert.Equal(["Adventure", "Animation", "Crime", "Family", "Horror"], Options(facets, FacetSections.Genre));
+        Assert.Equal(["Adventure", "Animation", "Crime", "Family", "Horror", "Science Fiction"], Options(facets, FacetSections.Genre));
         Assert.Equal(["2020", "2010"], Options(facets, FacetSections.Decade));
         Assert.Equal(["short", "long"], Options(facets, FacetSections.Length));
         Assert.Equal(["en", "fr"], Options(facets, FacetSections.Language).Order());
@@ -209,7 +209,7 @@ public sealed class CatalogueFacetsTests(SessionFixture fixture) : IClassFixture
 
         var facets = await Get<CatalogueFacetsView>($"/api/catalogue/people/{PrismPerson}/facets?kind=film");
         Assert.Equal(["film", "show", "anime"], Options(facets, FacetSections.Kind));
-        Assert.Equal(["Adventure", "Animation", "Crime", "Family", "Horror"], Options(facets, FacetSections.Genre));
+        Assert.Equal(["Adventure", "Animation", "Crime", "Family", "Horror", "Science Fiction"], Options(facets, FacetSections.Genre));
         Assert.Equal(["2020", "2010", "1990"], Options(facets, FacetSections.Decade));
         Assert.Equal(["en", "fr", "ja", "ko"], Options(facets, FacetSections.Language));
         Assert.Equal("Japanese", facets.Sections.Single(s => s.Id == FacetSections.Language).Options.Single(o => o.Value == "ja").Label);
@@ -230,6 +230,45 @@ public sealed class CatalogueFacetsTests(SessionFixture fixture) : IClassFixture
         Assert.Equal(["2020", "2010", "1990"], Options(facets, FacetSections.Decade));
         Assert.Equal(["en"], Options(facets, FacetSections.Language));
         Assert.Equal(HttpStatusCode.BadRequest, (await Signed().GetAsync("/api/catalogue/genre?kind=film&name=crime&anyGenre=Horror")).StatusCode);
+    }
+
+    [Fact]
+    public async Task One_genre_is_picked_once_for_films_and_shows()
+    {
+        var facets = await Get<CatalogueFacetsView>(World.Replace("/discover?", "/discover/facets?") + "&kind=all");
+        var genres = Options(facets, FacetSections.Genre);
+        Assert.Contains("Science Fiction", genres);
+        Assert.Contains("Fantasy", genres);
+        Assert.Contains("Drama", genres);
+        Assert.DoesNotContain("Sci-Fi & Fantasy", genres);
+        Assert.Equal(genres.Distinct().Count(), genres.Count);
+
+        var picked = await Get<CatalogueDiscoverView>(World + "&kind=all&anyGenre=Science%20Fiction");
+        Assert.Equal(["Prism Orbit", "Prism Stars"], picked.Titles.Select(t => t.Title));
+        Assert.Contains(fixture.FilmDatabase.Requests, r => r.StartsWith("/3/discover/tv") && r.Contains("with_genres=10765"));
+
+        var person = await Get<CatalogueFacetsView>($"/api/catalogue/people/{PrismPerson}/facets");
+        var held = Options(person, FacetSections.Genre);
+        Assert.Contains("Science Fiction", held);
+        Assert.DoesNotContain("Sci-Fi & Fantasy", held);
+        Assert.Equal(2, person.Sections.Single(s => s.Id == FacetSections.Genre).Options.Single(o => o.Value == "Science Fiction").Count);
+        var both = await Get<CataloguePersonView>($"/api/catalogue/people/{PrismPerson}?anyGenre=Science%20Fiction");
+        Assert.Equal(["Prism Orbit", "Prism Stars"], both.Titles.Select(t => t.Title).Order());
+    }
+
+    [Fact]
+    public void The_sites_genre_vocabulary_is_the_apis()
+    {
+        var root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "moviebot.slnx"))) root = Path.GetDirectoryName(root)!;
+        var script = File.ReadAllText(Path.Combine(root, "web", "site", "src", "facets.js"));
+        var table = script[script.IndexOf("JOINED_GENRES = {", StringComparison.Ordinal)..];
+        table = table[..table.IndexOf("};", StringComparison.Ordinal)];
+        var site = System.Text.RegularExpressions.Regex.Matches(table, "\"([^\"]+)\": \\[([^\\]]*)\\]")
+            .ToDictionary(m => m.Groups[1].Value, m => System.Text.RegularExpressions.Regex.Matches(m.Groups[2].Value, "\"([^\"]+)\"").Select(n => n.Groups[1].Value).ToArray());
+
+        Assert.Equal(CinemaGenres.Joined.Keys.Order(), site.Keys.Order());
+        foreach (var (name, joined) in CinemaGenres.Joined) Assert.Equal(joined, site[name]);
     }
 
     [Fact]

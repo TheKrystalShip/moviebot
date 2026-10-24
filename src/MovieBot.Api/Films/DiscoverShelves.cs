@@ -567,7 +567,7 @@ public sealed class DiscoverShelves(
 
     /// <summary>What a filter reads off a title on a shelf.</summary>
     internal static FacetTraits Traits(ShelfTitleView t) =>
-        new(t.Kind, t.Category == TitleCategory.Anime, t.Genres, t.Year, t.RuntimeMinutes, t.Rating, t.OriginalLanguage);
+        new(t.Kind, t.Category == TitleCategory.Anime, CinemaGenres.Of(t.Genres), t.Year, t.RuntimeMinutes, t.Rating, t.OriginalLanguage);
 
     /// <summary>The sections a shelf fixes: its kind, when it is a shelf of one.</summary>
     private static HashSet<string> FixedBy(Shelf shelf) => shelf.Kind is null ? [] : [FacetSections.Kind];

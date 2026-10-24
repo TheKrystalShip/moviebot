@@ -694,6 +694,8 @@ public sealed class CatalogueSearchTests(SessionFixture fixture) : IClassFixture
     [InlineData("Drama", "Drama")]
     [InlineData("Sci-Fi", null)]
     [InlineData("Thriller", null)]
+    [InlineData("Science Fiction", "Sci-Fi & Fantasy")]
+    [InlineData("war", null)]
     public void A_genre_is_found_by_its_name_or_by_the_one_genre_a_word_of_whose_name_it_is(string name, string? expected)
     {
         IReadOnlyList<CatalogueGenre> genres =

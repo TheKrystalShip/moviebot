@@ -98,7 +98,7 @@ public sealed partial class CatalogueSearch
         var (listed, card) = (hit.Listed, hit.Card);
         var language = listed.OriginalLanguage ?? card?.OriginalLanguage;
         return new FacetTraits(listed.Kind, categories.Of(listed.Kind, card?.ImdbId, card?.Genres, language) == TitleCategory.Anime,
-            [.. card?.Genres ?? []], (listed.Released ?? card?.Released)?.Year, null,
+            CinemaGenres.Of(card?.Genres ?? []), (listed.Released ?? card?.Released)?.Year, null,
             scores.Serve(card?.ImdbId, listed.TmdbId, listed.Kind, listed.Rating, listed.Votes).Rating, language);
     }
 
@@ -133,16 +133,18 @@ public sealed partial class CatalogueSearch
 
         if (!fixedBy.Contains(FacetSections.Genre))
         {
+            // Cinema's names for the genres of every kind asked, so a genre both kinds have is one option.
             var named = new List<string>();
+            var fixedGenres = CinemaGenres.Of(plan.Resolved.Genres);
             foreach (var kind in kinds)
             {
                 var genres = await catalogue.GenresAsync(kind, ct);
                 if (genres is null) return Unavailable<CatalogueFacetsView>("The film database could not be asked about its genres.");
-                named.AddRange(genres
-                    .Where(g => kind != "show" || !DiscoverShelves.UnscriptedShowGenres.Contains(g.Id))
-                    .Select(g => g.Name)
+                named.AddRange(CinemaGenres.Of(genres
+                        .Where(g => kind != "show" || !DiscoverShelves.UnscriptedShowGenres.Contains(g.Id))
+                        .Select(g => g.Name))
                     .Where(n => !named.Contains(n, StringComparer.OrdinalIgnoreCase)
-                        && !plan.Resolved.Genres.Contains(n, StringComparer.OrdinalIgnoreCase)
+                        && !fixedGenres.Contains(n, StringComparer.OrdinalIgnoreCase)
                         && !(anime && string.Equals(n, TitleCategories.AnimeGenre, StringComparison.OrdinalIgnoreCase))));
             }
             foreach (var name in named.Order(StringComparer.OrdinalIgnoreCase)) Offer(FacetSections.Genre, new(name), request with { AnyGenres = [name] });
@@ -257,9 +259,11 @@ public sealed partial class CatalogueSearch
 
         var genres = await catalogue.GenresAsync(query.Kind, ct);
         if (genres is null) return Unavailable<CatalogueFacetsView>("The film database could not be asked about its genres.");
-        foreach (var genre in genres.Where(g => !query.GenreIds.Contains(g.Id) && !query.WithoutGenreIds.Contains(g.Id)
-                     && (query.Kind != "show" || !DiscoverShelves.UnscriptedShowGenres.Contains(g.Id))).OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase))
-            Offer(FacetSections.Genre, new(genre.Name), picks with { AnyGenres = [genre.Name] });
+        var offered = CinemaGenres.Of(genres.Where(g => !query.GenreIds.Contains(g.Id) && !query.WithoutGenreIds.Contains(g.Id)
+            && (query.Kind != "show" || !DiscoverShelves.UnscriptedShowGenres.Contains(g.Id))).Select(g => g.Name));
+        var fixedGenres = CinemaGenres.Of(genres.Where(g => query.GenreIds.Contains(g.Id)).Select(g => g.Name));
+        foreach (var name in offered.Where(n => !fixedGenres.Contains(n, StringComparer.OrdinalIgnoreCase)).Order(StringComparer.OrdinalIgnoreCase))
+            Offer(FacetSections.Genre, new(name), picks with { AnyGenres = [name] });
         foreach (var decade in Decades.Offered(Today()))
             Offer(FacetSections.Decade, new(decade.ToString(CultureInfo.InvariantCulture)), picks with { Decades = [decade] });
         if (query.Kind == "film" && query.MinRuntime is null && query.MaxRuntime is null)

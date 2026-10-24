@@ -4,9 +4,10 @@ using TheKrystalShip.MovieBot.Api.Library;
 namespace TheKrystalShip.MovieBot.Api.Films;
 
 /// <summary>
-/// What a filter reads off a title the API holds: its kind, whether it is anime, its genres by name,
-/// the year it came out, a film's runtime, its rating and the language it was made in. A trait the
-/// answer does not carry is null, and the title is in none of that section's options.
+/// What a filter reads off a title the API holds: its kind, whether it is anime, its genres in Cinema's
+/// vocabulary (<see cref="CinemaGenres"/>), the year it came out, a film's runtime, its rating and the
+/// language it was made in. A trait the answer does not carry is null, and the title is in none of
+/// that section's options.
 /// </summary>
 public sealed record FacetTraits(string Kind, bool Anime, IReadOnlyList<string> Genres, int? Year, int? RuntimeMinutes, double? Rating, string? Language);
 
@@ -81,7 +82,7 @@ public static class WholeFacets
 
     private static bool Answers(FacetTraits t, DiscoverPicks picks, string? except) =>
         (except == FacetSections.Kind || ((picks.Kind is null or CatalogueSearch.AllKinds || t.Kind == picks.Kind) && (picks.Category is null || t.Anime)))
-        && (except == FacetSections.Genre || picks.AnyGenres.Count == 0 || picks.AnyGenres.Any(g => Holds(t, FacetSections.Genre, g)))
+        && (except == FacetSections.Genre || picks.AnyGenres.Count == 0 || CinemaGenres.Of(picks.AnyGenres).Any(g => Holds(t, FacetSections.Genre, g)))
         && (except == FacetSections.Decade || picks.Decades.Count == 0 || picks.Decades.Any(d => DecadeOf(t.Year) == d))
         && (except == FacetSections.Length || picks.Lengths.Count == 0 || picks.Lengths.Contains(LengthOf(t.RuntimeMinutes) ?? ""))
         && (except == FacetSections.Rating || picks.MinRating is not { } floor || t.Rating >= floor)

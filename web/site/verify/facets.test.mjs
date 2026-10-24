@@ -43,3 +43,16 @@ test('kinds are films, shows and anime, and a fixed section is not reported', ()
 test('a query repeats a list key once per value and leaves out what is empty', () => {
   assert.equal(queryOf({ kind: 'film', decade: [1990, 2020], anyGenre: [], language: null, q: 'a b' }), 'kind=film&decade=1990&decade=2020&q=a+b');
 });
+
+test('a genre the film database names apart for shows is one genre here', () => {
+  const titles = [
+    film('Orbit', 2022, ['Science Fiction'], 120, 7.3, 'en'),
+    { kind: 'show', title: 'Stars', year: 2021, genres: ['Sci-Fi & Fantasy'], rating: 7.2, originalLanguage: 'en' },
+    { kind: 'show', title: 'Raid', year: 2019, genres: ['Action & Adventure'], rating: 7, originalLanguage: 'en' },
+  ];
+  const genre = wholeFacets(titles).find((s) => s.id === 'genre').options;
+  assert.deepEqual(genre.map((o) => o.value), ['Action', 'Adventure', 'Fantasy', 'Science Fiction']);
+  assert.equal(genre.find((o) => o.value === 'Science Fiction').count, 2);
+  assert.deepEqual(filterWhole(titles, { genre: ['Science Fiction'] }).map((t) => t.title), ['Orbit', 'Stars']);
+  assert.deepEqual(filterWhole(titles, { genre: ['Sci-Fi & Fantasy'] }).map((t) => t.title), ['Orbit', 'Stars']);
+});

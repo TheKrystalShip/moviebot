@@ -165,9 +165,11 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         new(4309, "film", "Prism Dusk", "2016-03-01", [27], "en", 110, 5.8, 4500),
         new(4310, "film", "Prism Fall", "2019-03-01", [80], "fr", 100, 6.4, 4000),
         new(4311, "film", "Prism Kin", "2013-03-01", [10751], "en", 90, 6.2, 3500),
+        new(4312, "film", "Prism Orbit", "2022-03-01", [878], "en", 120, 7.3, 3200),
         .. Enumerable.Range(0, 30).Select(i => new PrismTitle(4400 + i, "film", "Prism Reel " + i, (i % 2 == 0 ? 1990 + i / 4 : 2020 + i / 6) + "-06-01",
             [80], "en", 100, 6.5, 3000 - i)),
         new(4500, "show", "Prism Tales", "2020-05-01", [18], "en", 45, 7.5, 2000),
+        new(4501, "show", "Prism Stars", "2021-05-01", [10765], "en", 50, 7.2, 1900),
     ];
 
     /// <summary>A person credited on the Prism world's titles: every film but the reels, and the show.</summary>
@@ -261,9 +263,9 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
                     { "id": 7, "media_type": "tv", "name": "A Talk Show", "genre_ids": [10767], "vote_count": 900, "character": "Self" } ] } }
                 """;
         if (path.EndsWith("/genre/movie/list"))
-            return "{ \"genres\": [ " + string.Join(", ", Genre(80, "Crime"), Genre(12, "Adventure"), Genre(27, "Horror"), Genre(16, "Animation"), Genre(10751, "Family"), Genre(37, "Western")) + " ] }";
+            return "{ \"genres\": [ " + string.Join(", ", Genre(80, "Crime"), Genre(12, "Adventure"), Genre(27, "Horror"), Genre(16, "Animation"), Genre(10751, "Family"), Genre(37, "Western"), Genre(878, "Science Fiction")) + " ] }";
         if (path.EndsWith("/genre/tv/list"))
-            return "{ \"genres\": [ " + string.Join(", ", Genre(10759, "Action & Adventure"), Genre(18, "Drama")) + " ] }";
+            return "{ \"genres\": [ " + string.Join(", ", Genre(10759, "Action & Adventure"), Genre(18, "Drama"), Genre(10765, "Sci-Fi & Fantasy")) + " ] }";
 
         // Searching by name: Heat, the film whose name it is inside, an announcement and a show.
         if (path.EndsWith("/search/movie") || path.EndsWith("/search/tv") || path.EndsWith("/search/multi"))

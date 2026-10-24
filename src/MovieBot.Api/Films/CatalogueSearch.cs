@@ -1347,11 +1347,15 @@ public sealed partial class CatalogueSearch(
 
     // Reading the question's words.
 
-    /// <summary>A genre by its name: exactly, else the one genre a word of whose name it is (<c>action</c> for <c>Action &amp; Adventure</c>).</summary>
+    /// <summary>
+    /// A genre by its name: exactly, else the one that joins it in Cinema's vocabulary
+    /// (<see cref="CinemaGenres"/>: <c>Science Fiction</c> for <c>Sci-Fi &amp; Fantasy</c>), else the one
+    /// genre a word of whose name it is (<c>action</c> for <c>Action &amp; Adventure</c>).
+    /// </summary>
     internal static CatalogueGenre? MatchGenre(IReadOnlyList<CatalogueGenre> genres, string name)
     {
         var wanted = name.Trim();
-        if (genres.FirstOrDefault(g => string.Equals(g.Name, wanted, StringComparison.OrdinalIgnoreCase)) is { } exact) return exact;
+        if (CinemaGenres.In(genres, wanted) is { } named) return named;
         var partial = genres
             .Where(g => g.Name.Split([' ', '&', ',', '-'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Contains(wanted, StringComparer.OrdinalIgnoreCase))

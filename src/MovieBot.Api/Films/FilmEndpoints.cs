@@ -19,7 +19,7 @@ public static class FilmEndpoints
 
     /// <summary>What a filter reads off a title a browse lists; a browse carries no runtime.</summary>
     internal static FacetTraits Traits(CatalogueTitleView t) =>
-        new(t.Kind, t.Category == TitleCategory.Anime, t.Genres, t.Year, null, t.Rating, t.OriginalLanguage);
+        new(t.Kind, t.Category == TitleCategory.Anime, CinemaGenres.Of(t.Genres), t.Year, null, t.Rating, t.OriginalLanguage);
 
     /// <summary>A genre's own sections: its genre and its kind, and with anime its language too.</summary>
     private static HashSet<string> GenreFixed(string? category) => category is null

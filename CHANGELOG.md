@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.75.0] - 2026-10-24
+
+### Changed
+- One genre vocabulary across films and shows: a show's `Action & Adventure` is Action and Adventure,
+  its `Sci-Fi & Fantasy` Science Fiction and Fantasy, and its `War & Politics` War. Every facet names
+  genres this way, so Discover with both kinds offers each genre once, and a picked genre answers the
+  films and the shows that fit it, on every route that takes picks and in the site's `facets.js`. A
+  genre only one kind has is offered only where titles of that kind hold it. `genre` and `exclude`
+  match a genre by these names too.
+
 ## [3.74.0] - 2026-10-24
 
 ### Added
