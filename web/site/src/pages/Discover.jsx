@@ -19,7 +19,7 @@ import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.js
 import {
   CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, MoreCards, ShelfPage, surprisePool, useHideWatched, useSurprise,
 } from "./DiscoverShelves.jsx";
-import { apiPicks, drawerValues, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, useFacets, withPicks } from "../discoverFilters.js";
+import { apiPicks, drawerValues, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, useFacets, withPicks } from "../filters.js";
 import { openingEpisode, watchOpening } from "../watchNow.js";
 
 /** The class the page's field carries, so the shortcut that opens the page can find it. */

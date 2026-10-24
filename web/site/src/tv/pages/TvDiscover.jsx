@@ -11,10 +11,9 @@ import { foundPage } from "../../components/TitleCards.jsx";
 import { Failed } from "../../components/Film.jsx";
 import { startFilm } from "./TvFilm.jsx";
 import { TvCategory, TvDiscoverFront, TvFilter, TvShelf } from "./TvDiscoverShelves.jsx";
-import { Rank, onBack } from "../tv.js";
 import {
-  apiPicks, drawerValues, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, useDrawerOpen, useFacets, withPicks,
-} from "../../discoverFilters.js";
+  apiPicks, drawerValues, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, useDrawer, useFacets, withPicks,
+} from "../../filters.js";
 
 /**
  * Finding anything to watch, on a television. The field is focused when the page opens; OK on it
@@ -72,10 +71,7 @@ export function TvDiscover({ query }) {
 
   const submit = (value) => navigate(discoverPath(value.trim()));
 
-  const field = React.useRef(null);
-  const drawerRef = React.useRef(null);
-  React.useEffect(() => onBack(() => (drawerRef.current ? drawerRef.current.back() : false), Rank.screen), []);
-  const drawerOpen = useDrawerOpen(field);
+  const drawer = useDrawer();
   const section = category && index.data ? index.data.sections.find((s) => s.id === category) : null;
   const facetsFor = q ? null
     : person ? () => api.cataloguePersonFacets(person, asked)
@@ -91,16 +87,16 @@ export function TvDiscover({ query }) {
     const landing = !q && !browsing;
     navigate(withPicks(landing ? new URLSearchParams(discoverFilterPath().split("?")[1]) : query, nextPicks), { replace: !landing });
   };
-  const drawer = sections.length > 0
-    ? <FilterDrawer ref={drawerRef} sections={sections} values={drawerValues(picks, false)} onChange={change} />
+  const filters = sections.length > 0
+    ? <FilterDrawer ref={drawer.ref} onOpenChange={drawer.onOpenChange} sections={sections} values={drawerValues(picks, false)} onChange={change} />
     : undefined;
 
   return (
     <div className={"kc-tv-page kc-tvd" + (q ? " has-query" : "")}>
-      <SearchField ref={field} size="xl" className={"kc-tvd__search" + (drawerOpen ? " kc-tvd__search--open" : "")} data-tv-top="" value={draft} onChange={setDraft} onSubmit={submit} submit={false}
-        placeholder="Any movie or show" filters={drawer} inputProps={{ className: "kc-tvd__input", "data-tv-initial": q || browsing ? undefined : "" }} />
+      <SearchField size="xl" className="kc-tv-search" data-tv-top="" value={draft} onChange={setDraft} onSubmit={submit} submit={false}
+        placeholder="Any movie or show" filters={filters} inputProps={{ className: "kc-tv-search__input", "data-tv-initial": q || browsing ? undefined : "" }} />
 
-      <div className="kc-tvd__answer" inert={drawerOpen ? "" : undefined} style={{ display: "contents" }}>
+      <div className="kc-tvd__answer" inert={drawer.open ? "" : undefined} style={{ display: "contents" }}>
       {!q && person && <PersonWork key={person} personId={person} picks={picks} where={where} />}
       {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} picks={picks} where={where} />}
 
@@ -127,7 +123,7 @@ export function TvDiscover({ query }) {
             </TvRow>
           )}
           {found.length === 0 && libraryFilms.length + libraryShowsNamed.length === 0 && (
-            <p className="kc-tvd__none">Nothing is called that.</p>
+            <p className="kc-tv-none">Nothing is called that.</p>
           )}
         </div>
       )}
@@ -165,7 +161,7 @@ function PersonWork({ personId, picks, where }) {
     <section className="kc-tvd__browse">
       <TvHeading as="h1" size="lg" count={p.titles.length} title={p.name} eyebrow={p.knownFor && (KNOWN_AS[p.knownFor] || p.knownFor)}
         lead={<Avatar src={p.portraitUrl} name={p.name} tone="muted" size="css" imagePosition="center 20%" className="kc-tv-person__face kc-tvd__face" />} />
-      {p.titles.length === 0 && pickCount(picks) > 0 && <p className="kc-tvd__none">Nothing matches.</p>}
+      {p.titles.length === 0 && pickCount(picks) > 0 && <p className="kc-tv-none">Nothing matches.</p>}
       <Posters titles={p.titles} where={where} />
       <p className="kc-tv-tmdb">Credits and artwork from TMDB.</p>
     </section>
@@ -183,7 +179,7 @@ function GenreTitles({ kind, genre, category, picks, where }) {
     <section className="kc-tvd__browse">
       <TvHeading as="h1" size="lg" count={g.titles.length} title={g.genre}
         eyebrow={category === ANIME ? (kind === "show" ? "Anime series" : "Anime films") : kind === "show" ? "TV Shows" : "Movies"} />
-      {g.titles.length === 0 && pickCount(picks) > 0 && <p className="kc-tvd__none">Nothing matches.</p>}
+      {g.titles.length === 0 && pickCount(picks) > 0 && <p className="kc-tv-none">Nothing matches.</p>}
       <Posters titles={g.titles} where={where} />
       <p className="kc-tv-tmdb">Popular titles and artwork from TMDB.</p>
     </section>

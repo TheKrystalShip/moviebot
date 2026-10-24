@@ -1,7 +1,7 @@
 import React from "react";
 import { Button, CollectionTile, TvCard, TvHeading, TvRow } from "@thekrystalship/krystal";
 import { api } from "../../api.js";
-import { apiPicks, filterQuestion, pickCount } from "../../discoverFilters.js";
+import { apiPicks, filterQuestion, pickCount } from "../../filters.js";
 import { useLoad } from "../../data.js";
 import { discoverBrowsePath, discoverShelfPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
@@ -129,7 +129,7 @@ export function TvCategory({ id, index, where, picks }) {
   if (index.error && !index.data) return <div className="kc-tv-pad"><Failed error={index.error} onRetry={index.reload} /></div>;
   if (!index.data) return null;
   const section = index.data.sections.find((s) => s.id === id);
-  if (!section) return <p className="kc-tvd__none">Nothing by that name.</p>;
+  if (!section) return <p className="kc-tv-none">Nothing by that name.</p>;
   return (
     <section className="kc-tvd__browse">
       <TvHeading as="h1" size="lg" eyebrow="Discover" title={section.label} count={section.shelves.length} />
@@ -157,7 +157,7 @@ export function TvShelf({ id, where, picks }) {
   return (
     <section className="kc-tvd__browse">
       <TvHeading as="h1" size="lg" eyebrow={s.section} title={s.title} count={atLeast(s.titles.length, s.next)} />
-      {s.titles.length === 0 && <p className="kc-tvd__none">Nothing matches.</p>}
+      {s.titles.length === 0 && <p className="kc-tv-none">Nothing matches.</p>}
       <div className="kc-tvsv__grid">
         {s.titles.map((t, i) => {
           const w = where(t);
@@ -182,7 +182,7 @@ export function TvFilter({ picks, where }) {
   return (
     <section className="kc-tvd__browse">
       <TvHeading as="h1" size="lg" eyebrow="Discover" title="Filter" count={atLeast(titles.length, found.data.next)} />
-      {titles.length === 0 && <p className="kc-tvd__none">Nothing matches.</p>}
+      {titles.length === 0 && <p className="kc-tv-none">Nothing matches.</p>}
       <div className="kc-tvsv__grid">
         {titles.map((t, i) => {
           const w = where(t);

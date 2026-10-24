@@ -29,11 +29,6 @@
   transition: opacity var(--d-slow) var(--ease-out);
 }
 .kc-tv-main.is-under-bar::after { opacity: calc(1 - var(--tv-dim)); }
-/* Under Discover's open filter drawer the page steps back behind the same veil. The column is fixed, so
-   the drawer cannot rise out of it over a dimming laid on the whole document: the column rises over
-   that dimming instead, which then falls on the bar alone. */
-.kc-tv-main:has(.kc-tvd__search--open) { z-index: 36; }
-.kc-tv-main:has(.kc-tvd__search--open)::after { opacity: calc(1 - var(--tv-dim)); }
 
 /* A page is shown at once: an entering page's slide would carry the fixed backdrop with it. */
 :root[data-tv] .kc-stage__page.is-entering { animation: none; }
@@ -108,30 +103,32 @@
 .kc-tvf__spot { max-width: 520px; }
 .kc-tvf { padding-bottom: 200px; }
 
-/* ── Discover ── */
+/* ── A page's search field, with its filter drawer, and the line when nothing matches ── */
 
-.kc-tvd { padding: 96px 0 200px; }
-.kc-tvd__search {
+.kc-tv-search {
   position: relative; z-index: 1; margin: 0 var(--tv-margin-x);
   height: 56px; padding: 0 20px; gap: 14px; border: 0; border-radius: var(--r-sm); background: var(--surface-3); color: var(--fg-1);
   transition: transform var(--d-base) var(--ease-out);
 }
-.kc-tvd__input { font-size: var(--text-lg); }
-.kc-tvd__input::placeholder { color: var(--fg-3); }
-:root[data-tv] .kc-tvd__input:focus-visible { box-shadow: none; }
-/* With the filter drawer open the field and its drawer rise over the column's veil. */
-.kc-tvd__search--open { z-index: 6; }
-.kc-tvd__search:focus-within {
+.kc-tv-search__input { font-size: var(--text-lg); }
+.kc-tv-search__input::placeholder { color: var(--fg-3); }
+:root[data-tv] .kc-tv-search__input:focus-visible { box-shadow: none; }
+.kc-tv-search:focus-within {
   transform: scale(1.015);
   box-shadow: inset 0 0 0 1px var(--fg-1), var(--glow-accent);
 }
+.kc-tv-none { margin: 0; padding: 0 var(--tv-margin-x); font-size: var(--text-md); color: var(--fg-3); }
+
+
+/* ── Discover ── */
+
+.kc-tvd { padding: 96px 0 200px; }
 .kc-tvd.has-query { padding-top: 84px; }
-.kc-tvd.has-query .kc-tvd__search { height: 46px; background: var(--surface-2); }
+.kc-tvd.has-query .kc-tv-search { height: 46px; background: var(--surface-2); }
 .kc-tvd__rows { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 8px; padding-top: 18px; }
 .kc-tvd__spot { position: relative; z-index: 1; padding: 36px var(--tv-margin-x) 8px; max-width: 62%; }
 .kc-tvd__lazy { min-height: 1px; }
 .kc-tvd__q { text-transform: none; letter-spacing: 0; color: var(--fg-1); }
-.kc-tvd__none { margin: 0; padding: 0 var(--tv-margin-x); font-size: var(--text-md); color: var(--fg-3); }
 
 .kc-tvd__browse { display: flex; flex-direction: column; gap: 4px; padding-top: 18px; }
 .kc-tvd__face { opacity: 1; width: 72px; height: 72px; }
@@ -145,7 +142,8 @@
 
 /* ── Movies and TV Shows ── */
 
-.kc-tvl__title { position: relative; z-index: 1; padding: 104px var(--tv-margin-x) 0; height: 230px; box-sizing: border-box; }
+.kc-tvl__field { position: relative; z-index: 2; padding-top: 96px; }
+.kc-tvl__title { position: relative; z-index: 1; padding: 20px var(--tv-margin-x) 0; height: 150px; box-sizing: border-box; }
 .kc-tvl[data-spot] .kc-tvl__title { visibility: hidden; }
 
 /* ── Wants, and the grids Discover's shelves share ── */
@@ -198,6 +196,8 @@
   flex: 1; min-height: 0; overflow: hidden;
   margin: 0 -20px; padding: 12px 20px var(--tv-margin-y);
 }
+/* A section's search field sits at the panel's own edges. */
+.kc-tvp__body .kc-tv-search { margin: 0; }
 /* The panels are the site's own; on a television their grids are rows of posters that wrap. */
 .kc-tvp__panel .kc-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 

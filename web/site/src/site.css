@@ -593,7 +593,6 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-wanters__avatar { width: 32px; height: 32px; font-size: 12px; border: var(--edge); }
 .kc-profile__wants { display: none; }
 @media (max-width: 768px) { .kc-profile__wants { display: block; } }
-.kc-wants-switch { width: min(100%, 420px); }
 .kc-plan-picker { display: flex; flex-direction: column; gap: 20px; }
 /* A new plan: a month beside the chosen day's times, the times picked under them, then the people. */
 .kc-plan-new__note { font-size: 12px; color: var(--fg-3); padding-right: 4px; }
@@ -696,7 +695,6 @@ button.kc-episode:disabled { cursor: progress; }
   .kc-plan .kc-tt__poster { width: 96px; }
   .kc-plan .kc-tt__body h1 { font-size: 22px; }
 }
-@media (max-width: 768px) { .kc-wants-switch { width: 100%; } }
 
 /* ── Subtitle style ── the preview stays in view beside the choices, above them on a phone. */
 .kc-cue-style { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; align-items: start; padding: 10px 14px 14px; }

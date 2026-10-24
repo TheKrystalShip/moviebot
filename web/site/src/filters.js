@@ -1,12 +1,14 @@
-// Discover's filter: the picks the address holds, what the API is asked with them, and the sections the
-// filter drawer (krystal's FilterDrawer, in the search field) offers. Every Discover answer filters the
-// same way: Discover's catalogue, a question, a person's titles, a genre's, a shelf and a browse
-// category. The sections, their ids and their option values are the API's (`docs/api-contract.md`,
-// Filters and facets); the options of each section are the ones the answer's facets report, so a
-// page offers only what its answer holds and leaves out a section with fewer than two.
+// The filter of every page that shows titles: the picks the address holds, what the API is asked with
+// them, and the sections the filter drawer (krystal's FilterDrawer, in the page's search field) offers.
+// Discover's answers (its catalogue, a question, a person's titles, a genre's, a shelf and a browse
+// category) take their options from the API's facets; the library's shelves, Want to watch and History
+// count theirs over the list they hold (`facets.js`). The sections, their ids and their option values
+// are the API's (`docs/api-contract.md`, Filters and facets), so a page offers only what its answer
+// holds and leaves out a section with fewer than two.
 
 import React from "react";
-import { onTv } from "./tv/tv.js";
+import { wholeFacets } from "./facets.js";
+import { Rank, onBack, onTv } from "./tv/tv.js";
 
 /** The address parameter each section's picks are kept under. A list repeats its parameter. */
 const ADDRESS = { kind: "k", genre: "g", decade: "decade", length: "length", rating: "rating", language: "lang" };
@@ -65,14 +67,33 @@ export function filterQuestion(picks, sort) {
   return q;
 }
 
-/** The address with `picks` in place of the picks it held, every other parameter kept. */
-export function withPicks(query, picks) {
+/**
+ * The address at `path` with `picks` in place of the picks it held, every other parameter kept. `extra`
+ * sets a page's own parameters beside them: a value sets one, and null or false takes it off.
+ */
+export function withPicks(query, picks, path = "/discover", extra = {}) {
   const next = new URLSearchParams(query);
   for (const param of PICK_PARAMS) next.delete(param);
   if (picks.kind) next.set(ADDRESS.kind, picks.kind);
   for (const id of LISTS) for (const v of picks[id]) next.append(ADDRESS[id], v);
   if (picks.rating) next.set(ADDRESS.rating, picks.rating);
-  return "/discover?" + next.toString();
+  for (const [param, value] of Object.entries(extra)) {
+    if (value === null || value === undefined || value === false || value === "") next.delete(param);
+    else next.set(param, value === true ? "1" : String(value));
+  }
+  const rest = next.toString();
+  return path + (rest ? "?" + rest : "");
+}
+
+const languageNames = typeof Intl !== "undefined" && Intl.DisplayNames ? new Intl.DisplayNames(["en"], { type: "language" }) : null;
+
+/** A language's name in English by its ISO code, or the code where none is known. */
+export function languageName(code) {
+  try {
+    return (languageNames && languageNames.of(code)) || code;
+  } catch {
+    return code;
+  }
 }
 
 /** A section's options from the facets, with every pick kept in so it can be taken off. */
@@ -103,7 +124,7 @@ export function sectionsOf(facets, picks, { watched = true } = {}) {
   add({ id: "decade", label: "Decade", kind: "many", options: optionsOf(by.get("decade"), chosen("decade"), (v) => v + "s") }, 2);
   add({ id: "length", label: "Length", kind: "many", options: optionsOf(by.get("length"), chosen("length"), (v) => LENGTH_LABELS[v] || v) }, 2);
   add({ id: "rating", label: "Rating", kind: "optional", options: optionsOf(by.get("rating"), chosen("rating"), (v) => v + " and up") }, 2);
-  add({ id: "language", label: "Language", kind: "many", options: optionsOf(by.get("language"), chosen("language"), (v, l) => l || v) }, 2);
+  add({ id: "language", label: "Language", kind: "many", options: optionsOf(by.get("language"), chosen("language"), (v, l) => l || languageName(v)) }, 2);
   if (watched) sections.push({ id: "watched", label: "Watched", kind: "toggle", option: "Hide watched" });
   return sections;
 }
@@ -139,23 +160,23 @@ export function useFacets(load, key) {
 }
 
 /**
- * Whether the drawer in the search field whose input is `inputRef` is open, read from its button. On a
- * television the page's answers under the open drawer are made inert, so the remote's arrows stay in
- * the drawer.
+ * The page's filter drawer: the ref it is handed, whether it is open (its `onOpenChange`), and on a
+ * television the remote's Back given to it before the page, so Back leaves a section and then closes
+ * the drawer. On a television the page's answers under the open drawer are made inert, so the remote's
+ * arrows stay in it.
  */
-export function useDrawerOpen(inputRef) {
+export function useDrawer() {
+  const ref = React.useRef(null);
   const [open, setOpen] = React.useState(false);
-  React.useEffect(() => {
-    const field = inputRef.current && inputRef.current.closest("form");
-    if (!onTv || !field || typeof MutationObserver !== "function") return undefined;
-    const read = () => {
-      const trigger = field.querySelector(".k-filters__trigger");
-      setOpen(!!trigger && trigger.getAttribute("aria-expanded") === "true");
-    };
-    read();
-    const watcher = new MutationObserver(read);
-    watcher.observe(field, { attributes: true, subtree: true, childList: true, attributeFilter: ["aria-expanded"] });
-    return () => watcher.disconnect();
-  }, [inputRef]);
-  return open;
+  React.useEffect(() => (onTv ? onBack(() => (ref.current ? ref.current.back() : false), Rank.screen) : undefined), []);
+  return { ref, open, onOpenChange: setOpen };
+}
+
+/**
+ * The drawer's sections and picks over a list the page holds whole: the options each section's titles
+ * hold (`wholeFacets`), the sections a page's scope fixes left out, and the page's own sections after
+ * them.
+ */
+export function wholeSections(titles, picks, fixed = [], own = []) {
+  return [...sectionsOf({ sections: wholeFacets(titles, picks, fixed) }, picks, { watched: false }), ...own];
 }

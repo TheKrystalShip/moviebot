@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.76.0] - 2026-10-24
+
+### Added
+- Movies, TV Shows, Anime, Want to watch and Profile's History each open with a field that searches
+  them by name as it is typed and holds krystal's filter drawer, on the site and on a television. The
+  drawer's options are counted over the titles the page holds (`facets.js`): genre, decade, length,
+  rating and language, and a kind where a page mixes them. A shelf's own sections follow: a film's
+  State and Download on the library, a want's State on Want to watch. Every pick is kept in the
+  address. On a television each of these pages opens on its first card, the field a press of Up away,
+  and Back goes to the open drawer first.
+
+### Changed
+- The site and its television take `@thekrystalship/krystal` and `krystal-chat` 8.4.0. The drawer
+  tells the page when it opens (`onOpenChange`) and draws its dimming beside the field, so the open
+  drawer on a television stands over the dimmed page with nothing of the site's lifting it.
+- Want to watch's state switch is the drawer's State section, and the library's Filters popover is the
+  drawer.
+
 ## [3.75.0] - 2026-10-24
 
 ### Changed

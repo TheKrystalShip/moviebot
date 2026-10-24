@@ -1,7 +1,5 @@
 import React from "react";
-import {
-  RadioGroup, ShowcaseCard, Toolbar, ToolbarCount, ToolbarSearch, ToolbarSort, ToolbarSpacer, useFilters,
-} from "@thekrystalship/krystal";
+import { ShowcaseCard, Toolbar, ToolbarCount, ToolbarSort, ToolbarSpacer } from "@thekrystalship/krystal";
 import { episodeCode } from "../api.js";
 import { discoverFilmPath, moviePath, showPath } from "../paths.js";
 import { navigate } from "../router.js";
@@ -9,6 +7,7 @@ import { SORTED, useSort } from "../sorts.js";
 import { ago, clock } from "../time.js";
 import { refreshWants, useWantList } from "../wants.js";
 import { Empty, Failed, PageHead, kindLine, watchHref } from "../components/Film.jsx";
+import { FilterField, useTitleFilter } from "../components/FilterField.jsx";
 import { CardsSkeleton } from "../components/TitleCards.jsx";
 import { useWantRibbon } from "../components/WantButton.jsx";
 
@@ -76,20 +75,30 @@ export const WANT_SORTS = [
   { value: "others", label: "Others", defaultDir: "desc", compare: (a, b) => a.others - b.others },
 ];
 
-const STATES = [
-  { value: "all", label: "All", test: () => true },
+/** Where a want can stand, by the words the State section and its address use. */
+export const WANT_STATES = [
   { value: "ready", label: "Ready", test: (w) => w.state === "ready" },
   { value: "fetching", label: "Fetching", test: (w) => w.state === "fetching" },
   { value: "waiting", label: "Waiting", test: (w) => w.state === "waiting" },
 ];
 
 /**
- * What the person wants to watch: every want searched, narrowed by where it stands and ordered the way
- * they last picked. A title being fetched is asked after while the page is open.
+ * The filter of the wants: the drawer's sections over them (kind, genre, decade, length, rating and
+ * language), and where a want stands when the wants stand in more than one place.
+ */
+export function useWantFilter(all) {
+  const held = WANT_STATES.filter((s) => all.some(s.test));
+  const own = held.length >= 2 ? [{ id: "state", label: "State", kind: "optional", options: held.map(({ value, label }) => ({ value, label })) }] : [];
+  const passes = (w, v) => !v.state || !!WANT_STATES.find((s) => s.value === v.state && s.test(w));
+  return useTitleFilter(all, { fixed: [], own, passes, named: (w) => w.title });
+}
+
+/**
+ * What the person wants to watch: every want searched, narrowed by the filter drawer and ordered the
+ * way they last picked. A title being fetched is asked after while the page is open.
  */
 export function Wants() {
   const { list, error, reload } = useWantList();
-  const f = useFilters({ search: "", state: "all" });
   const [sort, setSort] = useSort(SORTED.wants, WANT_SORTS);
 
   const fetching = !!list && list.some((w) => w.state === "fetching");
@@ -100,12 +109,9 @@ export function Wants() {
   }, [fetching]);
 
   const all = list || [];
-  const state = STATES.find((s) => s.value === f.values.state) || STATES[0];
-  const query = f.debouncedQuery.trim().toLowerCase();
+  const filter = useWantFilter(all);
   const order = WANT_SORTS.find((s) => s.value === sort.key) || WANT_SORTS[0];
-  const shown = all
-    .filter((w) => (!query || w.title.toLowerCase().includes(query)) && state.test(w))
-    .sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
+  const shown = [...filter.shown].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
 
   return (
     <div className="kc-page">
@@ -113,10 +119,8 @@ export function Wants() {
 
       {all.length > 0 && (
         <>
-          <RadioGroup variant="segmented" fill label="State" className="kc-wants-switch" value={f.values.state}
-            options={STATES.map((s) => ({ value: s.value, label: s.label }))} onChange={(v) => f.set("state", v)} />
+          <FilterField placeholder="Search what you want to watch" {...filter.field} />
           <Toolbar>
-            <ToolbarSearch value={f.query} onChange={f.setQuery} pending={f.searchPending} placeholder="Search…" />
             <ToolbarSort value={sort.key} dir={sort.dir} onChange={setSort} options={WANT_SORTS} />
             <ToolbarSpacer />
             <ToolbarCount shown={shown.length} total={all.length} unit="titles" />

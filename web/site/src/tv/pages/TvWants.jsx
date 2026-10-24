@@ -6,7 +6,8 @@ import { clock } from "../../time.js";
 import { SORTED, useSort } from "../../sorts.js";
 import { useWantList } from "../../wants.js";
 import { Failed } from "../../components/Film.jsx";
-import { WANT_SORTS, stateLine, wantHref } from "../../pages/Wants.jsx";
+import { FilterField } from "../../components/FilterField.jsx";
+import { WANT_SORTS, stateLine, useWantFilter, wantHref } from "../../pages/Wants.jsx";
 
 /** The rows, in the order a person cares about them: what can be watched, what is arriving, what waits. */
 const ROWS = [
@@ -44,22 +45,29 @@ function Nothing() {
 /**
  * What the person wants to watch, on a television: a row each for what is ready, arriving and waiting for
  * a release, then the rest, in the order last picked on a Wants page, with the focused title named under
- * its row. Wants are made and changed from a title's page.
+ * its row. The field at the top searches the wants by name and its filter drawer narrows them, as on the
+ * Wants page; the page opens on the first want, and the rows under the open drawer are inert. Wants
+ * are made and changed from a title's page.
  */
 export function TvWants() {
   const { list, error, reload } = useWantList();
   const [sort] = useSort(SORTED.wants, WANT_SORTS);
   const [focused, setFocused] = React.useState(null);
+  const filter = useWantFilter(list || []);
 
   if (error && !list) return <div className="kc-tv-page kc-tv-pad"><Failed error={error} onRetry={reload} /></div>;
   if (!list) return <div className="kc-tv-page" />;
   if (list.length === 0) return <div className="kc-tv-page kc-tvsv kc-tvsv--none"><Nothing /></div>;
 
   const order = WANT_SORTS.find((s) => s.value === sort.key) || WANT_SORTS[0];
-  const ordered = [...list].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
+  const ordered = [...filter.shown].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
+  const first = ROWS.map((r) => ordered.find(r.test)).find(Boolean);
 
   return (
     <div className="kc-tv-page kc-tvsv">
+      <FilterField placeholder="Search what you want to watch" {...filter.field} />
+      {ordered.length === 0 && <p className="kc-tv-none">Nothing matches this search and these filters.</p>}
+      <div inert={filter.drawer.open ? "" : undefined} style={{ display: "contents" }}>
       {ROWS.map((r) => {
         const rows = ordered.filter(r.test);
         if (rows.length === 0) return null;
@@ -67,7 +75,7 @@ export function TvWants() {
           <section key={r.id}>
             <TvRow icon={r.icon} title={r.title} count={rows.length}>
               {rows.map((w) => (
-                <TvCard key={w.imdbId} art={w.posterUrl} label={w.title}
+                <TvCard key={w.imdbId} art={w.posterUrl} label={w.title} data-tv-initial={w === first ? "" : undefined}
                   progress={w.state === "fetching" ? w.progress || 0 : undefined}
                   {...linkProps(wantHref(w))} onFocus={() => setFocused(w)} />
               ))}
@@ -76,6 +84,7 @@ export function TvWants() {
           </section>
         );
       })}
+      </div>
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { ago, airDay } from "../time.js";
 import { Empty, Failed, PageHead, kindLine, watchHref } from "../components/Film.jsx";
 import { TabStage } from "../components/PageStage.jsx";
 import { CardsSkeleton, keptArt } from "../components/TitleCards.jsx";
+import { FilterField, useTitleFilter } from "../components/FilterField.jsx";
 import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
 import { BufferAheadLevels, bufferAhead, setBufferAhead } from "../player/engine/media/bufferAhead.ts";
@@ -91,12 +92,18 @@ export function panel(tab, session) {
   }
 }
 
-/** What this person watched, newest first, and how far they got. */
+/**
+ * What this person watched, newest first, and how far they got, searched by name and narrowed by the
+ * filter drawer over what each entry is: the library's title it names, so an entry whose title left
+ * the library is known only as a film or a show. On a television the entries under the open drawer are inert.
+ */
 function History() {
   const history = useLoad(() => api.history(), []);
   const titles = useLoad(() => api.titles().catch(() => []), []);
   const byId = new Map((titles.data || []).map((t) => [t.id, t]));
   const rows = history.data || [];
+  const entries = rows.map((row) => ({ ...(byId.get(row.titleId) || { kind: row.episode ? "show" : "film" }), row }));
+  const filter = useTitleFilter(entries, { fixed: [], named: (e) => e.row.name || "" });
 
   const forget = async (row) => {
     try {
@@ -112,9 +119,11 @@ function History() {
       <Failed error={history.error} onRetry={history.reload} />
       {!history.data && !history.error && <CardsSkeleton count={8} row />}
       {history.data && rows.length === 0 && <Empty icon="history" title="Nothing watched yet" />}
-      {rows.length > 0 && (
-        <div className="kc-grid">
-          {rows.map((row) => <HistoryCard key={row.titleId} row={row} title={byId.get(row.titleId)} onForget={forget} />)}
+      {rows.length > 0 && <FilterField placeholder="Search what you watched" {...filter.field} />}
+      {rows.length > 0 && filter.shown.length === 0 && <Empty title="Nothing here">Nothing matches this search and these filters.</Empty>}
+      {filter.shown.length > 0 && (
+        <div className="kc-grid" inert={filter.drawer.open && onTv ? "" : undefined}>
+          {filter.shown.map(({ row }) => <HistoryCard key={row.titleId} row={row} title={byId.get(row.titleId)} onForget={forget} />)}
         </div>
       )}
     </section>

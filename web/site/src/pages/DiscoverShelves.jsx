@@ -6,7 +6,7 @@ import { api } from "../api.js";
 import { POSTERS, TILES } from "../railDensity.js";
 import { useLoad, usePaged } from "../data.js";
 import { discoverBrowsePath, discoverShelfPath } from "../paths.js";
-import { apiPicks, filterQuestion, pickCount } from "../discoverFilters.js";
+import { apiPicks, filterQuestion, pickCount } from "../filters.js";
 import { linkProps, navigate } from "../router.js";
 import { SORTED, useSort } from "../sorts.js";
 import { Empty, Failed } from "../components/Film.jsx";
@@ -15,7 +15,7 @@ import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.js
 // Discover with nothing typed: its rows of shelves, the moods and the franchises as tiles, and the
 // browse categories; a category's shelves; one shelf whole; and the filter's answers. Every shelf comes
 // from `/api/discover`, and what is shown is in the address, the filter drawer's picks with it
-// (`discoverFilters.js`).
+// (`filters.js`).
 
 /** How many of a shelf's titles its rail shows; its own page shows the rest. */
 const RAIL_TITLES = 20;

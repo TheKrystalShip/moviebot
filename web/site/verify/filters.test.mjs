@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { apiPicks, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, withPicks, drawerValues } from '../src/discoverFilters.js';
+import { apiPicks, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, withPicks, drawerValues } from '../src/filters.js';
 
 const none = { kind: null, genre: [], decade: [], length: [], rating: null, language: [] };
 
@@ -50,4 +50,16 @@ test("the drawer's values come back as the same picks", () => {
   const picks = { ...none, genre: ['Horror'], rating: '6' };
   assert.deepEqual(picksOfValues(drawerValues(picks, true)), picks);
   assert.equal(picksOfValues({ ...drawerValues(picks, false), kind: 'all' }).kind, null);
+});
+
+test("a page's address keeps its own path and its own parameters beside the picks", () => {
+  const picks = { kind: null, genre: ['Drama'], decade: [], length: [], rating: null, language: [] };
+  const path = withPicks(new URLSearchParams('state=ready&g=Horror'), picks, '/movies', { state: null, downloaded: true });
+  assert.equal(path, '/movies?g=Drama&downloaded=1');
+  assert.equal(withPicks(new URLSearchParams(''), { ...picks, genre: [] }, '/wants'), '/wants');
+});
+
+test('a language the facets name by code alone is named in English', () => {
+  const sections = sectionsOf({ sections: [{ id: 'language', options: [{ value: 'ko' }, { value: 'fr' }] }] }, { kind: null, genre: [], decade: [], length: [], rating: null, language: [] }, { watched: false });
+  assert.deepEqual(sections.find((s) => s.id === 'language').options.map((o) => o.label), ['Korean', 'French']);
 });

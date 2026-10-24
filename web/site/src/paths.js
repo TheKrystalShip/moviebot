@@ -57,7 +57,7 @@ export const discoverShelfPath = (id, sort) => "/discover?shelf=" + seg(id) + (s
 
 /**
  * Discover's filter: the catalogue's films and shows at the filter drawer's picks, which the address
- * holds beside `filter` (`discoverFilters.js`).
+ * holds beside `filter` (`filters.js`).
  */
 export const discoverFilterPath = () => "/discover?filter=1";
 
