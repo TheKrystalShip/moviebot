@@ -457,10 +457,23 @@ public sealed partial class CatalogueSearch(
         return await NamedPageAsync(listed, ask, ct);
     }
 
-    /// <summary>A page of one of the database's own lists, kept as the lists of the week are.</summary>
-    public async Task<Outcome<PagedHits>> ChartAsync(TitleChart chart, PageAsk ask, CancellationToken ct)
+    /// <summary>
+    /// A page of one of the database's own lists, kept as the lists of the week are. With a
+    /// <paramref name="sort"/>, the list's first <see cref="TmdbClient.RatingPoolSize"/> titles are put
+    /// in that order (<see cref="OrderedAsync"/>) and kept as one answer every page is a slice of.
+    /// </summary>
+    public async Task<Outcome<PagedHits>> ChartAsync(TitleChart chart, PageAsk ask, string? sort, CancellationToken ct)
     {
         if (ask.Take <= 0) return Outcome<PagedHits>.Ok(new PagedHits([], null));
+        if (sort is not null)
+        {
+            var pool = await keeper.KeptAsync($"charts/{chart}-{sort}", AnswerJson.Default.ListListedTitle, ListKept,
+                async (tmdb, token) => (await OrderedAsync(await ChartPoolAsync(tmdb, chart, token), sort, token)).ToList(), null, ct);
+            if (pool is null) return Unavailable<PagedHits>("The film database could not be asked what is on.");
+            var ordered = pool.Value ?? [];
+            return Outcome<PagedHits>.Ok(new PagedHits(await HitsAsync([.. ordered.Skip(ask.Skip).Take(ask.Take)], ask.Take, ct),
+                ask.Next(ordered.Count > ask.Skip + ask.Size)));
+        }
         var kept = await keeper.KeptAsync($"charts/{chart}-{ask.Size}-p{ask.Page}", AnswerJson.Default.ListedPage, ListKept,
             async (tmdb, token) => await tmdb.ChartPageAsync(chart, ask.Page, ask.Size, token), null, ct);
         if (kept is null) return Unavailable<PagedHits>("The film database could not be asked what is on.");
@@ -468,55 +481,70 @@ public sealed partial class CatalogueSearch(
         return Outcome<PagedHits>.Ok(new PagedHits(await HitsAsync([.. page.Titles.Take(ask.Take)], ask.Take, ct), ask.Next(ask.Page < page.Pages)));
     }
 
-    /// <summary>The films of one series, the first released first, kept a week.</summary>
-    public async Task<Outcome<CollectionAnswer>> CollectionAsync(int collectionId, CancellationToken ct)
+    /// <summary>The first titles of one of the database's own lists, as many as a ranking reads.</summary>
+    private static async Task<List<ListedTitle>> ChartPoolAsync(TmdbClient tmdb, TitleChart chart, CancellationToken ct)
+    {
+        var pool = new List<ListedTitle>();
+        var seen = new HashSet<(string, int)>();
+        for (var page = 1; pool.Count < TmdbClient.RatingPoolSize; page++)
+        {
+            var listed = await tmdb.ChartPageAsync(chart, page, ShelfListed, ct);
+            pool.AddRange(listed.Titles.Where(t => seen.Add((t.Kind, t.TmdbId))));
+            if (page >= listed.Pages || listed.Titles.Count == 0) break;
+        }
+        return [.. pool.Take(TmdbClient.RatingPoolSize)];
+    }
+
+    /// <summary>The films of one series, the first released first or in the order a <paramref name="sort"/> names, kept a week.</summary>
+    public async Task<Outcome<CollectionAnswer>> CollectionAsync(int collectionId, CancellationToken ct, string? sort = null)
     {
         var kept = await keeper.KeptAsync($"collections/{collectionId}", AnswerJson.Default.TitleCollection, CollectionKept,
             (tmdb, token) => tmdb.CollectionAsync(collectionId, token), null, ct);
         if (kept is null) return Unavailable<CollectionAnswer>("The film database could not be asked about this series.");
         if (kept.Value is not { } collection) return NotFound<CollectionAnswer>("The film database has no series under that id.");
-        var hits = await HitsAsync(collection.Films, ShelfListed, ct);
+        var hits = await HitsAsync(await OrderedAsync(collection.Films, sort, ct), ShelfListed, ct);
         return Outcome<CollectionAnswer>.Ok(new CollectionAnswer(collection.Name, hits));
     }
 
     /// <summary>
-    /// A page of the films a person directed that are out, the most voted on first, read from the same
-    /// kept credits as everything else they did.
+    /// A page of the films a person directed that are out, the most voted on first or in the order a
+    /// <paramref name="sort"/> names, read from the same kept credits as everything else they did.
     /// </summary>
-    public async Task<Outcome<PagedHits>> DirectedAsync(int personId, PageAsk ask, CancellationToken ct)
+    public async Task<Outcome<PagedHits>> DirectedAsync(int personId, PageAsk ask, CancellationToken ct, string? sort = null)
     {
         var kept = await FilmographyAsync(personId, ct);
         if (kept is null) return Unavailable<PagedHits>("The film database could not be asked about this person.");
         if (kept.Value is not { } person) return NotFound<PagedHits>("The film database has nobody under that id.");
 
         var today = Today();
-        var directed = person.Credits
+        var directed = await OrderedAsync([.. person.Credits
             .Where(c => c.Kind == "film" && c.Directing && c.Released is { } day && day <= today)
             .OrderByDescending(c => c.Votes)
-            .Select(c => c.AsListed())
-            .ToList();
+            .Select(c => c.AsListed())], sort, ct);
         var page = directed.Skip(ask.Skip).Take(ask.Take).ToList();
         return Outcome<PagedHits>.Ok(new PagedHits(await HitsAsync(page, ask.Take, ct), ask.Next(directed.Count > ask.Skip + ask.Size)));
     }
 
     /// <summary>
     /// The films or shows released in the last <paramref name="days"/> days, the most looked at, newest
-    /// first; with <paramref name="anime"/>, the anime among them.
+    /// first; with <paramref name="anime"/>, the anime among them; with a <paramref name="sort"/>, the
+    /// window's titles in that order.
     /// </summary>
-    public Task<Outcome<ListAnswer>> RecentAsync(string kind, int days, bool anime, CancellationToken ct, int page = 1, int size = ResultsListed)
+    public Task<Outcome<ListAnswer>> RecentAsync(string kind, int days, bool anime, CancellationToken ct, int page = 1, int size = ResultsListed, string? sort = null)
     {
         var today = Today();
-        return WindowAsync("released", kind, today.AddDays(-days), today, newestFirst: true, anime, new PageAsk(MostOnShelf, size, page), ct);
+        return WindowAsync("released", kind, today.AddDays(-days), today, newestFirst: true, anime, sort, new PageAsk(MostOnShelf, size, page), ct);
     }
 
     /// <summary>
     /// The films or shows with a date in the next <paramref name="days"/> days, the most looked at,
-    /// soonest first; with <paramref name="anime"/>, the anime among them.
+    /// soonest first; with <paramref name="anime"/>, the anime among them; with a <paramref name="sort"/>,
+    /// the window's titles in that order.
     /// </summary>
-    public Task<Outcome<ListAnswer>> UpcomingAsync(string kind, int days, bool anime, CancellationToken ct, int page = 1, int size = ResultsListed)
+    public Task<Outcome<ListAnswer>> UpcomingAsync(string kind, int days, bool anime, CancellationToken ct, int page = 1, int size = ResultsListed, string? sort = null)
     {
         var today = Today();
-        return WindowAsync("upcoming", kind, today.AddDays(1), today.AddDays(days), newestFirst: false, anime, new PageAsk(MostOnShelf, size, page), ct);
+        return WindowAsync("upcoming", kind, today.AddDays(1), today.AddDays(days), newestFirst: false, anime, sort, new PageAsk(MostOnShelf, size, page), ct);
     }
 
     /// <summary>
@@ -720,8 +748,13 @@ public sealed partial class CatalogueSearch(
             ? Outcome<PagedHits>.Ok(new PagedHits(await HitsAsync(page.Titles, ask.Take, ct), page.Next))
             : listed.Carry<PagedHits>();
 
-    /// <summary>The released and upcoming lists: the most looked at titles of a window of days.</summary>
-    private async Task<Outcome<ListAnswer>> WindowAsync(string family, string kind, DateOnly from, DateOnly to, bool newestFirst, bool anime, PageAsk ask, CancellationToken ct)
+    /// <summary>
+    /// The released and upcoming lists: the most looked at titles of a window of days, each page in
+    /// date order. With a <paramref name="sort"/>, the window's <see cref="TmdbClient.RatingPoolSize"/>
+    /// most looked at are put in that order (<see cref="OrderedAsync"/>) and paged as one list: asked
+    /// of the database by date, a window is led by titles nobody has looked at.
+    /// </summary>
+    private async Task<Outcome<ListAnswer>> WindowAsync(string family, string kind, DateOnly from, DateOnly to, bool newestFirst, bool anime, string? sort, PageAsk ask, CancellationToken ct)
     {
         if (!Catalogue.IsKind(kind)) return Invalid<ListAnswer>("Kind is film or show.");
 
@@ -734,6 +767,21 @@ public sealed partial class CatalogueSearch(
                 return NotFound<ListAnswer>($"The film database has no {kind} genre called {TitleCategories.AnimeGenre}.");
             query = query with { GenreIds = [animation.Id], Language = TitleCategories.AnimeLanguage };
         }
+        if (sort is not null)
+        {
+            var pool = new List<ListedTitle>();
+            for (var p = 1; pool.Count < TmdbClient.RatingPoolSize; p++)
+            {
+                var band = await DiscoveredAsync(family, ListKept, query, new PageAsk(TmdbClient.RatingPoolSize, ShelfListed, p), ct);
+                if (band.Value is not { } listedBand) return band.Carry<ListAnswer>();
+                pool.AddRange(listedBand.Titles);
+                if (listedBand.Next is null) break;
+            }
+            var whole = await OrderedAsync([.. pool.DistinctBy(t => (t.Kind, t.TmdbId))], sort, ct);
+            var sorted = await HitsAsync([.. whole.Skip(ask.Skip).Take(ask.Take)], ask.Take, ct);
+            return Outcome<ListAnswer>.Ok(new ListAnswer(kind, from, to, sorted, ask.Next(whole.Count > ask.Skip + ask.Size)));
+        }
+
         var listed = await DiscoveredAsync(family, ListKept, query, ask, ct);
         if (listed.Value is not { } page) return listed.Carry<ListAnswer>();
 
@@ -768,14 +816,7 @@ public sealed partial class CatalogueSearch(
             .Where(t => query.MinVotes is null || t.Votes >= query.MinVotes)
             .ToList();
 
-        IEnumerable<ListedTitle> ordered = sort switch
-        {
-            DiscoverSorts.Popular => narrowed.OrderByDescending(t => t.Popularity),
-            DiscoverSorts.Rating => await RatedAsync(narrowed, ct),
-            DiscoverSorts.Newest => narrowed.OrderBy(t => t.Released is null).ThenByDescending(t => t.Released),
-            DiscoverSorts.Oldest => narrowed.OrderBy(t => t.Released is null).ThenBy(t => t.Released),
-            _ => narrowed,
-        };
+        var ordered = await OrderedAsync(narrowed, sort, ct);
         if (query.PersonIds.Count == 0 && query.KeywordIds.Count == 0)
         {
             var all = ordered.ToList();
@@ -806,6 +847,20 @@ public sealed partial class CatalogueSearch(
         }
         return Outcome<TitlePage>.Ok(new TitlePage([.. matched.Skip(ask.Skip).Take(ask.Take)], ask.Next(matched.Count > ask.Skip + ask.Size)));
     }
+
+    /// <summary>
+    /// Titles held whole in the order a sort names: the most looked at first, the best rated first
+    /// (<see cref="RatedAsync"/>), or the newest or oldest release first, an undated title last; any
+    /// other sort leaves them as they are.
+    /// </summary>
+    private async Task<IReadOnlyList<ListedTitle>> OrderedAsync(IReadOnlyList<ListedTitle> titles, string? sort, CancellationToken ct) => sort switch
+    {
+        DiscoverSorts.Popular => [.. titles.OrderByDescending(t => t.Popularity)],
+        DiscoverSorts.Rating => await RatedAsync(titles, ct),
+        DiscoverSorts.Newest => [.. titles.OrderBy(t => t.Released is null).ThenByDescending(t => t.Released)],
+        DiscoverSorts.Oldest => [.. titles.OrderBy(t => t.Released is null).ThenBy(t => t.Released)],
+        _ => titles,
+    };
 
     /// <summary>The titles best rated first: by IMDb where the import holds it, else by the film database's weighted rating.</summary>
     private async Task<IReadOnlyList<ListedTitle>> RatedAsync(IReadOnlyList<ListedTitle> titles, CancellationToken ct)

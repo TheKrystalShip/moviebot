@@ -14,11 +14,16 @@ import React from "react";
  */
 export const LoadTracker = React.createContext(null);
 
+/** What tells one title of a paged list from another: its kind and IMDb id, else the object itself. */
+const titleKey = (t) => (t && t.imdbId ? (t.kind || "") + t.imdbId : t);
+
 /**
  * A list read a page at a time. `load(page)` answers `{ titles, next }` for the page asked, `next`
  * being the page that follows and absent on the last. The first page is read as `useLoad` reads, and
- * `loadMore` reads the page after the last one held and appends its titles; new `deps` start over.
- * `titles` is every title held, null before the first page, and `next` is the page `loadMore` reads.
+ * `loadMore` reads the page after the last one held and appends its titles, leaving out any it
+ * already holds (a list ordered by how much a title is looked at can move one onto the next page
+ * between two reads); new `deps` start over. `titles` is every title held, null before the first
+ * page, and `next` is the page `loadMore` reads.
  */
 export function usePaged(load, deps, options) {
   const first = useLoad(() => load(1), deps, options);
@@ -31,7 +36,12 @@ export function usePaged(load, deps, options) {
     if (!base || !next || (mine && mine.loading)) return;
     setMore((cur) => ({ ...(cur.base === base ? cur : { base, titles: [], next: base.next }), loading: true, error: null }));
     load(next).then(
-      (answer) => setMore((cur) => (cur.base !== base ? cur : { ...cur, titles: [...cur.titles, ...answer.titles], next: answer.next, loading: false })),
+      (answer) => setMore((cur) => {
+        if (cur.base !== base) return cur;
+        const held = new Set([...base.titles, ...cur.titles].map(titleKey));
+        const fresh = answer.titles.filter((t) => !held.has(titleKey(t)));
+        return { ...cur, titles: [...cur.titles, ...fresh], next: answer.next, loading: false };
+      }),
       (error) => setMore((cur) => (cur.base !== base ? cur : { ...cur, loading: false, error })));
   };
 

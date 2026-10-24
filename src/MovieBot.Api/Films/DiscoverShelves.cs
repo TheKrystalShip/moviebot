@@ -418,7 +418,7 @@ public sealed class DiscoverShelves(
     {
         var missing = shelves.Where(s => s.Shared && !_known.ContainsKey(s.Id)).ToList();
         await Parallel.ForEachAsync(missing, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
-            async (shelf, token) => await TitlesAsync(shelf, null, titles, 1, token));
+            async (shelf, token) => await TitlesAsync(shelf, null, titles, 1, null, token));
     }
 
     /// <summary>Whether a shelf has something to show: every shelf but a Wikidata one always does, and that one once its set is kept.</summary>
@@ -454,17 +454,19 @@ public sealed class DiscoverShelves(
     }
 
     /// <summary>
-    /// One page of a shelf and its titles for a viewer, by its id; NotFound for an id that names no
-    /// shelf. A shelf made of the library or of a list held whole ends on its first page.
+    /// One page of a shelf and its titles for a viewer, by its id, in the shelf's own order or the one
+    /// <paramref name="sort"/> names (<see cref="Sorts"/>); NotFound for an id that names no shelf. A
+    /// shelf made of the library or of a list held whole ends on its first page.
     /// </summary>
-    public async Task<Outcome<ShelfView>> ShelfAsync(string id, string? viewerId, int page, CancellationToken ct)
+    public async Task<Outcome<ShelfView>> ShelfAsync(string id, string? viewerId, int page, CancellationToken ct, string? sort = null)
     {
         if (page < 1 || page > CatalogueSearch.PagesListed) return Outcome<ShelfView>.Failed(Problem.Invalid, $"Page is 1 to {CatalogueSearch.PagesListed}.");
+        if (sort is not null && !Sorts.Contains(sort)) return Outcome<ShelfView>.Failed(Problem.Invalid, "Sort is rating, newest or oldest.");
         var titles = library.Titles();
         var shelf = ById.GetValueOrDefault(id) ?? Streaming().FirstOrDefault(s => s.Id == id) ?? Personal(viewerId, titles).FirstOrDefault(s => s.Id == id) ?? LikeShelf(id, titles);
         if (shelf is null) return Outcome<ShelfView>.Failed(Problem.NotFound, "There is no shelf by that name.");
 
-        var listed = await TitlesAsync(shelf, viewerId, titles, page, ct);
+        var listed = await TitlesAsync(shelf, viewerId, titles, page, sort, ct);
         if (listed.Value is not { } found) return listed.Carry<ShelfView>();
         return Outcome<ShelfView>.Ok(new ShelfView
         {
@@ -490,7 +492,7 @@ public sealed class DiscoverShelves(
         foreach (var shelf in Every())
         {
             ct.ThrowIfCancellationRequested();
-            if ((await TitlesAsync(shelf, null, titles, 1, ct)).Value is null) unanswered++;
+            if ((await TitlesAsync(shelf, null, titles, 1, null, ct)).Value is null) unanswered++;
         }
         return unanswered;
     }
@@ -543,19 +545,29 @@ public sealed class DiscoverShelves(
 
     private static ShelfHeadView Head(Shelf shelf) => new() { Id = shelf.Id, Title = shelf.Title, Icon = shelf.Icon, Kind = shelf.Kind };
 
-    private async Task<Outcome<ShelfPage>> TitlesAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, CancellationToken ct)
+    /// <summary>
+    /// The orders a shelf is served in besides its own. Each is the order of the whole shelf, made
+    /// where its titles come from, so every page continues the one before it.
+    /// </summary>
+    public static readonly IReadOnlySet<string> Sorts = new HashSet<string>([DiscoverSorts.Rating, DiscoverSorts.Newest, DiscoverSorts.Oldest], StringComparer.Ordinal);
+
+    private async Task<Outcome<ShelfPage>> TitlesAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, CancellationToken ct)
     {
-        var answer = await AnsweredAsync(shelf, viewerId, titles, page, ct);
-        if (page == 1 && shelf.Shared && answer.Value is { } found) _known[shelf.Id] = found.Titles;
+        var answer = await AnsweredAsync(shelf, viewerId, titles, page, sort, ct);
+        if (page == 1 && sort is null && shelf.Shared && answer.Value is { } found) _known[shelf.Id] = found.Titles;
         return answer;
     }
 
     /// <summary>
     /// A shelf's page. What the database pages (a discovery, a chart, a window of dates, the titles
     /// like another) and the films a person directed are paged; a series, the week's trending list and
-    /// the library's shelves are whole in one answer, and any later page of them is empty.
+    /// the library's shelves are whole in one answer, and any later page of them is empty. A
+    /// <paramref name="sort"/> orders the whole shelf before it is paged: a discovery and the titles
+    /// like another are asked in that order; the first titles of a chart or of a window of dates, a
+    /// series, a director's films and a Wikidata set are ordered as held; and a shelf whole in one
+    /// answer is ordered as it is answered.
     /// </summary>
-    private async Task<Outcome<ShelfPage>> AnsweredAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, CancellationToken ct)
+    private async Task<Outcome<ShelfPage>> AnsweredAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, CancellationToken ct)
     {
         var held = LibraryShelf.Of(titles, record, viewerId);
         var ask = new PageAsk(CatalogueSearch.MostOnShelf, CatalogueSearch.ShelfListed, page);
@@ -567,37 +579,38 @@ public sealed class DiscoverShelves(
             {
                 var query = shelf.Query!;
                 if (query.To is null && query.AiringTo is null) query = query with { To = Today() };
+                if (sort is not null) query = query with { Sort = sort };
                 return Hits(await search.ShelfAsync(query, ask, ct), held);
             }
             case ShelfSource.Chart:
-                return Hits(await search.ChartAsync(shelf.Chart!.Value, ask, ct), held);
+                return Hits(await search.ChartAsync(shelf.Chart!.Value, ask, sort, ct), held);
             case ShelfSource.Recent:
             {
-                var answer = await search.RecentAsync(shelf.Kind!, CatalogueSearch.RecentDays, false, ct, page, ask.Size);
+                var answer = await search.RecentAsync(shelf.Kind!, CatalogueSearch.RecentDays, false, ct, page, ask.Size, sort);
                 return answer.Value is { } list ? Ok(Views(list.Hits, held), list.Next) : Failed(answer);
             }
             case ShelfSource.Upcoming:
             {
-                var answer = await search.UpcomingAsync(shelf.Kind!, CatalogueSearch.UpcomingDays, false, ct, page, ask.Size);
+                var answer = await search.UpcomingAsync(shelf.Kind!, CatalogueSearch.UpcomingDays, false, ct, page, ask.Size, sort);
                 return answer.Value is { } list ? Ok(Views(list.Hits, held), list.Next) : Failed(answer);
             }
             case ShelfSource.Collection:
             {
-                var answer = await search.CollectionAsync(shelf.DatabaseId!.Value, ct);
+                var answer = await search.CollectionAsync(shelf.DatabaseId!.Value, ct, sort);
                 return answer.Value is { } series ? Ok(Views(series.Hits, held)) : Failed(answer);
             }
             case ShelfSource.Director:
-                return Hits(await search.DirectedAsync(shelf.DatabaseId!.Value, ask, ct), held);
+                return Hits(await search.DirectedAsync(shelf.DatabaseId!.Value, ask, ct, sort), held);
             case ShelfSource.Like:
             {
-                var answer = await search.DiscoverAsync(new DiscoverRequest { Like = shelf.Seed, Kind = shelf.Kind, Page = page }, ct);
+                var answer = await search.DiscoverAsync(new DiscoverRequest { Like = shelf.Seed, Kind = shelf.Kind, Page = page, Sort = sort }, ct);
                 return answer.Value is { } similar ? Ok(Views(similar.Hits, held), similar.Next) : Failed(answer);
             }
             case ShelfSource.TrendingWeek:
             {
                 var view = popular.View();
                 var kind = shelf.Kind!;
-                return Ok([.. (kind == "film" ? view.Films : view.Shows).Select(t => new ShelfTitleView
+                return Ok(Sorted([.. (kind == "film" ? view.Films : view.Shows).Select(t => new ShelfTitleView
                 {
                     ImdbId = t.ImdbId,
                     Kind = kind,
@@ -612,14 +625,40 @@ public sealed class DiscoverShelves(
                     LibraryId = held.LibraryIdOf(kind, t.ImdbId),
                     Watched = held.Saw(kind, t.ImdbId),
                     Category = categories.Of(kind, t.ImdbId),
-                })]);
+                })], sort));
             }
             case ShelfSource.Wikidata:
-                return Hits(await search.WikidataShelfAsync(WikidataSets.Find(shelf.WikidataKey!)!, ask, ct), held);
+                return Hits(await search.WikidataShelfAsync(WikidataSets.Find(shelf.WikidataKey!)!, ask, ct, sort), held);
             case ShelfSource.PopularHere:
-                return Ok(PopularHere(titles, held));
+                return Ok(Sorted(PopularHere(titles, held), sort));
             default:
-                return Ok(ReadyHere(titles, held));
+                return Ok(Sorted(ReadyHere(titles, held), sort));
+        }
+    }
+
+    /// <summary>
+    /// A shelf whole in one answer in the order a sort names: the best rated first as a question by
+    /// rating ranks them (<see cref="ImdbRanking"/>), or the newest or oldest year first, an undated
+    /// title last; without a sort, in its own order.
+    /// </summary>
+    internal static List<ShelfTitleView> Sorted(List<ShelfTitleView> views, string? sort)
+    {
+        switch (sort)
+        {
+            case DiscoverSorts.Rating:
+                var entries = views
+                    .Select((v, i) => new ImdbRanking.Entry(
+                        new ListedTitle { TmdbId = i, Kind = v.Kind, Title = v.Title, Rating = v.Rating, Votes = v.Votes },
+                        v.ImdbRating is { } rating ? new ImdbRatings.Rating(rating, v.ImdbVotes ?? 0) : null))
+                    .ToList();
+                var floor = ImdbRanking.FloorFor([.. entries.Where(e => e.Imdb is not null).Select(e => e.Imdb!.Value.Votes).OrderDescending()]);
+                return [.. ImdbRanking.Order(entries, floor).Select(t => views[t.TmdbId])];
+            case DiscoverSorts.Newest:
+                return [.. views.OrderBy(v => v.Year is null).ThenByDescending(v => v.Year)];
+            case DiscoverSorts.Oldest:
+                return [.. views.OrderBy(v => v.Year is null).ThenBy(v => v.Year)];
+            default:
+                return views;
         }
     }
 

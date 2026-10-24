@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.67.2] - 2026-10-24
+
+### Fixed
+- A Discover shelf sorted by rating or release date keeps its order as it scrolls: the shelf route
+  takes `sort` and orders the whole shelf before paging it, so a page read later extends the grid
+  and nothing already on it moves.
+
 ## [3.67.1] - 2026-10-24
 
 ### Fixed

@@ -50,10 +50,11 @@ public static class DiscoverEndpoints
         }).RequireAction(CinemaActions.Watch);
 
         // One page of a shelf's titles, joined with the library and with what the asking person
-        // watched; next names the page that follows.
-        app.MapGet("/api/discover/shelves/{id}", async (string id, int? page, HttpContext context, DiscoverShelves shelves, CancellationToken ct) =>
+        // watched, in the shelf's order or the one sort names; next names the page that follows.
+        app.MapGet("/api/discover/shelves/{id}", async (string id, int? page, string? sort, HttpContext context, DiscoverShelves shelves, CancellationToken ct) =>
         {
-            var outcome = await shelves.ShelfAsync(id, PeopleEndpoints.Person(context)?.UserId, page ?? 1, ct);
+            var outcome = await shelves.ShelfAsync(id, PeopleEndpoints.Person(context)?.UserId, page ?? 1, ct,
+                string.IsNullOrWhiteSpace(sort) || sort == "order" ? null : sort);
             return outcome.Value is { } shelf
                 ? Results.Ok(shelf)
                 : Results.Json(new ErrorReply(outcome.Message ?? "The film database could not answer."), ApiJsonContext.Default.ErrorReply,

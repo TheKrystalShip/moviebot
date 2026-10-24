@@ -155,6 +155,52 @@ public sealed class DiscoverShelvesTests(SessionFixture fixture) : IClassFixture
     }
 
     [Fact]
+    public async Task A_shelf_in_another_order_is_asked_of_the_database_in_that_order()
+    {
+        var before = fixture.FilmDatabase.Requests.Count;
+
+        var horror = await Get<ShelfView>("/api/discover/shelves/horror?sort=newest");
+
+        Assert.NotEmpty(horror.Titles);
+        var discovery = Assert.Single(fixture.FilmDatabase.Requests.Skip(before), r => r.StartsWith("/3/discover/movie"));
+        Assert.Contains("sort_by=primary_release_date.desc", discovery);
+    }
+
+    [Fact]
+    public async Task A_series_in_another_order_is_ordered_whole_before_it_is_paged()
+    {
+        var series = await Get<ShelfView>("/api/discover/shelves/star-wars?sort=newest");
+
+        Assert.Equal(["Pirates of the Caribbean", "Heat"], series.Titles.Select(t => t.Title));
+    }
+
+    [Fact]
+    public async Task A_shelf_s_own_order_is_named_order_and_any_other_name_is_refused()
+    {
+        var own = await Get<ShelfView>("/api/discover/shelves/star-wars?sort=order");
+        using var refused = await Signed("d1").GetAsync("/api/discover/shelves/star-wars?sort=popular");
+
+        Assert.Equal(["Heat", "Pirates of the Caribbean"], own.Titles.Select(t => t.Title));
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+    }
+
+    [Fact]
+    public void A_shelf_whole_in_one_answer_is_ordered_best_rated_or_by_year()
+    {
+        List<ShelfTitleView> views =
+        [
+            new() { ImdbId = "tt1", Kind = "film", Title = "Seen by few", Year = 2001, Rating = 9.5, Votes = 40, ImdbRating = 9.4, ImdbVotes = 120 },
+            new() { ImdbId = "tt2", Kind = "film", Title = "Well liked", Year = 1999, Rating = 7.9, Votes = 9000, ImdbRating = 8.1, ImdbVotes = 900_000 },
+            new() { ImdbId = "tt3", Kind = "film", Title = "Undated", Rating = 6.0, Votes = 3000, ImdbRating = 6.2, ImdbVotes = 40_000 },
+        ];
+
+        Assert.Equal(["Well liked", "Undated", "Seen by few"], DiscoverShelves.Sorted(views, "rating").Select(v => v.Title));
+        Assert.Equal(["Seen by few", "Well liked", "Undated"], DiscoverShelves.Sorted(views, "newest").Select(v => v.Title));
+        Assert.Equal(["Well liked", "Seen by few", "Undated"], DiscoverShelves.Sorted(views, "oldest").Select(v => v.Title));
+        Assert.Same(views, DiscoverShelves.Sorted(views, null));
+    }
+
+    [Fact]
     public async Task A_series_the_database_has_nothing_under_is_a_shelf_with_nothing_on_it()
     {
         var series = await Get<ShelfView>("/api/discover/shelves/james-bond");

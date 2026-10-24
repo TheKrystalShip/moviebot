@@ -131,12 +131,20 @@ public sealed partial class CatalogueSearch
 
     /// <summary>
     /// A page of one of the fixed Wikidata sets a Discover shelf shows, from what the weekly cycle
-    /// kept: nothing is asked of Wikidata here, so a shelf the cycle has not reached is empty.
+    /// kept, in the set's own order or the one a <paramref name="sort"/> names: nothing is asked of
+    /// Wikidata here, so a shelf the cycle has not reached is empty.
     /// </summary>
-    public async Task<Outcome<PagedHits>> WikidataShelfAsync(WikidataSet set, PageAsk ask, CancellationToken ct)
+    public async Task<Outcome<PagedHits>> WikidataShelfAsync(WikidataSet set, PageAsk ask, CancellationToken ct, string? sort = null)
     {
         if (wikidata.Kept(set) is not { Count: > 0 } films) return Outcome<PagedHits>.Ok(new PagedHits([], null));
-        var ordered = wikidata.Ordered(films, WikidataSets.Orders.Of(set.Order));
+        var ordered = wikidata.Ordered(films, sort switch
+        {
+            DiscoverSorts.Rating => WikidataSets.Orders.Rating,
+            DiscoverSorts.Newest => WikidataSets.Orders.Newest,
+            DiscoverSorts.Oldest => WikidataSets.Orders.Oldest,
+            DiscoverSorts.Popular => WikidataSets.Orders.Votes,
+            _ => WikidataSets.Orders.Of(set.Order),
+        });
         return await WikidataTitlesAsync(ordered.Take(MostOnShelf).ToList(), WikidataNarrowing.None, ask, ct);
     }
 

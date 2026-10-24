@@ -231,12 +231,12 @@ const SHELF_SORTS = [
   { value: "year", label: "Release date", defaultDir: "desc" },
 ];
 
-/** A shelf's titles in an order the person picked; `order` is the shelf's own. */
-function sorted(titles, { key, dir }) {
-  const by = key === "rating" ? (t) => t.rating || 0 : key === "year" ? (t) => t.year || 0 : null;
-  const ordered = by ? [...titles].sort((a, b) => by(a) - by(b)) : [...titles];
-  return dir === "asc" ? ordered : ordered.reverse();
-}
+/**
+ * The order the shelf route serves a shelf in, from the toolbar's key and direction: absent for the
+ * shelf's own. The API orders the whole shelf, so a page read later continues the grid and moves
+ * nothing already in it.
+ */
+const shelfSort = ({ key, dir }) => (key === "year" ? (dir === "asc" ? "oldest" : "newest") : key === "rating" ? "rating" : null);
 
 /**
  * The next page of a grid, read as its end comes near: a plain skeleton of cards while it is read, and
@@ -276,13 +276,14 @@ export function MoreCards({ paged }) {
  * the library's pages: what to leave off, an order, how many are shown, and Surprise me among them.
  */
 export function ShelfPage({ id, where }) {
-  const shelf = usePaged((page) => api.discoverShelf(id, page), [id]);
+  const [sort, setSort] = useSort(SORTED.shelf, SHELF_SORTS);
+  const order = shelfSort(sort);
+  const shelf = usePaged((page) => api.discoverShelf(id, page, order), [id, order]);
   const [hideWatched, setHideWatched] = useHideWatched();
   const [busy, surprise] = useSurprise(where);
   const [kind, setKind] = React.useState("all");
   const [decade, setDecade] = React.useState("any");
   const [rating, setRating] = React.useState("any");
-  const [sort, setSort] = useSort(SORTED.shelf, SHELF_SORTS);
   const s = shelf.data;
   if (shelf.error && !s) return <Failed error={shelf.error} onRetry={shelf.reload} />;
   if (!s) return <BrowseSkeleton />;
@@ -290,11 +291,11 @@ export function ShelfPage({ id, where }) {
   const all = shelf.titles;
   const mixed = all.some((t) => t.kind === "show") && all.some((t) => t.kind === "film");
   const decades = DECADES.filter((d) => all.some((t) => decadeOf(t.year) === d));
-  const shown = sorted(all
+  const shown = all
     .filter((t) => !hideWatched || !t.watched)
     .filter((t) => kind === "all" || t.kind === kind)
     .filter((t) => decade === "any" || decadeOf(t.year) === Number(decade))
-    .filter((t) => rating === "any" || (t.rating || 0) >= Number(rating)), sort);
+    .filter((t) => rating === "any" || (t.rating || 0) >= Number(rating));
 
   const fields = [
     watchedField(hideWatched, setHideWatched),

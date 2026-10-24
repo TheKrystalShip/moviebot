@@ -98,7 +98,10 @@ export const api = {
   // Discover's tabs and the shelves on each for the signed-in person, with what its filter picks from;
   // and one page of a shelf's titles, with the page that follows it.
   discover: () => call("GET", "/api/discover"),
-  discoverShelf: (id, page = 1) => call("GET", `/api/discover/shelves/${enc(id)}` + (page > 1 ? `?page=${page}` : "")),
+  discoverShelf: (id, page = 1, sort = null) => {
+    const query = [page > 1 && `page=${page}`, sort && `sort=${enc(sort)}`].filter(Boolean).join("&");
+    return call("GET", `/api/discover/shelves/${enc(id)}` + (query ? `?${query}` : ""));
+  },
   catalogueGenre: (kind, genre, category) => call("GET", `/api/catalogue/genre?kind=${enc(kind)}&name=${enc(genre)}`
     + (category ? `&category=${enc(category)}` : "")),
 
