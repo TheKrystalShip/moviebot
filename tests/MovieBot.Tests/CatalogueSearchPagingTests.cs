@@ -86,6 +86,25 @@ public sealed class CatalogueSearchPagingTests(SessionFixture fixture) : IClassF
     }
 
     [Fact]
+    public async Task The_lowest_rated_first_is_the_ranked_list_last_first_and_pages_over_it()
+    {
+        var best = Paged(91) + "&sort=rating";
+        var ranked = (await Get<CatalogueDiscoverView>(best)).Titles
+            .Concat((await Get<CatalogueDiscoverView>(best + "&page=2")).Titles)
+            .Concat((await Get<CatalogueDiscoverView>(best + "&page=3")).Titles).ToList();
+
+        var worst = Paged(91) + "&sort=lowest";
+        var one = await Get<CatalogueDiscoverView>(worst);
+        var two = await Get<CatalogueDiscoverView>(worst + "&page=2");
+        var three = await Get<CatalogueDiscoverView>(worst + "&page=3");
+
+        Assert.Equal((2, 3, (int?)null), (one.Next, two.Next, three.Next));
+        Assert.Equal("lowest", one.Resolved.Sort);
+        Assert.Equal(ranked.Select(t => t.TmdbId).Reverse(), one.Titles.Concat(two.Titles).Concat(three.Titles).Select(t => t.TmdbId));
+        Assert.Equal(3, Discoveries(91).Count);
+    }
+
+    [Fact]
     public async Task A_questions_count_bounds_the_titles_across_its_pages()
     {
         var ask = "/api/catalogue/ask?q=" + Uri.EscapeDataString("top 30 movies about paged");
@@ -137,6 +156,19 @@ public sealed class CatalogueSearchPagingTests(SessionFixture fixture) : IClassF
         Assert.Null(second.Next);
         Assert.Equal(3, fixture.FilmDatabase.Requests.Skip(before).Count(r => r.StartsWith("/3/discover/movie")));
         Assert.Empty(first.Titles.Select(t => t.ImdbId).Intersect(second.Titles.Select(t => t.ImdbId)));
+    }
+
+    [Fact]
+    public async Task A_shelf_lowest_rated_first_is_its_ranked_list_last_first()
+    {
+        var best = (await Get<ShelfView>("/api/discover/shelves/top-rated")).Titles
+            .Concat((await Get<ShelfView>("/api/discover/shelves/top-rated?page=2")).Titles).ToList();
+        var first = await Get<ShelfView>("/api/discover/shelves/top-rated?sort=lowest");
+        var second = await Get<ShelfView>("/api/discover/shelves/top-rated?sort=lowest&page=2");
+
+        Assert.Equal((CatalogueSearch.ShelfListed, 2), (first.Titles.Count, first.Next));
+        Assert.Null(second.Next);
+        Assert.Equal(best.Select(t => t.ImdbId).Reverse(), first.Titles.Concat(second.Titles).Select(t => t.ImdbId));
     }
 
     [Fact]

@@ -477,14 +477,17 @@ public sealed class DiscoverShelves(
     public async Task<Outcome<ShelfView>> ShelfAsync(string id, string? viewerId, int page, CancellationToken ct, string? sort = null, DiscoverPicks? picks = null)
     {
         if (page < 1 || page > CatalogueSearch.PagesListed) return Outcome<ShelfView>.Failed(Problem.Invalid, $"Page is 1 to {CatalogueSearch.PagesListed}.");
-        if (sort is not null && !Sorts.Contains(sort)) return Outcome<ShelfView>.Failed(Problem.Invalid, "Sort is rating, newest or oldest.");
+        if (sort is not null && !Sorts.Contains(sort)) return Outcome<ShelfView>.Failed(Problem.Invalid, "Sort is rating, lowest, newest or oldest.");
         var titles = library.Titles();
         var shelf = Find(id, viewerId, titles);
         if (shelf is null) return Outcome<ShelfView>.Failed(Problem.NotFound, "There is no shelf by that name.");
 
-        var listed = picks is { Any: true }
-            ? await PickedAsync(shelf, viewerId, titles, page, sort, picks, ct)
-            : await TitlesAsync(shelf, viewerId, titles, page, sort, ct);
+        Task<Outcome<ShelfPage>> PageOf(int p, string? order) => picks is { Any: true }
+            ? PickedAsync(shelf, viewerId, titles, p, order, picks, ct)
+            : TitlesAsync(shelf, viewerId, titles, p, order, ct);
+        var listed = ReversedSorts.Forward(sort) is { } forward
+            ? await ReversedAsync(p => PageOf(p, forward), page)
+            : await PageOf(page, sort);
         if (listed.Value is not { } found) return listed.Carry<ShelfView>();
         return Outcome<ShelfView>.Ok(new ShelfView
         {
@@ -596,6 +599,27 @@ public sealed class DiscoverShelves(
         return Outcome<ShelfPage>.Ok(new ShelfPage([.. all.DistinctBy(t => t.Kind + t.ImdbId).Take(limit)], null, title));
     }
 
+    /// <summary>
+    /// A page of a shelf in a reversed order: every page of the order it reverses, as
+    /// <paramref name="pageOf"/> answers them, read to the end and served last first.
+    /// </summary>
+    private static async Task<Outcome<ShelfPage>> ReversedAsync(Func<int, Task<Outcome<ShelfPage>>> pageOf, int page)
+    {
+        var all = new List<ShelfTitleView>();
+        string? title = null;
+        for (var p = 1; p <= CatalogueSearch.PagesListed && all.Count < CatalogueSearch.MostOnShelf; p++)
+        {
+            var answer = await pageOf(p);
+            if (answer.Value is not { } found) return answer;
+            title ??= found.Title;
+            all.AddRange(found.Titles);
+            if (found.Next is null) break;
+        }
+        var reversed = all.DistinctBy(t => t.Kind + t.ImdbId).Take(CatalogueSearch.MostOnShelf).Reverse().ToList();
+        var slice = new PageAsk(CatalogueSearch.MostOnShelf, CatalogueSearch.ShelfListed, page);
+        return Outcome<ShelfPage>.Ok(new ShelfPage([.. reversed.Skip(slice.Skip).Take(slice.Take)], slice.Next(reversed.Count > slice.Skip + slice.Size), title));
+    }
+
     private Shelf? Find(string id, string? viewerId, IReadOnlyList<TitleSummary> titles) =>
         ById.GetValueOrDefault(id) ?? Personal(viewerId, titles).FirstOrDefault(s => s.Id == id) ?? LikeShelf(id, titles) ?? PersonShelf(id);
 
@@ -650,9 +674,16 @@ public sealed class DiscoverShelves(
 
     /// <summary>
     /// The orders a shelf is served in besides its own. Each is the order of the whole shelf, made
-    /// where its titles come from, so every page continues the one before it.
+    /// where its titles come from, so every page continues the one before it; a reversed order
+    /// (<see cref="ReversedSorts"/>) is the shelf read whole in the order it reverses, last first.
     /// </summary>
-    public static readonly IReadOnlySet<string> Sorts = new HashSet<string>([DiscoverSorts.Rating, DiscoverSorts.Newest, DiscoverSorts.Oldest], StringComparer.Ordinal);
+    public static readonly IReadOnlySet<string> Sorts = new HashSet<string>([DiscoverSorts.Rating, ReversedSorts.Lowest, DiscoverSorts.Newest, DiscoverSorts.Oldest], StringComparer.Ordinal);
+
+    /// <summary>The name a shelf's own order is asked by.</summary>
+    public const string OwnOrder = "order";
+
+    /// <summary>Every order a shelf is served in, as its facets list them: its own first, then <see cref="Sorts"/>.</summary>
+    public static readonly IReadOnlyList<string> Orders = [OwnOrder, DiscoverSorts.Rating, ReversedSorts.Lowest, DiscoverSorts.Newest, DiscoverSorts.Oldest];
 
     private async Task<Outcome<ShelfPage>> TitlesAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, CancellationToken ct)
     {

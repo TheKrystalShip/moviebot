@@ -464,6 +464,17 @@ public sealed class CatalogueSearchTests(SessionFixture fixture) : IClassFixture
     }
 
     [Fact]
+    public async Task The_least_popular_are_asked_for_with_votes_behind_them()
+    {
+        var (view, asked) = await Discover("?genre=horror&goodOnly=false&sort=least-popular");
+
+        var discover = asked.Single(a => a.StartsWith("/3/discover/movie"));
+        Assert.Contains("sort_by=popularity.asc", discover);
+        Assert.Contains($"vote_count.gte={CatalogueSearch.RatedVotes}", discover);
+        Assert.Equal("least-popular", view!.Resolved.Sort);
+    }
+
+    [Fact]
     public async Task A_genre_of_shows_is_found_by_a_word_of_its_name()
     {
         var (view, asked) = await Discover("?kind=show&genre=action");

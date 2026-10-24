@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  BriefCard, CollectionTile, Icon, Shelf, Skeleton, Toolbar, ToolbarCount, ToolbarSort, ToolbarSpacer, useStoredFlag,
+  BriefCard, CollectionTile, Icon, Shelf, Skeleton, useStoredFlag,
 } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { POSTERS, TILES } from "../railDensity.js";
@@ -193,24 +193,58 @@ export function CategoryPage({ id, index, where, picks }) {
   );
 }
 
-const SHELF_SORTS = [
-  { value: "order", label: "Shelf order", defaultDir: "asc" },
-  { value: "rating", label: "Rating", defaultDir: "desc" },
-  { value: "year", label: "Release date", defaultDir: "desc" },
+/**
+ * The words for each order the API serves Discover's answers in (their facets' `sorts`), and the sort
+ * key and direction each is kept as. An order the API names that has no words here is offered by its
+ * name.
+ */
+const ORDER_WORDS = {
+  order: { label: "Shelf order", key: "order", dir: "asc" },
+  popular: { label: "Most popular", key: "popular", dir: "desc" },
+  "least-popular": { label: "Least popular", key: "popular", dir: "asc" },
+  rating: { label: "Highest rated", key: "rating", dir: "desc" },
+  lowest: { label: "Lowest rated", key: "rating", dir: "asc" },
+  newest: { label: "Newest first", key: "year", dir: "desc" },
+  oldest: { label: "Oldest first", key: "year", dir: "asc" },
+};
+
+/** The filter's sort keys as `useSort` keeps them, each in the direction it opens in. */
+const FILTER_SORTS = [
+  { value: "popular", defaultDir: "desc" },
+  { value: "rating", defaultDir: "desc" },
+  { value: "year", defaultDir: "desc" },
 ];
 
-/**
- * The order the shelf route serves a shelf in, from the toolbar's key and direction: absent for the
- * shelf's own. The API orders the whole shelf, so a page read later continues the grid and moves
- * nothing already in it.
- */
-const shelfSort = ({ key, dir }) => (key === "year" ? (dir === "asc" ? "oldest" : "newest") : key === "rating" ? "rating" : null);
+/** An order as the API names it, with its words, key and direction. */
+const orderOf = (sort) => ({ sort, ...(ORDER_WORDS[sort] || { label: sort, key: sort, dir: "desc" }) });
 
-/** The toolbar's key and direction for the order a shelf's address names; the shelf's own for any other. */
-const shelfOrder = (param) => (param === "rating" ? { key: "rating", dir: "desc" }
-  : param === "newest" ? { key: "year", dir: "desc" }
-    : param === "oldest" ? { key: "year", dir: "asc" }
-      : { key: "order", dir: "asc" });
+/** The API's name for an order kept as a key and a direction. */
+const sortOf = ({ key, dir }) => Object.keys(ORDER_WORDS).find((s) => ORDER_WORDS[s].key === key && ORDER_WORDS[s].dir === dir);
+
+/**
+ * The order of what Discover shows, when what it shows is a shelf or the filter's answers, and the orders
+ * the drawer offers for it, which are the ones the answer's facets say it is served in (`sorts`). A
+ * shelf's order is the address's (`sort`), its own when it names none, so it holds through a reload and
+ * Back and is no other shelf's; the filter's is the address's, else the one the person last picked
+ * there, and a pick is kept as theirs. `{sort, orders, order, pick(key, dir)}`, `sort` the route's name
+ * for the order (null for a shelf's own), or null on a page with no order.
+ */
+export function useDiscoverOrder(query, sorts, { shelf, filtering }) {
+  const [picked, keep] = useSort(SORTED.filter, FILTER_SORTS);
+  if (!shelf && !filtering) return null;
+  const named = query.get("sort");
+  const sort = named || (shelf ? "order" : sortOf(picked) || "popular");
+  const orders = sorts.map(orderOf);
+  const pick = (key, dir) => {
+    const next = orders.find((o) => o.key === key && o.dir === dir);
+    if (!next) return;
+    if (filtering) keep(key, dir);
+    const address = new URLSearchParams(query);
+    if (next.sort === "order") address.delete("sort"); else address.set("sort", next.sort);
+    navigate("/discover?" + address.toString(), { replace: true });
+  };
+  return { sort: sort === "order" ? null : sort, orders, order: orderOf(sort), pick };
+}
 
 /**
  * The next page of a grid, read as its end comes near: a plain skeleton of cards while it is read, and
@@ -246,20 +280,11 @@ export function MoreCards({ paged }) {
 }
 
 /**
- * Every title on one shelf, a page at a time as the grid reaches its end, with krystal's Toolbar as on
- * the library's pages: an order and how many are shown. It opens in the order its rail
- * shows; an order picked here is the address's (`sort`), so it holds through a reload and Back and is no
- * other shelf's. The filter drawer's `picks` are asked of the shelf, and what the person watched is left
- * off when they hide it.
+ * Every title on one shelf, a page at a time as the grid reaches its end, in the order the route names
+ * `sort` (`useDiscoverOrder`). The filter drawer's `picks` are asked of the shelf, and what the person
+ * watched is left off when they hide it.
  */
-export function ShelfPage({ id, sort: param, where, picks }) {
-  const sort = shelfOrder(param);
-  const order = shelfSort(sort);
-  const setSort = (key, dir) => {
-    const next = new URLSearchParams(window.location.search);
-    if (shelfSort({ key, dir })) next.set("sort", shelfSort({ key, dir })); else next.delete("sort");
-    navigate("/discover?" + next.toString(), { replace: true });
-  };
+export function ShelfPage({ id, sort: order, where, picks }) {
   const asked = apiPicks(picks);
   const shelf = usePaged((page) => api.discoverShelf(id, page, order, asked), [id, order, JSON.stringify(asked)]);
   const [hideWatched] = useHideWatched();
@@ -274,11 +299,6 @@ export function ShelfPage({ id, sort: param, where, picks }) {
   return (
     <section className="kc-shelf">
       <BrowseHead eyebrow={s.section} icon={s.icon} title={s.title} />
-      <Toolbar>
-        <ToolbarSort value={sort.key} dir={sort.dir} onChange={setSort} options={SHELF_SORTS} />
-        <ToolbarSpacer />
-        <ToolbarCount shown={shown.length} total={atLeast(all.length, shelf.next)} unit="titles" />
-      </Toolbar>
       {shown.length > 0
         ? <div className="kc-grid">{shown.map((t) => <FoundCard key={t.kind + t.imdbId} found={t} {...where(t)} />)}</div>
         : <Empty icon="compass" title={filtered ? "Nothing matches" : "Nothing on this shelf"} />}
@@ -288,40 +308,12 @@ export function ShelfPage({ id, sort: param, where, picks }) {
   );
 }
 
-const FILTER_SORTS = [
-  { value: "popular", label: "Popularity", defaultDir: "desc" },
-  { value: "rating", label: "Rating", defaultDir: "desc" },
-  { value: "year", label: "Release date", defaultDir: "desc" },
-];
-
-/** The filter's order as the address and the catalogue name it, from the toolbar's key and direction. */
-const sortParam = ({ key, dir }) => (key === "year" ? (dir === "asc" ? "oldest" : "newest") : key);
-
-/** The toolbar's key and direction for the order the address names. */
-const sortOrder = (param) => (param === "newest" || param === "oldest"
-  ? { key: "year", dir: param === "oldest" ? "asc" : "desc" }
-  : { key: param, dir: "desc" });
-
-const SORT_PARAMS = ["popular", "rating", "newest", "oldest"];
-
-/**
- * Discover's filter: the catalogue's films and shows at the drawer's picks, in an order. An address
- * that names no order is in the order the person last picked here.
- */
-export function FilterPage({ query, picks, where }) {
+/** Discover's filter: the catalogue's films and shows at the drawer's picks, in the order the route names `sort`. */
+export function FilterPage({ picks, where, sort }) {
   const [hideWatched] = useHideWatched();
-  const [picked, pick] = useSort(SORTED.filter, FILTER_SORTS);
-  const named = SORT_PARAMS.includes(query.get("sort")) ? query.get("sort") : "";
-  const sort = named || sortParam(picked);
-  const order = sortOrder(sort);
   const question = filterQuestion(picks, sort);
   const key = JSON.stringify(question);
   const found = usePaged((page) => api.catalogueDiscover(question, page), [key]);
-  const setSort = (s) => {
-    const next = new URLSearchParams(query);
-    next.set("sort", s);
-    navigate("/discover?" + next.toString(), { replace: true });
-  };
 
   const all = found.titles ? found.titles.filter((t) => t.imdbId).map((t) => ({ ...t, starring: t.starring.join(", ") })) : null;
   const titles = all && (hideWatched ? all.filter((t) => !t.watched) : all);
@@ -329,16 +321,6 @@ export function FilterPage({ query, picks, where }) {
   return (
     <section className="kc-shelf">
       <BrowseHead eyebrow="Discover" icon="sliders-horizontal" title="Filter" />
-      <Toolbar>
-        <ToolbarSort value={order.key} dir={order.dir}
-          onChange={(k, dir) => {
-            pick(k, dir);
-            setSort(sortParam({ key: k, dir }));
-          }}
-          options={FILTER_SORTS} />
-        <ToolbarSpacer />
-        {titles && <ToolbarCount shown={titles.length} total={atLeast(all.length, found.next)} unit="titles" />}
-      </Toolbar>
       {found.error && <Failed error={found.error} onRetry={found.reload} />}
       {!titles && !found.error && <CardsSkeleton count={12} />}
       {titles && (titles.length > 0

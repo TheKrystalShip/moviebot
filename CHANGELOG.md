@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.78.0] - 2026-10-24
+
+### Added
+- A page's order is the filter drawer's first section, Sort by (krystal 9.2.0), on the site and on a
+  television: each order named with its direction and beside its opposite (Highest and Lowest rated,
+  Newest and Oldest first, Recently and First added, Name A–Z and Z–A, Shortest and Longest first,
+  Most and Least wanted, Most and Least popular). It is no filter, so it is never counted or a chip and
+  Clear all leaves it. On a television Movies, TV Shows and Anime order each genre's row by it.
+- `lowest` on `/api/catalogue/discover` and `/api/discover/shelves/{id}`: the titles a sort by rating
+  ranks, served lowest first. `least-popular` on `/api/catalogue/discover`: the least looked-at titles
+  first, each with at least 25 votes unless `minVotes` names the floor.
+- A facets answer's `sorts`: the orders its answers are served in, the one they open in first. Discover
+  offers a shelf's and the filter's orders from it.
+
+### Changed
+- Movies, TV Shows, Anime and Want to watch say how many titles they hold under their heading, and how
+  many of them are shown while a search or a pick narrows them. Discover's shelves and the filter's
+  answers carry no count.
+
 ## [3.77.0] - 2026-10-24
 
 ### Changed

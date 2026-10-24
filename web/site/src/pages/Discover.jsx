@@ -17,8 +17,9 @@ import { PlanButton } from "../components/PlanButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
 import {
-  CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, MoreCards, ShelfPage, useHideWatched,
+  CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, MoreCards, ShelfPage, useDiscoverOrder, useHideWatched,
 } from "./DiscoverShelves.jsx";
+import { withOrder } from "../orders.js";
 import { apiPicks, drawerValues, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, useFacets, withPicks } from "../filters.js";
 import { openingEpisode, watchOpening } from "../watchNow.js";
 
@@ -43,7 +44,8 @@ export const DISCOVER_FIELD = "kc-discover-field";
  *
  * The filter drawer in the field filters whatever the page answers: Discover's catalogue, a question, a
  * person's titles, a genre's, a shelf and a category's shelves. Its sections are the ones the answer's
- * facets report, and picking anything with nothing typed opens the filter's answers. With picks on a
+ * facets report, and picking anything with nothing typed opens the filter's answers. On a shelf and on
+ * the filter's answers, which are lists in an order, it holds their order too (`useDiscoverOrder`). With picks on a
  * search, the question's titles alone are shown, since nothing else found by name answers them.
  */
 export function Discover({ query }) {
@@ -65,6 +67,8 @@ export function Discover({ query }) {
   const pickKey = JSON.stringify(asked);
   const narrowed = pickCount(picks) > 0;
   const [hideWatched, setHideWatched] = useHideWatched();
+  const showsShelf = !q && !person && !genre && !!shelf;
+  const showsFilter = !q && !person && !genre && !shelf && !category && filtering;
 
   const downloading = useCan("cinema:download");
   const wishing = useCan("cinema:wish");
@@ -125,6 +129,7 @@ export function Discover({ query }) {
           : category ? (section && !section.series ? () => api.discoverSectionFacets(category, asked) : null)
             : online ? () => api.catalogueDiscoverFacets(filterQuestion(picks)) : null;
   const facets = useFacets(facetsFor, [q, person, genre, genreKind, genreCategory, shelf, category, !!section, online, pickKey].join("|"));
+  const ordering = useDiscoverOrder(query, (facets && facets.sorts) || [], { shelf: showsShelf, filtering: showsFilter });
   const sections = facetsFor ? sectionsOf(facets, picks, { watched: !person && !genre }) : [];
   // A search that is no question has nothing to filter; its drawer appears once its facets say otherwise.
   const filterable = sections.some((s) => s.kind !== "toggle") && (!q || narrowed || (facets && facets.sections.length > 0));
@@ -135,8 +140,11 @@ export function Discover({ query }) {
     const landing = !q && !browsing;
     navigate(withPicks(landing ? new URLSearchParams(discoverFilterPath().split("?")[1]) : query, nextPicks), { replace: !landing });
   };
-  const drawer = filterable
-    ? <FilterDrawer sections={sections} values={drawerValues(picks, hideWatched)} onChange={change} />
+  const drawn = { sections, values: drawerValues(picks, hideWatched), onValues: change };
+  const offered = ordering && ordering.orders.length > 0;
+  const ordered = offered ? withOrder(drawn, ordering.orders, ordering.order, ordering.pick) : drawn;
+  const drawer = filterable || offered
+    ? <FilterDrawer sections={ordered.sections} values={ordered.values} onChange={ordered.onValues} />
     : undefined;
 
   return (
@@ -149,9 +157,9 @@ export function Discover({ query }) {
 
       {!q && person && <PersonWork key={person} personId={person} picks={picks} where={where} />}
       {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} picks={picks} where={where} />}
-      {!q && !person && !genre && shelf && <ShelfPage key={shelf} id={shelf} sort={query.get("sort")} picks={picks} where={where} />}
+      {showsShelf && <ShelfPage key={shelf} id={shelf} sort={ordering.sort} picks={picks} where={where} />}
       {!q && !person && !genre && !shelf && category && <CategoryPage key={category} id={category} index={index} picks={picks} where={where} />}
-      {!q && !person && !genre && !shelf && !category && filtering && <FilterPage query={query} picks={picks} where={where} />}
+      {showsFilter && <FilterPage sort={ordering.sort} picks={picks} where={where} />}
       {!q && !browsing && index.error && !index.data && <Failed error={index.error} onRetry={index.reload} />}
       {!q && !browsing && !index.data && !index.error && <FrontSkeleton />}
       {!q && !browsing && index.data && (

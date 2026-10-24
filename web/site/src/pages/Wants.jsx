@@ -1,9 +1,10 @@
 import React from "react";
-import { PosterCard, Toolbar, ToolbarCount, ToolbarSort, ToolbarSpacer } from "@thekrystalship/krystal";
+import { PosterCard } from "@thekrystalship/krystal";
 import { episodeCode } from "../api.js";
 import { discoverFilmPath, moviePath, showPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { SORTED, useSort } from "../sorts.js";
+import { shownOf, withOrder } from "../orders.js";
 import { ago, clock } from "../time.js";
 import { refreshWants, useWantList } from "../wants.js";
 import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
@@ -65,14 +66,34 @@ export function WantCard({ want: w, action }) {
   );
 }
 
-// Each comparator orders ascending; the toolbar's direction reverses it.
+// Each comparator orders ascending; an order's direction reverses it.
 export const WANT_SORTS = [
-  { value: "since", label: "Date added", defaultDir: "desc", compare: (a, b) => a.since.localeCompare(b.since) },
-  { value: "name", label: "Name", defaultDir: "asc", compare: (a, b) => a.title.localeCompare(b.title) },
-  { value: "year", label: "Year", defaultDir: "desc", compare: (a, b) => (a.year || 0) - (b.year || 0) },
-  { value: "rating", label: "Rating", defaultDir: "desc", compare: (a, b) => (a.rating || 0) - (b.rating || 0) },
-  { value: "others", label: "Others", defaultDir: "desc", compare: (a, b) => a.others - b.others },
+  { value: "since", defaultDir: "desc", compare: (a, b) => a.since.localeCompare(b.since) },
+  { value: "name", defaultDir: "asc", compare: (a, b) => a.title.localeCompare(b.title) },
+  { value: "year", defaultDir: "desc", compare: (a, b) => (a.year || 0) - (b.year || 0) },
+  { value: "rating", defaultDir: "desc", compare: (a, b) => (a.rating || 0) - (b.rating || 0) },
+  { value: "others", defaultDir: "desc", compare: (a, b) => a.others - b.others },
 ];
+
+/** The orders the drawer offers the wants; "wanted" counts the other people who want a title too. */
+export const WANT_ORDERS = [
+  { key: "since", dir: "desc", label: "Recently added" },
+  { key: "since", dir: "asc", label: "First added" },
+  { key: "name", dir: "asc", label: "Name A–Z" },
+  { key: "name", dir: "desc", label: "Name Z–A" },
+  { key: "rating", dir: "desc", label: "Highest rated" },
+  { key: "rating", dir: "asc", label: "Lowest rated" },
+  { key: "year", dir: "desc", label: "Newest first" },
+  { key: "year", dir: "asc", label: "Oldest first" },
+  { key: "others", dir: "desc", label: "Most wanted" },
+  { key: "others", dir: "asc", label: "Least wanted" },
+];
+
+/** A want's order as `useSort` keeps it, applied to the wants a filter shows. */
+export const ordered = (wants, sort) => {
+  const order = WANT_SORTS.find((s) => s.value === sort.key) || WANT_SORTS[0];
+  return [...wants].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
+};
 
 /** Where a want can stand, by the words the State section and its address use. */
 export const WANT_STATES = [
@@ -109,22 +130,14 @@ export function Wants() {
 
   const all = list || [];
   const filter = useWantFilter(all);
-  const order = WANT_SORTS.find((s) => s.value === sort.key) || WANT_SORTS[0];
-  const shown = [...filter.shown].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
+  const shown = ordered(filter.shown, sort);
 
   return (
     <div className="kc-page">
-      <PageHead title="Want to watch" />
+      <PageHead title="Want to watch" sub={list ? shownOf(shown.length, all.length, ["title", "titles"]) : null} />
 
       {all.length > 0 && (
-        <>
-          <FilterField placeholder="Search what you want to watch" {...filter.field} />
-          <Toolbar>
-            <ToolbarSort value={sort.key} dir={sort.dir} onChange={setSort} options={WANT_SORTS} />
-            <ToolbarSpacer />
-            <ToolbarCount shown={shown.length} total={all.length} unit="titles" />
-          </Toolbar>
-        </>
+        <FilterField placeholder="Search what you want to watch" {...filter.field} {...withOrder(filter.field, WANT_ORDERS, sort, setSort)} />
       )}
 
       <Failed error={list ? null : error} onRetry={reload} />

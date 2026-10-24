@@ -59,18 +59,19 @@ public static class DiscoverEndpoints
         {
             if (CatalogueSearchEndpoints.Picks(kind, category, anyGenre, decade, length, minRating, language) is not { } picks) return CatalogueSearchEndpoints.BadDecade();
             var outcome = await shelves.ShelfAsync(id, PeopleEndpoints.Person(context)?.UserId, page ?? 1, ct,
-                string.IsNullOrWhiteSpace(sort) || sort == "order" ? null : sort, picks);
+                string.IsNullOrWhiteSpace(sort) || sort == DiscoverShelves.OwnOrder ? null : sort, picks);
             return outcome.Value is { } shelf ? Results.Ok(shelf) : Refused(outcome);
         }).RequireAction(CinemaActions.Watch);
 
-        // Which options each section of a shelf holds, with the filter's picks on it.
+        // Which options each section of a shelf holds, with the filter's picks on it, and the orders the
+        // shelf is served in.
         app.MapGet("/api/discover/shelves/{id}/facets", async (string id, string? kind, string? category, [FromQuery] string[]? anyGenre, [FromQuery] string[]? decade,
             [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
             HttpContext context, DiscoverShelves shelves, CancellationToken ct) =>
         {
             if (CatalogueSearchEndpoints.Picks(kind, category, anyGenre, decade, length, minRating, language) is not { } picks) return CatalogueSearchEndpoints.BadDecade();
             var outcome = await shelves.FacetsAsync(id, PeopleEndpoints.Person(context)?.UserId, picks, ct);
-            return outcome.Value is { } facets ? Results.Ok(facets) : Refused(outcome);
+            return outcome.Value is { } facets ? Results.Ok(facets with { Sorts = DiscoverShelves.Orders }) : Refused(outcome);
         }).RequireAction(CinemaActions.Watch);
 
         // Which options a browse category's shelves hold, together, with the filter's picks on each.

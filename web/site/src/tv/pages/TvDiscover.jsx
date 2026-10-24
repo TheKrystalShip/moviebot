@@ -11,6 +11,8 @@ import { foundPage } from "../../components/TitleCards.jsx";
 import { Failed } from "../../components/Film.jsx";
 import { startFilm } from "./TvFilm.jsx";
 import { TvCategory, TvDiscoverFront, TvFilter, TvShelf } from "./TvDiscoverShelves.jsx";
+import { useDiscoverOrder } from "../../pages/DiscoverShelves.jsx";
+import { withOrder } from "../../orders.js";
 import {
   apiPicks, drawerValues, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, useDrawer, useFacets, withPicks,
 } from "../../filters.js";
@@ -26,7 +28,8 @@ import {
  *
  * The filter drawer in the field filters what the page shows with nothing typed: the catalogue, a
  * person's titles, a genre's, a shelf and a category's shelves, by the sections the answer's facets
- * report. Picking anything on the front opens the filter's answers. Back goes to the drawer first, and
+ * report, and on a shelf and the filter's answers their order (`useDiscoverOrder`). Picking anything on
+ * the front opens the filter's answers. Back goes to the drawer first, and
  * the page under the open drawer is inert, so the remote's arrows stay in it.
  */
 export function TvDiscover({ query }) {
@@ -39,6 +42,8 @@ export function TvDiscover({ query }) {
   const category = (query.get("browse") || "").trim();
   const filtering = query.has("filter");
   const browsing = !q && !!(person || genre || shelf || category || filtering);
+  const showsShelf = !q && !person && !genre && !!shelf;
+  const showsFilter = !q && !person && !genre && !shelf && !category && filtering;
   const picks = readPicks(query);
   const asked = apiPicks(picks);
   const pickKey = JSON.stringify(asked);
@@ -80,6 +85,7 @@ export function TvDiscover({ query }) {
           : category ? (section && !section.series ? () => api.discoverSectionFacets(category, asked) : null)
             : () => api.catalogueDiscoverFacets(filterQuestion(picks));
   const facets = useFacets(facetsFor, [q, person, genre, genreKind, genreCategory, shelf, category, !!section, pickKey].join("|"));
+  const ordering = useDiscoverOrder(query, (facets && facets.sorts) || [], { shelf: showsShelf, filtering: showsFilter });
   const sections = facetsFor ? sectionsOf(facets, picks, { watched: false }) : [];
   const change = (next) => {
     const nextPicks = picksOfValues(next);
@@ -87,8 +93,11 @@ export function TvDiscover({ query }) {
     const landing = !q && !browsing;
     navigate(withPicks(landing ? new URLSearchParams(discoverFilterPath().split("?")[1]) : query, nextPicks), { replace: !landing });
   };
-  const filters = sections.length > 0
-    ? <FilterDrawer ref={drawer.ref} onOpenChange={drawer.onOpenChange} sections={sections} values={drawerValues(picks, false)} onChange={change} />
+  const drawn = { sections, values: drawerValues(picks, false), onValues: change };
+  const offered = ordering && ordering.orders.length > 0;
+  const ordered = offered ? withOrder(drawn, ordering.orders, ordering.order, ordering.pick) : drawn;
+  const filters = sections.length > 0 || offered
+    ? <FilterDrawer ref={drawer.ref} onOpenChange={drawer.onOpenChange} sections={ordered.sections} values={ordered.values} onChange={ordered.onValues} />
     : undefined;
 
   return (
@@ -100,9 +109,9 @@ export function TvDiscover({ query }) {
       {!q && person && <PersonWork key={person} personId={person} picks={picks} where={where} />}
       {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} picks={picks} where={where} />}
 
-      {!q && !person && !genre && shelf && <TvShelf key={shelf} id={shelf} picks={picks} where={where} />}
+      {showsShelf && <TvShelf key={shelf} id={shelf} sort={ordering.sort} picks={picks} where={where} />}
       {!q && !person && !genre && !shelf && category && <TvCategory key={category} id={category} index={index} picks={picks} where={where} />}
-      {!q && !person && !genre && !shelf && !category && filtering && <TvFilter picks={picks} where={where} />}
+      {showsFilter && <TvFilter sort={ordering.sort} picks={picks} where={where} />}
       {!q && !browsing && index.error && !index.data && <div className="kc-tv-pad"><Failed error={index.error} onRetry={index.reload} /></div>}
       {!q && !browsing && index.data && <TvDiscoverFront index={index.data} where={where} />}
 

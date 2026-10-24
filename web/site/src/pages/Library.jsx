@@ -1,10 +1,11 @@
-import { RadioGroup, Toolbar, ToolbarCount, ToolbarSort, ToolbarSpacer } from "@thekrystalship/krystal";
+import { RadioGroup } from "@thekrystalship/krystal";
 import { filmName } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLibrary } from "../offline/hooks.js";
 import { ANIME, discoverGenrePath, isAnime, libraryPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { SORTED, useSort } from "../sorts.js";
+import { shownOf, withOrder } from "../orders.js";
 import { Empty, Failed, FilmCard, PageHead, ShowCard } from "../components/Film.jsx";
 import { FilterField, useTitleFilter } from "../components/FilterField.jsx";
 import { MoreTile } from "../components/TitleCards.jsx";
@@ -16,13 +17,30 @@ const downloadedSection = { id: "downloaded", label: "Download", kind: "toggle",
 const rating = (t) => (t.details && t.details.rating) || 0;
 const year = (t) => (t.film && t.film.year) || 0;
 
-// Each comparator orders ascending; the toolbar's direction reverses it.
-const SORTS = [
-  { value: "added", label: "Recently added", defaultDir: "desc", compare: (a, b) => (a.addedAt || "").localeCompare(b.addedAt || "") },
-  { value: "name", label: "Name", defaultDir: "asc", compare: (a, b) => filmName(a).localeCompare(filmName(b)) },
-  { value: "rating", label: "Rating", defaultDir: "desc", compare: (a, b) => rating(a) - rating(b) },
-  { value: "year", label: "Year", defaultDir: "desc", compare: (a, b) => year(a) - year(b) },
-  { value: "length", label: "Length", defaultDir: "asc", compare: (a, b) => a.durationSeconds - b.durationSeconds },
+// Each comparator orders ascending; an order's direction reverses it.
+export const SORTS = [
+  { value: "added", defaultDir: "desc", compare: (a, b) => (a.addedAt || "").localeCompare(b.addedAt || "") },
+  { value: "name", defaultDir: "asc", compare: (a, b) => filmName(a).localeCompare(filmName(b)) },
+  { value: "rating", defaultDir: "desc", compare: (a, b) => rating(a) - rating(b) },
+  { value: "year", defaultDir: "desc", compare: (a, b) => year(a) - year(b) },
+  { value: "length", defaultDir: "asc", compare: (a, b) => a.durationSeconds - b.durationSeconds },
+];
+
+/** The orders the drawer offers a shelf of films, and of shows, which have no length. */
+export const SHOW_ORDERS = [
+  { key: "added", dir: "desc", label: "Recently added" },
+  { key: "added", dir: "asc", label: "First added" },
+  { key: "name", dir: "asc", label: "Name A–Z" },
+  { key: "name", dir: "desc", label: "Name Z–A" },
+  { key: "rating", dir: "desc", label: "Highest rated" },
+  { key: "rating", dir: "asc", label: "Lowest rated" },
+  { key: "year", dir: "desc", label: "Newest first" },
+  { key: "year", dir: "asc", label: "Oldest first" },
+];
+export const FILM_ORDERS = [
+  ...SHOW_ORDERS,
+  { key: "length", dir: "asc", label: "Shortest first" },
+  { key: "length", dir: "desc", label: "Longest first" },
 ];
 
 // What each shelf calls itself and its titles: the general shelves by kind, and Anime's by kind under it.
@@ -102,11 +120,11 @@ function Switches({ kind, category }) {
   );
 }
 
-const SHOW_SORTS = [
-  { value: "added", label: "Recently added", defaultDir: "desc", compare: (a, b) => (a.addedAt || "").localeCompare(b.addedAt || "") },
-  { value: "name", label: "Name", defaultDir: "asc", compare: (a, b) => a.title.localeCompare(b.title) },
-  { value: "rating", label: "Rating", defaultDir: "desc", compare: (a, b) => rating(a) - rating(b) },
-  { value: "year", label: "First aired", defaultDir: "desc", compare: (a, b) => (a.firstYear || 0) - (b.firstYear || 0) },
+export const SHOW_SORTS = [
+  { value: "added", defaultDir: "desc", compare: (a, b) => (a.addedAt || "").localeCompare(b.addedAt || "") },
+  { value: "name", defaultDir: "asc", compare: (a, b) => a.title.localeCompare(b.title) },
+  { value: "rating", defaultDir: "desc", compare: (a, b) => rating(a) - rating(b) },
+  { value: "year", defaultDir: "desc", compare: (a, b) => (a.firstYear || 0) - (b.firstYear || 0) },
 ];
 
 /**
@@ -131,18 +149,11 @@ function ShowLibrary({ category, fromDevice }) {
 
   return (
     <div className="kc-page">
-      <PageHead title={words.title} sub={shows.data ? `${all.length} ${all.length === 1 ? words.unit[0] : words.unit[1]}` : null} />
+      <PageHead title={words.title} sub={shows.data ? shownOf(shown.length, all.length, words.unit) : null} />
       <Switches kind="show" category={category} />
 
       {all.length > 0 && (
-        <>
-          <FilterField placeholder={`Search ${words.unit[1]}`} {...filter.field} />
-          <Toolbar>
-            <ToolbarSort value={sort.key} dir={sort.dir} onChange={setSort} options={SHOW_SORTS} />
-            <ToolbarSpacer />
-            <ToolbarCount shown={shown.length} total={all.length} unit={words.unit[1]} />
-          </Toolbar>
-        </>
+        <FilterField placeholder={`Search ${words.unit[1]}`} {...filter.field} {...withOrder(filter.field, SHOW_ORDERS, sort, setSort)} />
       )}
 
       <Failed error={shows.error} onRetry={shows.reload} />
@@ -181,22 +192,14 @@ function FilmLibrary({ category, fromDevice }) {
   const order = SORTS.find((s) => s.value === sort.key) || SORTS[0];
   const shown = [...filter.shown].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * order.compare(a, b));
   const genre = filter.picks.genre.length === 1 ? filter.picks.genre[0] : null;
-  const unit = all.length === 1 ? words.unit[0] : words.unit[1];
 
   return (
     <div className="kc-page">
-      <PageHead title={words.title} sub={titles.data ? `${all.length} ${unit}` : null} />
+      <PageHead title={words.title} sub={titles.data ? shownOf(shown.length, all.length, words.unit) : null} />
       <Switches kind={kind} category={category} />
 
       {all.length > 0 && (
-        <>
-          <FilterField placeholder={`Search ${words.unit[1]}`} {...filter.field} />
-          <Toolbar>
-            <ToolbarSort value={sort.key} dir={sort.dir} onChange={setSort} options={SORTS} />
-            <ToolbarSpacer />
-            <ToolbarCount shown={shown.length} total={all.length} unit={words.unit[1]} />
-          </Toolbar>
-        </>
+        <FilterField placeholder={`Search ${words.unit[1]}`} {...filter.field} {...withOrder(filter.field, FILM_ORDERS, sort, setSort)} />
       )}
 
       <Failed error={titles.error} onRetry={titles.reload} />

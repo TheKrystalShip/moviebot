@@ -100,13 +100,14 @@ public static class CatalogueSearchEndpoints
             });
         }).RequireAction(CinemaActions.Watch);
 
-        // Which options each section of a discovery's answers holds, with every other section's picks on it.
+        // Which options each section of a discovery's answers holds, with every other section's picks on
+        // it, and the orders a discovery is served in.
         app.MapGet("/api/catalogue/discover/facets", async (HttpContext context, CatalogueSearch search, CancellationToken ct) =>
         {
             var (request, refusal) = Discovery(context.Request.Query);
             if (request is null) return refusal!;
             var outcome = await search.DiscoverFacetsAsync(request, new HashSet<string>(), ct);
-            return outcome.Value is { } facets ? Results.Ok(facets) : Refused(outcome);
+            return outcome.Value is { } facets ? Results.Ok(facets with { Sorts = CatalogueSearch.DiscoverOrders }) : Refused(outcome);
         }).RequireAction(CinemaActions.Watch);
 
         // What came out lately and what has a date coming, the most looked at of each; with

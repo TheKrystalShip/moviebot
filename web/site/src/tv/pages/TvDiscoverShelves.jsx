@@ -145,10 +145,10 @@ export function TvCategory({ id, index, where, picks }) {
   );
 }
 
-/** Every title on one shelf, on a television, in rows that wrap, at the filter's `picks`. */
-export function TvShelf({ id, where, picks }) {
+/** Every title on one shelf, on a television, in rows that wrap, in the order the route names `sort` and at the filter's `picks`. */
+export function TvShelf({ id, sort, where, picks }) {
   const asked = apiPicks(picks);
-  const shelf = useLoad(() => api.discoverShelf(id, 1, null, asked), [id, JSON.stringify(asked)]);
+  const shelf = useLoad(() => api.discoverShelf(id, 1, sort, asked), [id, sort, JSON.stringify(asked)]);
   const s = shelf.data;
   if (shelf.error && !s) return <div className="kc-tv-pad"><Failed error={shelf.error} onRetry={shelf.reload} /></div>;
   if (!s) return null;
@@ -170,9 +170,9 @@ export function TvShelf({ id, where, picks }) {
   );
 }
 
-/** The catalogue's films and shows at the filter's `picks`, on a television, in rows that wrap. */
-export function TvFilter({ picks, where }) {
-  const question = filterQuestion(picks);
+/** The catalogue's films and shows at the filter's `picks`, in the order the route names `sort`, on a television, in rows that wrap. */
+export function TvFilter({ sort, picks, where }) {
+  const question = filterQuestion(picks, sort);
   const found = useLoad(() => api.catalogueDiscover(question), [JSON.stringify(question)]);
   const titles = found.data ? found.data.titles.filter((t) => t.imdbId) : null;
   if (found.error && !titles) return <div className="kc-tv-pad"><Failed error={found.error} onRetry={found.reload} /></div>;

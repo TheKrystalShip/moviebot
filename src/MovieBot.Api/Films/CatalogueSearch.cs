@@ -111,6 +111,19 @@ public sealed record DiscoverRequest
 /// <summary>A discovery's page of titles; <paramref name="Next"/> is the page that follows it, absent on the last.</summary>
 public sealed record DiscoverAnswer(string Kind, DiscoverResolved Resolved, List<TitleHit> Hits, int? Next);
 
+/// <summary>
+/// The orders served as the reverse of another: the other order's titles read to their end and served
+/// last first. <see cref="Lowest"/> is the reverse of <see cref="DiscoverSorts.Rating"/>, so it ranks
+/// the same titles the best rated first would.
+/// </summary>
+public static class ReversedSorts
+{
+    public const string Lowest = "lowest";
+
+    /// <summary>The order <paramref name="sort"/> reverses, or null for an order that reverses none.</summary>
+    public static string? Forward(string? sort) => sort == Lowest ? DiscoverSorts.Rating : null;
+}
+
 public sealed record ListAnswer(string Kind, DateOnly From, DateOnly To, List<TitleHit> Hits, int? Next);
 
 /// <summary>A page of titles each with its card; <paramref name="Next"/> is the page that follows it, absent on the last.</summary>
@@ -200,7 +213,10 @@ public sealed partial class CatalogueSearch(
     /// <summary>The genres a title for children is filed under, by the database's names for them.</summary>
     private static readonly HashSet<string> ChildrensGenres = new(["Animation", "Family", "Kids"], StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>The votes a sort by rating needs behind a title, so one vote of ten is not the best film there is.</summary>
+    /// <summary>
+    /// The votes a sort by rating or by the least looked at needs behind a title, so one vote of ten is
+    /// not the best film there is and a title nobody has heard of is not the least popular.
+    /// </summary>
     public const int RatedVotes = 25;
 
     /// <summary>The votes a question of a studio's work needs behind a title, the studios shelf's own floor, and no floor on its rating.</summary>
@@ -316,6 +332,7 @@ public sealed partial class CatalogueSearch(
     /// </summary>
     public async Task<Outcome<DiscoverAnswer>> DiscoverAsync(DiscoverRequest request, CancellationToken ct)
     {
+        if (ReversedSorts.Forward(request.Sort) is { } forward) return await ReversedAsync(request, forward, ct);
         var planned = await PlanAsync(request, ct);
         if (planned.Value is not { } plan) return planned.Carry<DiscoverAnswer>();
 
@@ -329,21 +346,51 @@ public sealed partial class CatalogueSearch(
     }
 
     /// <summary>
+    /// A discovery in the reverse of the <paramref name="forward"/> order: that order read to its end, to
+    /// the request's limit, and served last first, so every page continues the one before it.
+    /// </summary>
+    private async Task<Outcome<DiscoverAnswer>> ReversedAsync(DiscoverRequest request, string forward, CancellationToken ct)
+    {
+        if (request.Page < 1 || request.Page > PagesListed) return Invalid<DiscoverAnswer>($"Page is 1 to {PagesListed}.");
+        var limit = Math.Clamp(request.Limit, 1, MostListed);
+        var hits = new List<TitleHit>();
+        DiscoverAnswer? first = null;
+        for (var page = 1; page <= PagesListed && hits.Count < limit; page++)
+        {
+            var answer = await DiscoverAsync(request with { Sort = forward, Page = page }, ct);
+            if (answer.Value is not { } found) return answer;
+            first ??= found;
+            hits.AddRange(found.Hits);
+            if (found.Next is null) break;
+        }
+        var all = hits.Take(limit).Reverse().ToList();
+        var ask = new PageAsk(limit, Math.Min(limit, ResultsListed), request.Page);
+        return Outcome<DiscoverAnswer>.Ok(new DiscoverAnswer(first!.Kind, first.Resolved with { Sort = request.Sort! },
+            [.. all.Skip(ask.Skip).Take(ask.Take)], ask.Next(all.Count > ask.Skip + ask.Size)));
+    }
+
+    /// <summary>
     /// A discovery resolved to the database's ids: its kind (<c>film</c>, <c>show</c> or <c>all</c>),
     /// the questions it is asked as (none when nothing can match it), or the title its titles are like.
     /// </summary>
     private sealed record DiscoverPlan(string Kind, Seed? Seed, List<DiscoverQuery> Queries, DiscoverResolved Resolved, PageAsk Ask, string? Sort, double? MinRating);
+
+    /// <summary>Every order a discovery is served in, as its facets list them: the one it opens in first.</summary>
+    public static readonly IReadOnlyList<string> DiscoverOrders =
+        [DiscoverSorts.Popular, DiscoverSorts.LeastPopular, DiscoverSorts.Rating, ReversedSorts.Lowest, DiscoverSorts.Newest, DiscoverSorts.Oldest];
 
     /// <summary>Both kinds at once, which the database keeps apart and a discovery asks of each.</summary>
     public const string AllKinds = "all";
 
     private async Task<Outcome<DiscoverPlan>> PlanAsync(DiscoverRequest request, CancellationToken ct)
     {
+        // A reversed order holds the titles of the order it reverses, which is what is planned and measured.
+        if (ReversedSorts.Forward(request.Sort) is { } forward) request = request with { Sort = forward };
         var limit = Math.Clamp(request.Limit, 1, MostListed);
         if (request.Page < 1 || request.Page > PagesListed) return Invalid<DiscoverPlan>($"Page is 1 to {PagesListed}.");
         var ask = new PageAsk(limit, Math.Min(limit, ResultsListed), request.Page);
         if (request.Kind is not null && request.Kind != AllKinds && !Catalogue.IsKind(request.Kind)) return Invalid<DiscoverPlan>("Kind is film, show or all.");
-        if (request.Sort is not null && !DiscoverSorts.IsSort(request.Sort)) return Invalid<DiscoverPlan>("Sort is popular, rating, newest or oldest.");
+        if (request.Sort is not null && !DiscoverSorts.IsSort(request.Sort)) return Invalid<DiscoverPlan>("Sort is popular, least-popular, rating, lowest, newest or oldest.");
         if (request.From > request.To) return Invalid<DiscoverPlan>("From is after to.");
         if (request.MinRuntime > request.MaxRuntime) return Invalid<DiscoverPlan>("The shortest runtime is longer than the longest.");
         var today = Today();
@@ -439,7 +486,7 @@ public sealed partial class CatalogueSearch(
         var sort = request.Sort ?? (seed is null ? DiscoverSorts.Popular : null);
         var minRating = request.MinRating ?? (request.GoodOnly ? GoodRating : null);
         var minVotes = request.MinVotes ?? (request.GoodOnly ? GoodVotes : null);
-        if (sort == DiscoverSorts.Rating) minVotes ??= RatedVotes;
+        if (sort is DiscoverSorts.Rating or DiscoverSorts.LeastPopular) minVotes ??= RatedVotes;
 
         var windows = DiscoverNarrowing.Windows(request.Decades);
         var runtimes = DiscoverNarrowing.Runtimes(request.Lengths);
@@ -1049,13 +1096,14 @@ public sealed partial class CatalogueSearch(
     }
 
     /// <summary>
-    /// Titles held whole in the order a sort names: the most looked at first, the best rated first
+    /// Titles held whole in the order a sort names: the most or the least looked at first, the best rated first
     /// (<see cref="RatedAsync"/>), or the newest or oldest release first, an undated title last; any
     /// other sort leaves them as they are.
     /// </summary>
     private async Task<IReadOnlyList<ListedTitle>> OrderedAsync(IReadOnlyList<ListedTitle> titles, string? sort, CancellationToken ct) => sort switch
     {
         DiscoverSorts.Popular => [.. titles.OrderByDescending(t => t.Popularity)],
+        DiscoverSorts.LeastPopular => [.. titles.OrderBy(t => t.Popularity)],
         DiscoverSorts.Rating => await RatedAsync(titles, ct),
         DiscoverSorts.Newest => [.. titles.OrderBy(t => t.Released is null).ThenByDescending(t => t.Released)],
         DiscoverSorts.Oldest => [.. titles.OrderBy(t => t.Released is null).ThenBy(t => t.Released)],

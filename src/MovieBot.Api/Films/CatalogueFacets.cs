@@ -75,10 +75,16 @@ public sealed record FacetOptionView(string Value, string? Label = null, int? Co
 /// <summary>A section and the options its answers hold, in the section's own order.</summary>
 public sealed record FacetSectionView(string Id, List<FacetOptionView> Options);
 
-/// <summary>What a facets route answers: the sections a filter can pick in, each with the options the answers hold.</summary>
+/// <summary>
+/// What a facets route answers: the sections a filter can pick in, each with the options the answers
+/// hold, and the orders the answers are served in, the one they open in first (none for answers served
+/// in one order).
+/// </summary>
 public sealed record CatalogueFacetsView
 {
     public required List<FacetSectionView> Sections { get; init; }
+
+    public IReadOnlyList<string> Sorts { get; init; } = [];
 }
 
 public sealed partial class CatalogueSearch

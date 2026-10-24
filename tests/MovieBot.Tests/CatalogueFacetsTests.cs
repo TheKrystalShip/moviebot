@@ -107,6 +107,7 @@ public sealed class CatalogueFacetsTests(SessionFixture fixture) : IClassFixture
     public async Task A_studios_facets_are_the_options_its_titles_hold()
     {
         var facets = await Get<CatalogueFacetsView>("/api/catalogue/ask/facets?q=prism");
+        Assert.Empty(facets.Sorts);
 
         Assert.Equal(["film", "show", "anime"], Options(facets, FacetSections.Kind));
         Assert.Equal(["Adventure", "Animation", "Crime", "Family", "Horror", "Science Fiction"], Options(facets, FacetSections.Genre));
@@ -154,6 +155,7 @@ public sealed class CatalogueFacetsTests(SessionFixture fixture) : IClassFixture
     public async Task A_catalogue_filters_facets_hold_what_the_database_lists()
     {
         var facets = await Get<CatalogueFacetsView>(World.Replace("/discover?", "/discover/facets?") + "&decade=1990");
+        Assert.Equal(["popular", "least-popular", "rating", "lowest", "newest", "oldest"], facets.Sorts);
 
         Assert.Equal(["Crime", "Horror"], Options(facets, FacetSections.Genre));
         Assert.Equal(["2020", "2010", "1990"], Options(facets, FacetSections.Decade));
@@ -183,6 +185,7 @@ public sealed class CatalogueFacetsTests(SessionFixture fixture) : IClassFixture
         var facets = await Get<CatalogueFacetsView>("/api/discover/shelves/date-night/facets");
         Assert.DoesNotContain(facets.Sections, s => s.Id == FacetSections.Kind);
         Assert.Contains(facets.Sections, s => s.Id == FacetSections.Decade);
+        Assert.Equal(["order", "rating", "lowest", "newest", "oldest"], facets.Sorts);
 
     }
 
