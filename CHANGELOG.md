@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.73.0] - 2026-10-24
+
+### Added
+- Picks and facets on every answer the filter drawer reads, with the sections, values and rules of
+  the discovery's: `GET /api/catalogue/people/{personId}` and `GET /api/catalogue/genre` take the picks
+  and have `/facets` routes; every shelf takes the picks and has facets, a shelf that is not a
+  discovery of the film database read whole (a chart's and a window's first 100 titles, any other's up
+  to 1,000) and counted exactly; a question answered from a Wikidata set takes the picks over the whole
+  set and has facets; and `GET /api/discover/sections/{id}/facets` answers a browse category's options,
+  any its shelves hold. Facets of an answer held whole carry `count`.
+- A browse's titles (`CatalogueTitleView`) carry `genres` and `originalLanguage`, and a shelf's titles
+  `genres`, `originalLanguage` and, on the library's shelves, `runtimeMinutes`.
+- The site's client has a call for every picks and facets route.
+
+### Changed
+- A person's titles and a genre's are kept under new names, so every answer carries genres and a
+  language from the first ask after this version; a kept trending list without them is asked for
+  again on the first pass.
+
 ## [3.72.0] - 2026-10-24
 
 ### Added

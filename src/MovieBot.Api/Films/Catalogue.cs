@@ -47,6 +47,12 @@ public sealed record CatalogueTitleView
 
     public string? Overview { get; init; }
 
+    /// <summary>The genres the database files it under, by name.</summary>
+    public List<string> Genres { get; init; } = [];
+
+    /// <summary>The language it was made in, an ISO 639-1 code.</summary>
+    public string? OriginalLanguage { get; init; }
+
     /// <summary>The poster its page shows, served from here; absent when the database has none.</summary>
     public string? PosterUrl { get; init; }
 
@@ -120,7 +126,7 @@ public sealed class Catalogue(
     /// answer with no value when the database has nobody under the id.
     /// </summary>
     public Task<KeptAnswer<PersonCredits>?> PersonAsync(int personId, CancellationToken ct) =>
-        keeper.KeptAsync($"people/{personId}", AnswerJson.Default.PersonCredits, PersonKept,
+        keeper.KeptAsync($"person-titles/{personId}", AnswerJson.Default.PersonCredits, PersonKept,
             async (tmdb, token) =>
             {
                 var person = await tmdb.PersonAsync(personId, TitlesListed, token);
@@ -164,20 +170,32 @@ public sealed class Catalogue(
             language = Library.TitleCategories.AnimeLanguage;
         }
 
-        var titles = await keeper.KeptAsync($"genres/{kind}-{genre.Id}{(anime ? "-anime" : "")}", AnswerJson.Default.ListCatalogueTitle, GenreKept,
+        var titles = await keeper.KeptAsync($"genre-titles/{kind}-{genre.Id}{(anime ? "-anime" : "")}", AnswerJson.Default.ListCatalogueTitle, GenreKept,
             async (tmdb, token) => (await tmdb.GenreAsync(kind, ids, language, TitlesListed, token)).ToList(),
             Offer, ct);
         return titles is null ? null : (genre, titles);
     }
 
-    public CataloguePersonView View(PersonCredits person) => new()
+    public async Task<CataloguePersonView> ViewAsync(PersonCredits person, CancellationToken ct) => new()
     {
         PersonId = person.TmdbId,
         Name = person.Name,
         KnownFor = person.KnownFor,
         PortraitUrl = PortraitUrlIfKept(person.TmdbId),
-        Titles = person.Titles.Select(View).ToList(),
+        Titles = await ViewsAsync(person.Titles, ct),
     };
+
+    /// <summary>Each title as a browse lists it, its genres named in its kind's list; a list the database cannot be asked for leaves them unnamed.</summary>
+    public async Task<List<CatalogueTitleView>> ViewsAsync(IReadOnlyList<CatalogueTitle> titles, CancellationToken ct)
+    {
+        var names = new Dictionary<string, Dictionary<int, string>>();
+        foreach (var kind in titles.Select(t => t.Kind).Distinct())
+            names[kind] = (await GenresAsync(kind, ct) ?? []).ToDictionary(g => g.Id, g => g.Name);
+        return [.. titles.Select(t => View(t) with
+        {
+            Genres = [.. t.GenreIds.Select(id => names[t.Kind].GetValueOrDefault(id)).OfType<string>()],
+        })];
+    }
 
     public CatalogueTitleView View(CatalogueTitle title)
     {
@@ -192,6 +210,7 @@ public sealed class Catalogue(
             Votes = votes,
             RatedBy = ratedBy,
             Overview = title.Overview,
+            OriginalLanguage = title.OriginalLanguage,
             PosterUrl = glances.PosterUrl(title.ImdbId, Glance(title)),
             Role = title.Role,
         };

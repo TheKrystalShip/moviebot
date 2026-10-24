@@ -184,8 +184,52 @@ public sealed class CatalogueFacetsTests(SessionFixture fixture) : IClassFixture
         Assert.DoesNotContain(facets.Sections, s => s.Id == FacetSections.Kind);
         Assert.Contains(facets.Sections, s => s.Id == FacetSections.Decade);
 
-        Assert.Equal(HttpStatusCode.BadRequest, (await Signed().GetAsync("/api/discover/shelves/trending-films?decade=1990")).StatusCode);
-        Assert.Empty((await Get<CatalogueFacetsView>("/api/discover/shelves/trending-films/facets")).Sections);
+    }
+
+    [Fact]
+    public async Task A_shelf_held_whole_is_narrowed_and_faceted_over_every_title_it_holds()
+    {
+        var picked = await Get<ShelfView>("/api/discover/shelves/star-wars?decade=1990");
+        Assert.Equal(["Heat"], picked.Titles.Select(t => t.Title));
+        Assert.Empty((await Get<ShelfView>("/api/discover/shelves/star-wars?decade=2010")).Titles);
+
+        var facets = await Get<CatalogueFacetsView>("/api/discover/shelves/star-wars/facets");
+        Assert.Equal(["2000", "1990"], Options(facets, FacetSections.Decade));
+        Assert.All(facets.Sections.Single(s => s.Id == FacetSections.Decade).Options, o => Assert.Equal(1, o.Count));
+        Assert.DoesNotContain(facets.Sections, s => s.Id is FacetSections.Kind or FacetSections.Length);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Signed().GetAsync("/api/discover/shelves/star-wars?kind=show")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_persons_titles_are_narrowed_and_faceted_over_all_of_them()
+    {
+        var picked = await Get<CataloguePersonView>($"/api/catalogue/people/{PrismPerson}?anyGenre=Horror&anyGenre=Drama");
+        Assert.Equal(Prism.Where(t => (t.Id < 4400 || t.Kind == "show") && (t.Genres.Contains(27) || t.Genres.Contains(18))).Select(t => t.Title).Order(),
+            picked.Titles.Select(t => t.Title).Order());
+
+        var facets = await Get<CatalogueFacetsView>($"/api/catalogue/people/{PrismPerson}/facets?kind=film");
+        Assert.Equal(["film", "show", "anime"], Options(facets, FacetSections.Kind));
+        Assert.Equal(["Adventure", "Animation", "Crime", "Family", "Horror"], Options(facets, FacetSections.Genre));
+        Assert.Equal(["2020", "2010", "1990"], Options(facets, FacetSections.Decade));
+        Assert.Equal(["en", "fr", "ja", "ko"], Options(facets, FacetSections.Language));
+        Assert.Equal("Japanese", facets.Sections.Single(s => s.Id == FacetSections.Language).Options.Single(o => o.Value == "ja").Label);
+        Assert.DoesNotContain(facets.Sections, s => s.Id == FacetSections.Length);
+        var film = facets.Sections.Single(s => s.Id == FacetSections.Kind).Options.Single(o => o.Value == "film");
+        Assert.Equal(Prism.Count(t => t.Id < 4400 && t.Kind == "film"), film.Count);
+    }
+
+    [Fact]
+    public async Task A_genres_titles_are_narrowed_and_faceted_and_its_genre_is_its_own()
+    {
+        var picked = await Get<CatalogueGenreView>("/api/catalogue/genre?kind=film&name=crime&decade=1990&language=en");
+        Assert.All(picked.Titles, t => Assert.InRange(t.Year!.Value, 1990, 1999));
+        Assert.Equal(Prism.Count(t => t.Kind == "film" && t.Genres.Contains(80) && Year(t) < 2000), picked.Titles.Count);
+
+        var facets = await Get<CatalogueFacetsView>("/api/catalogue/genre/facets?kind=film&name=crime&decade=1990");
+        Assert.DoesNotContain(facets.Sections, s => s.Id is FacetSections.Genre or FacetSections.Kind);
+        Assert.Equal(["2020", "2010", "1990"], Options(facets, FacetSections.Decade));
+        Assert.Equal(["en"], Options(facets, FacetSections.Language));
+        Assert.Equal(HttpStatusCode.BadRequest, (await Signed().GetAsync("/api/catalogue/genre?kind=film&name=crime&anyGenre=Horror")).StatusCode);
     }
 
     [Fact]

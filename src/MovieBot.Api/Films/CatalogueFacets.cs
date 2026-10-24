@@ -66,8 +66,11 @@ public sealed record DiscoverPicks
     };
 }
 
-/// <summary>One option a facet reports: its value as a pick names it, and for a language its English name.</summary>
-public sealed record FacetOptionView(string Value, string? Label = null);
+/// <summary>
+/// One option a facet reports: its value as a pick names it, for a language its English name, and for
+/// an answer the API holds whole how many of its titles hold it.
+/// </summary>
+public sealed record FacetOptionView(string Value, string? Label = null, int? Count = null);
 
 /// <summary>A section and the options its answers hold, in the section's own order.</summary>
 public sealed record FacetSectionView(string Id, List<FacetOptionView> Options);
@@ -80,6 +83,25 @@ public sealed record CatalogueFacetsView
 
 public sealed partial class CatalogueSearch
 {
+    /// <summary>The English name of a language by its code: the filter's own names, else the database's; null for a code neither knows.</summary>
+    public async Task<Func<string, string?>> LanguageNamesAsync(CancellationToken ct)
+    {
+        var known = (await LanguagesAsync(ct)).Value ?? [];
+        var names = known.GroupBy(l => l.Code, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
+        foreach (var language in DiscoverShelves.FilterLanguages) names[language.Code] = language.Name;
+        return code => names.GetValueOrDefault(code);
+    }
+
+    /// <summary>What a filter reads off a title the film database listed, by its card and its listing; a listing carries no runtime.</summary>
+    internal FacetTraits Traits(TitleHit hit)
+    {
+        var (listed, card) = (hit.Listed, hit.Card);
+        var language = listed.OriginalLanguage ?? card?.OriginalLanguage;
+        return new FacetTraits(listed.Kind, categories.Of(listed.Kind, card?.ImdbId, card?.Genres, language) == TitleCategory.Anime,
+            [.. card?.Genres ?? []], (listed.Released ?? card?.Released)?.Year, null,
+            scores.Serve(card?.ImdbId, listed.TmdbId, listed.Kind, listed.Rating, listed.Votes).Rating, language);
+    }
+
     /// <summary>How many options are asked of the database at once.</summary>
     private const int ProbesAtOnce = 8;
 
@@ -219,16 +241,19 @@ public sealed partial class CatalogueSearch
     /// <summary>
     /// Which options each section of a shelf's question holds with a filter's picks on it, measured as
     /// a discovery's are (<see cref="DiscoverFacetsAsync"/>). The shelf's kind is its own, and so is a
-    /// language it names or a genre every title of it is filed under.
+    /// language it names or a genre every title of it is filed under. An option in
+    /// <paramref name="known"/> is already known to hold elsewhere and is reported without being asked.
     /// </summary>
-    public async Task<Outcome<CatalogueFacetsView>> ShelfFacetsAsync(DiscoverQuery query, DiscoverPicks picks, CancellationToken ct)
+    public async Task<Outcome<CatalogueFacetsView>> ShelfFacetsAsync(DiscoverQuery query, DiscoverPicks picks, CancellationToken ct, IReadOnlySet<(string Section, string Value)>? known = null)
     {
         var planned = await NarrowedAsync(query, picks, ct);
         if (planned.Value is null) return planned.Carry<CatalogueFacetsView>();
 
         var probes = new List<(string Section, FacetOptionView Option, Func<CancellationToken, Task<bool?>> Holds)>();
         void Offer(string section, FacetOptionView option, DiscoverPicks asked) =>
-            probes.Add((section, option, token => ShelfHoldsAsync(query, asked, token)));
+            probes.Add((section, option, known is not null && known.Contains((section, option.Value))
+                ? _ => Task.FromResult<bool?>(true)
+                : token => ShelfHoldsAsync(query, asked, token)));
 
         var genres = await catalogue.GenresAsync(query.Kind, ct);
         if (genres is null) return Unavailable<CatalogueFacetsView>("The film database could not be asked about its genres.");

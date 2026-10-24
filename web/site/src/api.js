@@ -98,7 +98,9 @@ export const api = {
   popular: () => call("GET", "/api/popular"),
   // The film database browsed: everything a person is credited on, by its id for them, and the most
   // popular films or shows in a genre, by the genre's name.
-  cataloguePerson: (personId) => call("GET", `/api/catalogue/people/${enc(personId)}`),
+  // `picks` are a filter's, as on catalogueDiscover; each Facets call is what each section of that answer holds.
+  cataloguePerson: (personId, picks = {}) => call("GET", withQuery(`/api/catalogue/people/${enc(personId)}`, picks)),
+  cataloguePersonFacets: (personId, picks = {}) => call("GET", withQuery(`/api/catalogue/people/${enc(personId)}/facets`, picks)),
   // Films or shows found by what they are like: kind, genre, years, runtime, rating, language and order.
   // A list is several values of one section, any of them (`anyGenre`, `decade`, `length`, `language`).
   catalogueDiscover: (params, page = 1) => call("GET", withQuery("/api/catalogue/discover", page > 1 ? { ...params, page } : params)),
@@ -107,12 +109,14 @@ export const api = {
   // Discover's tabs and the shelves on each for the signed-in person, with what its filter picks from;
   // and one page of a shelf's titles, with the page that follows it.
   discover: () => call("GET", "/api/discover"),
-  discoverShelf: (id, page = 1, sort = null) => {
-    const query = [page > 1 && `page=${page}`, sort && `sort=${enc(sort)}`].filter(Boolean).join("&");
-    return call("GET", `/api/discover/shelves/${enc(id)}` + (query ? `?${query}` : ""));
-  },
-  catalogueGenre: (kind, genre, category) => call("GET", `/api/catalogue/genre?kind=${enc(kind)}&name=${enc(genre)}`
-    + (category ? `&category=${enc(category)}` : "")),
+  discoverShelf: (id, page = 1, sort = null, picks = {}) =>
+    call("GET", withQuery(`/api/discover/shelves/${enc(id)}`, { page: page > 1 ? page : null, sort, ...picks })),
+  discoverShelfFacets: (id, picks = {}) => call("GET", withQuery(`/api/discover/shelves/${enc(id)}/facets`, picks)),
+  // What a browse category's shelves hold together; each shelf takes the picks through discoverShelf.
+  discoverSectionFacets: (id, picks = {}) => call("GET", withQuery(`/api/discover/sections/${enc(id)}/facets`, picks)),
+  catalogueGenre: (kind, genre, category, picks = {}) => call("GET", withQuery("/api/catalogue/genre", { kind, name: genre, category, ...picks })),
+  catalogueGenreFacets: (kind, genre, category, picks = {}) =>
+    call("GET", withQuery("/api/catalogue/genre/facets", { kind, name: genre, category, ...picks })),
 
   // Shows: the library's, one by its IMDb id (in the library or not), and what the tracker offers of one.
   shows: () => call("GET", "/api/shows"),

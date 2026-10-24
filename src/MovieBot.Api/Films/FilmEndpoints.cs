@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
@@ -15,6 +16,79 @@ public static class FilmEndpoints
     /// <summary>A film as <c>/api/films/{imdbId}</c> answers it; null when the database has none or could not be asked.</summary>
     internal static async Task<FilmView?> ViewAsync(FilmStore store, LibraryShelf shelf, TitleCategories categories, WikidataFacts facts, string imdbId, CancellationToken ct) =>
         await store.GetAsync(imdbId, ct) is { } stored ? Viewed(store, stored, shelf, categories, facts, imdbId) : null;
+
+    /// <summary>What a filter reads off a title a browse lists; a browse carries no runtime.</summary>
+    internal static FacetTraits Traits(CatalogueTitleView t) =>
+        new(t.Kind, t.Category == TitleCategory.Anime, t.Genres, t.Year, null, t.Rating, t.OriginalLanguage);
+
+    /// <summary>A genre's own sections: its genre and its kind, and with anime its language too.</summary>
+    private static HashSet<string> GenreFixed(string? category) => category is null
+        ? [FacetSections.Genre, FacetSections.Kind]
+        : [FacetSections.Genre, FacetSections.Kind, FacetSections.Language];
+
+    private static readonly HashSet<string> NoneFixed = [];
+
+    /// <summary>A filter's picks on an answer held whole, or why they are refused: a pick that is no option, or one in a section the answer fixes.</summary>
+    internal static (DiscoverPicks? Picks, IResult? Refusal) Picked(string? kind, string? category, string[]? anyGenre, string[]? decade, string[]? length,
+        double? minRating, string[]? language, IReadOnlySet<string> fixedBy, TimeProvider clock)
+    {
+        if (CatalogueSearchEndpoints.Picks(kind, category, anyGenre, decade, length, minRating, language) is not { } picks)
+            return (null, CatalogueSearchEndpoints.BadDecade());
+        var why = WholeFacets.Refusal(picks, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime))
+                  ?? (picks.Sections().FirstOrDefault(fixedBy.Contains) is { } section ? $"This list's {section} is its own, so a filter does not pick one." : null);
+        return why is null
+            ? (picks, null)
+            : (null, Results.Json(new ErrorReply(why), ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status400BadRequest));
+    }
+
+    /// <summary>A person and their titles as <c>/api/catalogue/people/{personId}</c> answers them, or the refusal.</summary>
+    private static async Task<(CataloguePersonView? View, IResult? Refusal)> PersonViewAsync(int personId, Catalogue catalogue, TitleCategories categories, CancellationToken ct)
+    {
+        var kept = await catalogue.PersonAsync(personId, ct);
+        if (kept is null)
+            return (null, Results.Json(new ErrorReply("The film database could not be asked about this person."),
+                ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status503ServiceUnavailable));
+        if (kept.Value is not { } person)
+            return (null, Results.Json(new ErrorReply("The film database has nobody under that id."),
+                ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound));
+        var view = await catalogue.ViewAsync(person, ct);
+        return (view with { Titles = [.. view.Titles.Select(t => t with { Category = categories.Of(t.Kind, t.ImdbId, t.Genres, t.OriginalLanguage) })] }, null);
+    }
+
+    /// <summary>A genre's titles as <c>/api/catalogue/genre</c> answers them, or the refusal.</summary>
+    private static async Task<(CatalogueGenreView? View, IResult? Refusal)> GenreViewAsync(string? kind, string? name, string? category,
+        Catalogue catalogue, TitleCategories categories, CancellationToken ct)
+    {
+        if (!Catalogue.IsKind(kind) || string.IsNullOrWhiteSpace(name))
+            return (null, Results.Json(new ErrorReply("Name a kind, film or show, and a genre."), ApiJsonContext.Default.ErrorReply,
+                statusCode: StatusCodes.Status400BadRequest));
+        if (category is not null && TitleCategories.Parse(category) != TitleCategory.Anime)
+            return (null, Results.Json(new ErrorReply("A genre's catalogue is narrowed to anime alone."), ApiJsonContext.Default.ErrorReply,
+                statusCode: StatusCodes.Status400BadRequest));
+        var anime = category is not null;
+
+        if (await catalogue.GenreAsync(kind!, name, anime, ct) is not { } answer)
+            return (null, Results.Json(new ErrorReply("The film database could not be asked about this genre."),
+                ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status503ServiceUnavailable));
+        if (answer.Genre is not { } genre)
+            return (null, Results.Json(new ErrorReply("The film database has no genre by that name."),
+                ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound));
+
+        // Every title an anime catalogue lists is animated and made in Japanese, which is what the
+        // rule reads; a title somebody shelved elsewhere keeps its own.
+        var titles = await catalogue.ViewsAsync(answer.Titles?.Value ?? [], ct);
+        return (new CatalogueGenreView
+        {
+            Kind = kind!,
+            Genre = genre.Name,
+            Category = anime ? TitleCategory.Anime : null,
+            Titles = [.. titles.Select(t => t with
+            {
+                Category = categories.Of(t.Kind, t.ImdbId,
+                    anime ? [TitleCategories.AnimeGenre] : t.Genres, anime ? TitleCategories.AnimeLanguage : t.OriginalLanguage),
+            })],
+        }, null);
+    }
 
     /// <summary>The type a kept image is served as: a logo is a PNG and every other image a JPEG.</summary>
     internal static string ImageType(string path) => path.EndsWith(".png", StringComparison.Ordinal) ? "image/png" : "image/jpeg";
@@ -62,52 +136,56 @@ public static class FilmEndpoints
 
         // A person and the films and shows they are credited on, best known first, by the film
         // database's id for them, which a cast member on a film's or show's page carries.
-        app.MapGet("/api/catalogue/people/{personId:int}", async (int personId, Catalogue catalogue, TitleCategories categories, CancellationToken ct) =>
+        app.MapGet("/api/catalogue/people/{personId:int}", async (int personId, string? kind, string? category, [FromQuery] string[]? anyGenre,
+            [FromQuery] string[]? decade, [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
+            Catalogue catalogue, TitleCategories categories, TimeProvider clock, CancellationToken ct) =>
         {
-            var kept = await catalogue.PersonAsync(personId, ct);
-            if (kept is null)
-                return Results.Json(new ErrorReply("The film database could not be asked about this person."),
-                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status503ServiceUnavailable);
-            if (kept.Value is not { } person)
-                return Results.Json(new ErrorReply("The film database has nobody under that id."),
-                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
-            var view = catalogue.View(person);
-            return Results.Ok(view with { Titles = [.. view.Titles.Select(t => t with { Category = categories.Of(t.Kind, t.ImdbId) })] });
+            var (picks, refusal) = Picked(kind, category, anyGenre, decade, length, minRating, language, NoneFixed, clock);
+            if (picks is null) return refusal!;
+            var person = await PersonViewAsync(personId, catalogue, categories, ct);
+            if (person.View is not { } view) return person.Refusal!;
+            return Results.Ok(view with { Titles = WholeFacets.Filter(view.Titles, Traits, picks) });
+        }).RequireAction(CinemaActions.Watch);
+
+        // Which options each section of a person's titles holds, with the filter's picks on it.
+        app.MapGet("/api/catalogue/people/{personId:int}/facets", async (int personId, string? kind, string? category, [FromQuery] string[]? anyGenre,
+            [FromQuery] string[]? decade, [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
+            Catalogue catalogue, TitleCategories categories, CatalogueSearch search, TimeProvider clock, CancellationToken ct) =>
+        {
+            var (picks, refusal) = Picked(kind, category, anyGenre, decade, length, minRating, language, NoneFixed, clock);
+            if (picks is null) return refusal!;
+            var person = await PersonViewAsync(personId, catalogue, categories, ct);
+            if (person.View is not { } view) return person.Refusal!;
+            var names = await search.LanguageNamesAsync(ct);
+            return Results.Ok(WholeFacets.Facets([.. view.Titles.Select(Traits)], picks, new HashSet<string>(), names));
         }).RequireAction(CinemaActions.Watch);
 
         // The most popular films or shows in a genre, by the genre's name: the one call a shelf of a
         // genre makes to lead on into the catalogue. With category=anime, the anime among them.
-        app.MapGet("/api/catalogue/genre", async (string? kind, string? name, string? category, Catalogue catalogue,
-            TitleCategories categories, CancellationToken ct) =>
+        app.MapGet("/api/catalogue/genre", async (string? kind, string? name, string? category, [FromQuery] string[]? anyGenre,
+            [FromQuery] string[]? decade, [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
+            Catalogue catalogue, TitleCategories categories, TimeProvider clock, CancellationToken ct) =>
         {
-            if (!Catalogue.IsKind(kind) || string.IsNullOrWhiteSpace(name))
-                return Results.Json(new ErrorReply("Name a kind, film or show, and a genre."), ApiJsonContext.Default.ErrorReply,
-                    statusCode: StatusCodes.Status400BadRequest);
-            if (category is not null && TitleCategories.Parse(category) != TitleCategory.Anime)
-                return Results.Json(new ErrorReply("A genre's catalogue is narrowed to anime alone."), ApiJsonContext.Default.ErrorReply,
-                    statusCode: StatusCodes.Status400BadRequest);
-            var anime = category is not null;
+            var fixedBy = GenreFixed(category);
+            var (picks, refusal) = Picked(null, null, anyGenre, decade, length, minRating, language, fixedBy, clock);
+            if (picks is null) return refusal!;
+            var genre = await GenreViewAsync(kind, name, category, catalogue, categories, ct);
+            if (genre.View is not { } view) return genre.Refusal!;
+            return Results.Ok(view with { Titles = WholeFacets.Filter(view.Titles, Traits, picks) });
+        }).RequireAction(CinemaActions.Watch);
 
-            if (await catalogue.GenreAsync(kind!, name, anime, ct) is not { } answer)
-                return Results.Json(new ErrorReply("The film database could not be asked about this genre."),
-                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status503ServiceUnavailable);
-            if (answer.Genre is not { } genre)
-                return Results.Json(new ErrorReply("The film database has no genre by that name."),
-                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
-
-            // Every title an anime catalogue lists is animated and made in Japanese, which is what the
-            // rule reads; a title somebody shelved elsewhere keeps its own.
-            return Results.Ok(new CatalogueGenreView
-            {
-                Kind = kind!,
-                Genre = genre.Name,
-                Category = anime ? TitleCategory.Anime : null,
-                Titles = (answer.Titles?.Value ?? []).Select(t => catalogue.View(t) with
-                {
-                    Category = categories.Of(t.Kind, t.ImdbId,
-                        anime ? [TitleCategories.AnimeGenre] : null, anime ? TitleCategories.AnimeLanguage : null),
-                }).ToList(),
-            });
+        // Which options each section of a genre's titles holds, with the filter's picks on it; the genre and the kind are its own.
+        app.MapGet("/api/catalogue/genre/facets", async (string? kind, string? name, string? category, [FromQuery] string[]? anyGenre,
+            [FromQuery] string[]? decade, [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
+            Catalogue catalogue, TitleCategories categories, CatalogueSearch search, TimeProvider clock, CancellationToken ct) =>
+        {
+            var fixedBy = GenreFixed(category);
+            var (picks, refusal) = Picked(null, null, anyGenre, decade, length, minRating, language, fixedBy, clock);
+            if (picks is null) return refusal!;
+            var genre = await GenreViewAsync(kind, name, category, catalogue, categories, ct);
+            if (genre.View is not { } view) return genre.Refusal!;
+            var names = await search.LanguageNamesAsync(ct);
+            return Results.Ok(WholeFacets.Facets([.. view.Titles.Select(Traits)], picks, fixedBy, names));
         }).RequireAction(CinemaActions.Watch);
 
         // A person's portrait, open like any other artwork.

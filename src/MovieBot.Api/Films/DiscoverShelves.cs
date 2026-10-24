@@ -133,6 +133,15 @@ public sealed record ShelfTitleView
 
     /// <summary>The part the shelf's person had on the title (<c>Director</c>, or the character played); absent on any other shelf.</summary>
     public string? Role { get; init; }
+
+    /// <summary>The genres the database files it under, by name; empty while nothing names them.</summary>
+    public List<string> Genres { get; init; } = [];
+
+    /// <summary>The language it was made in, an ISO 639-1 code.</summary>
+    public string? OriginalLanguage { get; init; }
+
+    /// <summary>A library film's runtime in minutes, on the shelves of what the library holds.</summary>
+    public int? RuntimeMinutes { get; init; }
 }
 
 /// <summary>A shelf as Discover lists it, before its titles are asked for.</summary>
@@ -472,8 +481,6 @@ public sealed class DiscoverShelves(
         var titles = library.Titles();
         var shelf = Find(id, viewerId, titles);
         if (shelf is null) return Outcome<ShelfView>.Failed(Problem.NotFound, "There is no shelf by that name.");
-        if (picks is { Any: true } && shelf.Source != ShelfSource.Query)
-            return Outcome<ShelfView>.Failed(Problem.Invalid, "This shelf is not a question of the film database, so a filter does not narrow it.");
 
         var listed = picks is { Any: true }
             ? await PickedAsync(shelf, viewerId, titles, page, sort, picks, ct)
@@ -498,10 +505,95 @@ public sealed class DiscoverShelves(
     /// </summary>
     public async Task<Outcome<CatalogueFacetsView>> FacetsAsync(string id, string? viewerId, DiscoverPicks picks, CancellationToken ct)
     {
-        var shelf = Find(id, viewerId, library.Titles());
+        var titles = library.Titles();
+        var shelf = Find(id, viewerId, titles);
         if (shelf is null) return Outcome<CatalogueFacetsView>.Failed(Problem.NotFound, "There is no shelf by that name.");
-        if (shelf.Source != ShelfSource.Query) return Outcome<CatalogueFacetsView>.Ok(new CatalogueFacetsView { Sections = [] });
-        return await search.ShelfFacetsAsync(Asked(shelf.Query!, null), picks, ct);
+        if (shelf.Source == ShelfSource.Query) return await search.ShelfFacetsAsync(Asked(shelf.Query!, null), picks, ct);
+
+        if (WholeFacets.Refusal(picks, Today()) is { } refusal) return Outcome<CatalogueFacetsView>.Failed(Problem.Invalid, refusal);
+        var whole = await WholeAsync(shelf, viewerId, titles, null, ct);
+        if (whole.Value is not { } held) return whole.Carry<CatalogueFacetsView>();
+        var names = await search.LanguageNamesAsync(ct);
+        return Outcome<CatalogueFacetsView>.Ok(WholeFacets.Facets([.. held.Titles.Select(Traits)], picks, FixedBy(shelf), names));
+    }
+
+    /// <summary>
+    /// Which options each section of a browse category holds with a filter's picks on it: an option
+    /// any of its shelves holds (<see cref="FacetsAsync"/>), each shelf measured in turn and an option
+    /// one shelf holds never asked of the next. A category's shelves are of their own kinds, so it has
+    /// no kind section; a shelf that cannot be measured leaves the category unmeasured.
+    /// </summary>
+    public async Task<Outcome<CatalogueFacetsView>> SectionFacetsAsync(string sectionId, string? viewerId, DiscoverPicks picks, CancellationToken ct)
+    {
+        if (picks.Kind is not null || picks.Category is not null)
+            return Outcome<CatalogueFacetsView>.Failed(Problem.Invalid, "A category's shelves are of their own kinds; a filter does not pick one.");
+        var index = await IndexAsync(viewerId, ct);
+        if (index.Sections.FirstOrDefault(s => s.Id == sectionId) is not { } section)
+            return Outcome<CatalogueFacetsView>.Failed(Problem.NotFound, "There is no category by that name.");
+
+        var held = new HashSet<(string Section, string Value)>();
+        var options = new Dictionary<string, List<FacetOptionView>>();
+        var titles = library.Titles();
+        foreach (var head in section.Shelves)
+        {
+            if (Find(head.Id, viewerId, titles) is not { } shelf) continue;
+            var answer = shelf.Source == ShelfSource.Query
+                ? await search.ShelfFacetsAsync(Asked(shelf.Query!, null), picks, ct, held)
+                : await FacetsAsync(head.Id, viewerId, picks, ct);
+            if (answer.Value is not { } facets) return answer;
+            foreach (var facet in facets.Sections.Where(f => f.Id != FacetSections.Kind))
+            {
+                var list = options.TryGetValue(facet.Id, out var known) ? known : options[facet.Id] = [];
+                foreach (var option in facet.Options)
+                    if (held.Add((facet.Id, option.Value))) list.Add(option with { Count = null });
+            }
+        }
+
+        string[] order = [FacetSections.Genre, FacetSections.Decade, FacetSections.Length, FacetSections.Rating, FacetSections.Language];
+        return Outcome<CatalogueFacetsView>.Ok(new CatalogueFacetsView
+        {
+            Sections = [.. order.Where(options.ContainsKey).Select(id => new FacetSectionView(id, Ordered(id, options[id])))],
+        });
+    }
+
+    /// <summary>A category's options of one section in the order a single answer reports them.</summary>
+    private static List<FacetOptionView> Ordered(string section, List<FacetOptionView> options) => section switch
+    {
+        FacetSections.Genre => [.. options.OrderBy(o => o.Value, StringComparer.OrdinalIgnoreCase)],
+        FacetSections.Decade or FacetSections.Rating => [.. options.OrderByDescending(o => int.Parse(o.Value, System.Globalization.CultureInfo.InvariantCulture))],
+        FacetSections.Length => [.. options.OrderBy(o => FilmLengths.All.ToList().IndexOf(o.Value))],
+        _ => [.. options.OrderBy(o => o.Value, StringComparer.Ordinal)],
+    };
+
+    /// <summary>What a filter reads off a title on a shelf.</summary>
+    internal static FacetTraits Traits(ShelfTitleView t) =>
+        new(t.Kind, t.Category == TitleCategory.Anime, t.Genres, t.Year, t.RuntimeMinutes, t.Rating, t.OriginalLanguage);
+
+    /// <summary>The sections a shelf fixes: its kind, when it is a shelf of one.</summary>
+    private static HashSet<string> FixedBy(Shelf shelf) => shelf.Kind is null ? [] : [FacetSections.Kind];
+
+    /// <summary>
+    /// The most titles of a shelf a filter reads: the first hundred of a chart or of a window of dates,
+    /// the titles its sorts rank, and every other shelf whole, up to the most a shelf serves.
+    /// </summary>
+    private static int WholeLimit(Shelf shelf) =>
+        shelf.Source is ShelfSource.Chart or ShelfSource.Recent or ShelfSource.Upcoming ? TmdbClient.RatingPoolSize : CatalogueSearch.MostOnShelf;
+
+    /// <summary>A shelf's titles read page after page in the order a sort names, to <see cref="WholeLimit"/>, as one page.</summary>
+    private async Task<Outcome<ShelfPage>> WholeAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, string? sort, CancellationToken ct)
+    {
+        var limit = WholeLimit(shelf);
+        var all = new List<ShelfTitleView>();
+        string? title = null;
+        for (var page = 1; page <= CatalogueSearch.PagesListed && all.Count < limit; page++)
+        {
+            var answer = await AnsweredAsync(shelf, viewerId, titles, page, sort, ct);
+            if (answer.Value is not { } found) return answer;
+            title ??= found.Title;
+            all.AddRange(found.Titles);
+            if (found.Next is null) break;
+        }
+        return Outcome<ShelfPage>.Ok(new ShelfPage([.. all.DistinctBy(t => t.Kind + t.ImdbId).Take(limit)], null, title));
     }
 
     private Shelf? Find(string id, string? viewerId, IReadOnlyList<TitleSummary> titles) =>
@@ -514,9 +606,24 @@ public sealed class DiscoverShelves(
         return sort is null ? query : query with { Sort = sort };
     }
 
-    /// <summary>A page of a shelf's question narrowed by a filter's picks; never kept as the shelf's own first page.</summary>
+    /// <summary>
+    /// A page of a shelf narrowed by a filter's picks, never kept as the shelf's own first page: a
+    /// shelf that is a question of the database is asked it narrowed, and any other is read whole
+    /// (<see cref="WholeAsync"/>), narrowed and paged.
+    /// </summary>
     private async Task<Outcome<ShelfPage>> PickedAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, DiscoverPicks picks, CancellationToken ct)
     {
+        if (shelf.Source != ShelfSource.Query)
+        {
+            if (WholeFacets.Refusal(picks, Today()) is { } refusal) return Outcome<ShelfPage>.Failed(Problem.Invalid, refusal);
+            if (picks.Sections().FirstOrDefault(FixedBy(shelf).Contains) is { } section)
+                return Outcome<ShelfPage>.Failed(Problem.Invalid, $"This shelf's {section} is its own, so a filter does not pick one.");
+            var whole = await WholeAsync(shelf, viewerId, titles, sort, ct);
+            if (whole.Value is not { } held) return whole;
+            var kept = WholeFacets.Filter(held.Titles, Traits, picks);
+            var slice = new PageAsk(CatalogueSearch.MostOnShelf, CatalogueSearch.ShelfListed, page);
+            return Outcome<ShelfPage>.Ok(new ShelfPage([.. kept.Skip(slice.Skip).Take(slice.Take)], slice.Next(kept.Count > slice.Skip + slice.Size), held.Title));
+        }
         var narrowed = await search.NarrowedAsync(Asked(shelf.Query!, sort), picks, ct);
         if (narrowed.Value is not { } queries) return narrowed.Carry<ShelfPage>();
         var ask = new PageAsk(CatalogueSearch.MostOnShelf, CatalogueSearch.ShelfListed, page);
@@ -607,8 +714,13 @@ public sealed class DiscoverShelves(
             {
                 var view = popular.View();
                 var kind = shelf.Kind!;
+                var listed = popular.Held() is { } kept ? (kind == "film" ? kept.Films : kept.Shows) : [];
+                var genreNames = (await catalogue.GenresAsync(kind, ct) ?? []).ToDictionary(g => g.Id, g => g.Name);
+                var traits = listed.ToDictionary(t => t.ImdbId, t => t, StringComparer.Ordinal);
                 return Ok(Sorted([.. (kind == "film" ? view.Films : view.Shows).Select(t => new ShelfTitleView
                 {
+                    Genres = [.. (traits.GetValueOrDefault(t.ImdbId)?.GenreIds ?? []).Select(id => genreNames.GetValueOrDefault(id)).OfType<string>()],
+                    OriginalLanguage = traits.GetValueOrDefault(t.ImdbId)?.OriginalLanguage,
                     ImdbId = t.ImdbId,
                     Kind = kind,
                     Title = t.Title,
@@ -703,6 +815,8 @@ public sealed class DiscoverShelves(
                 Watched = view.Watched,
                 Category = view.Category,
                 Role = roles is not null && roles.GetValueOrDefault((hit.Listed.Kind, hit.Listed.TmdbId)) is { Length: > 0 } role ? role : null,
+                Genres = view.Genres,
+                OriginalLanguage = view.OriginalLanguage,
             });
         }
         return views;
@@ -839,6 +953,8 @@ public sealed class DiscoverShelves(
                 Starring = Starring(show?.Cast),
                 InLibrary = true,
                 Category = categories.Of(kind, imdb),
+                Genres = [.. show?.Genres ?? []],
+                OriginalLanguage = show?.OriginalLanguage,
             };
         }
 
@@ -859,6 +975,9 @@ public sealed class DiscoverShelves(
             LibraryId = held.LibraryIdOf(kind, imdb),
             Watched = held.Saw(kind, imdb),
             Category = categories.Of(kind, imdb),
+            Genres = [.. film?.Genres ?? []],
+            OriginalLanguage = film?.OriginalLanguage,
+            RuntimeMinutes = film?.RuntimeMinutes,
         };
     }
 

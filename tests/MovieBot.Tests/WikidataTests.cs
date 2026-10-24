@@ -266,6 +266,27 @@ public sealed class WikidataQuestionTests(WikidataFixture fixture) : IClassFixtu
     }
 
     [Fact]
+    public async Task A_sets_films_are_narrowed_by_picks_and_faceted_over_the_whole_set()
+    {
+        var client = fixture.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", fixture.TokenFor("w2", "Gil"));
+
+        var picked = (await client.GetFromJsonAsync<CatalogueQuestionView>("/api/catalogue/ask?q=" + Uri.EscapeDataString("oscar winners") + "&decade=1990"))!;
+        Assert.Equal(["Heat"], picked.Titles.Select(t => t.Title));
+
+        var facets = (await client.GetFromJsonAsync<CatalogueFacetsView>("/api/catalogue/ask/facets?q=" + Uri.EscapeDataString("oscar winners") + "&language=en"))!;
+        Assert.DoesNotContain(facets.Sections, s => s.Id == FacetSections.Kind);
+        Assert.Equal(["2000", "1990"], facets.Sections.Single(s => s.Id == FacetSections.Decade).Options.Select(o => o.Value));
+        Assert.Equal(["en", "ja"], facets.Sections.Single(s => s.Id == FacetSections.Language).Options.Select(o => o.Value));
+        Assert.Contains("Crime", facets.Sections.Single(s => s.Id == FacetSections.Genre).Options.Select(o => o.Value));
+        Assert.DoesNotContain("Animation", facets.Sections.Single(s => s.Id == FacetSections.Genre).Options.Select(o => o.Value));
+
+        var category = (await client.GetFromJsonAsync<CatalogueFacetsView>("/api/discover/sections/awards/facets"))!;
+        Assert.Contains("1990", category.Sections.Single(s => s.Id == FacetSections.Decade).Options.Select(o => o.Value));
+        Assert.DoesNotContain(category.Sections, s => s.Id == FacetSections.Kind);
+    }
+
+    [Fact]
     public async Task What_wikidata_cannot_narrow_is_answered_with_the_reason()
     {
         var shows = await Ask("slasher shows");

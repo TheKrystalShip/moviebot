@@ -11,6 +11,9 @@ public sealed record StoredPopular
     public List<TrendingTitle> Films { get; init; } = [];
     public List<TrendingTitle> Shows { get; init; } = [];
     public required DateTimeOffset FetchedAt { get; init; }
+
+    /// <summary>Whether the entries carry what an entry carries now; a list that does not is due whatever its age.</summary>
+    public bool Shaped { get; init; } = true;
 }
 
 [JsonSourceGenerationOptions(
@@ -63,6 +66,13 @@ public sealed class PopularNow(
     private const string Images = "popular";
 
     private const string FetchedKey = "trending_fetched_at";
+
+    /// <summary>
+    /// What a kept entry carries, written beside the list: a list kept with another set is served
+    /// as it is and asked for again on the first pass.
+    /// </summary>
+    private const string ShapeKey = "trending_shape";
+    private const string Shape = "title,year,rating,votes,poster,genres,language";
 
     private static readonly TimeSpan FirstPass = TimeSpan.FromSeconds(40);
     private static readonly TimeSpan Every = TimeSpan.FromHours(6);
@@ -126,7 +136,7 @@ public sealed class PopularNow(
             await Task.Delay(FirstPass, stoppingToken);
             while (!stoppingToken.IsCancellationRequested)
             {
-                if (Held() is not { } held || clock.GetUtcNow() - held.FetchedAt >= Every)
+                if (Held() is not { } held || !held.Shaped || clock.GetUtcNow() - held.FetchedAt >= Every)
                     await PassAsync(stoppingToken);
                 await Task.Delay(Every, stoppingToken);
             }
@@ -206,6 +216,7 @@ public sealed class PopularNow(
             {
                 if (c.First("SELECT value FROM meta WHERE key = $key", r => r.GetString(0), ("$key", FetchedKey)) is not { } fetched)
                     return null;
+                var shaped = c.First("SELECT value FROM meta WHERE key = $key", r => r.GetString(0), ("$key", ShapeKey)) == Shape;
                 var titles = c.Query("SELECT kind, title FROM trending ORDER BY kind, rank",
                     r => (Kind: r.GetString(0), Title: JsonSerializer.Deserialize(r.GetString(1), TrendingTitleJson.Default.TrendingTitle)!));
                 return new StoredPopular
@@ -213,6 +224,7 @@ public sealed class PopularNow(
                     Films = [.. titles.Where(t => t.Kind == "film").Select(t => t.Title)],
                     Shows = [.. titles.Where(t => t.Kind == "show").Select(t => t.Title)],
                     FetchedAt = Sql.ReadInstant(fetched),
+                    Shaped = shaped,
                 };
             });
         }
@@ -232,5 +244,6 @@ public sealed class PopularNow(
                 c.Execute("INSERT INTO trending (kind, rank, title) VALUES ($kind, $rank, $title)",
                     ("$kind", kind), ("$rank", rank), ("$title", JsonSerializer.Serialize(titles[rank], TrendingTitleJson.Default.TrendingTitle)));
         c.Execute("INSERT OR REPLACE INTO meta (key, value) VALUES ($key, $value)", ("$key", FetchedKey), ("$value", Sql.Instant(popular.FetchedAt)));
+        c.Execute("INSERT OR REPLACE INTO meta (key, value) VALUES ($key, $value)", ("$key", ShapeKey), ("$value", Shape));
     });
 }

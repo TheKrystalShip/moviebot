@@ -53,23 +53,33 @@ public static class DiscoverEndpoints
         // One page of a shelf's titles, joined with the library and with what the asking person
         // watched, in the shelf's order or the one sort names; next names the page that follows.
         // A filter's picks narrow a shelf that is a question of the film database.
-        app.MapGet("/api/discover/shelves/{id}", async (string id, int? page, string? sort, [FromQuery] string[]? anyGenre, [FromQuery] string[]? decade,
+        app.MapGet("/api/discover/shelves/{id}", async (string id, int? page, string? sort, string? kind, string? category, [FromQuery] string[]? anyGenre, [FromQuery] string[]? decade,
             [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
             HttpContext context, DiscoverShelves shelves, CancellationToken ct) =>
         {
-            if (CatalogueSearchEndpoints.Picks(null, null, anyGenre, decade, length, minRating, language) is not { } picks) return CatalogueSearchEndpoints.BadDecade();
+            if (CatalogueSearchEndpoints.Picks(kind, category, anyGenre, decade, length, minRating, language) is not { } picks) return CatalogueSearchEndpoints.BadDecade();
             var outcome = await shelves.ShelfAsync(id, PeopleEndpoints.Person(context)?.UserId, page ?? 1, ct,
                 string.IsNullOrWhiteSpace(sort) || sort == "order" ? null : sort, picks);
             return outcome.Value is { } shelf ? Results.Ok(shelf) : Refused(outcome);
         }).RequireAction(CinemaActions.Watch);
 
         // Which options each section of a shelf holds, with the filter's picks on it.
-        app.MapGet("/api/discover/shelves/{id}/facets", async (string id, [FromQuery] string[]? anyGenre, [FromQuery] string[]? decade,
+        app.MapGet("/api/discover/shelves/{id}/facets", async (string id, string? kind, string? category, [FromQuery] string[]? anyGenre, [FromQuery] string[]? decade,
             [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
             HttpContext context, DiscoverShelves shelves, CancellationToken ct) =>
         {
-            if (CatalogueSearchEndpoints.Picks(null, null, anyGenre, decade, length, minRating, language) is not { } picks) return CatalogueSearchEndpoints.BadDecade();
+            if (CatalogueSearchEndpoints.Picks(kind, category, anyGenre, decade, length, minRating, language) is not { } picks) return CatalogueSearchEndpoints.BadDecade();
             var outcome = await shelves.FacetsAsync(id, PeopleEndpoints.Person(context)?.UserId, picks, ct);
+            return outcome.Value is { } facets ? Results.Ok(facets) : Refused(outcome);
+        }).RequireAction(CinemaActions.Watch);
+
+        // Which options a browse category's shelves hold, together, with the filter's picks on each.
+        app.MapGet("/api/discover/sections/{id}/facets", async (string id, string? kind, string? category, [FromQuery] string[]? anyGenre, [FromQuery] string[]? decade,
+            [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
+            HttpContext context, DiscoverShelves shelves, CancellationToken ct) =>
+        {
+            if (CatalogueSearchEndpoints.Picks(kind, category, anyGenre, decade, length, minRating, language) is not { } picks) return CatalogueSearchEndpoints.BadDecade();
+            var outcome = await shelves.SectionFacetsAsync(id, PeopleEndpoints.Person(context)?.UserId, picks, ct);
             return outcome.Value is { } facets ? Results.Ok(facets) : Refused(outcome);
         }).RequireAction(CinemaActions.Watch);
     }

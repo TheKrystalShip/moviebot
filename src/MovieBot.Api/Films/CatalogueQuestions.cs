@@ -36,10 +36,7 @@ public sealed partial class CatalogueSearch
         var read = await ReadQuestionAsync(text, ct);
         if (read.Value is not { } asked) return read.Carry<QuestionAnswer>();
         if (asked.Settled is { } settled) return Outcome<QuestionAnswer>.Ok(settled);
-        if (asked.Wikidata is { } listed)
-            return picks.Any
-                ? Outcome<QuestionAnswer>.Ok(new QuestionAnswer(true, asked.Parts, null, "A question about awards, adaptations, places or subgenres is not narrowed by a filter."))
-                : await AskWikidataAsync(listed, page, ct);
+        if (asked.Wikidata is { } listed) return await AskWikidataAsync(listed, page, picks, ct);
         if (PicksRefused(asked.Parts, picks) is { } refusal) return Invalid<QuestionAnswer>(refusal);
 
         var parts = asked.Parts;
@@ -74,7 +71,8 @@ public sealed partial class CatalogueSearch
         var none = Outcome<CatalogueFacetsView>.Ok(new CatalogueFacetsView { Sections = [] });
         var read = await ReadQuestionAsync(text, ct);
         if (read.Value is not { } asked) return read.Carry<CatalogueFacetsView>();
-        if (asked.Settled is not null || asked.Wikidata is not null) return none;
+        if (asked.Settled is not null) return none;
+        if (asked.Wikidata is { } listed) return await WikidataFacetsAsync(listed, picks, ct);
         if (PicksRefused(asked.Parts, picks) is { } refusal) return Invalid<CatalogueFacetsView>(refusal);
 
         var facets = await DiscoverFacetsAsync(picks.On(asked.Request!), FixedBy(asked.Parts), ct);

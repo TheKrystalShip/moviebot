@@ -25,12 +25,79 @@ public sealed partial class CatalogueSearch
     /// newest first, the rest by IMDb's votes) and narrowed by the question's genres, language and years.
     /// A question Wikidata cannot narrow (people, subjects, runtime, shows) is answered with the reason.
     /// </summary>
-    private async Task<Outcome<QuestionAnswer>> AskWikidataAsync(Question question, int page, CancellationToken ct)
+    private async Task<Outcome<QuestionAnswer>> AskWikidataAsync(Question question, int page, DiscoverPicks picks, CancellationToken ct)
+    {
+        var planned = await PlanWikidataAsync(question, page, ct);
+        if (planned.Settled is { } settled) return settled;
+        var plan = planned.Plan!;
+        var pageAsk = new PageAsk(plan.Limit, Math.Min(plan.Limit, ResultsListed), page);
+
+        PagedHits paged;
+        if (!picks.Any)
+        {
+            var listed = await WikidataTitlesAsync(plan.Ordered, plan.Narrowing, pageAsk, ct);
+            if (listed.Value is not { } found) return listed.Carry<QuestionAnswer>();
+            paged = found;
+        }
+        else
+        {
+            if (WholeFacets.Refusal(picks, Today()) is { } refusal) return Invalid<QuestionAnswer>(refusal);
+            if (picks.Sections().FirstOrDefault(WikidataFixed(plan.Parts).Contains) is { } section)
+                return Invalid<QuestionAnswer>($"The question names its own {section}, so a filter does not pick one.");
+            var kept = WholeFacets.Filter(await WikidataWholeAsync(plan, ct), Traits, picks).Take(plan.Limit).ToList();
+            paged = new PagedHits([.. kept.Skip(pageAsk.Skip).Take(pageAsk.Take)], pageAsk.Next(kept.Count > pageAsk.Skip + pageAsk.Size));
+        }
+        return Outcome<QuestionAnswer>.Ok(new QuestionAnswer(true, plan.Parts, new DiscoverAnswer("film", plan.Resolved, paged.Hits, paged.Next), null));
+    }
+
+    /// <summary>
+    /// Which options each section of a Wikidata question's films holds with a filter's picks on it,
+    /// counted over every film of the set the question narrows to (<see cref="WholeFacets"/>). The set
+    /// is of films, so it has no kind section; a question Wikidata cannot answer has no sections.
+    /// </summary>
+    private async Task<Outcome<CatalogueFacetsView>> WikidataFacetsAsync(Question question, DiscoverPicks picks, CancellationToken ct)
+    {
+        var planned = await PlanWikidataAsync(question, 1, ct);
+        if (planned.Plan is not { } plan)
+            return planned.Settled!.Value is not null ? Outcome<CatalogueFacetsView>.Ok(new CatalogueFacetsView { Sections = [] }) : planned.Settled.Carry<CatalogueFacetsView>();
+        if (WholeFacets.Refusal(picks, Today()) is { } refusal) return Invalid<CatalogueFacetsView>(refusal);
+        var fixedBy = WikidataFixed(plan.Parts);
+        if (picks.Sections().FirstOrDefault(fixedBy.Contains) is { } section)
+            return Invalid<CatalogueFacetsView>($"The question names its own {section}, so a filter does not pick one.");
+        var whole = await WikidataWholeAsync(plan, ct);
+        return Outcome<CatalogueFacetsView>.Ok(WholeFacets.Facets([.. whole.Select(Traits)], picks, fixedBy, await LanguageNamesAsync(ct)));
+    }
+
+    /// <summary>The sections a Wikidata question fixes: its own parts', and its kind, since the set is of films.</summary>
+    private static HashSet<string> WikidataFixed(IEnumerable<QuestionPart> parts) => [.. FixedBy(parts), FacetSections.Kind];
+
+    /// <summary>How long a filter over a whole set waits for the film database to name its films.</summary>
+    private static readonly TimeSpan WholeWait = TimeSpan.FromMinutes(2);
+
+    /// <summary>Every film of the set the question narrows to, up to the most a shelf holds, each named by the film database.</summary>
+    private async Task<List<TitleHit>> WikidataWholeAsync(WikidataPlan plan, CancellationToken ct)
+    {
+        var dated = plan.Narrowing with { Genres = [], Excluded = [], Language = null };
+        var listed = await WikidataTitlesAsync([.. plan.Ordered.Take(MostOnShelf)], dated, new PageAsk(MostOnShelf, MostOnShelf, 1), ct, WholeWait);
+        var n = plan.Narrowing;
+        return [.. (listed.Value?.Hits ?? []).Where(h => h.Card is { } card
+                ? n.Genres.All(g => card.Genres.Contains(g, StringComparer.OrdinalIgnoreCase))
+                  && !n.Excluded.Any(g => card.Genres.Contains(g, StringComparer.OrdinalIgnoreCase))
+                  && (n.Language is not { } code || string.Equals(card.OriginalLanguage, code, StringComparison.OrdinalIgnoreCase))
+                : !n.NeedsCards)];
+    }
+
+    /// <summary>A Wikidata question resolved: its parts, the set in the question's order, what narrows it, and the most titles it lists.</summary>
+    private sealed record WikidataPlan(List<QuestionPart> Parts, IReadOnlyList<WikidataFilm> Ordered, WikidataNarrowing Narrowing, DiscoverResolved Resolved, int Limit);
+
+    /// <summary>A Wikidata question resolved, or the answer it settles on: a reason it cannot be answered, or a set Wikidata could not be asked for.</summary>
+    private async Task<(WikidataPlan? Plan, Outcome<QuestionAnswer>? Settled)> PlanWikidataAsync(Question question, int page, CancellationToken ct)
     {
         var ask = question.Wikidata!;
         var request = question.Request;
         var parts = question.Parts.ToList();
-        Outcome<QuestionAnswer> Said(string message) => Outcome<QuestionAnswer>.Ok(new QuestionAnswer(true, parts, null, message));
+        (WikidataPlan?, Outcome<QuestionAnswer>?) Said(string message) => (null, Outcome<QuestionAnswer>.Ok(new QuestionAnswer(true, parts, null, message)));
+        (WikidataPlan?, Outcome<QuestionAnswer>?) Unavailable(string message) => (null, Unavailable<QuestionAnswer>(message));
 
         if (!wikidata.Enabled) return Said("This server does not ask Wikidata, which awards, adaptations, places and subgenres come from.");
         if (page < 1 || page > PagesListed) return Said($"Page is 1 to {PagesListed}.");
@@ -45,7 +112,7 @@ public sealed partial class CatalogueSearch
         if (item is null)
         {
             var found = await wikidata.EntitiesAsync(ask.Name, ct);
-            if (found is null) return Unavailable<QuestionAnswer>("Wikidata could not be asked about this name.");
+            if (found is null) return Unavailable("Wikidata could not be asked about this name.");
             var entity = found.FirstOrDefault(e => WikidataClient.IsItemId(e.Id) && string.Equals(e.Label, ask.Name, StringComparison.OrdinalIgnoreCase));
             if (entity is null) return Said($"Wikidata has nothing called \"{ask.Name}\".");
             (item, name) = (entity.Id, entity.Label);
@@ -75,7 +142,7 @@ public sealed partial class CatalogueSearch
         if (genreNames.Count > 0 || request.Exclude.Count > 0)
         {
             var all = await catalogue.GenresAsync("film", ct);
-            if (all is null) return Unavailable<QuestionAnswer>("The film database could not be asked about its genres.");
+            if (all is null) return Unavailable("The film database could not be asked about its genres.");
             foreach (var genreName in genreNames)
             {
                 if (MatchGenre(all, genreName) is not { } genre) return Said($"The film database has no film genre called \"{genreName.Trim()}\".");
@@ -92,12 +159,12 @@ public sealed partial class CatalogueSearch
         if (!string.IsNullOrWhiteSpace(wantedLanguage))
         {
             var language = await LanguageAsync(wantedLanguage, ct);
-            if (language.Value is not { } resolvedLanguage) return language.Problem == Problem.NotFound ? Said(language.Message!) : language.Carry<QuestionAnswer>();
+            if (language.Value is not { } resolvedLanguage) return language.Problem == Problem.NotFound ? Said(language.Message!) : (null, language.Carry<QuestionAnswer>());
             (languageCode, languageName) = (resolvedLanguage.Code, resolvedLanguage.Name);
         }
 
         var films = await wikidata.AskedAsync(ask.Relation, item, ct);
-        if (films is null) return Unavailable<QuestionAnswer>("Wikidata could not be asked, and nothing is kept for this.");
+        if (films is null) return Unavailable("Wikidata could not be asked, and nothing is kept for this.");
         if (films.Count == 0) return Said($"Wikidata lists no films for {name}.");
 
         var order = request.Sort switch
@@ -110,10 +177,7 @@ public sealed partial class CatalogueSearch
                 ? WikidataSets.Orders.Newest : WikidataSets.Orders.Votes,
         };
         var limit = Math.Clamp(request.Limit, 1, MostListed);
-        var pageAsk = new PageAsk(limit, Math.Min(limit, ResultsListed), page);
         var narrowing = new WikidataNarrowing([.. genres.Select(g => g.Name)], [.. excluded.Select(g => g.Name)], languageCode, request.From, request.To);
-        var listed = await WikidataTitlesAsync(wikidata.Ordered(films, order), narrowing, pageAsk, ct);
-        if (listed.Value is not { } paged) return listed.Carry<QuestionAnswer>();
 
         var resolved = new DiscoverResolved
         {
@@ -124,7 +188,7 @@ public sealed partial class CatalogueSearch
             Language = languageName,
             Sort = order == WikidataSets.Orders.Votes ? DiscoverSorts.Popular : order,
         };
-        return Outcome<QuestionAnswer>.Ok(new QuestionAnswer(true, parts, new DiscoverAnswer("film", resolved, paged.Hits, paged.Next), null));
+        return (new WikidataPlan(parts, wikidata.Ordered(films, order), narrowing, resolved, limit), null);
     }
 
     /// <summary>
@@ -152,7 +216,7 @@ public sealed partial class CatalogueSearch
     /// Wikidata's release date; genres and language from the card, which a film Wikidata holds no
     /// database id for cannot supply, so such a film is left out of a narrowing that needs one.
     /// </summary>
-    private async Task<Outcome<PagedHits>> WikidataTitlesAsync(IReadOnlyList<WikidataFilm> ordered, WikidataNarrowing narrowing, PageAsk ask, CancellationToken ct)
+    private async Task<Outcome<PagedHits>> WikidataTitlesAsync(IReadOnlyList<WikidataFilm> ordered, WikidataNarrowing narrowing, PageAsk ask, CancellationToken ct, TimeSpan? wait = null)
     {
         if (ask.Take <= 0) return Outcome<PagedHits>.Ok(new PagedHits([], null));
 
@@ -191,7 +255,7 @@ public sealed partial class CatalogueSearch
             more = matched.Count > ask.Skip + ask.Size;
         }
 
-        var glanced = await glances.ForAsync([.. page.Select(f => f.ImdbId)], ct, WideningWait);
+        var glanced = await glances.ForAsync([.. page.Select(f => f.ImdbId)], ct, wait ?? WideningWait);
         var listed = new List<ListedTitle>();
         foreach (var film in page)
         {

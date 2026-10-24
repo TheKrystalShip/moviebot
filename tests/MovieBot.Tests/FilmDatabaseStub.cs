@@ -170,6 +170,19 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         new(4500, "show", "Prism Tales", "2020-05-01", [18], "en", 45, 7.5, 2000),
     ];
 
+    /// <summary>A person credited on the Prism world's titles: every film but the reels, and the show.</summary>
+    public const int PrismPerson = 4600;
+
+    [GeneratedRegex(@"/(?:movie|tv)/(4\d{3})/external_ids$")]
+    private static partial Regex PrismIds();
+
+    /// <summary>A Prism title as a list or a person's credits names it.</summary>
+    private static string PrismListed(PrismTitle t, string? type = null, string? character = null) =>
+        "{ \"id\": " + t.Id + ", \"" + (t.Kind == "film" ? "title" : "name") + "\": \"" + t.Title + "\", \"" + (t.Kind == "film" ? "release_date" : "first_air_date") + "\": \"" + t.Date + "\","
+        + " \"vote_average\": " + Num(t.Rating) + ", \"vote_count\": 500, \"popularity\": " + t.Popularity + ", \"overview\": \"About " + t.Title + ".\","
+        + " \"poster_path\": \"/p" + t.Id + ".jpg\", \"genre_ids\": [ " + string.Join(", ", t.Genres) + " ], \"original_language\": \"" + t.Language + "\""
+        + (type is null ? "" : ", \"media_type\": \"" + type + "\"") + (character is null ? "" : ", \"character\": \"" + character + "\"") + " }";
+
     /// <summary>A page of the Prism world for a discovery, filtered and ordered as the database does it.</summary>
     private static string PrismPage(string kind, System.Collections.Specialized.NameValueCollection query)
     {
@@ -194,10 +207,7 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             .OrderByDescending(t => t.Popularity)
             .ToList();
         var page = int.Parse(query["page"] ?? "1", CultureInfo.InvariantCulture);
-        var items = found.Skip((page - 1) * 20).Take(20).Select(t =>
-            "{ \"id\": " + t.Id + ", \"" + (kind == "film" ? "title" : "name") + "\": \"" + t.Title + "\", \"" + (kind == "film" ? "release_date" : "first_air_date") + "\": \"" + t.Date + "\","
-            + " \"vote_average\": " + Num(t.Rating) + ", \"vote_count\": 500, \"popularity\": " + t.Popularity + ", \"overview\": \"About " + t.Title + ".\","
-            + " \"poster_path\": \"/p" + t.Id + ".jpg\", \"genre_ids\": [ " + string.Join(", ", t.Genres) + " ], \"original_language\": \"" + t.Language + "\" }");
+        var items = found.Skip((page - 1) * 20).Take(20).Select(t => PrismListed(t));
         return "{ \"page\": " + page + ", \"total_pages\": " + Math.Max(1, (found.Count + 19) / 20) + ", \"total_results\": " + found.Count
             + ", \"results\": [ " + string.Join(", ", items) + " ] }";
     }
@@ -233,6 +243,10 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         if (path.EndsWith("/find/tt1790809") || path.EndsWith("/find/tt1298650") || path.EndsWith("/find/tt0383574") || path.EndsWith("/find/tt0449088"))
             return "{ \"movie_results\": [ { \"id\": " + (9000 + int.Parse(path[^3..], CultureInfo.InvariantCulture)) + ", \"vote_count\": 0 } ] }";
         if (path.Contains("/find/")) return """{ "movie_results": [] }""";
+        if (PrismIds().Match(path) is { Success: true } prismIds) return "{ \"imdb_id\": \"tt99" + prismIds.Groups[1].Value + "0\" }";
+        if (path.EndsWith("/person/" + PrismPerson))
+            return "{ \"id\": " + PrismPerson + ", \"name\": \"Pia Prism\", \"known_for_department\": \"Acting\", \"combined_credits\": { \"cast\": [ "
+                + string.Join(", ", Prism.Where(t => t.Id < 4400 || t.Kind == "show").Select(t => PrismListed(t, t.Kind == "film" ? "movie" : "tv", "Lead"))) + " ] } }";
         if (path.EndsWith("/movie/949")) return Heat;
         if (path.EndsWith("/trending/movie/week"))
             return """{ "results": [ { "id": 949, "title": "Heat", "release_date": "1995-12-15", "vote_average": 7.9, "vote_count": 8740, "poster_path": "/heat-poster.jpg" } ] }""";
@@ -401,6 +415,8 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         if ((path.EndsWith("/discover/movie") || path.EndsWith("/discover/tv"))
             && (query["with_companies"] == PrismId.ToString(CultureInfo.InvariantCulture) || query["with_keywords"] == PrismId.ToString(CultureInfo.InvariantCulture)))
             return PrismPage(path.EndsWith("/discover/movie") ? "film" : "show", query);
+        if (path.EndsWith("/discover/movie") && query["with_genres"] == "80" && query["vote_count.gte"] == "100" && query["without_genres"] is null)
+            return PrismPage("film", query);
         if (path.EndsWith("/discover/movie"))
         {
             var genres = query["with_genres"];
