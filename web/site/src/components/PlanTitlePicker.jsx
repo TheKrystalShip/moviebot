@@ -1,9 +1,8 @@
 import React from "react";
-import { SearchField, ShowcaseCard, useDebouncedValue } from "@thekrystalship/krystal";
+import { PosterCard, SearchField, useDebouncedValue } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { newPlanPath } from "../paths.js";
 import { navigate } from "../router.js";
-import { kindLine } from "./Film.jsx";
 import { CardsSkeleton } from "./TitleCards.jsx";
 
 /**
@@ -30,13 +29,11 @@ export function PlanTitlePicker({ autoFocus = false }) {
       {q && settled && found.list.length > 0 && (
         <div className="kc-grid">
           {found.list.map((t) => (
-            <ShowcaseCard key={t.imdbId} compactFacts
+            <PosterCard key={t.imdbId}
               name={t.title}
-              eyebrow={kindLine(t.kind, t)}
               art={t.posterUrl ? `url("${t.posterUrl}")` : null}
               onPick={() => navigate(newPlanPath(t.imdbId, t.kind))}
-              specs={[{ icon: "calendar", value: t.year || null, label: "Year" }]}
-              action={{ label: "Plan a watch" }} />
+              facts={[{ value: t.year || null, label: "Year" }]} />
           ))}
         </div>
       )}

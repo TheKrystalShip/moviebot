@@ -169,96 +169,30 @@ button.kc-continue:disabled { cursor: progress; }
 .kc-anime-switch { width: min(100%, 280px); }
 @media (max-width: 768px) { .kc-anime-switch { width: 100%; } }
 
-/* ── The featured film ───────────────────────────────────────────────────────────────── */
-.kc-featured {
-  position: relative; border-radius: var(--r-sm); overflow: hidden; border: var(--edge);
-  min-height: 380px; background: var(--canvas); display: flex; align-items: flex-end;
-}
-.kc-featured__art {
-  position: absolute; top: 0; right: 0; bottom: 0; width: 72%;
-  background-size: cover; background-position: center 25%;
-}
-.kc-featured__scrim {
-  position: absolute; inset: 0;
-  background: linear-gradient(to right, var(--canvas) 30%, transparent 100%),
-              linear-gradient(to top, color-mix(in srgb, var(--kc-art-ink) 70%, transparent), transparent 50%);
-}
-.kc-featured__body { position: relative; padding: 40px; max-width: 600px; display: flex; flex-direction: column; gap: 12px; }
-.kc-featured__body h1 { margin: 0; font-size: 40px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; }
-.kc-featured__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 14px; color: var(--fg-2); }
-.kc-featured__starring { font-size: 13.5px; color: var(--fg-3); }
-.kc-featured__starring b { color: var(--fg-1); font-weight: 500; }
-@media (max-width: 720px) {
-  .kc-featured { min-height: 320px; }
-  .kc-featured { --kc-featured-art: 0.45; }
-  .kc-featured__art { width: 100%; opacity: var(--kc-featured-art); }
-  .kc-featured__body { padding: 22px; }
-  .kc-featured__body h1 { font-size: 30px; }
-}
-
-/* ── A film's page ───────────────────────────────────────────────────────────────────── */
-.kc-tt {
-  container-type: inline-size; position: relative; border-radius: var(--r-sm); overflow: hidden;
-  border: var(--edge); background: var(--canvas);
-}
+/* ── A title's hero (TitleHero.jsx), the head of a title's page, of a plan and of Home's and Discover's top ── */
+/*
+ * The backdrop across the page, faded into it to the left and below, and one column of text over the
+ * faded side, in groups with room between them. On a phone the backdrop is a band at the top and the
+ * column follows under it.
+ */
+.kc-tt { container-type: inline-size; position: relative; }
 .kc-tt__art {
-  position: absolute; top: 0; right: 0; bottom: 0; width: 65%;
-  background-size: cover; background-position: center; opacity: 0.85;
+  position: absolute; top: 0; right: 0; bottom: 0; width: 74%;
+  background-size: cover; background-position: center;
 }
-.kc-tt__shade { position: absolute; inset: 0; background: linear-gradient(to right, var(--canvas) 38%, transparent 100%); }
-/*
- * Two columns: the poster, and everything else. The text's width is set by the hero alone, never by the
- * poster, so the text's height is settled before the poster is sized; the poster then fills that height
- * at 2:3 and its column takes the width that gives. Past the room the text leaves, the poster is held
- * to it and its picture cropped at the sides. A hero too narrow for both keeps the poster at its least.
- */
-.kc-tt__grid {
-  --kc-tt-text: min(680px, 100cqw - 396px);
-  position: relative; display: grid; grid-template-columns: auto var(--kc-tt-text); justify-content: start;
-  gap: 32px; padding: 32px;
-}
-.kc-tt__poster {
-  height: 100%; min-width: 220px; max-width: calc(100cqw - 96px - var(--kc-tt-text));
-  aspect-ratio: 2 / 3; border: var(--edge-strong);
-}
-.kc-tt__poster img { width: 100%; height: 100%; object-fit: cover; }
-@container (max-width: 900px) {
-  .kc-tt__grid { grid-template-columns: 220px minmax(0, 1fr); }
-  .kc-tt__poster { width: 220px; height: auto; max-width: none; align-self: start; }
-}
-.kc-tt__body { display: flex; flex-direction: column; gap: 14px; max-width: 680px; min-width: 0; }
-.kc-tt__body h1 { margin: 0; font-size: 34px; font-weight: 700; line-height: 1.15; letter-spacing: -0.015em; }
-.kc-tt__meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--fg-2); }
-.kc-tt__score-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.kc-tt__tagline { margin: 0; font-size: 15px; font-style: italic; color: var(--fg-1); text-wrap: pretty; }
-.kc-tt__overview { margin: 0; font-size: 15px; line-height: 1.55; color: var(--fg-2); text-wrap: pretty; }
-@media (max-width: 720px) {
-  .kc-tt__art { width: 100%; opacity: 0.35; }
-  .kc-tt__shade { background: linear-gradient(to top, var(--canvas) 30%, color-mix(in srgb, var(--kc-art-ink) 60%, transparent)); }
-  .kc-tt__grid { grid-template-columns: 1fr; padding: 20px; gap: 20px; }
-  .kc-tt__poster { width: 100%; height: auto; min-width: 0; max-width: none; }
-  .kc-tt__body h1 { font-size: 28px; }
-  /* Watch across the column, then the rest two to a row; an odd one out at the end takes its row. */
-  .kc-tt .kc-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .kc-tt .kc-actions > :first-child,
-  .kc-tt .kc-actions > :last-child:nth-child(even) { grid-column: 1 / -1; }
-}
-
-/*
- * A film's or a show's page: the backdrop across the page, faded into it to the left and below, and
- * one column of text over the faded side, in groups with room between them. On a phone the backdrop is
- * a band at the top and the column follows under it.
- */
-.kc-tt--wide { border: none; border-radius: 0; background: transparent; overflow: visible; }
-.kc-tt--wide .kc-tt__art { left: auto; width: 74%; opacity: 1; }
-.kc-tt--wide .kc-tt__shade {
+.kc-tt__shade {
+  position: absolute; inset: 0;
   background:
     linear-gradient(to top, var(--canvas) 0%, transparent 32%),
     linear-gradient(to right, var(--canvas) 30%, color-mix(in srgb, var(--canvas) 45%, transparent) 62%, transparent 100%);
 }
-.kc-tt--wide .kc-tt__body { position: relative; gap: 32px; max-width: 720px; padding: 40px 0 56px; }
+.kc-tt__body { position: relative; display: flex; flex-direction: column; gap: 32px; max-width: 720px; min-width: 0; padding: 40px 0 56px; }
+.kc-tt__body h1 { margin: 0; font-size: 34px; font-weight: 700; line-height: 1.15; letter-spacing: -0.015em; }
 .kc-tt__group { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.kc-tt--wide .kc-tt__meta { font-size: 15px; gap: 12px; }
+.kc-tt__meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 15px; color: var(--fg-2); }
+.kc-tt__score-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.kc-tt__tagline { margin: 0; font-size: 15px; font-style: italic; color: var(--fg-1); text-wrap: pretty; }
+.kc-tt__overview { margin: 0; font-size: 16px; line-height: 1.55; color: var(--fg-2); text-wrap: pretty; }
 .kc-tt__rating { display: inline-flex; align-items: center; gap: 6px; color: var(--fg-1); }
 .kc-tt__rating-value { font-family: var(--font-mono); font-weight: 600; }
 .kc-tt__rating-of { font-size: 12px; color: var(--fg-3); }
@@ -277,21 +211,25 @@ button.kc-continue:disabled { cursor: progress; }
 .kc-tt__honour i { color: var(--fg-1); }
 .kc-tt__honour--link { text-decoration: none; }
 .kc-tt__honour--link:hover b, .kc-tt__honour--link:focus-visible b { color: var(--krystal-teal-hover); }
-.kc-tt--wide .kc-tt__overview { font-size: 16px; }
 .kc-tt__overview--clamp:not(.is-open) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .kc-tt__more { align-self: flex-start; margin-top: -8px; padding: 0; font-size: 14px; color: var(--krystal-teal); }
-.kc-tt--wide .kc-credits { font-size: 14px; grid-template-columns: 96px minmax(0, 1fr); }
-.kc-tt--wide .kc-actions { margin-top: 0; }
+.kc-tt .kc-credits { font-size: 14px; grid-template-columns: 96px minmax(0, 1fr); }
+.kc-tt .kc-actions { margin-top: 0; }
 .kc-tt .kc-actions > * { white-space: nowrap; flex-shrink: 0; }
 .kc-tt__resume { max-width: 360px; }
 @media (max-width: 720px) {
-  .kc-tt--wide .kc-tt__art { width: 100%; height: 300px; bottom: auto; opacity: 1; }
-  .kc-tt--wide .kc-tt__shade { bottom: auto; height: 300px; background: linear-gradient(to top, var(--canvas) 12%, transparent 65%); }
-  .kc-tt--wide .kc-tt__body { gap: 28px; padding: 170px 0 40px; }
+  .kc-tt__art { width: 100%; height: 300px; bottom: auto; }
+  .kc-tt__shade { bottom: auto; height: 300px; background: linear-gradient(to top, var(--canvas) 12%, transparent 65%); }
+  .kc-tt__body { gap: 28px; padding: 170px 0 40px; }
+  .kc-tt__body h1 { font-size: 28px; }
   .kc-tt__honour { align-items: flex-start; line-height: 1.45; }
   .kc-tt__honour > svg { margin-top: 2px; }
-  .kc-tt--wide .kc-credits { grid-template-columns: 80px minmax(0, 1fr); }
+  .kc-tt .kc-credits { grid-template-columns: 80px minmax(0, 1fr); }
   .kc-tt__resume { max-width: none; }
+  /* Watch across the column, then the rest two to a row; an odd one out at the end takes its row. */
+  .kc-tt .kc-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kc-tt .kc-actions > :first-child,
+  .kc-tt .kc-actions > :last-child:nth-child(even) { grid-column: 1 / -1; }
 }
 
 /* A title's trailer in its hero's place: YouTube's player at 16:9, as large as the hero holds. */
@@ -418,7 +356,6 @@ button.kc-continue:disabled { cursor: progress; }
 .kc-factgrid__label { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fg-3); font-weight: 600; }
 .kc-factgrid__value { font-size: 13.5px; color: var(--fg-1); overflow-wrap: anywhere; }
 .kc-attribution-note { margin: 0; font-size: 12px; color: var(--fg-4); }
-.kc-featured__overview { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--fg-2); max-width: 560px; }
 
 /* ── About, and the footer every page ends with (krystal's Footer) ───────────────────── */
 .kc-about__block { display: flex; flex-direction: column; gap: 10px; max-width: 680px; }
@@ -433,7 +370,8 @@ button.kc-continue:disabled { cursor: progress; }
 .kc-discover-bar { display: flex; align-items: stretch; gap: 10px; }
 .kc-discover-bar .kc-discover-field { flex: 1; min-width: 0; }
 .kc-lazy-shelf { min-width: 0; }
-.kc-rail-skeleton { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.kc-rail-skeleton { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.kc-rail-skeleton__head { display: flex; flex-direction: column; gap: 4px; }
 .kc-browse-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; padding: 14px; }
 .kc-shelf > .kc-browse-grid { padding: 0; }
 @media (max-width: 600px) { .kc-browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; } }
@@ -442,26 +380,34 @@ button.kc-continue:disabled { cursor: progress; }
   width: 36px; height: 36px; flex: none; border-radius: var(--r-pill); background: var(--krystal-teal-dim); color: var(--krystal-teal-hover);
   display: inline-flex; align-items: center; justify-content: center;
 }
+/*
+ * The top of Home and of Discover (Spotlight.jsx): a title's page's hero turning through its slides.
+ * Every slide is laid in one place, so the top is as tall as its tallest and nothing under it moves as
+ * it turns; the shown one fades in over the last, artwork and words alike. The pager stands at the far
+ * end of the buttons' row, the page's gutter in from the hero's edge, as the text is from the other; on
+ * a phone it is centred under the buttons.
+ */
 .kc-spotlight__eyebrow { display: inline-flex; align-items: center; gap: 7px; }
-/* Every slide is laid in one place, so the top is as tall as its tallest and nothing under it moves as
-   it turns; the shown one fades in over the last, artwork and words alike. */
-.kc-spotlight__slides { position: relative; display: grid; width: 100%; }
-.kc-spotlight__slides > .kc-featured__body {
-  grid-area: 1 / 1; align-self: end; visibility: hidden; opacity: 0;
+.kc-spotlight__slides { position: relative; display: grid; }
+.kc-spotlight__slides > .kc-spotlight__slide {
+  grid-area: 1 / 1; align-self: end; justify-self: start; width: 100%; visibility: hidden; opacity: 0;
   transition: opacity 400ms var(--ease-out), visibility 0s linear 400ms;
 }
-.kc-spotlight__slides > .kc-featured__body.is-shown { visibility: visible; opacity: 1; transition: opacity 500ms var(--ease-out) 150ms; }
-.kc-spotlight .kc-featured__art { opacity: 0; transition: opacity 900ms var(--ease-out); }
-.kc-spotlight .kc-featured__art.is-shown { opacity: var(--kc-featured-art, 1); }
-.kc-spotlight__pager { position: absolute; right: 18px; bottom: 14px; z-index: 1; }
-@media (max-width: 720px) {
-  .kc-spotlight .kc-featured__body { padding-bottom: 44px; }
-  .kc-spotlight__pager { left: 19px; right: auto; bottom: 12px; }
+.kc-spotlight__slides > .kc-spotlight__slide.is-shown { visibility: visible; opacity: 1; transition: opacity 500ms var(--ease-out) 150ms; }
+.kc-tt.kc-spotlight .kc-spotlight__art { opacity: 0; transition: opacity 900ms var(--ease-out); }
+.kc-tt.kc-spotlight .kc-spotlight__art.is-shown { opacity: 1; }
+.kc-spotlight__pager {
+  grid-area: 1 / 1; align-self: end; justify-self: end; z-index: 1;
+  display: flex; align-items: center; height: 46px; margin: 0 var(--k-page-gutter, 24px) 56px 0;
 }
-@media (max-width: 600px) {
-  .kc-spotlight .kc-featured__overview {
-    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-  }
+@media (max-width: 720px) {
+  .kc-spotlight .kc-tt__body { padding-bottom: 20px; }
+  .kc-spotlight__pager { grid-area: 2 / 1; justify-self: center; height: auto; margin: 0 0 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kc-spotlight__slides > .kc-spotlight__slide,
+  .kc-spotlight__slides > .kc-spotlight__slide.is-shown,
+  .kc-tt.kc-spotlight .kc-spotlight__art { transition: none; }
 }
 
 /* Discover's heading over a person's work or a genre: who or what, and how many. */
@@ -690,10 +636,6 @@ button.kc-episode:disabled { cursor: progress; }
   .kc-plan-time__answer { grid-column: 1 / -1; width: auto; }
   .kc-plan-stages { gap: 10px; }
   .kc-plan-stages__step { font-size: 10.5px; line-height: 1.3; }
-  /* A plan's hero holds its poster small beside the name, so the times are in reach. */
-  .kc-plan .kc-tt__grid { grid-template-columns: 96px minmax(0, 1fr); gap: 16px; }
-  .kc-plan .kc-tt__poster { width: 96px; }
-  .kc-plan .kc-tt__body h1 { font-size: 22px; }
 }
 
 /* ── Subtitle style ── the preview stays in view beside the choices, above them on a phone. */

@@ -10,7 +10,7 @@ import { navigate } from "../router.js";
 import { Empty, Failed } from "../components/Film.jsx";
 import { FilmActions } from "../components/FilmActions.jsx";
 import { CastGrid, FactGrid, Keywords, TitleSkeleton, dollars, originalTitle } from "../components/FilmDetails.jsx";
-import { HeroGroup, TitleAbout, TitleAwards, TitleFacts, TitleHero, TitleHonours, TrailerButton } from "../components/TitleHero.jsx";
+import { HeroGroup, kindWord, TitleAbout, TitleAwards, TitleFacts, TitleHero, TitleHonours, TrailerButton } from "../components/TitleHero.jsx";
 import { TitleShelves } from "./DiscoverShelves.jsx";
 
 /**
@@ -55,7 +55,7 @@ export function CatalogueFilm({ imdbId }) {
 
   return (
     <div className="kc-page kc-title">
-      <TitleHero art={d.backdropUrl || d.posterUrl} eyebrow={d.category === ANIME ? "Anime movie" : "Movie"} title={d.title}
+      <TitleHero art={d.backdropUrl || d.posterUrl} eyebrow={kindWord("film", d.category === ANIME)} title={d.title}
         trailer={d.trailers && d.trailers[0]}
         facts={<TitleFacts rating={d.rating} votes={d.votes} ratedBy={d.ratedBy} kind="film" category={d.category === ANIME ? ANIME : null}
           parts={[d.year, d.certification && { cert: d.certification }, d.runtimeMinutes && clock(d.runtimeMinutes * 60)]}

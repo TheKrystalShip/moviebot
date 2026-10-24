@@ -1,4 +1,4 @@
-// How many cards each shelf shows (krystal's Rail `perView`), by the shelf's own width: each count holds
+// How many cards each shelf shows (krystal's Shelf and Rail `perView`), by the shelf's own width: each count holds
 // from its width up. Fractional on purpose: the card cut off at the right edge is what says there is more.
 // A film card stays at about 190px or wider: at 165px its length and a "1h 50m left" beside Resume are
 // clipped.

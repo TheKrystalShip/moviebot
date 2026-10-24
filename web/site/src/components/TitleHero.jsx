@@ -3,7 +3,7 @@ import { Button, Icon, Meter } from "@thekrystalship/krystal";
 import { clock } from "../time.js";
 import { discoverGenrePath, discoverPath } from "../paths.js";
 import { linkProps } from "../router.js";
-import { Credits, FilmScore, Genres, Tagline, votes } from "./FilmDetails.jsx";
+import { Credits, votes } from "./FilmDetails.jsx";
 import { TrailerPlayer } from "./TrailerPlayer.jsx";
 
 /**
@@ -13,38 +13,20 @@ import { TrailerPlayer } from "./TrailerPlayer.jsx";
 export const TrailerContext = React.createContext(null);
 
 /**
- * A title's hero, the head of every page about one title: its backdrop across the page behind a column
- * of text, a line saying what kind of title it is, its name, the facts line (`facts`), and under them
- * whatever the page puts there, each a group (`HeroGroup`) with room between it and the next. With
- * `trailer` (a description's `{key, name}`), the page's `TrailerButton` plays it: in the hero's place on
- * a wide screen, and full screen on a phone (`TrailerPlayer`).
- *
- * With a `poster` (a `PosterArt` or a `HeroPoster`) the hero is the plan's compact one instead: the
- * poster beside the text, framed as a card.
+ * A title's hero, the head of every page about one title, of a plan and of Home's and Discover's top
+ * (`Spotlight`): its backdrop across the page behind a column of text, a line saying what kind of title
+ * it is, its name, the facts line (`facts`), and under them whatever the page puts there, each a group
+ * (`HeroGroup`) with room between it and the next. With `trailer` (a description's `{key, name}`), the
+ * page's `TrailerButton` plays it: in the hero's place on a wide screen, and full screen on a phone
+ * (`TrailerPlayer`).
  */
-export function TitleHero({ art, poster, eyebrow, title, facts, trailer, className = "", children }) {
+export function TitleHero({ art, eyebrow, title, facts, trailer, className = "", children }) {
   const [playing, setPlaying] = React.useState(false);
   const open = React.useCallback(() => setPlaying(true), []);
   const close = React.useCallback(() => setPlaying(false), []);
-  if (poster) {
-    return (
-      <section className={"kc-tt" + (className ? " " + className : "")}>
-        {art && <div className="kc-tt__art" style={{ backgroundImage: `url("${art}")` }} />}
-        <div className="kc-tt__shade" />
-        <div className="kc-tt__grid">
-          {poster}
-          <div className="kc-tt__body">
-            <span className="kc-eyebrow kc-eyebrow--muted">{eyebrow}</span>
-            <h1>{title}</h1>
-            {children}
-          </div>
-        </div>
-      </section>
-    );
-  }
   return (
     <TrailerContext.Provider value={trailer ? { open, playing } : null}>
-      <section className={"kc-tt kc-tt--wide" + (playing ? " is-trailer" : "") + (className ? " " + className : "")}>
+      <section className={"kc-tt" + (playing ? " is-trailer" : "") + (className ? " " + className : "")}>
         {art && <div className="kc-tt__art" style={{ backgroundImage: `url("${art}")` }} />}
         <div className="kc-tt__shade" />
         <div className="kc-tt__body" inert={playing ? "" : undefined}>
@@ -59,6 +41,12 @@ export function TitleHero({ art, poster, eyebrow, title, facts, trailer, classNa
       </section>
     </TrailerContext.Provider>
   );
+}
+
+/** What kind of title a hero holds, in the words over its name. */
+export function kindWord(kind, anime) {
+  if (kind === "show") return anime ? "Anime series" : "TV series";
+  return anime ? "Anime movie" : "Movie";
 }
 
 /** One group of the hero's column: its parts close together, with room between it and the next group. */
@@ -200,43 +188,6 @@ export function ResumeMeter({ position, duration }) {
   return (
     <Meter className="kc-tt__resume" value={Math.min(position, duration)} max={duration} label="Watched"
       end={`${clock(position)} of ${clock(duration)}`} />
-  );
-}
-
-/** A poster in the plan's hero from its address, or the name on a tinted card where there is none. */
-export function HeroPoster({ url, name }) {
-  return (
-    <div className="kc-poster-art kc-tt__poster">
-      {url ? <img src={url} alt="" /> : <span className="kc-poster-art__name">{name}</span>}
-    </div>
-  );
-}
-
-/** A film's facts line in the plan's hero: its year, its certification and its running time. */
-export function FilmFacts({ film }) {
-  if (!film.year && !film.certification && !film.runtimeMinutes) return null;
-  return (
-    <div className="kc-tt__meta">
-      {film.year && <span>{film.year}</span>}
-      {film.certification && <span className="kc-cert">{film.certification}</span>}
-      {film.runtimeMinutes && <span>{clock(film.runtimeMinutes * 60)}</span>}
-    </div>
-  );
-}
-
-/** What a title is about in the plan's hero: the score and genres, the tagline and the overview. */
-export function TitleStory({ rating, votes: count, ratedBy, genres = [], tagline, overview }) {
-  return (
-    <>
-      {(rating || genres.length > 0) && (
-        <div className="kc-tt__score-row">
-          {rating && <FilmScore rating={rating} votes={count} by={ratedBy} />}
-          <Genres names={genres} />
-        </div>
-      )}
-      <Tagline text={tagline} />
-      {overview && <p className="kc-tt__overview">{overview}</p>}
-    </>
   );
 }
 

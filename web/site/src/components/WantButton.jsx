@@ -79,7 +79,7 @@ export function WantButton({ imdbId, kind, title }) {
 }
 
 /**
- * A card's ribbon for wanting its title, as `ShowcaseCard`'s `ribbon` prop, and the menu it opens. A
+ * A card's ribbon for wanting its title, as `PosterCard`'s `ribbon` prop, and the menu it opens. A
  * press on a title not wanted makes the want; on one wanted, it opens the menu beside the ribbon. While
  * what is wanted is not known there is no ribbon. The menu is drawn over the page, so it goes beside
  * the card rather than in it, where a press in it would open the card.

@@ -17,9 +17,9 @@ import { startFilm } from "./pages/TvFilm.jsx";
  *
  * The slides hold still while focus is on the page below them. With `store`, a page's spotlight
  * (`useSpotlight`), the artwork is the page's stage, and they hold still while focus is in its rows. `initial` puts the page's first focus on the first
- * action; `more` follows each slide's actions. `className` and `rest` go on the slides' section.
+ * action. `className` and `rest` go on the slides' section.
  */
-export function TvHero({ slides: laid, store, initial = false, more, className, ...rest }) {
+export function TvHero({ slides: laid, store, initial = false, className, ...rest }) {
   const slides = readySlides(laid);
   const idle = React.useMemo(() => createStore({ row: -1 }), []);
   const inRows = useStore(store || idle, (s) => s.row >= 0);
@@ -55,7 +55,7 @@ export function TvHero({ slides: laid, store, initial = false, more, className, 
         onFocus={(e) => { carousel.rootProps.onFocus(e); track.onFocus(e); }}
         onBlur={(e) => { carousel.rootProps.onBlur(e); track.onBlur(e); }}>
         <TvSpotlight key={slide.key} className="kc-tv-hero" size="lg" eyebrow={spot.eyebrow} title={spot.title} meta={<SpotFacts facts={spot.facts} />}
-          overview={spot.overview} actions={<div className="kc-tv-hero__actions"><TvSlideActions slide={slide} initial={initial} more={more} /></div>}>
+          overview={spot.overview} actions={<div className="kc-tv-hero__actions"><TvSlideActions slide={slide} initial={initial} /></div>}>
           <CarouselPager carousel={carousel} indicator className="kc-tv-hero__pager" />
         </TvSpotlight>
       </section>
@@ -89,7 +89,7 @@ function useFocusBelow(section) {
  * Watch for a film that is out and has to be fetched, which fetches it into a room; More info for
  * every title; and Want.
  */
-function TvSlideActions({ slide, initial, more }) {
+function TvSlideActions({ slide, initial }) {
   const [starting, setStarting] = React.useState(false);
   const first = initial ? { "data-tv-initial": "" } : {};
   const here = slide.title || slide.here;
@@ -115,7 +115,6 @@ function TvSlideActions({ slide, initial, more }) {
       {watch}
       <Button variant={watch ? undefined : "primary"} size="lg" icon="info" {...(watch ? {} : first)} {...linkProps(page)}>More info</Button>
       {slide.imdbId && <WantButton imdbId={slide.imdbId} kind={show ? "show" : "film"} title={slide.spot.title} />}
-      {more}
     </>
   );
 }

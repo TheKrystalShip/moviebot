@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, CollectionTile, TvCard, TvHeading, TvRow } from "@thekrystalship/krystal";
+import { CollectionTile, TvCard, TvHeading, TvRow } from "@thekrystalship/krystal";
 import { api } from "../../api.js";
 import { apiPicks, filterQuestion, pickCount } from "../../filters.js";
 import { useLoad } from "../../data.js";
@@ -7,7 +7,7 @@ import { discoverBrowsePath, discoverShelfPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { Failed } from "../../components/Film.jsx";
 import { foundPage } from "../../components/TitleCards.jsx";
-import { atLeast, surprisePool, titleShelfHeads, useSurprise, useWhere } from "../../pages/DiscoverShelves.jsx";
+import { atLeast, titleShelfHeads, useWhere } from "../../pages/DiscoverShelves.jsx";
 import { useDiscoverSlides } from "../../heroes.js";
 import { TvHero } from "../hero.jsx";
 
@@ -15,13 +15,11 @@ import { TvHero } from "../hero.jsx";
 // the franchises and the browse categories as rows of tiles; a category's shelves as rows; and one
 // shelf's titles in rows that wrap. Every shelf comes from `/api/discover`, as on every surface.
 
-/** The spotlight: the films on the season's shelf, as Home's top turns through its own, with Surprise me. */
+/** The spotlight: the films on the season's shelf, as Home's top turns through its own. */
 function TvDiscoverSpotlight({ index, where }) {
   const slides = useDiscoverSlides(index, where);
-  const [busy, surprise] = useSurprise(where);
   if (!slides || slides.length === 0) return null;
-  const more = <Button size="lg" icon="dices" busy={busy} onClick={() => surprise({ shelves: surprisePool(index) })}>Surprise me</Button>;
-  return <TvHero slides={slides} more={more} className="kc-tvd__spot" data-tv-row="" />;
+  return <TvHero slides={slides} className="kc-tvd__spot" data-tv-row="" />;
 }
 
 /** A shelf's tile: a mood's posters fanned, a series' films in order with how far the person got. */

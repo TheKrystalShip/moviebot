@@ -172,27 +172,25 @@ export function FactGrid({ facts }) {
 }
 
 /**
- * A film's or show's page while its description is read: the same frame, poster, heading, lines of
- * text and cast, as blocks where the words and artwork will be, so the page fills in where it stands.
- * `kind` is the eyebrow, which is known before anything is read.
+ * A film's or show's page while its description is read: the hero's column, heading, lines of text,
+ * credits and buttons, and the cast, as blocks where the words will be, so the page fills in where it
+ * stands. `kind` is the eyebrow, which is known before anything is read.
  */
 export function TitleSkeleton({ kind }) {
   return (
     <div className="kc-page kc-title">
       <section className="kc-tt">
-        <div className="kc-tt__grid">
-          <span className="k-skeleton kc-tt__poster" />
-          <div className="kc-tt__body">
-            <span className="kc-eyebrow kc-eyebrow--muted">{kind}</span>
+        <div className="kc-tt__body">
+          <div className="kc-tt__group">
+            <span className="kc-eyebrow">{kind}</span>
             <Skeleton w="62%" h={34} r={8} />
             <div className="kc-tt__meta">
-              <Skeleton w={40} h={14} /><Skeleton w={34} h={14} /><Skeleton w={64} h={14} />
+              <Skeleton w={120} h={16} /><Skeleton w={40} h={16} /><Skeleton w={34} h={16} /><Skeleton w={64} h={16} />
             </div>
-            <div className="kc-tt__score-row">
-              <Skeleton w={180} h={18} /><Skeleton w={64} h={24} r={999} /><Skeleton w={72} h={24} r={999} />
-            </div>
+          </div>
+          <div className="kc-tt__group">
             <div className="kc-tt__overview">
-              <Skeleton h={14} /><Skeleton h={14} style={{ marginTop: 9 }} /><Skeleton w="70%" h={14} style={{ marginTop: 9 }} />
+              <Skeleton h={15} /><Skeleton h={15} style={{ marginTop: 10 }} /><Skeleton w="70%" h={15} style={{ marginTop: 10 }} />
             </div>
             <div className="kc-credits">
               {[48, 64, 40].map((w) => (
@@ -201,9 +199,9 @@ export function TitleSkeleton({ kind }) {
                 </React.Fragment>
               ))}
             </div>
-            <div className="kc-actions">
-              <Skeleton w={132} h={48} r={8} /><Skeleton w={112} h={48} r={8} />
-            </div>
+          </div>
+          <div className="kc-actions">
+            <Skeleton w={132} h={46} r={4} /><Skeleton w={112} h={46} r={4} />
           </div>
         </div>
       </section>

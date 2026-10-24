@@ -5,14 +5,14 @@ import { api } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
-import { discoverFilmPath, planPath, showPath } from "../paths.js";
+import { discoverFilmPath, isAnime, planPath, showPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { FURTHEST_DAYS, MAX_TIMES, SOONEST_MINUTES } from "../plans.js";
 import { ago, clock } from "../time.js";
-import { PageHead, Failed, kindLine } from "../components/Film.jsx";
-import { Credits, PersonCard, TitleSkeleton } from "../components/FilmDetails.jsx";
+import { PageHead, Failed } from "../components/Film.jsx";
+import { PersonCard, TitleSkeleton } from "../components/FilmDetails.jsx";
 import { DateTile } from "../components/DateTile.jsx";
-import { FilmFacts, HeroPoster, TitleHero, TitleStory } from "../components/TitleHero.jsx";
+import { HeroGroup, kindWord, TitleAbout, TitleFacts, TitleHero } from "../components/TitleHero.jsx";
 import { PlanTitlePicker } from "../components/PlanTitlePicker.jsx";
 
 /** Minutes between the times offered. */
@@ -153,28 +153,27 @@ export function PlanNew({ query }) {
   const others = chosen.size;
   return (
     <div className="kc-page kc-plan-new">
-      <TitleHero art={d.backdropUrl || d.posterUrl} poster={<HeroPoster url={d.posterUrl} name={d.title} />}
-        eyebrow={kindLine(kind, d).label} title={d.title}>
-        {kind === "film" ? <FilmFacts film={d} /> : (years || d.certification) && (
-          <div className="kc-tt__meta">
-            {years && <span>{years}</span>}
-            {d.certification && <span className="kc-cert">{d.certification}</span>}
-          </div>
-        )}
-        <TitleStory rating={d.rating} votes={d.votes} ratedBy={d.ratedBy} genres={d.genres} tagline={d.tagline} overview={d.overview} />
-        <Credits film={kind === "film" ? d : { creators: d.creators, personIds: d.personIds, cast: d.cast }} />
-        <span className="kc-plan__maker">
-          <Icon name="calendar-heart" size={15} />
-          <span>
-            <b>{times.length ? leadWords(times[0], now) : "No time yet"}</b>
-            {times.length > 1 ? ` and ${times.length - 1} more` : ""}
-            {" · "}{others === 0 ? "Just you" : `You and ${others} ${others === 1 ? "other" : "others"}`}
+      <TitleHero art={d.backdropUrl || d.posterUrl} eyebrow={kindWord(kind, isAnime(d))} title={d.title}
+        facts={<TitleFacts rating={d.rating} votes={d.votes} ratedBy={d.ratedBy} kind={kind} category={d.category}
+          parts={kind === "film"
+            ? [d.year, d.certification && { cert: d.certification }, d.runtimeMinutes && clock(d.runtimeMinutes * 60)]
+            : [years, d.certification && { cert: d.certification }]}
+          genres={d.genres || []} />}>
+        <TitleAbout overview={d.overview} credits={kind === "film" ? d : { creators: d.creators, personIds: d.personIds, cast: d.cast }} />
+        <HeroGroup>
+          <span className="kc-plan__maker">
+            <Icon name="calendar-heart" size={15} />
+            <span>
+              <b>{times.length ? leadWords(times[0], now) : "No time yet"}</b>
+              {times.length > 1 ? ` and ${times.length - 1} more` : ""}
+              {" · "}{others === 0 ? "Just you" : `You and ${others} ${others === 1 ? "other" : "others"}`}
+            </span>
           </span>
-        </span>
-        <div className="kc-actions">
-          <Button variant="primary" size="xl" icon="calendar-plus" busy={busy} disabled={!ready || !online} onClick={make}>Make the plan</Button>
-          <Button size="xl" icon="info" onClick={() => navigate(kind === "show" ? showPath(imdbId) : discoverFilmPath(imdbId))}>More info</Button>
-        </div>
+          <div className="kc-actions">
+            <Button variant="primary" size="xl" icon="calendar-plus" busy={busy} disabled={!ready || !online} onClick={make}>Make the plan</Button>
+            <Button size="xl" icon="info" onClick={() => navigate(kind === "show" ? showPath(imdbId) : discoverFilmPath(imdbId))}>More info</Button>
+          </div>
+        </HeroGroup>
       </TitleHero>
 
       <BriefCard icon="calendar-clock" title="When" count={times.length} countTone="neutral"

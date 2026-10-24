@@ -9,7 +9,7 @@ import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, WatchButton } from "../components/Film.jsx";
 import { WatchOnTvActions, useDriving } from "../components/WatchOnTv.jsx";
 import { CastGrid, FactGrid, Keywords, TitleSkeleton, dollars, originalTitle } from "../components/FilmDetails.jsx";
-import { HeroGroup, ResumeMeter, TitleAbout, TitleAwards, TitleFacts, TitleHero, TitleHonours, TrailerButton } from "../components/TitleHero.jsx";
+import { HeroGroup, kindWord, ResumeMeter, TitleAbout, TitleAwards, TitleFacts, TitleHero, TitleHonours, TrailerButton } from "../components/TitleHero.jsx";
 import { TitleShelves } from "./DiscoverShelves.jsx";
 import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
@@ -94,7 +94,7 @@ export function Title({ id, category = null, fromDevice = false }) {
 
   return (
     <div className="kc-page kc-title">
-      <TitleHero art={backdrop} eyebrow={shelved === ANIME ? "Anime movie" : "Movie"} title={(d && d.title) || film.name || m.title}
+      <TitleHero art={backdrop} eyebrow={kindWord("film", shelved === ANIME)} title={(d && d.title) || film.name || m.title}
         trailer={d && d.trailers && d.trailers[0]}
         facts={<TitleFacts rating={d && d.rating} votes={d && d.votes} ratedBy={d && d.ratedBy} kind="film" category={shelved}
           parts={[film.year || (d && d.year), d && d.certification && { cert: d.certification }, clock(m.durationSeconds)]}

@@ -10,7 +10,7 @@ import { useCan, useSession } from "../session.js";
 import { ago, airDay, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, WatchButton, useWatchLink } from "../components/Film.jsx";
 import { CastGrid, FactGrid, Keywords, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
-import { HeroGroup, TitleAbout, TitleFacts, TitleHero, TrailerButton } from "../components/TitleHero.jsx";
+import { HeroGroup, kindWord, TitleAbout, TitleFacts, TitleHero, TrailerButton } from "../components/TitleHero.jsx";
 import { TitleShelves } from "./DiscoverShelves.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { WantButton } from "../components/WantButton.jsx";
@@ -131,7 +131,7 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
 
   return (
     <div className="kc-page kc-title">
-      <TitleHero art={s.backdropUrl || s.posterUrl} eyebrow={shelved === ANIME ? "Anime series" : "TV series"} title={s.title}
+      <TitleHero art={s.backdropUrl || s.posterUrl} eyebrow={kindWord("show", shelved === ANIME)} title={s.title}
         trailer={s.trailers && s.trailers[0]}
         facts={<TitleFacts rating={s.rating} votes={s.votes} ratedBy={s.ratedBy} kind="show" category={shelved}
           parts={[years, s.certification && { cert: s.certification }, `${seasons.length} ${seasons.length === 1 ? "season" : "seasons"}`]}

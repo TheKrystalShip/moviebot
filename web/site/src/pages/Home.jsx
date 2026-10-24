@@ -1,10 +1,10 @@
 import React from "react";
-import { Icon, Rail } from "@thekrystalship/krystal";
+import { Icon, Shelf } from "@thekrystalship/krystal";
 import { POSTERS, WIDE } from "../railDensity.js";
 import { api, filmName } from "../api.js";
 import { useLoad } from "../data.js";
 import { ANIME, isAnime, libraryPath, plansPath, wantsPath } from "../paths.js";
-import { navigate } from "../router.js";
+import { counted } from "../counts.js";
 import { ago, clock } from "../time.js";
 import { useCan } from "../session.js";
 import { useOnline } from "../connectivity.js";
@@ -13,6 +13,7 @@ import { Off } from "./Offline.jsx";
 import { useDownloadMarks } from "../components/DownloadButton.jsx";
 import { ContinueCard, Empty, Failed, FilmCard, NextEpisodeCard, PosterArt, ShowCard, watchLink } from "../components/Film.jsx";
 import { AnticipatedCard, MoreTile } from "../components/TitleCards.jsx";
+import { ViewAll } from "../components/ViewAll.jsx";
 import { Spotlight } from "../components/Spotlight.jsx";
 import { useHomeSlides, useSlides } from "../heroes.js";
 import { BellButton } from "../components/Bell.jsx";
@@ -71,36 +72,32 @@ function DeviceHome() {
       <Spotlight slides={slides} />
 
       {continuing.length > 0 && (
-        <Rail
-          perView={WIDE} icon="history" title="Continue watching" count={continuing.length}
-          items={continuing} itemKey={(p) => p.titleId}
-          renderItem={(p) => <ContinueCard title={titles.get(p.titleId)} progress={p} remainingSeconds={p.remainingSeconds} />} />
+        <Shelf perView={WIDE} title="Continue watching" sub={counted(continuing.length, "title")}>
+          {continuing.map((p) => <ContinueCard key={p.titleId} title={titles.get(p.titleId)} progress={p} remainingSeconds={p.remainingSeconds} />)}
+        </Shelf>
       )}
 
       {generalFilms.length > 0 && (
-        <Rail
-          perView={POSTERS} icon="clapperboard" title="Movies" count={generalFilms.length}
-          onViewAll={() => navigate(libraryPath("film"))} viewAllLabel="All movies"
-          items={[...generalFilms].sort(latest)} itemKey={(t) => t.id}
-          renderItem={(t) => <FilmCard title={t} download={marks.film(t.id)} />} />
+        <Shelf perView={POSTERS} title="Movies" sub={counted(generalFilms.length, "movie")}
+          action={<ViewAll to={libraryPath("film")}>All movies</ViewAll>}>
+          {[...generalFilms].sort(latest).map((t) => <FilmCard key={t.id} title={t} download={marks.film(t.id)} />)}
+        </Shelf>
       )}
 
       {generalShows.length > 0 && (
-        <Rail
-          perView={POSTERS} icon="tv" title="TV Shows" count={generalShows.length}
-          onViewAll={() => navigate(libraryPath("show"))} viewAllLabel="All shows"
-          items={[...generalShows].sort(latest)} itemKey={showKey}
-          renderItem={(s) => <ShowCard show={s} downloaded={marks.episodes(s.imdbId)} />} />
+        <Shelf perView={POSTERS} title="TV Shows" sub={counted(generalShows.length, "show")}
+          action={<ViewAll to={libraryPath("show")}>All shows</ViewAll>}>
+          {[...generalShows].sort(latest).map((s) => <ShowCard key={showKey(s)} show={s} downloaded={marks.episodes(s.imdbId)} />)}
+        </Shelf>
       )}
 
       {anime.length > 0 && (
-        <Rail
-          perView={POSTERS} icon="swords" title="Anime" count={anime.length}
-          onViewAll={() => navigate(libraryPath("show", ANIME))} viewAllLabel="All anime"
-          items={anime} itemKey={itemKey}
-          renderItem={(item) => (item.show
-            ? <ShowCard show={item.show} downloaded={marks.episodes(item.show.imdbId)} />
-            : <FilmCard title={item.film} download={marks.film(item.film.id)} />)} />
+        <Shelf perView={POSTERS} title="Anime" sub={counted(anime.length, "title")}
+          action={<ViewAll to={libraryPath("show", ANIME)}>All anime</ViewAll>}>
+          {anime.map((item) => (item.show
+            ? <ShowCard key={itemKey(item)} show={item.show} downloaded={marks.episodes(item.show.imdbId)} />
+            : <FilmCard key={itemKey(item)} title={item.film} download={marks.film(item.film.id)} />))}
+        </Shelf>
       )}
     </div>
   );
@@ -173,25 +170,23 @@ function ServerHome() {
       <Spotlight slides={slides} />
 
       {continuing.length > 0 && (
-        <Rail
-          perView={WIDE} icon="history" title="Continue watching" count={continuing.length}
-          items={continuing} itemKey={continueKey}
-          renderItem={(p) => !p.titleId ? <NextEpisodeCard progress={p} show={showOf.get(p.showImdbId)} onTv={driving} /> : (
+        <Shelf perView={WIDE} title="Continue watching" sub={counted(continuing.length, "title")}>
+          {continuing.map((p) => !p.titleId ? <NextEpisodeCard key={continueKey(p)} progress={p} show={showOf.get(p.showImdbId)} onTv={driving} /> : (
             <ContinueCard
+              key={continueKey(p)}
               title={byId.get(p.titleId)}
               progress={p}
               remainingSeconds={p.remainingSeconds}
               room={watching.find((r) => r.titleId === p.titleId)}
               onTv={driving} />
-          )} />
+          ))}
+        </Shelf>
       )}
 
       {watching.length > 0 && (
-        <Rail
-          perView={WIDE} icon="users" title="Watching now" count={watching.length}
-          items={watching} itemKey={(room) => room.sessionId}
-          renderItem={(room) => (
-            <a className="kc-room" {...watchLink(room.titleId, room.sessionId)}>
+        <Shelf perView={WIDE} title="Watching now" sub={counted(watching.length, "room")}>
+          {watching.map((room) => (
+            <a key={room.sessionId} className="kc-room" {...watchLink(room.titleId, room.sessionId)}>
               <PosterArt title={byId.get(room.titleId)} className="kc-poster-art--wide">
                 <span className="kc-room__join"><Icon name="users" size={14} />Join</span>
               </PosterArt>
@@ -201,68 +196,61 @@ function ServerHome() {
                 <span className="kc-mono">{clock(room.positionSeconds)}</span>
               </span>
             </a>
-          )} />
+          ))}
+        </Shelf>
       )}
 
       {planned.length > 0 && (
-        <Rail
-          perView={POSTERS} icon="calendar-clock" title="Plans" count={planned.length}
-          onViewAll={() => navigate(plansPath)} viewAllLabel="See all"
-          items={planned} itemKey={(p) => p.id}
-          renderItem={(p) => <PlanCard plan={p} />} />
+        <Shelf perView={POSTERS} title="Plans" sub={counted(planned.length, "plan")} action={<ViewAll to={plansPath}>See all</ViewAll>}>
+          {planned.map((p) => <PlanCard key={p.id} plan={p} />)}
+        </Shelf>
       )}
 
       {together.length > 0 && (
-        <Rail
-          perView={POSTERS} icon="users" title="Watch together" count={together.length}
-          items={together} itemKey={(t) => t.want.imdbId}
-          renderItem={(t) => <WantCard want={t.want} />} />
+        <Shelf perView={POSTERS} title="Watch together" sub={counted(together.length, "title")}>
+          {together.map((t) => <WantCard key={t.want.imdbId} want={t.want} />)}
+        </Shelf>
       )}
 
       {wants.length > 0 && (
-        <Rail
-          perView={POSTERS} icon="bookmark" title="Want to watch" count={wants.length}
-          onViewAll={() => navigate(wantsPath)} viewAllLabel="See all"
-          items={wants} itemKey={(w) => w.imdbId}
-          renderItem={(w) => <WantCard want={w} />} />
+        <Shelf perView={POSTERS} title="Want to watch" sub={counted(wants.length, "title")} action={<ViewAll to={wantsPath}>See all</ViewAll>}>
+          {wants.map((w) => <WantCard key={w.imdbId} want={w} />)}
+        </Shelf>
       )}
 
       {recent.length > 0 && (
-        <Rail
-          perView={POSTERS} icon="sparkles" title="Recently added" count={recent.length}
-          items={recent} itemKey={itemKey}
-          renderItem={either} />
+        <Shelf perView={POSTERS} title="Recently added" sub={counted(recent.length, "title")}>
+          {recent.map((item) => <React.Fragment key={itemKey(item)}>{either(item)}</React.Fragment>)}
+        </Shelf>
       )}
 
       {waitedOn.length > 0 && (
-        <Rail
-          perView={POSTERS} icon="bell" title="Anticipated" count={waitedOn.length}
-          items={waitedOn} itemKey={(f) => f.imdbId}
-          renderItem={(f) => <AnticipatedCard film={f} />} />
+        <Shelf perView={POSTERS} title="Anticipated" sub={counted(waitedOn.length, "film")}>
+          {waitedOn.map((f) => <AnticipatedCard key={f.imdbId} film={f} />)}
+        </Shelf>
       )}
 
       {generalFilms.length > 0 && (
-        <Rail
-          perView={POSTERS} icon="clapperboard" title="Movies" count={generalFilms.length}
-          onViewAll={() => navigate(libraryPath("film"))} viewAllLabel="All movies"
-          items={[...dealt(generalFilms, (t) => t.id, deal), MORE]} itemKey={(t) => (t === MORE ? "more" : t.id)}
-          renderItem={(t) => (t === MORE ? <MoreTile label="Any movie" /> : card(t))} />
+        <Shelf perView={POSTERS} title="Movies" sub={counted(generalFilms.length, "movie")}
+          action={<ViewAll to={libraryPath("film")}>All movies</ViewAll>}>
+          {dealt(generalFilms, (t) => t.id, deal).map((t) => <React.Fragment key={t.id}>{card(t)}</React.Fragment>)}
+          <MoreTile key="more" label="Any movie" />
+        </Shelf>
       )}
 
       {generalShows.length > 0 && (
-        <Rail
-          perView={POSTERS} icon="tv" title="TV Shows" count={generalShows.length}
-          onViewAll={() => navigate(libraryPath("show"))} viewAllLabel="All shows"
-          items={[...dealt(generalShows, showKey, deal), MORE]} itemKey={(s) => (s === MORE ? "more" : showKey(s))}
-          renderItem={(s) => (s === MORE ? <MoreTile label="Any show" /> : <ShowCard show={s} downloaded={marks.episodes(s.imdbId)} />)} />
+        <Shelf perView={POSTERS} title="TV Shows" sub={counted(generalShows.length, "show")}
+          action={<ViewAll to={libraryPath("show")}>All shows</ViewAll>}>
+          {dealt(generalShows, showKey, deal).map((s) => <ShowCard key={showKey(s)} show={s} downloaded={marks.episodes(s.imdbId)} />)}
+          <MoreTile key="more" label="Any show" />
+        </Shelf>
       )}
 
       {anime.length > 0 && (
-        <Rail
-          perView={POSTERS} icon="swords" title="Anime" count={anime.length}
-          onViewAll={() => navigate(libraryPath("show", ANIME))} viewAllLabel="All anime"
-          items={dealt(anime, itemKey, deal)} itemKey={itemKey}
-          renderItem={either} />
+        <Shelf perView={POSTERS} title="Anime" sub={counted(anime.length, "title")}
+          action={<ViewAll to={libraryPath("show", ANIME)}>All anime</ViewAll>}>
+          {dealt(anime, itemKey, deal).map((item) => <React.Fragment key={itemKey(item)}>{either(item)}</React.Fragment>)}
+        </Shelf>
       )}
     </div>
   );
@@ -276,8 +264,6 @@ function downloadedSlides(films) {
     .map((t) => ({ key: "saved:" + t.id, eyebrow: `Downloaded ${ago(t.savedAt)}`, icon: "download", kind: "film", imdbId: t.film && t.film.imdbId, title: t }));
 }
 
-/** The last place on a shelf of the library, held by the tile that leads past it. */
-const MORE = { more: true };
 
 const showKey = (s) => s.imdbId || s.firstTitleId;
 

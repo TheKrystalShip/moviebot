@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  BriefCard, CollectionTile, Icon, Rail, Skeleton, Toolbar, ToolbarButton, ToolbarCount, ToolbarSort, ToolbarSpacer, useStoredFlag,
+  BriefCard, CollectionTile, Icon, Shelf, Skeleton, Toolbar, ToolbarCount, ToolbarSort, ToolbarSpacer, useStoredFlag,
 } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { POSTERS, TILES } from "../railDensity.js";
@@ -10,7 +10,9 @@ import { apiPicks, filterQuestion, pickCount } from "../filters.js";
 import { linkProps, navigate } from "../router.js";
 import { SORTED, useSort } from "../sorts.js";
 import { Empty, Failed } from "../components/Film.jsx";
-import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
+import { CardsSkeleton, FoundCard } from "../components/TitleCards.jsx";
+import { ViewAll } from "../components/ViewAll.jsx";
+import { counted } from "../counts.js";
 
 // Discover with nothing typed: its rows of shelves, the moods and the franchises as tiles, and the
 // browse categories; a category's shelves; one shelf whole; and the filter's answers. Every shelf comes
@@ -40,41 +42,10 @@ function useNarrow() {
 }
 
 /**
- * Surprise me: opens one title picked at random, never one the person watched, from `titles` or from
- * one of `shelves` picked at random first. Answers whether it is picking, and the way to pick.
- */
-export function useSurprise(where) {
-  const [busy, setBusy] = React.useState(false);
-  const pick = async ({ titles, shelves }) => {
-    setBusy(true);
-    try {
-      let from = titles;
-      for (let tries = 0; !from && shelves && shelves.length && tries < 3; tries++) {
-        const shelf = await api.discoverShelf(shelves[Math.floor(Math.random() * shelves.length)]).catch(() => null);
-        if (shelf && shelf.titles.some((t) => !t.watched)) from = shelf.titles;
-      }
-      const choices = (from || []).filter((t) => !t.watched && t.imdbId);
-      if (choices.length === 0) return;
-      const t = choices[Math.floor(Math.random() * choices.length)];
-      const { here, held } = where(t);
-      navigate(foundPage(t, here, held));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return [busy, pick];
-}
-
-/**
  * How many titles a list holds, as far as it is known: the count, with a `+` when `more` says the
  * list goes on past it (a page answered with a `next`, a tile whose shelf has `more`).
  */
 export const atLeast = (count, more) => (more ? `${count}+` : count);
-
-/** The shelves Surprise me picks from on the page and in a category: every one the same for everybody. */
-export const surprisePool = (index, section) => (index ? index.sections : [])
-  .filter((s) => !section || s.id === section)
-  .flatMap((s) => s.shelves.map((h) => h.id));
 
 /** A shelf's tile: a mood's posters fanned, a series' films in order with how far the person got. */
 function ShelfTile({ head, series, size = "md" }) {
@@ -109,16 +80,15 @@ export function DiscoverRows({ index, where }) {
   );
 }
 
-/** A category's shelves as a rail of tiles: the moods, the franchises. */
+/** A category's shelves as a row of tiles: the moods, the franchises. */
 function TileRail({ section }) {
   const shelves = section.shelves.filter((h) => h.total !== 0);
   if (shelves.length === 0) return null;
   return (
-    <Rail
-      perView={TILES} icon={section.icon} title={section.label} count={shelves.length}
-      items={shelves} itemKey={(h) => h.id}
-      renderItem={(h) => <ShelfTile head={h} series={section.series} />}
-      onViewAll={() => navigate(discoverBrowsePath(section.id))} viewAllLabel="See all" />
+    <Shelf perView={TILES} title={section.label} sub={counted(shelves.length, "shelf", "shelves")}
+      action={<ViewAll to={discoverBrowsePath(section.id)}>See all</ViewAll>}>
+      {shelves.map((h) => <ShelfTile key={h.id} head={h} series={section.series} />)}
+    </Shelf>
   );
 }
 
@@ -181,11 +151,10 @@ function ShelfRail({ head, kept, where, skip, least = 1, picks }) {
   const titles = picks && hideWatched ? all.filter((t) => !t.watched) : all;
   if (titles.length === 0 || titles.length < least) return null;
   return (
-    <Rail
-      perView={POSTERS} icon={head.icon} title={head.title} count={atLeast(titles.length, shelf.data.next)}
-      items={titles.slice(0, RAIL_TITLES)} itemKey={(t) => t.kind + t.imdbId}
-      renderItem={(t) => <FoundCard found={t} {...where(t)} line={t.role || t.starring} />}
-      onViewAll={() => navigate(discoverShelfPath(head.id))} viewAllLabel="See all" />
+    <Shelf perView={POSTERS} title={head.title} sub={counted(atLeast(titles.length, shelf.data.next), "title")}
+      action={<ViewAll to={discoverShelfPath(head.id)}>See all</ViewAll>}>
+      {titles.slice(0, RAIL_TITLES).map((t) => <FoundCard key={t.kind + t.imdbId} found={t} {...where(t)} line={t.role || t.starring} />)}
+    </Shelf>
   );
 }
 
@@ -204,7 +173,6 @@ function BrowseHead({ eyebrow, icon, title, count }) {
 
 /** One browse category: a series' tiles in a grid, any other's shelves as rails, each asked with the filter's `picks`. */
 export function CategoryPage({ id, index, where, picks }) {
-  const [busy, surprise] = useSurprise(where);
   const narrow = useNarrow();
   if (index.error && !index.data) return <Failed error={index.error} onRetry={index.reload} />;
   if (!index.data) return <BrowseSkeleton />;
@@ -213,11 +181,6 @@ export function CategoryPage({ id, index, where, picks }) {
   return (
     <section className="kc-shelf">
       <BrowseHead eyebrow="Discover" icon={section.icon} title={section.label} count={section.shelves.length} />
-      <Toolbar>
-        <ToolbarSpacer />
-        <ToolbarButton icon="dices" spinning={busy} disabled={busy}
-          onClick={() => surprise({ shelves: surprisePool(index.data, section.id) })}>Surprise me</ToolbarButton>
-      </Toolbar>
       {section.series
         ? (
           <div className="kc-browse-grid">
@@ -284,7 +247,7 @@ export function MoreCards({ paged }) {
 
 /**
  * Every title on one shelf, a page at a time as the grid reaches its end, with krystal's Toolbar as on
- * the library's pages: an order, how many are shown, and Surprise me. It opens in the order its rail
+ * the library's pages: an order and how many are shown. It opens in the order its rail
  * shows; an order picked here is the address's (`sort`), so it holds through a reload and Back and is no
  * other shelf's. The filter drawer's `picks` are asked of the shelf, and what the person watched is left
  * off when they hide it.
@@ -300,7 +263,6 @@ export function ShelfPage({ id, sort: param, where, picks }) {
   const asked = apiPicks(picks);
   const shelf = usePaged((page) => api.discoverShelf(id, page, order, asked), [id, order, JSON.stringify(asked)]);
   const [hideWatched] = useHideWatched();
-  const [busy, surprise] = useSurprise(where);
   const s = shelf.data;
   if (shelf.error && !s) return <Failed error={shelf.error} onRetry={shelf.reload} />;
   if (!s) return <BrowseSkeleton />;
@@ -316,8 +278,6 @@ export function ShelfPage({ id, sort: param, where, picks }) {
         <ToolbarSort value={sort.key} dir={sort.dir} onChange={setSort} options={SHELF_SORTS} />
         <ToolbarSpacer />
         <ToolbarCount shown={shown.length} total={atLeast(all.length, shelf.next)} unit="titles" />
-        <ToolbarButton icon="dices" spinning={busy} disabled={busy || !shown.some((t) => !t.watched)}
-          onClick={() => surprise({ titles: shown })}>Surprise me</ToolbarButton>
       </Toolbar>
       {shown.length > 0
         ? <div className="kc-grid">{shown.map((t) => <FoundCard key={t.kind + t.imdbId} found={t} {...where(t)} />)}</div>
@@ -350,7 +310,6 @@ const SORT_PARAMS = ["popular", "rating", "newest", "oldest"];
  */
 export function FilterPage({ query, picks, where }) {
   const [hideWatched] = useHideWatched();
-  const [busy, surprise] = useSurprise(where);
   const [picked, pick] = useSort(SORTED.filter, FILTER_SORTS);
   const named = SORT_PARAMS.includes(query.get("sort")) ? query.get("sort") : "";
   const sort = named || sortParam(picked);
@@ -379,8 +338,6 @@ export function FilterPage({ query, picks, where }) {
           options={FILTER_SORTS} />
         <ToolbarSpacer />
         {titles && <ToolbarCount shown={titles.length} total={atLeast(all.length, found.next)} unit="titles" />}
-        <ToolbarButton icon="dices" spinning={busy} disabled={busy || !titles || !titles.some((t) => !t.watched)}
-          onClick={() => surprise({ titles })}>Surprise me</ToolbarButton>
       </Toolbar>
       {found.error && <Failed error={found.error} onRetry={found.reload} />}
       {!titles && !found.error && <CardsSkeleton count={12} />}
@@ -393,11 +350,14 @@ export function FilterPage({ query, picks, where }) {
   );
 }
 
-/** A rail while its shelf is asked for, at the rail's own height so the page does not jump. */
+/** A shelf while its titles are asked for, at the shelf's own height so the page does not jump. */
 function RailSkeleton() {
   return (
     <div className="kc-rail-skeleton" aria-hidden="true">
-      <Skeleton w={200} h={16} />
+      <div className="kc-rail-skeleton__head">
+        <Skeleton w={200} h={22} />
+        <Skeleton w={80} h={15} />
+      </div>
       <CardsSkeleton count={8} row />
     </div>
   );

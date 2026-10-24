@@ -4,14 +4,14 @@ import { api, episodeCode } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
-import { discoverFilmPath, moviePath, plansPath, showPath } from "../paths.js";
+import { discoverFilmPath, isAnime, moviePath, plansPath, showPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { MAX_TIMES, localInput, timeBounds, usePlanChanges } from "../plans.js";
 import { ahead, clock, hourOf } from "../time.js";
-import { Empty, Failed, kindLine, watchHref } from "../components/Film.jsx";
+import { Empty, Failed, watchHref } from "../components/Film.jsx";
 import { PersonCard } from "../components/FilmDetails.jsx";
 import { DateTile } from "../components/DateTile.jsx";
-import { HeroPoster, TitleHero } from "../components/TitleHero.jsx";
+import { HeroGroup, kindWord, TitleFacts, TitleHero } from "../components/TitleHero.jsx";
 import { InvitePeople } from "../components/InvitePeople.jsx";
 
 const ANSWERS = [
@@ -273,30 +273,33 @@ export function Plan({ id }) {
 
   return (
     <div className="kc-page kc-plan">
-      <TitleHero art={art} poster={<HeroPoster url={p.posterUrl} name={p.title} />}
-        eyebrow={`Plan · ${kindLine(p.kind, d).label}`} title={p.title}>
-        <div className="kc-tt__meta">
-          {p.kind === "show" && p.season != null && <span>{episodeCode({ season: p.season, number: p.number })}</span>}
-          {p.year && <span>{p.year}</span>}
-          {d && d.certification && <span className="kc-cert">{d.certification}</span>}
-          {p.kind !== "show" && d && d.runtimeMinutes && <span>{clock(d.runtimeMinutes * 60)}</span>}
-        </div>
-        <span className="kc-plan__maker">
-          <Icon name="calendar-heart" size={15} />
-          <span><b>{maker}</b> planned this{invited > 0 ? ` · ${invited} invited` : ""}</span>
-        </span>
-        <Stages state={p.state} />
-        <Failed error={plan.error} onRetry={plan.reload} />
-        <div className="kc-actions">
-          {p.state === "open" && p.roomId && (
-            <Button variant="primary" size="xl" icon="users" disabled={!online}
-              onClick={() => navigate(watchHref(p.libraryId, p.roomId))}>Join the room</Button>
-          )}
-          <Button size="xl" icon="info" onClick={() => navigate(titleHref(p))}>More info</Button>
-          {p.mine && (
-            <Button variant="danger" size="xl" icon="x" disabled={busy || !online} onClick={() => setCancelling(true)}>Cancel plan</Button>
-          )}
-        </div>
+      <TitleHero art={art} eyebrow={`Plan · ${kindWord(p.kind, isAnime(d))}`} title={p.title}
+        facts={<TitleFacts rating={d && d.rating} votes={d && d.votes} ratedBy={d && d.ratedBy} kind={p.kind} category={d && d.category}
+          parts={[
+            p.kind === "show" && p.season != null && episodeCode({ season: p.season, number: p.number }),
+            p.year,
+            d && d.certification && { cert: d.certification },
+            p.kind !== "show" && d && d.runtimeMinutes && clock(d.runtimeMinutes * 60),
+          ]}
+          genres={d ? d.genres : []} />}>
+        <HeroGroup>
+          <span className="kc-plan__maker">
+            <Icon name="calendar-heart" size={15} />
+            <span><b>{maker}</b> planned this{invited > 0 ? ` · ${invited} invited` : ""}</span>
+          </span>
+          <Stages state={p.state} />
+          <Failed error={plan.error} onRetry={plan.reload} />
+          <div className="kc-actions">
+            {p.state === "open" && p.roomId && (
+              <Button variant="primary" size="xl" icon="users" disabled={!online}
+                onClick={() => navigate(watchHref(p.libraryId, p.roomId))}>Join the room</Button>
+            )}
+            <Button size="xl" icon="info" onClick={() => navigate(titleHref(p))}>More info</Button>
+            {p.mine && (
+              <Button variant="danger" size="xl" icon="x" disabled={busy || !online} onClick={() => setCancelling(true)}>Cancel plan</Button>
+            )}
+          </div>
+        </HeroGroup>
       </TitleHero>
 
       <section className="kc-section">

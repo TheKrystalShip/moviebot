@@ -1,4 +1,4 @@
-import { Button, Rail } from "@thekrystalship/krystal";
+import { Button, Shelf } from "@thekrystalship/krystal";
 import { api } from "../api.js";
 import { useLoad } from "../data.js";
 import { discoverPath, newPlanPath } from "../paths.js";
@@ -6,6 +6,7 @@ import { usePlanChanges } from "../plans.js";
 import { POSTERS } from "../railDensity.js";
 import { navigate } from "../router.js";
 import { useWantList } from "../wants.js";
+import { counted } from "../counts.js";
 import { Empty, Failed, PageHead } from "../components/Film.jsx";
 import { PlanCard } from "../components/PlanCard.jsx";
 import { PlanTitlePicker } from "../components/PlanTitlePicker.jsx";
@@ -14,7 +15,7 @@ import { WantCard } from "./Wants.jsx";
 
 /** A want's card whose action plans watching it. */
 function PlanWantCard({ want }) {
-  return <WantCard want={want} action={{ label: "Plan a watch", onClick: () => navigate(newPlanPath(want.imdbId, want.kind)) }} />;
+  return <WantCard want={want} action={{ label: "Plan a watch", icon: "calendar-plus", onClick: () => navigate(newPlanPath(want.imdbId, want.kind)) }} />;
 }
 
 /**
@@ -45,12 +46,14 @@ function Plannable() {
   return (
     <>
       {shared.length > 0 && (
-        <Rail perView={POSTERS} icon="users" title="Watch together" count={shared.length}
-          items={shared} itemKey={(w) => w.imdbId} renderItem={(w) => <PlanWantCard want={w} />} />
+        <Shelf perView={POSTERS} title="Watch together" sub={counted(shared.length, "title")}>
+          {shared.map((w) => <PlanWantCard key={w.imdbId} want={w} />)}
+        </Shelf>
       )}
       {mine.length > 0 && (
-        <Rail perView={POSTERS} icon="bookmark" title="Want to watch" count={mine.length}
-          items={mine} itemKey={(w) => w.imdbId} renderItem={(w) => <PlanWantCard want={w} />} />
+        <Shelf perView={POSTERS} title="Want to watch" sub={counted(mine.length, "title")}>
+          {mine.map((w) => <PlanWantCard key={w.imdbId} want={w} />)}
+        </Shelf>
       )}
     </>
   );

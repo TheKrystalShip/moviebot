@@ -84,9 +84,14 @@ export function readySlides(slides) {
   return i < 0 ? slides : slides.slice(0, i);
 }
 
+/**
+ * A candidate's spot. A library film or show is described from what the library holds, with its credits
+ * from the film database's description; a description that cannot be had leaves the credits out.
+ */
 function describe(c) {
-  if (c.title) return Promise.resolve(titleSpot(c.title, c.eyebrow));
-  if (c.show) return Promise.resolve(showSpot(c.show, c.eyebrow));
+  const film = c.title && c.title.film && c.title.film.imdbId;
+  if (c.title) return (film ? api.film(film).catch(() => null) : Promise.resolve(null)).then((view) => titleSpot(c.title, c.eyebrow, view));
+  if (c.show) return (c.show.imdbId ? api.show(c.show.imdbId).catch(() => null) : Promise.resolve(null)).then((view) => showSpot(c.show, c.eyebrow, view));
   if (c.kind === "show") return api.show(c.imdbId).then((s) => showViewSpot(s, c.eyebrow));
   if (c.film) return Promise.resolve(filmSpot(c.film, c.eyebrow));
   return api.film(c.imdbId).then((f) => filmSpot(f, c.eyebrow));

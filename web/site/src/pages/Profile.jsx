@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, List, ListRow, NotificationSettings, RadioGroup, Select, SettingsRow, SettingsSection, ShowcaseCard, SubTabs, ThemePicker, Toggle, toast } from "@thekrystalship/krystal";
+import { Button, Icon, List, ListRow, NotificationSettings, RadioGroup, Select, SettingsRow, SettingsSection, PosterCard, SubTabs, ThemePicker, Toggle, toast } from "@thekrystalship/krystal";
 import { notificationsClient } from "../notifications.js";
 import { api, episodeCode, filmName, posterUrl } from "../api.js";
 import { useLoad } from "../data.js";
@@ -15,7 +15,7 @@ import { handheld } from "../offline/choose.js";
 import { Off } from "./Offline.jsx";
 import { linkProps, navigate } from "../router.js";
 import { ago, airDay } from "../time.js";
-import { Empty, Failed, PageHead, kindLine, watchHref } from "../components/Film.jsx";
+import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
 import { TabStage } from "../components/PageStage.jsx";
 import { CardsSkeleton, keptArt } from "../components/TitleCards.jsx";
 import { FilterField, useTitleFilter } from "../components/FilterField.jsx";
@@ -138,21 +138,20 @@ function HistoryCard({ row, title, onForget }) {
   const ready = title && title.status === "ready";
   const name = !title ? row.name : title.episode || !title.film || !title.film.name ? filmName(title) : title.film.name;
   return (
-    <ShowcaseCard compactFacts
+    <PosterCard
       name={name}
-      eyebrow={kindLine(row.episode ? "show" : "film", title)}
       art={poster ? `url("${poster}")` : null}
       onPick={() => navigate(moviePath(row.titleId))}
       progress={fraction}
-      specs={[
+      facts={[
         { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
-        { icon: "calendar", value: (title && title.film && title.film.year) || null, label: "Year" },
-        { icon: row.finished ? "check" : "history", value: row.finished ? "All" : `${Math.round(100 * fraction)}%`, label: "Watched" },
+        { value: (title && title.film && title.film.year) || null, label: "Year" },
+        { value: row.finished ? "Watched" : `${Math.round(100 * fraction)}% watched`, label: "Watched" },
       ]}
       status={{ icon: "history", label: ago(row.lastWatchedAt), title: new Date(row.lastWatchedAt).toLocaleString() }}
       action={ready
-        ? { label: row.finished ? "Watch again" : "Resume", onClick: () => navigate(watchHref(row.titleId, null, row.finished ? 0 : row.positionSeconds)) }
-        : { label: "View" }}
+        ? { label: row.finished ? "Watch again" : "Resume", icon: row.finished ? "rotate-ccw" : "play", onClick: () => navigate(watchHref(row.titleId, null, row.finished ? 0 : row.positionSeconds)) }
+        : undefined}
       tools={[{ icon: "x", label: `Remove ${row.name} from your history`, tone: "danger", onClick: () => onForget(row) }]} />
   );
 }
@@ -199,18 +198,16 @@ function Following() {
               { icon: "bell-off", label: `Unfollow ${row.title}`, onClick: () => unfollow(row) },
             ];
             return (
-              <ShowcaseCard compactFacts
+              <PosterCard
                 key={row.imdbId}
                 name={row.title}
                 art={row.posterUrl ? `url("${row.posterUrl}")` : keptArt(row.imdbId, "show")}
                 onPick={() => navigate(showPath(row.imdbId))}
-                specs={[
-                  { icon: "calendar-clock", value: next ? episodeCode({ season: next.season, number: next.episode }) : null, label: "Next" },
-                  { icon: "calendar", value: next ? airDay(next.airDate) : null, label: "Airs" },
-                  { icon: "download", value: row.autoDownload ? "On" : "Off", label: "Auto" },
+                facts={[
+                  { value: next ? "Next " + episodeCode({ season: next.season, number: next.episode }) : null, label: "Next episode" },
+                  { value: next ? airDay(next.airDate) : null, label: "Airs" },
                 ]}
                 status={{ icon: "bell", label: `Since ${ago(row.since)}`, title: next && next.name ? next.name : undefined }}
-                action={{ label: "View" }}
                 tools={tools} />
             );
           })}

@@ -1,12 +1,13 @@
 import React from "react";
-import { Button, Icon, ShowcaseCard } from "@thekrystalship/krystal";
+import { Button, Icon, PosterCard } from "@thekrystalship/krystal";
 import { episodeCode, filmName, posterUrl } from "../api.js";
 import { useOnline } from "../connectivity.js";
 import { useSave } from "../offline/hooks.js";
 import { useWantRibbon } from "./WantButton.jsx";
-import { isAnime, moviePath, playSavedPath, roomPath, showPath } from "../paths.js";
+import { moviePath, playSavedPath, roomPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { clock, timeLeft } from "../time.js";
+import { counted } from "../counts.js";
 import { watchNow } from "../watchNow.js";
 import { watchOnTv } from "../remoteWatch.js";
 import { activityRoom } from "../discord/launch.js";
@@ -134,17 +135,6 @@ export function PosterArt({ title, className = "", children }) {
   );
 }
 
-/**
- * What kind of title a card holds, as the line on its poster above the name: a film, or a series in
- * the accent, either one named anime on that shelf. `kind` is the API's `film` or `show`.
- */
-export function kindLine(kind, title) {
-  const anime = isAnime(title);
-  return kind === "show"
-    ? { icon: "tv", label: anime ? "Anime series" : "Series", tone: "accent" }
-    : { icon: "clapperboard", label: anime ? "Anime movie" : "Movie" };
-}
-
 /** A card's marks for a download on this device: the pill on its poster, and its progress while under way. */
 function downloadMarks(download) {
   if (!download) return {};
@@ -153,8 +143,8 @@ function downloadMarks(download) {
 }
 
 /**
- * A film on a shelf, as krystal's ShowcaseCard: the poster with the name on it, its rating, year
- * and length, one line saying where it stands, Watch, and a ribbon that wants it. What a page knows
+ * A film on a shelf, as krystal's PosterCard: the poster, and under it the name, its rating, year
+ * and length, and one line saying where it stands; Watch over the poster, and a ribbon that wants it. What a page knows
  * beside the film — a room watching it, whether it is new — is optional, and a card without it says
  * less rather than guessing. How far the person got comes with the title itself.
  *
@@ -181,22 +171,21 @@ export function FilmCard({ title, room, isNew, download }) {
 
   return (
     <>
-      <ShowcaseCard compactFacts
+      <PosterCard
         name={film.name || title.title}
-        eyebrow={kindLine("film", title)}
         art={poster ? `url("${poster}")` : null}
         onPick={() => navigate(moviePath(title.id, title.category))}
         badge={isNew ? { tone: "info", label: "New" } : null}
         {...downloadMarks(download)}
-        specs={[
+        facts={[
           { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
-          { icon: "calendar", value: film.year || null, label: "Year" },
-          { icon: "clock", value: title.durationSeconds ? clock(title.durationSeconds) : null, label: "Length" },
+          { value: film.year || null, label: "Year" },
+          { value: title.durationSeconds ? clock(title.durationSeconds) : null, label: "Length" },
         ]}
         status={status}
-        action={ready
-          ? { label: room ? "Join" : progress ? "Resume" : "Watch", onClick: link.disabled ? undefined : () => navigate(link.href) }
-          : { label: "View" }}
+        action={ready && !link.disabled
+          ? { label: room ? "Join" : progress ? "Resume" : "Watch", icon: room ? "users" : "play", onClick: () => navigate(link.href) }
+          : undefined}
         ribbon={ribbon} />
       {wantMenu}
     </>
@@ -204,7 +193,7 @@ export function FilmCard({ title, room, isNew, download }) {
 }
 
 /**
- * A show on a shelf: its poster named a series, a short bar per season along the poster's foot filled
+ * A show on a shelf, as krystal's PosterCard: its poster, a short bar per season along the poster's foot filled
  * as far as this person watched it, its rating, seasons and episodes, where this person picks up,
  * Watch or Resume into the episode that is next, and its ribbon, which wants it. A show with episodes downloaded to
  * this device (`downloaded`) says how many on its poster.
@@ -222,20 +211,19 @@ export function ShowCard({ show, downloaded = 0 }) {
 
   return (
     <>
-      <ShowcaseCard compactFacts
+      <PosterCard
         name={show.title}
-        eyebrow={kindLine("show", show)}
         segments={show.seasonProgress ? show.seasonProgress.map((x) => (x.episodes > 0 ? x.watched / x.episodes : 0)) : null}
         art={d && d.posterUrl ? `url("${d.posterUrl}")` : null}
         onPick={() => navigate(show.imdbId ? showPath(show.imdbId, { category: show.category }) : moviePath(show.firstTitleId, show.category))}
         {...(downloaded > 0 ? { corner: { icon: "circle-check", label: `${downloaded} downloaded`, tone: "accent" } } : {})}
-        specs={[
+        facts={[
           { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
-          { icon: "layers", value: show.seasons.length, label: show.seasons.length === 1 ? "Season" : "Seasons" },
-          { icon: "list-video", value: show.episodes, label: show.episodes === 1 ? "Episode" : "Episodes" },
+          { value: counted(show.seasons.length, "season"), label: "Seasons" },
+          { value: counted(show.episodes, "episode"), label: "Episodes" },
         ]}
         status={status}
-        action={{ label: resume ? "Resume" : "Watch", onClick: link.disabled ? undefined : () => navigate(link.href) }}
+        action={link.disabled ? undefined : { label: resume ? "Resume" : "Watch", onClick: () => navigate(link.href) }}
         ribbon={ribbon} />
       {wantMenu}
     </>

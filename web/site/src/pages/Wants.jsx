@@ -1,12 +1,12 @@
 import React from "react";
-import { ShowcaseCard, Toolbar, ToolbarCount, ToolbarSort, ToolbarSpacer } from "@thekrystalship/krystal";
+import { PosterCard, Toolbar, ToolbarCount, ToolbarSort, ToolbarSpacer } from "@thekrystalship/krystal";
 import { episodeCode } from "../api.js";
 import { discoverFilmPath, moviePath, showPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { SORTED, useSort } from "../sorts.js";
 import { ago, clock } from "../time.js";
 import { refreshWants, useWantList } from "../wants.js";
-import { Empty, Failed, PageHead, kindLine, watchHref } from "../components/Film.jsx";
+import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
 import { FilterField, useTitleFilter } from "../components/FilterField.jsx";
 import { CardsSkeleton } from "../components/TitleCards.jsx";
 import { useWantRibbon } from "../components/WantButton.jsx";
@@ -32,7 +32,7 @@ export function stateLine(w) {
 }
 
 /**
- * A wanted title as a card: its poster named a film or a series, its year, a film's length or a show's
+ * A wanted title as a card: its poster, its year, a film's length or a show's
  * next episode, how many others want it, where it stands (ready, fetching with its progress, waiting for
  * a release, available), and Just me when nobody else is shown it. Its ribbon changes or removes the
  * want, and Watch opens a film the library holds; `action` puts another in its place.
@@ -42,24 +42,23 @@ export function WantCard({ want: w, action }) {
   const next = w.nextEpisode;
   return (
     <>
-      <ShowcaseCard compactFacts
+      <PosterCard
         name={w.title}
-        eyebrow={kindLine(w.kind, w)}
         art={w.posterUrl ? `url("${w.posterUrl}")` : null}
         onPick={() => navigate(wantHref(w))}
         badge={w.visible ? null : { tone: "info", label: "Just me" }}
         progress={w.state === "fetching" ? w.progress || 0 : undefined}
-        specs={[
-          { icon: "calendar", value: w.year || null, label: "Year" },
+        facts={[
+          { value: w.year || null, label: "Year" },
           w.kind === "show"
-            ? { icon: "calendar-clock", value: next ? episodeCode({ season: next.season, number: next.episode }) : null, label: "Next" }
-            : { icon: "clock", value: w.runtimeMinutes ? clock(w.runtimeMinutes * 60) : null, label: "Length" },
-          { icon: "users", value: w.others > 0 ? w.others : null, label: "Others" },
+            ? { value: next ? "Next " + episodeCode({ season: next.season, number: next.episode }) : null, label: "Next episode" }
+            : { value: w.runtimeMinutes ? clock(w.runtimeMinutes * 60) : null, label: "Length" },
+          { icon: "users", value: w.others > 0 ? w.others : null, label: "Others who want it" },
         ]}
         status={stateLine(w)}
         action={action || (w.libraryId && w.kind !== "show"
           ? { label: "Watch", onClick: () => navigate(watchHref(w.libraryId)) }
-          : { label: "View" })}
+          : undefined)}
         ribbon={ribbon} />
       {menu}
     </>

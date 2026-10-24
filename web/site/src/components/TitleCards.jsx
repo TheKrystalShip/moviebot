@@ -1,11 +1,11 @@
-import { Icon, ShowcaseCard, Skeleton } from "@thekrystalship/krystal";
+import { Icon, PosterCard, Skeleton } from "@thekrystalship/krystal";
 import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
-import { kindLine, watchHref } from "./Film.jsx";
+import { watchHref } from "./Film.jsx";
 import { useWantRibbon } from "./WantButton.jsx";
 
 // Poster cards for titles that are not on a shelf: a search's answers and what somebody waits on. Every
-// card is krystal's ShowcaseCard, so a page of them reads like Home's rows.
+// card is krystal's PosterCard, so a page of them reads like Home's rows.
 
 /**
  * The poster a title's page shows, kept by this server, as a card's art: the film's or the show's, as
@@ -55,8 +55,7 @@ export function foundPage(found, here, held) {
 }
 
 /**
- * A film or show the catalogue answered with: whether it is a film or a show on its poster, its rating
- * and year, and its cast, or `line` in its place (a person's part in it). `here` is the library's title for a film
+ * A film or show the catalogue answered with: its poster, its rating and year, and its cast, or `line` in its place (a person's part in it). `here` is the library's title for a film
  * it holds, `held` whether it holds an episode of a show; they decide where the card leads and whether
  * it plays from here, and nothing on the card says which. Its ribbon wants it.
  */
@@ -66,19 +65,16 @@ export function FoundCard({ found, here, held, line = found.starring }) {
   const [ribbon, wantMenu] = useWantRibbon(found.imdbId, show ? "show" : "film", found.title);
   return (
     <>
-      <ShowcaseCard compactFacts
+      <PosterCard
         name={found.title}
-        eyebrow={kindLine(found.kind, found)}
         art={found.posterUrl ? `url("${found.posterUrl}")` : null}
         onPick={() => navigate(foundPage(found, here, held))}
-        specs={[
+        facts={[
           { icon: "star", value: found.rating != null ? found.rating.toFixed(1) : null, label: "Rating" },
-          { icon: "calendar", value: found.year || null, label: "Year" },
+          { value: found.year || null, label: "Year" },
         ]}
         status={line ? { label: line, title: line } : null}
-        action={playable
-          ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) }
-          : { label: "View" }}
+        action={playable ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) } : undefined}
         ribbon={ribbon} />
       {wantMenu}
     </>
@@ -97,14 +93,12 @@ export function AnticipatedCard({ film }) {
   const [ribbon, wantMenu] = useWantRibbon(film.imdbId, "film", film.title);
   return (
     <>
-      <ShowcaseCard compactFacts
+      <PosterCard
         name={film.title}
-        eyebrow={kindLine("film", film)}
         art={keptArt(film.imdbId, "film", film.posterUrl)}
         onPick={() => navigate(discoverFilmPath(film.imdbId))}
-        specs={[{ icon: "calendar", value: film.year || null, label: "Year" }]}
+        facts={[{ value: film.year || null, label: "Year" }]}
         status={{ icon: "bell", label: waitersWords(film.waiters, film.waiting) }}
-        action={{ label: "View" }}
         ribbon={ribbon} />
       {wantMenu}
     </>

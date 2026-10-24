@@ -17,7 +17,7 @@ import { PlanButton } from "../components/PlanButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
 import {
-  CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, MoreCards, ShelfPage, surprisePool, useHideWatched, useSurprise,
+  CategoryPage, DiscoverRows, FilterPage, FrontSkeleton, MoreCards, ShelfPage, useHideWatched,
 } from "./DiscoverShelves.jsx";
 import { apiPicks, drawerValues, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, useFacets, withPicks } from "../filters.js";
 import { openingEpisode, watchOpening } from "../watchNow.js";
@@ -195,13 +195,11 @@ export function Discover({ query }) {
 
 /**
  * The page's spotlight: the films on the season's shelf, or the week's popular films out of season,
- * as the top of Home draws its slides, with Surprise me beside each one's actions.
+ * as the top of Home draws its slides.
  */
 function DiscoverSpotlight({ index, where }) {
   const slides = useDiscoverSlides(index, where);
-  const [busy, surprise] = useSurprise(where);
-  const more = <Button size="xl" variant="ghost" icon="dices" busy={busy} onClick={() => surprise({ shelves: surprisePool(index) })}>Surprise me</Button>;
-  return <Spotlight slides={slides} more={more} where={where} />;
+  return <Spotlight slides={slides} where={where} />;
 }
 
 /** The department the film database knows somebody for, as a word for them. */

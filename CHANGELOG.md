@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.77.0] - 2026-10-24
+
+### Changed
+- Home's, Discover's and Plans' rows are krystal's `Shelf` (krystal 9.0.0): no frame, the row's name
+  large over how many it holds, See all opposite, and on a desktop borderless arrows beside it that
+  page the row while it overflows. A phone swipes the row, which runs to the screen's edge. The
+  remote's Continue watching in the docked panel stays a framed `Rail`.
+- Every poster card is krystal's `PosterCard` (krystal 9.1.0): the poster with no frame, and under it
+  the name, the facts on one line and the status. The card opens the title's page; Watch, Resume, Join
+  and Plan a watch are a play button over the poster on a desktop pointer's hover and on keyboard
+  focus, and a phone opens the title's page. The kind line over the name is gone, and a followed
+  show's auto-download reads from its switch on the poster alone.
+- Home's and Discover's top is a title's page's hero, with no frame: each slide says why it is here and
+  what kind of title it is ("Spooky season · Movie"), then the name, the facts line with genres leading
+  to Discover, the story in three lines and the Director, Writers and Stars rows, with the credits read
+  from the film database's description. A library film's slide has Want beside More info and Join the
+  room counts who is in. The pager stands at the far end of the buttons' row, centred under them on a
+  phone.
+- A plan and a new plan open with the same full-width hero as a title's page, with the title's rating
+  and genres; the poster beside the text is gone, and so is the hero's framed form.
+- Surprise me is gone from Discover's top, a category's page, a shelf's page, the filter and the
+  television's Discover.
+
 ## [3.76.0] - 2026-10-24
 
 ### Added

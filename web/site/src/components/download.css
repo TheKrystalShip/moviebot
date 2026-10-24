@@ -86,4 +86,4 @@
 .kc-dl-remove__what .is-mono, .kc-dl-remove .is-mono { font-family: var(--font-mono); }
 
 /* A card whose title is downloading: its progress runs along a raised track. */
-.kc-card--dl-underway { --k-showcase-progress-track: var(--surface-3); }
+.kc-card--dl-underway { --k-poster-progress-track: var(--surface-3); }
