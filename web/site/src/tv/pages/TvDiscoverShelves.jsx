@@ -6,7 +6,7 @@ import { discoverBrowsePath, discoverShelfPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { Failed } from "../../components/Film.jsx";
 import { foundPage } from "../../components/TitleCards.jsx";
-import { surprisePool, useSurprise } from "../../pages/DiscoverShelves.jsx";
+import { atLeast, surprisePool, useSurprise } from "../../pages/DiscoverShelves.jsx";
 import { useDiscoverSlides } from "../../heroes.js";
 import { TvHero } from "../hero.jsx";
 
@@ -31,7 +31,7 @@ function TvShelfTile({ head, series, ...rest }) {
       <CollectionTile variant="strip" name={head.title} posters={head.posters || []} total={head.total} watched={head.watched || 0}
         next={head.next ? "Next: " + head.next : null} caption={head.total != null ? `${head.total} films` : null} {...link} />
     )
-    : <CollectionTile variant="fan" name={head.title} icon={head.icon} posters={head.posters || []} caption={head.total ? `${head.total} titles` : null} {...link} />;
+    : <CollectionTile variant="fan" name={head.title} icon={head.icon} posters={head.posters || []} caption={head.total ? `${atLeast(head.total, head.more)} titles` : null} {...link} />;
 }
 
 /**
@@ -62,7 +62,7 @@ function TvShelfCards({ head, kept, where }) {
   const titles = shelf.data ? shelf.data.titles : [];
   if (titles.length === 0) return null;
   return (
-    <TvRow icon={head.icon} title={head.title} count={titles.length}>
+    <TvRow icon={head.icon} title={head.title} count={atLeast(titles.length, shelf.data && shelf.data.next)}>
       {titles.slice(0, 20).map((t) => {
         const w = where(t);
         return <TvCard key={t.kind + t.imdbId} art={t.posterUrl} label={t.title} {...linkProps(foundPage(t, w.here, w.held))} />;
@@ -137,7 +137,7 @@ export function TvShelf({ id, where }) {
   if (!s) return null;
   return (
     <section className="kc-tvd__browse">
-      <TvHeading as="h1" size="lg" eyebrow={s.section} title={s.title} count={s.titles.length} />
+      <TvHeading as="h1" size="lg" eyebrow={s.section} title={s.title} count={atLeast(s.titles.length, s.next)} />
       <div className="kc-tvsv__grid">
         {s.titles.map((t, i) => {
           const w = where(t);

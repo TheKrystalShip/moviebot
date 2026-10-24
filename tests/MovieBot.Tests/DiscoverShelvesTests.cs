@@ -119,6 +119,18 @@ public sealed class DiscoverShelvesTests(SessionFixture fixture) : IClassFixture
     }
 
     [Fact]
+    public async Task A_tile_says_whether_its_shelf_goes_on_past_the_titles_it_counts()
+    {
+        var index = await Get<DiscoverIndexView>("/api/discover");
+        var heads = index.Sections.SelectMany(s => s.Shelves).ToList();
+
+        var dateNight = heads.Single(h => h.Id == "date-night");
+        Assert.Equal((CatalogueSearch.ShelfListed, true), (dateNight.Total, dateNight.More));
+        var series = heads.Single(h => h.Id == "star-wars");
+        Assert.Equal((2, (bool?)null), (series.Total, series.More));
+    }
+
+    [Fact]
     public void Every_shelf_has_its_own_id_and_names_a_tab_that_exists()
     {
         Assert.Equal(DiscoverShelves.Fixed.Count, DiscoverShelves.Fixed.Select(s => s.Id).Distinct().Count());

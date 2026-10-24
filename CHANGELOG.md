@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.68.1] - 2026-10-24
+
+### Fixed
+- A shelf's count says `40+` when the shelf goes on past the titles counted, on its rail, its tile,
+  its own page and the filter's grid, on the site and the television, and the exact number when it
+  does not; a tile's head carries `more` for it.
+
 ## [3.68.0] - 2026-10-24
 
 ### Changed

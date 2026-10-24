@@ -139,8 +139,11 @@ public sealed record ShelfHeadView
     /// <summary>For a shelf drawn as a tile: the posters of its first titles, in its order, served from here.</summary>
     public List<string>? Posters { get; init; }
 
-    /// <summary>For a shelf drawn as a tile: how many titles are on it.</summary>
+    /// <summary>For a shelf drawn as a tile: how many titles are on its first page.</summary>
     public int? Total { get; init; }
+
+    /// <summary>For a shelf drawn as a tile: true when it goes on past its first page, so <see cref="Total"/> is a floor.</summary>
+    public bool? More { get; init; }
 
     /// <summary>For a series: how many of its films the asking person watched through.</summary>
     public int? Watched { get; init; }
@@ -337,11 +340,13 @@ public sealed class DiscoverShelves(
 
         ShelfHeadView Drawn(Shelf shelf)
         {
-            var listed = _known.GetValueOrDefault(shelf.Id) ?? [];
+            var known = _known.GetValueOrDefault(shelf.Id);
+            var listed = known?.Titles ?? [];
             var head = Head(shelf) with
             {
                 Posters = [.. listed.Where(t => t.PosterUrl is not null).Take(TilePosters).Select(t => t.PosterUrl!)],
                 Total = listed.Count,
+                More = known?.Next is not null ? true : null,
             };
             if (shelf.Section != SeriesSection) return head;
             var watched = listed.Count(t => held.Saw(t.Kind, t.ImdbId));
@@ -358,7 +363,7 @@ public sealed class DiscoverShelves(
         {
             var shelves = shown.Where(s => s.Section == section.Id).ToList();
             if (shelves.Count == 0) continue;
-            var firsts = shelves.Take(3).Select(s => _known.GetValueOrDefault(s.Id) ?? []).ToList();
+            var firsts = shelves.Take(3).Select(s => _known.GetValueOrDefault(s.Id)?.Titles ?? []).ToList();
             sections.Add(new ShelfSectionView
             {
                 Id = section.Id,
@@ -404,10 +409,11 @@ public sealed class DiscoverShelves(
     }
 
     /// <summary>
-    /// The titles last answered for each shelf the same for everybody, as nobody in particular sees
-    /// them: what a tile draws its posters and a series its films from. The warmer keeps every one.
+    /// The first page last answered for each shelf the same for everybody, as nobody in particular
+    /// sees it: what a tile draws its posters, its count and a series its films from. The warmer keeps
+    /// every one.
     /// </summary>
-    private readonly ConcurrentDictionary<string, List<ShelfTitleView>> _known = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, ShelfPage> _known = new(StringComparer.Ordinal);
 
     /// <summary>Answers each of the shelves nothing is known of yet, a few at a time.</summary>
     private async Task KnownAsync(IEnumerable<Shelf> shelves, IReadOnlyList<TitleSummary> titles, CancellationToken ct)
@@ -550,7 +556,7 @@ public sealed class DiscoverShelves(
     private async Task<Outcome<ShelfPage>> TitlesAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, CancellationToken ct)
     {
         var answer = await AnsweredAsync(shelf, viewerId, titles, page, sort, ct);
-        if (page == 1 && sort is null && shelf.Shared && answer.Value is { } found) _known[shelf.Id] = found.Titles;
+        if (page == 1 && sort is null && shelf.Shared && answer.Value is { } found) _known[shelf.Id] = found;
         return answer;
     }
 

@@ -64,6 +64,12 @@ export function useSurprise(where) {
   return [busy, pick];
 }
 
+/**
+ * How many titles a list holds, as far as it is known: the count, with a `+` when `more` says the
+ * list goes on past it (a page answered with a `next`, a tile whose shelf has `more`).
+ */
+export const atLeast = (count, more) => (more ? `${count}+` : count);
+
 /** The shelves Surprise me picks from on the page and in a category: every one the same for everybody. */
 export const surprisePool = (index, section) => (index ? index.sections : [])
   .filter((s) => !section || s.id === section)
@@ -81,7 +87,7 @@ function ShelfTile({ head, series, size = "md" }) {
   }
   return (
     <CollectionTile variant="fan" size={size} name={head.title} icon={head.icon} posters={head.posters || []}
-      caption={head.total ? `${head.total} titles` : null} {...link} />
+      caption={head.total ? `${atLeast(head.total, head.more)} titles` : null} {...link} />
   );
 }
 
@@ -166,7 +172,7 @@ function ShelfRail({ head, kept, where }) {
   if (titles.length === 0) return null;
   return (
     <Rail
-      perView={POSTERS} icon={head.icon} title={head.title} count={titles.length}
+      perView={POSTERS} icon={head.icon} title={head.title} count={atLeast(titles.length, shelf.data.next)}
       items={titles.slice(0, RAIL_TITLES)} itemKey={(t) => t.kind + t.imdbId}
       renderItem={(t) => <FoundCard found={t} {...where(t)} />}
       onViewAll={() => navigate(discoverShelfPath(head.id))} viewAllLabel="See all" />
@@ -320,7 +326,7 @@ export function ShelfPage({ id, where }) {
         <ToolbarFilters fields={fields} />
         <ToolbarSort value={sort.key} dir={sort.dir} onChange={setSort} options={SHELF_SORTS} />
         <ToolbarSpacer />
-        <ToolbarCount shown={shown.length} total={all.length} unit="titles" />
+        <ToolbarCount shown={shown.length} total={atLeast(all.length, shelf.next)} unit="titles" />
         <ToolbarButton icon="dices" spinning={busy} disabled={busy || !shown.some((t) => !t.watched)}
           onClick={() => surprise({ titles: shown })}>Surprise me</ToolbarButton>
       </Toolbar>
@@ -474,7 +480,7 @@ export function FilterPage({ query, index, where }) {
           }}
           options={FILTER_SORTS} />
         <ToolbarSpacer />
-        {titles && <ToolbarCount shown={titles.length} total={all.length} unit="titles" />}
+        {titles && <ToolbarCount shown={titles.length} total={atLeast(all.length, found.next)} unit="titles" />}
         <ToolbarButton icon="dices" spinning={busy} disabled={busy || !titles || !titles.some((t) => !t.watched)}
           onClick={() => surprise({ titles })}>Surprise me</ToolbarButton>
       </Toolbar>
