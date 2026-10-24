@@ -79,11 +79,10 @@ Landed: `docs/api-contract.md` (What a description carries, `/api/catalogue/disc
 
 **Not to be skipped.** Once the data of 4·c–4·f is served, Discover and the title page are designed
 around it in the Cinema design: how a question's reading is drawn and edited, how many shelves the
-page holds and in what order, where award, adaptation and place shelves sit, how two ratings are
-shown or one chosen, how trailers and where-to-watch sit on a title page, and the attribution TMDB,
+page holds and in what order, where award, adaptation and place shelves sit, how trailers and where-to-watch sit on a title page, and the attribution TMDB,
 JustWatch and IMDb require. Until it is done, 4·c–4·f are served by the API and drawn only as the
 existing components already draw them.
-4·f serves the design a title's trailers, providers with JustWatch's attribution, recommendations, reviews, logo, tagline, box office, keyword links, IMDb rating and Wikidata awards and sources to place.
+4·f serves the design a title's trailers, providers with JustWatch's attribution, recommendations, reviews, logo, tagline, box office, keyword links and Wikidata awards and sources to place.
 
 ## 5. Order
 

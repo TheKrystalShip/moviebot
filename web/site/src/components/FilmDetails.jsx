@@ -17,14 +17,22 @@ export function bytes(n) {
   return gb >= 1 ? `${gb.toFixed(1)} GB` : `${Math.round(n / 1024 ** 2)} MB`;
 }
 
-/** The film database's rating, and that it is the database's. */
-export function FilmScore({ rating, votes: count, compact = false }) {
+/** Whose a rating is, by the API's `ratedBy`: IMDb's, else the film database's. */
+const RATED_BY = { imdb: "IMDb", tmdb: "TMDB" };
+
+/**
+ * A title's rating and whose it is (`by`, the API's `ratedBy`). A rating that names nobody is the
+ * film database's, as an episode's is.
+ */
+export function FilmScore({ rating, votes: count, by, compact = false }) {
   if (!rating) return null;
+  const source = RATED_BY[by] || RATED_BY.tmdb;
   return (
-    <span className={"kc-score" + (compact ? " kc-score--compact" : "")} title={`${rating.toFixed(1)} out of 10 from ${count} votes on TMDB`}>
+    <span className={"kc-score" + (compact ? " kc-score--compact" : "")}
+      title={`${rating.toFixed(1)} out of 10` + (count ? ` from ${count} votes` : "") + ` on ${source}`}>
       <Icon name="star" size={compact ? 12 : 16} className="kc-score__star" />
       <span className="kc-score__value">{rating.toFixed(1)}</span>
-      {!compact && <span className="kc-score__of">/10 · {votes(count)} votes · TMDB</span>}
+      {!compact && <span className="kc-score__of">/10 · {count ? `${votes(count)} votes · ` : ""}{source}</span>}
     </span>
   );
 }

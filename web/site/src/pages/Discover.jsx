@@ -277,7 +277,7 @@ function BestMatch({ found, here, held, shelf }) {
           <span className="kc-eyebrow">{show ? "TV series" : "Movie"}</span>
           <h2><a {...linkProps(page)}>{found.title}</a></h2>
           <div className="kc-tt__meta">
-            <FilmScore rating={found.rating} votes={found.votes} compact />
+            <FilmScore rating={found.rating} votes={found.votes} by={found.ratedBy} compact />
             {found.year && <span className="kc-tt__year">{found.year}</span>}
           </div>
           {found.starring && <span className="kc-hit__cast">{found.starring}</span>}

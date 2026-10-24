@@ -5,22 +5,25 @@ using TheKrystalShip.MovieBot.Api.Data;
 namespace TheKrystalShip.MovieBot.Api.Films;
 
 /// <summary>
-/// The one rating each title is shown with, wherever it is shown: the newest the film database has
-/// given, kept by its id and kind.
+/// The one rating each title is shown with, wherever it is shown (<see cref="Serve"/>): IMDb's,
+/// where the IMDb import holds the title, else the newest the film database has given.
 ///
-/// Every answer the API keeps carries the rating from when it was asked, and a new release's moves
-/// daily, so a film page, a search result and a person's credits would each show a different number
-/// for one title. Each place a rating arrives from the database records it here as an observation
-/// stamped with when the answer was asked, and an observation older than what is held is dropped.
-/// Every view takes a title's rating and votes from <see cref="Serve"/>, which falls back to the
-/// answer's own for a title nothing is held for. A rating with fewer than
-/// <see cref="CatalogueSearch.RatedVotes"/> votes behind it is no rating: it is served as none.
+/// IMDb's votes are deep enough for a rating to mean the same thing across titles, so IMDb's is the
+/// rating; a title the import does not hold (one with fewer than its vote floor, or out too recently
+/// for the day's files) is rated by the film database instead, and <c>ratedBy</c> on a title's own
+/// page says which.
+///
+/// Every answer the API keeps carries the film database's rating from when it was asked, and a new
+/// release's moves daily, so a film page, a search result and a person's credits would each show a
+/// different number for one title. Each place a rating arrives from the database records it here as
+/// an observation stamped with when the answer was asked, and an observation older than what is held
+/// is dropped. <see cref="Newest"/> is that rating, falling back to the answer's own for a title
+/// nothing is held for; a rating with fewer than <see cref="CatalogueSearch.RatedVotes"/> votes behind
+/// it is no rating. Only the film database's ratings are recorded: what <see cref="Newest"/> answers is
+/// what a glance carries, and IMDb's is put on a title only as a view is made of it.
 ///
 /// The key is the database's id and kind because a chart's answer names no IMDb id. A listing reads
 /// a score on every row, so all of them are held in memory, written through.
-///
-/// IMDb's rating and votes for a title (<see cref="Imdb"/>) ride beside it on every view that carries
-/// a title's IMDb id; they are a second figure, and <see cref="Serve"/> is unchanged by them.
 /// </summary>
 public sealed class TitleScores(CinemaDatabase database, ImdbRatings imdb)
 {
@@ -69,21 +72,38 @@ public sealed class TitleScores(CinemaDatabase database, ImdbRatings imdb)
         }
     }
 
+    /// <summary>What <c>ratedBy</c> names: whose rating a title is shown with.</summary>
+    public const string ByImdb = "imdb";
+    public const string ByDatabase = "tmdb";
+
     /// <summary>
-    /// The rating and votes a view shows for a title: the held ones, else the answer's own
+    /// The rating and votes a view shows for a title, and whose they are: IMDb's for
+    /// <paramref name="imdbId"/> where the import holds it, else the film database's newest for
+    /// <paramref name="tmdbId"/> (<see cref="Newest"/>), else the answer's own
+    /// (<paramref name="rating"/>, <paramref name="votes"/>) held to the same floor. No rating, and
+    /// whose absent, when there is none.
+    /// </summary>
+    public (double? Rating, int Votes, string? RatedBy) Serve(string? imdbId, int? tmdbId, string kind, double? rating, int votes)
+    {
+        if (imdb.Of(imdbId) is { } fromImdb) return (fromImdb.Value, fromImdb.Votes, ByImdb);
+        var (shown, count) = tmdbId is { } id ? Newest(id, kind, rating, votes) : Floored(rating, votes);
+        return (shown, count, shown is null ? null : ByDatabase);
+    }
+
+    /// <summary>
+    /// The film database's newest rating and votes for a title: the held ones, else the answer's own
     /// (<paramref name="rating"/>, <paramref name="votes"/>). No rating when fewer than
     /// <see cref="CatalogueSearch.RatedVotes"/> people voted; the votes are served either way.
     /// </summary>
-    public (double? Rating, int Votes) Serve(int tmdbId, string kind, double? rating, int votes)
+    public (double? Rating, int Votes) Newest(int tmdbId, string kind, double? rating, int votes)
     {
         Load();
         if (_held.TryGetValue((tmdbId, kind), out var held)) (rating, votes) = (held.Rating, held.Votes);
-        return (rating is not null && votes >= CatalogueSearch.RatedVotes ? rating : null, votes);
+        return Floored(rating, votes);
     }
 
-    /// <summary>IMDb's rating and votes for a title, or none for one the IMDb import does not hold.</summary>
-    public (double? Rating, int? Votes) Imdb(string? imdbId) =>
-        imdb.Of(imdbId) is { } held ? (held.Value, held.Votes) : (null, null);
+    private static (double? Rating, int Votes) Floored(double? rating, int votes) =>
+        (rating is not null && votes >= CatalogueSearch.RatedVotes ? rating : null, votes);
 
     /// <summary>Every rating in an answer the film database gave, for the answers that carry any.</summary>
     internal static IEnumerable<Reading> ReadingsOf(object answer) => answer switch

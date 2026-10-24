@@ -57,7 +57,7 @@ export function CatalogueFilm({ imdbId }) {
         {a && a.notOut && (
           <Pill tone="warn" icon="calendar-clock" className="kc-tt__notout">Not out digitally yet</Pill>
         )}
-        <TitleStory rating={d.rating} votes={d.votes} genres={d.genres} tagline={d.tagline} overview={d.overview} />
+        <TitleStory rating={d.rating} votes={d.votes} ratedBy={d.ratedBy} genres={d.genres} tagline={d.tagline} overview={d.overview} />
         <Credits film={d} />
 
         <FilmActions imdbId={imdbId} film={d} state={state} />

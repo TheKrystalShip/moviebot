@@ -98,7 +98,7 @@ export function Title({ id, category = null, fromDevice = false }) {
           {d && d.certification && <span className="kc-cert">{d.certification}</span>}
           <span>{clock(m.durationSeconds)}</span>
         </div>
-        {d && <TitleStory rating={d.rating} votes={d.votes} genres={d.genres} tagline={d.tagline} overview={d.overview} />}
+        {d && <TitleStory rating={d.rating} votes={d.votes} ratedBy={d.ratedBy} genres={d.genres} tagline={d.tagline} overview={d.overview} />}
         {m.status === "transcoding" && (
           <span className="kc-note">Still being prepared{m.headSeconds ? `: watchable up to ${clock(m.headSeconds)}` : ""}.</span>
         )}

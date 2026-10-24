@@ -42,12 +42,9 @@ public sealed record CatalogueTitleView
     public int? Year { get; init; }
     public double? Rating { get; init; }
     public int Votes { get; init; }
+    /// <summary>Whose <see cref="Rating"/> is, <c>imdb</c> or <c>tmdb</c>; absent with no rating (<see cref="TitleScores.Serve"/>).</summary>
+    public string? RatedBy { get; init; }
 
-    /// <summary>IMDb's rating out of ten, to one decimal; absent when the IMDb import does not hold the title.</summary>
-    public double? ImdbRating { get; init; }
-
-    /// <summary>The votes behind <see cref="ImdbRating"/>.</summary>
-    public int? ImdbVotes { get; init; }
     public string? Overview { get; init; }
 
     /// <summary>The poster its page shows, served from here; absent when the database has none.</summary>
@@ -184,8 +181,7 @@ public sealed class Catalogue(
 
     public CatalogueTitleView View(CatalogueTitle title)
     {
-        var (rating, votes) = scores.Serve(title.TmdbId, title.Kind, title.Rating, title.Votes);
-        var (imdbRating, imdbVotes) = scores.Imdb(title.ImdbId);
+        var (rating, votes, ratedBy) = scores.Serve(title.ImdbId, title.TmdbId, title.Kind, title.Rating, title.Votes);
         return new CatalogueTitleView
         {
             ImdbId = title.ImdbId,
@@ -194,8 +190,7 @@ public sealed class Catalogue(
             Year = title.Released?.Year,
             Rating = rating,
             Votes = votes,
-            ImdbRating = imdbRating,
-            ImdbVotes = imdbVotes,
+            RatedBy = ratedBy,
             Overview = title.Overview,
             PosterUrl = glances.PosterUrl(title.ImdbId, Glance(title)),
             Role = title.Role,

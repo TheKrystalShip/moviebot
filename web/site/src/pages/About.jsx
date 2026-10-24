@@ -31,8 +31,18 @@ export function About({ head = true }) {
             </a>
           )}
         <p>
-          Ratings, credits, certificates, genres, overviews and artwork come from The Movie Database (TMDB).
-          This product uses the TMDB API but is not endorsed or certified by TMDB.
+          Credits, certificates, genres, overviews and artwork come from The Movie Database (TMDB), and so do
+          the ratings of titles IMDb does not rate. This product uses the TMDB API but is not endorsed or
+          certified by TMDB.
+        </p>
+      </section>
+
+      <section className="kc-about__block">
+        <h2>Ratings</h2>
+        <p>
+          Ratings and votes are IMDb's wherever IMDb rates a title. Information courtesy of IMDb
+          ({onTv ? "imdb.com" : <a href="https://www.imdb.com" target="_blank" rel="noreferrer">imdb.com</a>}).
+          Used with permission.
         </p>
       </section>
     </div>

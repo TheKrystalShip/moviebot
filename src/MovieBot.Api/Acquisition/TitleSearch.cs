@@ -46,8 +46,8 @@ public sealed class TitleSearch(TitleGlances glances, TitleScores scores, Librar
         {
             var glance = glanced.GetValueOrDefault(t.ImdbId);
             var found = FoundTitle.From(t, glance, glances.PosterUrl(t.ImdbId, glance));
-            var (imdbRating, imdbVotes) = scores.Imdb(found.ImdbId);
-            return found with { Category = categories.Of(found.Kind, found.ImdbId), ImdbRating = imdbRating, ImdbVotes = imdbVotes };
+            var (rating, votes, ratedBy) = scores.Serve(found.ImdbId, null, found.Kind, found.Rating, found.Votes);
+            return found with { Category = categories.Of(found.Kind, found.ImdbId), Rating = rating, Votes = votes, RatedBy = ratedBy };
         })];
     }
 

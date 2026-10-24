@@ -105,12 +105,8 @@ public sealed record ShelfTitleView
     public int? Year { get; init; }
     public double? Rating { get; init; }
     public int Votes { get; init; }
-
-    /// <summary>IMDb's rating out of ten, to one decimal; absent when the IMDb import does not hold the title.</summary>
-    public double? ImdbRating { get; init; }
-
-    /// <summary>The votes behind <see cref="ImdbRating"/>.</summary>
-    public int? ImdbVotes { get; init; }
+    /// <summary>Whose <see cref="Rating"/> is, <c>imdb</c> or <c>tmdb</c>; absent with no rating (<see cref="TitleScores.Serve"/>).</summary>
+    public string? RatedBy { get; init; }
 
     /// <summary>The poster its page shows, served from here; absent when none is kept.</summary>
     public string? PosterUrl { get; init; }
@@ -618,8 +614,7 @@ public sealed class DiscoverShelves(
                     Year = t.Year,
                     Rating = t.Rating,
                     Votes = t.Votes,
-                    ImdbRating = t.ImdbRating,
-                    ImdbVotes = t.ImdbVotes,
+                    RatedBy = t.RatedBy,
                     PosterUrl = t.PosterUrl,
                     InLibrary = held.Holds(kind, t.ImdbId),
                     LibraryId = held.LibraryIdOf(kind, t.ImdbId),
@@ -649,7 +644,7 @@ public sealed class DiscoverShelves(
                 var entries = views
                     .Select((v, i) => new ImdbRanking.Entry(
                         new ListedTitle { TmdbId = i, Kind = v.Kind, Title = v.Title, Rating = v.Rating, Votes = v.Votes },
-                        v.ImdbRating is { } rating ? new ImdbRatings.Rating(rating, v.ImdbVotes ?? 0) : null))
+                        v.RatedBy == TitleScores.ByImdb && v.Rating is { } rating ? new ImdbRatings.Rating(rating, v.Votes) : null))
                     .ToList();
                 var floor = ImdbRanking.FloorFor([.. entries.Where(e => e.Imdb is not null).Select(e => e.Imdb!.Value.Votes).OrderDescending()]);
                 return [.. ImdbRanking.Order(entries, floor).Select(t => views[t.TmdbId])];
@@ -688,8 +683,7 @@ public sealed class DiscoverShelves(
                 Year = view.Year,
                 Rating = view.Rating,
                 Votes = view.Votes,
-                ImdbRating = view.ImdbRating,
-                ImdbVotes = view.ImdbVotes,
+                RatedBy = view.RatedBy,
                 PosterUrl = view.PosterUrl,
                 Starring = view.Starring.Count > 0 ? string.Join(", ", view.Starring) : null,
                 InLibrary = view.InLibrary,
@@ -802,15 +796,16 @@ public sealed class DiscoverShelves(
         if (kind == "show")
         {
             var show = shows.Held(imdb)?.Details;
+            var (showRating, showVotes, showRatedBy) = shows.Scores.Serve(imdb, show?.TmdbId, "show", show?.Rating, show?.Votes ?? 0);
             return new ShelfTitleView
             {
                 ImdbId = imdb,
                 Kind = kind,
                 Title = show?.Title ?? title.Film?.Name ?? title.Title,
                 Year = show?.FirstYear,
-                Rating = show is null ? null : shows.Scores.Serve(show.TmdbId, "show", show.Rating, show.Votes).Rating,
-                ImdbRating = shows.Scores.Imdb(imdb).Rating,
-                ImdbVotes = shows.Scores.Imdb(imdb).Votes,
+                Rating = showRating,
+                Votes = showVotes,
+                RatedBy = showRatedBy,
                 PosterUrl = shows.HasImage(imdb, ShowStore.Poster) ? ShowViews.ImageUrl(imdb, ShowStore.Poster) : null,
                 Starring = Starring(show?.Cast),
                 InLibrary = true,
@@ -819,15 +814,16 @@ public sealed class DiscoverShelves(
         }
 
         var film = films.Held(imdb)?.Details;
+        var (rating, votes, ratedBy) = films.Scores.Serve(imdb, film?.TmdbId, "film", film?.Rating, film?.Votes ?? 0);
         return new ShelfTitleView
         {
             ImdbId = imdb,
             Kind = kind,
             Title = film?.Title ?? title.Film?.Name ?? title.Title,
             Year = film?.Year ?? title.Film?.Year,
-            Rating = film is null ? null : films.Scores.Serve(film.TmdbId, "film", film.Rating, film.Votes).Rating,
-            ImdbRating = films.Scores.Imdb(imdb).Rating,
-            ImdbVotes = films.Scores.Imdb(imdb).Votes,
+            Rating = rating,
+            Votes = votes,
+            RatedBy = ratedBy,
             PosterUrl = films.HasImage(imdb, FilmStore.Poster) ? FilmViews.ImageUrl(imdb, FilmStore.Poster) : null,
             Starring = Starring(film?.Cast),
             InLibrary = true,

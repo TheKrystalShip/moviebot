@@ -135,7 +135,7 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
           <span>{seasons.length} {seasons.length === 1 ? "season" : "seasons"} · {episodeCount} episodes</span>
           {s.status && <span>{s.status}</span>}
         </div>
-        <TitleStory rating={s.rating} votes={s.votes} genres={s.genres} tagline={s.tagline} overview={s.overview} />
+        <TitleStory rating={s.rating} votes={s.votes} ratedBy={s.ratedBy} genres={s.genres} tagline={s.tagline} overview={s.overview} />
         <Credits film={{ creators: s.creators, personIds: s.personIds, cast: s.cast }} />
 
         <div className="kc-actions">

@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.68.0] - 2026-10-24
+
+### Changed
+- IMDb's rating is the one a title is shown with everywhere: `rating` and `votes` on every view are
+  IMDb's where the import holds the title and the film database's otherwise, `ratedBy` says whose,
+  and `imdbRating` and `imdbVotes` are gone from the wire. A rating floor holds for the rating shown,
+  the title page's score names its source, and About credits IMDb.
+
 ## [3.67.2] - 2026-10-24
 
 ### Fixed

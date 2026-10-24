@@ -196,7 +196,7 @@ public sealed class TitleGlances(
 
     private TitleGlance Scored(TitleGlance glance)
     {
-        var (rating, votes) = scores.Serve(glance.TmdbId, glance.Kind, glance.Rating, glance.Votes);
+        var (rating, votes) = scores.Newest(glance.TmdbId, glance.Kind, glance.Rating, glance.Votes);
         return glance with { Rating = rating, Votes = votes };
     }
 

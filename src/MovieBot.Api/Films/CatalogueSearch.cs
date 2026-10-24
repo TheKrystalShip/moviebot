@@ -430,7 +430,7 @@ public sealed partial class CatalogueSearch(
             : await SimilarToAsync(seed.Key, query, sort, ask, ct);
         if (listed.Value is not { } page) return listed.Carry<DiscoverAnswer>();
 
-        var hits = await HitsAsync(page.Titles, ask.Take, ct);
+        var hits = RatedAtLeast(await HitsAsync(page.Titles, ask.Take, ct), query.MinRating);
         var resolved = new DiscoverResolved
         {
             Genres = [.. genres.Select(g => g.Name)],
@@ -454,8 +454,18 @@ public sealed partial class CatalogueSearch(
     public async Task<Outcome<PagedHits>> ShelfAsync(DiscoverQuery query, PageAsk ask, CancellationToken ct)
     {
         var listed = await DiscoveredAsync("discover", DiscoverKept, query, ask, ct);
-        return await NamedPageAsync(listed, ask, ct);
+        var named = await NamedPageAsync(listed, ask, ct);
+        return named.Value is { } paged ? Outcome<PagedHits>.Ok(paged with { Hits = RatedAtLeast(paged.Hits, query.MinRating) }) : named;
     }
+
+    /// <summary>
+    /// The hits whose shown rating (<see cref="TitleScores.Serve"/>) is at least
+    /// <paramref name="floor"/>. The database holds a question to a floor on its own rating, and a
+    /// title it passes is left out when IMDb, whose rating is the one shown, rates it under the floor.
+    /// </summary>
+    private List<TitleHit> RatedAtLeast(List<TitleHit> hits, double? floor) =>
+        floor is not { } least ? hits
+            : [.. hits.Where(h => scores.Serve(h.Card?.ImdbId, h.Listed.TmdbId, h.Listed.Kind, h.Listed.Rating, h.Listed.Votes).Rating is not { } shown || shown >= least)];
 
     /// <summary>
     /// A page of one of the database's own lists, kept as the lists of the week are. With a
@@ -568,7 +578,7 @@ public sealed partial class CatalogueSearch(
                     Title = facts?.Title ?? film.Film?.Name ?? film.Title,
                     Year = facts?.Year ?? film.Film?.Year,
                     Genres = [.. facts?.Genres ?? []],
-                    Rating = facts is null ? null : scores.Serve(facts.TmdbId, "film", facts.Rating, facts.Votes).Rating,
+                    Rating = scores.Serve(film.Film?.ImdbId, facts?.TmdbId, "film", facts?.Rating, facts?.Votes ?? 0).Rating,
                     Plot = OneLine(facts?.Overview),
                     PosterUrl = film.Film?.ImdbId is { } imdb && films.HasImage(imdb, FilmStore.Poster) ? FilmViews.ImageUrl(imdb, FilmStore.Poster) : null,
                     LibraryId = film.Id,
@@ -592,7 +602,7 @@ public sealed partial class CatalogueSearch(
                     Title = facts?.Title ?? first.Film?.Name ?? first.Title,
                     Year = facts?.FirstYear,
                     Genres = [.. facts?.Genres ?? []],
-                    Rating = facts is null ? null : scores.Serve(facts.TmdbId, "show", facts.Rating, facts.Votes).Rating,
+                    Rating = scores.Serve(imdb, facts?.TmdbId, "show", facts?.Rating, facts?.Votes ?? 0).Rating,
                     Plot = OneLine(facts?.Overview),
                     PosterUrl = imdb is not null && shows.HasImage(imdb, ShowStore.Poster) ? ShowViews.ImageUrl(imdb, ShowStore.Poster) : null,
                     LibraryId = first.Id,
@@ -620,8 +630,7 @@ public sealed partial class CatalogueSearch(
         var (listed, card) = (hit.Listed, hit.Card);
         var imdb = card?.ImdbId;
         var released = listed.Released ?? card?.Released;
-        var (rating, votes) = scores.Serve(listed.TmdbId, listed.Kind, listed.Rating, listed.Votes);
-        var (imdbRating, imdbVotes) = scores.Imdb(imdb);
+        var (rating, votes, ratedBy) = scores.Serve(imdb, listed.TmdbId, listed.Kind, listed.Rating, listed.Votes);
         return new TitleHitView
         {
             ImdbId = imdb,
@@ -633,8 +642,7 @@ public sealed partial class CatalogueSearch(
             Genres = [.. card?.Genres ?? []],
             Rating = rating,
             Votes = votes,
-            ImdbRating = imdbRating,
-            ImdbVotes = imdbVotes,
+            RatedBy = ratedBy,
             Plot = OneLine(listed.Overview),
             MadeBy = [.. card?.MadeBy ?? []],
             Starring = [.. card?.Starring ?? []],
@@ -651,8 +659,7 @@ public sealed partial class CatalogueSearch(
     {
         var (credit, card) = (hit.Credit, hit.Card);
         var imdb = card?.ImdbId;
-        var (rating, votes) = scores.Serve(credit.TmdbId, credit.Kind, credit.Rating, credit.Votes);
-        var (imdbRating, imdbVotes) = scores.Imdb(imdb);
+        var (rating, votes, ratedBy) = scores.Serve(imdb, credit.TmdbId, credit.Kind, credit.Rating, credit.Votes);
         return new CreditView
         {
             TmdbId = credit.TmdbId,
@@ -665,8 +672,7 @@ public sealed partial class CatalogueSearch(
             Role = credit.Role,
             Rating = rating,
             Votes = votes,
-            ImdbRating = imdbRating,
-            ImdbVotes = imdbVotes,
+            RatedBy = ratedBy,
             PosterUrl = imdb is null ? null : glances.PosterUrl(imdb, Glance(credit.AsListed())),
             InLibrary = shelf.Holds(credit.Kind, imdb),
             LibraryId = shelf.LibraryIdOf(credit.Kind, imdb),

@@ -51,7 +51,7 @@ function Slide({ slide, more, where }) {
       <span className="kc-eyebrow kc-spotlight__eyebrow">{slide.icon && <Icon name={slide.icon} size={14} />}{spot.eyebrow}</span>
       <h1>{spot.title}</h1>
       <div className="kc-featured__meta">
-        {f.rating ? <FilmScore rating={f.rating} votes={f.votes} compact /> : null}
+        {f.rating ? <FilmScore rating={f.rating} votes={f.votes} by={f.ratedBy} compact /> : null}
         {f.year && <span>{f.year}</span>}
         {f.cert && <span className="kc-cert">{f.cert}</span>}
         {f.length && <span>{f.length}</span>}

@@ -161,7 +161,7 @@ export function PlanNew({ query }) {
             {d.certification && <span className="kc-cert">{d.certification}</span>}
           </div>
         )}
-        <TitleStory rating={d.rating} votes={d.votes} genres={d.genres} tagline={d.tagline} overview={d.overview} />
+        <TitleStory rating={d.rating} votes={d.votes} ratedBy={d.ratedBy} genres={d.genres} tagline={d.tagline} overview={d.overview} />
         <Credits film={kind === "film" ? d : { creators: d.creators, personIds: d.personIds, cast: d.cast }} />
         <span className="kc-plan__maker">
           <Icon name="calendar-heart" size={15} />

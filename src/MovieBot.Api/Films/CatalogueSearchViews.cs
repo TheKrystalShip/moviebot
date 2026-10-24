@@ -24,12 +24,8 @@ public sealed record TitleHitView
     public required List<string> Genres { get; init; }
     public double? Rating { get; init; }
     public int Votes { get; init; }
-
-    /// <summary>IMDb's rating out of ten, to one decimal; absent when the IMDb import does not hold the title.</summary>
-    public double? ImdbRating { get; init; }
-
-    /// <summary>The votes behind <see cref="ImdbRating"/>.</summary>
-    public int? ImdbVotes { get; init; }
+    /// <summary>Whose <see cref="Rating"/> is, <c>imdb</c> or <c>tmdb</c>; absent with no rating (<see cref="TitleScores.Serve"/>).</summary>
+    public string? RatedBy { get; init; }
 
     /// <summary>The first sentence of what it is about, cut at 200 characters; the title's page holds the rest.</summary>
     public string? Plot { get; init; }
@@ -121,12 +117,9 @@ public sealed record CreditView
 
     public double? Rating { get; init; }
     public int Votes { get; init; }
+    /// <summary>Whose <see cref="Rating"/> is, <c>imdb</c> or <c>tmdb</c>; absent with no rating (<see cref="TitleScores.Serve"/>).</summary>
+    public string? RatedBy { get; init; }
 
-    /// <summary>IMDb's rating out of ten, to one decimal; absent when the IMDb import does not hold the title.</summary>
-    public double? ImdbRating { get; init; }
-
-    /// <summary>The votes behind <see cref="ImdbRating"/>.</summary>
-    public int? ImdbVotes { get; init; }
     public string? PosterUrl { get; init; }
     public bool InLibrary { get; init; }
     public string? LibraryId { get; init; }

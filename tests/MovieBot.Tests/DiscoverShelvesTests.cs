@@ -189,9 +189,9 @@ public sealed class DiscoverShelvesTests(SessionFixture fixture) : IClassFixture
     {
         List<ShelfTitleView> views =
         [
-            new() { ImdbId = "tt1", Kind = "film", Title = "Seen by few", Year = 2001, Rating = 9.5, Votes = 40, ImdbRating = 9.4, ImdbVotes = 120 },
-            new() { ImdbId = "tt2", Kind = "film", Title = "Well liked", Year = 1999, Rating = 7.9, Votes = 9000, ImdbRating = 8.1, ImdbVotes = 900_000 },
-            new() { ImdbId = "tt3", Kind = "film", Title = "Undated", Rating = 6.0, Votes = 3000, ImdbRating = 6.2, ImdbVotes = 40_000 },
+            new() { ImdbId = "tt1", Kind = "film", Title = "Seen by few", Year = 2001, Rating = 9.4, Votes = 120, RatedBy = TitleScores.ByImdb },
+            new() { ImdbId = "tt2", Kind = "film", Title = "Well liked", Year = 1999, Rating = 8.1, Votes = 900_000, RatedBy = TitleScores.ByImdb },
+            new() { ImdbId = "tt3", Kind = "film", Title = "Undated", Rating = 6.2, Votes = 40_000, RatedBy = TitleScores.ByImdb },
         ];
 
         Assert.Equal(["Well liked", "Undated", "Seen by few"], DiscoverShelves.Sorted(views, "rating").Select(v => v.Title));

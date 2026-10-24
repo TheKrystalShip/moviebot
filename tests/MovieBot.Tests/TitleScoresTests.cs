@@ -38,10 +38,10 @@ public sealed class TitleScoresTests : IDisposable
 
         scores.Observe(1288069, "film", 6.2, 40, Oct16);
         scores.Observe(1288069, "film", 4.0, 30, Oct9);
-        Assert.Equal((6.2, 40), scores.Serve(1288069, "film", 1.0, 99));
+        Assert.Equal((6.2, 40), scores.Newest(1288069, "film", 1.0, 99));
 
         scores.Observe(1288069, "film", 8.3, 105, Oct20);
-        Assert.Equal((8.3, 105), scores.Serve(1288069, "film", 1.0, 99));
+        Assert.Equal((8.3, 105), scores.Newest(1288069, "film", 1.0, 99));
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class TitleScoresTests : IDisposable
     {
         new TitleScores(Database, new ImdbRatings(Database)).Observe(7, "show", 7.7, 500, Oct16);
 
-        Assert.Equal((7.7, 500), new TitleScores(Database, new ImdbRatings(Database)).Serve(7, "show", null, 0));
+        Assert.Equal((7.7, 500), new TitleScores(Database, new ImdbRatings(Database)).Newest(7, "show", null, 0));
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public sealed class TitleScoresTests : IDisposable
         scores.Observe(5, "film", 6.0, 100, Oct16);
         scores.Observe(5, "show", 9.0, 100, Oct16);
 
-        Assert.Equal(6.0, scores.Serve(5, "film", null, 0).Rating);
-        Assert.Equal(9.0, scores.Serve(5, "show", null, 0).Rating);
+        Assert.Equal(6.0, scores.Newest(5, "film", null, 0).Rating);
+        Assert.Equal(9.0, scores.Newest(5, "show", null, 0).Rating);
     }
 
     [Fact]
@@ -68,8 +68,8 @@ public sealed class TitleScoresTests : IDisposable
     {
         var scores = new TitleScores(Database, new ImdbRatings(Database));
 
-        Assert.Equal((7.1, 300), scores.Serve(99, "film", 7.1, 300));
-        Assert.Equal((null, 0), scores.Serve(99, "film", null, 0));
+        Assert.Equal((7.1, 300), scores.Newest(99, "film", 7.1, 300));
+        Assert.Equal((null, 0), scores.Newest(99, "film", null, 0));
     }
 
     [Fact]
@@ -77,11 +77,11 @@ public sealed class TitleScoresTests : IDisposable
     {
         var scores = new TitleScores(Database, new ImdbRatings(Database));
 
-        Assert.Equal((null, CatalogueSearch.RatedVotes - 1), scores.Serve(1, "film", 9.5, CatalogueSearch.RatedVotes - 1));
-        Assert.Equal((9.5, CatalogueSearch.RatedVotes), scores.Serve(1, "film", 9.5, CatalogueSearch.RatedVotes));
+        Assert.Equal((null, CatalogueSearch.RatedVotes - 1), scores.Newest(1, "film", 9.5, CatalogueSearch.RatedVotes - 1));
+        Assert.Equal((9.5, CatalogueSearch.RatedVotes), scores.Newest(1, "film", 9.5, CatalogueSearch.RatedVotes));
 
         scores.Observe(2, "film", 9.9, 3, Oct20);
-        Assert.Equal((null, 3), scores.Serve(2, "film", 7.0, 5000));
+        Assert.Equal((null, 3), scores.Newest(2, "film", 7.0, 5000));
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class TitleScoresTests : IDisposable
         scores.Observe(3, "film", 7.0, 400, Oct9);
         scores.Observe(3, "film", null, 0, Oct20);
 
-        Assert.Equal((7.0, 400), scores.Serve(3, "film", null, 0));
+        Assert.Equal((7.0, 400), scores.Newest(3, "film", null, 0));
     }
 
     [Fact]
@@ -111,9 +111,9 @@ public sealed class TitleScoresTests : IDisposable
 
         var scores = new TitleScores(Database, new ImdbRatings(Database));
 
-        Assert.Equal((null, 4), scores.Serve(1288069, "film", null, 0));
-        Assert.Equal((8.1, 900), scores.Serve(2, "film", null, 0));
-        Assert.Equal((7.4, 60), scores.Serve(2, "show", null, 0));
+        Assert.Equal((null, 4), scores.Newest(1288069, "film", null, 0));
+        Assert.Equal((8.1, 900), scores.Newest(2, "film", null, 0));
+        Assert.Equal((7.4, 60), scores.Newest(2, "show", null, 0));
     }
 
     [Fact]
@@ -139,10 +139,10 @@ public sealed class TitleScoresTests : IDisposable
             ("$at", Oct16), ("$details", """{"tmdbId":2,"imdbId":"tt0000002","title":"Two","rating":7.0,"votes":300}""")));
 
         Assert.NotNull(films.Store.Held("tt0000002"));
-        Assert.Equal((7.0, 300), films.Scores.Serve(2, "film", null, 0));
+        Assert.Equal((7.0, 300), films.Scores.Newest(2, "film", null, 0));
 
         films.Scores.Observe(2, "film", 6.0, 200, Oct9);
-        Assert.Equal(7.0, films.Scores.Serve(2, "film", null, 0).Rating);
+        Assert.Equal(7.0, films.Scores.Newest(2, "film", null, 0).Rating);
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class TitleScoresTests : IDisposable
             (_, _) => throw new InvalidOperationException("The kept answer is not due."), null, CancellationToken.None).GetAwaiter().GetResult();
 
         Assert.NotNull(kept);
-        Assert.Equal((8.3, 105), scores.Serve(1288069, "film", 4.0, 1));
+        Assert.Equal((8.3, 105), scores.Newest(1288069, "film", 4.0, 1));
     }
 
     [Fact]

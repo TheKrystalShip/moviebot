@@ -37,12 +37,8 @@ public sealed record FoundTitle
     public double? Rating { get; init; }
 
     public int Votes { get; init; }
-
-    /// <summary>IMDb's rating out of ten, to one decimal; absent when the IMDb import does not hold the title.</summary>
-    public double? ImdbRating { get; init; }
-
-    /// <summary>The votes behind <see cref="ImdbRating"/>.</summary>
-    public int? ImdbVotes { get; init; }
+    /// <summary>Whose <see cref="Rating"/> is, <c>imdb</c> or <c>tmdb</c>; absent with no rating (<see cref="TitleScores.Serve"/>).</summary>
+    public string? RatedBy { get; init; }
 
     public string? Overview { get; init; }
 

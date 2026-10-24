@@ -46,12 +46,12 @@ export function FilmFacts({ film }) {
 }
 
 /** What a title is about, as the hero tells it: the score and genres, the tagline and the overview. */
-export function TitleStory({ rating, votes, genres = [], tagline, overview }) {
+export function TitleStory({ rating, votes, ratedBy, genres = [], tagline, overview }) {
   return (
     <>
       {(rating || genres.length > 0) && (
         <div className="kc-tt__score-row">
-          {rating && <FilmScore rating={rating} votes={votes} />}
+          {rating && <FilmScore rating={rating} votes={votes} by={ratedBy} />}
           <Genres names={genres} />
         </div>
       )}

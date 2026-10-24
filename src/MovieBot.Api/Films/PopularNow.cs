@@ -27,12 +27,9 @@ public sealed record PopularTitleView
     public int? Year { get; init; }
     public double? Rating { get; init; }
     public int Votes { get; init; }
+    /// <summary>Whose <see cref="Rating"/> is, <c>imdb</c> or <c>tmdb</c>; absent with no rating (<see cref="TitleScores.Serve"/>).</summary>
+    public string? RatedBy { get; init; }
 
-    /// <summary>IMDb's rating out of ten, to one decimal; absent when the IMDb import does not hold the title.</summary>
-    public double? ImdbRating { get; init; }
-
-    /// <summary>The votes behind <see cref="ImdbRating"/>.</summary>
-    public int? ImdbVotes { get; init; }
     public string? PosterUrl { get; init; }
 
     /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
@@ -94,8 +91,7 @@ public sealed class PopularNow(
         var held = Held();
         PopularTitleView ToView(TrendingTitle t, string kind)
         {
-            var (rating, votes) = scores.Serve(t.TmdbId, kind, t.Rating, t.Votes);
-            var (imdbRating, imdbVotes) = scores.Imdb(t.ImdbId);
+            var (rating, votes, ratedBy) = scores.Serve(t.ImdbId, t.TmdbId, kind, t.Rating, t.Votes);
             return new PopularTitleView
             {
                 ImdbId = t.ImdbId,
@@ -103,8 +99,7 @@ public sealed class PopularNow(
                 Year = t.Year,
                 Rating = rating,
                 Votes = votes,
-                ImdbRating = imdbRating,
-                ImdbVotes = imdbVotes,
+                RatedBy = ratedBy,
                 PosterUrl = File.Exists(Path.Combine(root, PosterName(t.ImdbId))) ? ImageUrl(t.ImdbId) : null,
             };
         }

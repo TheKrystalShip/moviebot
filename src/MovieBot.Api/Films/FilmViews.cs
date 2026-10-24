@@ -25,12 +25,9 @@ public sealed record FilmView
 
     public double? Rating { get; init; }
     public int Votes { get; init; }
+    /// <summary>Whose <see cref="Rating"/> is, <c>imdb</c> or <c>tmdb</c>; absent with no rating (<see cref="TitleScores.Serve"/>).</summary>
+    public string? RatedBy { get; init; }
 
-    /// <summary>IMDb's rating out of ten, to one decimal; absent when the IMDb import does not hold the title.</summary>
-    public double? ImdbRating { get; init; }
-
-    /// <summary>The votes behind <see cref="ImdbRating"/>.</summary>
-    public int? ImdbVotes { get; init; }
     public required List<string> Directors { get; init; }
     public required List<string> Writers { get; init; }
 
@@ -120,12 +117,9 @@ public sealed record FilmFacts
 {
     public double? Rating { get; init; }
     public int Votes { get; init; }
+    /// <summary>Whose <see cref="Rating"/> is, <c>imdb</c> or <c>tmdb</c>; absent with no rating (<see cref="TitleScores.Serve"/>).</summary>
+    public string? RatedBy { get; init; }
 
-    /// <summary>IMDb's rating out of ten, to one decimal; absent when the IMDb import does not hold the title.</summary>
-    public double? ImdbRating { get; init; }
-
-    /// <summary>The votes behind <see cref="ImdbRating"/>.</summary>
-    public int? ImdbVotes { get; init; }
     public string? Certification { get; init; }
     public required List<string> Genres { get; init; }
     public int? RuntimeMinutes { get; init; }
@@ -147,8 +141,7 @@ public static class FilmViews
     {
         if (stored.Details is not { } d) return null;
         string? Image(string file) => store.HasImage(d.ImdbId, file) ? ImageUrl(d.ImdbId, file) : null;
-        var (rating, votes) = store.Scores.Serve(d.TmdbId, "film", d.Rating, d.Votes);
-        var (imdbRating, imdbVotes) = store.Scores.Imdb(d.ImdbId);
+        var (rating, votes, ratedBy) = store.Scores.Serve(d.ImdbId, d.TmdbId, "film", d.Rating, d.Votes);
 
         return new FilmView
         {
@@ -166,8 +159,7 @@ public static class FilmViews
             Keywords = TitleExtrasViews.Of(d.KeywordTags),
             Rating = rating,
             Votes = votes,
-            ImdbRating = imdbRating,
-            ImdbVotes = imdbVotes,
+            RatedBy = ratedBy,
             Directors = [.. d.Directors],
             Writers = [.. d.Writers],
             PersonIds = new Dictionary<string, int>(d.PersonIds),
@@ -205,14 +197,12 @@ public static class FilmViews
     public static FilmFacts? Facts(this FilmStore store, string? imdbId)
     {
         if (imdbId is null || store.Held(imdbId)?.Details is not { } d) return null;
-        var (rating, votes) = store.Scores.Serve(d.TmdbId, "film", d.Rating, d.Votes);
-        var (imdbRating, imdbVotes) = store.Scores.Imdb(d.ImdbId);
+        var (rating, votes, ratedBy) = store.Scores.Serve(d.ImdbId, d.TmdbId, "film", d.Rating, d.Votes);
         return new FilmFacts
         {
             Rating = rating,
             Votes = votes,
-            ImdbRating = imdbRating,
-            ImdbVotes = imdbVotes,
+            RatedBy = ratedBy,
             Certification = d.Certification,
             Genres = [.. d.Genres],
             RuntimeMinutes = d.RuntimeMinutes,

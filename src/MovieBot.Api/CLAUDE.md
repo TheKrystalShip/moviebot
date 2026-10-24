@@ -109,20 +109,22 @@ film onto a device is `Offline/CLAUDE.md`.
   at `/media/{id}/poster.jpg` and names it on `/api/titles`; the poster the hand-off put beside the
   title (the title index's) is served only for a title the database holds none for. A source's own
   cover art is never extracted (`src/MovieBot.Handoff/CLAUDE.md`).
-- **A title has one rating, the newest the film database has given.** Every answer the API keeps
-  carries the rating from when it was asked, and a new release's moves daily, so each surface would
-  show its own. `Films/TitleScores` holds one rating and vote count per database id and kind
-  (`title_scores`), in memory and written through, and every place that receives a rating from the
-  database records it as an observation stamped with when its answer was asked, kept only if newer
-  than what is held: `AnswerKeeper` for every kept answer it serves (credits, searches, discoveries,
-  charts, lists), and `FilmStore`, `ShowStore`, `TitleGlances` and `PopularNow` for theirs, each when
-  it fetches and when it first reads a row. Every view takes `rating` and `votes` from
-  `TitleScores.Serve`, falling back to the answer's own for a title nothing is held for, and a rating
-  with fewer than `CatalogueSearch.RatedVotes` votes is served as none. IMDb's figure for a title is
-  a second one beside it, `imdbRating` and `imdbVotes` from `TitleScores.Imdb` on every view that
-  carries a title's IMDb id, and never replaces `rating`. A film released within sixty
-  days is described again after `Tmdb:RecentRefreshDays`, since the observations only move as fast as
-  the database is asked.
+- **A title has one rating: IMDb's where the import holds the title, else the newest the film
+  database has given.** Every view takes `rating`, `votes` and `ratedBy` from `TitleScores.Serve`,
+  given the title's IMDb id and database id. IMDb's comes from `ImdbRatings`; the film database's
+  from `title_scores`, since every answer the API keeps carries the rating from when it was asked and a
+  new release's moves daily, so each surface would show its own. `Films/TitleScores` holds one rating
+  and vote count per database id and kind, in memory and written through, and every place that
+  receives a rating from the database records it as an observation stamped with when its answer was
+  asked, kept only if newer than what is held: `AnswerKeeper` for every kept answer it serves
+  (credits, searches, discoveries, charts, lists), and `FilmStore`, `ShowStore`, `TitleGlances` and
+  `PopularNow` for theirs, each when it fetches and when it first reads a row. Only the database's
+  ratings are recorded, so a glance carries `TitleScores.Newest` and never IMDb's: a kept answer built
+  from glances is observed in turn, and IMDb's figure recorded there would stand in for the
+  database's. A database rating with fewer than `CatalogueSearch.RatedVotes` votes is served as none.
+  A rating floor holds for the rating shown (`CatalogueSearch.RatedAtLeast`). A film released within
+  sixty days is described again after `Tmdb:RecentRefreshDays`, since the observations only move as
+  fast as the database is asked.
 - **IMDb's datasets are imported daily and used to rank, never served as a database**
   (`Films/ImdbImport.cs`). `ImdbImporter` asks after `title.basics` and `title.ratings` with HEAD and
   reads them (streamed, gzip-decoded, never held whole or written to disk) only when either differs

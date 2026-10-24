@@ -59,6 +59,7 @@ function aboutOf(manifest, d) {
     certification: (d && d.certification) || (facts && facts.certification) || null,
     rating: (d && d.rating) || (facts && facts.rating) || null,
     votes: (d && d.votes) || (facts && facts.votes) || 0,
+    ratedBy: (d && d.rating && d.ratedBy) || (facts && facts.ratedBy) || null,
     genres: (d && d.genres) || (facts && facts.genres) || [],
     tagline: (d && d.tagline) || null,
     overview: (d && d.overview) || (facts && facts.overview) || null,
@@ -161,7 +162,7 @@ function AboutBody({ about: a }) {
         </div>
         {(a.rating || a.genres.length > 0) && (
           <div className="kc-tt__score-row">
-            {a.rating && <FilmScore rating={a.rating} votes={a.votes} compact />}
+            {a.rating && <FilmScore rating={a.rating} votes={a.votes} by={a.ratedBy} compact />}
             <Genres names={a.genres} />
           </div>
         )}
@@ -204,7 +205,7 @@ export function PauseCard({ about }) {
           {!e && about.years && <span>{about.years}</span>}
           {about.certification && <span className="kc-cert">{about.certification}</span>}
           <span>{about.length}</span>
-          {(e ? e.rating : about.rating) && <FilmScore rating={e ? e.rating : about.rating} compact />}
+          {(e ? e.rating : about.rating) && <FilmScore rating={e ? e.rating : about.rating} by={e ? null : about.ratedBy} compact />}
         </div>
         {story && <p className="mp-pausecard__story">{story}</p>}
         {about.stars.length > 0 && <span className="mp-pausecard__stars">Starring {about.stars.join(", ")}</span>}

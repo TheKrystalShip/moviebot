@@ -152,7 +152,7 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         var first = (page - 1) * 20;
         var films = Enumerable.Range(first, Math.Max(0, Math.Min(20, PagedFilms - first)))
             .Select(i => PagedFirst + i)
-            .Select(id => Listed(id, "Paged " + (id - PagedFirst), "2010-01-01", 6 + id * 7 % 30 / 10.0, 50 + id * 37 % 900, "35"));
+            .Select(id => Listed(id, "Paged " + (id - PagedFirst), "2010-01-01", 7 + id * 7 % 20 / 10.0, 50 + id * 37 % 900, "35"));
         return "{ \"page\": " + page + ", \"total_pages\": 3, \"results\": [ " + string.Join(", ", films) + " ] }";
     }
 

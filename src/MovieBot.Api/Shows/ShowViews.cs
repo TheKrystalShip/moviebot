@@ -31,12 +31,9 @@ public sealed record ShowView
 
     public double? Rating { get; init; }
     public int Votes { get; init; }
+    /// <summary>Whose <see cref="Rating"/> is, <c>imdb</c> or <c>tmdb</c>; absent with no rating (<see cref="TitleScores.Serve"/>).</summary>
+    public string? RatedBy { get; init; }
 
-    /// <summary>IMDb's rating out of ten, to one decimal; absent when the IMDb import does not hold the title.</summary>
-    public double? ImdbRating { get; init; }
-
-    /// <summary>The votes behind <see cref="ImdbRating"/>.</summary>
-    public int? ImdbVotes { get; init; }
     public required List<string> Creators { get; init; }
 
     /// <summary>Each creator's id in the film database, by the name they are listed under.</summary>
@@ -157,14 +154,12 @@ public static class ShowViews
     public static FilmFacts? Facts(this ShowStore store, string? imdbId)
     {
         if (imdbId is null || store.Held(imdbId)?.Details is not { } d) return null;
-        var (rating, votes) = store.Scores.Serve(d.TmdbId, "show", d.Rating, d.Votes);
-        var (imdbRating, imdbVotes) = store.Scores.Imdb(d.ImdbId);
+        var (rating, votes, ratedBy) = store.Scores.Serve(d.ImdbId, d.TmdbId, "show", d.Rating, d.Votes);
         return new FilmFacts
         {
             Rating = rating,
             Votes = votes,
-            ImdbRating = imdbRating,
-            ImdbVotes = imdbVotes,
+            RatedBy = ratedBy,
             Certification = d.Certification,
             Genres = [.. d.Genres],
             Overview = d.Overview,
@@ -201,8 +196,7 @@ public static class ShowViews
     {
         var d = stored?.Details;
         string? Image(string file) => store.HasImage(imdbId, file) ? ImageUrl(imdbId, file) : null;
-        var (rating, votes) = d is null ? (null, 0) : store.Scores.Serve(d.TmdbId, "show", d.Rating, d.Votes);
-        var (imdbRating, imdbVotes) = store.Scores.Imdb(imdbId);
+        var (rating, votes, ratedBy) = store.Scores.Serve(imdbId, d?.TmdbId, "show", d?.Rating, d?.Votes ?? 0);
 
         var held = episodes
             .Where(e => e.Episode is not null)
@@ -272,8 +266,7 @@ public static class ShowViews
             Keywords = TitleExtrasViews.Of(d?.KeywordTags),
             Rating = rating,
             Votes = votes,
-            ImdbRating = imdbRating,
-            ImdbVotes = imdbVotes,
+            RatedBy = ratedBy,
             Creators = [.. d?.Creators ?? []],
             PersonIds = new Dictionary<string, int>(d?.PersonIds ?? new Dictionary<string, int>()),
             Cast = (d?.Cast ?? []).Select((c, i) => new CastView
