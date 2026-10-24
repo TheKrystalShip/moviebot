@@ -39,6 +39,9 @@ public enum ShelfSource
 
     /// <summary>The library's films the viewer has not watched, which play at once.</summary>
     ReadyHere,
+
+    /// <summary>A set of films Wikidata lists (an award, an author's adaptations, a place, a subgenre), as the weekly cycle kept it.</summary>
+    Wikidata,
 }
 
 /// <summary>The days of the year a seasonal shelf is shown on, both ends included.</summary>
@@ -76,6 +79,9 @@ public sealed record Shelf
 
     /// <summary>The IMDb id a <see cref="ShelfSource.Like"/> shelf starts from.</summary>
     public string? Seed { get; init; }
+
+    /// <summary>The <see cref="WikidataSet.Key"/> a <see cref="ShelfSource.Wikidata"/> shelf lists.</summary>
+    public string? WikidataKey { get; init; }
 
     /// <summary>The days a seasonal shelf is shown on; null for every day.</summary>
     public ShelfSeason? Season { get; init; }
@@ -241,7 +247,9 @@ internal sealed record ShelfPage(List<ShelfTitleView> Titles, int? Next);
 /// <see cref="DiscoverWarmer"/> asks each again before anybody does, so a page reads what is kept.
 /// A shelf that follows from a person (what they watched, what is here for them) is answered when
 /// it is asked for, and one of the library's from the library as listed, never waiting on the
-/// database. A title the database holds no IMDb id for has no page, and is on no shelf.
+/// database. A shelf of awards, an author's adaptations, a place or a subgenre is a set of films
+/// Wikidata lists, read from what <see cref="WikidataWarmer"/> kept and absent until it is kept. A title the database holds no IMDb id for has no page, and is on no
+/// shelf.
 /// </summary>
 public sealed class DiscoverShelves(
     CatalogueSearch search,
@@ -252,6 +260,7 @@ public sealed class DiscoverShelves(
     FilmStore films,
     ShowStore shows,
     TitleCategories categories,
+    WikidataSets wikidata,
     TimeProvider clock)
 {
     /// <summary>How many shelves of what a viewer watched their tab shows.</summary>
@@ -269,6 +278,9 @@ public sealed class DiscoverShelves(
         new("shows", "TV Shows", "tv"),
         new("genres", "Genres", "shapes"),
         new("themes", "Themes", "tags"),
+        new("awards", "Awards", "award"),
+        new("adaptations", "Adaptations", "book-open"),
+        new("places", "Places", "map-pin"),
         new("world", "World cinema", "globe"),
         new("franchises", "Franchises", "library"),
         new("studios", "Studios", "clapperboard"),
@@ -315,7 +327,7 @@ public sealed class DiscoverShelves(
         var titles = library.Titles();
         var held = LibraryShelf.Of(titles, record, viewerId);
         var personal = Personal(viewerId, titles);
-        var shown = Fixed.Where(s => s.Season is null || s.Season.Holds(today)).ToList();
+        var shown = Fixed.Where(s => (s.Season is null || s.Season.Holds(today)) && Kept(s)).ToList();
         var seasonal = shown.Where(s => s.Season is not null).ToList();
 
         // What a tile draws: every mood and series, and the first shelves of each category.
@@ -346,6 +358,7 @@ public sealed class DiscoverShelves(
         foreach (var section in Sections.Skip(1))
         {
             var shelves = shown.Where(s => s.Section == section.Id).ToList();
+            if (shelves.Count == 0) continue;
             var firsts = shelves.Take(3).Select(s => _known.GetValueOrDefault(s.Id) ?? []).ToList();
             sections.Add(new ShelfSectionView
             {
@@ -404,6 +417,10 @@ public sealed class DiscoverShelves(
         await Parallel.ForEachAsync(missing, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
             async (shelf, token) => await TitlesAsync(shelf, null, titles, 1, token));
     }
+
+    /// <summary>Whether a shelf has something to show: every shelf but a Wikidata one always does, and that one once its set is kept.</summary>
+    private bool Kept(Shelf shelf) =>
+        shelf.Source != ShelfSource.Wikidata || (WikidataSets.Find(shelf.WikidataKey!) is { } set && wikidata.Kept(set) is { Count: > 0 });
 
     /// <summary>A category's caption: how many shelves it holds.</summary>
     private static string Caption(IReadOnlyList<Shelf> shelves) => shelves.Count == 1 ? "1 shelf" : $"{shelves.Count} shelves";
@@ -547,6 +564,8 @@ public sealed class DiscoverShelves(
                     Category = categories.Of(kind, t.ImdbId),
                 })]);
             }
+            case ShelfSource.Wikidata:
+                return Hits(await search.WikidataShelfAsync(WikidataSets.Find(shelf.WikidataKey!)!, ask, ct), held);
             case ShelfSource.PopularHere:
                 return Ok(PopularHere(titles, held));
             default:
@@ -892,6 +911,12 @@ public sealed class DiscoverShelves(
                      ("spies", "Spies", "eye", 470),
                  })
             shelves.Add(Film("themes", id, name, icon, new DiscoverQuery { Kind = "film", AnyKeywordIds = [keyword], MinVotes = 200 }));
+
+        // Awards, adaptations, places and subgenres: sets of films Wikidata lists, kept weekly.
+        shelves.AddRange(WikidataSets.Fixed.Select(set => new Shelf
+        {
+            Section = set.Section, Id = set.Key, Title = set.Title, Icon = set.Icon, Source = ShelfSource.Wikidata, WikidataKey = set.Key,
+        }));
 
         // World cinema, by the language a film was made in.
         shelves.AddRange(

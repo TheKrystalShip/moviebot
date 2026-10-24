@@ -23,7 +23,7 @@ public static class DiscoverEndpoints
         // asked for together and carried when they answer within FirstScreenWait, which a kept answer
         // does; one that does not is left to its own route, and finishes and is kept all the same.
         app.MapGet("/api/discover", async (HttpContext context, DiscoverShelves shelves, FilmStore films, LibraryListing library,
-            WatchRecord record, TitleCategories categories, CancellationToken ct) =>
+            WatchRecord record, TitleCategories categories, WikidataFacts facts, CancellationToken ct) =>
         {
             var viewer = PeopleEndpoints.Person(context)?.UserId;
             var index = await shelves.IndexAsync(viewer, ct);
@@ -41,7 +41,7 @@ public static class DiscoverEndpoints
             {
                 var shelf = LibraryShelf.Of(library.Titles(), record, viewer);
                 var picks = lead.Titles.Where(t => t.Kind == "film" && !t.Watched).Take(SpotlightFilms)
-                    .Select(t => FilmEndpoints.ViewAsync(films, shelf, categories, t.ImdbId, CancellationToken.None)).ToList();
+                    .Select(t => FilmEndpoints.ViewAsync(films, shelf, categories, facts, t.ImdbId, CancellationToken.None)).ToList();
                 await Task.WhenAny(Task.WhenAll(picks), deadline);
                 described.AddRange(picks.Where(t => t.IsCompletedSuccessfully && t.Result is not null).Select(t => t.Result!));
             }

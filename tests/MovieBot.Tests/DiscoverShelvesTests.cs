@@ -35,7 +35,9 @@ public sealed class DiscoverShelvesTests(SessionFixture fixture) : IClassFixture
     {
         var index = await Get<DiscoverIndexView>("/api/discover");
 
-        Assert.Equal(DiscoverShelves.Sections.Skip(1).Select(s => s.Id), index.Sections.Select(s => s.Id));
+        // A section filled from Wikidata is absent while nothing is kept for it.
+        Assert.Equal(DiscoverShelves.Sections.Skip(1).Select(s => s.Id).Where(id => id is not ("awards" or "adaptations" or "places")),
+            index.Sections.Select(s => s.Id));
         Assert.All(index.Sections, s => Assert.NotEmpty(s.Shelves));
         var moods = index.Sections.Single(s => s.Id == "moods");
         Assert.Contains(moods.Shelves, s => s.Id == "sunday-chill" && s.Title == "Sunday chill");

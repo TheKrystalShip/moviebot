@@ -18,7 +18,8 @@ public sealed partial class CatalogueSearch
     /// words are no question. What follows <c>with</c> is a person by their exact name, else a keyword
     /// by its exact name, else the database's best match for a person. A question whose discovery the
     /// database refuses (a genre a show does not have, nobody by a name after <c>starring</c>) is still a
-    /// question, answered with the refusal's message and no titles.
+    /// question, answered with the refusal's message and no titles. A question that names a set Wikidata
+    /// lists is <see cref="AskWikidataAsync"/>'s.
     /// </summary>
     public async Task<Outcome<QuestionAnswer>> AskAsync(string text, int page, CancellationToken ct)
     {
@@ -26,6 +27,8 @@ public sealed partial class CatalogueSearch
         var vocabulary = await VocabularyAsync(ct);
         if (vocabulary.Value is not { } words) return vocabulary.Carry<QuestionAnswer>();
         if (QuestionReader.Read(text, Today(), words) is not { } question) return Outcome<QuestionAnswer>.Ok(QuestionAnswer.None);
+
+        if (question.Wikidata is not null) return await AskWikidataAsync(question, page, ct);
 
         var request = question.Request;
         var parts = question.Parts.ToList();

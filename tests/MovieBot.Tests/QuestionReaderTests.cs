@@ -248,4 +248,122 @@ public sealed class QuestionReaderTests
         Assert.Equal((1999, 1999), (question.Request.From, question.Request.To));
         Assert.Null(ReadOrNone("movies"));
     }
+
+    // Wikidata's sets: awards and subgenres are closed phrases, an author or a place is a name after a marker.
+
+    [Fact]
+    public void An_award_is_a_closed_phrase_that_can_stand_anywhere_among_the_other_words()
+    {
+        var after = Read("oscar winners from the 90s");
+        var before = Read("from the 90s oscar winners");
+
+        Assert.Equal(new WikidataAsk(WikidataRelation.Won, "Q102427", "Best Picture winners"), after.Wikidata);
+        Assert.Equal(after.Wikidata, before.Wikidata);
+        Assert.Equal((1990, 1999), (after.Request.From, after.Request.To));
+        Assert.Equal((1990, 1999), (before.Request.From, before.Request.To));
+        Assert.Equal("award:Best Picture winners | years:1990s", Parts(after));
+    }
+
+    [Theory]
+    [InlineData("best picture winners", WikidataRelation.Won, "Q102427")]
+    [InlineData("oscar-winning movies", WikidataRelation.Won, "Q102427")]
+    [InlineData("best picture nominees", WikidataRelation.Nominated, "Q102427")]
+    [InlineData("oscar nominated films", WikidataRelation.Nominated, "Q102427")]
+    [InlineData("palme d'or winners", WikidataRelation.Won, "Q179808")]
+    public void The_awards_name_their_item_outright(string text, WikidataRelation relation, string item)
+    {
+        var ask = Read(text).Wikidata!;
+
+        Assert.Equal((relation, item), (ask.Relation, ask.Item));
+    }
+
+    [Theory]
+    [InlineData("stephen king adaptations")]
+    [InlineData("best stephen king adaptations")]
+    [InlineData("adaptations of stephen king")]
+    [InlineData("based on stephen king")]
+    [InlineData("adapted from stephen king")]
+    [InlineData("stephen king horror adaptations")]
+    public void An_author_is_a_name_to_resolve_whichever_way_the_adaptations_are_asked_for(string text)
+    {
+        var question = Read(text);
+
+        Assert.Equal(new WikidataAsk(WikidataRelation.Adaptation, null, "stephen king"), question.Wikidata);
+        Assert.Contains(question.Parts, p => p is { Part: "adaptation", Text: "Adaptations of Stephen King" });
+        Assert.Null(question.Named);
+    }
+
+    [Fact]
+    public void An_adaptation_question_keeps_the_genre_the_years_and_the_sort_it_was_given()
+    {
+        var question = Read("best stephen king horror adaptations from the 90s");
+
+        Assert.Equal("stephen king", question.Wikidata!.Name);
+        Assert.Equal(["Horror"], question.Request.Genres);
+        Assert.Equal((1990, 1999), (question.Request.From, question.Request.To));
+        Assert.Equal(DiscoverSorts.Rating, question.Request.Sort);
+    }
+
+    [Theory]
+    [InlineData("set in paris", WikidataRelation.Set, "paris", "place:Set in Paris")]
+    [InlineData("movies set in new york", WikidataRelation.Set, "new york", "kind:Movies | place:Set in New York")]
+    [InlineData("filmed in barcelona", WikidataRelation.Filmed, "barcelona", "place:Filmed in Barcelona")]
+    [InlineData("shot in barcelona", WikidataRelation.Filmed, "barcelona", "place:Filmed in Barcelona")]
+    public void A_place_is_a_name_after_set_in_or_filmed_in(string text, WikidataRelation relation, string name, string parts)
+    {
+        var question = Read(text);
+
+        Assert.Equal(new WikidataAsk(relation, null, name), question.Wikidata);
+        Assert.Equal(parts, Parts(question));
+    }
+
+    [Fact]
+    public void A_place_ends_where_the_next_part_starts()
+    {
+        var question = Read("top 10 movies set in paris from the 2000s");
+
+        Assert.Equal("paris", question.Wikidata!.Name);
+        Assert.Equal((2000, 2009), (question.Request.From, question.Request.To));
+        Assert.Equal(10, question.Request.Limit);
+        Assert.Equal(DiscoverSorts.Rating, question.Request.Sort);
+    }
+
+    [Theory]
+    [InlineData("slasher movies", "Q853630")]
+    [InlineData("heist films", "Q496523")]
+    [InlineData("neo-noir", "Q2421031")]
+    [InlineData("neo noir movies", "Q2421031")]
+    [InlineData("found footage", "Q3272147")]
+    [InlineData("cyberpunk movies", "Q174526")]
+    [InlineData("film noir", "Q185867")]
+    [InlineData("spaghetti westerns", "Q212781")]
+    [InlineData("ww2 movies", "Q362")]
+    [InlineData("second world war", "Q362")]
+    public void A_subgenre_or_a_subject_names_its_item_outright(string text, string item)
+    {
+        Assert.Equal(item, Read(text).Wikidata!.Item);
+    }
+
+    [Fact]
+    public void A_subgenre_and_a_genre_are_read_in_either_order()
+    {
+        var one = Read("horror found footage movies from the 2000s");
+        var other = Read("2000s found footage horror movies");
+
+        Assert.Equal(one.Wikidata, other.Wikidata);
+        Assert.Equal(one.Request.Genres, other.Request.Genres);
+        Assert.Equal((one.Request.From, one.Request.To), (other.Request.From, other.Request.To));
+        Assert.Equal(["Horror"], other.Request.Genres);
+    }
+
+    [Theory]
+    [InlineData("set in paris slasher")]
+    [InlineData("oscar winners set in london")]
+    [InlineData("stephen king adaptations heist")]
+    [InlineData("adaptations")]
+    [InlineData("horror adaptations")]
+    public void Words_that_ask_wikidata_for_two_things_or_for_adaptations_of_nobody_are_no_question(string text)
+    {
+        Assert.Null(ReadOrNone(text));
+    }
 }

@@ -128,6 +128,21 @@ film onto a device is `Offline/CLAUDE.md`.
   remembered, nothing is loaded ahead). A host where the import never ran has no IMDb data, and
   everything built on it does what it does without it. Tests never reach IMDb: `ImdbDatasets` is a
   typed client a test gives a handler, and the test host sets `Imdb:Enabled` false.
+- **Wikidata is asked in the background only, and what it said is kept** (`Films/WikidataClient.cs`,
+  `WikidataSets.cs`, `WikidataFacts.cs`, `CatalogueWikidata.cs`; CC0, so no attribution is owed). It lists
+  the sets of films the shelves of awards, adaptations, places and subgenres are made of, and each film's
+  awards and the work it is based on. `WikidataWarmer` asks every fixed set again once its answer is
+  `Wikidata:RefreshDays` old, one after another and pausing twice as long as each took, and a page reads the
+  kept copy through `AnswerKeeper.Kept`, which never asks: a shelf whose set is not kept is absent from the
+  index and empty, and a film with no facts kept is served without them while `WikidataFacts.Want` asks in the
+  background. Only a question that names a set outside the fixed ones asks at answer time, once, and keeps the
+  answer like any other. Every request carries `Cinema/<version> (<Wikidata:Contact>)`, goes through
+  `WikidataGate` (at most `MaxAtOnce` in flight; after a `429` nothing is asked until `Retry-After` has passed,
+  and a third refusal gives up with an `HttpRequestException`, which the keeper treats as an unreachable
+  database), and reads its JSON through `WikidataJson`. Items are validated as `Q` numbers before they reach
+  a query. Titles are named through `TitleGlances` and the cards like every other shelf. Nothing depends on
+  Wikidata: with `Wikidata:Enabled` false or no answer kept, everything else does what it does without it. Tests
+  never reach it: `WikidataClient` is a typed client a test gives a handler.
 - **Finding is `Films/CatalogueSearch`, and every answer is kept by `Films/AnswerKeeper`.** A search by
   name, a person by name and every dated credit they have, a discovery by genre, years, people,
   keywords, language, a rating floor and similarity to another title, and the lists of what is out and

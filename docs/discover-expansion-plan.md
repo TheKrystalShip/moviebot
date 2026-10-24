@@ -69,13 +69,7 @@ Landed: `docs/api-contract.md` (IMDb's datasets), `src/MovieBot.Api/CLAUDE.md`.
 
 ### 4·e Wikidata shelves and facts
 
-A fixed set of SPARQL questions, asked in the background on a weekly cycle and kept, never asked while
-a page waits: award winners and nominees (Oscar, Palme d'Or, Golden Globe, BAFTA, Goya where it is
-complete enough), adaptations by author, set in and filmed in a place, subjects, and the subgenres that
-are well filled. Each shelf is admitted only once its count has been checked against what it should
-hold. The reader learns the same vocabulary (*oscar winners*, *stephen king adaptations*, *set in
-paris*), resolving a name to its item through `wbsearchentities`. A title's page gets its awards and
-what it is based on from the same data.
+Landed: `docs/api-contract.md` (Wikidata), `src/MovieBot.Api/CLAUDE.md`.
 
 ### 4·f TMDB extras
 

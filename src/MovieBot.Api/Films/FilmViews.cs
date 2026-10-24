@@ -52,7 +52,31 @@ public sealed record FilmView
 
     /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
     public Library.TitleCategory? Category { get; init; }
+
+    /// <summary>The awards Wikidata says it won and how many it was nominated for; absent while Wikidata has said nothing of the film.</summary>
+    public FilmAwardsView? Awards { get; init; }
+
+    /// <summary>The works Wikidata says it is based on; empty when it names none.</summary>
+    public List<FilmBasedOnView> BasedOn { get; init; } = [];
 }
+
+/// <summary>The awards a film won, the newest first, and how many it was nominated for.</summary>
+public sealed record FilmAwardsView
+{
+    /// <summary>How many distinct awards it won, which can exceed the length of <see cref="Won"/>.</summary>
+    public int Wins { get; init; }
+
+    /// <summary>The newest of them, at most <see cref="FilmViews.AwardsListed"/>.</summary>
+    public required List<FilmAwardView> Won { get; init; }
+
+    public int Nominations { get; init; }
+}
+
+/// <summary>One award a film won, and the year it was given in where Wikidata says.</summary>
+public sealed record FilmAwardView(string Name, int? Year);
+
+/// <summary>A work a film is based on and the author Wikidata names for it.</summary>
+public sealed record FilmBasedOnView(string Work, string? Author);
 
 public sealed record CastView
 {
@@ -89,10 +113,13 @@ public sealed record FilmFacts
 
 public static class FilmViews
 {
+    /// <summary>The most awards a film's view lists by name.</summary>
+    public const int AwardsListed = 20;
+
     /// <summary>Where a kept image is served from. Artwork is not the film, so it needs no token.</summary>
     public static string ImageUrl(string imdbId, string file) => $"/films/{imdbId}/{file}";
 
-    public static FilmView? View(this FilmStore store, StoredFilm stored, string? libraryId = null, bool watched = false)
+    public static FilmView? View(this FilmStore store, StoredFilm stored, string? libraryId = null, bool watched = false, WikidataTitleFacts? wikidata = null)
     {
         if (stored.Details is not { } d) return null;
         string? Image(string file) => store.HasImage(d.ImdbId, file) ? ImageUrl(d.ImdbId, file) : null;
@@ -134,6 +161,13 @@ public static class FilmViews
             BackdropUrl = Image(FilmStore.Backdrop),
             LibraryId = libraryId,
             Watched = watched,
+            Awards = wikidata is null ? null : new FilmAwardsView
+            {
+                Wins = wikidata.Won.Count,
+                Won = [.. wikidata.Won.Take(AwardsListed).Select(a => new FilmAwardView(a.Name, a.Year))],
+                Nominations = wikidata.Nominations,
+            },
+            BasedOn = [.. wikidata?.BasedOn.Select(w => new FilmBasedOnView(w.Name, w.Author)) ?? []],
         };
     }
 

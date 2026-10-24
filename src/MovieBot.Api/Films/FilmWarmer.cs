@@ -10,7 +10,8 @@ namespace TheKrystalShip.MovieBot.Api.Films;
 /// A listing reads only what is kept, so it never waits on the network; this is what makes sure
 /// something is kept. It runs shortly after start and then every few hours, asking the database
 /// about each film whose description is missing or due, one at a time, so a large library costs a
-/// slow trickle of requests rather than a burst.
+/// slow trickle of requests rather than a burst. Each film's facts from Wikidata (<see cref="WikidataFacts"/>)
+/// are kept the same way.
 /// </summary>
 public sealed class FilmWarmer(
     FilmStore store,
@@ -18,6 +19,7 @@ public sealed class FilmWarmer(
     TitleLibrary library,
     WishList wishes,
     Wants.WantStore wants,
+    WikidataFacts facts,
     ILogger<FilmWarmer> logger) : BackgroundService
 {
     private static readonly TimeSpan FirstPass = TimeSpan.FromSeconds(20);
@@ -57,10 +59,18 @@ public sealed class FilmWarmer(
         var asked = 0;
         foreach (var id in ids)
         {
-            if (store.Held(id) is { } held && !store.IsDue(held)) continue;
-            await store.GetAsync(id, ct);
-            asked++;
-            await Task.Delay(Between, ct);
+            if (store.Held(id) is not { } held || store.IsDue(held))
+            {
+                await store.GetAsync(id, ct);
+                asked++;
+                await Task.Delay(Between, ct);
+            }
+
+            if (facts.IsDue(id))
+            {
+                await facts.AskAsync(id, ct);
+                await Task.Delay(Between, ct);
+            }
         }
         if (asked > 0) logger.LogInformation("Described {Asked} of {Films} films from the film database.", asked, ids.Count);
 

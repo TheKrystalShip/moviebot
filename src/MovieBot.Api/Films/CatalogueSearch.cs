@@ -142,6 +142,7 @@ public sealed partial class CatalogueSearch(
     TitleCategories categories,
     TitleScores scores,
     ImdbRatings imdbRatings,
+    WikidataSets wikidata,
     TimeProvider clock)
 {
     /// <summary>The most titles a search lists.</summary>

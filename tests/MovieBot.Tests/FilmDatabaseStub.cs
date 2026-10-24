@@ -128,6 +128,9 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
     [GeneratedRegex(@"/movie/(9\d{3})$")]
     private static partial Regex PagedFilm();
 
+    [GeneratedRegex(@"/find/tt000(90\d{2})$")]
+    private static partial Regex PagedFind();
+
     private string Answer(HttpRequestMessage request, string path)
     {
         var query = HttpUtility.ParseQueryString(request.RequestUri!.Query);
@@ -143,6 +146,12 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         if (path.EndsWith("/find/" + DreamDetective)) return """{ "movie_results": [ { "id": 7401 } ] }""";
         if (path.EndsWith("/find/" + ForgottenReel))
             return """{ "movie_results": [ { "id": 7701, "overview": "Found only by IMDb.", "vote_average": 6.0, "vote_count": 12, "release_date": "2003-05-05", "poster_path": "/p7701.jpg" } ] }""";
+        if (PagedFind().Match(path) is { Success: true } pagedFind)
+        {
+            var id = int.Parse(pagedFind.Groups[1].Value, CultureInfo.InvariantCulture);
+            return "{ \"movie_results\": [ { \"id\": " + id + ", \"overview\": \"About Paged " + (id - PagedFirst) + ". It goes on.\", \"vote_average\": 7.0,"
+                + " \"vote_count\": 100, \"release_date\": \"2010-01-01\", \"poster_path\": \"/p" + id + ".jpg\" } ] }";
+        }
         if (path.Contains("/find/")) return """{ "movie_results": [] }""";
         if (path.EndsWith("/movie/949")) return Heat;
         if (path.EndsWith("/trending/movie/week"))

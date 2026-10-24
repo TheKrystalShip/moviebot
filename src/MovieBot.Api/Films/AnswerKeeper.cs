@@ -58,6 +58,9 @@ public sealed class AnswerKeeper(
         return kept;
     }
 
+    /// <summary>The answer kept under <paramref name="name"/> as it stands, old or not, without asking anything; null when none is kept.</summary>
+    public KeptAnswer<T>? Kept<T>(string name, JsonTypeInfo<T> type) where T : class => Held(name, type);
+
     /// <summary>Records the ratings of an answer as of when it was asked, once per answer asked.</summary>
     private void Observe<T>(string name, KeptAnswer<T>? kept) where T : class
     {

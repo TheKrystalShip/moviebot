@@ -10,6 +10,7 @@ using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using TheKrystalShip.MovieBot.Api.Auth;
+using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Core;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using System.Net.Http.Json;
@@ -121,6 +122,9 @@ public class SessionFixture : WebApplicationFactory<Program>
                 ["Tmdb:ShelvesWarmMinutes"] = "0",
                 // IMDb's datasets are never fetched; a test that wants them loads its own.
                 ["Imdb:Enabled"] = "false",
+                // Wikidata is never asked; a fixture that wants it turns it on and answers it with its own stub.
+                ["Wikidata:Enabled"] = "false",
+                ["Wikidata:WarmMinutes"] = "0",
             }));
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(MoreSettings()));
 
@@ -130,6 +134,7 @@ public class SessionFixture : WebApplicationFactory<Program>
             services.AddSingleton<IReleaseSearch>(new ReleaseStubs.OneRelease());
             services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new ReleaseStubs.CatalogueStub());
             services.AddHttpClient<TmdbClient>().ConfigurePrimaryHttpMessageHandler(() => FilmDatabase);
+            services.AddHttpClient<WikidataClient>().ConfigurePrimaryHttpMessageHandler(() => Wikidata);
             services.AddHttpClient<WebPushSender>().ConfigurePrimaryHttpMessageHandler(() => PushService);
 
             // The provider's discovery, keys and token endpoint, answered by the test issuer.
@@ -161,6 +166,9 @@ public class SessionFixture : WebApplicationFactory<Program>
 
     /// <summary>The film database, as the tests answer it; it counts what it was asked.</summary>
     public FilmDatabaseStub FilmDatabase { get; } = new();
+
+    /// <summary>Wikidata, as the tests answer it; the fixture host does not ask it unless a fixture turns it on.</summary>
+    public WikidataStub Wikidata { get; } = new();
 
     /// <summary>Discord's token endpoint, as the tests answer it: a code redeems for <see cref="DiscordStub.AccessToken"/>.</summary>
     public DiscordStub Discord { get; } = new();

@@ -280,6 +280,25 @@
     "MinVotes": 100
   },
 
+  // Wikidata (CC0, no key), asked in the background only: the sets of films the Discover shelves of awards,
+  // adaptations, places and subgenres are made of every RefreshDays, and each film's awards and sources.
+  // A question that names one of them is asked of it too. Every WarmMinutes the API looks for what has
+  // come due (0 runs no cycle). Endpoint is the SPARQL query service and
+  // EntitySearchEndpoint the API that resolves a name to an item; Contact goes in the User-Agent, which
+  // Wikidata requires to say who is asking. Wikidata allows five questions at once per address and asks
+  // clients to wait when it answers 429, which the API does; MaxAtOnce is how many it puts at once.
+  // Enabled false asks Wikidata nothing.
+  "Wikidata": {
+    "Enabled": true,
+    "Endpoint": "https://query.wikidata.org/sparql",
+    "EntitySearchEndpoint": "https://www.wikidata.org/w/api.php",
+    "Contact": "https://movies.thekrystalship.com",
+    "RefreshDays": 7,
+    "WarmMinutes": 60,
+    "TimeoutSeconds": 60,
+    "MaxAtOnce": 2
+  },
+
   // Listening in a voice channel. Off unless enabled: everyone in a channel the bot joins is heard.
   "Voice": {
     "Enabled": false,

@@ -206,6 +206,10 @@ account's API settings, not the shorter "API Key".
 ranked by rating uses IMDb's votes and titles show IMDb's rating; the API reaches
 `datasets.imdbws.com` for it, about 240 MB a day, and keeps the result in its database. Set it to
 `false` to leave IMDb out.
+`Wikidata__Enabled` (default true) fills Discover's shelves of awards, adaptations, places and subgenres
+and a film's awards and sources from Wikidata, about once a week; the API reaches `query.wikidata.org`
+and `www.wikidata.org` for it. `Wikidata__Contact` is the address Wikidata can reach you at, sent in the
+User-Agent as Wikidata asks every client to; set it to yours. Set `Enabled` to `false` to leave Wikidata out.
 Save and exit the same way.
 
 ## Step 5: Start qBittorrent

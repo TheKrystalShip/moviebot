@@ -7,21 +7,21 @@ namespace TheKrystalShip.MovieBot.Api.Films;
 public static class FilmEndpoints
 {
     /// <summary>A kept film as <c>/api/films/{imdbId}</c> answers it, joined with the library and the viewer; null when the database has no film under the id.</summary>
-    private static FilmView? Viewed(FilmStore store, StoredFilm stored, LibraryShelf shelf, TitleCategories categories, string imdbId) =>
-        store.View(stored, shelf.LibraryIdOf("film", imdbId), shelf.Saw("film", imdbId)) is { } view
+    private static FilmView? Viewed(FilmStore store, StoredFilm stored, LibraryShelf shelf, TitleCategories categories, WikidataFacts facts, string imdbId) =>
+        store.View(stored, shelf.LibraryIdOf("film", imdbId), shelf.Saw("film", imdbId), facts.Of(imdbId)) is { } view
             ? view with { Category = categories.Of("film", imdbId) }
             : null;
 
     /// <summary>A film as <c>/api/films/{imdbId}</c> answers it; null when the database has none or could not be asked.</summary>
-    internal static async Task<FilmView?> ViewAsync(FilmStore store, LibraryShelf shelf, TitleCategories categories, string imdbId, CancellationToken ct) =>
-        await store.GetAsync(imdbId, ct) is { } stored ? Viewed(store, stored, shelf, categories, imdbId) : null;
+    internal static async Task<FilmView?> ViewAsync(FilmStore store, LibraryShelf shelf, TitleCategories categories, WikidataFacts facts, string imdbId, CancellationToken ct) =>
+        await store.GetAsync(imdbId, ct) is { } stored ? Viewed(store, stored, shelf, categories, facts, imdbId) : null;
 
     public static void MapFilms(this IEndpointRouteBuilder app)
     {
         // A film by its IMDb id, in the library or not: a page about a film somebody is waiting on
         // shows it as fully as one on the shelf.
         app.MapGet("/api/films/{imdbId}", async (string imdbId, HttpContext context, FilmStore store, LibraryListing library,
-            WatchRecord record, TitleCategories categories, CancellationToken ct) =>
+            WatchRecord record, TitleCategories categories, WikidataFacts facts, CancellationToken ct) =>
         {
             if (!FilmStore.IsImdbId(imdbId))
                 return Results.Json(new ErrorReply("That is not an IMDb id."), ApiJsonContext.Default.ErrorReply,
@@ -33,7 +33,11 @@ public static class FilmEndpoints
                     ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status503ServiceUnavailable);
 
             var shelf = LibraryShelf.Of(library.Titles(), record, PeopleEndpoints.Person(context)?.UserId);
-            return Viewed(store, stored, shelf, categories, imdbId) is { } view
+            var view = Viewed(store, stored, shelf, categories, facts, imdbId);
+
+            // What Wikidata says of the film is asked for after the answer is made, never waited on.
+            facts.Want(imdbId);
+            return view is not null
                 ? Results.Ok(view)
                 : Results.Json(new ErrorReply("The film database has no film under that id."),
                     ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);

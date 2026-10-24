@@ -5,7 +5,8 @@ namespace TheKrystalShip.MovieBot.Api.Films;
 /// <summary>One thing a question was read to ask: what kind of part it is, and the words it is shown with.</summary>
 /// <param name="Part">
 /// <c>count</c>, <c>sort</c>, <c>kind</c>, <c>genre</c>, <c>exclude</c>, <c>category</c>, <c>years</c>,
-/// <c>language</c>, <c>runtime</c>, <c>person</c>, <c>about</c> or <c>like</c>.
+/// <c>language</c>, <c>runtime</c>, <c>person</c>, <c>about</c>, <c>like</c>, <c>award</c>, <c>adaptation</c>,
+/// <c>place</c>, <c>subgenre</c> or <c>subject</c>.
 /// </param>
 public sealed record QuestionPart(string Part, string Text);
 
@@ -27,7 +28,17 @@ public sealed record Question
 
     /// <summary>What followed a bare <c>with</c>: each a person, else a subject.</summary>
     public IReadOnlyList<string> WithEither { get; init; } = [];
+
+    /// <summary>The one thing Wikidata is asked for (an award, an author's adaptations, a place, a subgenre); a question holds at most one.</summary>
+    public WikidataAsk? Wikidata { get; init; }
 }
+
+/// <summary>
+/// A set of films Wikidata lists: how they relate to an item, and the item. <see cref="Item"/> is its
+/// <c>Q</c> number where the phrase names it (<c>oscar winners</c>); else <see cref="Name"/> is the
+/// words typed (<c>paris</c>, <c>stephen king</c>), for whoever answers to resolve to an item.
+/// </summary>
+public sealed record WikidataAsk(WikidataRelation Relation, string? Item, string Name);
 
 /// <summary>
 /// The names the film database itself lists, which the reader recognises genres and languages from:
@@ -133,7 +144,51 @@ public static class QuestionReader
     {
         ["with"] = "with", ["starring"] = "person", ["featuring"] = "person", ["by"] = "person", ["directed by"] = "person",
         ["from director"] = "person", ["about"] = "about", ["involving"] = "about", ["like"] = "like", ["similar to"] = "like",
+        ["based on"] = "adaptation", ["adapted from"] = "adaptation", ["adaptations of"] = "adaptation", ["adaptation of"] = "adaptation",
+        ["adaptations by"] = "adaptation", ["adaptation by"] = "adaptation",
+        ["set in"] = "set", ["filmed in"] = "filmed", ["shot in"] = "filmed",
     };
+
+    /// <summary>
+    /// The phrases that name a set of films in Wikidata outright: awards and subgenres by their item.
+    /// The words of an author or a place are not here; they follow a marker and are resolved by name.
+    /// </summary>
+    private static readonly Dictionary<string, (string Part, WikidataAsk Ask)> WikidataPhrases = BuildWikidata();
+
+    private const int LongestWikidataPhrase = 4;
+
+    private static Dictionary<string, (string, WikidataAsk)> BuildWikidata()
+    {
+        var phrases = new Dictionary<string, (string, WikidataAsk)>(StringComparer.Ordinal);
+        void Add(string part, WikidataRelation relation, string item, string label, params string[] words)
+        {
+            foreach (var word in words) phrases[word] = (part, new WikidataAsk(relation, item, label));
+        }
+
+        Add("award", WikidataRelation.Won, "Q102427", "Best Picture winners",
+            "best picture winners", "best picture winner", "best picture winning", "best picture", "oscar winners", "oscar winner",
+            "oscar winning", "oscar-winning", "oscar-winners", "academy award winners", "academy award winner", "academy award winning",
+            "academy award-winning");
+        Add("award", WikidataRelation.Nominated, "Q102427", "Best Picture nominees",
+            "best picture nominees", "best picture nominee", "best picture nominated", "oscar nominees", "oscar nominee",
+            "oscar nominated", "oscar-nominated", "academy award nominees", "academy award nominee", "academy award nominated",
+            "academy award-nominated");
+        Add("award", WikidataRelation.Won, "Q179808", "Palme d'Or winners",
+            "palme d'or winners", "palme d'or winner", "palme d'or winning", "palme d'or", "palme dor");
+
+        Add("subgenre", WikidataRelation.Genre, "Q853630", "Slasher", "slasher", "slashers");
+        Add("subgenre", WikidataRelation.Genre, "Q496523", "Heist", "heist", "heists");
+        Add("subgenre", WikidataRelation.Genre, "Q2421031", "Neo-noir", "neo-noir", "neo noir", "neonoir");
+        Add("subgenre", WikidataRelation.Genre, "Q3272147", "Found footage", "found footage");
+        Add("subgenre", WikidataRelation.Genre, "Q174526", "Cyberpunk", "cyberpunk");
+        Add("subgenre", WikidataRelation.Genre, "Q185867", "Film noir", "film noir");
+        Add("subgenre", WikidataRelation.Genre, "Q212781", "Spaghetti western", "spaghetti western", "spaghetti westerns");
+        Add("subgenre", WikidataRelation.Genre, "Q3072049", "Zombie", "zombie", "zombies");
+        Add("subgenre", WikidataRelation.Genre, "Q846544", "Disaster", "disaster");
+        Add("subject", WikidataRelation.Subject, "Q362", "World War II",
+            "ww2", "wwii", "world war 2", "world war ii", "world war two", "second world war", "2nd world war");
+        return phrases;
+    }
 
     private static readonly string[] Exclusions = ["not", "no", "without", "except", "excluding", "but not"];
 
@@ -198,6 +253,9 @@ public static class QuestionReader
         private int? _minRuntime, _maxRuntime;
         private string? _like;
         private bool _anime;
+        private WikidataAsk? _wikidata;
+        private bool _wikidataTwice;
+        private int _adaptationAt = -1;
 
         public Question? Run()
         {
@@ -215,6 +273,9 @@ public static class QuestionReader
                 _unread.Add(at);
                 at++;
             }
+
+            if (_wikidataTwice) return null;
+            if (_adaptationAt >= 0 && !NameAdaptation()) return null;
 
             // Words no rule reads are a name, when they come first and something after them says what
             // of theirs is wanted.
@@ -260,7 +321,43 @@ public static class QuestionReader
                 Parts = _parts,
                 Named = named,
                 WithEither = _withEither,
+                Wikidata = _wikidata,
             };
+        }
+
+        /// <summary>
+        /// Gives an <c>adaptations</c> word its author when none was named right before it: the one run
+        /// of words no rule reads (<c>stephen king horror adaptations</c>). False when there is none, or
+        /// the unread words are in several runs, or the question already asks Wikidata for something else.
+        /// </summary>
+        private bool NameAdaptation()
+        {
+            if (_wikidata is not null || _unread.Count == 0) return false;
+            for (var i = 1; i < _unread.Count; i++)
+                if (_unread[i] != _unread[i - 1] + 1) return false;
+            var name = string.Join(' ', _unread.Select(i => words[i]));
+            _unread.Clear();
+            _wikidata = new WikidataAsk(WikidataRelation.Adaptation, null, name);
+            _parts[_parts.FindIndex(p => p.Part == "adaptation" && p.Text == PendingText)] = new QuestionPart("adaptation", AdaptationText(name));
+            return true;
+        }
+
+        private const string PendingText = "Adaptations";
+
+        private static string AdaptationText(string name) => "Adaptations of " + Capitalised(name);
+
+        private static string Capitalised(string name) => System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name);
+
+        /// <summary>Records the question's one Wikidata set; a second makes the words no question.</summary>
+        private void SetWikidata(string part, WikidataAsk ask, string text)
+        {
+            if (_wikidata is not null || _adaptationAt >= 0)
+            {
+                _wikidataTwice = true;
+                return;
+            }
+            _wikidata = ask;
+            _parts.Add(new QuestionPart(part, text));
         }
 
         /// <summary>The genres the typed phrases name in the list of <paramref name="kind"/>; a phrase that list lacks keeps the other list's name, for the discovery to refuse.</summary>
@@ -299,7 +396,9 @@ public static class QuestionReader
 
         /// <summary>How many words a part that asks something reads at <paramref name="at"/>: any but a filler word.</summary>
         private int Asked(int at, bool consume) =>
-            Count(at, consume) is > 0 and var c ? c
+            Wikidata(at, consume) is > 0 and var w ? w
+            : Adaptations(at, consume) is > 0 and var a ? a
+            : Count(at, consume) is > 0 and var c ? c
             : Exclusion(at, consume) is > 0 and var e ? e
             : Years(at, consume) is > 0 and var y ? y
             : Runtime(at, consume) is > 0 and var r ? r
@@ -321,6 +420,44 @@ public static class QuestionReader
         private string Joined(int at, int n) => string.Join(' ', words.Skip(at).Take(n));
 
         private string? Word(int at) => at < words.Count ? words[at] : null;
+
+        /// <summary>A phrase that names a set of films in Wikidata: an award, a subgenre, a subject.</summary>
+        private int Wikidata(int at, bool consume)
+        {
+            var n = Phrase(at, LongestWikidataPhrase, WikidataPhrases.ContainsKey);
+            if (n == 0 || !consume) return n;
+            var (part, ask) = WikidataPhrases[Joined(at, n)];
+            SetWikidata(part, ask, ask.Name);
+            return n;
+        }
+
+        /// <summary>
+        /// The word <c>adaptations</c> after an author's name (<c>stephen king adaptations</c>): the words
+        /// before it that no rule reads are the author. Before <c>of</c> or <c>by</c> it is a marker instead.
+        /// </summary>
+        private int Adaptations(int at, bool consume)
+        {
+            if (Word(at) is not ("adaptations" or "adaptation") || Word(at + 1) is "of" or "by") return 0;
+            if (!consume) return 1;
+
+            var run = new List<int>();
+            while (_unread.Count - 1 - run.Count >= 0 && _unread[_unread.Count - 1 - run.Count] == at - 1 - run.Count) run.Insert(0, _unread[_unread.Count - 1 - run.Count]);
+            if (run.Count == 0)
+            {
+                if (_wikidata is not null || _adaptationAt >= 0) _wikidataTwice = true;
+                else
+                {
+                    _adaptationAt = at;
+                    _parts.Add(new QuestionPart("adaptation", PendingText));
+                }
+                return 1;
+            }
+
+            var name = string.Join(' ', run.Select(i => words[i]));
+            _unread.RemoveRange(_unread.Count - run.Count, run.Count);
+            SetWikidata("adaptation", new WikidataAsk(WikidataRelation.Adaptation, null, name), AdaptationText(name));
+            return 1;
+        }
 
         private int Anime(int read, bool consume)
         {
@@ -620,7 +757,7 @@ public static class QuestionReader
             while (end < words.Count && !Ends(end)) end++;
 
             var span = words.Skip(start).Take(end - start).ToList();
-            var names = taken == "like"
+            var names = taken is "like" or "adaptation" or "set" or "filmed"
                 ? [string.Join(' ', span)]
                 : string.Join(' ', span).Split(" and ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -643,6 +780,15 @@ public static class QuestionReader
                     case "like" when _like is null:
                         _like = name;
                         _parts.Add(new QuestionPart("like", "Like " + name));
+                        break;
+                    case "adaptation":
+                        SetWikidata("adaptation", new WikidataAsk(WikidataRelation.Adaptation, null, name), AdaptationText(name));
+                        break;
+                    case "set":
+                        SetWikidata("place", new WikidataAsk(WikidataRelation.Set, null, name), "Set in " + Capitalised(name));
+                        break;
+                    case "filmed":
+                        SetWikidata("place", new WikidataAsk(WikidataRelation.Filmed, null, name), "Filmed in " + Capitalised(name));
                         break;
                 }
             }
