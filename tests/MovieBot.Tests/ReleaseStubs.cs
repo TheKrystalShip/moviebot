@@ -85,6 +85,16 @@ internal static class ReleaseStubs
             {"d":[{"id":"tt1375666","l":"Inception","y":2010,"qid":"movie","s":"Leonardo DiCaprio, Joseph Gordon-Levitt"}],"q":"x","v":1}
             """;
 
+        // A studio's name: a project announced with no year, a title the film database holds nothing
+        // for, and one film it knows.
+        private const string Studio = """
+            {"d":[
+              {"id":"tt0009390","l":"Untitled Blumhouse Project","qid":"movie","s":""},
+              {"id":"tt0009391","l":"Blumhouse Enhanced Cinema","y":2026,"qid":"movie","s":""},
+              {"id":"tt0325980","l":"Pirates of the Caribbean: The Curse of the Black Pearl","y":2003,"qid":"movie","s":"Johnny Depp, Geoffrey Rush"}
+            ],"q":"x","v":1}
+            """;
+
         private const string Heat = """
             {"d":[{"id":"tt0113277","l":"Heat","y":1995,"qid":"movie","s":"Al Pacino, Robert De Niro"}],"q":"x","v":1}
             """;
@@ -104,6 +114,7 @@ internal static class ReleaseStubs
             var body = path.Contains("heat", StringComparison.OrdinalIgnoreCase) ? Heat
                 : path.Contains("incep", StringComparison.OrdinalIgnoreCase) ? Inception
                 : path.Contains("pirates", StringComparison.OrdinalIgnoreCase) ? Pirates
+                : path.Contains("blumhouse", StringComparison.OrdinalIgnoreCase) ? Studio
                 : null;
 
             return Task.FromResult(body is null

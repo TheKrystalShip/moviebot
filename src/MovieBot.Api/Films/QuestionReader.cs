@@ -5,7 +5,7 @@ namespace TheKrystalShip.MovieBot.Api.Films;
 /// <summary>One thing a question was read to ask: what kind of part it is, and the words it is shown with.</summary>
 /// <param name="Part">
 /// <c>count</c>, <c>sort</c>, <c>kind</c>, <c>genre</c>, <c>exclude</c>, <c>category</c>, <c>years</c>,
-/// <c>language</c>, <c>runtime</c>, <c>person</c>, <c>about</c>, <c>like</c>, <c>award</c>,
+/// <c>language</c>, <c>runtime</c>, <c>person</c>, <c>about</c>, <c>studio</c>, <c>like</c>, <c>award</c>,
 /// <c>adaptation</c>, <c>place</c>, <c>subgenre</c> or <c>subject</c>.
 /// </param>
 public sealed record QuestionPart(string Part, string Text);

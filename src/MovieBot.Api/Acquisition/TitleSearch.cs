@@ -9,7 +9,8 @@ public enum SearchKinds { Films, Shows, Both }
 
 /// <summary>
 /// A search box's answer: the title index's suggestions for what was typed, each with its glance
-/// from the film database (<see cref="TitleGlances"/>).
+/// from the film database (<see cref="TitleGlances"/>). Every answer leads to a page, so a suggestion
+/// with no year (a project announced and untitled) and one the database holds nothing for are left out.
 ///
 /// The index's answer for a name is held in memory for <see cref="Held"/>, so the same name searched
 /// again, by anybody, asks nothing; it is held no longer because the index's order follows what people
@@ -41,8 +42,9 @@ public sealed class TitleSearch(TitleGlances glances, TitleScores scores, Librar
             if (titles.Count > 0) Hold(key, held, now);
         }
 
-        var glanced = await glances.ForAsync([.. held.Titles.Select(t => t.ImdbId)], ct);
-        return [.. held.Titles.Select(t =>
+        var dated = held.Titles.Where(t => t.Year is not null).ToList();
+        var glanced = await glances.ForAsync([.. dated.Select(t => t.ImdbId)], ct);
+        return [.. dated.Where(t => !glances.Unknown(t.ImdbId)).Select(t =>
         {
             var glance = glanced.GetValueOrDefault(t.ImdbId);
             var found = FoundTitle.From(t, glance, glances.PosterUrl(t.ImdbId, glance));

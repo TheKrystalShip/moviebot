@@ -184,6 +184,9 @@ public sealed class TitleGlances(
         Observe(stored);
     }
 
+    /// <summary>Whether the database was asked about the title and holds nothing under its id.</summary>
+    public bool Unknown(string imdbId) => Described(imdbId) is null && Held(imdbId) is { Glance: null };
+
     /// <summary>A title described in full answers from that description.</summary>
     private TitleGlance? Described(string imdbId)
     {

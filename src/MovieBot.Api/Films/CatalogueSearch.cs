@@ -46,6 +46,12 @@ public sealed record CreditsRequest(int? From, int? To, string Role, string? Kin
 
 public sealed record CreditsAnswer(Filmography Person, DateOnly AsOf, int Total, List<CreditHit> Credits);
 
+/// <summary>
+/// A studio: its name as shown, the database's companies it files under, and whether one of them is
+/// called exactly the words it was found by (<c>A24</c>, where <c>blumhouse</c> is only within names).
+/// </summary>
+public sealed record Studio(string Name, List<int> CompanyIds, bool Exact);
+
 public sealed record DiscoverRequest
 {
     public string? Kind { get; init; }
@@ -61,6 +67,9 @@ public sealed record DiscoverRequest
     public int? To { get; init; }
     public IReadOnlyList<string> With { get; init; } = [];
     public IReadOnlyList<string> About { get; init; } = [];
+
+    /// <summary>Studios by name, each every company the database files under the name; a title made by any of them is kept.</summary>
+    public IReadOnlyList<string> Studios { get; init; } = [];
 
     public string? Language { get; init; }
     public string? Like { get; init; }
@@ -179,6 +188,9 @@ public sealed partial class CatalogueSearch(
 
     /// <summary>The votes a sort by rating needs behind a title, so one vote of ten is not the best film there is.</summary>
     public const int RatedVotes = 25;
+
+    /// <summary>The votes a question of a studio's work needs behind a title, the studios shelf's own floor, and no floor on its rating.</summary>
+    public const int StudioVotes = 50;
 
     public const int RecentDays = 45;
     public const int UpcomingDays = 180;
@@ -377,6 +389,16 @@ public sealed partial class CatalogueSearch(
             if (keywords.All(k => k.Id != keyword.Id)) keywords.Add(keyword);
         }
 
+        var studios = new List<Studio>();
+        foreach (var name in request.Studios.Where(s => !string.IsNullOrWhiteSpace(s)))
+        {
+            var found = await StudioAsync(name, ct);
+            if (found.Value is not { } studio) return found.Carry<DiscoverAnswer>();
+            studios.Add(studio);
+        }
+        if (seed is not null && studios.Count > 0)
+            return Invalid<DiscoverAnswer>("The film database finds what is like a title without asking who made it; leave the studio out or the title.");
+
         LanguageName? language = null;
         if (!string.IsNullOrWhiteSpace(request.Language))
         {
@@ -400,6 +422,7 @@ public sealed partial class CatalogueSearch(
             To = request.To is { } to ? new DateOnly(to, 12, 31) : sort == DiscoverSorts.Newest ? today : null,
             PersonIds = [.. people.Select(p => p.TmdbId)],
             KeywordIds = [.. keywords.Select(k => k.Id)],
+            CompanyIds = [.. studios.SelectMany(s => s.CompanyIds).Distinct()],
             Language = language?.Code,
             MinRating = minRating,
             MinVotes = minVotes,
@@ -420,6 +443,7 @@ public sealed partial class CatalogueSearch(
             Excluded = [.. excluded.Select(g => g.Name)],
             People = [.. people.Select(p => new ResolvedPerson(p.TmdbId, p.Name, p.KnownFor))],
             Keywords = [.. keywords.Select(k => k.Name)],
+            Studios = [.. studios.Select(s => s.Name)],
             Language = language?.Name,
             Like = seed?.Name,
             MinRating = minRating,
@@ -1019,6 +1043,54 @@ public sealed partial class CatalogueSearch(
         return kept is null
             ? Unavailable<List<KeywordMatch>>("The film database could not be asked about its keywords.")
             : Outcome<List<KeywordMatch>>.Ok(kept.Value ?? []);
+    }
+
+    /// <summary>The film database's production companies matching some words, kept.</summary>
+    private async Task<Outcome<List<CompanyMatch>>> CompaniesAsync(string words, CancellationToken ct)
+    {
+        var wanted = words.Trim();
+        var kept = await keeper.KeptAsync(AnswerKeeper.QueryName("companies", wanted.ToLowerInvariant()),
+            AnswerJson.Default.ListCompanyMatch, VocabularyKept,
+            async (tmdb, token) => (await tmdb.SearchCompaniesAsync(wanted, token)).ToList(), null, ct);
+        return kept is null
+            ? Unavailable<List<CompanyMatch>>("The film database could not be asked about its companies.")
+            : Outcome<List<CompanyMatch>>.Ok(kept.Value ?? []);
+    }
+
+    /// <summary>A studio by name (<see cref="MatchStudio"/>), or why there is none.</summary>
+    private async Task<Outcome<Studio>> StudioAsync(string words, CancellationToken ct)
+    {
+        var companies = await CompaniesAsync(words, ct);
+        if (companies.Value is not { } found) return companies.Carry<Studio>();
+        return MatchStudio(found, words) is { } studio
+            ? Outcome<Studio>.Ok(studio)
+            : NotFound<Studio>($"The film database has no studio called \"{words.Trim()}\".");
+    }
+
+    /// <summary>
+    /// A studio as the database files it: every company whose name holds the words as whole words
+    /// (<c>blumhouse</c> is Blumhouse Productions, Blumhouse Television and Blumhouse Atomic Monster), and
+    /// the words as the first such name spells them, and whether a company's name is the words and nothing
+    /// else. Null when no company's name holds them.
+    /// </summary>
+    internal static Studio? MatchStudio(IReadOnlyList<CompanyMatch> companies, string words)
+    {
+        var wanted = words.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (wanted.Length == 0) return null;
+        string? shown = null;
+        var exact = false;
+        var ids = new List<int>();
+        foreach (var company in companies)
+        {
+            var name = company.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var at = Enumerable.Range(0, Math.Max(0, name.Length - wanted.Length + 1))
+                .FirstOrDefault(i => wanted.Select((w, j) => string.Equals(name[i + j], w, StringComparison.OrdinalIgnoreCase)).All(same => same), -1);
+            if (at < 0) continue;
+            ids.Add(company.Id);
+            shown ??= string.Join(' ', name[at..(at + wanted.Length)]);
+            exact |= name.Length == wanted.Length;
+        }
+        return shown is null ? null : new Studio(shown, ids, exact);
     }
 
     /// <summary>The film database's languages with their English names, kept.</summary>

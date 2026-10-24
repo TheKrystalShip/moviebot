@@ -53,6 +53,16 @@ public sealed class FindTests(SessionFixture fixture) : IClassFixture<SessionFix
     }
 
     [Fact]
+    public async Task A_suggestion_with_no_year_or_unknown_to_the_film_database_is_left_out()
+    {
+        var client = fixture.CreatePersonClient("acc-f4", "Finder", [CinemaActions.Download]);
+
+        var found = await client.GetFromJsonAsync<JsonElement>("/api/titles/find?q=blumhouse");
+
+        Assert.Equal(["tt0325980"], found.EnumerateArray().Select(t => t.GetProperty("imdbId").GetString()));
+    }
+
+    [Fact]
     public async Task Films_alone_are_found_by_somebody_who_may_only_wish()
     {
         var client = fixture.CreatePersonClient("acc-f2", "Wisher", [CinemaActions.Wish]);

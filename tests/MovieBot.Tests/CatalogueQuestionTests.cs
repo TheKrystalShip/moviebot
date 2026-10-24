@@ -74,12 +74,72 @@ public sealed class CatalogueQuestionTests(SessionFixture fixture) : IClassFixtu
     }
 
     [Fact]
-    public async Task Words_a_rule_leaves_unread_ask_the_database_nothing()
+    public async Task Words_a_rule_leaves_unread_ask_only_whether_a_studio_is_called_so()
     {
         var (view, asked) = await Ask("Horror Express");
 
         Assert.False(view.Question);
-        Assert.DoesNotContain(asked, a => a.StartsWith("/3/discover") || a.StartsWith("/3/search"));
+        Assert.All(asked.Where(a => a.StartsWith("/3/")), a => Assert.StartsWith("/3/search/company", a));
+    }
+
+    [Fact]
+    public async Task A_studio_alone_is_every_company_filed_under_its_name_with_no_rating_floor()
+    {
+        var (view, asked) = await Ask("blumhouse");
+
+        Assert.True(view.Question);
+        Assert.Equal("studio:Blumhouse", Parts(view));
+        Assert.Equal(["Blumhouse"], view.Resolved!.Studios);
+        Assert.Equal(12, view.Titles.Count);
+        var discover = asked.Single(a => a.StartsWith("/3/discover/movie"));
+        Assert.Contains("with_companies=68884|3172", discover);
+        Assert.Contains("vote_count.gte=50", discover);
+        Assert.DoesNotContain("vote_average.gte", discover);
+    }
+
+    [Fact]
+    public async Task Words_before_a_kind_that_name_a_studio_are_its_work()
+    {
+        var (view, _) = await Ask("blumhouse movies");
+
+        Assert.True(view.Question);
+        Assert.Equal("studio:Blumhouse | kind:Movies", Parts(view));
+        Assert.Equal(12, view.Titles.Count);
+    }
+
+    [Fact]
+    public async Task A_company_called_exactly_the_words_outranks_a_keyword_of_them()
+    {
+        var (movies, asked) = await Ask("paged movies");
+        var (bare, _) = await Ask("paged");
+
+        Assert.Equal("studio:Paged", Parts(bare));
+        Assert.Equal("studio:Paged | kind:Movies", Parts(movies));
+        Assert.Contains(asked, a => a.StartsWith("/3/discover/movie") && a.Contains("with_companies=557"));
+    }
+
+    [Fact]
+    public async Task A_studio_s_name_alone_that_is_also_a_title_s_or_made_a_few_films_is_no_question()
+    {
+        var (heat, heatAsked) = await Ask("heat");
+        var (tiny, _) = await Ask("tiny");
+
+        Assert.False(heat.Question);
+        Assert.DoesNotContain(heatAsked, a => a.StartsWith("/3/discover"));
+        Assert.False(tiny.Question);
+    }
+
+    [Fact]
+    public void A_studio_is_matched_by_whole_words_and_shown_as_the_database_spells_it()
+    {
+        var studio = CatalogueSearch.MatchStudio(
+            [new() { Id = 1, Name = "Studio Ghibli" }, new() { Id = 2, Name = "Ghiblin" }, new() { Id = 3, Name = "Ghibli Museum Library" }], "ghibli");
+
+        Assert.Equal("Ghibli", studio!.Name);
+        Assert.Equal([1, 3], studio.CompanyIds);
+        Assert.False(studio.Exact);
+        Assert.True(CatalogueSearch.MatchStudio([new() { Id = 4, Name = "A24" }], "a24")!.Exact);
+        Assert.Null(CatalogueSearch.MatchStudio([new() { Id = 2, Name = "Ghiblin" }], "ghibli"));
     }
 
     [Fact]

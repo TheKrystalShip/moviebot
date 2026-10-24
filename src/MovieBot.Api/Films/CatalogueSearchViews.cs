@@ -157,6 +157,9 @@ public sealed record DiscoverResolved
     public required List<ResolvedPerson> People { get; init; }
     public required List<string> Keywords { get; init; }
 
+    /// <summary>The studios the results were made by, each as the database spells it.</summary>
+    public List<string> Studios { get; init; } = [];
+
     public string? Language { get; init; }
 
     /// <summary>The title the results are similar to, as <c>Name (year)</c>.</summary>

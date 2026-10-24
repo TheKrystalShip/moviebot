@@ -167,6 +167,9 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             return "{ \"movie_results\": [ { \"id\": " + id + ", \"overview\": \"About Paged " + (id - PagedFirst) + ". It goes on.\", \"vote_average\": 7.0,"
                 + " \"vote_count\": 100, \"release_date\": \"2010-01-01\", \"poster_path\": \"/p" + id + ".jpg\" } ] }";
         }
+        if (path.EndsWith("/find/tt9900001")) return """{ "movie_results": [], "tv_results": [ { "id": 9901, "vote_count": 0 } ] }""";
+        if (path.EndsWith("/find/tt1790809") || path.EndsWith("/find/tt1298650") || path.EndsWith("/find/tt0383574") || path.EndsWith("/find/tt0449088"))
+            return "{ \"movie_results\": [ { \"id\": " + (9000 + int.Parse(path[^3..], CultureInfo.InvariantCulture)) + ", \"vote_count\": 0 } ] }";
         if (path.Contains("/find/")) return """{ "movie_results": [] }""";
         if (path.EndsWith("/movie/949")) return Heat;
         if (path.EndsWith("/trending/movie/week"))
@@ -228,6 +231,19 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
                 "silent film" => """{ "results": [ { "id": 12999, "name": "silent film" } ] }""",
                 "paged" => """{ "results": [ { "id": 31337, "name": "paged" } ] }""",
                 "time loop" => """{ "results": [ { "id": 366519, "name": "time loops" }, { "id": 10854, "name": "time loop" } ] }""",
+                _ => Results(),
+            };
+        }
+
+        // Studios: one filed under several companies, a word that is also a title's name, and one that made a few films.
+        if (path.EndsWith("/search/company"))
+        {
+            return query["query"]?.ToLowerInvariant() switch
+            {
+                "blumhouse" => """{ "results": [ { "id": 68884, "name": "Blumhouse Television" }, { "id": 3172, "name": "Blumhouse Productions" }, { "id": 73625, "name": "BH Tilt" } ] }""",
+                "heat" => """{ "results": [ { "id": 555, "name": "Heat Productions" } ] }""",
+                "tiny" => """{ "results": [ { "id": 556, "name": "Tiny Films" } ] }""",
+                "paged" => """{ "results": [ { "id": 557, "name": "Paged" } ] }""",
                 _ => Results(),
             };
         }
@@ -328,6 +344,9 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             if (keywords == PagedKeyword.ToString(CultureInfo.InvariantCulture) || genres == "10749,35" || query["vote_count.gte"] == "5000")
                 return PagedPage(int.Parse(query["page"] ?? "1", CultureInfo.InvariantCulture));
             if (genres == "12") return Results(Listed(22, "Pirates of the Caribbean", "2003-07-09", 7.8, 21000, "12"));
+            if (query["with_companies"] is "68884|3172" or "555" or "557")
+                return Results([.. Enumerable.Range(0, 12).Select(i => Listed(7500 + i, "Studio Night " + (i + 1), "2015-10-0" + (i % 9 + 1), 5.2, 400, "27"))]);
+            if (query["with_companies"] == "556") return Results(Listed(7600, "Tiny One", "2015-01-01", 6.0, 90, "18"));
             if (genres == "27")
                 return Results(Listed(7101, "The Cellar Door", "2002-10-31", 7.1, 1500, "27"), Listed(7102, "Hollow Hill", "2004-09-10", 6.8, 800, "27"));
             if (keywords == "12999" && people == "8001") return Results(Listed(7004, "Silver Harbour", released, 7.4, 50, "18"));

@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.71.0] - 2026-10-24
+
+### Added
+- A studio in a question on Discover: `blumhouse movies` and `pixar films` find the studio's work, and a
+  studio's name alone (`blumhouse`, `a24`) is a question when no title or person is called exactly
+  that. A company called exactly the words (A24, Pixar) outranks a keyword of the same name. A studio is every company the film database files under the name, so Blumhouse is
+  Blumhouse Productions, Blumhouse Television and Blumhouse Atomic Monster together; its question keeps
+  every title with 50 votes, as the studios shelf does. The part is `studio`, and `resolved` carries
+  `studios`.
+
+### Fixed
+- A search by name leaves out what has no page: a project announced with no year (`Untitled ...
+  Project`) and a title the film database holds nothing for, which opened an empty page.
+
 ## [3.70.0] - 2026-10-24
 
 ### Added
