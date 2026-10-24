@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.68.2] - 2026-10-24
+
+### Fixed
+- A shelf's page opens in the order its rail shows. An order picked on it is kept in the address
+  (`&sort=`) rather than for the account, so it no longer carries to every other shelf.
+
 ## [3.68.1] - 2026-10-24
 
 ### Fixed

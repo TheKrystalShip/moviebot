@@ -49,8 +49,11 @@ export const discoverPath = (q) => "/discover" + (q ? "?q=" + seg(q) : "");
 /** One of Discover's browse categories: its shelves, by the category's id. */
 export const discoverBrowsePath = (id) => "/discover?browse=" + seg(id);
 
-/** Every title on one of Discover's shelves, by the shelf's id. */
-export const discoverShelfPath = (id) => "/discover?shelf=" + seg(id);
+/**
+ * Every title on one of Discover's shelves, by the shelf's id, in the shelf's own order or the one
+ * `sort` names (`rating`, `newest`, `oldest`).
+ */
+export const discoverShelfPath = (id, sort) => "/discover?shelf=" + seg(id) + (sort ? "&sort=" + seg(sort) : "");
 
 /**
  * What Discover's filter reads from the address besides the kind, by the choice's name and the

@@ -244,6 +244,12 @@ const SHELF_SORTS = [
  */
 const shelfSort = ({ key, dir }) => (key === "year" ? (dir === "asc" ? "oldest" : "newest") : key === "rating" ? "rating" : null);
 
+/** The toolbar's key and direction for the order a shelf's address names; the shelf's own for any other. */
+const shelfOrder = (param) => (param === "rating" ? { key: "rating", dir: "desc" }
+  : param === "newest" ? { key: "year", dir: "desc" }
+    : param === "oldest" ? { key: "year", dir: "asc" }
+      : { key: "order", dir: "asc" });
+
 /**
  * The next page of a grid, read as its end comes near: a plain skeleton of cards while it is read, and
  * the failure with a retry when it cannot be. `paged` is what `usePaged` returned for the grid.
@@ -280,10 +286,13 @@ export function MoreCards({ paged }) {
 /**
  * Every title on one shelf, a page at a time as the grid reaches its end, with krystal's Toolbar as on
  * the library's pages: what to leave off, an order, how many are shown, and Surprise me among them.
+ * It opens in the order its rail shows; an order picked here is the address's (`sort`), so it holds
+ * through a reload and Back and is no other shelf's.
  */
-export function ShelfPage({ id, where }) {
-  const [sort, setSort] = useSort(SORTED.shelf, SHELF_SORTS);
+export function ShelfPage({ id, sort: param, where }) {
+  const sort = shelfOrder(param);
   const order = shelfSort(sort);
+  const setSort = (key, dir) => navigate(discoverShelfPath(id, shelfSort({ key, dir })), { replace: true });
   const shelf = usePaged((page) => api.discoverShelf(id, page, order), [id, order]);
   const [hideWatched, setHideWatched] = useHideWatched();
   const [busy, surprise] = useSurprise(where);

@@ -114,7 +114,7 @@ export function Discover({ query }) {
 
       {!q && person && <PersonWork key={person} personId={person} where={where} />}
       {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} where={where} />}
-      {!q && !person && !genre && shelf && <ShelfPage key={shelf} id={shelf} where={where} />}
+      {!q && !person && !genre && shelf && <ShelfPage key={shelf} id={shelf} sort={query.get("sort")} where={where} />}
       {!q && !person && !genre && !shelf && category && <CategoryPage key={category} id={category} index={index} where={where} />}
       {!q && !person && !genre && !shelf && !category && filtering && <FilterPage query={query} index={index} where={where} />}
       {!q && !browsing && index.error && !index.data && <Failed error={index.error} onRetry={index.reload} />}

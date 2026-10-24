@@ -16,7 +16,6 @@ export const SORTED = {
   wants: "wants",
   films: "library.film",
   shows: "library.show",
-  shelf: "discover.shelf",
   filter: "discover.filter",
 };
 
