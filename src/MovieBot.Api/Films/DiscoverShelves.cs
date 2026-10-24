@@ -482,12 +482,12 @@ public sealed class DiscoverShelves(
         var shelf = Find(id, viewerId, titles);
         if (shelf is null) return Outcome<ShelfView>.Failed(Problem.NotFound, "There is no shelf by that name.");
 
-        Task<Outcome<ShelfPage>> PageOf(int p, string? order) => picks is { Any: true }
-            ? PickedAsync(shelf, viewerId, titles, p, order, picks, ct)
-            : TitlesAsync(shelf, viewerId, titles, p, order, ct);
+        Task<Outcome<ShelfPage>> PageOf(int p, string? order, int size) => picks is { Any: true }
+            ? PickedAsync(shelf, viewerId, titles, p, order, picks, ct, size)
+            : TitlesAsync(shelf, viewerId, titles, p, order, ct, size);
         var listed = ReversedSorts.Forward(sort) is { } forward
-            ? await ReversedAsync(p => PageOf(p, forward), page)
-            : await PageOf(page, sort);
+            ? Reversed(await PageOf(1, forward, CatalogueSearch.MostOnShelf), page)
+            : await PageOf(page, sort, CatalogueSearch.ShelfListed);
         if (listed.Value is not { } found) return listed.Carry<ShelfView>();
         return Outcome<ShelfView>.Ok(new ShelfView
         {
@@ -600,24 +600,15 @@ public sealed class DiscoverShelves(
     }
 
     /// <summary>
-    /// A page of a shelf in a reversed order: every page of the order it reverses, as
-    /// <paramref name="pageOf"/> answers them, read to the end and served last first.
+    /// A page of a shelf in a reversed order, from the shelf read whole in the order it reverses (one
+    /// page as large as a shelf runs), served last first.
     /// </summary>
-    private static async Task<Outcome<ShelfPage>> ReversedAsync(Func<int, Task<Outcome<ShelfPage>>> pageOf, int page)
+    private static Outcome<ShelfPage> Reversed(Outcome<ShelfPage> whole, int page)
     {
-        var all = new List<ShelfTitleView>();
-        string? title = null;
-        for (var p = 1; p <= CatalogueSearch.PagesListed && all.Count < CatalogueSearch.MostOnShelf; p++)
-        {
-            var answer = await pageOf(p);
-            if (answer.Value is not { } found) return answer;
-            title ??= found.Title;
-            all.AddRange(found.Titles);
-            if (found.Next is null) break;
-        }
-        var reversed = all.DistinctBy(t => t.Kind + t.ImdbId).Take(CatalogueSearch.MostOnShelf).Reverse().ToList();
+        if (whole.Value is not { } read) return whole;
+        var reversed = read.Titles.DistinctBy(t => t.Kind + t.ImdbId).Reverse().ToList();
         var slice = new PageAsk(CatalogueSearch.MostOnShelf, CatalogueSearch.ShelfListed, page);
-        return Outcome<ShelfPage>.Ok(new ShelfPage([.. reversed.Skip(slice.Skip).Take(slice.Take)], slice.Next(reversed.Count > slice.Skip + slice.Size), title));
+        return Outcome<ShelfPage>.Ok(new ShelfPage([.. reversed.Skip(slice.Skip).Take(slice.Take)], slice.Next(reversed.Count > slice.Skip + slice.Size), read.Title));
     }
 
     private Shelf? Find(string id, string? viewerId, IReadOnlyList<TitleSummary> titles) =>
@@ -635,7 +626,7 @@ public sealed class DiscoverShelves(
     /// shelf that is a question of the database is asked it narrowed, and any other is read whole
     /// (<see cref="WholeAsync"/>), narrowed and paged.
     /// </summary>
-    private async Task<Outcome<ShelfPage>> PickedAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, DiscoverPicks picks, CancellationToken ct)
+    private async Task<Outcome<ShelfPage>> PickedAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, DiscoverPicks picks, CancellationToken ct, int size = CatalogueSearch.ShelfListed)
     {
         if (shelf.Source != ShelfSource.Query)
         {
@@ -645,12 +636,12 @@ public sealed class DiscoverShelves(
             var whole = await WholeAsync(shelf, viewerId, titles, sort, ct);
             if (whole.Value is not { } held) return whole;
             var kept = WholeFacets.Filter(held.Titles, Traits, picks);
-            var slice = new PageAsk(CatalogueSearch.MostOnShelf, CatalogueSearch.ShelfListed, page);
+            var slice = new PageAsk(CatalogueSearch.MostOnShelf, size, page);
             return Outcome<ShelfPage>.Ok(new ShelfPage([.. kept.Skip(slice.Skip).Take(slice.Take)], slice.Next(kept.Count > slice.Skip + slice.Size), held.Title));
         }
         var narrowed = await search.NarrowedAsync(Asked(shelf.Query!, sort), picks, ct);
         if (narrowed.Value is not { } queries) return narrowed.Carry<ShelfPage>();
-        var ask = new PageAsk(CatalogueSearch.MostOnShelf, CatalogueSearch.ShelfListed, page);
+        var ask = new PageAsk(CatalogueSearch.MostOnShelf, size, page);
         return Hits(await search.ShelfAsync(queries, ask, ct), LibraryShelf.Of(titles, record, viewerId));
     }
 
@@ -685,10 +676,10 @@ public sealed class DiscoverShelves(
     /// <summary>Every order a shelf is served in, as its facets list them: its own first, then <see cref="Sorts"/>.</summary>
     public static readonly IReadOnlyList<string> Orders = [OwnOrder, DiscoverSorts.Rating, ReversedSorts.Lowest, DiscoverSorts.Newest, DiscoverSorts.Oldest];
 
-    private async Task<Outcome<ShelfPage>> TitlesAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, CancellationToken ct)
+    private async Task<Outcome<ShelfPage>> TitlesAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, CancellationToken ct, int size = CatalogueSearch.ShelfListed)
     {
-        var answer = await AnsweredAsync(shelf, viewerId, titles, page, sort, ct);
-        if (page == 1 && sort is null && shelf.Shared && answer.Value is { } found) _known[shelf.Id] = found;
+        var answer = await AnsweredAsync(shelf, viewerId, titles, page, sort, ct, size);
+        if (page == 1 && sort is null && size == CatalogueSearch.ShelfListed && shelf.Shared && answer.Value is { } found) _known[shelf.Id] = found;
         return answer;
     }
 
@@ -701,10 +692,10 @@ public sealed class DiscoverShelves(
     /// series, a director's films and a Wikidata set are ordered as held; and a shelf whole in one
     /// answer is ordered as it is answered.
     /// </summary>
-    private async Task<Outcome<ShelfPage>> AnsweredAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, CancellationToken ct)
+    private async Task<Outcome<ShelfPage>> AnsweredAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, CancellationToken ct, int size = CatalogueSearch.ShelfListed)
     {
         var held = LibraryShelf.Of(titles, record, viewerId);
-        var ask = new PageAsk(CatalogueSearch.MostOnShelf, CatalogueSearch.ShelfListed, page);
+        var ask = new PageAsk(CatalogueSearch.MostOnShelf, size, page);
         if (page > 1 && shelf.Source is ShelfSource.Collection or ShelfSource.TrendingWeek or ShelfSource.PopularHere or ShelfSource.ReadyHere)
             return Ok([]);
         switch (shelf.Source)

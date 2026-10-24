@@ -56,6 +56,14 @@ public sealed class ShowStore(
     private const string Images = "shows";
 
     private readonly ConcurrentDictionary<string, StoredShow> _held = new();
+
+    /// <summary>
+    /// The ids found unkept, each until when that is trusted: a listing asks after every title it shows
+    /// and most are kept nowhere, so a miss is remembered for a minute rather than read again.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _unkept = new(StringComparer.Ordinal);
+    private static readonly TimeSpan UnkeptFor = TimeSpan.FromMinutes(1);
+    private const int UnkeptHeld = 50_000;
     private readonly ConcurrentDictionary<string, Task<StoredShow?>> _asking = new();
 
     /// <summary>A portrait's file name, by the cast member's place in the billing.</summary>
@@ -86,7 +94,13 @@ public sealed class ShowStore(
     {
         if (!FilmStore.IsImdbId(imdbId)) return null;
         if (_held.TryGetValue(imdbId, out var held)) return held;
+        if (_unkept.TryGetValue(imdbId, out var until) && until > clock.GetUtcNow()) return null;
         var read = Read(imdbId);
+        if (read is null)
+        {
+            if (_unkept.Count >= UnkeptHeld) _unkept.Clear();
+            _unkept[imdbId] = clock.GetUtcNow() + UnkeptFor;
+        }
         if (read is not null)
         {
             _held[imdbId] = read;

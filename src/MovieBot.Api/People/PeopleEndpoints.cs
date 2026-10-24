@@ -150,12 +150,31 @@ public static class PeopleEndpoints
     /// </summary>
     public static TitleSummary WithPlays(
         this TitleSummary title, CinemaPerson? person, WatchRecord record, PersonDirectory people,
+        IReadOnlyList<ViewingRoom> viewing, DateTimeOffset now) =>
+        title.WithPlays(person, person is null ? null : record.EntryOf(person.UserId, title.Id), record.LastPlayed(title.Id), people, viewing, now);
+
+    /// <summary>
+    /// <see cref="WithPlays(TitleSummary, CinemaPerson?, WatchRecord, PersonDirectory, IReadOnlyList{ViewingRoom}, DateTimeOffset)"/>
+    /// for every title of a listing, from the person's entries and every title's last play read once.
+    /// </summary>
+    public static List<TitleSummary> WithPlays(
+        this IEnumerable<TitleSummary> titles, CinemaPerson? person, WatchRecord record, PersonDirectory people,
+        IReadOnlyList<ViewingRoom> viewing, DateTimeOffset now)
+    {
+        var entries = person is null
+            ? new Dictionary<string, WatchEntry>(StringComparer.Ordinal)
+            : record.Entries(person.UserId).ToDictionary(e => e.TitleId, e => e.Entry, StringComparer.Ordinal);
+        var plays = record.LastPlays();
+        return [.. titles.Select(t => t.WithPlays(person, entries.GetValueOrDefault(t.Id), plays.GetValueOrDefault(t.Id), people, viewing, now))];
+    }
+
+    private static TitleSummary WithPlays(
+        this TitleSummary title, CinemaPerson? person, WatchEntry? kept, TitlePlay? played, PersonDirectory people,
         IReadOnlyList<ViewingRoom> viewing, DateTimeOffset now)
     {
         var live = person is null ? null : Live(person.UserId, viewing, title.Id, title.DurationSeconds, now);
-        var entry = live ?? (person is null ? null : record.EntryOf(person.UserId, title.Id));
+        var entry = live ?? kept;
         var playing = viewing.FirstOrDefault(r => r.Playing && r.TitleId == title.Id);
-        var played = record.LastPlayed(title.Id);
 
         return title with
         {

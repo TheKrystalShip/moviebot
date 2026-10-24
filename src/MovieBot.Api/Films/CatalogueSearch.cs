@@ -346,27 +346,26 @@ public sealed partial class CatalogueSearch(
     }
 
     /// <summary>
-    /// A discovery in the reverse of the <paramref name="forward"/> order: that order read to its end, to
-    /// the request's limit, and served last first, so every page continues the one before it.
+    /// A discovery in the reverse of the <paramref name="forward"/> order: that order's titles read to
+    /// their end in one list, to the request's limit, and served last first, so every page continues the
+    /// one before it. Only the page served is named (<see cref="HitsAsync"/>).
     /// </summary>
     private async Task<Outcome<DiscoverAnswer>> ReversedAsync(DiscoverRequest request, string forward, CancellationToken ct)
     {
-        if (request.Page < 1 || request.Page > PagesListed) return Invalid<DiscoverAnswer>($"Page is 1 to {PagesListed}.");
-        var limit = Math.Clamp(request.Limit, 1, MostListed);
-        var hits = new List<TitleHit>();
-        DiscoverAnswer? first = null;
-        for (var page = 1; page <= PagesListed && hits.Count < limit; page++)
-        {
-            var answer = await DiscoverAsync(request with { Sort = forward, Page = page }, ct);
-            if (answer.Value is not { } found) return answer;
-            first ??= found;
-            hits.AddRange(found.Hits);
-            if (found.Next is null) break;
-        }
-        var all = hits.Take(limit).Reverse().ToList();
-        var ask = new PageAsk(limit, Math.Min(limit, ResultsListed), request.Page);
-        return Outcome<DiscoverAnswer>.Ok(new DiscoverAnswer(first!.Kind, first.Resolved with { Sort = request.Sort! },
-            [.. all.Skip(ask.Skip).Take(ask.Take)], ask.Next(all.Count > ask.Skip + ask.Size)));
+        var planned = await PlanAsync(request with { Sort = forward }, ct);
+        if (planned.Value is not { } plan) return planned.Carry<DiscoverAnswer>();
+
+        var whole = new PageAsk(plan.Ask.Limit, plan.Ask.Limit, 1);
+        Outcome<TitlePage> listed = plan.Seed is { } seed
+            ? await SimilarToAsync(seed.Key, plan.Queries, plan.Sort, whole, ct)
+            : await ListedAsync("discover", DiscoverKept, plan.Queries, whole, ct);
+        if (listed.Value is not { } read) return listed.Carry<DiscoverAnswer>();
+
+        var reversed = read.Titles.AsEnumerable().Reverse().ToList();
+        var ask = plan.Ask;
+        var hits = RatedAtLeast(await HitsAsync([.. reversed.Skip(ask.Skip).Take(ask.Take)], ask.Take, ct), plan.MinRating);
+        return Outcome<DiscoverAnswer>.Ok(new DiscoverAnswer(plan.Kind, plan.Resolved with { Sort = request.Sort! },
+            hits, ask.Next(reversed.Count > ask.Skip + ask.Size)));
     }
 
     /// <summary>

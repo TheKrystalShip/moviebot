@@ -156,6 +156,13 @@ public sealed class WatchRecord : IPlayHistory
 
     public DateTimeOffset? LastPlayedAt(string titleId) => LastPlayed(titleId)?.LastPlayedAt;
 
+    /// <summary>Every title's last play, by title id, in one read, for a listing that shows them all.</summary>
+    public IReadOnlyDictionary<string, TitlePlay> LastPlays() =>
+        _database.Read(c => c.Query(
+            "SELECT title_id, last_played_at, last_played_by FROM title_plays",
+            r => (Id: r.GetString(0), Play: new TitlePlay { LastPlayedAt = r.GetInstant(1), LastPlayedBy = r.GetString(2) })))
+            .ToDictionary(p => p.Id, p => p.Play, StringComparer.Ordinal);
+
     private static void Put(SqliteConnection c, string userId, string titleId, double position, double duration, DateTimeOffset at) =>
         c.Execute(
             "INSERT OR REPLACE INTO watch_progress (user_id, title_id, position_seconds, duration_seconds, last_watched_at, finished) "

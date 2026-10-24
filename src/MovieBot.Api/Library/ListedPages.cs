@@ -264,13 +264,29 @@ public static class ListedPages
         var person = PeopleEndpoints.Person(context);
         var viewing = sessions.Viewing();
         var now = clock.GetUtcNow();
-        return [.. library.Titles()
-            .Select(t => (posters.Listed(t) with
+        // A show's episodes share its description, its shelf and its poster, so each is read once per
+        // title id, and once for the listing.
+        var described = new Dictionary<(TitleKind, string?), (FilmFacts? Details, TitleCategory? Category, string? Poster, string? Version)>();
+        return library.Titles()
+            .Select(t =>
             {
-                // An episode is described by its show.
-                Details = t.Kind == TitleKind.Show ? shows.Facts(t.Film?.ImdbId) : films.Facts(t.Film?.ImdbId),
-                Category = categories.Of(t.Kind, t.Film?.ImdbId),
-            }).WithPlays(person, record, people, viewing, now))];
+                var key = (t.Kind, t.Film?.ImdbId);
+                if (!described.TryGetValue(key, out var d))
+                {
+                    // A title with no kept poster keeps its own, which is no other title's.
+                    var posted = posters.Listed(t);
+                    var kept = !ReferenceEquals(posted, t);
+                    // An episode is described by its show.
+                    d = (t.Kind == TitleKind.Show ? shows.Facts(t.Film?.ImdbId) : films.Facts(t.Film?.ImdbId),
+                        categories.Of(t.Kind, t.Film?.ImdbId), kept ? posted.Poster : null, kept ? posted.PosterVersion : null);
+                    if (t.Film?.ImdbId is not null) described[key] = d;
+                    else return posted with { Details = d.Details, Category = d.Category };
+                }
+                return d.Poster is null
+                    ? t with { Details = d.Details, Category = d.Category }
+                    : t with { Details = d.Details, Category = d.Category, Poster = d.Poster, PosterVersion = d.Version };
+            })
+            .WithPlays(person, record, people, viewing, now);
     }
 
     /// <summary>The order a route's <c>sort</c> names, the first of <paramref name="orders"/> when it names none; null for a name none has.</summary>

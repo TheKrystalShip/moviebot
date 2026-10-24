@@ -97,6 +97,6 @@ public static class ShowEndpoints
         var person = PeopleEndpoints.Person(context);
         var viewing = sessions.Viewing();
         var now = clock.GetUtcNow();
-        return [.. library.Titles().Select(t => t.WithPlays(person, record, people, viewing, now))];
+        return library.Titles().WithPlays(person, record, people, viewing, now);
     }
 }

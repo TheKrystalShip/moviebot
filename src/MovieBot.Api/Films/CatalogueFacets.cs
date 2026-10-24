@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Api.Library;
@@ -290,14 +291,35 @@ public sealed partial class CatalogueSearch
         return await AnyListedAsync(queries, new PageAsk(MostListed, ResultsListed, 1), ct);
     }
 
+    /// <summary>
+    /// How long a question's answer to whether it lists anything is held in memory. A facet is a probe
+    /// of many questions, each a kept page read and parsed to learn one thing, and whether a question
+    /// lists anything at all moves far slower than the page does.
+    /// </summary>
+    private static readonly TimeSpan ProbeHeld = TimeSpan.FromHours(1);
+
+    /// <summary>The most probe answers held; past it the held answers are let go and asked again.</summary>
+    private const int ProbesHeld = 20_000;
+
+    private readonly ConcurrentDictionary<string, (bool Lists, DateTimeOffset Until)> _probed = new(StringComparer.Ordinal);
+
     /// <summary>Whether any of the questions has a title on its first page, in the database's own order; null when the database could not answer.</summary>
     private async Task<bool?> AnyListedAsync(IEnumerable<DiscoverQuery> queries, PageAsk ask, CancellationToken ct)
     {
+        var now = clock.GetUtcNow();
         foreach (var query in queries)
         {
             var asked = query.Sort == DiscoverSorts.Rating ? query with { Sort = DiscoverSorts.Popular } : query;
+            var name = Canonical(asked, ask.Size, 1);
+            if (_probed.TryGetValue(name, out var held) && held.Until > now)
+            {
+                if (held.Lists) return true;
+                continue;
+            }
             var listed = await DiscoveredAsync("discover", DiscoverKept, asked, ask with { Page = 1 }, ct);
             if (listed.Value is not { } page) return null;
+            if (_probed.Count >= ProbesHeld) _probed.Clear();
+            _probed[name] = (page.Titles.Count > 0, now + ProbeHeld);
             if (page.Titles.Count > 0) return true;
         }
         return false;

@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.79.1] - 2026-10-25
+
+### Fixed
+- The API answers a search, a filter or a sort several times faster: the library's pages, `/api/titles`
+  and `/api/shows` read the watch record once per listing and describe a show once for all its
+  episodes; Lowest rated reads its ranked list once and names only the page served; a facet's
+  probes are held in memory for an hour; and the film, show and glance stores remember a title they
+  do not keep for a minute instead of reading for it on every page.
+
 ## [3.79.0] - 2026-10-25
 
 ### Added
