@@ -4,6 +4,37 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.67.0] - 2026-10-24
+
+### Added
+- Discover reads what is typed as a question of the catalogue, in any order: counts and orders (`top
+  10`, `best`, `newest`), kinds, years, ranges and decades, runtime bounds, genres and languages by the
+  film database's own names, people (`with`, `starring`, `by`), subjects (`about`), likeness (`like`),
+  streaming services (`on netflix`), awards, adaptations, places and subgenres. `GET
+  /api/catalogue/ask` answers the reading as parts and the titles it found, or that the words are a
+  title's name, which the name search answers as before.
+- **Ask the assistant** on Discover when a search finds nothing worth showing: it opens the assistant
+  with the words typed already sent.
+- Discoveries, questions and shelves go on past their first page (`page`, `next`, at most 25 pages),
+  and the shelf, filter and question grids load the next page as they end.
+- IMDb's non-commercial datasets are imported daily (`imdb_titles`, the `Imdb` settings): a question
+  or shelf ordered by rating ranks by IMDb's votes with a floor scaled to the question, widened by
+  IMDb's own matches for a genre and years, and every title view carries `imdbRating` and `imdbVotes`
+  beside the film database's `rating`.
+- Wikidata (the `Wikidata` settings), asked in the background weekly and never while a page waits:
+  shelves of award winners and nominees, adaptations by author, films set in or filmed in a place, and
+  well-filled subgenres, in new Awards, Adaptations and Places sections; a film's `awards` and
+  `basedOn`.
+- A film or show carries its trailers, where it streams in `Tmdb:WatchRegion` (logos served from here),
+  recommendations, reviews, its logo and tagline, a film's budget and revenue, and its keywords with
+  their ids, all from the one description call. Discover has a Streaming section of the region's
+  services.
+
+### Changed
+- `Tmdb:WatchRegion` names the country streaming is asked about, `Tmdb:Region` when empty, so
+  certificates keep the ratings the shelves name. hotbox streams in Spain.
+- A film's `keywords` are `{id, name}`.
+
 ## [3.66.0] - 2026-10-24
 
 ### Changed
