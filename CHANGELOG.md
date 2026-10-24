@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.80.0] - 2026-10-25
+
+### Added
+- A person's page and a genre's page on Discover have Sort by in their filter drawer, on the site and
+  on a television: Most and Least popular (a person's best known first, as before, and its reverse),
+  Highest and Lowest rated, Newest and Oldest first, kept in the address. `sort` on
+  `/api/catalogue/people/{personId}` and `/api/catalogue/genre` orders them, and their facets list
+  the orders as `sorts`.
+
 ## [3.79.2] - 2026-10-25
 
 ### Fixed

@@ -207,28 +207,30 @@ const FILTER_SORTS = [
 ];
 
 /**
- * The order of what Discover shows, when what it shows is a shelf or the filter's answers, and the orders
- * the drawer offers for it, which are the ones the answer's facets say it is served in (`sorts`). A
- * shelf's order is the address's (`sort`), its own when it names none, so it holds through a reload and
- * Back and is no other shelf's; the filter's is the address's, else the one the person last picked
- * there, and a pick is kept as theirs. `{sort, orders, order, pick(key, dir)}`, `sort` the route's name
- * for the order (null for a shelf's own), or null on a page with no order.
+ * The order of what Discover shows, when what it shows is a list in an order (a shelf, a person's or a
+ * genre's titles, or the filter's answers), and the orders the drawer offers for it, which are the ones
+ * the answer's facets say it is served in (`sorts`). A shelf's, a person's and a genre's order is the
+ * address's (`sort`), the list's own (the first it is served in) when it names none, so it holds
+ * through a reload and Back and is no other list's; the filter's is the address's, else the one the
+ * person last picked there, and a pick is kept as theirs. `{sort, orders, order, pick(key, dir)}`,
+ * `sort` the route's name for the order (null for a list's own), or null on a page with no order.
  */
-export function useDiscoverOrder(query, sorts, { shelf, filtering }) {
+export function useDiscoverOrder(query, sorts, { listed, filtering }) {
   const [picked, keep] = useSort(SORTED.filter, FILTER_SORTS);
-  if (!shelf && !filtering) return null;
+  if (!listed && !filtering) return null;
+  const own = listed ? sorts[0] || "order" : null;
   const named = query.get("sort");
-  const sort = named || (shelf ? "order" : sortOf(picked) || "popular");
+  const sort = named || (listed ? own : sortOf(picked) || "popular");
   const orders = sorts.map(orderOf);
   const pick = (key, dir) => {
     const next = orders.find((o) => o.key === key && o.dir === dir);
     if (!next) return;
     if (filtering) keep(key, dir);
     const address = new URLSearchParams(query);
-    if (next.sort === "order") address.delete("sort"); else address.set("sort", next.sort);
+    if (next.sort === own) address.delete("sort"); else address.set("sort", next.sort);
     navigate("/discover?" + address.toString(), { replace: true });
   };
-  return { sort: sort === "order" ? null : sort, orders, order: orderOf(sort), pick };
+  return { sort: sort === own ? null : sort, orders, order: orderOf(sort), pick };
 }
 
 /**

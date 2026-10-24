@@ -28,7 +28,8 @@ import {
  *
  * The filter drawer in the field filters what the page shows with nothing typed: the catalogue, a
  * person's titles, a genre's, a shelf and a category's shelves, by the sections the answer's facets
- * report, and on a shelf and the filter's answers their order (`useDiscoverOrder`). Picking anything on
+ * report, and on a shelf, a person's or a genre's titles and the filter's answers their order
+ * (`useDiscoverOrder`). Picking anything on
  * the front opens the filter's answers. Back goes to the drawer first, and
  * the page under the open drawer is inert, so the remote's arrows stay in it.
  */
@@ -42,6 +43,8 @@ export function TvDiscover({ query }) {
   const category = (query.get("browse") || "").trim();
   const filtering = query.has("filter");
   const browsing = !q && !!(person || genre || shelf || category || filtering);
+  const showsPerson = !q && !!person;
+  const showsGenre = !q && !person && !!genre;
   const showsShelf = !q && !person && !genre && !!shelf;
   const showsFilter = !q && !person && !genre && !shelf && !category && filtering;
   const picks = readPicks(query);
@@ -86,7 +89,7 @@ export function TvDiscover({ query }) {
           : category ? (section && !section.series ? () => api.discoverSectionFacets(category, asked) : null)
             : () => api.catalogueDiscoverFacets(filterQuestion(picks));
   const facets = useFacets(facetsFor, [q, person, genre, genreKind, genreCategory, shelf, category, !!section, pickKey].join("|"));
-  const ordering = useDiscoverOrder(query, (facets && facets.sorts) || [], { shelf: showsShelf, filtering: showsFilter });
+  const ordering = useDiscoverOrder(query, (facets && facets.sorts) || [], { listed: showsShelf || showsPerson || showsGenre, filtering: showsFilter });
   const sections = facetsFor ? sectionsOf(facets, picks, { watched: false }) : [];
   const change = (next) => {
     const nextPicks = picksOfValues(next);
@@ -107,8 +110,8 @@ export function TvDiscover({ query }) {
         placeholder="Any movie or show" filters={filters} inputProps={{ className: "kc-tv-search__input", "data-tv-initial": q || browsing ? undefined : "" }} />
 
       <div className="kc-tvd__answer" inert={drawer.open ? "" : undefined} style={{ display: "contents" }}>
-      {!q && person && <PersonWork key={person} personId={person} picks={picks} where={where} />}
-      {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} picks={picks} where={where} />}
+      {showsPerson && <PersonWork key={person} personId={person} sort={ordering.sort} picks={picks} where={where} />}
+      {showsGenre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} sort={ordering.sort} picks={picks} where={where} />}
 
       {showsShelf && <TvShelf key={shelf} id={shelf} sort={ordering.sort} picks={picks} where={where} />}
       {!q && !person && !genre && !shelf && category && <TvCategory key={category} id={category} index={index} picks={picks} where={where} />}
@@ -161,9 +164,9 @@ function Posters({ titles, where }) {
 }
 
 /** Everything one person is credited on, best known first, under their portrait and name. */
-function PersonWork({ personId, picks, where }) {
+function PersonWork({ personId, sort, picks, where }) {
   const asked = apiPicks(picks);
-  const work = useLoad(() => api.cataloguePerson(personId, asked), [personId, JSON.stringify(asked)]);
+  const work = useLoad(() => api.cataloguePerson(personId, sort ? { ...asked, sort } : asked), [personId, sort, JSON.stringify(asked)]);
   const p = work.data;
   if (work.error && !p) return <div className="kc-tv-pad"><Failed error={work.error} onRetry={work.reload} /></div>;
   if (!p) return null;
@@ -179,9 +182,9 @@ function PersonWork({ personId, picks, where }) {
 }
 
 /** The catalogue's most popular films or shows in one genre; of its anime alone with `category`. */
-function GenreTitles({ kind, genre, category, picks, where }) {
+function GenreTitles({ kind, genre, category, sort, picks, where }) {
   const asked = apiPicks(picks);
-  const listed = useLoad(() => api.catalogueGenre(kind, genre, category, asked), [kind, genre, category, JSON.stringify(asked)]);
+  const listed = useLoad(() => api.catalogueGenre(kind, genre, category, sort ? { ...asked, sort } : asked), [kind, genre, category, sort, JSON.stringify(asked)]);
   const g = listed.data;
   if (listed.error && !g) return <div className="kc-tv-pad"><Failed error={listed.error} onRetry={listed.reload} /></div>;
   if (!g) return null;

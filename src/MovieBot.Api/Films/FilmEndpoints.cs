@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using Microsoft.AspNetCore.Mvc;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
@@ -18,6 +19,29 @@ public static class FilmEndpoints
         await store.GetAsync(imdbId, ct) is { } stored ? Viewed(store, stored, shelf, categories, facts, imdbId) : null;
 
     /// <summary>What a filter reads off a title a browse lists; a browse carries no runtime.</summary>
+    /// <summary>
+    /// The orders a person's titles and a genre's are served in, the one they are listed in first: the
+    /// best known first for a person (the most voted) and the most popular first for a genre, then its
+    /// reverse, the best and the lowest rated, and the newest and the oldest; a title with no rating
+    /// or no year is last in an order by it.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> ListOrders =
+        [DiscoverSorts.Popular, DiscoverSorts.LeastPopular, DiscoverSorts.Rating, ReversedSorts.Lowest, DiscoverSorts.Newest, DiscoverSorts.Oldest];
+
+    /// <summary>A person's or a genre's titles in the order <paramref name="sort"/> names, their own when it names none.</summary>
+    internal static List<CatalogueTitleView> Ordered(List<CatalogueTitleView> titles, string? sort) => sort switch
+    {
+        DiscoverSorts.LeastPopular => [.. Enumerable.Reverse(titles)],
+        DiscoverSorts.Rating => [.. titles.OrderBy(t => t.Rating is null).ThenByDescending(t => t.Rating).ThenByDescending(t => t.Votes)],
+        ReversedSorts.Lowest => [.. titles.OrderBy(t => t.Rating is null).ThenBy(t => t.Rating).ThenByDescending(t => t.Votes)],
+        DiscoverSorts.Newest => [.. titles.OrderBy(t => t.Year is null).ThenByDescending(t => t.Year)],
+        DiscoverSorts.Oldest => [.. titles.OrderBy(t => t.Year is null).ThenBy(t => t.Year)],
+        _ => titles,
+    };
+
+    private static IResult BadSort() => Results.Json(new ErrorReply($"Sort is {string.Join(", ", ListOrders)}."),
+        ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status400BadRequest);
+
     internal static FacetTraits Traits(CatalogueTitleView t) =>
         new(t.Kind, t.Category == TitleCategory.Anime, CinemaGenres.Of(t.Genres), t.Year, null, t.Rating, t.OriginalLanguage);
 
@@ -134,17 +158,18 @@ public static class FilmEndpoints
         })
             .RequireAction(CinemaActions.Watch);
 
-        // A person and the films and shows they are credited on, best known first, by the film
-        // database's id for them, which a cast member on a film's or show's page carries.
-        app.MapGet("/api/catalogue/people/{personId:int}", async (int personId, string? kind, string? category, [FromQuery] string[]? anyGenre,
+        // A person and the films and shows they are credited on, best known first or in the order sort
+        // names, by the film database's id for them, which a cast member on a film's or show's page carries.
+        app.MapGet("/api/catalogue/people/{personId:int}", async (int personId, string? sort, string? kind, string? category, [FromQuery] string[]? anyGenre,
             [FromQuery] string[]? decade, [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
             Catalogue catalogue, TitleCategories categories, TimeProvider clock, CancellationToken ct) =>
         {
             var (picks, refusal) = Picked(kind, category, anyGenre, decade, length, minRating, language, NoneFixed, clock);
             if (picks is null) return refusal!;
+            if (!ListOrders.Contains(sort ?? ListOrders[0])) return BadSort();
             var person = await PersonViewAsync(personId, catalogue, categories, ct);
             if (person.View is not { } view) return person.Refusal!;
-            return Results.Ok(view with { Titles = WholeFacets.Filter(view.Titles, Traits, picks) });
+            return Results.Ok(view with { Titles = Ordered(WholeFacets.Filter(view.Titles, Traits, picks), sort) });
         }).RequireAction(CinemaActions.Watch);
 
         // Which options each section of a person's titles holds, with the filter's picks on it.
@@ -157,21 +182,23 @@ public static class FilmEndpoints
             var person = await PersonViewAsync(personId, catalogue, categories, ct);
             if (person.View is not { } view) return person.Refusal!;
             var names = await search.LanguageNamesAsync(ct);
-            return Results.Ok(WholeFacets.Facets([.. view.Titles.Select(Traits)], picks, new HashSet<string>(), names));
+            return Results.Ok(WholeFacets.Facets([.. view.Titles.Select(Traits)], picks, new HashSet<string>(), names) with { Sorts = ListOrders });
         }).RequireAction(CinemaActions.Watch);
 
-        // The most popular films or shows in a genre, by the genre's name: the one call a shelf of a
-        // genre makes to lead on into the catalogue. With category=anime, the anime among them.
-        app.MapGet("/api/catalogue/genre", async (string? kind, string? name, string? category, [FromQuery] string[]? anyGenre,
+        // The most popular films or shows in a genre, by the genre's name, or in the order sort names:
+        // the one call a shelf of a genre makes to lead on into the catalogue. With category=anime, the
+        // anime among them.
+        app.MapGet("/api/catalogue/genre", async (string? kind, string? name, string? category, string? sort, [FromQuery] string[]? anyGenre,
             [FromQuery] string[]? decade, [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
             Catalogue catalogue, TitleCategories categories, TimeProvider clock, CancellationToken ct) =>
         {
             var fixedBy = GenreFixed(category);
             var (picks, refusal) = Picked(null, null, anyGenre, decade, length, minRating, language, fixedBy, clock);
             if (picks is null) return refusal!;
+            if (!ListOrders.Contains(sort ?? ListOrders[0])) return BadSort();
             var genre = await GenreViewAsync(kind, name, category, catalogue, categories, ct);
             if (genre.View is not { } view) return genre.Refusal!;
-            return Results.Ok(view with { Titles = WholeFacets.Filter(view.Titles, Traits, picks) });
+            return Results.Ok(view with { Titles = Ordered(WholeFacets.Filter(view.Titles, Traits, picks), sort) });
         }).RequireAction(CinemaActions.Watch);
 
         // Which options each section of a genre's titles holds, with the filter's picks on it; the genre and the kind are its own.
@@ -185,7 +212,7 @@ public static class FilmEndpoints
             var genre = await GenreViewAsync(kind, name, category, catalogue, categories, ct);
             if (genre.View is not { } view) return genre.Refusal!;
             var names = await search.LanguageNamesAsync(ct);
-            return Results.Ok(WholeFacets.Facets([.. view.Titles.Select(Traits)], picks, fixedBy, names));
+            return Results.Ok(WholeFacets.Facets([.. view.Titles.Select(Traits)], picks, fixedBy, names) with { Sorts = ListOrders });
         }).RequireAction(CinemaActions.Watch);
 
         // A person's portrait, open like any other artwork.

@@ -38,14 +38,15 @@ export const DISCOVER_FIELD = "kc-discover-field";
  * question of the catalogue (`/api/catalogue/ask`): when they are one, the reading as a line of parts
  * and the titles it found come first. Ask the assistant is offered when nothing came back, when the
  * question was refused, and when the words are no question and no title found carries them. With a person (`person`, the film database's id for them) instead, the films and shows
- * they are credited on, best known first; with a genre (`genre` and `kind`), the catalogue's most
- * popular films or shows in it. Every answer leads to its own page. What is shown is in the address,
+ * they are credited on, best known first unless another order is picked; with a genre (`genre` and
+ * `kind`), the catalogue's most popular films or shows in it, in the same way. Every answer leads to its own page. What is shown is in the address,
  * so it can be shared and reloaded.
  *
  * The filter drawer in the field filters whatever the page answers: Discover's catalogue, a question, a
  * person's titles, a genre's, a shelf and a category's shelves. Its sections are the ones the answer's
- * facets report, and picking anything with nothing typed opens the filter's answers. On a shelf and on
- * the filter's answers, which are lists in an order, it holds their order too (`useDiscoverOrder`). With picks on a
+ * facets report, and picking anything with nothing typed opens the filter's answers. On a shelf, a person's or a
+ * genre's titles and the filter's answers, which are lists in an order, it holds their order too
+ * (`useDiscoverOrder`). With picks on a
  * search, the question's titles alone are shown, since nothing else found by name answers them.
  */
 export function Discover({ query }) {
@@ -67,6 +68,8 @@ export function Discover({ query }) {
   const pickKey = JSON.stringify(asked);
   const narrowed = pickCount(picks) > 0;
   const [hideWatched, setHideWatched] = useHideWatched();
+  const showsPerson = !q && !!person;
+  const showsGenre = !q && !person && !!genre;
   const showsShelf = !q && !person && !genre && !!shelf;
   const showsFilter = !q && !person && !genre && !shelf && !category && filtering;
 
@@ -131,7 +134,7 @@ export function Discover({ query }) {
           : category ? (section && !section.series ? () => api.discoverSectionFacets(category, asked) : null)
             : online ? () => api.catalogueDiscoverFacets(filterQuestion(picks)) : null;
   const facets = useFacets(facetsFor, [q, person, genre, genreKind, genreCategory, shelf, category, !!section, online, pickKey].join("|"));
-  const ordering = useDiscoverOrder(query, (facets && facets.sorts) || [], { shelf: showsShelf, filtering: showsFilter });
+  const ordering = useDiscoverOrder(query, (facets && facets.sorts) || [], { listed: showsShelf || showsPerson || showsGenre, filtering: showsFilter });
   const sections = facetsFor ? sectionsOf(facets, picks, { watched: !person && !genre }) : [];
   // A search that is no question has nothing to filter; its drawer appears once its facets say otherwise.
   const filterable = sections.some((s) => s.kind !== "toggle") && (!q || narrowed || (facets && facets.sections.length > 0));
@@ -157,8 +160,8 @@ export function Discover({ query }) {
         disabled={!online} placeholder="Any movie or show" filters={drawer} />
       </div>
 
-      {!q && person && <PersonWork key={person} personId={person} picks={picks} where={where} />}
-      {!q && !person && genre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} picks={picks} where={where} />}
+      {showsPerson && <PersonWork key={person} personId={person} sort={ordering.sort} picks={picks} where={where} />}
+      {showsGenre && <GenreTitles key={genreKind + genre + genreCategory} kind={genreKind} genre={genre} category={genreCategory} sort={ordering.sort} picks={picks} where={where} />}
       {showsShelf && <ShelfPage key={shelf} id={shelf} sort={ordering.sort} picks={picks} where={where} />}
       {!q && !person && !genre && !shelf && category && <CategoryPage key={category} id={category} index={index} picks={picks} where={where} />}
       {showsFilter && <FilterPage sort={ordering.sort} picks={picks} where={where} />}
@@ -219,9 +222,9 @@ const KNOWN_AS = { Acting: "Actor", Directing: "Director", Writing: "Writer", Pr
  * The films and shows one person is credited on, best known first, each card with the part they
  * played or the job they did, marked and played like any other answer when the library holds it.
  */
-function PersonWork({ personId, picks, where }) {
+function PersonWork({ personId, sort, picks, where }) {
   const asked = apiPicks(picks);
-  const work = useLoad(() => api.cataloguePerson(personId, asked), [personId, JSON.stringify(asked)]);
+  const work = useLoad(() => api.cataloguePerson(personId, sort ? { ...asked, sort } : asked), [personId, sort, JSON.stringify(asked)]);
   const p = work.data;
   return (
     <>
@@ -252,9 +255,9 @@ function PersonWork({ personId, picks, where }) {
 }
 
 /** The catalogue's most popular films or shows in one genre, as the film database names it; of its anime alone with `category`. */
-function GenreTitles({ kind, genre, category, picks, where }) {
+function GenreTitles({ kind, genre, category, sort, picks, where }) {
   const asked = apiPicks(picks);
-  const listed = useLoad(() => api.catalogueGenre(kind, genre, category, asked), [kind, genre, category, JSON.stringify(asked)]);
+  const listed = useLoad(() => api.catalogueGenre(kind, genre, category, sort ? { ...asked, sort } : asked), [kind, genre, category, sort, JSON.stringify(asked)]);
   const g = listed.data;
   return (
     <>

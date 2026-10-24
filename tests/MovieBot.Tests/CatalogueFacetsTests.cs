@@ -222,6 +222,20 @@ public sealed class CatalogueFacetsTests(SessionFixture fixture) : IClassFixture
     }
 
     [Fact]
+    public async Task A_persons_titles_are_served_in_the_order_asked_and_the_facets_list_the_orders()
+    {
+        var own = await Get<CataloguePersonView>($"/api/catalogue/people/{PrismPerson}");
+        var newest = await Get<CataloguePersonView>($"/api/catalogue/people/{PrismPerson}?sort=newest");
+        var reversed = await Get<CataloguePersonView>($"/api/catalogue/people/{PrismPerson}?sort=least-popular");
+        var facets = await Get<CatalogueFacetsView>($"/api/catalogue/people/{PrismPerson}/facets");
+
+        Assert.Equal(own.Titles.Select(t => t.Year).Where(y => y is not null).OrderDescending(), newest.Titles.Select(t => t.Year).Where(y => y is not null));
+        Assert.Equal(own.Titles.Select(t => t.Title).Reverse(), reversed.Titles.Select(t => t.Title));
+        Assert.Equal(["popular", "least-popular", "rating", "lowest", "newest", "oldest"], facets.Sorts);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Signed().GetAsync($"/api/catalogue/people/{PrismPerson}?sort=shortest")).StatusCode);
+    }
+
+    [Fact]
     public async Task A_genres_titles_are_narrowed_and_faceted_and_its_genre_is_its_own()
     {
         var picked = await Get<CatalogueGenreView>("/api/catalogue/genre?kind=film&name=crime&decade=1990&language=en");
