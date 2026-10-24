@@ -82,10 +82,7 @@ public sealed partial class CatalogueSearch
         var languages = await LanguagesAsync(ct);
         if (films is null || shows is null) return Unavailable<QuestionVocabulary>("The film database could not be asked about its genres.");
         if (languages.Value is not { } known) return languages.Carry<QuestionVocabulary>();
-
-        // A region whose services cannot be listed costs the questions that name one and nothing else.
-        var services = await streaming.AllAsync(ct);
-        return Outcome<QuestionVocabulary>.Ok(new QuestionVocabulary { FilmGenres = films, ShowGenres = shows, Languages = known, Providers = services });
+        return Outcome<QuestionVocabulary>.Ok(new QuestionVocabulary { FilmGenres = films, ShowGenres = shows, Languages = known });
     }
 
     private sealed record NamedAs(string Name, bool Person);

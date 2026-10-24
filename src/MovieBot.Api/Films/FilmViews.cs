@@ -50,11 +50,8 @@ public sealed record FilmView
     /// <summary>What the film took, in US dollars; absent when the database does not know.</summary>
     public long? Revenue { get; init; }
 
-    /// <summary>The trailers and teasers on YouTube, the best first; empty while the description is being asked for them.</summary>
+    /// <summary>The official trailers and teasers on YouTube, the best first; empty while the description is being asked for them.</summary>
     public List<TrailerView> Trailers { get; init; } = [];
-
-    /// <summary>Where it can be watched in the configured region (JustWatch's data); absent when the database lists nothing there.</summary>
-    public WatchView? Watch { get; init; }
 
     /// <summary>The titles the database recommends after it, joined with the library like any list of titles.</summary>
     public List<TitleHitView> Recommendations { get; init; } = [];
@@ -137,7 +134,7 @@ public static class FilmViews
     /// <summary>Where a kept image is served from. Artwork is not the film, so it needs no token.</summary>
     public static string ImageUrl(string imdbId, string file) => $"/films/{imdbId}/{file}";
 
-    public static FilmView? View(this FilmStore store, StoredFilm stored, string? libraryId = null, bool watched = false, WikidataTitleFacts? wikidata = null, StreamingServices? streaming = null)
+    public static FilmView? View(this FilmStore store, StoredFilm stored, string? libraryId = null, bool watched = false, WikidataTitleFacts? wikidata = null)
     {
         if (stored.Details is not { } d) return null;
         string? Image(string file) => store.HasImage(d.ImdbId, file) ? ImageUrl(d.ImdbId, file) : null;
@@ -179,7 +176,6 @@ public static class FilmViews
             Budget = d.Budget,
             Revenue = d.Revenue,
             Trailers = TitleExtrasViews.Of(d.Trailers),
-            Watch = streaming?.View(d.Providers),
             Reviews = TitleExtrasViews.Of(d.Reviews),
             ReviewCount = d.ReviewCount,
             LibraryId = libraryId,

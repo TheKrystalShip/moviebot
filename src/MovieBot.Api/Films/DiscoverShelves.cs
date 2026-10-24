@@ -260,7 +260,6 @@ public sealed class DiscoverShelves(
     ShowStore shows,
     TitleCategories categories,
     WikidataSets wikidata,
-    StreamingServices streaming,
     TimeProvider clock)
 {
     /// <summary>How many shelves of what a viewer watched their tab shows.</summary>
@@ -276,7 +275,6 @@ public sealed class DiscoverShelves(
         new("moods", "Moods", "smile"),
         new("movies", "Movies", "trophy"),
         new("shows", "TV Shows", "tv"),
-        new("streaming", "Streaming", "tv-minimal-play"),
         new("genres", "Genres", "shapes"),
         new("themes", "Themes", "tags"),
         new("awards", "Awards", "award"),
@@ -297,10 +295,9 @@ public sealed class DiscoverShelves(
     /// <summary>The languages the filter offers, besides any.</summary>
     public static readonly IReadOnlyList<LanguageOptionView> FilterLanguages =
     [
-        new("en", "English"), new("es", "Spanish"), new("ca", "Catalan"), new("fr", "French"), new("it", "Italian"),
-        new("de", "German"), new("pt", "Portuguese"), new("ja", "Japanese"), new("ko", "Korean"), new("zh", "Chinese"),
-        new("hi", "Hindi"), new("sv", "Swedish"), new("da", "Danish"), new("no", "Norwegian"), new("tr", "Turkish"),
-        new("th", "Thai"),
+        new("en", "English"), new("zh", "Chinese"), new("da", "Danish"), new("fr", "French"), new("de", "German"),
+        new("hi", "Hindi"), new("it", "Italian"), new("ja", "Japanese"), new("ko", "Korean"), new("no", "Norwegian"),
+        new("pt", "Portuguese"), new("es", "Spanish"), new("sv", "Swedish"), new("th", "Thai"), new("tr", "Turkish"),
     ];
 
     /// <summary>The database's genres for talk, news and reality shows, which no shelf or filter offers.</summary>
@@ -328,8 +325,7 @@ public sealed class DiscoverShelves(
         var titles = library.Titles();
         var held = LibraryShelf.Of(titles, record, viewerId);
         var personal = Personal(viewerId, titles);
-        await streaming.AllAsync(ct);
-        var shown = Every().Where(s => (s.Season is null || s.Season.Holds(today)) && Kept(s)).ToList();
+        var shown = Fixed.Where(s => (s.Season is null || s.Season.Holds(today)) && Kept(s)).ToList();
         var seasonal = shown.Where(s => s.Season is not null).ToList();
 
         // What a tile draws: every mood and series, and the first shelves of each category.
@@ -465,7 +461,7 @@ public sealed class DiscoverShelves(
         if (page < 1 || page > CatalogueSearch.PagesListed) return Outcome<ShelfView>.Failed(Problem.Invalid, $"Page is 1 to {CatalogueSearch.PagesListed}.");
         if (sort is not null && !Sorts.Contains(sort)) return Outcome<ShelfView>.Failed(Problem.Invalid, "Sort is rating, newest or oldest.");
         var titles = library.Titles();
-        var shelf = ById.GetValueOrDefault(id) ?? Streaming().FirstOrDefault(s => s.Id == id) ?? Personal(viewerId, titles).FirstOrDefault(s => s.Id == id) ?? LikeShelf(id, titles);
+        var shelf = ById.GetValueOrDefault(id) ?? Personal(viewerId, titles).FirstOrDefault(s => s.Id == id) ?? LikeShelf(id, titles);
         if (shelf is null) return Outcome<ShelfView>.Failed(Problem.NotFound, "There is no shelf by that name.");
 
         var listed = await TitlesAsync(shelf, viewerId, titles, page, sort, ct);
@@ -490,59 +486,12 @@ public sealed class DiscoverShelves(
     {
         var unanswered = 0;
         var titles = library.Titles();
-        await streaming.AllAsync(ct);
-        foreach (var shelf in Every())
+        foreach (var shelf in Fixed)
         {
             ct.ThrowIfCancellationRequested();
             if ((await TitlesAsync(shelf, null, titles, 1, null, ct)).Value is null) unanswered++;
         }
         return unanswered;
-    }
-
-    /// <summary>The shelves the same for everybody: the fixed ones, then those of the region's streaming services.</summary>
-    private List<Shelf> Every() => [.. Fixed, .. Streaming()];
-
-    /// <summary>
-    /// The services with a shelf, by the names the database lists them under, and whether the service has
-    /// enough series for a shelf of them too. A service the region's list does not hold has no shelf, so
-    /// the section is whatever the region offers of these.
-    /// </summary>
-    private static readonly (string Name, bool Series)[] MajorServices =
-    [
-        ("Netflix", true), ("Amazon Prime Video", true), ("Disney Plus", true), ("HBO Max", true), ("Movistar Plus+", true),
-        ("Apple TV", false), ("Filmin", false), ("SkyShowtime", true),
-    ];
-
-    /// <summary>The fewest votes a title on a streaming shelf has.</summary>
-    private const int StreamingVotes = 100;
-
-    /// <summary>
-    /// A shelf of films, and for most a shelf of series, for each major service the region's kept list
-    /// holds. Nothing is asked: until the list is kept (the warmer asks for it) the section is absent.
-    /// </summary>
-    private List<Shelf> Streaming()
-    {
-        var films = streaming.Kept("film");
-        var shows = streaming.Kept("show");
-        var shelves = new List<Shelf>();
-        foreach (var (name, series) in MajorServices)
-        {
-            if (StreamingServices.Match(films, name) is { } film)
-                shelves.Add(Streams("film", film, film.Name, "monitor-play"));
-            if (series && StreamingServices.Match(shows, name) is { } show)
-                shelves.Add(Streams("show", show, show.Name + " series", "tv"));
-        }
-        return shelves;
-
-        Shelf Streams(string kind, WatchProvider service, string title, string icon) => new()
-        {
-            Section = "streaming",
-            Id = $"streaming-{service.ProviderId}-{kind}",
-            Title = title,
-            Icon = icon,
-            Kind = kind,
-            Query = new DiscoverQuery { Kind = kind, WatchProviderIds = [service.ProviderId], WatchRegion = streaming.Region, MinVotes = StreamingVotes },
-        };
     }
 
     private static ShelfHeadView Head(Shelf shelf) => new() { Id = shelf.Id, Title = shelf.Title, Icon = shelf.Icon, Kind = shelf.Kind };
@@ -1012,8 +961,6 @@ public sealed class DiscoverShelves(
         // World cinema, by the language a film was made in.
         shelves.AddRange(
         [
-            Film("world", "spanish", "Spanish cinema", "globe", new DiscoverQuery { Kind = "film", Language = "es", OriginCountry = "ES", MinVotes = 200 }),
-            Film("world", "catalan", "Catalan cinema", "globe", new DiscoverQuery { Kind = "film", Language = "ca", MinVotes = 20 }),
             Film("world", "korean", "Korean cinema", "globe", new DiscoverQuery { Kind = "film", Language = "ko", MinVotes = 300 }),
             Film("world", "japanese", "Japanese cinema", "globe", new DiscoverQuery { Kind = "film", Language = "ja", WithoutGenreIds = [Animation], MinVotes = 300 }),
             Film("world", "french", "French cinema", "globe", new DiscoverQuery { Kind = "film", Language = "fr", MinVotes = 300 }),

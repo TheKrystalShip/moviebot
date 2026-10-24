@@ -123,27 +123,8 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             { "id": 7202, "title": "Again and Again", "release_date": "2021-02-02", "vote_average": 8.0, "vote_count": 1200, "poster_path": "/p7202.jpg", "genre_ids": [18], "original_language": "en" } ] },
           "reviews": { "total_results": 2, "results": [
             { "author": "Critic", "content": "A masterpiece of the genre.", "url": "https://reviews.example/1", "author_details": { "rating": 9.0 } } ] },
-          "images": { "logos": [ { "file_path": "/heat-logo.png", "iso_639_1": "en", "vote_average": 5, "width": 500 } ] },
-          "watch/providers": { "results": {
-            "US": { "link": "https://watch.example/heat",
-                    "flatrate": [ { "provider_id": 8, "provider_name": "Netflix", "logo_path": "/nflx.png", "display_priority": 0 } ],
-                    "rent": [ { "provider_id": 2, "provider_name": "Apple TV Store", "logo_path": "/atv.png", "display_priority": 8 } ] },
-            "ES": { "link": "https://watch.example/heat-es", "flatrate": [ { "provider_id": 119, "provider_name": "Amazon Prime Video", "logo_path": "/prime.png", "display_priority": 1 } ] } } }
+          "images": { "logos": [ { "file_path": "/heat-logo.png", "iso_639_1": "en", "vote_average": 5, "width": 500 } ] }
         }
-        """;
-
-    private const string Services = """
-        { "results": [
-          { "provider_id": 8, "provider_name": "Netflix", "logo_path": "/nflx.png", "display_priorities": { "US": 0 } },
-          { "provider_id": 119, "provider_name": "Amazon Prime Video", "logo_path": "/prime.png", "display_priorities": { "US": 1 } },
-          { "provider_id": 337, "provider_name": "Disney Plus", "logo_path": "/disney.png", "display_priorities": { "US": 2 } },
-          { "provider_id": 2, "provider_name": "Apple TV Store", "logo_path": "/atv.png", "display_priorities": { "US": 8 } } ] }
-        """;
-
-    private const string ShowServices = """
-        { "results": [
-          { "provider_id": 8, "provider_name": "Netflix", "logo_path": "/nflx.png", "display_priorities": { "US": 0 } },
-          { "provider_id": 337, "provider_name": "Disney Plus", "logo_path": "/disney.png", "display_priorities": { "US": 2 } } ] }
         """;
 
     /// <summary>One page of the paged subject, whose films are voted and rated in an order of their own.</summary>
@@ -197,8 +178,6 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
                     { "id": 949, "media_type": "movie", "title": "Heat", "release_date": "1995-12-15", "vote_average": 7.9, "vote_count": 8740, "poster_path": "/heat-poster.jpg", "character": "Vincent Hanna" },
                     { "id": 7, "media_type": "tv", "name": "A Talk Show", "genre_ids": [10767], "vote_count": 900, "character": "Self" } ] } }
                 """;
-        if (path.EndsWith("/watch/providers/movie")) return Services;
-        if (path.EndsWith("/watch/providers/tv")) return ShowServices;
         if (path.EndsWith("/genre/movie/list"))
             return "{ \"genres\": [ " + string.Join(", ", Genre(80, "Crime"), Genre(12, "Adventure"), Genre(27, "Horror"), Genre(16, "Animation"), Genre(10751, "Family")) + " ] }";
         if (path.EndsWith("/genre/tv/list"))
@@ -329,12 +308,6 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             var people = query["with_people"];
             var from = query["primary_release_date.gte"];
 
-            // On a streaming service: Netflix has the two horror films and Echo Valley.
-            if (query["with_watch_providers"] == "8")
-                return genres == "27"
-                    ? Results(Listed(7101, "The Cellar Door", "2002-10-31", 7.1, 1500, "27"))
-                    : Results(Listed(7101, "The Cellar Door", "2002-10-31", 7.1, 1500, "27"), Listed(7201, "Echo Valley", "2019-05-05", 7.0, 600, "27"));
-            if (query["with_watch_providers"] == "119") return Results(Listed(7102, "Hollow Hill", "2004-09-10", 6.8, 800, "27"));
             if (keywords == PagedKeyword.ToString(CultureInfo.InvariantCulture) || genres == "10749,35" || query["vote_count.gte"] == "5000")
                 return PagedPage(int.Parse(query["page"] ?? "1", CultureInfo.InvariantCulture));
             if (genres == "12") return Results(Listed(22, "Pirates of the Caribbean", "2003-07-09", 7.8, 21000, "12"));

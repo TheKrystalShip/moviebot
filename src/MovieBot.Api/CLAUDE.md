@@ -65,12 +65,10 @@ film onto a device is `Offline/CLAUDE.md`.
   keeps each description and, under one directory per film, every image it names; it serves its own
   copies at `/films/{imdbId}/…`, and asks again only once a copy is
   `Tmdb:RefreshDays` old; a database that cannot be reached then costs freshness and nothing else.
-  One description is one call: the trailers, recommendations, reviews, logos and watch providers ride the
-  same `append_to_response` as the credits, so a title page never asks a second question, and a description
-  kept without them is due at once. The title's logo is kept beside its poster; a provider's logo is kept once
-  for every title that names it, under `catalogue/providers/`, by `Films/StreamingServices`, which also keeps
-  the region's list of streaming services (a vocabulary, kept thirty days) that the streaming shelves and the
-  questions saying `on netflix` read. Recommendations stay in the description as the database's list entries
+  One description is one call: the trailers, recommendations, reviews and logos ride the same
+  `append_to_response` as the credits, so a title page never asks a second question, and a description
+  kept without them is due at once. The title's logo is kept beside its poster. Cinema is where its titles
+  are watched, so it asks nothing of where else they stream. Recommendations stay in the description as the database's list entries
   and are named (IMDb id, makers) when a page is built, like every other list of titles.
   `FilmWarmer` keeps every library film, every wished film and every wanted title described, so a
   listing reads only what is kept and never waits on the network. No page talks to the database or its image store.
@@ -161,7 +159,7 @@ film onto a device is `Offline/CLAUDE.md`.
   top-billed actors) is one call kept a week, so a title in many answers is asked about once. Every word
   that names a genre, a person, a keyword or a language is resolved to the database's and reported in
   `resolved`; a word the database does not know is refused (`404`) rather than dropped, because a
-  discovery that ignores a filter answers a question nobody asked. Words typed into Discover are read by `Films/QuestionReader` (pure: a closed grammar over the database's own genre, language and streaming service lists, passed in) and answered through that same discovery by `CatalogueSearch.AskAsync`, so a misread name is a refusal and never a wrong answer. The library join (`LibraryShelf`) and
+  discovery that ignores a filter answers a question nobody asked. Words typed into Discover are read by `Films/QuestionReader` (pure: a closed grammar over the database's own genre and language lists, passed in) and answered through that same discovery by `CatalogueSearch.AskAsync`, so a misread name is a refusal and never a wrong answer. The library join (`LibraryShelf`) and
   whether the asking person watched are made when an answer is read and are never kept with it. A title
   the database holds no IMDb id for is listed by its own id with no page and no poster. The Discover page's shelves are `Films/DiscoverShelves`: each shelf the same for everybody
   is a fixed question by the database's own ids (genres, keywords, companies, networks, collections,

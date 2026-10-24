@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.69.0] - 2026-10-24
+
+### Removed
+- Where a title streams elsewhere: a description's `watch`, the Streaming section and its shelves,
+  `provider=` on `/api/catalogue/discover`, `on netflix` in a question, the services' logos and
+  `Tmdb:WatchRegion`. Cinema is where its titles are watched.
+- The Spanish cinema, Catalan cinema, Set in Barcelona and Filmed in Barcelona shelves; the filter's
+  languages are English, then the rest in alphabetical order, without Catalan.
+
+### Changed
+- A title's trailers are its official YouTube trailers and teasers alone, and `official` is gone from
+  each.
+
 ## [3.68.2] - 2026-10-24
 
 ### Fixed

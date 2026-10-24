@@ -25,7 +25,7 @@ public static class ShowEndpoints
         // as fully as one on the shelf.
         app.MapGet("/api/shows/{imdbId}", async (string imdbId, HttpContext context, LibraryListing library,
             ShowStore shows, TitleCategories categories, WatchRecord record, PersonDirectory people,
-            SessionStore sessions, FollowStore follows, StreamingServices streaming, CatalogueSearch search, TimeProvider clock, CancellationToken ct) =>
+            SessionStore sessions, FollowStore follows, CatalogueSearch search, TimeProvider clock, CancellationToken ct) =>
         {
             if (!FilmStore.IsImdbId(imdbId))
                 return Results.Json(new ErrorReply("That is not an IMDb id."), ApiJsonContext.Default.ErrorReply,
@@ -45,7 +45,7 @@ public static class ShowEndpoints
 
             var person = PeopleEndpoints.Person(context);
             var view = shows.View(imdbId, stored, episodes,
-                person is null ? null : follows.Get(person.UserId, imdbId), streaming) with { Category = categories.Of("show", imdbId) };
+                person is null ? null : follows.Get(person.UserId, imdbId)) with { Category = categories.Of("show", imdbId) };
             if (stored?.Details is { Recommendations.Count: > 0 } described)
                 view = view with { Recommendations = await search.RecommendedAsync(described.Recommendations, search.ShelfFor(person?.UserId), ct) };
             return Results.Ok(view);

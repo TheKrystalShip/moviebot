@@ -40,7 +40,6 @@ public sealed class ShowStore(
     IServiceScopeFactory scopes,
     PosterPins pins,
     KeptImages images,
-    StreamingServices streaming,
     CinemaDatabase database,
     TitleScores scores,
     EpisodeNumbering numbering,
@@ -199,7 +198,6 @@ public sealed class ShowStore(
         // Asked side by side, as a film's are: a page opened on a show nothing is kept for waits on them.
         await Parallel.ForEachAsync(wanted, new ParallelOptions { MaxDegreeOfParallelism = FilmStore.ImagesAtOnce, CancellationToken = ct },
             async (image, token) => await images.KeepAsync(tmdb, Images, root, $"{imdbId}/{image.File}", image.Path, image.Size, token));
-        await streaming.KeepLogosAsync(tmdb, details.Providers, ct);
     }
 
     private StoredShow? Read(string imdbId)

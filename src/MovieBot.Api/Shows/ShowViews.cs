@@ -49,11 +49,8 @@ public sealed record ShowView
     /// <summary>The title set as a logo, a transparent PNG served from here; absent when the database has none.</summary>
     public string? LogoUrl { get; init; }
 
-    /// <summary>The trailers and teasers on YouTube, the best first; empty while the description is being asked for them.</summary>
+    /// <summary>The official trailers and teasers on YouTube, the best first; empty while the description is being asked for them.</summary>
     public List<TrailerView> Trailers { get; init; } = [];
-
-    /// <summary>Where it can be watched in the configured region (JustWatch's data); absent when the database lists nothing there.</summary>
-    public WatchView? Watch { get; init; }
 
     /// <summary>The titles the database recommends after it, joined with the library like any list of titles.</summary>
     public List<TitleHitView> Recommendations { get; init; } = [];
@@ -192,7 +189,7 @@ public static class ShowViews
     /// <summary>The page of one show, from what is kept and what the library holds of it.</summary>
     public static ShowView View(
         this ShowStore store, string imdbId, StoredShow? stored,
-        IReadOnlyList<TitleSummary> episodes, StoredFollow? follow = null, StreamingServices? streaming = null)
+        IReadOnlyList<TitleSummary> episodes, StoredFollow? follow = null)
     {
         var d = stored?.Details;
         string? Image(string file) => store.HasImage(imdbId, file) ? ImageUrl(imdbId, file) : null;
@@ -283,7 +280,6 @@ public static class ShowViews
             BackdropUrl = Image(ShowStore.Backdrop),
             LogoUrl = Image(ShowStore.Logo),
             Trailers = TitleExtrasViews.Of(d?.Trailers),
-            Watch = streaming?.View(d?.Providers),
             Reviews = TitleExtrasViews.Of(d?.Reviews ?? []),
             ReviewCount = d?.ReviewCount ?? 0,
             Seasons = seasons,

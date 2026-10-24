@@ -5,7 +5,7 @@ namespace TheKrystalShip.MovieBot.Api.Films;
 /// <summary>One thing a question was read to ask: what kind of part it is, and the words it is shown with.</summary>
 /// <param name="Part">
 /// <c>count</c>, <c>sort</c>, <c>kind</c>, <c>genre</c>, <c>exclude</c>, <c>category</c>, <c>years</c>,
-/// <c>language</c>, <c>runtime</c>, <c>person</c>, <c>about</c>, <c>like</c>, <c>provider</c>, <c>award</c>,
+/// <c>language</c>, <c>runtime</c>, <c>person</c>, <c>about</c>, <c>like</c>, <c>award</c>,
 /// <c>adaptation</c>, <c>place</c>, <c>subgenre</c> or <c>subject</c>.
 /// </param>
 public sealed record QuestionPart(string Part, string Text);
@@ -42,8 +42,7 @@ public sealed record WikidataAsk(WikidataRelation Relation, string? Item, string
 
 /// <summary>
 /// The names the film database itself lists, which the reader recognises genres and languages from:
-/// its genres for films and for shows (two lists), its languages with their English names and the
-/// streaming services of its region.
+/// its genres for films and for shows (two lists) and its languages with their English names.
 /// </summary>
 public sealed record QuestionVocabulary
 {
@@ -52,8 +51,6 @@ public sealed record QuestionVocabulary
     public IReadOnlyList<CatalogueGenre> ShowGenres { get; init; } = [];
 
     public IReadOnlyList<LanguageName> Languages { get; init; } = [];
-
-    public IReadOnlyList<WatchProvider> Providers { get; init; } = [];
 }
 
 /// <summary>
@@ -246,7 +243,6 @@ public static class QuestionReader
         private readonly List<string> _excluded = [];
         private readonly List<string> _people = [];
         private readonly List<string> _about = [];
-        private readonly List<string> _providers = [];
         private readonly List<string> _withEither = [];
         private readonly List<int> _unread = [];
         private string? _kind;
@@ -315,7 +311,6 @@ public static class QuestionReader
                     To = _to,
                     With = [.. _people],
                     About = [.. _about],
-                    Providers = [.. _providers],
                     Language = _language,
                     Like = _like,
                     GoodOnly = !newest,
@@ -411,7 +406,6 @@ public static class QuestionReader
             : Years(at, consume) is > 0 and var y ? y
             : Runtime(at, consume) is > 0 and var r ? r
             : Language(at, consume) is > 0 and var l ? l
-            : Provider(at, consume) is > 0 and var p ? p
             : Kind(at, consume) is > 0 and var k ? k
             : Genre(at, consume) is > 0 and var g ? g
             : Sort(at, consume) is > 0 and var s ? s
@@ -467,30 +461,6 @@ public static class QuestionReader
             SetWikidata("adaptation", new WikidataAsk(WikidataRelation.Adaptation, null, name), AdaptationText(name));
             return 1;
         }
-
-        /// <summary>
-        /// A streaming service after <c>on</c>: <c>on netflix</c>, <c>streaming on prime</c>, <c>available
-        /// on disney+</c>. The service is one of the region's, by the name the database lists it under or
-        /// a name people say for it (<see cref="StreamingServices.Match"/>).
-        /// </summary>
-        private int Provider(int at, bool consume)
-        {
-            var lead = Phrase(at, 2, w => w is "on" or "streaming on" or "available on" or "playing on");
-            if (lead == 0) return 0;
-            for (var n = Math.Min(LongestServiceName, words.Count - at - lead); n >= 1; n--)
-            {
-                if (StreamingServices.Match(vocabulary.Providers, Joined(at + lead, n)) is not { } service) continue;
-                if (consume && !_providers.Contains(service.Name, StringComparer.Ordinal))
-                {
-                    _providers.Add(service.Name);
-                    _parts.Add(new QuestionPart("provider", service.Name));
-                }
-                return lead + n;
-            }
-            return 0;
-        }
-
-        private const int LongestServiceName = 4;
 
         private int Anime(int read, bool consume)
         {

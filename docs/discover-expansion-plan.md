@@ -26,12 +26,11 @@ A discovery answers a page of the database at a time: 20 titles, a shelf 40.
 
 **TMDB**, the database every title already comes from. Sixty parallel requests all answered; no rate
 headers. Discover filters on cast and crew, companies, keywords (all or any), genres in and out, dates,
-rating and votes, runtime, language, origin country, certification, and streaming service by region
-(Netflix in Spain, horror: 381 films), up to 500 pages. One `append_to_response` call gives a title's
-videos, recommendations, reviews, keywords, logos and backdrops, budget and revenue, tagline,
-watch providers and Wikidata id. Its weakness is thin votes once a question is narrowed: horror from
-2000 with at least 1,000 votes is 7 films. Free for non-commercial use with TMDB attributed; watch
-providers are JustWatch's data and are attributed to JustWatch.
+rating and votes, runtime, language, origin country and certification, up to 500 pages. One
+`append_to_response` call gives a title's videos, recommendations, reviews, keywords, logos and
+backdrops, budget and revenue, tagline and Wikidata id. Its weakness is thin votes once a question is
+narrowed: horror from 2000 with at least 1,000 votes is 7 films. Free for non-commercial use with TMDB
+attributed.
 
 **IMDb's non-commercial datasets** (`datasets.imdbws.com`, refreshed daily). `title.basics` 229 MB
 and `title.ratings` 9 MB compressed; 760k films, 109k with at least 1,000 votes; filtered in seconds.
@@ -44,9 +43,8 @@ something. Personal and non-commercial use only; never republished as a database
 query time a minute, 60 s timeout; a new query backend arrives in 2026–27 and may move the endpoint).
 Each shelf question answered in 0.2–2 s: Best Picture winners 99 (complete, every one with IMDb and
 TMDB ids), nominees 601, Palme d'Or 83, Stephen King adaptations 67 (every major one), set in Paris
-1,927, filmed in Barcelona 173, about the Second World War 1,315, slasher 786, heist 569, neo-noir
-480, found footage 198. Uneven where few people edit: Goya Best Film 12 winners, folk horror 12, body
-horror 5. 239k of the 276k films with an IMDb id carry a TMDB id. `wbsearchentities` resolves a name
+1,927, about the Second World War 1,315, slasher 786, heist 569, neo-noir 480, found footage 198.
+Uneven where few people edit: folk horror 12, body horror 5. 239k of the 276k films with an IMDb id carry a TMDB id. `wbsearchentities` resolves a name
 to its item (Stephen King → Q39829).
 
 ## 4. Phases
@@ -79,10 +77,13 @@ Landed: `docs/api-contract.md` (What a description carries, `/api/catalogue/disc
 
 **Not to be skipped.** Once the data of 4·c–4·f is served, Discover and the title page are designed
 around it in the Cinema design: how a question's reading is drawn and edited, how many shelves the
-page holds and in what order, where award, adaptation and place shelves sit, how trailers and where-to-watch sit on a title page, and the attribution TMDB,
-JustWatch and IMDb require. Until it is done, 4·c–4·f are served by the API and drawn only as the
-existing components already draw them.
-4·f serves the design a title's trailers, providers with JustWatch's attribution, recommendations, reviews, logo, tagline, box office, keyword links and Wikidata awards and sources to place.
+page holds and in what order, where award, adaptation and place shelves sit, how trailers sit on a
+title page, and the attribution TMDB and IMDb require. Until it is done, 4·c–4·f are served by the API
+and drawn only as the existing components already draw them.
+4·f serves the design a title's official YouTube trailers (embedded from `youtube-nocookie.com`),
+recommendations, reviews, logo, tagline, box office, keyword links and Wikidata awards and sources to
+place. Settled: IMDb's rating is the one shown; nothing points at another streaming service; no shelf
+or setting is tied to one country.
 
 ## 5. Order
 

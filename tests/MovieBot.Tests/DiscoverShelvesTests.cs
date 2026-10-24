@@ -45,7 +45,8 @@ public sealed class DiscoverShelvesTests(SessionFixture fixture) : IClassFixture
         Assert.True(index.Sections.Single(s => s.Id == "franchises").Series);
         Assert.Contains("Horror", index.FilmGenres);
         Assert.Contains("Drama", index.ShowGenres);
-        Assert.Contains(index.Languages, l => l.Code == "ca" && l.Name == "Catalan");
+        Assert.Equal(("en", "English"), (index.Languages[0].Code, index.Languages[0].Name));
+        Assert.Equal(index.Languages.Skip(1).Select(l => l.Name).Order(StringComparer.Ordinal), index.Languages.Skip(1).Select(l => l.Name));
     }
 
     [Fact]

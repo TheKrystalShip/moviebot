@@ -194,7 +194,7 @@ public sealed class TitleScoresTests : IDisposable
     {
         var scores = new TitleScores(Database, new ImdbRatings(Database));
         var store = new FilmStore(Path.Combine(_dir, "films"), Options.Create(new FilmStoreOptions()), null!,
-            new PosterPins(Database), new KeptImages(Database), null!, Database, scores, new FakeTimeProvider(now),
+            new PosterPins(Database), new KeptImages(Database), Database, scores, new FakeTimeProvider(now),
             NullLogger<FilmStore>.Instance);
         return (store, scores);
     }

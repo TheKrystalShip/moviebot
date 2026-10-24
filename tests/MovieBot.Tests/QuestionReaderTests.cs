@@ -24,13 +24,6 @@ public sealed class QuestionReaderTests
             new LanguageName { Code = "en", Name = "English" }, new LanguageName { Code = "ko", Name = "Korean" },
             new LanguageName { Code = "es", Name = "Spanish" }, new LanguageName { Code = "xx", Name = "No Language" },
         ],
-        Providers =
-        [
-            new WatchProvider { ProviderId = 8, Name = "Netflix" }, new WatchProvider { ProviderId = 119, Name = "Amazon Prime Video" },
-            new WatchProvider { ProviderId = 337, Name = "Disney Plus" }, new WatchProvider { ProviderId = 1899, Name = "HBO Max" },
-            new WatchProvider { ProviderId = 350, Name = "Apple TV" }, new WatchProvider { ProviderId = 2, Name = "Apple TV Store" },
-            new WatchProvider { ProviderId = 63, Name = "Filmin" }, new WatchProvider { ProviderId = 2241, Name = "Movistar Plus+" },
-        ],
     };
 
     private static List<CatalogueGenre> Genres(params string[] names) =>
@@ -319,8 +312,8 @@ public sealed class QuestionReaderTests
     [Theory]
     [InlineData("set in paris", WikidataRelation.Set, "paris", "place:Set in Paris")]
     [InlineData("movies set in new york", WikidataRelation.Set, "new york", "kind:Movies | place:Set in New York")]
-    [InlineData("filmed in barcelona", WikidataRelation.Filmed, "barcelona", "place:Filmed in Barcelona")]
-    [InlineData("shot in barcelona", WikidataRelation.Filmed, "barcelona", "place:Filmed in Barcelona")]
+    [InlineData("filmed in rome", WikidataRelation.Filmed, "rome", "place:Filmed in Rome")]
+    [InlineData("shot in rome", WikidataRelation.Filmed, "rome", "place:Filmed in Rome")]
     public void A_place_is_a_name_after_set_in_or_filmed_in(string text, WikidataRelation relation, string name, string parts)
     {
         var question = Read(text);
@@ -377,75 +370,5 @@ public sealed class QuestionReaderTests
     public void Words_that_ask_wikidata_for_two_things_or_for_adaptations_of_nobody_are_no_question(string text)
     {
         Assert.Null(ReadOrNone(text));
-    }
-
-    [Fact]
-    public void On_a_service_reads_it_in_any_order_as_the_service_the_database_lists()
-    {
-        var after = Read("horror on netflix");
-        Assert.Equal(["Netflix"], after.Request.Providers);
-        Assert.Equal(["Horror"], after.Request.Genres);
-        Assert.Equal("genre:Horror | provider:Netflix", Parts(after));
-
-        var before = Read("on netflix horror movies");
-        Assert.Equal(["Netflix"], before.Request.Providers);
-        Assert.Equal("provider:Netflix | genre:Horror | kind:Movies", Parts(before));
-
-        var middle = Read("best comedies on FILMIN from the 90s");
-        Assert.Equal(["Filmin"], middle.Request.Providers);
-        Assert.Equal(DiscoverSorts.Rating, middle.Request.Sort);
-        Assert.Equal("sort:Best rated | genre:Comedy | provider:Filmin | years:1990s", Parts(middle));
-    }
-
-    [Theory]
-    [InlineData("horror on prime", "Amazon Prime Video")]
-    [InlineData("horror on amazon", "Amazon Prime Video")]
-    [InlineData("horror on prime video", "Amazon Prime Video")]
-    [InlineData("horror on hbo", "HBO Max")]
-    [InlineData("horror on disney", "Disney Plus")]
-    [InlineData("horror on disney+", "Disney Plus")]
-    [InlineData("horror on apple tv", "Apple TV")]
-    [InlineData("horror on apple tv+", "Apple TV")]
-    [InlineData("horror on movistar", "Movistar Plus+")]
-    [InlineData("horror on movistar plus+", "Movistar Plus+")]
-    [InlineData("horror streaming on netflix", "Netflix")]
-    [InlineData("horror available on netflix", "Netflix")]
-    public void A_name_people_say_for_a_service_is_the_service(string text, string service) =>
-        Assert.Equal([service], Read(text).Request.Providers);
-
-    [Fact]
-    public void Several_services_are_each_asked_for_and_a_name_the_region_lacks_is_not_read()
-    {
-        Assert.Equal(["Netflix", "Filmin"], Read("horror on netflix on filmin").Request.Providers);
-        Assert.Null(ReadOrNone("on hulu"));
-        Assert.Null(ReadOrNone("horror on hulu"));
-        Assert.Null(QuestionReader.Read("horror on netflix", Today, new QuestionVocabulary { FilmGenres = Vocabulary.FilmGenres }));
-    }
-
-    [Fact]
-    public void Words_about_a_place_or_a_marker_with_on_in_them_are_not_a_service()
-    {
-        var based = Read("movies based on stephen king");
-        Assert.Empty(based.Request.Providers);
-        Assert.DoesNotContain(based.Parts, p => p.Part == "provider");
-        Assert.Equal(["keanu reeves"], Read("movies with keanu reeves on netflix").WithEither);
-    }
-
-    [Theory]
-    [InlineData("Disney+", "disney plus")]
-    [InlineData("Movistar Plus+", "movistar plus plus")]
-    [InlineData("  Apple   TV ", "apple tv")]
-    [InlineData("Canal+ Ficción", "canal plus ficción")]
-    public void A_service_is_compared_by_its_letters_digits_and_pluses(string name, string expected) =>
-        Assert.Equal(expected, StreamingServices.Normalised(name));
-
-    [Fact]
-    public void A_service_is_matched_by_its_name_before_an_alias_and_an_alias_only_to_a_service_that_is_listed()
-    {
-        Assert.Equal(350, StreamingServices.Match(Vocabulary.Providers, "apple tv")!.ProviderId);
-        Assert.Equal(2, StreamingServices.Match(Vocabulary.Providers, "Apple TV Store")!.ProviderId);
-        Assert.Equal(119, StreamingServices.Match(Vocabulary.Providers, "Prime")!.ProviderId);
-        Assert.Null(StreamingServices.Match([new WatchProvider { ProviderId = 8, Name = "Netflix" }], "prime"));
-        Assert.Null(StreamingServices.Match(Vocabulary.Providers, "   "));
     }
 }

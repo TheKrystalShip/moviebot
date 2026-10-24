@@ -70,7 +70,7 @@ public static class CatalogueSearchEndpoints
         // Films or shows found by what they are like. Every filter is optional and they combine; a
         // page of at most twenty, and next names the page that follows.
         app.MapGet("/api/catalogue/discover", async (
-            string? kind, [FromQuery] string[]? genre, [FromQuery] string[]? exclude, bool? includeFamily, int? from, int? to, [FromQuery(Name = "with")] string[]? people, [FromQuery] string[]? about, [FromQuery] string[]? provider,
+            string? kind, [FromQuery] string[]? genre, [FromQuery] string[]? exclude, bool? includeFamily, int? from, int? to, [FromQuery(Name = "with")] string[]? people, [FromQuery] string[]? about,
             string? language, string? like, bool? goodOnly, double? minRating, int? minVotes, int? minRuntime, int? maxRuntime, string? sort, int? limit, int? page, string? category,
             HttpContext context, CatalogueSearch search, CancellationToken ct) =>
         {
@@ -84,7 +84,6 @@ public static class CatalogueSearchEndpoints
                 To = to,
                 With = Words(people),
                 About = Words(about),
-                Providers = Words(provider),
                 Language = language,
                 Like = like,
                 GoodOnly = goodOnly ?? true,

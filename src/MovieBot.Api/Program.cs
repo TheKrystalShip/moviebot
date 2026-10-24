@@ -118,18 +118,12 @@ builder.Services.AddSingleton<PosterPins>();
 builder.Services.AddSingleton<TitleScores>();
 builder.Services.AddSingleton<KeptImages>();
 builder.Services.AddSingleton<AnswerKeeper>();
-builder.Services.AddSingleton(sp => new StreamingServices(
-    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.CatalogueDirectory, "catalogue"),
-    sp.GetRequiredService<AnswerKeeper>(),
-    sp.GetRequiredService<KeptImages>(),
-    sp.GetRequiredService<IOptions<TmdbOptions>>()));
 builder.Services.AddSingleton(sp => new FilmStore(
     StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.Directory, "films"),
     sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<PosterPins>(),
     sp.GetRequiredService<KeptImages>(),
-    sp.GetRequiredService<StreamingServices>(),
     sp.GetRequiredService<CinemaDatabase>(),
     sp.GetRequiredService<TitleScores>(),
     TimeProvider.System,
@@ -142,7 +136,6 @@ builder.Services.AddSingleton(sp => new ShowStore(
     sp.GetRequiredService<IServiceScopeFactory>(),
     sp.GetRequiredService<PosterPins>(),
     sp.GetRequiredService<KeptImages>(),
-    sp.GetRequiredService<StreamingServices>(),
     sp.GetRequiredService<CinemaDatabase>(),
     sp.GetRequiredService<TitleScores>(),
     sp.GetRequiredService<EpisodeNumbering>(),

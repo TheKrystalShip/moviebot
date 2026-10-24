@@ -51,8 +51,6 @@ public sealed class WikidataSets(
         new("set-in-new-york", WikidataRelation.Set, "Q60", "Set in New York", "map-pin", "places", WikidataOrder.Votes),
         new("set-in-london", WikidataRelation.Set, "Q84", "Set in London", "map-pin", "places", WikidataOrder.Votes),
         new("set-in-tokyo", WikidataRelation.Set, "Q1490", "Set in Tokyo", "map-pin", "places", WikidataOrder.Votes),
-        new("set-in-barcelona", WikidataRelation.Set, "Q1492", "Set in Barcelona", "map-pin", "places", WikidataOrder.Votes),
-        new("filmed-in-barcelona", WikidataRelation.Filmed, "Q1492", "Filmed in Barcelona", "map-pin", "places", WikidataOrder.Votes),
 
         new("neo-noir", WikidataRelation.Genre, "Q2421031", "Neo-noir", "moon", "themes", WikidataOrder.Votes),
         new("film-noir", WikidataRelation.Genre, "Q185867", "Film noir", "moon", "themes", WikidataOrder.Votes),

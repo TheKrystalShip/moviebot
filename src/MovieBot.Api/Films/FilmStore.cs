@@ -64,7 +64,6 @@ public sealed class FilmStore(
     IServiceScopeFactory scopes,
     PosterPins pins,
     KeptImages images,
-    StreamingServices streaming,
     CinemaDatabase database,
     TitleScores scores,
     TimeProvider clock,
@@ -218,7 +217,6 @@ public sealed class FilmStore(
         // the wait is the slowest image rather than the sum of them.
         await Parallel.ForEachAsync(wanted, new ParallelOptions { MaxDegreeOfParallelism = ImagesAtOnce, CancellationToken = ct },
             async (image, token) => await images.KeepAsync(tmdb, Images, root, $"{imdbId}/{image.File}", image.Path, image.Size, token));
-        await streaming.KeepLogosAsync(tmdb, details.Providers, ct);
     }
 
     /// <summary>How many images are asked of the database's store at once.</summary>
