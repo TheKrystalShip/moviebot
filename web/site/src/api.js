@@ -13,6 +13,7 @@
 import { answeredByServer, reached, unreached } from "./connectivity.js";
 import { keepPreferences } from "./offline/preferences.js";
 import { keepProgress } from "./offline/progress.js";
+import { queryOf } from "./query.js";
 import { session, sessionStore } from "./session.js";
 
 export class ApiError extends Error {
@@ -68,6 +69,11 @@ async function call(method, path, body) {
 
 const enc = encodeURIComponent;
 
+const withQuery = (path, params) => {
+  const query = queryOf(params);
+  return query ? `${path}?${query}` : path;
+};
+
 /** Keeps the signed-in person's preferences as the API answered them, and answers them. */
 function kept(preferences) {
   const session = sessionStore.getState();
@@ -94,7 +100,10 @@ export const api = {
   // popular films or shows in a genre, by the genre's name.
   cataloguePerson: (personId) => call("GET", `/api/catalogue/people/${enc(personId)}`),
   // Films or shows found by what they are like: kind, genre, years, runtime, rating, language and order.
-  catalogueDiscover: (params, page = 1) => call("GET", "/api/catalogue/discover?" + new URLSearchParams(page > 1 ? { ...params, page } : params)),
+  // A list is several values of one section, any of them (`anyGenre`, `decade`, `length`, `language`).
+  catalogueDiscover: (params, page = 1) => call("GET", withQuery("/api/catalogue/discover", page > 1 ? { ...params, page } : params)),
+  // Which options each section of that discovery's answers holds, each without its own section's picks.
+  catalogueDiscoverFacets: (params) => call("GET", withQuery("/api/catalogue/discover/facets", params)),
   // Discover's tabs and the shelves on each for the signed-in person, with what its filter picks from;
   // and one page of a shelf's titles, with the page that follows it.
   discover: () => call("GET", "/api/discover"),
@@ -120,7 +129,9 @@ export const api = {
   // The words as a question of the catalogue (top 10 horror from 2000): whether they are one, the
   // parts they were read as, and a page of the titles that answer them, with the page that follows,
   // or why none does.
-  ask: (q, page = 1) => call("GET", `/api/catalogue/ask?q=${enc(q)}` + (page > 1 ? `&page=${page}` : "")),
+  // `picks` are a filter's on the question, as on catalogueDiscover; askFacets is what each section holds.
+  ask: (q, page = 1, picks = {}) => call("GET", withQuery("/api/catalogue/ask", { q, ...picks, page: page > 1 ? page : null })),
+  askFacets: (q, picks = {}) => call("GET", withQuery("/api/catalogue/ask/facets", { q, ...picks })),
   availability: (imdbId) => call("GET", `/api/films/${enc(imdbId)}/availability`),
   // Watch now: fetch it and play it in a room the moment it can be opened. Answers with the room at
   // once; a 409 is every slot for watching while it arrives in use, and carries them.

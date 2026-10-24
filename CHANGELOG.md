@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.72.0] - 2026-10-24
+
+### Added
+- Several values per section of a filter, each section answered as any of its values and the sections
+  as all of them: `anyGenre`, `decade`, `length` (`short`, `standard`, `long`) and several `language`s
+  on `GET /api/catalogue/discover`, on `GET /api/catalogue/ask` as picks on a question, and on a shelf
+  that is a discovery of the film database's own ids. `kind=all` discovers films and shows together.
+  Decades or lengths apart, and picked genres on a question that names its own, are asked as several
+  questions and paged as one list. `resolved` carries `anyGenres`, `languages`, `decades` and `lengths`.
+- Facets: `GET /api/catalogue/discover/facets`, `GET /api/catalogue/ask/facets` and
+  `GET /api/discover/shelves/{id}/facets` answer which options each section's answers hold (kind,
+  genre, decade, length, rating, language), each section measured with every other section's picks
+  and without its own; a section the question or the shelf fixes is not reported.
+- `details.originalLanguage` on the library's films and shows, and `originalLanguage` on a want, so a
+  page that holds a whole list counts its facets itself; the site's `facets.js` does, with the same
+  sections and rules, and its API client sends several values per section and reads the facets.
+
 ## [3.71.0] - 2026-10-24
 
 ### Added

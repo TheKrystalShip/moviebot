@@ -54,6 +54,7 @@ public sealed record Studio(string Name, List<int> CompanyIds, bool Exact);
 
 public sealed record DiscoverRequest
 {
+    /// <summary><c>film</c> (the default), <c>show</c>, or <c>all</c> for both.</summary>
     public string? Kind { get; init; }
     public IReadOnlyList<string> Genres { get; init; } = [];
 
@@ -72,6 +73,19 @@ public sealed record DiscoverRequest
     public IReadOnlyList<string> Studios { get; init; } = [];
 
     public string? Language { get; init; }
+
+    /// <summary>Genres a title is filed under at least one of, by name; in a kind that lacks some, the others.</summary>
+    public IReadOnlyList<string> AnyGenres { get; init; } = [];
+
+    /// <summary>Original languages a title was made in one of, each by code or English name.</summary>
+    public IReadOnlyList<string> Languages { get; init; } = [];
+
+    /// <summary>Decades a title came out in one of, each by its first year (<c>1990</c>).</summary>
+    public IReadOnlyList<int> Decades { get; init; } = [];
+
+    /// <summary>Lengths a film runs one of (<see cref="FilmLengths"/>); a length is a film's alone.</summary>
+    public IReadOnlyList<string> Lengths { get; init; } = [];
+
     public string? Like { get; init; }
     public bool GoodOnly { get; init; } = true;
     public double? MinRating { get; init; }
@@ -294,31 +308,66 @@ public sealed partial class CatalogueSearch(
     /// Films or shows found by what they are like. Every filter is optional and they combine; each
     /// word that names a genre, a person or a keyword is matched to the database's and the match is
     /// reported. <see cref="DiscoverRequest.Like"/> starts from the titles the database counts as
-    /// similar to one and narrows them by the other filters.
+    /// similar to one and narrows them by the other filters. The picks (<see cref="DiscoverRequest.AnyGenres"/>,
+    /// <see cref="DiscoverRequest.Languages"/>, <see cref="DiscoverRequest.Decades"/>,
+    /// <see cref="DiscoverRequest.Lengths"/>) are each answered as any of their values, and a discovery the
+    /// database cannot take as one question is asked as several (<see cref="DiscoverNarrowing"/>) whose
+    /// answers are paged as one list.
     /// </summary>
     public async Task<Outcome<DiscoverAnswer>> DiscoverAsync(DiscoverRequest request, CancellationToken ct)
     {
+        var planned = await PlanAsync(request, ct);
+        if (planned.Value is not { } plan) return planned.Carry<DiscoverAnswer>();
+
+        Outcome<TitlePage> listed = plan.Seed is { } seed
+            ? await SimilarToAsync(seed.Key, plan.Queries, plan.Sort, plan.Ask, ct)
+            : await ListedAsync("discover", DiscoverKept, plan.Queries, plan.Ask, ct);
+        if (listed.Value is not { } page) return listed.Carry<DiscoverAnswer>();
+
+        var hits = RatedAtLeast(await HitsAsync(page.Titles, plan.Ask.Take, ct), plan.MinRating);
+        return Outcome<DiscoverAnswer>.Ok(new DiscoverAnswer(plan.Kind, plan.Resolved, hits, page.Next));
+    }
+
+    /// <summary>
+    /// A discovery resolved to the database's ids: its kind (<c>film</c>, <c>show</c> or <c>all</c>),
+    /// the questions it is asked as (none when nothing can match it), or the title its titles are like.
+    /// </summary>
+    private sealed record DiscoverPlan(string Kind, Seed? Seed, List<DiscoverQuery> Queries, DiscoverResolved Resolved, PageAsk Ask, string? Sort, double? MinRating);
+
+    /// <summary>Both kinds at once, which the database keeps apart and a discovery asks of each.</summary>
+    public const string AllKinds = "all";
+
+    private async Task<Outcome<DiscoverPlan>> PlanAsync(DiscoverRequest request, CancellationToken ct)
+    {
         var limit = Math.Clamp(request.Limit, 1, MostListed);
-        if (request.Page < 1 || request.Page > PagesListed) return Invalid<DiscoverAnswer>($"Page is 1 to {PagesListed}.");
+        if (request.Page < 1 || request.Page > PagesListed) return Invalid<DiscoverPlan>($"Page is 1 to {PagesListed}.");
         var ask = new PageAsk(limit, Math.Min(limit, ResultsListed), request.Page);
-        if (request.Kind is not null && !Catalogue.IsKind(request.Kind)) return Invalid<DiscoverAnswer>("Kind is film or show.");
-        if (request.Sort is not null && !DiscoverSorts.IsSort(request.Sort)) return Invalid<DiscoverAnswer>("Sort is popular, rating, newest or oldest.");
-        if (request.From > request.To) return Invalid<DiscoverAnswer>("From is after to.");
-        if (request.MinRuntime > request.MaxRuntime) return Invalid<DiscoverAnswer>("The shortest runtime is longer than the longest.");
-        if (!string.IsNullOrWhiteSpace(request.Like) && (request.MinRuntime is not null || request.MaxRuntime is not null))
-            return Invalid<DiscoverAnswer>("A discovery like another title cannot be narrowed by runtime; the titles it starts from carry none.");
+        if (request.Kind is not null && request.Kind != AllKinds && !Catalogue.IsKind(request.Kind)) return Invalid<DiscoverPlan>("Kind is film, show or all.");
+        if (request.Sort is not null && !DiscoverSorts.IsSort(request.Sort)) return Invalid<DiscoverPlan>("Sort is popular, rating, newest or oldest.");
+        if (request.From > request.To) return Invalid<DiscoverPlan>("From is after to.");
+        if (request.MinRuntime > request.MaxRuntime) return Invalid<DiscoverPlan>("The shortest runtime is longer than the longest.");
+        var today = Today();
+        if (request.Decades.FirstOrDefault(d => !Decades.IsDecade(d, today)) is var decade and not 0)
+            return Invalid<DiscoverPlan>($"{decade} is no decade: a decade is named by its first year, from {Decades.Earliest} to this one.");
+        if (request.Lengths.FirstOrDefault(l => FilmLengths.Of(l) is null) is { } length)
+            return Invalid<DiscoverPlan>($"\"{length}\" is no length; a length is {string.Join(", ", FilmLengths.All)}.");
+        if (request.Lengths.Count > 0 && request.Kind == "show") return Invalid<DiscoverPlan>("A length is a film's; a show is not picked by one.");
+        if (!string.IsNullOrWhiteSpace(request.Like) && (request.MinRuntime is not null || request.MaxRuntime is not null || request.Lengths.Count > 0))
+            return Invalid<DiscoverPlan>("A discovery like another title cannot be narrowed by runtime; the titles it starts from carry none.");
         if (request.Category is not null)
         {
             if (TitleCategories.Parse(request.Category) != TitleCategory.Anime)
-                return Invalid<DiscoverAnswer>("A discovery is narrowed to anime alone; leave category out for everything.");
-            if (!string.IsNullOrWhiteSpace(request.Language)
-                && !string.Equals(request.Language.Trim(), TitleCategories.AnimeLanguage, StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(request.Language.Trim(), "japanese", StringComparison.OrdinalIgnoreCase))
-                return Invalid<DiscoverAnswer>("Anime is made in Japanese; a discovery of anime takes no other language.");
+                return Invalid<DiscoverPlan>("A discovery is narrowed to anime alone; leave category out for everything.");
+            if ((string?[])[request.Language, .. request.Languages] is var named
+                && named.Any(l => !string.IsNullOrWhiteSpace(l)
+                    && !string.Equals(l.Trim(), TitleCategories.AnimeLanguage, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(l.Trim(), "japanese", StringComparison.OrdinalIgnoreCase)))
+                return Invalid<DiscoverPlan>("Anime is made in Japanese; a discovery of anime takes no other language.");
             request = request with
             {
                 Genres = [.. request.Genres, TitleCategories.AnimeGenre],
                 Language = TitleCategories.AnimeLanguage,
+                Languages = [],
             };
         }
 
@@ -326,56 +375,29 @@ public sealed partial class CatalogueSearch(
         Seed? seed = null;
         if (!string.IsNullOrWhiteSpace(request.Like))
         {
-            var found = await SeedAsync(request.Like, kind, ct);
-            if (found.Value is not { } resolvedSeed) return found.Carry<DiscoverAnswer>();
-            if (kind is not null && kind != resolvedSeed.Key.Kind)
-                return Invalid<DiscoverAnswer>($"{resolvedSeed.Name} is a {resolvedSeed.Key.Kind}, not a {kind}.");
+            var found = await SeedAsync(request.Like, kind == AllKinds ? null : kind, ct);
+            if (found.Value is not { } resolvedSeed) return found.Carry<DiscoverPlan>();
+            if (kind is not null && kind != AllKinds && kind != resolvedSeed.Key.Kind)
+                return Invalid<DiscoverPlan>($"{resolvedSeed.Name} is a {resolvedSeed.Key.Kind}, not a {kind}.");
             seed = resolvedSeed;
             kind = resolvedSeed.Key.Kind;
         }
         kind ??= "film";
         if (kind == "show" && request.With.Count > 0)
-            return Invalid<DiscoverAnswer>("The film database cannot find a show by the people in it; ask for the person's credits with kind=show.");
+            return Invalid<DiscoverPlan>("The film database cannot find a show by the people in it; ask for the person's credits with kind=show.");
 
-        var genres = new List<CatalogueGenre>();
-        if (request.Genres.Count > 0)
-        {
-            var all = await catalogue.GenresAsync(kind, ct);
-            if (all is null) return Unavailable<DiscoverAnswer>("The film database could not be asked about its genres.");
-            foreach (var name in request.Genres.Where(g => !string.IsNullOrWhiteSpace(g)))
-            {
-                if (MatchGenre(all, name) is not { } genre)
-                    return NotFound<DiscoverAnswer>($"The film database has no {kind} genre called \"{name.Trim()}\"; its genres are {string.Join(", ", all.Select(g => g.Name))}.");
-                if (genres.All(g => g.Id != genre.Id)) genres.Add(genre);
-            }
-        }
-
-        var excluded = new List<CatalogueGenre>();
-        if (request.Exclude.Any(g => !string.IsNullOrWhiteSpace(g)) || (request.Genres.Count > 0 && !request.IncludeFamily))
-        {
-            var all = await catalogue.GenresAsync(kind, ct);
-            if (all is null) return Unavailable<DiscoverAnswer>("The film database could not be asked about its genres.");
-            foreach (var name in request.Exclude.Where(g => !string.IsNullOrWhiteSpace(g)))
-            {
-                if (MatchGenre(all, name) is not { } genre)
-                    return NotFound<DiscoverAnswer>($"The film database has no {kind} genre called \"{name.Trim()}\"; its genres are {string.Join(", ", all.Select(g => g.Name))}.");
-                if (genres.Any(g => g.Id == genre.Id))
-                    return Invalid<DiscoverAnswer>($"{genre.Name} is both asked for and left out.");
-                if (excluded.All(g => g.Id != genre.Id)) excluded.Add(genre);
-            }
-
-            // A genre search is about its genre: children's titles are left out unless they were asked for.
-            if (!request.IncludeFamily && !genres.Any(g => ChildrensGenres.Contains(g.Name)))
-                excluded.AddRange(all.Where(g => ChildrensGenres.Contains(g.Name) && excluded.All(e => e.Id != g.Id)));
-        }
+        // A show is found by neither the people in it nor its length, so both kinds asked with either are films.
+        List<string> kinds = kind == AllKinds
+            ? request.With.Count > 0 || request.Lengths.Count > 0 ? ["film"] : ["film", "show"]
+            : [kind];
 
         var people = new List<PersonMatch>();
         foreach (var name in request.With.Where(w => !string.IsNullOrWhiteSpace(w)))
         {
             var matches = await PeopleAsync(name, ct);
-            if (matches.Value is not { } found) return matches.Carry<DiscoverAnswer>();
+            if (matches.Value is not { } found) return matches.Carry<DiscoverPlan>();
             if (PickPerson(found, name) is not { } person)
-                return NotFound<DiscoverAnswer>($"The film database has nobody called \"{name.Trim()}\".");
+                return NotFound<DiscoverPlan>($"The film database has nobody called \"{name.Trim()}\".");
             if (people.All(p => p.TmdbId != person.TmdbId)) people.Add(person);
         }
 
@@ -383,9 +405,9 @@ public sealed partial class CatalogueSearch(
         foreach (var phrase in request.About.Where(a => !string.IsNullOrWhiteSpace(a)))
         {
             var matches = await KeywordsAsync(phrase, ct);
-            if (matches.Value is not { } found) return matches.Carry<DiscoverAnswer>();
+            if (matches.Value is not { } found) return matches.Carry<DiscoverPlan>();
             if (PickKeyword(found, phrase) is not { } keyword)
-                return NotFound<DiscoverAnswer>($"The film database has no keyword matching \"{phrase.Trim()}\".");
+                return NotFound<DiscoverPlan>($"The film database has no keyword matching \"{phrase.Trim()}\".");
             if (keywords.All(k => k.Id != keyword.Id)) keywords.Add(keyword);
         }
 
@@ -393,18 +415,25 @@ public sealed partial class CatalogueSearch(
         foreach (var name in request.Studios.Where(s => !string.IsNullOrWhiteSpace(s)))
         {
             var found = await StudioAsync(name, ct);
-            if (found.Value is not { } studio) return found.Carry<DiscoverAnswer>();
+            if (found.Value is not { } studio) return found.Carry<DiscoverPlan>();
             studios.Add(studio);
         }
         if (seed is not null && studios.Count > 0)
-            return Invalid<DiscoverAnswer>("The film database finds what is like a title without asking who made it; leave the studio out or the title.");
+            return Invalid<DiscoverPlan>("The film database finds what is like a title without asking who made it; leave the studio out or the title.");
 
         LanguageName? language = null;
         if (!string.IsNullOrWhiteSpace(request.Language))
         {
             var named = await LanguageAsync(request.Language, ct);
-            if (named.Value is not { } resolvedLanguage) return named.Carry<DiscoverAnswer>();
+            if (named.Value is not { } resolvedLanguage) return named.Carry<DiscoverPlan>();
             language = resolvedLanguage;
+        }
+        var languages = new List<LanguageName>();
+        foreach (var text in request.Languages.Where(l => !string.IsNullOrWhiteSpace(l)))
+        {
+            var named = await LanguageAsync(text, ct);
+            if (named.Value is not { } picked) return named.Carry<DiscoverPlan>();
+            if (languages.All(l => l.Code != picked.Code)) languages.Add(picked);
         }
 
         var sort = request.Sort ?? (seed is null ? DiscoverSorts.Popular : null);
@@ -412,56 +441,131 @@ public sealed partial class CatalogueSearch(
         var minVotes = request.MinVotes ?? (request.GoodOnly ? GoodVotes : null);
         if (sort == DiscoverSorts.Rating) minVotes ??= RatedVotes;
 
-        var today = Today();
-        var query = new DiscoverQuery
+        var windows = DiscoverNarrowing.Windows(request.Decades);
+        var runtimes = DiscoverNarrowing.Runtimes(request.Lengths);
+        var queries = new List<DiscoverQuery>();
+        var genreNames = new List<string>();
+        var anyGenreNames = new List<string>();
+        var excludedNames = new List<string>();
+        string? missing = null;
+        foreach (var asked in kinds)
         {
-            Kind = kind,
-            GenreIds = [.. genres.Select(g => g.Id)],
-            WithoutGenreIds = [.. excluded.Select(g => g.Id)],
-            From = request.From is { } from ? new DateOnly(from, 1, 1) : null,
-            To = request.To is { } to ? new DateOnly(to, 12, 31) : sort == DiscoverSorts.Newest ? today : null,
-            PersonIds = [.. people.Select(p => p.TmdbId)],
-            KeywordIds = [.. keywords.Select(k => k.Id)],
-            CompanyIds = [.. studios.SelectMany(s => s.CompanyIds).Distinct()],
-            Language = language?.Code,
-            MinRating = minRating,
-            MinVotes = minVotes,
-            MinRuntime = request.MinRuntime,
-            MaxRuntime = request.MaxRuntime,
-            Sort = sort ?? DiscoverSorts.Popular,
-        };
+            var genres = await KindGenresAsync(asked, request, ct);
+            if (genres.Value is not { } resolved)
+            {
+                if (genres.Problem != Problem.NotFound || kinds.Count == 1) return genres.Carry<DiscoverPlan>();
+                missing ??= genres.Message;
+                continue;
+            }
+            genreNames.AddRange(resolved.Genres.Select(g => g.Name).Where(n => !genreNames.Contains(n)));
+            anyGenreNames.AddRange(resolved.AnyGenres.Select(g => g.Name).Where(n => !anyGenreNames.Contains(n)));
+            excludedNames.AddRange(resolved.Excluded.Select(g => g.Name).Where(n => !excludedNames.Contains(n)));
 
-        Outcome<TitlePage> listed = seed is null
-            ? await DiscoveredAsync("discover", DiscoverKept, query, ask, ct)
-            : await SimilarToAsync(seed.Key, query, sort, ask, ct);
-        if (listed.Value is not { } page) return listed.Carry<DiscoverAnswer>();
+            var query = new DiscoverQuery
+            {
+                Kind = asked,
+                GenreIds = [.. resolved.Genres.Select(g => g.Id)],
+                WithoutGenreIds = [.. resolved.Excluded.Select(g => g.Id)],
+                From = request.From is { } from ? new DateOnly(from, 1, 1) : null,
+                To = request.To is { } to ? new DateOnly(to, 12, 31) : sort == DiscoverSorts.Newest ? today : null,
+                PersonIds = [.. people.Select(p => p.TmdbId)],
+                KeywordIds = [.. keywords.Select(k => k.Id)],
+                CompanyIds = [.. studios.SelectMany(s => s.CompanyIds).Distinct()],
+                Language = language?.Code,
+                MinRating = minRating,
+                MinVotes = minVotes,
+                MinRuntime = request.MinRuntime,
+                MaxRuntime = request.MaxRuntime,
+                Sort = sort ?? DiscoverSorts.Popular,
+            };
+            queries.AddRange(DiscoverNarrowing.Narrow(query, new Narrowing
+            {
+                AnyGenreIds = [.. resolved.AnyGenres.Select(g => g.Id)],
+                Windows = windows,
+                Runtimes = runtimes,
+                Languages = [.. languages.Select(l => l.Code)],
+            }));
+        }
+        if (missing is not null && genreNames.Count + anyGenreNames.Count == 0 && queries.Count == 0)
+            return NotFound<DiscoverPlan>(missing);
+        if (queries.Count > DiscoverNarrowing.MostQuestions)
+            return Invalid<DiscoverPlan>($"These picks ask the film database {queries.Count} questions at once; at most {DiscoverNarrowing.MostQuestions} are asked. Pick fewer decades, lengths or genres.");
 
-        var hits = RatedAtLeast(await HitsAsync(page.Titles, ask.Take, ct), query.MinRating);
-        var resolved = new DiscoverResolved
+        var resolvedView = new DiscoverResolved
         {
-            Genres = [.. genres.Select(g => g.Name)],
-            Excluded = [.. excluded.Select(g => g.Name)],
+            Genres = genreNames,
+            AnyGenres = anyGenreNames,
+            Excluded = excludedNames,
             People = [.. people.Select(p => new ResolvedPerson(p.TmdbId, p.Name, p.KnownFor))],
             Keywords = [.. keywords.Select(k => k.Name)],
             Studios = [.. studios.Select(s => s.Name)],
-            Language = language?.Name,
+            Language = language?.Name ?? (languages.Count == 1 ? languages[0].Name : null),
+            Languages = [.. languages.Select(l => l.Name)],
+            Decades = [.. request.Decades.Distinct().OrderDescending()],
+            Lengths = [.. FilmLengths.All.Where(request.Lengths.Contains)],
             Like = seed?.Name,
             MinRating = minRating,
             MinVotes = minVotes,
             Sort = sort ?? "similar",
         };
-        return Outcome<DiscoverAnswer>.Ok(new DiscoverAnswer(kind, resolved, hits, page.Next));
+        return Outcome<DiscoverPlan>.Ok(new DiscoverPlan(kind, seed, queries, resolvedView, ask, sort, minRating));
+    }
+
+    /// <summary>A discovery's genres in one kind's terms: those every title is filed under, those any is, and those none is.</summary>
+    private sealed record KindGenres(List<CatalogueGenre> Genres, List<CatalogueGenre> AnyGenres, List<CatalogueGenre> Excluded);
+
+    /// <summary>
+    /// The genres a discovery names, matched to one kind's. A genre the kind does not have is a
+    /// refusal for <see cref="DiscoverRequest.Genres"/> and <see cref="DiscoverRequest.Exclude"/>; of the
+    /// picks, it is left out while one of them is the kind's, and a refusal when none is.
+    /// </summary>
+    private async Task<Outcome<KindGenres>> KindGenresAsync(string kind, DiscoverRequest request, CancellationToken ct)
+    {
+        var named = request.Genres.Concat(request.AnyGenres).Concat(request.Exclude).Any(g => !string.IsNullOrWhiteSpace(g));
+        if (!named) return Outcome<KindGenres>.Ok(new KindGenres([], [], []));
+        var all = await catalogue.GenresAsync(kind, ct);
+        if (all is null) return Unavailable<KindGenres>("The film database could not be asked about its genres.");
+        string Refusal(string name) => $"The film database has no {kind} genre called \"{name.Trim()}\"; its genres are {string.Join(", ", all.Select(g => g.Name))}.";
+
+        var genres = new List<CatalogueGenre>();
+        foreach (var name in request.Genres.Where(g => !string.IsNullOrWhiteSpace(g)))
+        {
+            if (MatchGenre(all, name) is not { } genre) return NotFound<KindGenres>(Refusal(name));
+            if (genres.All(g => g.Id != genre.Id)) genres.Add(genre);
+        }
+
+        var picks = request.AnyGenres.Where(g => !string.IsNullOrWhiteSpace(g)).ToList();
+        var anyGenres = picks.Select(name => MatchGenre(all, name)).OfType<CatalogueGenre>().DistinctBy(g => g.Id).ToList();
+        if (picks.Count > 0 && anyGenres.Count == 0) return NotFound<KindGenres>(Refusal(picks[0]));
+
+        var excluded = new List<CatalogueGenre>();
+        foreach (var name in request.Exclude.Where(g => !string.IsNullOrWhiteSpace(g)))
+        {
+            if (MatchGenre(all, name) is not { } genre) return NotFound<KindGenres>(Refusal(name));
+            if (genres.Concat(anyGenres).Any(g => g.Id == genre.Id))
+                return Invalid<KindGenres>($"{genre.Name} is both asked for and left out.");
+            if (excluded.All(g => g.Id != genre.Id)) excluded.Add(genre);
+        }
+
+        // A genre search is about its genre: children's titles are left out unless they were asked for.
+        if (genres.Count + anyGenres.Count > 0 && !request.IncludeFamily && !genres.Concat(anyGenres).Any(g => ChildrensGenres.Contains(g.Name)))
+            excluded.AddRange(all.Where(g => ChildrensGenres.Contains(g.Name) && excluded.All(e => e.Id != g.Id)));
+        return Outcome<KindGenres>.Ok(new KindGenres(genres, anyGenres, excluded));
     }
 
     /// <summary>
     /// A page of the titles a question put by the site rather than a person finds, each with its
     /// card: the question names the database's own ids, so nothing in it needs resolving.
     /// </summary>
-    public async Task<Outcome<PagedHits>> ShelfAsync(DiscoverQuery query, PageAsk ask, CancellationToken ct)
+    public Task<Outcome<PagedHits>> ShelfAsync(DiscoverQuery query, PageAsk ask, CancellationToken ct) => ShelfAsync([query], ask, ct);
+
+    /// <summary>A page of a shelf's question narrowed by a filter's picks, asked as the questions <see cref="NarrowedAsync"/> makes of it.</summary>
+    public async Task<Outcome<PagedHits>> ShelfAsync(IReadOnlyList<DiscoverQuery> queries, PageAsk ask, CancellationToken ct)
     {
-        var listed = await DiscoveredAsync("discover", DiscoverKept, query, ask, ct);
+        var listed = await ListedAsync("discover", DiscoverKept, queries, ask, ct);
         var named = await NamedPageAsync(listed, ask, ct);
-        return named.Value is { } paged ? Outcome<PagedHits>.Ok(paged with { Hits = RatedAtLeast(paged.Hits, query.MinRating) }) : named;
+        var floor = queries.Count == 0 ? null : queries.Max(q => q.MinRating);
+        return named.Value is { } paged ? Outcome<PagedHits>.Ok(paged with { Hits = RatedAtLeast(paged.Hits, floor) }) : named;
     }
 
     /// <summary>
@@ -767,11 +871,8 @@ public sealed partial class CatalogueSearch(
 
         if (query.Sort == DiscoverSorts.Rating)
         {
-            var pool = await keeper.KeptAsync(AnswerKeeper.QueryName(family, Canonical(query, TmdbClient.RatingPoolSize, 0)),
-                AnswerJson.Default.ListListedTitle, keep,
-                async (tmdb, token) => (await tmdb.DiscoverAsync(query, TmdbClient.RatingPoolSize, token)).ToList(), null, ct);
-            if (pool is null) return Unavailable<TitlePage>("The film database could not be asked to discover.");
-            IReadOnlyList<ListedTitle> ranked = pool.Value ?? [];
+            if (await RatingPoolAsync(family, keep, query, ct) is not { } pool) return Unavailable<TitlePage>("The film database could not be asked to discover.");
+            IReadOnlyList<ListedTitle> ranked = pool;
             if (imdbRatings.Edition is { } edition)
             {
                 var byImdb = await keeper.KeptAsync(
@@ -789,6 +890,62 @@ public sealed partial class CatalogueSearch(
         if (kept is null) return Unavailable<TitlePage>("The film database could not be asked to discover.");
         var page = kept.Value ?? new ListedPage();
         return Outcome<TitlePage>.Ok(new TitlePage([.. page.Titles.Take(ask.Take)], ask.Next(ask.Page < page.Pages)));
+    }
+
+    /// <summary>The most voted titles of a discovery, the pool a sort by rating ranks; null when the database cannot be asked.</summary>
+    private async Task<List<ListedTitle>?> RatingPoolAsync(string family, TimeSpan keep, DiscoverQuery query, CancellationToken ct)
+    {
+        var pool = await keeper.KeptAsync(AnswerKeeper.QueryName(family, Canonical(query, TmdbClient.RatingPoolSize, 0)),
+            AnswerJson.Default.ListListedTitle, keep,
+            async (tmdb, token) => (await tmdb.DiscoverAsync(query, TmdbClient.RatingPoolSize, token)).ToList(), null, ct);
+        return pool is null ? null : pool.Value ?? [];
+    }
+
+    /// <summary>A page of a discovery asked as <paramref name="queries"/>: nothing for none, the one question's own page, or the union's (<see cref="MergedAsync"/>).</summary>
+    private async Task<Outcome<TitlePage>> ListedAsync(string family, TimeSpan keep, IReadOnlyList<DiscoverQuery> queries, PageAsk ask, CancellationToken ct) => queries.Count switch
+    {
+        0 => Outcome<TitlePage>.Ok(new TitlePage([], null)),
+        1 => await DiscoveredAsync(family, keep, queries[0], ask, ct),
+        _ => await MergedAsync(family, keep, queries, ask, ct),
+    };
+
+    /// <summary>
+    /// A page of the union of several questions in their one sort, each title once. The first
+    /// page-times-size titles of the union are among the first page-times-size of each question, so
+    /// each is read to the page asked and no further, every page of it kept as its own answer; a sort
+    /// by rating ranks the union of their pools of the most voted.
+    /// </summary>
+    private async Task<Outcome<TitlePage>> MergedAsync(string family, TimeSpan keep, IReadOnlyList<DiscoverQuery> queries, PageAsk ask, CancellationToken ct)
+    {
+        if (ask.Take <= 0) return Outcome<TitlePage>.Ok(new TitlePage([], null));
+        var sort = queries[0].Sort;
+        if (sort == DiscoverSorts.Rating)
+        {
+            var pools = await Task.WhenAll(queries.Select(q => RatingPoolAsync(family, keep, q, ct)));
+            if (pools.Any(p => p is null)) return Unavailable<TitlePage>("The film database could not be asked to discover.");
+            var ranked = await RatedAsync([.. pools.SelectMany(p => p!).DistinctBy(t => (t.Kind, t.TmdbId))], ct);
+            return Outcome<TitlePage>.Ok(new TitlePage([.. ranked.Skip(ask.Skip).Take(ask.Take)], ask.Next(ranked.Count > ask.Skip + ask.Size)));
+        }
+
+        var read = await Task.WhenAll(queries.Select(q => ReadToAsync(family, keep, q, ask, ct)));
+        if (read.Any(r => r is null)) return Unavailable<TitlePage>("The film database could not be asked to discover.");
+        var merged = await OrderedAsync([.. read.SelectMany(r => r!.Value.Titles).DistinctBy(t => (t.Kind, t.TmdbId))], sort, ct);
+        var more = merged.Count > ask.Skip + ask.Size || read.Any(r => r!.Value.More);
+        return Outcome<TitlePage>.Ok(new TitlePage([.. merged.Skip(ask.Skip).Take(ask.Take)], ask.Next(more)));
+    }
+
+    /// <summary>A question's pages from the first to the one asked, and whether it goes on past them; null when the database cannot be asked.</summary>
+    private async Task<(List<ListedTitle> Titles, bool More)?> ReadToAsync(string family, TimeSpan keep, DiscoverQuery query, PageAsk ask, CancellationToken ct)
+    {
+        var titles = new List<ListedTitle>();
+        for (var page = 1; page <= ask.Page; page++)
+        {
+            var listed = await DiscoveredAsync(family, keep, query, ask with { Page = page }, ct);
+            if (listed.Value is not { } found) return null;
+            titles.AddRange(found.Titles);
+            if (found.Next is null) return (titles, false);
+        }
+        return (titles, true);
     }
 
     private async Task<Outcome<PagedHits>> NamedPageAsync(Outcome<TitlePage> listed, PageAsk ask, CancellationToken ct) =>
@@ -847,22 +1004,17 @@ public sealed partial class CatalogueSearch(
     /// The database filters nothing of its own here, so the filters are read off each candidate, and a
     /// person or a keyword is looked for in what each candidate is tagged with and credited to.
     /// </summary>
-    private async Task<Outcome<TitlePage>> SimilarToAsync(TitleKey seed, DiscoverQuery query, string? sort, PageAsk ask, CancellationToken ct)
+    private async Task<Outcome<TitlePage>> SimilarToAsync(TitleKey seed, IReadOnlyList<DiscoverQuery> queries, string? sort, PageAsk ask, CancellationToken ct)
     {
+        if (queries.Count == 0) return Outcome<TitlePage>.Ok(new TitlePage([], null));
         var space = seed.Kind == "film" ? "movie" : "tv";
         var kept = await keeper.KeptAsync($"similar/{space}-{seed.TmdbId}", AnswerJson.Default.ListListedTitle, DiscoverKept,
             async (tmdb, token) => (await tmdb.SimilarAsync(seed.Kind, seed.TmdbId, 2, token)).ToList(), null, ct);
         if (kept is null) return Unavailable<TitlePage>("The film database could not be asked what is similar.");
 
-        var narrowed = (kept.Value ?? [])
-            .Where(t => query.GenreIds.All(id => t.GenreIds.Contains(id)))
-            .Where(t => query.WithoutGenreIds.All(id => !t.GenreIds.Contains(id)))
-            .Where(t => query.From is null || t.Released >= query.From)
-            .Where(t => query.To is null || t.Released <= query.To)
-            .Where(t => query.Language is null || string.Equals(t.OriginalLanguage, query.Language, StringComparison.OrdinalIgnoreCase))
-            .Where(t => query.MinRating is null || t.Rating >= query.MinRating)
-            .Where(t => query.MinVotes is null || t.Votes >= query.MinVotes)
-            .ToList();
+        // The people and keywords are the same in every question; the picks are what tell them apart.
+        var query = queries[0];
+        var narrowed = (kept.Value ?? []).Where(t => queries.Any(q => DiscoverNarrowing.Holds(t, q))).ToList();
 
         var ordered = await OrderedAsync(narrowed, sort, ct);
         if (query.PersonIds.Count == 0 && query.KeywordIds.Count == 0)

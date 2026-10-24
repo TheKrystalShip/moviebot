@@ -149,7 +149,11 @@ public sealed record PersonCreditsView
 /// <summary>What a discovery matched each of its words to.</summary>
 public sealed record DiscoverResolved
 {
+    /// <summary>The genres every title is filed under.</summary>
     public required List<string> Genres { get; init; }
+
+    /// <summary>The picked genres, a title filed under at least one of them.</summary>
+    public List<string> AnyGenres { get; init; } = [];
 
     /// <summary>The genres left out of the results, named or by default.</summary>
     public List<string> Excluded { get; init; } = [];
@@ -160,7 +164,17 @@ public sealed record DiscoverResolved
     /// <summary>The studios the results were made by, each as the database spells it.</summary>
     public List<string> Studios { get; init; } = [];
 
+    /// <summary>The one language the titles were made in, when there is one.</summary>
     public string? Language { get; init; }
+
+    /// <summary>The picked languages, a title made in one of them.</summary>
+    public List<string> Languages { get; init; } = [];
+
+    /// <summary>The picked decades, newest first, each by its first year.</summary>
+    public List<int> Decades { get; init; } = [];
+
+    /// <summary>The picked lengths, shortest first.</summary>
+    public List<string> Lengths { get; init; } = [];
 
     /// <summary>The title the results are similar to, as <c>Name (year)</c>.</summary>
     public string? Like { get; init; }

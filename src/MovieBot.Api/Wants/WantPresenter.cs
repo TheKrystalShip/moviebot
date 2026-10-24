@@ -98,7 +98,7 @@ public sealed class WantPresenter(
             {
                 Title = details?.Title ?? view.Title, Year = details?.FirstYear,
                 Rating = shows.Scores.Serve(want.ImdbId, details?.TmdbId, "show", details?.Rating, details?.Votes ?? 0).Rating,
-                Genres = [.. details?.Genres ?? []],
+                Genres = [.. details?.Genres ?? []], OriginalLanguage = details?.OriginalLanguage,
                 PosterUrl = shows.HasImage(want.ImdbId, ShowStore.Poster) ? ShowViews.ImageUrl(want.ImdbId, ShowStore.Poster) : null,
                 InLibrary = shelf.Shows.Contains(want.ImdbId),
                 NextEpisode = ShowProgress.Next(stored, finished.GetValueOrDefault(want.ImdbId)),
@@ -112,7 +112,7 @@ public sealed class WantPresenter(
             {
                 Title = details?.Title ?? wish?.Title ?? view.Title, Year = details?.Year ?? wish?.Year,
                 Rating = films.Scores.Serve(want.ImdbId, details?.TmdbId, "film", details?.Rating, details?.Votes ?? 0).Rating,
-                RuntimeMinutes = details?.RuntimeMinutes, Genres = [.. details?.Genres ?? []],
+                RuntimeMinutes = details?.RuntimeMinutes, Genres = [.. details?.Genres ?? []], OriginalLanguage = details?.OriginalLanguage,
                 PosterUrl = films.HasImage(want.ImdbId, FilmStore.Poster)
                     ? FilmViews.ImageUrl(want.ImdbId, FilmStore.Poster)
                     : glances.PosterUrl(want.ImdbId) ?? wish?.PosterUrl,

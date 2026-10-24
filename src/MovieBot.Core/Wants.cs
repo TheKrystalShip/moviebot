@@ -76,6 +76,9 @@ public sealed record WantView
 
     public List<string> Genres { get; init; } = [];
 
+    /// <summary>The language it was made in, an ISO 639-1 code; absent while the film database has not described it.</summary>
+    public string? OriginalLanguage { get; init; }
+
     /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
     public string? Category { get; init; }
 

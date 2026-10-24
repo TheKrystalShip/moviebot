@@ -310,7 +310,7 @@ public sealed class DiscoverShelves(
     ];
 
     /// <summary>The database's genres for talk, news and reality shows, which no shelf or filter offers.</summary>
-    private static readonly int[] UnscriptedShowGenres = [10767, 10763, 10764];
+    internal static readonly int[] UnscriptedShowGenres = [10767, 10763, 10764];
 
     /// <summary>The genres a title for children is filed under, which a genre's shelf leaves out unless it is theirs.</summary>
     private static readonly int[] ForChildren = [Animation, Family];
@@ -465,15 +465,19 @@ public sealed class DiscoverShelves(
     /// <paramref name="sort"/> names (<see cref="Sorts"/>); NotFound for an id that names no shelf. A
     /// shelf made of the library or of a list held whole ends on its first page.
     /// </summary>
-    public async Task<Outcome<ShelfView>> ShelfAsync(string id, string? viewerId, int page, CancellationToken ct, string? sort = null)
+    public async Task<Outcome<ShelfView>> ShelfAsync(string id, string? viewerId, int page, CancellationToken ct, string? sort = null, DiscoverPicks? picks = null)
     {
         if (page < 1 || page > CatalogueSearch.PagesListed) return Outcome<ShelfView>.Failed(Problem.Invalid, $"Page is 1 to {CatalogueSearch.PagesListed}.");
         if (sort is not null && !Sorts.Contains(sort)) return Outcome<ShelfView>.Failed(Problem.Invalid, "Sort is rating, newest or oldest.");
         var titles = library.Titles();
-        var shelf = ById.GetValueOrDefault(id) ?? Personal(viewerId, titles).FirstOrDefault(s => s.Id == id) ?? LikeShelf(id, titles) ?? PersonShelf(id);
+        var shelf = Find(id, viewerId, titles);
         if (shelf is null) return Outcome<ShelfView>.Failed(Problem.NotFound, "There is no shelf by that name.");
+        if (picks is { Any: true } && shelf.Source != ShelfSource.Query)
+            return Outcome<ShelfView>.Failed(Problem.Invalid, "This shelf is not a question of the film database, so a filter does not narrow it.");
 
-        var listed = await TitlesAsync(shelf, viewerId, titles, page, sort, ct);
+        var listed = picks is { Any: true }
+            ? await PickedAsync(shelf, viewerId, titles, page, sort, picks, ct)
+            : await TitlesAsync(shelf, viewerId, titles, page, sort, ct);
         if (listed.Value is not { } found) return listed.Carry<ShelfView>();
         return Outcome<ShelfView>.Ok(new ShelfView
         {
@@ -485,6 +489,38 @@ public sealed class DiscoverShelves(
             Titles = found.Titles,
             Next = found.Next,
         });
+    }
+
+    /// <summary>
+    /// Which options each section of a shelf holds with a filter's picks on it. A shelf that is a
+    /// question of the film database is measured as a discovery is
+    /// (<see cref="CatalogueSearch.ShelfFacetsAsync"/>); any other shelf has no sections.
+    /// </summary>
+    public async Task<Outcome<CatalogueFacetsView>> FacetsAsync(string id, string? viewerId, DiscoverPicks picks, CancellationToken ct)
+    {
+        var shelf = Find(id, viewerId, library.Titles());
+        if (shelf is null) return Outcome<CatalogueFacetsView>.Failed(Problem.NotFound, "There is no shelf by that name.");
+        if (shelf.Source != ShelfSource.Query) return Outcome<CatalogueFacetsView>.Ok(new CatalogueFacetsView { Sections = [] });
+        return await search.ShelfFacetsAsync(Asked(shelf.Query!, null), picks, ct);
+    }
+
+    private Shelf? Find(string id, string? viewerId, IReadOnlyList<TitleSummary> titles) =>
+        ById.GetValueOrDefault(id) ?? Personal(viewerId, titles).FirstOrDefault(s => s.Id == id) ?? LikeShelf(id, titles) ?? PersonShelf(id);
+
+    /// <summary>A shelf's question as it is asked: up to today unless it names its own end, in the order a sort names.</summary>
+    private DiscoverQuery Asked(DiscoverQuery query, string? sort)
+    {
+        if (query.To is null && query.AiringTo is null) query = query with { To = Today() };
+        return sort is null ? query : query with { Sort = sort };
+    }
+
+    /// <summary>A page of a shelf's question narrowed by a filter's picks; never kept as the shelf's own first page.</summary>
+    private async Task<Outcome<ShelfPage>> PickedAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, DiscoverPicks picks, CancellationToken ct)
+    {
+        var narrowed = await search.NarrowedAsync(Asked(shelf.Query!, sort), picks, ct);
+        if (narrowed.Value is not { } queries) return narrowed.Carry<ShelfPage>();
+        var ask = new PageAsk(CatalogueSearch.MostOnShelf, CatalogueSearch.ShelfListed, page);
+        return Hits(await search.ShelfAsync(queries, ask, ct), LibraryShelf.Of(titles, record, viewerId));
     }
 
     /// <summary>
@@ -537,10 +573,7 @@ public sealed class DiscoverShelves(
         {
             case ShelfSource.Query:
             {
-                var query = shelf.Query!;
-                if (query.To is null && query.AiringTo is null) query = query with { To = Today() };
-                if (sort is not null) query = query with { Sort = sort };
-                return Hits(await search.ShelfAsync(query, ask, ct), held);
+                return Hits(await search.ShelfAsync(Asked(shelf.Query!, sort), ask, ct), held);
             }
             case ShelfSource.Chart:
                 return Hits(await search.ChartAsync(shelf.Chart!.Value, ask, sort, ct), held);

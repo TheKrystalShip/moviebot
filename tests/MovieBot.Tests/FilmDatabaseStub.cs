@@ -140,6 +140,68 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         return "{ \"page\": " + page + ", \"total_pages\": 3, \"results\": [ " + string.Join(", ", films) + " ] }";
     }
 
+    /// <summary>The company and the keyword whose titles are <see cref="Prism"/>: a discovery of them is answered by its filters, as the database answers one.</summary>
+    public const int PrismId = 4242;
+
+    /// <summary>A title of the Prism world, with what a discovery filters it by.</summary>
+    public sealed record PrismTitle(int Id, string Kind, string Title, string Date, int[] Genres, string Language, int Runtime, double Rating, int Popularity);
+
+    /// <summary>
+    /// Films and one show of the 1990s, 2010s and 2020s, of Horror, Crime, Adventure, Animation and
+    /// Family and nothing of Western, made in English, French, Korean and Japanese; the reels are
+    /// thirty Crime films of the 1990s and 2020s, enough for two decades apart to run to a second page.
+    /// </summary>
+    public static readonly IReadOnlyList<PrismTitle> Prism =
+    [
+        new(4300, "film", "Prism Night", "1994-03-01", [27], "en", 95, 6.9, 9000),
+        new(4301, "film", "Prism Run", "1997-03-01", [80], "en", 120, 7.4, 8500),
+        new(4302, "film", "Prism Deep", "2012-03-01", [27], "en", 85, 6.1, 8000),
+        new(4303, "film", "Prism Gold", "2015-03-01", [12], "fr", 160, 7.9, 7500),
+        new(4304, "film", "Prism Hollow", "2018-03-01", [27, 80], "ko", 100, 8.3, 7000),
+        new(4305, "film", "Prism Light", "2021-03-01", [80], "en", 140, 6.6, 6500),
+        new(4306, "film", "Prism Song", "2023-03-01", [12], "en", 80, 7.1, 6000),
+        new(4307, "film", "Prism Toon", "2011-03-01", [16], "ja", 90, 7.7, 5500),
+        new(4308, "film", "Prism Edge", "1995-03-01", [80], "en", 155, 7.0, 5000),
+        new(4309, "film", "Prism Dusk", "2016-03-01", [27], "en", 110, 5.8, 4500),
+        new(4310, "film", "Prism Fall", "2019-03-01", [80], "fr", 100, 6.4, 4000),
+        new(4311, "film", "Prism Kin", "2013-03-01", [10751], "en", 90, 6.2, 3500),
+        .. Enumerable.Range(0, 30).Select(i => new PrismTitle(4400 + i, "film", "Prism Reel " + i, (i % 2 == 0 ? 1990 + i / 4 : 2020 + i / 6) + "-06-01",
+            [80], "en", 100, 6.5, 3000 - i)),
+        new(4500, "show", "Prism Tales", "2020-05-01", [18], "en", 45, 7.5, 2000),
+    ];
+
+    /// <summary>A page of the Prism world for a discovery, filtered and ordered as the database does it.</summary>
+    private static string PrismPage(string kind, System.Collections.Specialized.NameValueCollection query)
+    {
+        var dates = kind == "film" ? "primary_release_date" : "first_air_date";
+        bool Genres(PrismTitle t, string? list, bool without)
+        {
+            if (string.IsNullOrEmpty(list)) return true;
+            var any = list.Contains('|');
+            var ids = list.Split(any ? '|' : ',').Select(x => int.Parse(x, CultureInfo.InvariantCulture)).ToList();
+            if (without) return !ids.Any(t.Genres.Contains);
+            return any ? ids.Any(t.Genres.Contains) : ids.All(t.Genres.Contains);
+        }
+        var found = Prism
+            .Where(t => t.Kind == kind)
+            .Where(t => Genres(t, query["with_genres"], false) && Genres(t, query["without_genres"], true))
+            .Where(t => query[dates + ".gte"] is not { } from || string.CompareOrdinal(t.Date, from) >= 0)
+            .Where(t => query[dates + ".lte"] is not { } to || string.CompareOrdinal(t.Date, to) <= 0)
+            .Where(t => query["with_runtime.gte"] is not { } min || t.Runtime >= int.Parse(min, CultureInfo.InvariantCulture))
+            .Where(t => query["with_runtime.lte"] is not { } max || t.Runtime <= int.Parse(max, CultureInfo.InvariantCulture))
+            .Where(t => query["with_original_language"] is not { } languages || languages.Split('|').Contains(t.Language))
+            .Where(t => query["vote_average.gte"] is not { } rating || t.Rating >= double.Parse(rating, CultureInfo.InvariantCulture))
+            .OrderByDescending(t => t.Popularity)
+            .ToList();
+        var page = int.Parse(query["page"] ?? "1", CultureInfo.InvariantCulture);
+        var items = found.Skip((page - 1) * 20).Take(20).Select(t =>
+            "{ \"id\": " + t.Id + ", \"" + (kind == "film" ? "title" : "name") + "\": \"" + t.Title + "\", \"" + (kind == "film" ? "release_date" : "first_air_date") + "\": \"" + t.Date + "\","
+            + " \"vote_average\": " + Num(t.Rating) + ", \"vote_count\": 500, \"popularity\": " + t.Popularity + ", \"overview\": \"About " + t.Title + ".\","
+            + " \"poster_path\": \"/p" + t.Id + ".jpg\", \"genre_ids\": [ " + string.Join(", ", t.Genres) + " ], \"original_language\": \"" + t.Language + "\" }");
+        return "{ \"page\": " + page + ", \"total_pages\": " + Math.Max(1, (found.Count + 19) / 20) + ", \"total_results\": " + found.Count
+            + ", \"results\": [ " + string.Join(", ", items) + " ] }";
+    }
+
     [GeneratedRegex(@"/movie/(9\d{3})$")]
     private static partial Regex PagedFilm();
 
@@ -185,7 +247,7 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
                     { "id": 7, "media_type": "tv", "name": "A Talk Show", "genre_ids": [10767], "vote_count": 900, "character": "Self" } ] } }
                 """;
         if (path.EndsWith("/genre/movie/list"))
-            return "{ \"genres\": [ " + string.Join(", ", Genre(80, "Crime"), Genre(12, "Adventure"), Genre(27, "Horror"), Genre(16, "Animation"), Genre(10751, "Family")) + " ] }";
+            return "{ \"genres\": [ " + string.Join(", ", Genre(80, "Crime"), Genre(12, "Adventure"), Genre(27, "Horror"), Genre(16, "Animation"), Genre(10751, "Family"), Genre(37, "Western")) + " ] }";
         if (path.EndsWith("/genre/tv/list"))
             return "{ \"genres\": [ " + string.Join(", ", Genre(10759, "Action & Adventure"), Genre(18, "Drama")) + " ] }";
 
@@ -230,6 +292,7 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             {
                 "silent film" => """{ "results": [ { "id": 12999, "name": "silent film" } ] }""",
                 "paged" => """{ "results": [ { "id": 31337, "name": "paged" } ] }""",
+                "prism world" => """{ "results": [ { "id": 4242, "name": "prism world" } ] }""",
                 "time loop" => """{ "results": [ { "id": 366519, "name": "time loops" }, { "id": 10854, "name": "time loop" } ] }""",
                 _ => Results(),
             };
@@ -244,12 +307,13 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
                 "heat" => """{ "results": [ { "id": 555, "name": "Heat Productions" } ] }""",
                 "tiny" => """{ "results": [ { "id": 556, "name": "Tiny Films" } ] }""",
                 "paged" => """{ "results": [ { "id": 557, "name": "Paged" } ] }""",
+                "prism" => """{ "results": [ { "id": 4242, "name": "Prism" } ] }""",
                 _ => Results(),
             };
         }
 
         if (path.EndsWith("/configuration/languages"))
-            return """[ { "iso_639_1": "en", "english_name": "English", "name": "English" }, { "iso_639_1": "ko", "english_name": "Korean", "name": "한국어/조선말" } ]""";
+            return """[ { "iso_639_1": "en", "english_name": "English", "name": "English" }, { "iso_639_1": "ko", "english_name": "Korean", "name": "한국어/조선말" }, { "iso_639_1": "fr", "english_name": "French", "name": "Français" }, { "iso_639_1": "ja", "english_name": "Japanese", "name": "日本語" } ]""";
 
         // A person whose credits run from a film long out to one with no date, and what they did on each.
         if (path.EndsWith("/person/" + Jo))
@@ -334,6 +398,9 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             return """{ "id": 6001, "name": "Long Winter", "original_language": "en", "first_air_date": "2021-01-10", "status": "Ended", "genres": [ { "name": "Drama" } ], "created_by": [], "external_ids": { "imdb_id": "tt9100002" }, "aggregate_credits": { "cast": [] } }""";
 
         // Discovering by what a title is like.
+        if ((path.EndsWith("/discover/movie") || path.EndsWith("/discover/tv"))
+            && (query["with_companies"] == PrismId.ToString(CultureInfo.InvariantCulture) || query["with_keywords"] == PrismId.ToString(CultureInfo.InvariantCulture)))
+            return PrismPage(path.EndsWith("/discover/movie") ? "film" : "show", query);
         if (path.EndsWith("/discover/movie"))
         {
             var genres = query["with_genres"];

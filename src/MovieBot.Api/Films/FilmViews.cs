@@ -120,6 +120,10 @@ public sealed record FilmFacts
     public string? Certification { get; init; }
     public required List<string> Genres { get; init; }
     public int? RuntimeMinutes { get; init; }
+
+    /// <summary>The language it was made in, an ISO 639-1 code.</summary>
+    public string? OriginalLanguage { get; init; }
+
     public string? Overview { get; init; }
     public required List<string> Directors { get; init; }
     public string? PosterUrl { get; init; }
@@ -202,6 +206,7 @@ public static class FilmViews
             Certification = d.Certification,
             Genres = [.. d.Genres],
             RuntimeMinutes = d.RuntimeMinutes,
+            OriginalLanguage = d.OriginalLanguage,
             Overview = d.Overview,
             Directors = [.. d.Directors],
             PosterUrl = store.HasImage(d.ImdbId, FilmStore.Poster) ? ImageUrl(d.ImdbId, FilmStore.Poster) : null,

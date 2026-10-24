@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
@@ -51,19 +52,34 @@ public static class DiscoverEndpoints
 
         // One page of a shelf's titles, joined with the library and with what the asking person
         // watched, in the shelf's order or the one sort names; next names the page that follows.
-        app.MapGet("/api/discover/shelves/{id}", async (string id, int? page, string? sort, HttpContext context, DiscoverShelves shelves, CancellationToken ct) =>
+        // A filter's picks narrow a shelf that is a question of the film database.
+        app.MapGet("/api/discover/shelves/{id}", async (string id, int? page, string? sort, [FromQuery] string[]? anyGenre, [FromQuery] string[]? decade,
+            [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
+            HttpContext context, DiscoverShelves shelves, CancellationToken ct) =>
         {
+            if (CatalogueSearchEndpoints.Picks(null, null, anyGenre, decade, length, minRating, language) is not { } picks) return CatalogueSearchEndpoints.BadDecade();
             var outcome = await shelves.ShelfAsync(id, PeopleEndpoints.Person(context)?.UserId, page ?? 1, ct,
-                string.IsNullOrWhiteSpace(sort) || sort == "order" ? null : sort);
-            return outcome.Value is { } shelf
-                ? Results.Ok(shelf)
-                : Results.Json(new ErrorReply(outcome.Message ?? "The film database could not answer."), ApiJsonContext.Default.ErrorReply,
-                    statusCode: outcome.Problem switch
-                    {
-                        Problem.Invalid => StatusCodes.Status400BadRequest,
-                        Problem.NotFound => StatusCodes.Status404NotFound,
-                        _ => StatusCodes.Status503ServiceUnavailable,
-                    });
+                string.IsNullOrWhiteSpace(sort) || sort == "order" ? null : sort, picks);
+            return outcome.Value is { } shelf ? Results.Ok(shelf) : Refused(outcome);
+        }).RequireAction(CinemaActions.Watch);
+
+        // Which options each section of a shelf holds, with the filter's picks on it.
+        app.MapGet("/api/discover/shelves/{id}/facets", async (string id, [FromQuery] string[]? anyGenre, [FromQuery] string[]? decade,
+            [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
+            HttpContext context, DiscoverShelves shelves, CancellationToken ct) =>
+        {
+            if (CatalogueSearchEndpoints.Picks(null, null, anyGenre, decade, length, minRating, language) is not { } picks) return CatalogueSearchEndpoints.BadDecade();
+            var outcome = await shelves.FacetsAsync(id, PeopleEndpoints.Person(context)?.UserId, picks, ct);
+            return outcome.Value is { } facets ? Results.Ok(facets) : Refused(outcome);
         }).RequireAction(CinemaActions.Watch);
     }
+
+    private static IResult Refused<T>(Outcome<T> outcome) where T : class =>
+        Results.Json(new ErrorReply(outcome.Message ?? "The film database could not answer."), ApiJsonContext.Default.ErrorReply,
+            statusCode: outcome.Problem switch
+            {
+                Problem.Invalid => StatusCodes.Status400BadRequest,
+                Problem.NotFound => StatusCodes.Status404NotFound,
+                _ => StatusCodes.Status503ServiceUnavailable,
+            });
 }

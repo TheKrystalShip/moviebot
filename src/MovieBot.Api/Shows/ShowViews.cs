@@ -159,6 +159,7 @@ public static class ShowViews
             RatedBy = ratedBy,
             Certification = d.Certification,
             Genres = [.. d.Genres],
+            OriginalLanguage = d.OriginalLanguage,
             Overview = d.Overview,
             Directors = [.. d.Creators],
             PosterUrl = store.HasImage(d.ImdbId, ShowStore.Poster) ? ImageUrl(d.ImdbId, ShowStore.Poster) : null,

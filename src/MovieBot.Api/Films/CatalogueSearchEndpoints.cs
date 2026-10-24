@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
@@ -26,10 +27,13 @@ public static class CatalogueSearchEndpoints
         }).RequireAction(CinemaActions.Watch);
 
         // Words typed into Discover as a question (top 10 horror movies from 2000), or no question
-        // when they are a title's name; page and next walk the titles it found.
-        app.MapGet("/api/catalogue/ask", async (string? q, int? page, HttpContext context, CatalogueSearch search, CancellationToken ct) =>
+        // when they are a title's name, narrowed by a filter's picks; page and next walk the titles it found.
+        app.MapGet("/api/catalogue/ask", async (string? q, int? page, string? kind, string? category, [FromQuery] string[]? anyGenre,
+            [FromQuery] string[]? decade, [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
+            HttpContext context, CatalogueSearch search, CancellationToken ct) =>
         {
-            var outcome = await search.AskAsync(q ?? "", page ?? 1, ct);
+            if (Picks(kind, category, anyGenre, decade, length, minRating, language) is not { } picks) return BadDecade();
+            var outcome = await search.AskAsync(q ?? "", page ?? 1, picks, ct);
             if (outcome.Value is not { } answer) return Refused(outcome);
 
             var shelf = search.ShelfFor(Viewer(context));
@@ -44,6 +48,16 @@ public static class CatalogueSearchEndpoints
                 Next = answer.Discovery?.Next,
                 Message = answer.Message,
             });
+        }).RequireAction(CinemaActions.Watch);
+
+        // Which options each section of a question's answers holds, with the filter's picks on it.
+        app.MapGet("/api/catalogue/ask/facets", async (string? q, string? kind, string? category, [FromQuery] string[]? anyGenre,
+            [FromQuery] string[]? decade, [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
+            CatalogueSearch search, CancellationToken ct) =>
+        {
+            if (Picks(kind, category, anyGenre, decade, length, minRating, language) is not { } picks) return BadDecade();
+            var outcome = await search.AskFacetsAsync(q ?? "", picks, ct);
+            return outcome.Value is { } facets ? Results.Ok(facets) : Refused(outcome);
         }).RequireAction(CinemaActions.Watch);
 
         // The people a name could mean, with what each is known for: the way to a person's id.
@@ -69,33 +83,11 @@ public static class CatalogueSearchEndpoints
 
         // Films or shows found by what they are like. Every filter is optional and they combine; a
         // page of at most twenty, and next names the page that follows.
-        app.MapGet("/api/catalogue/discover", async (
-            string? kind, [FromQuery] string[]? genre, [FromQuery] string[]? exclude, bool? includeFamily, int? from, int? to, [FromQuery(Name = "with")] string[]? people, [FromQuery] string[]? about,
-            string? language, string? like, bool? goodOnly, double? minRating, int? minVotes, int? minRuntime, int? maxRuntime, string? sort, int? limit, int? page, string? category,
-            HttpContext context, CatalogueSearch search, CancellationToken ct) =>
+        app.MapGet("/api/catalogue/discover", async (HttpContext context, CatalogueSearch search, CancellationToken ct) =>
         {
-            var outcome = await search.DiscoverAsync(new DiscoverRequest
-            {
-                Kind = kind,
-                Genres = Words(genre),
-                Exclude = Words(exclude),
-                IncludeFamily = includeFamily ?? false,
-                From = from,
-                To = to,
-                With = Words(people),
-                About = Words(about),
-                Language = language,
-                Like = like,
-                GoodOnly = goodOnly ?? true,
-                MinRating = minRating,
-                MinVotes = minVotes,
-                MinRuntime = minRuntime,
-                MaxRuntime = maxRuntime,
-                Sort = sort,
-                Limit = limit ?? CatalogueSearch.MostListed,
-                Page = page ?? 1,
-                Category = category,
-            }, ct);
+            var (request, refusal) = Discovery(context.Request.Query);
+            if (request is null) return refusal!;
+            var outcome = await search.DiscoverAsync(request, ct);
             if (outcome.Value is not { } answer) return Refused(outcome);
 
             var shelf = search.ShelfFor(Viewer(context));
@@ -106,6 +98,15 @@ public static class CatalogueSearchEndpoints
                 Titles = [.. answer.Hits.Select(h => search.View(h, shelf))],
                 Next = answer.Next,
             });
+        }).RequireAction(CinemaActions.Watch);
+
+        // Which options each section of a discovery's answers holds, with every other section's picks on it.
+        app.MapGet("/api/catalogue/discover/facets", async (HttpContext context, CatalogueSearch search, CancellationToken ct) =>
+        {
+            var (request, refusal) = Discovery(context.Request.Query);
+            if (request is null) return refusal!;
+            var outcome = await search.DiscoverFacetsAsync(request, new HashSet<string>(), ct);
+            return outcome.Value is { } facets ? Results.Ok(facets) : Refused(outcome);
         }).RequireAction(CinemaActions.Watch);
 
         // What came out lately and what has a date coming, the most looked at of each; with
@@ -163,9 +164,102 @@ public static class CatalogueSearchEndpoints
     /// <summary>Who is asking: the token's person, or nobody for the service key.</summary>
     private static string? Viewer(HttpContext context) => PeopleEndpoints.Person(context)?.UserId;
 
+    /// <summary>A discovery as its query names it, or why the query is not one: a number that is not a number.</summary>
+    private static (DiscoverRequest? Request, IResult? Refusal) Discovery(IQueryCollection query)
+    {
+        string? bad = null;
+        string? One(string key) => query[key].LastOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
+        int? Int(string key)
+        {
+            if (One(key) is not { } text) return null;
+            if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n)) return n;
+            bad ??= key;
+            return null;
+        }
+        double? Real(string key)
+        {
+            if (One(key) is not { } text) return null;
+            if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var n)) return n;
+            bad ??= key;
+            return null;
+        }
+        bool? Flag(string key)
+        {
+            if (One(key) is not { } text) return null;
+            if (bool.TryParse(text, out var b)) return b;
+            bad ??= key;
+            return null;
+        }
+        if (Years(query["decade"]) is not { } decades) return (null, BadDecade());
+
+        // One language is the question's own; several are a pick of any of them.
+        var languages = Words(query["language"]);
+        var request = new DiscoverRequest
+        {
+            Kind = One("kind"),
+            Genres = Words(query["genre"]),
+            AnyGenres = Words(query["anyGenre"]),
+            Exclude = Words(query["exclude"]),
+            IncludeFamily = Flag("includeFamily") ?? false,
+            From = Int("from"),
+            To = Int("to"),
+            With = Words(query["with"]),
+            About = Words(query["about"]),
+            Language = languages.Count == 1 ? languages[0] : null,
+            Languages = languages.Count > 1 ? languages : [],
+            Decades = decades,
+            Lengths = Words(query["length"]),
+            Like = One("like"),
+            GoodOnly = Flag("goodOnly") ?? true,
+            MinRating = Real("minRating"),
+            MinVotes = Int("minVotes"),
+            MinRuntime = Int("minRuntime"),
+            MaxRuntime = Int("maxRuntime"),
+            Sort = One("sort"),
+            Limit = Int("limit") ?? CatalogueSearch.MostListed,
+            Page = Int("page") ?? 1,
+            Category = One("category"),
+        };
+        return bad is null
+            ? (request, null)
+            : (null, Results.Json(new ErrorReply($"{bad} is not a {(bad is "includeFamily" or "goodOnly" ? "true or false" : "number")}."),
+                ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status400BadRequest));
+    }
+
+    /// <summary>A filter's picks on a question; null for a decade that is not a number.</summary>
+    internal static DiscoverPicks? Picks(string? kind, string? category, string[]? anyGenre, string[]? decade, string[]? length, double? minRating, string[]? language) =>
+        Years(decade) is { } decades
+            ? new DiscoverPicks
+            {
+                Kind = string.IsNullOrWhiteSpace(kind) ? null : kind.Trim(),
+                Category = string.IsNullOrWhiteSpace(category) ? null : category.Trim(),
+                AnyGenres = Words(anyGenre),
+                Decades = decades,
+                Lengths = Words(length),
+                MinRating = minRating,
+                Languages = Words(language),
+            }
+            : null;
+
+    /// <summary>The decades a query names, each once; null when one is not a number.</summary>
+    private static List<int>? Years(IEnumerable<string?>? values)
+    {
+        var years = new List<int>();
+        foreach (var word in Words([.. values ?? []]))
+        {
+            if (!int.TryParse(word.TrimEnd('s'), NumberStyles.None, CultureInfo.InvariantCulture, out var year)) return null;
+            if (!years.Contains(year)) years.Add(year);
+        }
+        return years;
+    }
+
+    internal static IResult BadDecade() => Results.Json(
+        new ErrorReply("A decade is named by its first year, 1990."), ApiJsonContext.Default.ErrorReply,
+        statusCode: StatusCodes.Status400BadRequest);
+
     /// <summary>The words a query carries, whether repeated or joined by commas, each once.</summary>
-    private static List<string> Words(string[]? values) =>
-        (values ?? []).SelectMany(v => v.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    private static List<string> Words(IEnumerable<string?>? values) =>
+        (values ?? []).OfType<string>().SelectMany(v => v.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
     private static IResult Refused<T>(Outcome<T> outcome) where T : class => Results.Json(

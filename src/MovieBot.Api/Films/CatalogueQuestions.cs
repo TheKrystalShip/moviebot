@@ -24,45 +24,26 @@ public sealed partial class CatalogueSearch
     /// question, answered with the refusal's message and no titles. A question that names a set Wikidata
     /// lists is <see cref="AskWikidataAsync"/>'s.
     /// </summary>
-    public async Task<Outcome<QuestionAnswer>> AskAsync(string text, int page, CancellationToken ct)
+    public Task<Outcome<QuestionAnswer>> AskAsync(string text, int page, CancellationToken ct) => AskAsync(text, page, DiscoverPicks.None, ct);
+
+    /// <summary>
+    /// A question answered with a filter's picks added to it (<see cref="DiscoverPicks"/>). A pick in a
+    /// section the question names for itself is refused, and a question answered from a set Wikidata
+    /// lists takes no picks.
+    /// </summary>
+    public async Task<Outcome<QuestionAnswer>> AskAsync(string text, int page, DiscoverPicks picks, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(text)) return Invalid<QuestionAnswer>("Ask something.");
-        var vocabulary = await VocabularyAsync(ct);
-        if (vocabulary.Value is not { } words) return vocabulary.Carry<QuestionAnswer>();
-        if (QuestionReader.Read(text, Today(), words) is not { } question) return await BareStudioAsync(text, page, ct);
+        var read = await ReadQuestionAsync(text, ct);
+        if (read.Value is not { } asked) return read.Carry<QuestionAnswer>();
+        if (asked.Settled is { } settled) return Outcome<QuestionAnswer>.Ok(settled);
+        if (asked.Wikidata is { } listed)
+            return picks.Any
+                ? Outcome<QuestionAnswer>.Ok(new QuestionAnswer(true, asked.Parts, null, "A question about awards, adaptations, places or subgenres is not narrowed by a filter."))
+                : await AskWikidataAsync(listed, page, ct);
+        if (PicksRefused(asked.Parts, picks) is { } refusal) return Invalid<QuestionAnswer>(refusal);
 
-        if (question.Wikidata is not null) return await AskWikidataAsync(question, page, ct);
-
-        var request = question.Request;
-        var parts = question.Parts.ToList();
-        if (question.Named is { } named)
-        {
-            var found = await NamedAsync(named, lenient: false, ct);
-            if (found.Value is not { } name) return found.Problem == Problem.NotFound ? Outcome<QuestionAnswer>.Ok(QuestionAnswer.None) : found.Carry<QuestionAnswer>();
-            request = name.Part switch
-            {
-                "person" => request with { With = [name.Name, .. request.With] },
-                "studio" => request with { Studios = [name.Name, .. request.Studios], GoodOnly = false, MinVotes = request.MinVotes ?? StudioVotes },
-                _ => request with { About = [name.Name, .. request.About] },
-            };
-            parts.Insert(0, new QuestionPart(name.Part, name.Name));
-        }
-        foreach (var either in question.WithEither)
-        {
-            var found = await NamedAsync(either, lenient: true, ct);
-            if (found.Value is not { } name)
-            {
-                if (found.Problem != Problem.NotFound) return found.Carry<QuestionAnswer>();
-                return Outcome<QuestionAnswer>.Ok(new QuestionAnswer(true, parts, null, found.Message));
-            }
-            request = name.Part == "person"
-                ? request with { With = [.. request.With, name.Name] }
-                : request with { About = [.. request.About, name.Name] };
-            var at = parts.FindIndex(p => p.Part == "person" && p.Text == either);
-            if (at >= 0) parts[at] = new QuestionPart(name.Part, name.Name);
-        }
-
-        var answer = await DiscoverAsync(request with { Page = page }, ct);
+        var parts = asked.Parts;
+        var answer = await DiscoverAsync(picks.On(asked.Request!) with { Page = page }, ct);
         if (answer.Value is not { } discovery)
             return answer.Problem is Problem.NotFound or Problem.Invalid
                 ? Outcome<QuestionAnswer>.Ok(new QuestionAnswer(true, parts, null, answer.Message))
@@ -81,6 +62,93 @@ public sealed partial class CatalogueSearch
         }
         return Outcome<QuestionAnswer>.Ok(new QuestionAnswer(true, parts, discovery, null));
     }
+
+    /// <summary>
+    /// Which options each section of a question's answers holds, with a filter's picks on it
+    /// (<see cref="DiscoverFacetsAsync"/>). The sections the question names for itself are not
+    /// reported; words that are no question, a question nothing answers and a set Wikidata lists have
+    /// no sections.
+    /// </summary>
+    public async Task<Outcome<CatalogueFacetsView>> AskFacetsAsync(string text, DiscoverPicks picks, CancellationToken ct)
+    {
+        var none = Outcome<CatalogueFacetsView>.Ok(new CatalogueFacetsView { Sections = [] });
+        var read = await ReadQuestionAsync(text, ct);
+        if (read.Value is not { } asked) return read.Carry<CatalogueFacetsView>();
+        if (asked.Settled is not null || asked.Wikidata is not null) return none;
+        if (PicksRefused(asked.Parts, picks) is { } refusal) return Invalid<CatalogueFacetsView>(refusal);
+
+        var facets = await DiscoverFacetsAsync(picks.On(asked.Request!), FixedBy(asked.Parts), ct);
+        return facets.Problem is Problem.NotFound or Problem.Invalid ? none : facets;
+    }
+
+    /// <summary>The sections a question's parts name for it, which no filter picks in.</summary>
+    internal static HashSet<string> FixedBy(IEnumerable<QuestionPart> parts) =>
+        [.. parts.Select(p => p.Part switch
+        {
+            "kind" or "category" => FacetSections.Kind,
+            "genre" => FacetSections.Genre,
+            "years" => FacetSections.Decade,
+            "runtime" => FacetSections.Length,
+            "language" => FacetSections.Language,
+            _ => null,
+        }).OfType<string>()];
+
+    private static string? PicksRefused(IEnumerable<QuestionPart> parts, DiscoverPicks picks)
+    {
+        var fixedBy = FixedBy(parts);
+        return picks.Sections().FirstOrDefault(fixedBy.Contains) is { } section
+            ? $"The question names its own {section}, so a filter does not pick one."
+            : null;
+    }
+
+    /// <summary>
+    /// A question read and its names resolved: the discovery that answers it, the question when a set
+    /// Wikidata lists answers it, or an answer already settled (no question, or a refusal of a name).
+    /// </summary>
+    private sealed record ReadQuestion(List<QuestionPart> Parts, DiscoverRequest? Request, Question? Wikidata, QuestionAnswer? Settled);
+
+    private async Task<Outcome<ReadQuestion>> ReadQuestionAsync(string text, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return Invalid<ReadQuestion>("Ask something.");
+        var vocabulary = await VocabularyAsync(ct);
+        if (vocabulary.Value is not { } words) return vocabulary.Carry<ReadQuestion>();
+        if (QuestionReader.Read(text, Today(), words) is not { } question) return await BareStudioAsync(text, ct);
+
+        var parts = question.Parts.ToList();
+        if (question.Wikidata is not null) return Outcome<ReadQuestion>.Ok(new ReadQuestion(parts, null, question, null));
+
+        var request = question.Request;
+        if (question.Named is { } named)
+        {
+            var found = await NamedAsync(named, lenient: false, ct);
+            if (found.Value is not { } name)
+                return found.Problem == Problem.NotFound ? Settled(QuestionAnswer.None) : found.Carry<ReadQuestion>();
+            request = name.Part switch
+            {
+                "person" => request with { With = [name.Name, .. request.With] },
+                "studio" => request with { Studios = [name.Name, .. request.Studios], GoodOnly = false, MinVotes = request.MinVotes ?? StudioVotes },
+                _ => request with { About = [name.Name, .. request.About] },
+            };
+            parts.Insert(0, new QuestionPart(name.Part, name.Name));
+        }
+        foreach (var either in question.WithEither)
+        {
+            var found = await NamedAsync(either, lenient: true, ct);
+            if (found.Value is not { } name)
+            {
+                if (found.Problem != Problem.NotFound) return found.Carry<ReadQuestion>();
+                return Settled(new QuestionAnswer(true, parts, null, found.Message));
+            }
+            request = name.Part == "person"
+                ? request with { With = [.. request.With, name.Name] }
+                : request with { About = [.. request.About, name.Name] };
+            var at = parts.FindIndex(p => p.Part == "person" && p.Text == either);
+            if (at >= 0) parts[at] = new QuestionPart(name.Part, name.Name);
+        }
+        return Outcome<ReadQuestion>.Ok(new ReadQuestion(parts, request, null, null));
+    }
+
+    private static Outcome<ReadQuestion> Settled(QuestionAnswer answer) => Outcome<ReadQuestion>.Ok(new ReadQuestion([], null, null, answer));
 
     /// <summary>The database's own genre, language and streaming service lists, which the reader recognises those words from.</summary>
     private async Task<Outcome<QuestionVocabulary>> VocabularyAsync(CancellationToken ct)
@@ -103,9 +171,9 @@ public sealed partial class CatalogueSearch
     /// <see cref="BareStudioTitles"/> titles on its first page. Anything else is no question, and the
     /// words are a title's name; so is a studio the database cannot be asked about.
     /// </summary>
-    private async Task<Outcome<QuestionAnswer>> BareStudioAsync(string text, int page, CancellationToken ct)
+    private async Task<Outcome<ReadQuestion>> BareStudioAsync(string text, CancellationToken ct)
     {
-        var none = Outcome<QuestionAnswer>.Ok(QuestionAnswer.None);
+        var none = Settled(QuestionAnswer.None);
         var words = string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries));
         if ((await CompaniesAsync(words, ct)).Value is not { } companies || MatchStudio(companies, words) is not { } studio) return none;
 
@@ -115,9 +183,11 @@ public sealed partial class CatalogueSearch
         if (!studio.Exact && ((await KeywordsAsync(words, ct)).Value is not { } keywords
             || keywords.Any(k => string.Equals(k.Name, words, StringComparison.OrdinalIgnoreCase)))) return none;
 
-        var answer = await DiscoverAsync(new DiscoverRequest { Studios = [studio.Name], GoodOnly = false, MinVotes = StudioVotes, Page = page }, ct);
-        if (answer.Value is not { } discovery || (page == 1 && discovery.Hits.Count < BareStudioTitles)) return none;
-        return Outcome<QuestionAnswer>.Ok(new QuestionAnswer(true, [new QuestionPart("studio", discovery.Resolved.Studios.FirstOrDefault() ?? studio.Name)], discovery, null));
+        // Whether the words are a studio's is decided on its first page, whichever page or picks are asked.
+        var request = new DiscoverRequest { Studios = [studio.Name], GoodOnly = false, MinVotes = StudioVotes };
+        var answer = await DiscoverAsync(request, ct);
+        if (answer.Value is not { } discovery || discovery.Hits.Count < BareStudioTitles) return none;
+        return Outcome<ReadQuestion>.Ok(new ReadQuestion([new QuestionPart("studio", discovery.Resolved.Studios.FirstOrDefault() ?? studio.Name)], request, null, null));
     }
 
     /// <summary>Whether the database was asked and holds no title called the words (<see cref="NamedExactly"/>).</summary>
