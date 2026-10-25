@@ -613,3 +613,51 @@
 
 /* The phone glyph a paused television shows while a remote drives it, beside who is watching. */
 .mp-top__remote { display: inline-flex; color: var(--krystal-teal); }
+
+/* ── Playback stats: this player's own measurements, over the top left of the film ── */
+.mp-stats {
+  position: absolute; top: 76px; left: 16px; z-index: 4;
+  width: min(380px, calc(100% - 32px)); max-height: calc(100% - 200px); overflow-y: auto; overscroll-behavior: contain;
+  padding: 10px 14px 12px; border-radius: var(--r-sm); border: var(--edge-strong);
+  background: color-mix(in srgb, var(--kc-black) 82%, transparent); backdrop-filter: blur(10px);
+  color: var(--art-fg-white); font-size: 12px; line-height: 1.4;
+}
+.mp-stats__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.mp-stats__title { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.mp-stats__close { display: inline-flex; padding: 4px; border-radius: var(--r-sm); color: inherit; }
+.mp-stats__close:hover { background: color-mix(in srgb, var(--art-fg-white) 14%, transparent); }
+.mp-stats__group { margin-top: 8px; }
+.mp-stats__name {
+  margin: 0 0 3px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--art-fg-white) 60%, transparent);
+}
+.mp-stats__rows, .mp-stats__ids { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 0; }
+.mp-stats__rows dt, .mp-stats__ids dt { color: color-mix(in srgb, var(--art-fg-white) 70%, transparent); }
+.mp-stats__rows dd, .mp-stats__ids dd { margin: 0; font-family: var(--font-mono); overflow-wrap: anywhere; }
+.mp-stats__rows dd.is-strong { color: var(--krystal-teal); font-weight: 600; }
+.mp-stats__ids { margin-top: 10px; font-size: 11px; }
+.mp-stats__ids dd { color: color-mix(in srgb, var(--art-fg-white) 75%, transparent); }
+.mp-stats__graph { margin: 2px 0 6px; }
+.mp-stats__graph svg { display: block; width: 100%; height: 84px; }
+.mp-stats__band { fill: color-mix(in srgb, var(--art-fg-white) 8%, transparent); }
+.mp-stats__level { stroke: color-mix(in srgb, var(--art-fg-white) 35%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.mp-stats__limit { stroke: color-mix(in srgb, var(--art-fg-white) 30%, transparent); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.mp-stats__line { fill: none; stroke: var(--krystal-teal); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.mp-stats__mark { stroke: color-mix(in srgb, var(--art-fg-white) 55%, transparent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.mp-stats__mark.is-seek, .mp-stats__mark.is-error { stroke: var(--danger-fg); }
+.mp-stats__mark.is-nudge, .mp-stats__mark.is-stall { stroke: var(--warning-fg); }
+.mp-stats__mark.is-hidden, .mp-stats__mark.is-reconnecting { stroke: var(--info-fg); }
+.mp-stats__axis {
+  display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px;
+  color: color-mix(in srgb, var(--art-fg-white) 55%, transparent);
+}
+.mp-stats__actions { display: flex; gap: 8px; margin-top: 10px; }
+.mp-stats__action {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: var(--r-pill);
+  border: 1px solid color-mix(in srgb, var(--art-fg-white) 25%, transparent); color: inherit; font-size: 12px;
+}
+.mp-stats__action:hover:not(:disabled) { background: color-mix(in srgb, var(--art-fg-white) 14%, transparent); }
+.mp-frame--compact .mp-stats { top: 64px; max-height: calc(100% - 164px); }
+@media (max-height: 520px) {
+  .mp-stats { top: 56px; max-height: calc(100% - 140px); }
+}

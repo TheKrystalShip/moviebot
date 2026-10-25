@@ -15,6 +15,7 @@ npm run check      # the player's engine, types only
 npm test           # the engine's pure rung logic (verify/heads.test.mjs)
 npm run build      # -> dist/; scripts/build-player.sh installs it into the API's wwwroot
 npm run verify     # the player in a real browser, against a running API and dev server
+npm run verify:stats   # the playback stats panel: its chord, Settings rows, values, graph, Send and a remote (verify/stats.mjs)
 npm run verify:routes  # every address, cold and by its flows, against a scratch site (verify/routes.mjs)
 npm run verify:mobile  # every page on iPhones and Galaxies, against a scratch site (verify/mobile/)
 npm run verify:pages   # every page at desktop, phone and TV sizes: failed or slow requests, errors, request counts (verify/pages/)
@@ -390,6 +391,14 @@ How the player behaves, and why: `src/player/CLAUDE.md`.
   against its playhead: over two seconds of drift it seeks, between half a second and two it trims
   `playbackRate` to 1.02 or 0.98 until inside a quarter second. Nothing about a stalled viewer moves
   the room; the room is only told the viewer is waiting.
+
+### Playback stats
+
+The player measures its own playback and shows it on request, over the top left of the film: how far
+the sound trails the picture, this player's drift from the room over the last five minutes with every
+correction marked, the buffers and the fetches, and the film's rung, codecs and frames. Ctrl+Alt+Shift+D
+or Settings opens it, and Send writes what it shows to the API's log under the viewer's name
+(`ReportStats`). What it measures and how: `src/player/CLAUDE.md`, Playback stats.
 
 ### A viewer who cannot play the film
 

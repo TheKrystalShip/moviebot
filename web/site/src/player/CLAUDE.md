@@ -398,6 +398,54 @@ and does nothing that would be.
   track choices it was given and moves them with every choice after, so one made while the film is
   loading is the one the load ends on.
 
+## Playback stats (`PlaybackStats.jsx`, `engine/media/playbackStats.ts`)
+
+What happens to a film between this browser's decoder and its speakers never reaches the server, so
+the player measures it and shows it to the person watching: the counterpart of the big streaming
+players' stats overlays.
+
+- **It shows this viewer's own measurements and nothing else**, and every value is measured or says
+  `unknown`: a browser that does not offer a measurement is never given a zero in its place.
+- **Sound against picture is the first thing it says.** Each presented frame
+  (`requestVideoFrameCallback`) gives its media time and when it reaches the screen; the element's
+  `currentTime` follows the audio clock, so the frame's time against where the sound will be when it is
+  shown is how far the picture is ahead of the sound the decoder makes, shown as a median over a
+  second. `AudioContext.outputLatency` is what the default output device adds after that, which is
+  where a wireless headset's delay sits, and the two together are how far the sound reaching the
+  person trails the picture. The audio context is never connected to the film's sound.
+- **The room against this player is a graph.** Each of the sync controller's checks (`onDrift`) is the
+  room's position minus the playhead over the last five minutes, drawn with the band where drift is
+  left alone and the lines where it is corrected with a seek. Each correction (`onCorrection`), the
+  page hidden and shown, the hub reconnecting, a stall, a rung switch and a fatal error is a mark on its
+  time axis. Beside it: the element's rate against the room's, the server clock's offset and round
+  trip, and the connection.
+- **The network and the film**: hls.js's bandwidth estimate and the rate measured over the network
+  alone (`Reach`), seconds ahead in the picture's buffer and the sound's separately (`BUFFER_APPENDED`),
+  the last fetch's first byte and total time, failed and fatal fetches, the rung playing and wanted,
+  the codecs read from the init segments (`BUFFER_CODECS`, since the playlists declare none), the
+  audio track, frames dropped, and stalls as the spinner's grace counts them. The playback id, the
+  title, the build (`VITE_CINEMA_BUILD`, the CHANGELOG's version and the commit), the front door, the
+  buffer-ahead choice and the user agent close it.
+- **What accumulates runs from the moment a film loads; what costs something runs only while it is
+  open.** The graph and the counters are reset by each load (`StreamEvents.onPlayback`), so opening the
+  panel shows what led up to it. The frame callback and the audio context are made when it opens and
+  let go when it closes. An audio context made without a press reports nothing until one comes, so a
+  press anywhere while it is open wakes it.
+- **The person opens it, and this browser keeps it open** (`cinema.playbackStats`), so a reload made
+  to try again comes back with it up. Ctrl+Alt+Shift+D toggles it, read by the key's code since Alt and
+  Shift change the character on a Mac; Ctrl+Shift+D alone is the browser's own. Settings has a
+  Playback stats row everywhere: a phone's Settings among its own rows, the gear at the end of a wide
+  frame's row and of a television's, and a tiny frame's overflow. A guest has it as anybody does,
+  since it moves nothing.
+- **It sits over the top left of the film, under the top bar and above the controls**, scrolling
+  inside itself on a short frame. A press on it stays on it; the film around it answers as it always
+  does. Close, Copy and Send are its controls.
+- **Send writes the snapshot to the API's log** (`ReportStats`, `docs/api-contract.md`):
+  the JSON the panel shows, cut to 8192 characters by dropping the oldest of the graph first
+  (`fitSnapshot`), at most one every ten seconds a connection, held to both by the page and by the
+  server. The button says whether it was sent. Copy puts the whole snapshot on the clipboard. A film
+  played alone has no server, so no Send.
+
 ## When the room cannot hear the page
 
 A phone on the move loses its connection for seconds or minutes and plays on from what it fetched.

@@ -41,6 +41,11 @@ export interface StreamEvents {
    * in the ingress's delivery log. Raised at most once a kind every `TroubleEveryMs`.
    */
   onTrouble(kind: TroubleKind, atSeconds: number, detail: string | null, playback: string): void;
+  /**
+   * A load began: the playback's name, and the hls.js playing it with the events to listen to, or null
+   * where the browser plays the stream itself. Raised before the film's first request.
+   */
+  onPlayback(playback: string, hls: Hls | null, events: typeof Hls.Events | null): void;
 }
 
 /** What a player says went wrong, in the server's words (`Sessions/PlayerTrouble`). */
@@ -213,6 +218,11 @@ export class FilmStream {
    * it. An element that never loaded, or one a recovery has just emptied, sits at zero and raises
    * play and pause as machinery.
    */
+  /** Bits a second over the network alone (`Reach`), where the device keeps the film ahead; null elsewhere, or before a fetch counted. */
+  get measuredBps(): number | null {
+    return this.ahead?.reach.throughput ?? null;
+  }
+
   get holdsFilm(): boolean {
     return this.ready && this.video.readyState >= HTMLMediaElement.HAVE_METADATA;
   }
@@ -330,6 +340,7 @@ export class FilmStream {
         cmcd: { useHeaders: true, contentId: titleId, sessionId: this.playback }
       });
       this.hls = hls;
+      this.events.onPlayback(this.playback, hls, Hls.Events);
       hls.on(Hls.Events.ERROR, (_event, data) => this.onHlsError(data));
       hls.on(Hls.Events.LEVEL_LOADED, () => { this.networkRetryMs = NetworkRetryFirstMs; });
       hls.on(Hls.Events.FRAG_LOADING, (_event, { frag }) => {
@@ -371,6 +382,7 @@ export class FilmStream {
       hls.attachMedia(this.video);
       hls.loadSource(this.masterUrl);
     } else if (this.video.canPlayType('application/vnd.apple.mpegurl') !== '') {
+      this.events.onPlayback(this.playback, null, null);
       this.video.src = this.masterUrl;
     } else {
       this.giveUp('This browser cannot play the film.');

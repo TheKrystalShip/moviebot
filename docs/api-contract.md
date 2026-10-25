@@ -149,7 +149,7 @@ against the room on every request, so a link taken away or run out opens nothing
 is evaluated only by the routes that name it: the hub, `GET /api/titles/{id}` and
 `GET /api/titles/{id}/ticket`, the last two for the title the guest's room holds this moment and a
 `403` for any other. Every other route answers a guest link as it answers no token, `401`. On the hub a
-guest calls `JoinAsGuest`, `ReportQuality`, `ReportTrouble` and `ServerTime` and nothing else: every other method throws
+guest calls `JoinAsGuest`, `ReportQuality`, `ReportTrouble`, `ReportStats` and `ServerTime` and nothing else: every other method throws
 a `HubException` (Who may come in, below). A guest's film bytes are opened by the ticket, as anybody's.
 
 ### Opening a film's bytes
@@ -918,6 +918,7 @@ SignalR at `/hub/session`. Camel-cased payloads, string enums.
 | `Buffering` | `(waiting: bool, atSeconds: double)` | this viewer's player has been waiting for the film past a stutter, stopped at `atSeconds`, or is playing again. The roster carries it; when every player in the room is waiting the room is held (`waiting` in the state) where the furthest behind of them stopped, and let go when one plays, somebody arrives, or a waiting one leaves |
 | `ReportQuality` | `(playingHeight: int?, wantedHeight: int?)` | the rung height this viewer plays, and the one its own adaptive choice would pick with nothing holding it back; on change and about every 30 s. Answers nothing and is sent to nobody: the server keeps it per connection for its transcode planner and drops it when the connection leaves. A player that cannot say (native HLS) sends nothing, and is taken to want the tallest rung |
 | `ReportTrouble` | `(kind: string, atSeconds: double, detail: string?, playback: string?)` | what went wrong with this viewer's film: `kind` is one of `network`, `media`, `stuck`, `device-slow`, `no-start`, `gave-up`, `detail` a short account (at most 160 characters are kept), `playback` the CMCD session id this playback's requests carry. Answers nothing and is sent to nobody: it is written to the API's log, at most six lines a minute per connection, with what was said past that counted. A player says each kind at most once every 30 s; a connection not in the room is ignored |
+| `ReportStats` | `(snapshot: string) → bool` | what this viewer's playback stats panel shows, sent when they press Send: a JSON object of at most 8192 characters (`web/site/src/player/CLAUDE.md`, Playback stats). Sent to nobody: it is written to the API's log as one line under the viewer's name, the room and the film. `true` once written; `false` for anything but a JSON object, one past the limit, or a second within 10 s on the same connection. A connection not in the room is refused (`HubException`) |
 
 **Receive:**
 
@@ -1009,7 +1010,7 @@ message the remote sends.
   room's `StateChanged`, `TitleChanged` and `ParticipantsChanged` reach it. It is not in `Participant[]`,
   the room's count, `/health`'s `watching` or the room listing, it holds nobody (`waiting` never counts
   it), it is no viewer anything is recorded for, and it is in no transcode plan. `Buffering`,
-  `ReportQuality`, `ReportTrouble`, `Join`, `JoinAsGuest`, `Knock`, `SetOpen` and `Answer` refuse it.
+  `ReportQuality`, `ReportTrouble`, `ReportStats`, `Join`, `JoinAsGuest`, `Knock`, `SetOpen` and `Answer` refuse it.
 - **An act of a remote names the person alone.** `updatedBy` is the screen's person, as when they act
   at the television; no field says it came from a phone.
 - **The pairing ends it.** Unpairing from either side, or a television signed in again under the same
@@ -1035,7 +1036,7 @@ the room keeps one link, journalled with the room, until it is taken away, runs 
 (`Rooms.GuestPassLifetime`), or the room is forgotten. A guest watches and nothing more. They hear
 `StateChanged`, `TitleChanged` and `ParticipantsChanged`, never the door; nothing their player does
 holds the room or is recorded as anybody watching; and every hub method but `JoinAsGuest`,
-`ReportQuality`, `ReportTrouble` and `ServerTime` refuses them twice over, once by the hub's filter and once by the
+`ReportQuality`, `ReportTrouble`, `ReportStats` and `ServerTime` refuses them twice over, once by the hub's filter and once by the
 method itself, which needs a person's token or the actor `Join` records for one. Guests stay only while
 somebody with an account is in the room: once nobody has been for `Rooms.GuestGrace`, each is sent
 `GuestAccessEnded("unattended")` and disconnected, and a guest arriving then is refused. A good guest

@@ -14,7 +14,7 @@ interface Sample {
 const Window = 8;
 
 export class ServerClock {
-  private samples: Sample[] = [];
+  private samplesHeld: Sample[] = [];
   private offsetMs = 0;
 
   observe(sentAtMs: number, receivedAtMs: number, serverTimeIso: string): void {
@@ -22,10 +22,10 @@ export class ServerClock {
     const offsetMs = Date.parse(serverTimeIso) - (sentAtMs + rttMs / 2);
     if (!Number.isFinite(offsetMs)) return;
 
-    this.samples.push({ rttMs, offsetMs });
-    if (this.samples.length > Window) this.samples.shift();
+    this.samplesHeld.push({ rttMs, offsetMs });
+    if (this.samplesHeld.length > Window) this.samplesHeld.shift();
 
-    this.offsetMs = this.samples.reduce((best, s) => (s.rttMs < best.rttMs ? s : best)).offsetMs;
+    this.offsetMs = this.samplesHeld.reduce((best, s) => (s.rttMs < best.rttMs ? s : best)).offsetMs;
   }
 
   /** Server time, in epoch milliseconds. */
@@ -37,9 +37,14 @@ export class ServerClock {
     return this.offsetMs;
   }
 
+  /** How many round trips the estimate is drawn from: none means it is no estimate yet. */
+  get samples(): number {
+    return this.samplesHeld.length;
+  }
+
   get roundTrip(): number {
-    return this.samples.length === 0
+    return this.samplesHeld.length === 0
       ? 0
-      : this.samples.reduce((best, s) => (s.rttMs < best.rttMs ? s : best)).rttMs;
+      : this.samplesHeld.reduce((best, s) => (s.rttMs < best.rttMs ? s : best)).rttMs;
   }
 }

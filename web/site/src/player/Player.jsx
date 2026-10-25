@@ -19,6 +19,8 @@ import { Volume } from "./Volume.jsx";
 import { Person } from "../components/Person.jsx";
 import { InvitePeople } from "../components/InvitePeople.jsx";
 import { AboutButton, AboutPanel, PauseCard, useAbout, usePausedLong } from "./About.jsx";
+import { PlaybackStats } from "./PlaybackStats.jsx";
+import { keepStatsOpen, statsKeptOpen } from "./engine/media/playbackStats.ts";
 import {
   MenuButton, MenuTitles, PlayerMenu, reach, audioValue, episodeValue, hasEpisodes, hasQualityChoice, qualityValue, subtitleValue,
 } from "./Menus.jsx";
@@ -225,6 +227,9 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   const [overflow, setOverflow] = React.useState(false);
   const [invite, setInvite] = React.useState(false);
   const [info, setInfo] = React.useState(false);
+  // The stats panel, which this browser keeps open across a reload made to try again.
+  const [stats, setStats] = React.useState(statsKeptOpen);
+  const toggleStats = React.useCallback(() => setStats((open) => { keepStatsOpen(!open); return !open; }), []);
   const [held, setHeld] = React.useState(0);
   const [active, setActive] = React.useState(true);
   // A phone's screen locked against a hand resting on it: no touch reaches the film or the controls,
@@ -372,6 +377,18 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
     toggleSubtitles: () => { room.toggleSubtitles(); wake(); },
     toggleAbout: () => { toggleInfo(); wake(); },
   }), [tv, room, wake, nudgeVolume, toggleFullscreen, toggleInfo]);
+
+  // Ctrl+Alt+Shift+D, the chord the big streaming players open their stats with. The key's code,
+  // not its character: Alt and Shift change the character D types on a Mac's keyboard.
+  React.useEffect(() => {
+    const onKey = (event) => {
+      if (!(event.ctrlKey && event.altKey && event.shiftKey && event.code === "KeyD")) return;
+      event.preventDefault();
+      toggleStats();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [toggleStats]);
 
   // The remote, ahead of the page's navigator: it listens while the key is still on its way down.
   // Back closes what is open, then puts the controls away, then leaves; Menu is the subtitles.
@@ -551,12 +568,21 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   const sheet = compact;
   // A phone's play and pause is the large button in the middle of the film, the skips either side of
   // it, as the big streaming apps draw them; its row under the bar opens menus.
+  const statsEntry = { kind: "stats", icon: "activity", value: stats ? "On" : "Off" };
   const centred = phone && Boolean(manifest) && view.ready && !view.gate && !viewOnly && size !== "tiny" && !locked;
   const settings = manifest ? [
     (manifest.chapters || []).length > 1
       ? { kind: "chapters", icon: "list", value: (chapterAt(manifest.chapters, clock.position) || {}).title || MenuTitles.chapters } : null,
     hasQualityChoice(view) ? { kind: "quality", icon: "gauge", value: qualityValue(view) } : null,
+    statsEntry,
   ].filter(Boolean) : [];
+  // A phone's Settings holds what a wide row has a button for; everywhere else it holds the stats alone.
+  const menuSettings = phone ? settings : [statsEntry];
+  const pickSetting = (kind) => {
+    if (kind !== "stats") { setMenu(kind); return; }
+    setMenu(null);
+    toggleStats();
+  };
   const lock = () => {
     closeAll();
     window.clearTimeout(idleTimer.current);
@@ -768,6 +794,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
               <MenuButton kind="subs" icon="captions" value={subtitleValue(view)} open={menu === "subs"} compact={compact} onClick={() => openMenu("subs")} />
               {manifest.audio.length > 1 && <MenuButton kind="audio" icon="audio-lines" value={audioValue(view)} open={menu === "audio"} compact={compact} onClick={() => openMenu("audio")} />}
               {hasQualityChoice(view) && <MenuButton kind="quality" icon="gauge" value={qualityValue(view)} open={menu === "quality"} compact={compact} onClick={() => openMenu("quality")} />}
+              <MenuButton kind="settings" icon="settings" open={menu === "settings"} compact onClick={() => openMenu("settings")} />
               {canFullscreen && (
                 <Button variant="bare" className="mp-icon" aria-label={fullscreen ? "Exit full screen" : "Full screen"} title="Full screen (f)" onClick={toggleFullscreen}>
                   <Icon name={fullscreen ? "minimize" : "maximize"} size={19} />
@@ -794,12 +821,13 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
       )}
 
       {menu !== null && manifest && <PlayerMenu kind={menu} view={view} room={room} sheet={sheet} position={clock.position}
-        styling={styling} onStyling={setStyling} onClose={() => setMenu(null)} settings={settings} onPick={setMenu}
+        styling={styling} onStyling={setStyling} onClose={() => setMenu(null)} settings={menuSettings} onPick={pickSetting}
         anchorRef={bottomRef} container={() => frameRef.current} />}
       {overflow && manifest && (
-        <Overflow view={view} volume={volume} onVolume={changeVolume} onNudge={nudgeVolume}
-          onPick={(kind) => { setOverflow(false); setMenu(kind); }} onClose={() => setOverflow(false)} />
+        <Overflow view={view} volume={volume} onVolume={changeVolume} onNudge={nudgeVolume} stats={stats}
+          onPick={(kind) => { setOverflow(false); pickSetting(kind); }} onClose={() => setOverflow(false)} />
       )}
+      {stats && <PlaybackStats room={room} solo={solo} onClose={toggleStats} />}
       {invite && <InvitePanel view={view} room={room} everyone={everyone} compact={compact} />}
       {info && offersAbout && <AboutPanel about={about} sheet={sheet} onClose={() => setInfo(false)} />}
     </div>
@@ -831,14 +859,15 @@ function roomLink(view) {
   return view.door && view.door.open ? environment().roomUrl() : null;
 }
 
-/** Everything a tiny frame folds away: the menus, the volume, and the way to hand the room on. */
-function Overflow({ view, volume, onVolume, onNudge, onPick, onClose }) {
+/** Everything a tiny frame folds away: the menus, the volume, the stats and the way to hand the room on. */
+function Overflow({ view, volume, onVolume, onNudge, stats, onPick, onClose }) {
   const link = roomLink(view);
   const entries = [
     hasEpisodes(view) ? ["episodes", "list-video", episodeValue(view)] : null,
     ["subs", "captions", subtitleValue(view)],
     view.manifest.audio.length > 1 ? ["audio", "audio-lines", audioValue(view)] : null,
     hasQualityChoice(view) ? ["quality", "gauge", qualityValue(view)] : null,
+    ["stats", "activity", stats ? "On" : "Off"],
   ].filter(Boolean);
   return (
     <Drawer contained role="menu" label="More" onClose={onClose} className="mp-menu">

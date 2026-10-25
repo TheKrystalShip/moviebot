@@ -85,6 +85,8 @@ export interface Timeline {
   buffering(waiting: boolean, atSeconds: number): Promise<void>;
   reportQuality(playingHeight: number | null, wantedHeight: number | null): Promise<void>;
   reportTrouble(kind: string, atSeconds: number, detail: string | null, playback: string | null): Promise<void>;
+  /** Sends the stats panel's snapshot, as JSON, to the server's log. True once the server wrote it. */
+  reportStats(snapshot: string): Promise<boolean>;
   stop(): Promise<void>;
 }
 
@@ -289,6 +291,19 @@ export class SessionHub implements Timeline {
       await this.connection.invoke('ReportTrouble', kind, atSeconds, detail, playback);
     } catch {
       /* Not worth a retry. */
+    }
+  }
+
+  /**
+   * Sends what the stats panel shows to the server's log, when the person asks (`ReportStats`). False
+   * when it was not written: no connection, too soon after the last, or more than the server takes.
+   */
+  async reportStats(snapshot: string): Promise<boolean> {
+    if (!this.connected) return false;
+    try {
+      return await this.connection.invoke<boolean>('ReportStats', snapshot);
+    } catch {
+      return false;
     }
   }
 

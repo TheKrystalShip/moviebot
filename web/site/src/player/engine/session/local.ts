@@ -72,6 +72,11 @@ export class LocalTimeline implements Timeline {
     return Promise.resolve();
   }
 
+  /** A film played alone has no server to send its numbers to. */
+  reportStats(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+
   stop(): Promise<void> {
     return Promise.resolve();
   }

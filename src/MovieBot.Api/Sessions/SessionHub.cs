@@ -26,7 +26,7 @@ namespace TheKrystalShip.MovieBot.Api.Sessions;
 /// </summary>
 public sealed class SessionHub(
     SessionStore sessions, RoomControls controls, RoomDoors doors, RoomEpisodes episodes, ViewerQuality quality,
-    RoomGuests guests, ScreenPresence screens, ScreenPairings pairings, PlayerTrouble trouble,
+    RoomGuests guests, ScreenPresence screens, ScreenPairings pairings, PlayerTrouble trouble, PlayerStats stats,
     IOptions<RoomOptions> rooms, IOptions<OidcOptions> oidc, ILogger<SessionHub> logger) : Hub
 {
     private const string SessionIdKey = "sessionId";
@@ -276,6 +276,20 @@ public sealed class SessionHub(
     }
 
     /// <summary>
+    /// Writes what this viewer's stats panel shows to the log, when they press Send: a JSON object from
+    /// the page, under their name, the room and the film (<see cref="PlayerStats"/>). True once it is
+    /// written; false when it was not, a connection not in the room included. It tells nobody. A guest
+    /// sends too.
+    /// </summary>
+    [GuestAllowed]
+    public bool ReportStats(string snapshot)
+    {
+        var sessionId = SessionId();
+        if (sessions.ParticipantOf(sessionId, Context.ConnectionId) is not { } viewer) return false;
+        return stats.Report(Context.ConnectionId, viewer.DisplayName, sessionId, sessions.Get(sessionId)?.TitleId, snapshot);
+    }
+
+    /// <summary>
     /// Answers with the server's clock so a client can estimate its offset. Position is derived
     /// from that offset, so a viewer whose machine is a minute fast must not drag the room with it.
     /// </summary>
@@ -373,6 +387,7 @@ public sealed class SessionHub(
         if (Context.Items.TryGetValue(SessionIdKey, out var value) && value is string sessionId)
         {
             quality.Leave(sessionId, Context.ConnectionId);
+            stats.Leave(Context.ConnectionId);
             if (sessions.ParticipantOf(sessionId, Context.ConnectionId) is { } leaving)
                 trouble.Leave(Context.ConnectionId, leaving.DisplayName, sessionId);
             var participants = sessions.Leave(sessionId, Context.ConnectionId);

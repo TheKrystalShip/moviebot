@@ -62,6 +62,7 @@ builder.Services.AddSingleton<SessionStore>();
 // connection: a viewer's quality never joins a room's state.
 builder.Services.AddSingleton<ViewerQuality>();
 builder.Services.AddSingleton<PlayerTrouble>();
+builder.Services.AddSingleton<PlayerStats>();
 
 // Every change to a room, whichever door it arrived by: the hub for a player in the room, HTTP for
 // the bot and for a spoken command.

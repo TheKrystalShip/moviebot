@@ -35,6 +35,10 @@ export interface SyncHooks {
   onInitialSeekChanged(seeking: boolean): void;
   /** Whether the element holds the film, which is what makes its play and pause somebody's act. */
   holdsFilm(): boolean;
+  /** Each check: the room's position minus the playhead, and the element's rate. */
+  onDrift?(drift: number, rate: number): void;
+  /** A correction began, ended, or was a seek, with the drift that called for it. */
+  onCorrection?(kind: 'nudge' | 'settled' | 'seek', drift: number): void;
 }
 
 /**
@@ -313,6 +317,7 @@ export class SyncController {
   private correctDrift(): void {
     const state = this.latest;
     if (state === null || !this.playerReady) return;
+    if (this.live && this.hooks.holdsFilm()) this.hooks.onDrift?.(this.targetFor(state) - this.video.currentTime, this.video.playbackRate);
 
     // A paused room does not move, so a playhead that is not where it stopped missed a seek: one that
     // arrived while another was running is not applied (`applyToPlayer`), and nothing else would bring
@@ -320,6 +325,7 @@ export class SyncController {
     if (this.live && state.paused && !this.video.seeking) {
       const stopped = this.targetFor(state);
       if (Math.abs(stopped - this.video.currentTime) > SnapSeconds) {
+        this.hooks.onCorrection?.('seek', stopped - this.video.currentTime);
         this.applySeek(stopped);
         return;
       }
@@ -340,18 +346,23 @@ export class SyncController {
     const magnitude = Math.abs(drift);
 
     if (magnitude > HardSeekSeconds) {
+      this.hooks.onCorrection?.('seek', drift);
       this.applySeek(expected);
       this.restoreRate(state.rate);
       return;
     }
 
     if (magnitude > NudgeSeconds) {
+      if (!this.correcting) this.hooks.onCorrection?.('nudge', drift);
       this.video.playbackRate = state.rate * (drift > 0 ? 1 + NudgeRate : 1 - NudgeRate);
       this.correcting = true;
       return;
     }
 
-    if (this.correcting && magnitude < SettleSeconds) this.restoreRate(state.rate);
+    if (this.correcting && magnitude < SettleSeconds) {
+      this.hooks.onCorrection?.('settled', drift);
+      this.restoreRate(state.rate);
+    }
   }
 
   private restoreRate(rate: number): void {

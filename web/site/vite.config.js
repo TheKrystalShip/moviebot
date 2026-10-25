@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
@@ -11,6 +12,22 @@ import identity from "./identity.js";
 // hub are the API's, the assistant is moviebot-assistant's.
 const api = process.env.MOVIEBOT_API || "http://127.0.0.1:8099";
 const assistant = process.env.MOVIEBOT_ASSISTANT || "http://127.0.0.1:8191";
+
+/**
+ * Which build a page is, as the stats panel and a snapshot sent from it say: the repository's version
+ * (the newest CHANGELOG heading) and the commit it was built from, marked when the tree had changes.
+ */
+function cinemaBuild() {
+  const changelog = readFileSync(resolve(import.meta.dirname, "../../CHANGELOG.md"), "utf8");
+  const version = /^## \[([0-9][^\]]*)\]/m.exec(changelog)?.[1] ?? "unknown";
+  try {
+    const git = (...args) => execFileSync("git", args, { cwd: import.meta.dirname, encoding: "utf8" }).trim();
+    return `${version}+${git("rev-parse", "--short", "HEAD")}${git("status", "--porcelain") === "" ? "" : ".dirty"}`;
+  } catch {
+    return version;
+  }
+}
+process.env.VITE_CINEMA_BUILD ??= cinemaBuild();
 
 /** The line in `public/sw.js` the build replaces with what it wrote. */
 const BUILD_LINE = 'const BUILD = { version: "dev", files: [] };';

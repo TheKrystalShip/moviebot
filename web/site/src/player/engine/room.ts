@@ -8,6 +8,7 @@ import { FilmStream, type QualityLevel } from './media/stream';
 import { startingTracks } from './media/tracks';
 import { BufferAheadLevels, bufferAhead } from './media/bufferAhead';
 import { DeviceAnswerMs, within } from './media/ahead';
+import { PlaybackStats, fitSnapshot, type StatsSnapshot } from './media/playbackStats';
 import { describeChange } from './session/changes';
 import { SessionHub, type ConnectionStatus, type Timeline } from './session/hub';
 import { LocalTimeline } from './session/local';
@@ -125,6 +126,10 @@ export class PlayerRoom {
   private hub: Timeline | null = null;
   private controller: SyncController | null = null;
   private readonly stream: FilmStream;
+  /** What this player measures about its own playback, for the stats panel (`PlaybackStats.jsx`). */
+  readonly stats: PlaybackStats;
+  /** The rung the connection would have this viewer on, as last reported to the server. */
+  private wantedHeight: number | null = null;
   /** Undefined until the room has said, so the first state is always acted on. Starting at null
    *  makes an empty room indistinguishable from one nothing has been heard about yet. */
   private loadedTitleId: string | null | undefined;
@@ -159,7 +164,9 @@ export class PlayerRoom {
     environment().recordProgress(titleId, this.video.currentTime);
   };
   private readonly onVisible = () => {
-    if (document.visibilityState !== 'visible') return;
+    const shown = document.visibilityState === 'visible';
+    this.stats.mark(shown ? 'shown' : 'hidden');
+    if (!shown) return;
     void this.roomHub?.reconnect();
     void this.hub?.resync();
   };
@@ -204,6 +211,7 @@ export class PlayerRoom {
       guestEnded: null
     };
 
+    this.stats = new PlaybackStats(video);
     this.stream = new FilmStream(video, {
       onReady: () => {
         this.set({ ready: true });
@@ -217,14 +225,23 @@ export class PlayerRoom {
         this.set({ unplayable: message, stalled: false });
       },
       onStall: (waiting) => {
+        this.stats.stall(waiting);
         this.set({ stalled: waiting });
         void this.hub?.buffering(waiting, video.currentTime);
       },
       onThumbnails: (strip, url) => this.set({ thumbnails: strip !== null && url !== null ? { strip, url } : null }),
       onSubtitleTrack: (track) => this.set({ subtitleTrack: track }),
       onQuality: (levels, playingHeight) => this.set({ qualityLevels: levels, playingHeight }),
-      onViewerQuality: (playing, wanted) => void this.hub?.reportQuality(playing, wanted),
-      onTrouble: (kind, at, detail, playback) => void this.hub?.reportTrouble(kind, at, detail, playback)
+      onViewerQuality: (playing, wanted) => {
+        this.wantedHeight = wanted;
+        void this.hub?.reportQuality(playing, wanted);
+      },
+      onTrouble: (kind, at, detail, playback) => void this.hub?.reportTrouble(kind, at, detail, playback),
+      onPlayback: (playback, hls, events) => {
+        this.wantedHeight = null;
+        this.stats.reset(playback);
+        this.stats.attachHls(hls, events);
+      }
     });
   }
 
@@ -315,6 +332,8 @@ export class PlayerRoom {
       onStatus: (status) => {
         const was = this.view.connection;
         this.set({ connection: status });
+        if (was === 'connected' && status === 'reconnecting') this.stats.mark('reconnecting');
+        if ((was === 'reconnecting' || was === 'disconnected') && status === 'connected') this.stats.mark('reconnected');
         // While the room cannot hear this page, the device writes down where the film gets to,
         // starting where it was when the room was lost, and sends it once the room is back.
         if (was === 'connected' && status !== 'connected') this.recordProgress();
@@ -515,7 +534,9 @@ export class PlayerRoom {
       onState: (state) => this.onState(state, identity),
       onPlaybackBlocked: () => this.set({ gate: true }),
       onInitialSeekChanged: (seeking) => this.set({ catchingUp: seeking }),
-      holdsFilm: () => this.stream.holdsFilm
+      holdsFilm: () => this.stream.holdsFilm,
+      onDrift: (drift, rate) => this.stats.drift(drift, rate),
+      onCorrection: (kind, drift) => this.stats.mark(kind, kind === 'settled' ? undefined : `${drift > 0 ? 'behind' : 'ahead'} ${Math.abs(drift).toFixed(2)}s`)
     }, this.view.viewOnly);
   }
 
@@ -535,6 +556,7 @@ export class PlayerRoom {
     document.removeEventListener('visibilitychange', this.onVisible);
     window.removeEventListener('online', this.onOnline);
     this.controller?.dispose();
+    this.stats.dispose();
     this.stream.dispose();
     void this.hub?.stop();
     void environment().setPresence(null);
@@ -733,6 +755,41 @@ export class PlayerRoom {
   }
 
   // ── What the person does ─────────────────────────────────────────────────────────────────
+
+  /** What the stats panel shows: the collector's measurements, with what the room knows this moment. */
+  statsSnapshot(): StatsSnapshot {
+    const env = environment();
+    const view = this.view;
+    const state = this.controller?.state ?? null;
+    const clock = this.hub?.clock ?? null;
+    const audio = view.manifest?.audio.find((track) => track.id === view.audioId) ?? null;
+    return this.stats.snapshot({
+      titleId: view.manifest?.id ?? null,
+      frontDoor: [env.name, env.tv ? 'tv' : null, env.solo ? 'solo' : null].filter(Boolean).join(' '),
+      bufferAhead: bufferAhead(),
+      solo: view.solo,
+      roomPosition: state === null || view.solo ? null : this.roomPosition(),
+      roomRate: state?.rate ?? null,
+      clock: clock === null || view.solo ? null : { offsetMs: clock.offset, roundTripMs: clock.roundTrip, samples: clock.samples },
+      connection: view.solo ? 'alone' : view.connection,
+      playingHeight: view.playingHeight,
+      wantedHeight: this.wantedHeight,
+      measuredBps: this.stream.measuredBps,
+      audio: audio === null ? null : { id: audio.id, label: audio.label, channels: audio.channels ?? null }
+    });
+  }
+
+  /**
+   * Sends the stats panel's snapshot to the server's log. 'sent' once the server wrote it; 'wait' while
+   * the last was sent too recently; 'failed' when the server did not write it.
+   */
+  async sendStats(): Promise<'sent' | 'wait' | 'failed'> {
+    if (this.stats.sendAllowedIn() > 0) return 'wait';
+    const json = fitSnapshot(this.statsSnapshot());
+    if (json === null || this.hub === null) return 'failed';
+    this.stats.markSent();
+    return (await this.hub.reportStats(json)) ? 'sent' : 'failed';
+  }
 
   get holdsFilm(): boolean {
     return this.stream.holdsFilm;

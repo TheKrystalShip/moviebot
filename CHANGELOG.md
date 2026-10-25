@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2026-10-25
+
+### Added
+- The player's playback stats, hidden until a person opens them with Ctrl+Alt+Shift+D or Settings'
+  Playback stats row (on every frame size, a television's included): how far the sound trails the
+  picture, from each presented frame and the output device's latency; this player's drift from the room
+  over the last five minutes, with every correction, hidden page, reconnect, stall and rung switch
+  marked; the server clock's offset and round trip; throughput, seconds buffered for the picture and the
+  sound separately, the last fetch's timings and failed fetches; and the rung, codecs, audio track,
+  dropped frames and stalls. The browser keeps the panel open across a reload.
+- Send on the panel writes what it shows to the API's log under the viewer's name, the room and the film
+  (`ReportStats` on the hub, at most one a connection every ten seconds); Copy puts it on the clipboard.
+
 ## [4.0.3] - 2026-10-25
 
 ### Fixed

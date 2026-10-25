@@ -54,7 +54,7 @@ export const hasQualityChoice = (view) => view.qualityLevels.length > 1;
 
 export const MenuTitles = {
   subs: "Subtitles", audio: "Audio track", quality: "Quality", chapters: "Chapters", episodes: "Episodes",
-  listen: "Audio & Subtitles", settings: "Settings",
+  listen: "Audio & Subtitles", settings: "Settings", stats: "Playback stats",
 };
 
 /** Whether the film has a season to move around in: an episode, in a room, for somebody who may move it. */
