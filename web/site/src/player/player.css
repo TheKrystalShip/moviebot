@@ -1,5 +1,5 @@
-/* The player. A film is watched in the dark whatever the site's theme is, so the player's root
-   carries the dark theme and everything here reads the design tokens from it. */
+/* The player, in the theme the person chose: everything here reads the design tokens, and the stage
+   under the film is black in every theme. */
 
 .mp-page {
   position: fixed; inset: 0; z-index: 70;
@@ -305,10 +305,10 @@
 .mp-scrub__marker { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--art-fg-white); border-radius: var(--r-sm); }
 .mp-scrub__knob {
   position: absolute; top: 50%; width: 14px; height: 14px; border-radius: var(--r-pill); background: var(--art-fg-white);
-  transform: translate(-50%, -50%); box-shadow: 0 0 0 4px rgba(64, 160, 192, 0.35);
+  transform: translate(-50%, -50%); box-shadow: 0 0 0 4px var(--krystal-teal-ring);
   transition: width 90ms var(--ease-out), height 90ms var(--ease-out), box-shadow 90ms var(--ease-out);
 }
-.mp-scrub.is-dragging .mp-scrub__knob { width: 20px; height: 20px; box-shadow: 0 0 0 6px rgba(64, 160, 192, 0.35); }
+.mp-scrub.is-dragging .mp-scrub__knob { width: 20px; height: 20px; box-shadow: 0 0 0 6px var(--krystal-teal-ring); }
 .mp-scrub:focus-visible .mp-scrub__knob { box-shadow: 0 0 0 4px var(--krystal-teal); }
 .mp-scrub__preview {
   position: absolute; bottom: 26px; transform: translateX(-50%); pointer-events: none;

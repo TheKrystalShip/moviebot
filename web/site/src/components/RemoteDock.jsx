@@ -411,7 +411,7 @@ function Dock({ screen }) {
   return (
     <>
       <div ref={dock.scrim} className="kc-remote-scrim" onClick={collapse} />
-      <div ref={dock.panel} className={"kc-remote-dock" + (open ? " is-open" : "")} data-theme="dark" {...dock.handlers}>
+      <div ref={dock.panel} className={"kc-remote-dock" + (open ? " is-open" : "")} {...dock.handlers}>
         <div className="kc-remote__grab" />
         <Strip rowRef={dock.row} screen={screen} hidden={open} onOpen={() => setOpen(true)} />
         {dock.live && <Remote dock={dock} shelf={shelf} screen={screen} hidden={!open} onCollapse={collapse} onPick={() => setPicking(true)} />}

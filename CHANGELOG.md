@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.1] - 2026-10-25
+
+### Fixed
+- The player and the phone's remote are drawn in the theme the person chose: Next episode, the
+  join, prepare and message buttons, the scrub bar and its knob take the theme's accent rather than
+  the design system's blue.
+
 ## [4.3.0] - 2026-10-25
 
 ### Added

@@ -110,7 +110,7 @@ export function GuestRoom({ code }) {
   );
 }
 
-/** A film is watched in the dark, whatever the site's theme is. */
+/** The player's page, in the theme the person chose. */
 function Page({ message = false, children }) {
-  return <div className={"mp-page" + (message ? " mp-page--message" : "")} data-theme="dark">{children}</div>;
+  return <div className={"mp-page" + (message ? " mp-page--message" : "")}>{children}</div>;
 }
