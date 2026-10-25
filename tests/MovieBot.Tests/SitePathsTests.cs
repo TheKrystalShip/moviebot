@@ -26,9 +26,8 @@ public sealed class SitePathsTests
     }
 
     [Fact]
-    public void A_room_carries_the_title_it_is_opened_on()
+    public void A_room_is_its_address_alone()
     {
         Assert.Equal("/r/a1b2", SitePaths.Room("a1b2"));
-        Assert.Equal("/r/a1b2?title=heat-1995", SitePaths.Room("a1b2", "heat-1995"));
     }
 }

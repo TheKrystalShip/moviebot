@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using Microsoft.Extensions.DependencyInjection;
 using TheKrystalShip.MovieBot.Api.People;
+using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
 using TheKrystalShip.Notifications;
 using Xunit;
@@ -97,6 +98,20 @@ public sealed class NotificationTests(SessionFixture fixture) : IClassFixture<Se
 
         using var read = await guest.PostAsJsonAsync("/api/me/notifications/read", new { });
         Assert.Equal(0, (await Bell(guest)).Unread);
+    }
+
+    [Fact]
+    public async Task An_invite_to_a_room_showing_a_film_names_the_film_and_links_the_room_alone()
+    {
+        var jo = As("8271", "Jo");
+        var alex = As("8272", "Alex");
+        fixture.Services.GetRequiredService<SessionStore>().LoadTitle("film-night", SessionFixture.ReadyTitle, new Actor("8272", "Alex"));
+        using var sent = await alex.PostAsJsonAsync("/api/rooms/film-night/invite", new InviteRequest { UserId = "8271" });
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+
+        var invite = Assert.Single((await Bell(jo)).Items);
+        Assert.StartsWith("Alex invites you to watch ", invite.Text);
+        Assert.Equal("/r/film-night", invite.Url);
     }
 
     [Fact]

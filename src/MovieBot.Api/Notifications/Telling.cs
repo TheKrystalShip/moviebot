@@ -42,9 +42,11 @@ public static class SitePaths
     /// <summary>The signed-in person's own page, on a tab; the default tab is the page itself.</summary>
     public static string Profile(string? tab = null) => tab is { Length: > 0 } ? $"/profile/{Uri.EscapeDataString(tab)}" : "/profile";
 
-    /// <summary>A room, opened on a title when one is given.</summary>
-    public static string Room(string room, string? titleId = null) =>
-        $"/r/{Uri.EscapeDataString(room)}" + (titleId is null ? "" : $"?title={Uri.EscapeDataString(titleId)}");
+    /// <summary>
+    /// A room, and nothing it holds: a link that names a title puts that title on in the room when
+    /// opened, and a link kept in a bell outlives what the room was showing when it was made.
+    /// </summary>
+    public static string Room(string room) => $"/r/{Uri.EscapeDataString(room)}";
 }
 
 /// <summary>

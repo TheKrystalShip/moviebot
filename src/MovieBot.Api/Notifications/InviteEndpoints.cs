@@ -53,7 +53,7 @@ public static class InviteEndpoints
                 Text = manifest is null
                     ? $"{person.DisplayName} invites you to their room."
                     : $"{person.DisplayName} invites you to watch {manifest.Film?.Display ?? manifest.Title} with them.",
-                Url = SitePaths.Room(room, titleId),
+                Url = SitePaths.Room(room),
                 Action = "Join",
             }, ct);
 

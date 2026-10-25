@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.2] - 2026-10-25
+
+### Fixed
+- An invite links to the room alone. It named the title the room was showing when the invite was
+  sent, and opening it later, from the bell or the notification, put that title back on in the room
+  for everyone in it.
+
 ## [4.3.1] - 2026-10-25
 
 ### Fixed
