@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.81.0] - 2026-10-25
+
+### Changed
+- The filter drawer holds still while somebody picks: a section offers the same options whatever is
+  picked, and an option with nothing under it at the other picks is shown dimmed and cannot be picked,
+  on Discover, the library's pages, Want to watch and History, on the site and on a television.
+  Every facets route reports every option a section offers, an empty one with `empty: true`, and a
+  whole answer's empty option with `count: 0`; the library's and Want to watch's `state` section
+  offers the states the page's titles are in. The site takes krystal 9.3.0.
+
 ## [3.80.0] - 2026-10-25
 
 ### Added

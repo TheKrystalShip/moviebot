@@ -87,7 +87,7 @@ export function useListedFilter(ask, { surface, keys, fixed = ["kind"], stateWor
   const facets = page ? page.facets : null;
   const states = facets ? facets.sections.find((s) => s.id === STATE) : null;
   const stateSection = states && (states.options.length >= 2 || state)
-    ? [{ id: STATE, label: "State", kind: "optional", options: states.options.map((o) => ({ value: o.value, label: stateWords[o.value] || o.value })) }]
+    ? [{ id: STATE, label: "State", kind: "optional", options: states.options.map((o) => ({ value: o.value, label: stateWords[o.value] || o.value, disabled: !!o.empty })) }]
     : [];
   const filters = sectionsOf(facets ? { sections: facets.sections.filter((s) => s.id !== STATE) } : null, picks, { watched: false });
   const drawn = {

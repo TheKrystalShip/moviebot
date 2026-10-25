@@ -141,7 +141,8 @@ public static class ListedPages
     /// <summary>
     /// A page of a list held whole: <paramref name="all"/> narrowed by the states picked, the filter's
     /// picks and the words searched, in <paramref name="order"/>; the facets of the whole with the states
-    /// picked on it and the words not, each state counted with the picks on it; and the orders served.
+    /// picked on it and the words not, offering what the whole holds whatever is picked, each state the
+    /// whole holds counted with the picks on it; and the orders served.
     /// </summary>
     private static (List<T> Shown, CatalogueFacetsView Facets) Page<T>(
         IReadOnlyList<T> all, Func<T, FacetTraits> traits, Func<T, string?> state, IReadOnlyList<string> states, IReadOnlyList<string> offered,
@@ -149,9 +150,10 @@ public static class ListedPages
         Func<T, string> name, string? q, ListedOrder<T> order, IEnumerable<string> orders)
     {
         var stated = states.Count == 0 ? all : [.. all.Where(t => state(t) is { } s && states.Contains(s))];
-        var facets = WholeFacets.Facets([.. stated.Select(traits)], picks, fixedBy, languageName);
+        var facets = WholeFacets.Facets([.. stated.Select(traits)], picks, fixedBy, languageName, [.. all.Select(traits)]);
         var picked = WholeFacets.Filter(all, traits, picks);
-        var held = offered.Select(s => new FacetOptionView(s, Count: picked.Count(t => state(t) == s))).Where(o => o.Count > 0).ToList();
+        var held = offered.Where(s => all.Any(t => state(t) == s))
+            .Select(s => picked.Count(t => state(t) == s) is var count and > 0 ? new FacetOptionView(s, Count: count) : new FacetOptionView(s, Count: 0, Empty: true)).ToList();
         var sections = held.Count > 0 ? [.. facets.Sections, new FacetSectionView(State, held)] : facets.Sections;
 
         var shown = WholeFacets.Filter(stated, traits, picks)

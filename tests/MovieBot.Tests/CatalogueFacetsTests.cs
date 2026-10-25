@@ -32,7 +32,12 @@ public sealed class CatalogueFacetsTests(SessionFixture fixture) : IClassFixture
 
     private static int Year(PrismTitle t) => int.Parse(t.Date[..4]);
 
+    /// <summary>The options of a section that hold titles at the picks asked.</summary>
     private static List<string> Options(CatalogueFacetsView facets, string section) =>
+        [.. facets.Sections.Single(s => s.Id == section).Options.Where(o => o.Empty != true).Select(o => o.Value)];
+
+    /// <summary>Every option a section offers, empty or not.</summary>
+    private static List<string> Offered(CatalogueFacetsView facets, string section) =>
         [.. facets.Sections.Single(s => s.Id == section).Options.Select(o => o.Value)];
 
     [Fact]
@@ -122,12 +127,15 @@ public sealed class CatalogueFacetsTests(SessionFixture fixture) : IClassFixture
     [Fact]
     public async Task A_sections_options_leave_out_its_own_picks_and_follow_every_other()
     {
+        var unpicked = await Get<CatalogueFacetsView>("/api/catalogue/ask/facets?q=prism");
         var facets = await Get<CatalogueFacetsView>("/api/catalogue/ask/facets?q=prism&anyGenre=Adventure");
 
         Assert.Equal(["Adventure", "Animation", "Crime", "Family", "Horror", "Science Fiction"], Options(facets, FacetSections.Genre));
         Assert.Equal(["2020", "2010"], Options(facets, FacetSections.Decade));
         Assert.Equal(["short", "long"], Options(facets, FacetSections.Length));
         Assert.Equal(["en", "fr"], Options(facets, FacetSections.Language).Order());
+        foreach (var section in new[] { FacetSections.Genre, FacetSections.Decade, FacetSections.Length, FacetSections.Rating, FacetSections.Language })
+            Assert.Equal(Offered(unpicked, section), Offered(facets, section));
     }
 
     [Fact]
@@ -199,6 +207,10 @@ public sealed class CatalogueFacetsTests(SessionFixture fixture) : IClassFixture
         var facets = await Get<CatalogueFacetsView>("/api/discover/shelves/star-wars/facets");
         Assert.Equal(["2000", "1990"], Options(facets, FacetSections.Decade));
         Assert.All(facets.Sections.Single(s => s.Id == FacetSections.Decade).Options, o => Assert.Equal(1, o.Count));
+
+        var narrowed = await Get<CatalogueFacetsView>("/api/discover/shelves/star-wars/facets?minRating=8");
+        Assert.Equal(Offered(facets, FacetSections.Decade), Offered(narrowed, FacetSections.Decade));
+        Assert.All(narrowed.Sections.Single(s => s.Id == FacetSections.Decade).Options, o => Assert.Equal(o.Count == 0, o.Empty == true));
         Assert.DoesNotContain(facets.Sections, s => s.Id is FacetSections.Kind or FacetSections.Length);
         Assert.Equal(HttpStatusCode.BadRequest, (await Signed().GetAsync("/api/discover/shelves/star-wars?kind=show")).StatusCode);
     }

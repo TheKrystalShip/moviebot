@@ -74,7 +74,9 @@ ordered in the page (`src/facets.js`, `useTitleFilter`), there being nothing to 
 since nothing found by name answers a pick), a person's titles, a genre's, a shelf and a category's shelves, each
 rail asked with the picks. Its sections are the ones that answer's facets report (Filters and facets in
 `docs/api-contract.md`): Kind (All, Movies, TV shows, Anime), Genre, Decade, Length, Rating and
-Language, a section with fewer than two options left out and a pick always kept to be taken off, and
+Language, a section with fewer than two options left out and a pick always kept to be taken off. A
+section offers the same options whatever is picked, and an option with nothing under it at the other
+picks is shown dimmed and cannot be picked, so the drawer holds still while somebody picks. The last section is
 Watched, where the answer says what the person watched: the device keeps the switch and the API is
 asked to leave those titles off (`unwatched`), page by page. The picks are the
 address's, several per section: `k` for the kind, `g` for a genre (`genre` is a genre's own page),

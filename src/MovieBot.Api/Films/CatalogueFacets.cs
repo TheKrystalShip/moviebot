@@ -68,10 +68,11 @@ public sealed record DiscoverPicks
 }
 
 /// <summary>
-/// One option a facet reports: its value as a pick names it, for a language its English name, and for
-/// an answer the API holds whole how many of its titles hold it.
+/// One option a facet reports: its value as a pick names it, for a language its English name, for
+/// an answer the API holds whole how many of its titles hold it with the other sections' picks on it,
+/// and <see cref="Empty"/> true when none does, so a filter shows it and offers nothing under it.
 /// </summary>
-public sealed record FacetOptionView(string Value, string? Label = null, int? Count = null);
+public sealed record FacetOptionView(string Value, string? Label = null, int? Count = null, bool? Empty = null);
 
 /// <summary>A section and the options its answers hold, in the section's own order.</summary>
 public sealed record FacetSectionView(string Id, List<FacetOptionView> Options);
@@ -115,10 +116,10 @@ public sealed partial class CatalogueSearch
     /// <summary>
     /// Which options each section's answers hold, for a discovery and the picks on it. A section's
     /// options are measured with every other section's picks applied and without its own, so a
-    /// second option of the same section can still be offered. An option is reported when the
-    /// database lists at least one title for the discovery with that option picked in its section:
-    /// one question per option, its first page, which is also that answer's first page and is kept as
-    /// that answer is. A section in <paramref name="fixedBy"/> is the question's own and is not
+    /// second option of the same section can still be offered. Every option the section offers is
+    /// reported, and one is empty unless the database lists at least one title for the discovery with
+    /// that option picked in its section: one question per option, its first page, which is also that
+    /// answer's first page and is kept as that answer is. A section in <paramref name="fixedBy"/> is the question's own and is not
     /// reported, and neither is a section whose options could not all be measured.
     /// </summary>
     public async Task<Outcome<CatalogueFacetsView>> DiscoverFacetsAsync(DiscoverRequest request, IReadOnlySet<string> fixedBy, CancellationToken ct)
@@ -177,8 +178,9 @@ public sealed partial class CatalogueSearch
     }
 
     /// <summary>
-    /// The sections and the options found to hold, each section in the order its options were
-    /// offered; a section with an option that could not be measured is left out.
+    /// The sections and every option offered, each section in the order its options were offered and
+    /// an option found to hold nothing marked empty; a section with an option that could not be
+    /// measured is left out.
     /// </summary>
     private static async Task<CatalogueFacetsView> MeasuredAsync(
         List<(string Section, FacetOptionView Option, Func<CancellationToken, Task<bool?>> Holds)> probes, CancellationToken ct)
@@ -192,7 +194,7 @@ public sealed partial class CatalogueSearch
         {
             var asked = Enumerable.Range(0, probes.Count).Where(i => probes[i].Section == section).ToList();
             if (asked.Any(i => held[i] is null)) continue;
-            sections.Add(new FacetSectionView(section, [.. asked.Where(i => held[i] == true).Select(i => probes[i].Option)]));
+            sections.Add(new FacetSectionView(section, [.. asked.Select(i => held[i] == true ? probes[i].Option : probes[i].Option with { Empty = true })]));
         }
         return new CatalogueFacetsView { Sections = sections };
     }

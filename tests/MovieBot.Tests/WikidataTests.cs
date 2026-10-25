@@ -279,7 +279,7 @@ public sealed class WikidataQuestionTests(WikidataFixture fixture) : IClassFixtu
         Assert.Equal(["2000", "1990"], facets.Sections.Single(s => s.Id == FacetSections.Decade).Options.Select(o => o.Value));
         Assert.Equal(["en", "ja"], facets.Sections.Single(s => s.Id == FacetSections.Language).Options.Select(o => o.Value));
         Assert.Contains("Crime", facets.Sections.Single(s => s.Id == FacetSections.Genre).Options.Select(o => o.Value));
-        Assert.DoesNotContain("Animation", facets.Sections.Single(s => s.Id == FacetSections.Genre).Options.Select(o => o.Value));
+        Assert.True(facets.Sections.Single(s => s.Id == FacetSections.Genre).Options.Single(o => o.Value == "Animation").Empty);
 
         var category = (await client.GetFromJsonAsync<CatalogueFacetsView>("/api/discover/sections/awards/facets"))!;
         Assert.Contains("1990", category.Sections.Single(s => s.Id == FacetSections.Decade).Options.Select(o => o.Value));

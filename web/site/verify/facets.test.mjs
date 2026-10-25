@@ -1,5 +1,5 @@
 // A whole answer filtered and faceted where the page holds it: any of a section's picks, all of the
-// sections, and each section counted without its own picks.
+// sections, each section counted without its own picks, and its options the same whatever is picked.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -18,7 +18,8 @@ const wants = [
   { kind: 'show', title: 'Tales', year: 2020, genres: ['Drama'], rating: 7.5, originalLanguage: 'en', category: 'general' },
 ];
 
-const options = (facets, id) => facets.find((s) => s.id === id).options.map((o) => o.value);
+const options = (facets, id) => facets.find((s) => s.id === id).options.filter((o) => !o.empty).map((o) => o.value);
+const offered = (facets, id) => facets.find((s) => s.id === id).options.map((o) => o.value);
 
 test('two genres keep titles of either, and a second section narrows them', () => {
   assert.deepEqual(filterWhole(wants, { genre: ['Horror', 'Adventure'] }).map((t) => t.title), ['Night', 'Gold', 'Hollow', 'Song']);
@@ -30,7 +31,16 @@ test('a section is counted without its own picks and with every other', () => {
   assert.deepEqual(options(facets, 'genre'), ['Adventure', 'Animation', 'Crime', 'Drama', 'Horror']);
   assert.deepEqual(options(facets, 'decade'), ['2020', '2010']);
   assert.deepEqual(options(facets, 'length'), ['short', 'long']);
-  assert.deepEqual(facets.find((s) => s.id === 'decade').options.map((o) => o.count), [1, 1]);
+  assert.deepEqual(facets.find((s) => s.id === 'decade').options.map((o) => o.count), [1, 1, 0]);
+});
+
+test('a section offers what the whole answer holds whatever is picked, the rest empty', () => {
+  const whole = wholeFacets(wants);
+  const facets = wholeFacets(wants, { genre: ['Adventure'], rating: '8' });
+  for (const id of ['kind', 'genre', 'decade', 'length', 'rating', 'language']) assert.deepEqual(offered(facets, id), offered(whole, id));
+  const decade = facets.find((s) => s.id === 'decade').options;
+  assert.deepEqual(decade.filter((o) => o.empty).map((o) => o.value), ['2020', '2010', '1990']);
+  assert.ok(decade.every((o) => o.count === 0));
 });
 
 test('kinds are films, shows and anime, and a fixed section is not reported', () => {

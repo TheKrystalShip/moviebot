@@ -13,10 +13,11 @@ public sealed record FacetTraits(string Kind, bool Anime, IReadOnlyList<string> 
 
 /// <summary>
 /// A filter over an answer the API holds whole: a shelf's titles, a set Wikidata lists, a person's or
-/// a genre's titles. A section is answered as any of its picks and the sections as all of them, and
-/// each section's options are counted over the whole answer with every other section's picks applied
-/// and without its own, so they are exact. A section no title of the answer carries the trait of is
-/// not measured and not reported.
+/// a genre's titles. A section is answered as any of its picks and the sections as all of them. A
+/// section's options are the values the whole answer holds, whatever is picked, so they stay the same
+/// while the picks change; each is counted with every other section's picks applied and without its
+/// own, so the counts are exact, and one no title holds at those picks is empty. A section no title of
+/// the answer carries the trait of is not measured and not reported.
 /// </summary>
 public static class WholeFacets
 {
@@ -41,31 +42,34 @@ public static class WholeFacets
         [.. titles.Where(t => Answers(traits(t), picks, null))];
 
     /// <summary>
-    /// Each section's options and how many titles hold each, in the API's order for every facet. A
-    /// section in <paramref name="fixedBy"/> is the answer's own and is not reported.
+    /// Each section's options and how many titles hold each, in the API's order for every facet. The
+    /// options are the values <paramref name="offeredBy"/> holds (by default the titles counted), so a
+    /// page that counts a part of what it lists still offers what the whole holds. A section in
+    /// <paramref name="fixedBy"/> is the answer's own and is not reported.
     /// </summary>
-    public static CatalogueFacetsView Facets(IReadOnlyList<FacetTraits> titles, DiscoverPicks picks, IReadOnlySet<string> fixedBy, Func<string, string?> languageName)
+    public static CatalogueFacetsView Facets(IReadOnlyList<FacetTraits> titles, DiscoverPicks picks, IReadOnlySet<string> fixedBy, Func<string, string?> languageName,
+        IReadOnlyList<FacetTraits>? offeredBy = null)
     {
+        var whole = offeredBy ?? titles;
         var sections = new List<FacetSectionView>();
         void Section(string id, IEnumerable<FacetOptionView> offered, Func<FacetTraits, bool> carries)
         {
-            if (fixedBy.Contains(id) || !titles.Any(carries)) return;
+            if (fixedBy.Contains(id) || !whole.Any(carries)) return;
             var counted = titles.Where(t => Answers(t, picks, id)).ToList();
             var options = new List<FacetOptionView>();
-            foreach (var option in offered)
-                if (counted.Count(t => Holds(t, id, option.Value)) is var count and > 0)
-                    options.Add(option with { Count = count });
+            foreach (var option in offered.Where(o => whole.Any(t => Holds(t, id, o.Value))))
+                options.Add(counted.Count(t => Holds(t, id, option.Value)) is var count and > 0 ? option with { Count = count } : option with { Count = 0, Empty = true });
             sections.Add(new FacetSectionView(id, options));
         }
 
         Section(FacetSections.Kind, [new(FacetSections.Film), new(FacetSections.Show), new(FacetSections.Anime)], _ => true);
-        Section(FacetSections.Genre, titles.SelectMany(t => t.Genres).Distinct(StringComparer.OrdinalIgnoreCase)
+        Section(FacetSections.Genre, whole.SelectMany(t => t.Genres).Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase).Select(g => new FacetOptionView(g)), t => t.Genres.Count > 0);
-        Section(FacetSections.Decade, titles.Select(t => DecadeOf(t.Year)).OfType<int>().Distinct().OrderDescending()
+        Section(FacetSections.Decade, whole.Select(t => DecadeOf(t.Year)).OfType<int>().Distinct().OrderDescending()
             .Select(d => new FacetOptionView(d.ToString(CultureInfo.InvariantCulture))), t => t.Year is not null);
         Section(FacetSections.Length, FilmLengths.All.Select(l => new FacetOptionView(l)), t => t.RuntimeMinutes is not null);
         Section(FacetSections.Rating, FacetSections.Ratings.Select(r => new FacetOptionView(r.ToString(CultureInfo.InvariantCulture))), t => t.Rating is not null);
-        Section(FacetSections.Language, titles.Select(t => t.Language).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase)
+        Section(FacetSections.Language, whole.Select(t => t.Language).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.Ordinal).Select(l => new FacetOptionView(l, languageName(l))), t => t.Language is not null);
         return new CatalogueFacetsView { Sections = sections };
     }

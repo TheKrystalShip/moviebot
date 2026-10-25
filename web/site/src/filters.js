@@ -3,8 +3,9 @@
 // Discover's answers (its catalogue, a question, a person's titles, a genre's, a shelf and a browse
 // category) take their options from the API's facets; the library's shelves, Want to watch and History
 // count theirs over the list they hold (`facets.js`). The sections, their ids and their option values
-// are the API's (`docs/api-contract.md`, Filters and facets), so a page offers only what its answer
-// holds and leaves out a section with fewer than two.
+// are the API's (`docs/api-contract.md`, Filters and facets): a section offers the same options
+// whatever is picked, an option nothing is under at the other picks is shown and cannot be picked, and
+// a section with fewer than two options is left out, so the drawer holds still while somebody picks.
 
 import React from "react";
 import { wholeFacets } from "./facets.js";
@@ -96,12 +97,18 @@ export function languageName(code) {
   }
 }
 
-/** A section's options from the facets, with every pick kept in so it can be taken off. */
+/**
+ * A section's options from the facets, with every pick kept in so it can be taken off; an option the
+ * facets report empty cannot be picked.
+ */
 function optionsOf(facet, chosen, label) {
   const values = facet ? facet.options.map((o) => o.value) : [];
-  const labels = new Map(facet ? facet.options.map((o) => [o.value, o.label]) : []);
+  const by = new Map(facet ? facet.options.map((o) => [o.value, o]) : []);
   for (const v of chosen) if (!values.includes(v)) values.push(v);
-  return values.map((value) => ({ value, label: label(value, labels.get(value)) }));
+  return values.map((value) => {
+    const option = by.get(value);
+    return { value, label: label(value, option && option.label), disabled: !!(option && option.empty) };
+  });
 }
 
 /**

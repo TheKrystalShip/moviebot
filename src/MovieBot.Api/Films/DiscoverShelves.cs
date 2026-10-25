@@ -521,9 +521,9 @@ public sealed class DiscoverShelves(
     }
 
     /// <summary>
-    /// Which options each section of a browse category holds with a filter's picks on it: an option
-    /// any of its shelves holds (<see cref="FacetsAsync"/>), each shelf measured in turn and an option
-    /// one shelf holds never asked of the next. A category's shelves are of their own kinds, so it has
+    /// Which options each section of a browse category holds with a filter's picks on it: every option
+    /// any of its shelves offers (<see cref="FacetsAsync"/>), empty unless one of them holds it, each
+    /// shelf measured in turn and an option one shelf holds never asked of the next. A category's shelves are of their own kinds, so it has
     /// no kind section; a shelf that cannot be measured leaves the category unmeasured.
     /// </summary>
     public async Task<Outcome<CatalogueFacetsView>> SectionFacetsAsync(string sectionId, string? viewerId, DiscoverPicks picks, CancellationToken ct)
@@ -548,7 +548,14 @@ public sealed class DiscoverShelves(
             {
                 var list = options.TryGetValue(facet.Id, out var known) ? known : options[facet.Id] = [];
                 foreach (var option in facet.Options)
-                    if (held.Add((facet.Id, option.Value))) list.Add(option with { Count = null });
+                {
+                    var at = list.FindIndex(o => o.Value == option.Value);
+                    var empty = option.Empty == true && !held.Contains((facet.Id, option.Value));
+                    if (option.Empty != true) held.Add((facet.Id, option.Value));
+                    var merged = option with { Count = null, Empty = empty ? true : null };
+                    if (at < 0) list.Add(merged);
+                    else list[at] = merged;
+                }
             }
         }
 

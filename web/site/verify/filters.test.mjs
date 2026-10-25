@@ -46,6 +46,12 @@ test('sections are the facets with two options or more, each pick kept to be tak
   assert.deepEqual(sectionsOf(null, picks, { watched: false }).map((s) => s.id), ['decade']);
 });
 
+test('an empty option is drawn and cannot be picked, and a picked one can always be taken off', () => {
+  const facets = { sections: [{ id: 'genre', options: [{ value: 'Horror' }, { value: 'Drama', empty: true }, { value: 'Crime', empty: true }] }] };
+  const genre = sectionsOf(facets, { ...none, genre: ['Crime'] }, { watched: false }).find((s) => s.id === 'genre');
+  assert.deepEqual(genre.options.map((o) => [o.value, o.disabled]), [['Horror', false], ['Drama', true], ['Crime', true]]);
+});
+
 test("the drawer's values come back as the same picks", () => {
   const picks = { ...none, genre: ['Horror'], rating: '6' };
   assert.deepEqual(picksOfValues(drawerValues(picks, true)), picks);

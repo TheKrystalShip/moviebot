@@ -1,12 +1,14 @@
 // A filter over an answer the page holds whole: the library's films, shows and anime, Want to watch
-// and History. Each title is read for the traits a section picks by, and the options each section
-// holds are counted over the whole answer, so they are exact. The sections,
+// and History. Each title is read for the traits a section picks by. A section offers the values the
+// whole answer holds, whatever is picked, so the drawer holds still while somebody picks, and each
+// option is counted over the whole answer, so the counts are exact. The sections,
 // their ids and their option values are the ones the API's facets name (`docs/api-contract.md`,
 // Filters and facets), so a page treats an answer it holds and one the API pages the same way.
 //
 // A section is answered as any of its picked options and the sections combine as all of them; a
 // section's options are counted with every other section's picks applied and without its own, so a
-// second option of the same section can still be picked.
+// second option of the same section can still be picked; an option no title holds at the other picks
+// is empty.
 
 /** The decades a decade's options are named by: its first year. */
 const decadeOf = (year) => (year ? Math.floor(year / 10) * 10 : null);
@@ -93,15 +95,18 @@ export function filterWhole(titles, picks) {
 
 /**
  * The options each section's titles hold, as the API's facets name them, each with how many titles
- * hold it: `[{id, options: [{value, count}]}]`. `fixed` names the sections the page's scope fixes,
- * which are not reported.
+ * hold it at the other sections' picks and `empty` when none does: `[{id, options: [{value, count,
+ * empty?}]}]`. `fixed` names the sections the page's scope fixes, which are not reported.
  */
 export function wholeFacets(titles, picks = {}, fixed = []) {
   const read = titles.map(traitsOf);
   const count = (section, value) => read.filter((t) => answers(t, picks, section) && holds(t, section, value)).length;
   const options = (section, values) => values
-    .map((value) => ({ value: String(value), count: count(section, value) }))
-    .filter((option) => option.count > 0);
+    .filter((value) => read.some((t) => holds(t, section, value)))
+    .map((value) => {
+      const n = count(section, value);
+      return n > 0 ? { value: String(value), count: n } : { value: String(value), count: 0, empty: true };
+    });
 
   const genres = [...new Set(read.flatMap((t) => t.genres))].sort((a, b) => a.localeCompare(b));
   const decades = [...new Set(read.map((t) => decadeOf(t.year)).filter(Boolean))].sort((a, b) => b - a);
