@@ -13,12 +13,18 @@ namespace TheKrystalShip.MovieBot.Catalogue.Entries;
 /// </summary>
 /// <remarks>
 /// Wikidata often holds one franchise twice, as a media franchise and as its fictional universe, and
-/// files part of a franchise as a universe of its own. An item whose titles another item holds all of is
-/// not a universe: the one holding more is, and of two holding the same titles, the media franchise
-/// (whose name is the one a person knows it by), then the lowest-numbered item.
+/// files part of a franchise as an item of its own, tagging the titles of each unevenly. An item another
+/// holds <see cref="CatalogueQueries.PartOf"/> of the titles of is one universe with it, holding both
+/// items' titles. The items are taken the most titles first, each joining the first universe that holds
+/// that much of it, so two universes are never joined through a small item both share. A universe is named
+/// by the item it began with, or by one of nearly the same titles (holding <see cref="CatalogueQueries.PartOf"/>
+/// of that item's too) when it is the better known: a media franchise before a fictional universe, then
+/// the lowest-numbered item.
 /// </remarks>
 public static class Universes
 {
+    private sealed record Item(string Id, string Label, bool Franchise, long Number, HashSet<long> Titles);
+
     public static int Build(SqliteConnection c)
     {
         c.Execute("DELETE FROM franchises WHERE source = 'wikidata'");
@@ -32,44 +38,47 @@ public static class Universes
             FROM wikidata_claims w JOIN titles t ON t.id = w.title_id
             WHERE t.listed = 1 AND w.property IN ('P1434', 'P8345')
             GROUP BY w.item, w.title_id;
-
-            CREATE TEMP TABLE IF NOT EXISTS universe_kept (item TEXT PRIMARY KEY, label TEXT NOT NULL, franchise INTEGER NOT NULL,
-                number INTEGER NOT NULL, titles INTEGER NOT NULL);
-            DELETE FROM universe_kept;
-            INSERT INTO universe_kept (item, label, franchise, number, titles)
-            SELECT m.item, coalesce(max(m.label), m.item), max(m.franchise), CAST(substr(m.item, 2) AS INTEGER), count(DISTINCT m.title_id)
+            """);
+        var candidates = c.Query("""
+            SELECT m.item, coalesce(max(m.label), m.item), max(m.franchise), CAST(substr(m.item, 2) AS INTEGER),
+                   group_concat(DISTINCT m.title_id)
             FROM universe_members m JOIN titles t ON t.id = m.title_id
             LEFT JOIN franchise_titles ft ON ft.title_id = m.title_id
                 AND ft.franchise_id IN (SELECT id FROM franchises WHERE source = 'tmdb')
             GROUP BY m.item
-            HAVING count(DISTINCT ft.franchise_id) >= 2 OR (sum(t.kind = 'show') > 0 AND sum(t.kind = 'film') > 0);
+            HAVING count(DISTINCT ft.franchise_id) >= 2 OR (sum(t.kind = 'show') > 0 AND sum(t.kind = 'film') > 0)
+            """, r => new Item(r.GetString(0), r.GetString(1), r.GetBool(2), r.GetInt64(3),
+                r.GetString(4).Split(',').Select(long.Parse).ToHashSet()));
 
-            DELETE FROM universe_kept WHERE item IN (
-                SELECT a.item FROM universe_kept a
-                JOIN universe_members ma ON ma.item = a.item
-                JOIN universe_members mb ON mb.title_id = ma.title_id AND mb.item <> a.item
-                JOIN universe_kept b ON b.item = mb.item
-                GROUP BY a.item, b.item
-                HAVING count(*) = max(a.titles) AND (max(b.titles) > max(a.titles) OR (max(b.titles) = max(a.titles)
-                    AND (max(b.franchise) > max(a.franchise) OR (max(b.franchise) = max(a.franchise) AND max(b.number) < max(a.number))))));
-            """);
-        var kept = c.Query("SELECT item, label FROM universe_kept", r => (Item: r.GetString(0), Label: r.GetString(1)));
-        foreach (var (item, label) in kept)
+        static bool Holds(HashSet<long> titles, Item item) => titles.Count(item.Titles.Contains) >= CatalogueQueries.PartOf * item.Titles.Count;
+        var universes = new List<(Item First, HashSet<long> Titles, List<Item> Items)>();
+        foreach (var item in candidates.OrderByDescending(i => i.Titles.Count).ThenByDescending(i => i.Franchise).ThenBy(i => i.Number))
         {
-            var id = c.First("INSERT INTO franchises (source, source_id, name) VALUES ('wikidata', $item, $name) RETURNING id",
-                r => r.GetInt64(0), ("$item", item), ("$name", label));
-            c.Execute("""
-                INSERT OR IGNORE INTO franchise_titles (franchise_id, title_id, ordinal)
-                SELECT $f, title_id, ordinal FROM universe_members WHERE item = $item
-                """, ("$f", id), ("$item", item));
-            c.Execute("""
-                INSERT OR IGNORE INTO franchise_parts (universe_id, collection_id)
-                SELECT DISTINCT $f, ft.franchise_id FROM universe_members m
-                JOIN franchise_titles ft ON ft.title_id = m.title_id
-                JOIN franchises f ON f.id = ft.franchise_id AND f.source = 'tmdb'
-                WHERE m.item = $item
-                """, ("$f", id), ("$item", item));
+            var at = universes.FindIndex(u => Holds(u.Titles, item));
+            if (at < 0) universes.Add((item, [.. item.Titles], [item]));
+            else { universes[at].Titles.UnionWith(item.Titles); universes[at].Items.Add(item); }
         }
-        return kept.Count;
+
+        foreach (var (first, _, items) in universes)
+        {
+            var name = items.Where(i => i == first || Holds(i.Titles, first)).OrderByDescending(i => i.Franchise).ThenBy(i => i.Number).First();
+            var id = c.First("INSERT INTO franchises (source, source_id, name) VALUES ('wikidata', $item, $name) RETURNING id",
+                r => r.GetInt64(0), ("$item", name.Id), ("$name", name.Label));
+            foreach (var item in items)
+            {
+                c.Execute("""
+                    INSERT OR IGNORE INTO franchise_titles (franchise_id, title_id, ordinal)
+                    SELECT $f, title_id, ordinal FROM universe_members WHERE item = $item
+                    """, ("$f", id), ("$item", item.Id));
+                c.Execute("""
+                    INSERT OR IGNORE INTO franchise_parts (universe_id, collection_id)
+                    SELECT DISTINCT $f, ft.franchise_id FROM universe_members m
+                    JOIN franchise_titles ft ON ft.title_id = m.title_id
+                    JOIN franchises f ON f.id = ft.franchise_id AND f.source = 'tmdb'
+                    WHERE m.item = $item
+                    """, ("$f", id), ("$item", item.Id));
+            }
+        }
+        return universes.Count;
     }
 }

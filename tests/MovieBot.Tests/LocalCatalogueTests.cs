@@ -297,30 +297,36 @@ public sealed class LocalCatalogueTests : IDisposable
     }
 
     [Fact]
-    public void A_franchise_Wikidata_files_twice_is_one_universe_and_its_collections_are_its_parts_alone()
+    public void Items_Wikidata_tags_nearly_the_same_titles_with_are_one_universe_named_by_the_media_franchise()
     {
-        Import(FastBasics, FastRatings);
-        var fast = TitleId("tt0232500");
-        var two = TitleId("tt0322259");
-        Layer().Keep(fast, new TmdbRef(9799, "film"), Fast(), []);
-        Layer().Keep(two, new TmdbRef(584, "film"), JsonNode.Parse(TwoFast().ToJsonString()
-            .Replace("\"id\":9485", "\"id\":1111").Replace("The Fast and the Furious Collection", "Another Collection"))!, []);
+        // Eight films, A to H, in three collections: A and B; C, D, E and F; G and H.
+        const string Films = "ABCDEFGH";
+        string Imdb(char film) => $"tt100000{Films.IndexOf(film)}";
+        int Collection(char film) => film < 'C' ? 501 : film < 'G' ? 502 : 503;
+        Import(Basics + string.Concat(Films.Select(f => $"{Imdb(f)}\tmovie\tFilm {f}\tFilm {f}\t0\t2001\t\\N\t100\tDrama\n")),
+            Ratings + string.Concat(Films.Select(f => $"{Imdb(f)}\t7.0\t5000\n")));
+        foreach (var film in Films)
+            Layer().Keep(TitleId(Imdb(film)), new TmdbRef(700 + Films.IndexOf(film), "film"), JsonNode.Parse(TwoFast().ToJsonString()
+                .Replace("\"id\":584", $"\"id\":{700 + Films.IndexOf(film)}").Replace("tt0322259", Imdb(film))
+                .Replace("\"id\":9485", $"\"id\":{Collection(film)}").Replace("2 Fast 2 Furious", $"Film {film}"))!, []);
 
-        // The same two titles name a fictional universe and, under a higher number, a media franchise.
+        // A fictional universe of five, its media franchise naming four of them, and an item filed with one
+        // title of its own: each holds three quarters of what the one before it holds, or more.
+        (string Item, string Property, string Label, string Films)[] items =
+            [("Q2", "P1434", "Saga universe", "ABCDG"), ("Q9", "P8345", "Saga", "ABCD"), ("Q7", "P1434", "Saga timeline", "BCDE")];
         var wikidata = new WikidataWorker(null!, Database, Builder, Options.Create(new CatalogueOptions()), _clock, NullLogger<WikidataWorker>.Instance);
-        List<WikidataClaim> Claims() => [new("P1434", "Q2", "Fast universe", null), new("P8345", "Q9", "Fast & Furious", null)];
-        wikidata.Keep([(fast, "tt0232500"), (two, "tt0322259")], new Dictionary<string, (string, List<WikidataClaim>)>
-        {
-            ["tt0232500"] = ("Q155476", Claims()),
-            ["tt0322259"] = ("Q222867", Claims()),
-        });
+        wikidata.Keep(Films.Select(f => (TitleId(Imdb(f)), Imdb(f))).ToList(), Films.ToDictionary(Imdb, f => ($"Q{5000 + Films.IndexOf(f)}",
+            items.Where(i => i.Films.Contains(f)).Select(i => new WikidataClaim(i.Property, i.Item, i.Label, null)).ToList())));
 
         Assert.Equal(1, Database.Write(Universes.Build));
         var queries = new CatalogueQueries(new CatalogueReader(Path.Combine(_dir, CatalogueDatabase.FileName)));
-        var universe = Assert.Single(queries.Franchises(1, 20, minTitles: 1).Franchises);
-        Assert.Equal(("Q9", "Fast & Furious", 2), (universe.Id, universe.Name, universe.Titles));
-        Assert.Equal(["c1111", "c9485"], queries.Franchise("Q9")!.Parts.Select(p => p.Id).Order());
-        Assert.Equal(["c1111", "c9485"], queries.Franchises(1, 20, "collection", minTitles: 1).Franchises.Select(f => f.Id).Order());
+        var saga = queries.Franchise("Q9")!;
+        Assert.Equal(("Saga", 6), (saga.Card.Name, saga.Card.Titles)); // A to E and G.
+        Assert.Equal(["c501", "c502", "c503"], saga.Parts.Select(p => p.Id).Order());
+
+        // The collections it holds three quarters of are its parts alone; one it holds half of stands.
+        Assert.Equal(["c503", "Q9"], queries.Franchises(1, 20).Franchises.Select(f => f.Id).Order());
+        Assert.Equal(["c501", "c502", "c503"], queries.Franchises(1, 20, "collection").Franchises.Select(f => f.Id).Order());
     }
 
     [Fact]

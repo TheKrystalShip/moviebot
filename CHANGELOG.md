@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.2] - 2026-10-25
+
+### Fixed
+- Wikidata items tagged with nearly the same titles are one universe: an item another holds three
+  quarters of the titles of joins it, the universe holding the titles of both, and it is named by the
+  better known of the items of nearly the same titles, a media franchise first (Star Trek and Star Trek
+  universe, Dune and Dune universe, Wizarding World over Harry Potter universe).
+- The franchise list leaves out a collection a listed universe holds three quarters of the titles of
+  (the Jurassic Park Collection inside Jurassic Park, the Spider-Man (MCU) Collection inside the
+  Marvel Cinematic Universe).
+
 ## [4.2.1] - 2026-10-25
 
 ### Fixed
