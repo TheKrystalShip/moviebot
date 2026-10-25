@@ -17,6 +17,9 @@ npm run build      # -> dist/; scripts/build-player.sh installs it into the API'
 npm run verify     # the player in a real browser, against a running API and dev server
 npm run verify:routes  # every address, cold and by its flows, against a scratch site (verify/routes.mjs)
 npm run verify:mobile  # every page on iPhones and Galaxies, against a scratch site (verify/mobile/)
+npm run verify:pages   # every page at desktop, phone and TV sizes: failed or slow requests, errors, request counts (verify/pages/)
+npm run verify:act     # paging, the filter drawer, wanting, planning and links, each step checked by its requests
+npm run verify:live -- <state>  # the live site, signed in through a `tks-login browser` session
 npm run verify:pull    # a drawer pulled by its head with real touch events, against a scratch site (verify/mobile/pull.mjs)
 npm run verify:dock    # the phone's remote dock grown and shrunk by a finger, against a scratch site (verify/mobile/dock.mjs)
 npm run verify:pwa     # installable, and the service worker keeps only what it may (verify/pwa.mjs)

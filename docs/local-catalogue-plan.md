@@ -322,12 +322,8 @@ every surface is on them; then everything deploys together.
 5. **The SPA**: a new API client, written fresh, and every page and hook moved to it.
 6. **Docs**: `docs/api-contract.md` takes §6·c; `web/site/README.md` and the `CLAUDE.md`s follow.
 
-State (2026-10-25): 1 to 6 are written and build; the SPA's new client is `web/site/src/api/`
-(`catalogue.js`, `library.js`, `rooms.js`, `me.js` over `http.js`). A title's artwork by its IMDb id,
-for what holds no card (the player's frame, a remote, a guest), is `/images/titles/{imdbId}/{name}`. A
-device keeps a save's card in `meta.json` and a kept show as its two answers (`{page, mine}`); saves and
-kept shows written before that are drawn from what they name. Left before the deploy: the API's tests,
-then a run of the site against a local API over a snapshot of hotbox's catalogue.
+State (2026-10-25): done and deployed as v4.0.0. What follows it, one response per page put together
+by the API, is `docs/page-responses-plan.md`.
 
 ### 6·e The SPA checks
 
