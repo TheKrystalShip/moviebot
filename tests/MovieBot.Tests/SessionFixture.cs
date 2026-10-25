@@ -125,6 +125,9 @@ public class SessionFixture : WebApplicationFactory<Program>
                 // Wikidata is never asked; a fixture that wants it turns it on and answers it with its own stub.
                 ["Wikidata:Enabled"] = "false",
                 ["Wikidata:WarmMinutes"] = "0",
+                // The franchises are the curated series; a fixture that scans turns it on and answers the list itself.
+                ["Franchises:Enabled"] = "false",
+                ["Franchises:WarmMinutes"] = "0",
             }));
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(MoreSettings()));
 

@@ -29,7 +29,7 @@ public sealed class DiscoverWarmer(
                 var clock = Stopwatch.StartNew();
                 var unanswered = await shelves.WarmAsync(stoppingToken);
                 if (unanswered > 0)
-                    logger.LogWarning("{Unanswered} of {Shelves} Discover shelves could not be answered by the film database.", unanswered, DiscoverShelves.Fixed.Count);
+                    logger.LogWarning("{Unanswered} of {Shelves} Discover shelves could not be answered by the film database.", unanswered, shelves.SharedCount);
                 else
                     logger.LogDebug("Kept the Discover shelves fresh in {Seconds:0.0}s.", clock.Elapsed.TotalSeconds);
                 await Task.Delay(TimeSpan.FromMinutes(minutes), stoppingToken);

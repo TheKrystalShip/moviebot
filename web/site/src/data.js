@@ -14,8 +14,8 @@ import React from "react";
  */
 export const LoadTracker = React.createContext(null);
 
-/** What tells one title of a paged list from another: its kind and IMDb id, else the object itself. */
-const titleKey = (t) => (t && t.imdbId ? (t.kind || "") + t.imdbId : t);
+/** What tells one entry of a paged list from another: a title's kind and IMDb id, a shelf's id, else the object itself. */
+const titleKey = (t) => (t && t.imdbId ? (t.kind || "") + t.imdbId : t && t.id ? "shelf:" + t.id : t);
 
 /**
  * A list read a page at a time. `load(page)` answers `{ titles, next }` for the page asked, `next`

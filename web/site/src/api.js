@@ -112,6 +112,11 @@ export const api = {
   discoverShelf: (id, page = 1, sort = null, picks = {}) =>
     call("GET", withQuery(`/api/discover/shelves/${enc(id)}`, { page: page > 1 ? page : null, sort, ...picks })),
   discoverShelfFacets: (id, picks = {}) => call("GET", withQuery(`/api/discover/shelves/${enc(id)}/facets`, picks)),
+  // One page of a category of series, its series as tiles in the person's order, as { titles, next }
+  // for usePaged with the answer's count beside them.
+  discoverSection: (id, page = 1) =>
+    call("GET", withQuery(`/api/discover/sections/${enc(id)}`, { page: page > 1 ? page : null }))
+      .then((section) => ({ ...section, titles: section.shelves })),
   // What a browse category's shelves hold together; each shelf takes the picks through discoverShelf.
   discoverSectionFacets: (id, picks = {}) => call("GET", withQuery(`/api/discover/sections/${enc(id)}/facets`, picks)),
   catalogueGenre: (kind, genre, category, picks = {}) => call("GET", withQuery("/api/catalogue/genre", { kind, name: genre, category, ...picks })),

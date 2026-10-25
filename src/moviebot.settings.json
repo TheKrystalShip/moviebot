@@ -300,6 +300,26 @@
     "MaxAtOnce": 2
   },
 
+  // The franchises of Discover: the curated series, then every series of the film database with at
+  // least MinFilms released films and MinVotes votes between them, the most voted first and at most
+  // MostShown of them. Every WarmMinutes the API reads the database's daily list of series ids from
+  // ExportBaseUrl (looking up to ExportLookbackDays back for one) and asks about each series that is
+  // due, at most RequestsPerSecond a second: a shelved series every RefreshDays, any other every
+  // OutsiderRefreshDays. The first scan asks about every series, which takes most of an hour. It
+  // needs the TMDB token; Enabled false shelves the curated series alone.
+  "Franchises": {
+    "Enabled": true,
+    "ExportBaseUrl": "https://files.tmdb.org/p/exports/",
+    "ExportLookbackDays": 3,
+    "WarmMinutes": 60,
+    "RefreshDays": 7,
+    "OutsiderRefreshDays": 30,
+    "RequestsPerSecond": 4,
+    "MinFilms": 2,
+    "MinVotes": 10000,
+    "MostShown": 400
+  },
+
   // Listening in a voice channel. Off unless enabled: everyone in a channel the bot joins is heard.
   "Voice": {
     "Enabled": false,

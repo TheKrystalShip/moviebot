@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.83.0] - 2026-10-25
+
+### Added
+- Discover's Franchises hold every series the film database knows well enough, not only the curated
+  ones: after the curated series come the most voted series with at least two released films and
+  10,000 votes between them, found in the background from the database's daily list of series and
+  measured slowly, a shelved series again each week and any other each month. A person sees the
+  series they are partway through first and the ones they finished last, on the page's row and on
+  the category's page, which loads its tiles a page at a time on the site and on a television.
+  `/api/discover/sections/{id}` pages a category of series in the asking person's order; every
+  section of `/api/discover` carries `count`, and the franchises' `shelves` is the page's row alone.
+  The `Franchises` settings set the bar and the pace, and a series' films the database marks adult
+  are left out (moviebot-acquire 0.50.1).
+
 ## [3.82.0] - 2026-10-25
 
 ### Changed

@@ -92,7 +92,7 @@ function TileRail({ section }) {
   const shelves = section.shelves.filter((h) => h.total !== 0);
   if (shelves.length === 0) return null;
   return (
-    <Shelf perView={TILES} title={section.label} sub={counted(shelves.length, "shelf", "shelves")}
+    <Shelf perView={TILES} title={section.label} sub={counted(section.series ? section.count : shelves.length, "shelf", "shelves")}
       action={<ViewAll to={discoverBrowsePath(section.id)}>See all</ViewAll>}>
       {shelves.map((h) => <ShelfTile key={h.id} head={h} series={section.series} />)}
     </Shelf>
@@ -177,25 +177,36 @@ function BrowseHead({ eyebrow, icon, title, count }) {
   );
 }
 
-/** One browse category: a series' tiles in a grid, any other's shelves as rails, each asked with the filter's `picks`. */
+/** One browse category: a series' tiles in a grid a page at a time, any other's shelves as rails, each asked with the filter's `picks`. */
 export function CategoryPage({ id, index, where, picks }) {
-  const narrow = useNarrow();
   if (index.error && !index.data) return <Failed error={index.error} onRetry={index.reload} />;
   if (!index.data) return <BrowseSkeleton />;
   const section = index.data.sections.find((s) => s.id === id);
   if (!section) return <Empty icon="compass" title="Nothing by that name" />;
   return (
     <section className="kc-shelf">
-      <BrowseHead eyebrow="Discover" icon={section.icon} title={section.label} count={section.shelves.length} />
+      <BrowseHead eyebrow="Discover" icon={section.icon} title={section.label} count={section.count} />
       {section.series
-        ? (
-          <div className="kc-browse-grid">
-            {section.shelves.filter((h) => h.total !== 0).map((h) => <ShelfTile key={h.id} head={h} series size={narrow ? "sm" : "md"} />)}
-          </div>
-        )
+        ? <SeriesGrid id={id} />
         : section.shelves.map((h) => <LazyShelf key={h.id} head={h} where={where} picks={picks} />)}
       <p className="kc-attribution-note">Titles and artwork from TMDB.</p>
     </section>
+  );
+}
+
+/** Every series of a category as tiles in a grid, in the person's order, a page at a time as its end nears. */
+function SeriesGrid({ id }) {
+  const narrow = useNarrow();
+  const series = usePaged((page) => api.discoverSection(id, page), [id]);
+  if (series.error && !series.data) return <Failed error={series.error} onRetry={series.reload} />;
+  if (!series.titles) return <CardsSkeleton count={8} />;
+  return (
+    <>
+      <div className="kc-browse-grid">
+        {series.titles.filter((h) => h.total !== 0).map((h) => <ShelfTile key={h.id} head={h} series size={narrow ? "sm" : "md"} />)}
+      </div>
+      <MoreCards paged={series} />
+    </>
   );
 }
 

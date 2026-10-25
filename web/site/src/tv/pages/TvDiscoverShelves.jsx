@@ -2,7 +2,7 @@ import React from "react";
 import { CollectionTile, TvCard, TvHeading, TvRow } from "@thekrystalship/krystal";
 import { api } from "../../api.js";
 import { apiPicks, filterQuestion, pickCount } from "../../filters.js";
-import { useLoad } from "../../data.js";
+import { useLoad, usePaged } from "../../data.js";
 import { discoverBrowsePath, discoverShelfPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { Failed } from "../../components/Film.jsx";
@@ -110,7 +110,7 @@ export function TvDiscoverFront({ index, where }) {
           if (!section) return null;
           const shelves = section.shelves.filter((h) => h.total !== 0);
           return (
-            <TvRow key={row.kind} icon={section.icon} title={section.label} count={shelves.length}>
+            <TvRow key={row.kind} icon={section.icon} title={section.label} count={section.series ? section.count : shelves.length}>
               {shelves.map((h) => <TvShelfTile key={h.id} head={h} series={section.series} />)}
             </TvRow>
           );
@@ -132,18 +132,46 @@ export function TvCategory({ id, index, where, picks }) {
   if (!section) return <p className="kc-tv-none">Nothing by that name.</p>;
   return (
     <section className="kc-tvd__browse">
-      <TvHeading as="h1" size="lg" eyebrow="Discover" title={section.label} count={section.shelves.length} />
+      <TvHeading as="h1" size="lg" eyebrow="Discover" title={section.label} count={section.count} />
       {section.series
-        ? (
-          <div className="kc-tvsv__grid">
-            {section.shelves.filter((h) => h.total !== 0).map((h, i) => (
-              <TvShelfTile key={h.id} head={h} series data-tv-initial={i === 0 ? "" : undefined} />
-            ))}
-          </div>
-        )
+        ? <TvSeriesGrid id={id} />
         : <div className="kc-tvd__rows">{section.shelves.map((h) => <TvShelfRow key={h.id} head={h} where={where} picks={picks} />)}</div>}
       <p className="kc-tv-tmdb">Titles and artwork from TMDB.</p>
     </section>
+  );
+}
+
+/**
+ * Every series of a category on a television, in rows that wrap, in the person's order. The next page
+ * joins the rows as their end nears the screen, which focus moving down brings it to, without moving focus.
+ */
+function TvSeriesGrid({ id }) {
+  const series = usePaged((page) => api.discoverSection(id, page), [id]);
+  const end = React.useRef(null);
+  const latest = React.useRef(series.loadMore);
+  latest.current = series.loadMore;
+  const idle = !!series.next && !series.loadingMore && !series.moreError;
+  React.useEffect(() => {
+    const el = end.current;
+    if (!el || !idle || typeof IntersectionObserver !== "function") return undefined;
+    const watcher = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) latest.current();
+    }, { rootMargin: "800px 0px" });
+    watcher.observe(el);
+    return () => watcher.disconnect();
+  }, [idle, series.next]);
+
+  if (series.error && !series.data) return <div className="kc-tv-pad"><Failed error={series.error} onRetry={series.reload} /></div>;
+  if (!series.titles) return null;
+  return (
+    <>
+      <div className="kc-tvsv__grid">
+        {series.titles.filter((h) => h.total !== 0).map((h, i) => (
+          <TvShelfTile key={h.id} head={h} series data-tv-initial={i === 0 ? "" : undefined} />
+        ))}
+      </div>
+      <div ref={end} style={{ minHeight: 1 }} />
+    </>
   );
 }
 

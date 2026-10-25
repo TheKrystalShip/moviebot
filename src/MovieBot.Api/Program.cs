@@ -183,6 +183,12 @@ builder.Services.AddSingleton(sp => new PopularNow(
     sp.GetRequiredService<TimeProvider>(),
     sp.GetRequiredService<ILogger<PopularNow>>()));
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PopularNow>());
+// The franchises: the curated series and every series of the film database known well enough,
+// measured in the background from the database's daily list of series.
+builder.Services.AddOptions<FranchiseOptions>().Bind(builder.Configuration.GetSection(FranchiseOptions.Section));
+builder.Services.AddHttpClient<FranchiseExport>(http => http.Timeout = TimeSpan.FromMinutes(2));
+builder.Services.AddSingleton<Franchises>();
+builder.Services.AddHostedService<FranchiseScanner>();
 builder.Services.AddSingleton<DiscoverShelves>();
 builder.Services.AddHostedService<DiscoverWarmer>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SessionKeeper>());

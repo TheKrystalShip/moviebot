@@ -19,7 +19,7 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles];
+    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles, Franchises];
 
     public static int Version => Steps.Length;
 
@@ -36,6 +36,21 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string Franchises = """
+        -- Every series of the film database as the franchise scan last measured it: its released films
+        -- the database does not mark adult and their votes between them, which decide whether it is
+        -- shelved and where, and when it was asked. The votes rank and are never shown.
+        CREATE TABLE franchises (
+            collection_id INTEGER PRIMARY KEY,
+            name          TEXT NOT NULL,
+            films         INTEGER NOT NULL,
+            votes         INTEGER NOT NULL,
+            newest        TEXT,
+            asked_at      TEXT NOT NULL
+        );
+        CREATE INDEX franchises_rank ON franchises (votes DESC);
+        """;
 
     private const string ImdbTitles = """
         -- IMDb's non-commercial datasets as the import keeps them: the films and shows with enough votes

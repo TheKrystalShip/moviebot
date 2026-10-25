@@ -48,6 +48,15 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
     /// <summary>The collection the Discover page's Star Wars shelf names, which here holds Heat and Pirates of the Caribbean.</summary>
     public const int Series = 10;
 
+    /// <summary>Series a test adds, each answered by its id as the body given, beside <see cref="Series"/>.</summary>
+    public ConcurrentDictionary<int, string> Collections { get; } = new();
+
+    /// <summary>A series' answer: its name and its films, each <c>(id, title, date, votes, adult)</c>.</summary>
+    public static string Collection(int id, string name, params (int Id, string Title, string? Date, int Votes, bool Adult)[] films) =>
+        "{ \"id\": " + id + ", \"name\": \"" + name + "\", \"parts\": [ "
+        + string.Join(", ", films.Select(f => Listed(f.Id, f.Title, f.Date, 7.0, f.Votes, "18").TrimEnd('}', ' ') + ", \"adult\": " + (f.Adult ? "true" : "false") + " }"))
+        + " ] }";
+
     /// <summary>The keyword whose films run to <see cref="PagedFilms"/> across three pages of the database; the Date night and Top rated shelves are answered the same.</summary>
     public const int PagedKeyword = 31337;
 
@@ -467,6 +476,10 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             return Results();
         }
         if (path.EndsWith("/discover/tv")) return Results();
+
+        // A series a test added, by its id.
+        if (path.Contains("/collection/") && int.TryParse(path[(path.LastIndexOf('/') + 1)..], out var added) && Collections.TryGetValue(added, out var body))
+            return body;
 
         // A series: Pirates of the Caribbean before Heat, as they are not in release order.
         if (path.EndsWith("/collection/" + Series))

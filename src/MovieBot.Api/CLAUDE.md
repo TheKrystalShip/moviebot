@@ -170,7 +170,12 @@ film onto a device is `Offline/CLAUDE.md`.
   the warmer has run. Each pass also holds every question shelf of at most 1,000 titles whole in
   memory, each title with its card (`CatalogueSearch.ShelfWholeAsync`), so a filter on it and its
   facets are answered over the titles held and ask the database nothing; a shelf not held is
-  narrowed by the database and its facets probed, one question per option. The shelves that follow from a person read the watch record and the library as
+  narrowed by the database and its facets probed, one question per option. The franchises are
+  `Films/Franchises`: the curated series, then every series the database holds with enough released
+  films and votes (`Franchises` settings). `FranchiseScanner` reads the database's daily list of series
+  ids and asks about each series that is due, slowly, keeping its released films and their votes in
+  `franchises`, a shelved series again after a week and any other after a month; the votes only rank,
+  and a series' films are asked for as its shelf, by the warmer like every other. The shelves that follow from a person read the watch record and the library as
   listed, and "Popular here" names nobody and no count.
 - **The shelf is listed from memory.** `Library/LibraryListing` rebuilds the library's list every
   ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/shows/{imdbId}`, the library's

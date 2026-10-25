@@ -76,6 +76,14 @@ public static class DiscoverEndpoints
             return outcome.Value is { } facets ? Results.Ok(facets with { Sorts = DiscoverShelves.Orders }) : Refused(outcome);
         }).RequireAction(CinemaActions.Watch);
 
+        // One page of a category of series, every series as a tile in the asking person's order: those
+        // they are partway through first, those they finished last.
+        app.MapGet("/api/discover/sections/{id}", async (string id, int? page, HttpContext context, DiscoverShelves shelves, CancellationToken ct) =>
+        {
+            var outcome = await shelves.SectionAsync(id, PeopleEndpoints.Person(context)?.UserId, page ?? 1, ct);
+            return outcome.Value is { } section ? Results.Ok(section) : Refused(outcome);
+        }).RequireAction(CinemaActions.Watch);
+
         // Which options a browse category's shelves hold, together, with the filter's picks on each.
         app.MapGet("/api/discover/sections/{id}/facets", async (string id, string? kind, string? category, [FromQuery] string[]? anyGenre, [FromQuery] string[]? decade,
             [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
