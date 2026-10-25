@@ -884,6 +884,27 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         return dropped;
     }
 
+    /// <summary>
+    /// Forgets one room now, as the reaper would once it had stood empty long enough: only a room with
+    /// nobody in it, that admits <paramref name="userId"/>, and that is not one <paramref name="keep"/>
+    /// holds (a plan's room before its course is run).
+    /// </summary>
+    public ForgetOutcome Forget(string sessionId, string userId, IReadOnlySet<string>? keep = null)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var entry)) return ForgetOutcome.Missing;
+        lock (entry.Gate)
+        {
+            if (!entry.Admission.Admits(userId)) return ForgetOutcome.Private;
+            if (!entry.Participants.IsEmpty) return ForgetOutcome.Occupied;
+            if (keep is not null && keep.Contains(sessionId)) return ForgetOutcome.Held;
+            if (!_sessions.TryRemove(sessionId, out _)) return ForgetOutcome.Missing;
+            if (entry.Admission.Guests is { } guests) _passes.TryRemove(guests.Id, out _);
+        }
+
+        Changed?.Invoke();
+        return ForgetOutcome.Forgotten;
+    }
+
     private SessionState WithCurrentHead(SessionState state)
     {
         var manifest = state.TitleId is { } titleId ? library.Get(titleId) : null;
@@ -924,4 +945,14 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
             HeadSeconds = headSeconds
         });
     }
+}
+
+/// <summary>What asking to forget a room came to (<see cref="SessionStore.Forget"/>).</summary>
+public enum ForgetOutcome
+{
+    Forgotten,
+    Missing,
+    Private,
+    Occupied,
+    Held,
 }

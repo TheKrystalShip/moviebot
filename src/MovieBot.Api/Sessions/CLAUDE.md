@@ -249,6 +249,10 @@ alone, and restarting the API would take the film out from under everybody in it
 - **Nobody is restored into a room.** Membership is a live connection and every one of them died with
   the server. Restoring the names would leave a room reporting people who are connected to nothing,
   which the reaper would then never forget.
+- **A room nobody is in can be forgotten at once** (`DELETE /api/rooms/{room}`, `SessionStore.Forget`)
+  by a person it admits, which is the reaper's act brought forward: what somebody who opened a room to
+  try something leaves behind goes when they say so. A room with anybody in it, or a plan's room the
+  reaper is holding, stays; asking about a room there is none of makes none.
 - **What is kept does not resurrect what the reaper would have forgotten.** A room idle past the
   window is dropped on the way back in, because a link into a room is supposed to stop working.
 - **Keeping is on a two-second delay.** A drag along the scrub bar is a burst of changes and each

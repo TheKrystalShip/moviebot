@@ -34,6 +34,28 @@ public static class RoomEndpoints
 {
     public static void MapRooms(this WebApplication app)
     {
+        // Forgets a room nobody is in, now rather than once the reaper finds it idle: what a person
+        // who made a room to try something leaves behind. A room with anybody in it is theirs and
+        // stays; a plan's room is held as the reaper holds it.
+        app.MapDelete("/api/rooms/{room}", (string room, HttpContext context, SessionStore sessions,
+            Plans.PlanStore plans, TimeProvider clock, Microsoft.Extensions.Options.IOptions<RoomOptions> options,
+            ILoggerFactory loggers) =>
+        {
+            var person = CinemaPerson.Of(context)!;
+            var held = plans.RoomsHeld(clock.GetUtcNow() - options.Value.IdleTimeout);
+            var outcome = sessions.Forget(room, person.UserId, held);
+            if (outcome == ForgetOutcome.Forgotten)
+                loggers.CreateLogger(typeof(RoomEndpoints)).LogInformation("{Who} forgot room {Room}", person.DisplayName, room);
+            return outcome switch
+            {
+                ForgetOutcome.Forgotten => Results.NoContent(),
+                ForgetOutcome.Missing => Results.NotFound(),
+                ForgetOutcome.Private => RoomEntry.Private,
+                _ => Results.Json(new ErrorReply(outcome == ForgetOutcome.Occupied ? "Somebody is in this room." : "This room is held for a plan."),
+                    ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status409Conflict),
+            };
+        }).RequireAction(CinemaActions.Watch);
+
         // Puts a film into a room from outside it.
         //
         // The bot knows which film was asked for and cannot tell the player directly: an Activity is

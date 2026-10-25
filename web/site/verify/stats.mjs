@@ -1,6 +1,7 @@
 // The stats panel, checked in a real browser against a real API: hidden until asked for, opened by its
 // chord and by Settings, every value a measurement or unknown, the drift graph and its marks, kept open
-// across a reload, and Send reaching the API's log once per ten seconds.
+// across a reload, and Send reaching the API's log once per ten seconds. The room it makes is forgotten
+// when it is done.
 //
 // Needs what verify/run.mjs needs: a MovieBot.Api with a library (MOVIEBOT_API) serving the site
 // (MOVIEBOT_WEB, the API's own address when it serves the build), trusting the checks' identity
@@ -203,6 +204,18 @@ if (SHOTS) {
   await wait(1500);
   await ada.screenshot({ path: join(SHOTS, 'stats-wide.png') });
 }
+
+// The room is the check's own: once every page of it has left, it is forgotten rather than left for
+// the reaper.
+for (const page of [ada, bob, tv]) await page.context().close();
+const token = await ISSUER.mint({ id: 's1', name: 'Ada' });
+let forgotten = 0;
+for (let i = 0; i < 50; i++) {
+  forgotten = (await fetch(`${BASE}/api/rooms/${room}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })).status;
+  if (forgotten !== 409) break;
+  await wait(100);
+}
+check('the room the checks made is forgotten once they leave it', forgotten === 204, String(forgotten));
 
 await browser.close();
 console.log(failed === 0 ? '\nAll checks passed.' : `\n${failed} check(s) failed.`);

@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.0] - 2026-10-25
+
+### Added
+- `DELETE /api/rooms/{room}` forgets a room nobody is in at once, for a person it admits, rather than
+  leaving it for the reaper's half hour; a room somebody is in, or a plan's held room, stays. The
+  playback stats check forgets the room it made once it is done.
+
 ## [4.1.0] - 2026-10-25
 
 ### Added
