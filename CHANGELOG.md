@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.0] - 2026-10-26
+
+### Added
+- A phone's tab bar is krystal's tab dock: Home in the middle and four tabs of the person's choosing
+  (Movies, Discover, Assistant and Me until they choose), with every place of the site one drag or one
+  tap on the handle away in a sheet, and a long-press on a tab to change what the bar holds. The choice
+  is kept on the device and in the person's preferences, so their other open devices follow it.
+
+### Changed
+- The site's places are one table in the router: its landing pages are parsed from it, and the sidebar
+  and the dock are drawn from it.
+- The remote dock's drag is krystal's, shared with the tab dock; the remote strip gives way while the
+  tab dock's sheet is open, and the open remote and the open sheet never show together.
+- The Library tab is gone from a phone's bar: Movies is a tab and TV Shows and Anime are in the sheet.
+
 ## [4.4.0] - 2026-10-26
 
 ### Added

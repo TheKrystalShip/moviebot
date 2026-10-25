@@ -143,3 +143,14 @@ body.has-remote-open { --k-toasts-top: calc(16px + env(safe-area-inset-top, 0px)
 .kc-replace__arrow { display: flex; justify-content: center; color: var(--fg-4); }
 .kc-remote__toggle { position: relative; }
 .kc-remote__toggle::after { content: ""; position: absolute; inset: -11px -6px; }
+
+/* The tab dock's sheet opens over the strip: the strip fades out and takes no touch, and fades back in when the
+   sheet closes. */
+.kc-remote-dock { animation: kc-remote-in 160ms var(--ease-out); }
+body[data-tabdock-open] .kc-remote-dock { opacity: 0; pointer-events: none; animation: kc-remote-out 160ms var(--ease-out); }
+body[data-tabdock-open] .kc-remote-scrim { pointer-events: none; }
+@keyframes kc-remote-in { from { opacity: 0; } }
+@keyframes kc-remote-out { from { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .kc-remote-dock, body[data-tabdock-open] .kc-remote-dock { animation: none; }
+}

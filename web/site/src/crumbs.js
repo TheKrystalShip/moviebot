@@ -1,10 +1,11 @@
 // The trail above a page: Home, then each level of the address, every one but the last a link to the
-// address prefix it names. A level's name is the section's (`nav.js`) or, for a film, a show or a list,
+// address prefix it names. A level's name is the place's (`router.js`) or, for a film, a show or a list,
 // the page's own once it has loaded; until then the trail says what the address knows, the id.
 
 import React from "react";
 import { createStore, useStore } from "@thekrystalship/krystal";
-import { PLACES, PROFILE_TAB_FACES } from "./nav.js";
+import { PROFILE_TAB_FACES } from "./nav.js";
+import { PLACES } from "./router.js";
 import { ANIME, libraryPath, profilePath, showPath } from "./paths.js";
 
 /** The key of the page being drawn, so a page registers its name for itself and no other. */

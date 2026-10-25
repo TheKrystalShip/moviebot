@@ -3,8 +3,7 @@ import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { roomsApi } from "../api/index.js";
 import { useLoad } from "../data.js";
 import { inApp } from "../offline/shell.js";
-import { PLACES } from "../nav.js";
-import { navigate } from "../router.js";
+import { PLACES, navigate } from "../router.js";
 
 const page = (id, sub) => {
   const { label, path, icon } = PLACES[id];

@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Drawer, EmptyState, Icon, OptionList, Rail, Toggle, toast } from "@thekrystalship/krystal";
+import { Button, Drawer, EmptyState, Icon, OptionList, Rail, Toggle, toast, useDockDrag } from "@thekrystalship/krystal";
 import { WIDE } from "../railDensity.js";
 import { episodeCode, filmName, libraryApi, meApi } from "../api/index.js";
 import { useLoad } from "../data.js";
@@ -18,25 +18,8 @@ import "./download.css";
 import "./remote.css";
 
 const SkipSeconds = 10;
-/**
- * How far a drag moves the dock to its other height, as a fraction of the way between its two heights
- * (never under the floor or over the cap), and how fast a flick that is shorter does.
- */
-const ShiftFraction = 0.25;
-const ShiftFloor = 36;
-const ShiftCap = 100;
-const FlickSpeed = 0.5; // px per ms, over the last 100 ms of the finger's travel
-const FlickFloor = 12;
-/** How much of a push past its open height the dock follows, and how far at most. */
-const Overdrag = 0.2;
-const OverdragCap = 24;
 /** The open dock's top edge stands no higher than this share of the screen's height above its bottom edge. */
 const OpenShare = 0.75;
-/** How far a sideways swipe on the collapsed dock turns remote mode off, as a fraction of its width, and how fast a flick does. */
-const AwayFraction = 0.3;
-const AwayFloor = 72;
-const Slop = 8;
-const SettleMs = 220;
 const BuzzMs = 15;
 
 /** A short vibration where the phone has one: a gesture has landed on the TV. */
@@ -118,85 +101,38 @@ function turnOff(tv) {
   toast.info(`Remote off · ${tv}`, { action: { label: "Undo", onClick: () => setRemoteMode(true) } });
 }
 
-const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-/** Takes the click that ends a drag, which is not a tap on whatever the finger started on. */
-function swallowClick() {
-  const swallow = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
-  window.addEventListener("click", swallow, { capture: true, once: true });
-  setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 0);
-}
-
-/**
- * The dock's one height and what follows it. The height runs from the collapsed row's to the open remote's
- * natural height (capped by `OpenShare`), and `--dock-p` on the dock and its scrim is how far along that
- * is, 0 to 1, which the stylesheet turns into the row giving way to the remote and the scrim darkening.
- *
- * It is moved by a finger on the collapsed row, on the open remote's head, and on the open remote's body
- * while that is scrolled to its top and the finger moves down; let go, it settles at whichever height the
- * drag's distance or speed says. A sideways swipe on the collapsed row turns remote mode off.
- * `live` says the open remote is drawn: while open, while a finger grows the dock, and while it settles.
- */
-function useDock(open, setOpen, onAway) {
-  const panel = React.useRef(null);
-  const scrim = React.useRef(null);
+/** The dock and its scrim: the collapsed row and, while drawn, the open remote over it. */
+function Dock({ screen }) {
+  const [open, setOpen] = useRemoteOpen();
+  const [picking, setPicking] = React.useState(false);
+  const tv = screen.name || "TV";
   const row = React.useRef(null);
   const remote = React.useRef(null);
-  const head = React.useRef(null);
-  const body = React.useRef(null);
   const content = React.useRef(null);
-  const size = React.useRef({ shut: 0, open: 0, cap: 0 });
-  const height = React.useRef(null);
-  const grab = React.useRef(null);
-  const timer = React.useRef(0);
-  const openNow = React.useRef(open);
-  openNow.current = open;
-  const [live, setLive] = React.useState(open);
-
-  // Until the open remote is drawn and measured, the dock opens toward the highest it may stand.
-  const ceiling = () => (remote.current && size.current.open > size.current.shut ? size.current.open : size.current.cap);
-  const progress = (h) => {
-    const { shut } = size.current, full = ceiling();
-    if (full <= shut) return h > shut ? 1 : 0;
-    return Math.min(1, Math.max(0, (h - shut) / (full - shut)));
-  };
-  const paint = (h, animate) => {
-    const node = panel.current;
-    if (!node) return;
-    height.current = h;
-    const moving = animate && !reducedMotion();
-    node.style.transition = moving ? `height ${SettleMs}ms var(--ease-out), --dock-p ${SettleMs}ms var(--ease-out)` : "none";
-    node.style.height = `${h}px`;
-    node.style.setProperty("--dock-p", String(progress(h)));
-    if (scrim.current) {
-      scrim.current.style.transition = moving ? `--dock-p ${SettleMs}ms var(--ease-out)` : "none";
-      scrim.current.style.setProperty("--dock-p", String(progress(h)));
-    }
-  };
-  /** The heights at rest, measured: the row's, and the open remote's head, content and foot. */
-  const measure = () => {
-    const node = panel.current;
-    if (!node || !row.current) return;
-    const edge = node.clientTop;
-    const shut = row.current.offsetHeight + edge;
-    let natural = shut;
-    if (remote.current && head.current && content.current) {
-      const foot = parseFloat(getComputedStyle(remote.current).paddingBottom) || 0;
-      natural = edge + head.current.offsetHeight + content.current.offsetHeight + foot;
-    }
-    const bottom = parseFloat(document.body.style.getPropertyValue("--remote-strip-bottom")) || 0;
-    const cap = Math.round(document.documentElement.clientHeight * OpenShare) - bottom;
-    const full = Math.max(shut, Math.min(natural, cap));
-    size.current = { shut, open: full, cap: Math.max(shut, cap) };
-    node.style.setProperty("--dock-open-h", `${full - edge}px`);
-  };
-  /** Settles at rest open or collapsed, and lets the open remote go once collapsed. */
-  const rest = (animate) => {
-    clearTimeout(timer.current);
-    paint(openNow.current ? size.current.open : size.current.shut, animate);
-    if (!openNow.current) timer.current = setTimeout(() => { if (!openNow.current && !grab.current) setLive(false); }, animate ? SettleMs : 0);
-  };
-  React.useEffect(() => () => clearTimeout(timer.current), []);
+  const dock = useDockDrag({
+    open,
+    onOpenChange: setOpen,
+    onAway: () => turnOff(tv),
+    haptics: false,
+    heldClass: "is-held",
+    // The scrub bar reads a finger of its own; the still answers no vertical sweep, so it takes the pull.
+    pullIgnore: ".mp-scrub",
+    measure: ({ edge }) => {
+      if (!row.current) return null;
+      const shut = row.current.offsetHeight + edge;
+      let natural = null;
+      if (remote.current && dock.head.current && content.current) {
+        const foot = parseFloat(getComputedStyle(remote.current).paddingBottom) || 0;
+        natural = edge + dock.head.current.offsetHeight + content.current.offsetHeight + foot;
+      }
+      const bottom = parseFloat(document.body.style.getPropertyValue("--remote-strip-bottom")) || 0;
+      const cap = Math.round(document.documentElement.clientHeight * OpenShare) - bottom;
+      return { shut, natural, cap };
+    },
+  });
+  const { measure, rest, grabbing } = dock;
+  const shelf = useShelf(open);
+  const collapse = React.useCallback(() => setOpen(false), [setOpen]);
 
   // It stands on the tab bar, and the bar stands on the viewport's bottom, so the dock's bottom is the bar's
   // measured height: the bar's border, its safe-area inset and a phone's fractional pixels all move its top
@@ -215,185 +151,28 @@ function useDock(open, setOpen, onAway) {
       measure();
       const nominal = bar ? parseFloat(getComputedStyle(bar).getPropertyValue("--tabbar-h")) + parseFloat(getComputedStyle(bar).paddingBottom) : 0;
       const shortfall = bar && nominal ? Math.max(0, bar.getBoundingClientRect().height - nominal) : 0;
-      document.body.style.setProperty("--remote-strip-inset", `${size.current.shut + shortfall}px`);
-      if (!grab.current) rest(placed.current);
+      document.body.style.setProperty("--remote-strip-inset", `${dock.size.current.shut + shortfall}px`);
+      if (!grabbing()) rest(placed.current);
       placed.current = true;
     };
     place();
     window.addEventListener("resize", place);
     const observer = typeof ResizeObserver === "function" ? new ResizeObserver(place) : null;
-    if (observer) for (const node of [bar, row.current, head.current, content.current]) if (node) observer.observe(node);
+    if (observer) for (const node of [bar, row.current, dock.head.current, content.current]) if (node) observer.observe(node);
     return () => {
       window.removeEventListener("resize", place);
       if (observer) observer.disconnect();
     };
-    // The dock's functions read refs alone, so the ones of any render are the same.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live]);
+  }, [dock.live, dock.head, dock.size, measure, rest, grabbing]);
   React.useEffect(() => () => {
     document.body.classList.remove("has-remote-strip");
     document.body.style.removeProperty("--remote-strip-inset");
     document.body.style.removeProperty("--remote-strip-bottom");
   }, []);
-
-  // Opened or collapsed by a tap, a key, the scrim or the page: the open remote is drawn first, then the dock moves.
   React.useEffect(() => {
     document.body.classList.toggle("has-remote-open", open);
-    if (open && !live) { setLive(true); return; }
-    if (!grab.current) { measure(); rest(true); }
-    // The dock's functions read refs alone, so the ones of any render are the same.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, live]);
-  React.useEffect(() => () => document.body.classList.remove("has-remote-open"), []);
-
-  const begin = (x, y, t) => ({ x, y, axis: null, from: height.current ?? size.current.shut, opened: openNow.current, samples: [{ t, x, y }] });
-  const track = (g, x, y, t) => {
-    g.samples.push({ t, x, y });
-    while (g.samples.length > 2 && t - g.samples[0].t > 100) g.samples.shift();
-  };
-  const follow = (g, y) => {
-    const { shut } = size.current, full = ceiling();
-    let h = g.from - (y - g.y);
-    if (h > full) h = full + Math.min(OverdragCap, (h - full) * Overdrag);
-    paint(Math.max(shut, h), false);
-  };
-  const settle = (g, cancelled) => {
-    const { shut } = size.current, full = ceiling();
-    const first = g.samples[0], last = g.samples[g.samples.length - 1];
-    const growth = (first.y - last.y) / Math.max(1, last.t - first.t);
-    const moved = (height.current ?? g.from) - g.from;
-    const far = Math.min(ShiftCap, Math.max(ShiftFloor, (full - shut) * ShiftFraction));
-    let target = g.opened;
-    if (!cancelled && g.opened && (moved <= -far || (growth <= -FlickSpeed && moved <= -FlickFloor))) target = false;
-    if (!cancelled && !g.opened && (moved >= far || (growth >= FlickSpeed && moved >= FlickFloor))) target = true;
-    const before = openNow.current;
-    openNow.current = target;
-    rest(true);
-    if (target !== before) setOpen(target);
-  };
-  /** The collapsed dock followed sideways, faded as it goes. */
-  const slide = (dx, animate) => {
-    const node = panel.current;
-    if (!node) return;
-    node.style.transition = animate ? `transform 180ms var(--ease-out), opacity 180ms var(--ease-out)` : "none";
-    node.style.transform = dx ? `translateX(${dx}px)` : "";
-    node.style.opacity = dx ? String(Math.max(0.4, 1 - Math.abs(dx) / (node.offsetWidth || 1) * 0.9)) : "";
-  };
-
-  // A finger or a pointer on the collapsed row, or on the open remote's head.
-  const down = (e) => {
-    if (e.button > 0 || !e.isPrimary) return;
-    if (openNow.current && !(head.current && head.current.contains(e.target))) return;
-    grab.current = { id: e.pointerId, ...begin(e.clientX, e.clientY, e.timeStamp) };
-    // The open remote is drawn while the finger is still inside the slop, so the drag's first frames move the dock rather than draw it.
-    if (!openNow.current) { clearTimeout(timer.current); setLive(true); }
-  };
-  const move = (e) => {
-    const g = grab.current;
-    if (!g || g.id !== e.pointerId) return;
-    const dx = e.clientX - g.x, dy = e.clientY - g.y;
-    if (!g.axis) {
-      if (Math.hypot(dx, dy) < Slop) return;
-      g.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
-      // Sideways is the collapsed row's alone, and a collapsed row has nowhere lower to go.
-      if ((g.axis === "x" && g.opened) || (g.axis === "y" && !g.opened && dy > 0)) { grab.current = null; if (!g.opened) rest(true); return; }
-      e.currentTarget.setPointerCapture(e.pointerId);
-      e.currentTarget.classList.add("is-held");
-    }
-    track(g, e.clientX, e.clientY, e.timeStamp);
-    if (g.axis === "x") slide(dx, false);
-    else follow(g, e.clientY);
-  };
-  const finish = (e, cancelled) => {
-    const g = grab.current;
-    if (!g || g.id !== e.pointerId) return;
-    grab.current = null;
-    // A press that was no drag: a tap on the row opens the dock, and anything else leaves it collapsed.
-    if (!g.axis) { if (!openNow.current) rest(true); return; }
-    e.currentTarget.classList.remove("is-held");
-    swallowClick();
-    if (g.axis === "y") { settle(g, cancelled); return; }
-    const dx = e.clientX - g.x;
-    const first = g.samples[0], last = g.samples[g.samples.length - 1];
-    const speed = (last.x - first.x) / Math.max(1, last.t - first.t);
-    const width = panel.current ? panel.current.offsetWidth : 360;
-    const away = !cancelled && (Math.abs(dx) >= Math.max(AwayFloor, width * AwayFraction) || (Math.abs(speed) >= FlickSpeed && Math.abs(dx) >= 16));
-    if (!away) { slide(0, true); return; }
-    if (reducedMotion()) { onAway(); return; }
-    slide((dx < 0 ? -1 : 1) * width, true);
-    if (panel.current) panel.current.style.opacity = "0";
-    setTimeout(onAway, 180);
-  };
-
-  // A finger pulling the open remote's body down from its top: touch events, since the body scrolls
-  // natively until the dock takes the touch, and taking it means cancelling the first move.
-  React.useEffect(() => {
-    const node = body.current;
-    if (!node) return;
-    let g = null;
-    const start = (e) => {
-      g = null;
-      if (e.touches.length !== 1 || !openNow.current || grab.current) return;
-      // The scrub bar reads a finger of its own; the still's answers no vertical sweep, so it takes the pull.
-      if (e.target.closest(".mp-scrub")) return;
-      const t = e.touches[0];
-      g = { ...begin(t.clientX, t.clientY, e.timeStamp), taken: null };
-    };
-    const moved = (e) => {
-      if (!g) return;
-      const t = e.touches[0];
-      const dx = t.clientX - g.x, dy = t.clientY - g.y;
-      if (g.taken === null) {
-        if (Math.abs(dx) + Math.abs(dy) < 3) return;
-        g.taken = node.scrollTop <= 0 && dy > 0 && dy >= Math.abs(dx);
-        if (g.taken) {
-          grab.current = g;
-          panel.current?.classList.add("is-held");
-        }
-      }
-      if (!g.taken) return;
-      if (e.cancelable) e.preventDefault();
-      track(g, t.clientX, t.clientY, e.timeStamp);
-      follow(g, t.clientY);
-    };
-    const end = (cancelled) => () => {
-      const was = g;
-      g = null;
-      if (!was || !was.taken) return;
-      grab.current = null;
-      panel.current?.classList.remove("is-held");
-      swallowClick();
-      settle(was, cancelled);
-    };
-    const ended = end(false), cancelled = end(true);
-    node.addEventListener("touchstart", start, { passive: true });
-    node.addEventListener("touchmove", moved, { passive: false });
-    node.addEventListener("touchend", ended);
-    node.addEventListener("touchcancel", cancelled);
-    return () => {
-      node.removeEventListener("touchstart", start);
-      node.removeEventListener("touchmove", moved);
-      node.removeEventListener("touchend", ended);
-      node.removeEventListener("touchcancel", cancelled);
-    };
-    // The dock's functions read refs alone, so the ones of any render are the same.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live]);
-
-  return {
-    live, panel, scrim, row, remote, head, body, content,
-    handlers: { onPointerDown: down, onPointerMove: move, onPointerUp: (e) => finish(e, false), onPointerCancel: (e) => finish(e, true) },
-  };
-}
-
-/** The dock and its scrim: the collapsed row and, while drawn, the open remote over it. */
-function Dock({ screen }) {
-  const [open, setOpen] = useRemoteOpen();
-  const [picking, setPicking] = React.useState(false);
-  const tv = screen.name || "TV";
-  const dock = useDock(open, setOpen, () => turnOff(tv));
-  const shelf = useShelf(open);
-  const collapse = React.useCallback(() => setOpen(false), [setOpen]);
+    return () => document.body.classList.remove("has-remote-open");
+  }, [open]);
 
   React.useEffect(() => {
     if (!open) return undefined;
@@ -413,8 +192,8 @@ function Dock({ screen }) {
       <div ref={dock.scrim} className="kc-remote-scrim" onClick={collapse} />
       <div ref={dock.panel} className={"kc-remote-dock" + (open ? " is-open" : "")} {...dock.handlers}>
         <div className="kc-remote__grab" />
-        <Strip rowRef={dock.row} screen={screen} hidden={open} onOpen={() => setOpen(true)} />
-        {dock.live && <Remote dock={dock} shelf={shelf} screen={screen} hidden={!open} onCollapse={collapse} onPick={() => setPicking(true)} />}
+        <Strip rowRef={row} screen={screen} hidden={open} onOpen={() => setOpen(true)} />
+        {dock.live && <Remote dock={dock} remoteRef={remote} contentRef={content} shelf={shelf} screen={screen} hidden={!open} onCollapse={collapse} onPick={() => setPicking(true)} />}
       </div>
       {picking && <TvPicker screen={screen} onDone={() => setPicking(false)} />}
     </>
@@ -507,7 +286,7 @@ function Idle({ shelf }) {
 }
 
 /** The open remote: the TV and the switch, then what plays, with the player's scrub bar and controls at the bottom. */
-function Remote({ dock, shelf, screen, hidden, onCollapse, onPick }) {
+function Remote({ dock, remoteRef, contentRef, shelf, screen, hidden, onCollapse, onPick }) {
   const room = useRemoteRoom();
   const film = useRemoteFilm();
   const position = useRemotePosition();
@@ -567,7 +346,7 @@ function Remote({ dock, shelf, screen, hidden, onCollapse, onPick }) {
 
   return (
     <>
-      <div ref={dock.remote} className="kc-remote" role="dialog" aria-label={`Remote: ${tv}`} aria-hidden={hidden || undefined} inert={hidden ? "" : undefined}>
+      <div ref={remoteRef} className="kc-remote" role="dialog" aria-label={`Remote: ${tv}`} aria-hidden={hidden || undefined} inert={hidden ? "" : undefined}>
         <div ref={dock.head} className="kc-remote__top">
           <div className="kc-remote__head">
             <span className="kc-remote__title">
@@ -581,7 +360,7 @@ function Remote({ dock, shelf, screen, hidden, onCollapse, onPick }) {
           </div>
         </div>
         <div ref={dock.body} className="kc-remote__body">
-          <div ref={dock.content} className="kc-remote__content">
+          <div ref={contentRef} className="kc-remote__content">
             {!holding && <Idle shelf={shelf} />}
             {holding && (
               <>

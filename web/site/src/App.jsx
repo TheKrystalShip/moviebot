@@ -1,16 +1,17 @@
 import React from "react";
 import {
-  AppShell, Dock, DockFab, NavItem, Sidebar, SidebarAccount, SidebarGroup, TabBar, Toasts,
+  AppShell, Dock, DockFab, NavItem, Sidebar, SidebarAccount, SidebarGroup, TabDock, Toasts,
   settleSplash, useDock, useStoredFlag,
 } from "@thekrystalship/krystal";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { can, restore, signIn, useEnded, useSession } from "./session.js";
 import { leave } from "./leave.js";
-import { goBack, navigate, useRoute } from "./router.js";
+import { DEFAULT_SLOTS, PLACES, SECTIONS, goBack, lights, navigate, placesIn, useRoute } from "./router.js";
+import { dockSections, useTabBar } from "./tabDock.js";
+import { setRemoteOpen, useRemoteOpen } from "./remote.js";
 import { CinemaAssistant } from "./CinemaAssistant.jsx";
 import { useHandoff } from "./assistantHandoff.js";
-import { PLACES } from "./nav.js";
-import { ANIME, OFFLINE_FLAG, PROFILE_TABS, chatPath, discoverPath, homePath, libraryPath, moviePath, profilePath, roomPath, signedInPath } from "./paths.js";
+import { ANIME, OFFLINE_FLAG, chatPath, discoverPath, homePath, libraryPath, moviePath, profilePath, roomPath, signedInPath } from "./paths.js";
 import { useOnline } from "./connectivity.js";
 import { sendProgress } from "./offline/progress.js";
 import { useOfflineSync } from "./offline/sync.js";
@@ -55,41 +56,6 @@ const GuestRoom = React.lazy(() => import("./player/PlayerPage.jsx").then((m) =>
 const UNANSWERED = "The sign-in service is not answering. Try again in a moment.";
 const ENDED = "Your session ended.";
 const ENDED_IN_ACTIVITY = "Your session ended. Close the Activity and start it again.";
-
-const place = (id) => ({ id, ...PLACES[id] });
-const HOME = ["home"].map(place);
-const LIBRARY = ["discover", "movies", "tv", "anime"].map(place);
-const YOURS = ["wants", "plans", "history", "following"].map(place);
-
-// A phone's way around: a tab for each place, the assistant's page among them.
-const TABS = [
-  { ...place("home") },
-  { id: "library", path: PLACES.movies.path, icon: "clapperboard", label: "Library" },
-  { ...place("discover") },
-  { id: "assistant", path: chatPath, icon: "bot", label: "Assistant" },
-  { id: "me", path: PLACES.profile.path, icon: "user", label: "Me" },
-];
-
-// What a page lights: the sidebar item and the phone's tab it belongs to, by the route's view. A view
-// not listed lights neither.
-const LIT = {
-  home: { item: "home", tab: "home" },
-  movies: { item: "movies", tab: "library" },
-  movie: { item: "movies", tab: "library" },
-  tv: { item: "tv", tab: "library" },
-  show: { item: "tv", tab: "library" },
-  anime: { item: "anime", tab: "library" },
-  "anime-films": { item: "anime", tab: "library" },
-  discover: { item: "discover", tab: "discover" },
-  "discover-film": { item: "discover", tab: "discover" },
-  "discover-show": { item: "discover", tab: "discover" },
-  profile: { tab: "me" },
-  wants: { item: "wants", tab: "me" },
-  plans: { item: "plans", tab: "me" },
-  "plan-new": { item: "plans", tab: "me" },
-  plan: { item: "plans", tab: "me" },
-  chat: { tab: "assistant" },
-};
 
 // The places that need the server, drawn disabled with no connection. Every other place draws what the
 // device holds.
@@ -249,25 +215,33 @@ function Frame({ session, route }) {
   // A page opens at its top, or where it was left when Back, Forward or a reload return to it.
   const shown = useScrollMemory(mainRef);
 
-  // A film's or a show's page under Anime lights Anime rather than its kind's shelf.
-  // A profile tab with a sidebar item of its own lights that item.
-  const profileTab = route.view === "profile" ? route.tab || PROFILE_TABS[0] : null;
-  const lit = (route.category === ANIME && route.view !== "discover-show" ? LIT.anime
-    : profileTab && PLACES[profileTab] ? { item: profileTab, tab: "me" }
-    : LIT[route.view]) || {};
+  // The places the page lights (see `lights`); the sidebar lights the first.
+  const lit = lights(route);
   const go = (path) => navigate(path);
-  const item = (n) => (online || !NEEDS_SERVER.has(n.id)
-    ? <NavItem key={n.id} icon={n.icon} label={n.label} active={lit.item === n.id} onClick={() => go(n.path)} />
-    : <Off key={n.id}><NavItem icon={n.icon} label={n.label} /></Off>);
-  // A tab goes to its page. The tab of the page already open takes it back to its top.
-  const tab = (t) => ({
-    id: t.id, icon: t.icon, label: t.label, disabled: !online && NEEDS_SERVER.has(t.id),
-    active: lit.tab === t.id && (online || !NEEDS_SERVER.has(t.id)),
+  const sidebarItem = (id) => {
+    const n = { id, ...PLACES[id] };
+    return online || !NEEDS_SERVER.has(id)
+      ? <NavItem key={id} icon={n.icon} label={n.label} active={lit[0] === id} onClick={() => go(n.path)} />
+      : <Off key={id}><NavItem icon={n.icon} label={n.label} /></Off>;
+  };
+  // A place of the dock goes to its page. The place of the page already open takes it back to its top.
+  const dockItem = (id, place) => ({
+    id, icon: place.icon, label: place.short || place.label, disabled: !online && NEEDS_SERVER.has(id),
+    active: lit.includes(id) && (online || !NEEDS_SERVER.has(id)),
     onClick: () => {
-      if (route.path === t.path && mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
-      else go(t.path);
+      if (route.path === place.path && mainRef.current) mainRef.current.scrollTo({ top: 0, behavior: "smooth" });
+      else go(place.path);
     },
   });
+  const [slots, setSlots] = useTabBar(online);
+  // The open sheet and the open remote never show together: opening either closes the other.
+  const [sheet, setSheet] = React.useState(false);
+  const [remoteOpen] = useRemoteOpen();
+  React.useEffect(() => { if (remoteOpen) setSheet(false); }, [remoteOpen]);
+  const openSheet = (open) => {
+    setSheet(open);
+    if (open) setRemoteOpen(false);
+  };
   // The dock is the assistant beside a page, on a screen wide enough to have one. A phone reaches the
   // assistant by its tab, as a page; the assistant's own page has no dock beside it.
   const docked = dock.desktop && route.view !== "chat";
@@ -299,9 +273,9 @@ function Frame({ session, route }) {
                 // In the Activity the session is the Discord account in it, which only leaving the Activity ends.
                 onSignOut={inActivity ? undefined : leave} />
             </>}>
-            <SidebarGroup>{HOME.map(item)}</SidebarGroup>
-            <SidebarGroup label="Library">{LIBRARY.map(item)}</SidebarGroup>
-            <SidebarGroup label="Yours">{YOURS.map(item)}</SidebarGroup>
+            {SECTIONS.filter((section) => !section.dockOnly).map((section) => (
+              <SidebarGroup key={section.id} label={section.bare ? undefined : section.label}>{placesIn(section.id).map(sidebarItem)}</SidebarGroup>
+            ))}
           </Sidebar>
         }
         aside={docked && <>
@@ -312,7 +286,16 @@ function Frame({ session, route }) {
           </Dock>
           {!dock.open && online && <DockFab onClick={() => dock.setOpen(true)} />}
         </>}
-        tabBar={<TabBar items={TABS.map(tab)} />}>
+        tabBar={
+          <TabDock
+            home={dockItem("home", PLACES.home)}
+            sections={dockSections(dockItem)}
+            slots={slots}
+            defaultSlots={DEFAULT_SLOTS}
+            onSlotsChange={setSlots}
+            open={sheet}
+            onOpenChange={openSheet} />
+        }>
         {inActivity && <CallBar />}
         <PageStage route={route} render={(r) => <Reachable route={r} />} above={(r) => <Trail route={r} />} onShown={shown} />
         {route.view !== "chat" && <SiteFooter />}

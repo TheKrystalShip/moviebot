@@ -153,7 +153,7 @@ page back to it.
 Every page but Home carries a breadcrumb trail above it (krystal's `Breadcrumbs`), read from the
 address a level at a time: Home, the section, then the film, show, list, season or profile tab, each
 crumb but the last a link to the address prefix it names. `src/crumbs.js` builds it from the route and
-`src/nav.js` holds the section and tab names the sidebar, the footer, the tab bar and the trail share. A
+`src/router.js` holds the table of places whose names the sidebar, the footer, the tab dock and the trail share. A
 film's or show's name is known once its page has loaded, so the page gives it to the trail
 (`useCrumb`), keyed to its own page so a name never outlives the page; until then the crumb is the id,
 and a page that finds nothing names that. The trail is drawn once, from the route of the page shown, so
@@ -267,10 +267,16 @@ library. They need the browser's leave to notify, which the first Download on a 
 Wide screens get around by the sidebar: Home; then Library, holding Discover, Movies, TV Shows and
 Anime; then Yours, holding Want to watch, Plans, and Profile's History and Following tabs, each lit
 on its own tab. A phone has
-krystal's `TabBar` along its bottom edge instead, and no drawer: Home (lit on `/`),
-Library (lit under `/movies`, `/tv` and `/anime`), Discover (lit under `/discover`), Assistant
-(`/chat`), and Me (`/profile`, lit on `/wants` and `/plans` too), whose page leads to Want to watch. What each page lights is one table in `App.jsx`, by the route's
-view. The tab of the page already open scrolls it back to its top. The
+krystal's `TabDock` along its bottom edge instead, and no drawer: five tabs with Home, lit on `/`, in the
+middle, locked, and four free slots, Movies, Discover, Assistant and Me (`/profile`) until the person
+chooses others. Dragging the bar up, or tapping its handle, opens a sheet of every place, in the
+sidebar's groups and a last group holding Assistant and Me; a long-press on a tab edits the bar. A tab
+is lit when its place is the page shown, and on a page that is not on the bar none is. The places are
+one table in `src/router.js` (`PLACES`: path, icon, name, group, the routes that light it): the router
+parses its landing pages from it, the sidebar draws its groups from it and the dock builds its sheet from
+it, so a place added there appears in all three. The person's four slots are kept on the device
+(`cinema:tab-dock`) and in their preferences (`tabBar`), where another open device follows them
+(`src/tabBar.js`, `src/tabDock.js`). The tab of the page already open scrolls it back to its top. The
 pages no tab names are linked from the footer every page ends with. A television has neither and
 gets around by its own bar (below).
 
@@ -728,12 +734,12 @@ The remote is one dock (`components/RemoteDock.jsx`), drawn by the site's own co
 redrawn: the download sheet's head, the player's scrub bar and control row, its
 episodes menu, `EmptyState`, `Rail` and the Continue watching card. While remote mode is on and a paired
 television is connected it stands on the tab bar, its bottom edge on the bar's top at every height, and the
-tab bar stays uncovered and live. Collapsed it is one row (the still, the television's name, what plays,
+tab dock's bar stays uncovered and live. Collapsed it is one row (the still, the television's name, what plays,
 Play or Pause). A finger moves its top edge and its height follows: pushing the row up grows it, and as it
 grows the row fades out and the open remote fades in, uncovered from its head down, over a scrim that
 darkens with it. Pulling the open remote's head down shrinks it the same way, as does pulling its body down
 while the body is scrolled to its top. Let go, it settles open or collapsed by how far or how fast the
-finger went; a tap on the row opens it, and the scrim, Escape or a tab collapse it. Swiping the collapsed
+finger went; a tap on the row opens it, and the scrim, Escape or a tab collapse it. The tab dock's sheet opens over the strip, which fades out and takes no touch until the sheet closes; the open remote and the open sheet never show together. The drag is krystal's `useDockDrag`, the same one the sheet uses. Swiping the collapsed
 row sideways turns remote mode off with Undo in a toast, unpairing nothing. `npm run verify:dock` holds
 the dock to this under a finger.
 The open remote's head names the television, which opens the picker (an option list, "Nothing playing" or "Off"

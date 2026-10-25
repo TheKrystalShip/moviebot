@@ -2,10 +2,81 @@
 // answers any path that is not its own with the site's index.
 
 import { createStore, useStore } from "@thekrystalship/krystal";
+import { PROFILE_TAB_FACES } from "./nav.js";
 import {
   ANIME, PROFILE_TABS, aboutPath, chatPath, discoverFilmPath, discoverPath, discoverShowPath, guestPath, homePath, libraryPath,
   moviePath, newPlanPath, pairPath, planPath, plansPath, profilePath, roomPath, signedInPath, tvPath, wantsPath,
 } from "./paths.js";
+
+/** The groups the places are drawn in: the sidebar's, in its order, then the places only the phone's dock reaches. */
+export const SECTIONS = [
+  { id: "home", label: "Home", bare: true },
+  { id: "library", label: "Library" },
+  { id: "yours", label: "Yours" },
+  { id: "more", label: "More", dockOnly: true },
+];
+
+/** A profile tab as a place of its own: the tab's address, icon and name. */
+const tabPlace = (id, icon) => {
+  const face = PROFILE_TAB_FACES.find((t) => t.id === id);
+  return { path: profilePath(id), icon: icon || face.icon, label: face.label, section: "yours", views: [] };
+};
+
+/**
+ * The site's landing places, once: the pages a person can open with no argument. The names the sidebar,
+ * the footer, the phone's dock and the breadcrumb trail give them, the section each is drawn in (none for
+ * a place only the footer reaches), `view` the route it parses to, and `views` every route that lights it.
+ * `plain` marks a place whose address takes nothing after it. A place is routed, drawn in the sidebar and
+ * drawn in the dock by being here; the table's order is the order of a section's places. `short` is the
+ * name the dock's bar gives it where that is shorter.
+ */
+export const PLACES = {
+  home: { path: homePath, icon: "house", label: "Home", section: "home", view: "home", views: ["home"] },
+  discover: {
+    path: discoverPath(), icon: "compass", label: "Discover", section: "library", view: "discover",
+    views: ["discover", "discover-film", "discover-show"],
+  },
+  movies: { path: libraryPath("film"), icon: "clapperboard", label: "Movies", section: "library", view: "movies", views: ["movies", "movie"] },
+  tv: { path: libraryPath("show"), icon: "tv", label: "TV Shows", section: "library", view: "tv", views: ["tv", "show"] },
+  anime: {
+    path: libraryPath("show", ANIME), icon: "swords", label: "Anime", section: "library", view: "anime", views: ["anime", "anime-films"],
+  },
+  wants: { path: wantsPath, icon: "bookmark", label: "Want to watch", section: "yours", view: "wants", views: ["wants"], plain: true },
+  plans: { path: plansPath, icon: "calendar-clock", label: "Plans", section: "yours", view: "plans", views: ["plans", "plan-new", "plan"] },
+  history: tabPlace("history"),
+  // Its tab's icon is TV Shows' own, and the two sit in the same sidebar.
+  following: tabPlace("following", "list-video"),
+  assistant: { path: chatPath, icon: "bot", label: "Assistant", section: "more", view: "chat", views: ["chat"], plain: true },
+  profile: { path: profilePath(), icon: "user", label: "Profile", short: "Me", section: "more", view: "profile", views: ["profile"] },
+  about: { path: aboutPath, icon: "info", label: "About", view: "about", views: [], plain: true },
+};
+
+/** The ids of the places drawn in a section, in the table's order. */
+export const placesIn = (section) => Object.keys(PLACES).filter((id) => PLACES[id].section === section);
+
+/** The four pages a phone's dock holds in its free slots until a person chooses others. */
+export const DEFAULT_SLOTS = ["movies", "discover", "assistant", "profile"];
+
+const BY_VIEW = new Map(Object.entries(PLACES).flatMap(([id, p]) => p.views.map((view) => [view, id])));
+const PLAIN = new Map(Object.entries(PLACES).filter(([, p]) => p.plain).map(([id, p]) => [p.path.slice(1), id]));
+
+/** The route a place parses to, spelt as its table entry gives it. */
+const landing = (id) => ({ view: PLACES[id].view, path: PLACES[id].path });
+
+/**
+ * The places a route lights, the one the sidebar lights first: a page lights its place, a title or a
+ * show under Anime lights Anime, and a profile tab with a place of its own lights that place and the
+ * profile. A route that belongs to no place lights none.
+ */
+export function lights(route) {
+  if (route.category === ANIME && route.view !== "discover-show") return ["anime"];
+  if (route.view === "profile") {
+    const tab = route.tab || PROFILE_TABS[0];
+    return PLACES[tab] ? [tab, "profile"] : ["profile"];
+  }
+  const id = BY_VIEW.get(route.view);
+  return id ? [id] : [];
+}
 
 const decode = (s) => {
   try { return decodeURIComponent(s); } catch { return s; }
@@ -65,16 +136,17 @@ function parse(href) {
   const show = (id, season, path, view, category = null) => shaped(view, path, { arg: id, season, category, key: "show:" + id });
 
   let route;
+  const place = (id) => shaped(landing(id).view, landing(id).path);
   switch (head) {
     case "":
-      route = shaped("home", homePath);
+      route = place("home");
       break;
     case "movies":
-      route = rest[0] ? shaped("movie", moviePath(rest[0]), { arg: rest[0] }) : shaped("movies", libraryPath("film"));
+      route = rest[0] ? shaped("movie", moviePath(rest[0]), { arg: rest[0] }) : place("movies");
       break;
     case "tv": {
       const season = seasonOf(rest.slice(1));
-      route = rest[0] ? show(rest[0], season, tvPath(rest[0], season), "show") : shaped("tv", libraryPath("show"));
+      route = rest[0] ? show(rest[0], season, tvPath(rest[0], season), "show") : place("tv");
       break;
     }
     case "anime": {
@@ -87,7 +159,7 @@ function parse(href) {
         const season = seasonOf(rest.slice(1));
         route = show(first, season, tvPath(first, season, ANIME), "show", ANIME);
       } else {
-        route = shaped("anime", libraryPath("show", ANIME), { category: ANIME });
+        route = { ...place("anime"), category: ANIME };
       }
       break;
     }
@@ -96,24 +168,21 @@ function parse(href) {
       const season = seasonOf(more);
       if (kind === "film" && id) route = shaped("discover-film", discoverFilmPath(id), { arg: id });
       else if (kind === "show" && id) route = show(id, season, discoverShowPath(id, season), "discover-show");
-      else route = shaped("discover", discoverPath());
+      else route = place("discover");
       break;
     }
-    case "wants": route = shaped("wants", wantsPath); break;
     case "plans": {
       const [first] = rest;
       route = first === "new" ? shaped("plan-new", newPlanPath())
         : first ? shaped("plan", planPath(first), { arg: first })
-          : shaped("plans", plansPath);
+          : place("plans");
       break;
     }
     case "profile": {
       const tab = PROFILE_TABS.includes(rest[0]) && rest[0] !== PROFILE_TABS[0] ? rest[0] : null;
-      route = shaped("profile", profilePath(tab), { tab, key: profilePath() });
+      route = shaped("profile", profilePath(tab), { tab, key: landing("profile").path });
       break;
     }
-    case "about": route = shaped("about", aboutPath); break;
-    case "chat": route = shaped("chat", chatPath); break;
     case "signed-in": route = shaped("signed-in", signedInPath); break;
     case "r":
       route = rest[0] ? shaped("room", roomPath(rest[0]), { arg: rest[0] }) : shaped("home", homePath);
@@ -127,6 +196,7 @@ function parse(href) {
     case "embed":
       return { ...shaped("embed", url.pathname), query: url.searchParams, href: url.pathname + url.search, segments };
     default:
+      if (PLAIN.has(head)) { route = place(PLAIN.get(head)); break; }
       return { ...shaped("notfound", url.pathname), query: url.searchParams, href: url.pathname + url.search, segments };
   }
   return { ...route, query: new URLSearchParams(search), href: route.path + search, segments: route.path.split("/").filter(Boolean).map(decode) };
