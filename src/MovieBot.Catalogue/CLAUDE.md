@@ -61,8 +61,9 @@ the `Tmdb` section's, from the environment.
   `listed = 1` for a selective condition and starts a lookup by id from every listed title, a few hundred
   milliseconds each. The schema step that makes the file runs `ANALYZE`, and `CatalogueDatabase` runs
   `PRAGMA optimize` whenever it opens the file. A change to the schema or to `CatalogueQueries` is timed
-  against hotbox's file with the API's own SQLite (Microsoft.Data.Sqlite's bundle), not the host's
-  `sqlite3`, which is a different version and plans differently.
+  against hotbox's file with the SQLite the API ships (`libe_sqlite3.so` beside its binary, from the
+  `SQLitePCLRaw.lib.e_sqlite3` its build resolves), not the host's `sqlite3` or another project's bundle:
+  versions plan the same query differently, by several times.
 - **Wikidata is asked by IMDb id, many at a time**, with `Cinema/<version> (<Contact>)` in the
   User-Agent and at most `WikidataAtOnce` questions in flight; after a `429` nothing is asked until the
   time it named. Where several items name one IMDb id, the lowest-numbered is the title's.

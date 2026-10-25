@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.2] - 2026-10-25
+
+### Fixed
+- A genre shelf takes a fifth of a second rather than half a second: a list's first page is read down the
+  popularity index, which carries the order's tie-breakers, and a genre is checked on each title through
+  its own rows.
+
+### Changed
+- No Discover shelf sets a votes floor: each shelf's order already puts the titles people know first.
+
 ## [4.0.1] - 2026-10-25
 
 ### Fixed

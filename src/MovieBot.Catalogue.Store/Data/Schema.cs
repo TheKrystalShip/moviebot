@@ -15,7 +15,7 @@ namespace TheKrystalShip.MovieBot.Catalogue.Data;
 /// </summary>
 public static class Schema
 {
-    private static readonly string[] Steps = [Tables, Fingerprints, Cards, CardGenres, Lookups];
+    private static readonly string[] Steps = [Tables, Fingerprints, Cards, CardGenres, Lookups, PopularOrder];
 
     public static int Version => Steps.Length;
 
@@ -32,6 +32,15 @@ public static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string PopularOrder = """
+        -- The most popular first, as a list orders by default (popularity, then votes, then id, which every
+        -- index ends with): a list reads its first page down this index and stops, rather than sorting
+        -- every title it names.
+        DROP INDEX titles_popularity;
+        CREATE INDEX titles_popularity ON titles (listed, popularity DESC, votes DESC);
+        ANALYZE titles;
+        """;
 
     private const string Lookups = """
         -- A title by its Wikidata item: what a title page's follows and followed-by lists join through.

@@ -205,12 +205,15 @@ public sealed class CatalogueQueries(CatalogueReader reader)
             if (q.Kind is not null) where.Add($"t.kind = {Bind(q.Kind)}");
             if (q.Category is not null) where.Add($"t.category = {Bind(q.Category)}");
         }
+        // A genre is checked on each title, through the title's own rows (the unary plus keeps the genre
+        // index out): a genre names too many titles to drive a list, and through the genre index each
+        // check is a seek of its own, which a count over every film pays tens of thousands of times.
         foreach (var genre in q.Genres)
-            where.Add($"EXISTS (SELECT 1 FROM title_genres g WHERE g.title_id = t.id AND g.source = 'imdb' AND g.genre = {Bind(genre)})");
+            where.Add($"EXISTS (SELECT 1 FROM title_genres g WHERE g.title_id = t.id AND g.source = 'imdb' AND +g.genre = {Bind(genre)})");
         if (Picks("genre") && q.AnyGenres.Count > 0)
-            where.Add($"EXISTS (SELECT 1 FROM title_genres g WHERE g.title_id = t.id AND g.source = 'imdb' AND g.genre IN ({string.Join(", ", q.AnyGenres.Select(g => Bind(g)))}))");
+            where.Add($"EXISTS (SELECT 1 FROM title_genres g WHERE g.title_id = t.id AND g.source = 'imdb' AND +g.genre IN ({string.Join(", ", q.AnyGenres.Select(g => Bind(g)))}))");
         if (q.NotGenres.Count > 0)
-            where.Add($"NOT EXISTS (SELECT 1 FROM title_genres g WHERE g.title_id = t.id AND g.source = 'imdb' AND g.genre IN ({string.Join(", ", q.NotGenres.Select(g => Bind(g)))}))");
+            where.Add($"NOT EXISTS (SELECT 1 FROM title_genres g WHERE g.title_id = t.id AND g.source = 'imdb' AND +g.genre IN ({string.Join(", ", q.NotGenres.Select(g => Bind(g)))}))");
         if (q.From is { } yearFrom) where.Add($"t.year >= {Bind(yearFrom)}");
         if (q.To is { } yearTo) where.Add($"t.year <= {Bind(yearTo)}");
         if (Picks("decade") && q.Decades.Count > 0)
@@ -277,6 +280,7 @@ public sealed class CatalogueQueries(CatalogueReader reader)
             "oldest" => "coalesce(t.released, t.year || '-01-01') NULLS LAST",
             "title" => "t.english_title COLLATE NOCASE",
             "votes" => "t.votes DESC NULLS LAST",
+            // The order titles_popularity holds, so a list's first page is read down it.
             _ => "t.popularity DESC NULLS LAST, t.votes DESC NULLS LAST",
         };
         if (q.Order is "rating" or "lowest") where.Add("t.rating IS NOT NULL");

@@ -227,14 +227,18 @@ public sealed class CatalogueQueriesTests : IDisposable
         Assert.Equal(plot, CatalogueQueries.Plot(overview));
 
     [Fact]
-    public void The_catalogue_holds_the_planner_s_statistics_and_finds_a_title_by_its_wikidata_item()
+    public void The_catalogue_holds_the_planner_s_statistics_and_the_indexes_its_reads_go_down()
     {
-        var (statistics, plan) = _database.Read(c => (
+        string Plan(SqliteConnection c, string sql) => string.Join(" ", c.Query("EXPLAIN QUERY PLAN " + sql, r => r.GetString(3)));
+        var (statistics, byItem, popular) = _database.Read(c => (
             c.Count("SELECT count(*) FROM sqlite_stat1 WHERE tbl = 'titles'"),
-            string.Join(" ", c.Query("EXPLAIN QUERY PLAN SELECT id FROM titles WHERE wikidata_id = 'Q1'", r => r.GetString(3)))));
+            Plan(c, "SELECT id FROM titles WHERE wikidata_id = 'Q1'"),
+            Plan(c, "SELECT t.id FROM titles t WHERE t.listed = 1 ORDER BY t.popularity DESC NULLS LAST, t.votes DESC NULLS LAST, t.id LIMIT 12")));
 
         Assert.True(statistics > 0);
-        Assert.Contains("titles_wikidata", plan);
+        Assert.Contains("titles_wikidata", byItem);
+        Assert.Contains("titles_popularity", popular); // The default order is read down its index, not sorted.
+        Assert.DoesNotContain("TEMP B-TREE", popular);
     }
 
     [Fact]

@@ -137,20 +137,25 @@ from its rows; the first Discover pass is tried again every 30 s until it has be
 shelves' lists took 51.6 s one after another, and take 17 s; the background pass took ~115 s, and
 takes 17 s.
 
+In 4.0.2: the default order is read down `titles_popularity`, which carries its tie-breakers (a list's
+first page no longer sorts every title it names), a genre is checked on each title through the title's
+own rows (`+g.genre`), and no shelf sets a votes floor. The genre shelves took 0.42–0.65 s and take
+0.18–0.27 s; every shared shelf's list in turn, 51.6 s at 4.0.0, takes 12 s.
+
 What is left, slowest first:
 
-1. **The genre shelves, 0.4–0.65 s each** (`kind=film&genre=Drama&notGenre=Animation,Family`): a genre
-   names a large share of the catalogue, so its `EXISTS` on `title_genres` is checked on every listed
-   film. `titles.genres` is on the row; counting and ordering from rows held in memory, as the facets
-   are, or a covering index for the broad lists are the two ways. Measure both as below.
+1. **The broad counts, 0.2–0.4 s**: a genre shelf's or a rating shelf's total counts every film it
+   names (`sort=rating` shelves also order every one of them by an expression). The facets' in-memory
+   rows hold kind, genres, year, runtime, rating and language, so these totals could be counted there,
+   as the facets are, once the list and the facets read genres alike (the list reads IMDb's, the rows the
+   card's).
 2. **The facets, 260 ms**, all of it `CatalogueQueries.Count` over every held row; the section masks
    can be counted once per pass for the unpicked query, the one Discover asks.
-3. **A broad list, ~150 ms** (`kind=film`), most of it reading full rows to order them; the same
-   remedy as 1.
 
-**Measuring a query as the API runs it**: the API's SQLite is the one Microsoft.Data.Sqlite bundles
-(3.49), whose plans differ from the `sqlite3` on the hosts (3.53). A console program on the same package,
-published on hotrod and run on hotbox against the live file read-only, gives the API's plan and time.
+**Measuring a query as the API runs it**: a console program on Microsoft.Data.Sqlite, published on
+hotrod and run on hotbox against the live file read-only, with the API's own `libe_sqlite3.so`
+(`/opt/moviebot/api/`) in place of the one its publish carries: the bundle a project resolves depends on
+its other packages, and two SQLite versions planned the genre filter several times apart.
 
 ## 5. Order of work
 

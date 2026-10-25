@@ -108,50 +108,50 @@ public sealed class DiscoverIndex(CatalogueQueries queries, CatalogueState state
 
         Add("for-you", "spooky-season", "Spooky season", "ghost", "kind=film&keyword=k3335", new ShelfSeason(10, 1, 10, 31));
         Add("for-you", "christmas", "Christmas movies", "gift", "kind=film&keyword=k207317", new ShelfSeason(12, 1, 12, 26));
-        Add("for-you", "valentines", "Valentine's", "heart", "kind=film&genre=Romance&minRating=7&minVotes=1000", new ShelfSeason(2, 1, 2, 14));
-        Add("for-you", "summer-blockbusters", "Summer blockbusters", "sun", "kind=film&genre=Action,Adventure&minVotes=5000", new ShelfSeason(6, 21, 8, 31));
+        Add("for-you", "valentines", "Valentine's", "heart", "kind=film&genre=Romance&minRating=7", new ShelfSeason(2, 1, 2, 14));
+        Add("for-you", "summer-blockbusters", "Summer blockbusters", "sun", "kind=film&genre=Action,Adventure", new ShelfSeason(6, 21, 8, 31));
         Add("for-you", "trending-films", "Popular movies this week", "flame", "ranking=trending-films");
         Add("for-you", "trending-shows", "Popular shows this week", "flame", "ranking=trending-shows");
         Add("for-you", "in-cinemas", "In cinemas now", "ticket", "ranking=now-playing");
         Add("for-you", "coming-soon", "Coming soon", "calendar-clock", "ranking=upcoming");
 
         Add("moods", "sunday-chill", "Sunday chill", "coffee",
-            "kind=film&genre=Comedy&notGenre=Animation,Family,Horror,Thriller,Crime,Action&minRating=6.8&minVotes=1000&maxRuntime=115");
-        Add("moods", "date-night", "Date night", "heart", "kind=film&genre=Romance,Comedy&minRating=6.3&minVotes=500");
-        Add("moods", "family-night", "Family movie night", "house", "kind=film&genre=Family&minRating=6.5&minVotes=1000");
-        Add("moods", "mind-benders", "Mind-benders", "brain", "kind=film&anyKeyword=k326438,k157171,k374835,k12565&minRating=7&minVotes=1000");
-        Add("moods", "edge-of-your-seat", "Edge of your seat", "heart-pulse", "kind=film&genre=Thriller&minRating=7&minVotes=2000");
-        Add("moods", "feel-good", "Feel-good", "sun", "kind=film&genre=Comedy,Drama&notGenre=Horror,Thriller,Crime,War&minRating=7.2&minVotes=1500");
+            "kind=film&genre=Comedy&notGenre=Animation,Family,Horror,Thriller,Crime,Action&minRating=6.8&maxRuntime=115");
+        Add("moods", "date-night", "Date night", "heart", "kind=film&genre=Romance,Comedy&minRating=6.3");
+        Add("moods", "family-night", "Family movie night", "house", "kind=film&genre=Family&minRating=6.5");
+        Add("moods", "mind-benders", "Mind-benders", "brain", "kind=film&anyKeyword=k326438,k157171,k374835,k12565&minRating=7");
+        Add("moods", "edge-of-your-seat", "Edge of your seat", "heart-pulse", "kind=film&genre=Thriller&minRating=7");
+        Add("moods", "feel-good", "Feel-good", "sun", "kind=film&genre=Comedy,Drama&notGenre=Horror,Thriller,Crime,War&minRating=7.2");
         Add("moods", "good-cry", "Have a good cry", "droplets", "kind=film&keyword=k156924");
-        Add("moods", "laugh-out-loud", "Laugh out loud", "laugh", $"kind=film&genre=Comedy&{ForChildren}&minRating=7&minVotes=2000");
-        Add("moods", "short-and-sweet", "Short and sweet", "timer", "kind=film&minRuntime=60&maxRuntime=90&minRating=7&minVotes=1000");
-        Add("moods", "epic-weekend", "Epic weekend", "hourglass", "kind=film&minRuntime=150&minRating=7.5&minVotes=2000&sort=rating");
-        Add("moods", "so-bad-its-good", "So bad it's good", "thumbs-down", "kind=film&maxRating=5&minVotes=1500&sort=votes");
-        Add("moods", "comfort-shows", "Comfort shows", "sofa", "kind=show&genre=Comedy&notGenre=Animation&minRating=7.5&minVotes=500");
+        Add("moods", "laugh-out-loud", "Laugh out loud", "laugh", $"kind=film&genre=Comedy&{ForChildren}&minRating=7");
+        Add("moods", "short-and-sweet", "Short and sweet", "timer", "kind=film&minRuntime=60&maxRuntime=90&minRating=7");
+        Add("moods", "epic-weekend", "Epic weekend", "hourglass", "kind=film&minRuntime=150&minRating=7.5&sort=rating");
+        Add("moods", "so-bad-its-good", "So bad it's good", "thumbs-down", "kind=film&maxRating=5&sort=votes");
+        Add("moods", "comfort-shows", "Comfort shows", "sofa", "kind=show&genre=Comedy&notGenre=Animation&minRating=7.5");
 
-        Add("movies", "top-rated", "Top rated of all time", "trophy", "kind=film&minVotes=5000&sort=rating");
+        Add("movies", "top-rated", "Top rated of all time", "trophy", "kind=film&sort=rating");
         Add("movies", "hidden-gems", "Hidden gems", "gem", "kind=film&minRating=7.3&maxVotes=1500&notGenre=Documentary,Music,Animation&sort=rating");
-        Add("movies", "classics", "Classics", "film", "kind=film&to=1979&minVotes=1000&sort=rating");
+        Add("movies", "classics", "Classics", "film", "kind=film&to=1979&sort=rating");
         foreach (var decade in new[] { 1970, 1980, 1990, 2000, 2010, 2020 })
         {
             var name = decade < 2000 ? $"{decade % 100}s" : $"{decade}s";
-            Add("movies", $"best-of-{decade}s", $"Best of the {name}", "calendar", $"kind=film&decade={decade}&minVotes=1000&sort=rating");
+            Add("movies", $"best-of-{decade}s", $"Best of the {name}", "calendar", $"kind=film&decade={decade}&sort=rating");
         }
 
-        Add("shows", "top-rated-shows", "Top rated series", "trophy", "kind=show&minVotes=2000&sort=rating");
-        Add("shows", "binge-worthy", "Binge-worthy", "list-video", "kind=show&status=Ended&notGenre=Animation&minRating=8&minVotes=500&sort=rating");
+        Add("shows", "top-rated-shows", "Top rated series", "trophy", "kind=show&sort=rating");
+        Add("shows", "binge-worthy", "Binge-worthy", "list-video", "kind=show&status=Ended&notGenre=Animation&minRating=8&sort=rating");
         Add("shows", "miniseries", "Miniseries", "layers", "kind=show&maxSeasons=1&status=Ended&minRating=7.5&sort=rating");
         Add("shows", "crime-series", "Crime series", "siren", "kind=show&genre=Crime&notGenre=Documentary");
         Add("shows", "sci-fi-fantasy-series", "Sci-fi and fantasy series", "rocket", "kind=show&anyGenre=Sci-Fi,Fantasy&notGenre=Animation");
         Add("shows", "sitcoms", "Sitcoms", "laugh", "kind=show&genre=Comedy&keyword=k193171");
         Add("shows", "true-crime", "True crime", "fingerprint", "kind=show&genre=Documentary&keyword=k33722");
         Add("shows", "k-dramas", "K-dramas", "drama", "kind=show&language=ko&genre=Drama");
-        foreach (var (id, name, network, floor) in new[]
+        foreach (var (id, name, network) in new[]
                  {
-                     ("hbo", "HBO", 49, ""), ("netflix", "Netflix originals", 213, "&minVotes=500"), ("apple-tv", "Apple TV", 2552, ""),
-                     ("prime-video", "Prime Video", 1024, ""), ("disney-plus", "Disney+", 2739, ""), ("bbc-one", "BBC One", 4, ""), ("fx", "FX", 88, ""),
+                     ("hbo", "HBO", 49), ("netflix", "Netflix originals", 213), ("apple-tv", "Apple TV", 2552),
+                     ("prime-video", "Prime Video", 1024), ("disney-plus", "Disney+", 2739), ("bbc-one", "BBC One", 4), ("fx", "FX", 88),
                  })
-            Add("shows", id, name, "tv", $"kind=show&company=s{network}{floor}");
+            Add("shows", id, name, "tv", $"kind=show&company=s{network}");
 
         foreach (var (id, name, icon, genre) in new[]
                  {
