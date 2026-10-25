@@ -32,6 +32,13 @@ client store keyed by card id fed by the page responses.
 
 ## 2. Where things stand
 
+**Status (2026-10-25): the slow requests are done, the page routes are pending.** §4·d shipped as
+4.0.1–4.0.3 (deployed to hotbox, not pushed): Discover's requests take a few hundred milliseconds of
+server time in all, and a desktop load settles in under a second. The user judged that quick enough and
+set the rest aside: §4·a (page routes), §4·b (the shell in one answer) and §4·c (the client store), §5
+steps 2–5, are pending, not started. Pick them up from §5 when the request count matters again; the
+counts in §3 are still today's.
+
 - **v4.0.0** (`moviebot` commit `61961b2`, tag `v4.0.0`, deployed to hotbox, not pushed) serves every
   surface from the local catalogue. `docs/local-catalogue-plan.md` is how it got there; its §6·d is done.
   The wire contract is `docs/api-contract.md` (Catalogue, and the HTTP table).
@@ -85,7 +92,7 @@ same HAR was the same cold start (the torrent client's first answer); warm it is
 
 ## 4. What to build
 
-### 4·a Page routes
+### 4·a Page routes (pending)
 
 One route per page the API controls, under `/api/pages/`, each answering everything the page draws in
 one response for the asking person. The catalogue routes stay as they are: paging further, the filter
@@ -111,14 +118,14 @@ What stays out of a page response:
 - **Images.** They are immutable, cached for a year, and the browser fetches them in parallel.
 - **A list's further pages and a filter's answers**, which stay `/api/catalogue/titles` and `/facets`.
 
-### 4·b The shell in one answer
+### 4·b The shell in one answer (pending)
 
 `/api/me/shell` (or a better name): what every page's frame asks for once, in one response: the person's
 notifications and their kinds, paired screens, offline saves and offline wants, sort preferences,
 wants (the ribbon state every card reads), the rooms open now. `/api/config` is read before sign-in and
 stays apart; the site asks for it twice today, which is a fix on its own.
 
-### 4·c The client keeps what it has
+### 4·c The client keeps what it has (pending)
 
 A store keyed by card id (and by page) that the page responses fill: a card shown on Discover is the
 same object on a title page, its `you` updated in one place when the person wants or watches it, and
@@ -126,7 +133,7 @@ moving back to a page already drawn draws it from the store while it asks again.
 outright (the cards' `you` says where each leads), and `useLoad`'s per-mount asks for what a page route
 answers. Krystal's `createStore`/`useStore` are already used for this kind of state (`src/remote.js`).
 
-### 4·d Before the page routes: the slow things
+### 4·d Before the page routes: the slow things (done)
 
 Done in 4.0.1, measured on hotbox (§3): the catalogue keeps planner statistics (a schema step runs
 `ANALYZE`; `CatalogueDatabase` runs `PRAGMA optimize` on open) and an index on `titles.wikidata_id`; a
@@ -158,7 +165,10 @@ its other packages, and two SQLite versions planned the genre filter several tim
 
 ## 5. Order of work
 
-1. What is left of 4·d, each measured before and after on hotbox, in that order.
+1. ~~4·d, the slow requests~~: done (4.0.1–4.0.3).
+
+**Pending from here** (set aside 2026-10-25, not started):
+
 2. `/api/pages/discover` with the shared shelves' cards from the background pass, and the site's Discover
    (web and TV: `pages/Discover.jsx`, `pages/DiscoverShelves.jsx`, `heroes.js`, `components/Spotlight.jsx`,
    `tv/pages/TvDiscover.jsx`, `tv/pages/TvDiscoverShelves.jsx`) drawn from it, the spotlight included.
