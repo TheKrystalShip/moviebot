@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.0] - 2026-10-25
+
+### Added
+- Back, Forward and a reload open a page where it was left, kept for each history entry for the length
+  of the tab's session. A list read a page at a time (a search, a question, a browse category, the
+  franchises) comes back with every page it held, asking the API nothing, so the column opens on the
+  card it was left by; after a reload it reads as many pages again at once.
+- `npm run verify:scroll`: where the column stands after opening a card, Back and a reload, on a
+  desktop and a phone, with the local build over the live site.
+
+### Fixed
+- A page opened from Discover's lists on Discover itself (a franchise from the franchises, a list from a
+  browse category, a person's work) opens at its top, not clamped to the bottom of the page left.
+
 ## [4.2.2] - 2026-10-25
 
 ### Fixed

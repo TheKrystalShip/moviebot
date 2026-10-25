@@ -1,6 +1,6 @@
 import React from "react";
 import { PageKey } from "../crumbs.js";
-import { LoadTracker } from "../data.js";
+import { LoadTracker, PageRoute } from "../data.js";
 import { holdSplash } from "@thekrystalship/krystal";
 
 /** The longest a page waits out of sight for its reads before it is shown as it stands. */
@@ -28,11 +28,19 @@ const READY_CAP_MS = 500;
  *
  * `above(route)` draws what sits over the stage once, for the route of the page shown, so it never
  * runs ahead of the page it describes while the next is being prepared.
+ *
+ * `onShown(route, promoted)` is called as each route is shown, the first included: `promoted` when a
+ * page prepared out of sight took the place of another, false when the page shown was drawn in place.
+ * A page reads the route it is drawn for from `PageRoute`.
  */
 export function PageStage({ route, render, above, onShown }) {
-  const stage = useStage(route.key, route, route.path + "?" + route.query.toString(), onShown, true);
+  const stage = useStage(route.key, route, route, onShown, true);
   const page = (entry, tracker) => (
-    <PageKey.Provider value={entry.key}><LoadTracker.Provider value={tracker}>{render(entry.value)}</LoadTracker.Provider></PageKey.Provider>
+    <PageKey.Provider value={entry.key}>
+      <PageRoute.Provider value={entry.value}>
+        <LoadTracker.Provider value={tracker}>{render(entry.value)}</LoadTracker.Provider>
+      </PageRoute.Provider>
+    </PageKey.Provider>
   );
   return <>{above && above(stage.shown.value)}<Staged stage={stage} draw={page} settled={null} /></>;
 }
@@ -53,7 +61,8 @@ export function TabStage({ tab, render }) {
 /**
  * One thing shown at a time under a key. The same key with a new `revision` is drawn in place; a new
  * key is mounted out of sight with a tracker of its own and promoted once its reads are answered and
- * its artwork has decoded, or after `READY_CAP_MS`, whichever is first.
+ * its artwork has decoded, or after `READY_CAP_MS`, whichever is first. `onShown(value, promoted)` is
+ * called before paint each time the value shown changes.
  */
 function useStage(key, value, revision, onShown, first = false) {
   const [shown, setShown] = React.useState(() => ({ key, value, tracker: first ? makeTracker() : null }));
@@ -61,6 +70,7 @@ function useStage(key, value, revision, onShown, first = false) {
   const [entering, setEntering] = React.useState(null);
   const box = React.useRef(null);
   const shownBox = React.useRef(null);
+  const promoted = React.useRef(false);
 
   // The first entry holds the splash from its commit until its reads are answered and its artwork has
   // decoded. Idle is asked after the page's own effects, which are the ones that start its reads.
@@ -97,6 +107,7 @@ function useStage(key, value, revision, onShown, first = false) {
     const promote = () => {
       if (!live) return;
       live = false;
+      promoted.current = true;
       setShown({ key: incoming.key, value: incoming.value });
       setIncoming(null);
       setEntering(incoming.key);
@@ -110,9 +121,10 @@ function useStage(key, value, revision, onShown, first = false) {
   }, [incoming]);
 
   React.useLayoutEffect(() => {
-    if (entering && onShown) onShown();
+    if (onShown) onShown(shown.value, promoted.current);
+    promoted.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entering]);
+  }, [shown.value]);
 
   return { shown, incoming, entering, box, shownBox, settle: () => setEntering(null) };
 }

@@ -137,16 +137,36 @@ const canonical = (href) => parse(href).href;
 
 const here = () => window.location.pathname + window.location.search;
 
+const freshEntry = () => Math.random().toString(36).slice(2, 10);
+
+/** The history entry the browser is at, by an id it carries in its state, given one the first time it is seen. */
+function entryHere() {
+  const state = window.history.state;
+  if (state && typeof state.entry === "string") return state.entry;
+  const entry = freshEntry();
+  window.history.replaceState({ ...(state && typeof state === "object" ? state : {}), entry }, "", here());
+  return entry;
+}
+
 /** The browser's address, brought to its canonical spelling without adding a history entry. */
 function settle() {
   const href = canonical(here());
-  if (href !== here()) window.history.replaceState(null, "", href);
+  if (href !== here()) window.history.replaceState(window.history.state, "", href);
   return href;
 }
 
-const routeStore = createStore(settle());
+/**
+ * Where the browser is and how it got there: `{ href, entry, move }`, `entry` the history entry's id
+ * and `move` one of `load` (the page opened or was reloaded on it), `push` (a new entry), `replace`
+ * (the same entry at a new address) or `pop` (Back or Forward). Every navigation is a new object, so
+ * one address arrived at twice is two visits.
+ */
+const routeStore = createStore({ href: settle(), entry: entryHere(), move: "load" });
 
-window.addEventListener("popstate", () => routeStore.setState(settle));
+window.addEventListener("popstate", () => {
+  const href = settle();
+  routeStore.setState(() => ({ href, entry: entryHere(), move: "pop" }));
+});
 
 /** How many entries this page pushed, so going back never leaves the site. */
 let depth = 0;
@@ -156,12 +176,16 @@ window.addEventListener("popstate", () => { depth = Math.max(0, depth - 1); });
 export function navigate(to, { replace = false } = {}) {
   const next = canonical(to);
   if (next === here()) return;
-  if (replace) window.history.replaceState(null, "", next);
-  else {
-    window.history.pushState(null, "", next);
+  if (replace) {
+    const entry = entryHere();
+    window.history.replaceState({ ...window.history.state, entry }, "", next);
+    routeStore.setState(() => ({ href: next, entry, move: "replace" }));
+  } else {
+    const entry = freshEntry();
+    window.history.pushState({ entry }, "", next);
     depth += 1;
+    routeStore.setState(() => ({ href: next, entry, move: "push" }));
   }
-  routeStore.setState(() => next);
 }
 
 /** Back to the page this one was opened from, or to a page of the site's own when it was opened directly. */
@@ -171,11 +195,18 @@ export function goBack(fallback = homePath) {
 }
 
 let last = null;
+let lastVisit = null;
 
-/** The route the address names; see `parse`. */
+/**
+ * The route the address names (see `parse`), with the visit it is: `entry`, the history entry's id,
+ * and `move`, how it was arrived at (see `routeStore`).
+ */
 export function useRoute() {
-  const href = useStore(routeStore);
-  if (!last || last.href !== href) last = parse(href);
+  const visit = useStore(routeStore);
+  if (lastVisit !== visit) {
+    last = { ...parse(visit.href), entry: visit.entry, move: visit.move };
+    lastVisit = visit;
+  }
   return last;
 }
 

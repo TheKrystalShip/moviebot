@@ -52,7 +52,14 @@ export function TvFrame({ session, route, held = false }) {
   const routeKey = React.useRef(route.key);
   routeKey.current = route.key;
   const [shownKey, setShownKey] = React.useState(route.key);
-  const shown = React.useCallback(() => {
+  // A page opens at its top, and focus on a page come back to scrolls it to the control it was left by.
+  // A page redrawn in place by a replace (a season) stays as it is, focus included. The first page is
+  // shown before the column's ref is set, and is focused once it is.
+  const first = React.useRef(true);
+  const shown = React.useCallback((r, promoted) => {
+    const opened = first.current;
+    first.current = false;
+    if (opened || (r.move === "replace" && !promoted)) return;
     if (mainRef.current) mainRef.current.scrollTop = 0;
     setScrolled(false);
     setShownKey(routeKey.current);

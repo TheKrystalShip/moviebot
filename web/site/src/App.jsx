@@ -36,6 +36,7 @@ import { NotFound } from "./pages/NotFound.jsx";
 import { SiteFooter } from "./components/SiteFooter.jsx";
 import { BellNavItem } from "./components/Bell.jsx";
 import { PageStage } from "./components/PageStage.jsx";
+import { useScrollMemory } from "./scrollMemory.js";
 import { Trail } from "./components/Trail.jsx";
 import { CallBar } from "./components/CallBar.jsx";
 import { RemoteDock } from "./components/RemoteDock.jsx";
@@ -245,10 +246,8 @@ function Frame({ session, route }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a request opens the assistant once
   }, [handoff]);
 
-  // A new page starts at its top, from the moment it is shown.
-  const toTop = React.useCallback(() => {
-    if (mainRef.current) mainRef.current.scrollTop = 0;
-  }, []);
+  // A page opens at its top, or where it was left when Back, Forward or a reload return to it.
+  const shown = useScrollMemory(mainRef);
 
   // A film's or a show's page under Anime lights Anime rather than its kind's shelf.
   // A profile tab with a sidebar item of its own lights that item.
@@ -315,7 +314,7 @@ function Frame({ session, route }) {
         </>}
         tabBar={<TabBar items={TABS.map(tab)} />}>
         {inActivity && <CallBar />}
-        <PageStage route={route} render={(r) => <Reachable route={r} />} above={(r) => <Trail route={r} />} onShown={toTop} />
+        <PageStage route={route} render={(r) => <Reachable route={r} />} above={(r) => <Trail route={r} />} onShown={shown} />
         {route.view !== "chat" && <SiteFooter />}
       </AppShell>
       {!inActivity && <RemoteDock />}

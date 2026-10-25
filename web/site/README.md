@@ -27,6 +27,7 @@ npm run verify:pwa     # installable, and the service worker keeps only what it 
 npm run verify:tv      # every page driven by a remote's keys alone, against a scratch site (verify/tv.mjs)
 npm run verify:tv-perf # how a remote's presses feel, timed at a television's pace against a baseline (verify/tvperf/)
 npm run verify:stage   # nothing of a page being prepared out of sight is seen or reachable, against a scratch site (verify/stage.mjs)
+npm run verify:scroll -- <state>  # a page opens at its top, and Back and a reload where it was left, this build over the live site (verify/pages/scroll.mjs)
 npm run verify:tv-sweep # every key press on the reference television, timed and traced, for finding stutters (verify/tvsweep/)
 npm run verify:offline # Download of a whole film and of one still being made, and the installed app with no connection and with the API down, against a scratch site (verify/saving.mjs, verify/growing.mjs, verify/offline.mjs)
 ```
@@ -138,6 +139,16 @@ krystal's `Skeleton` blocks where the words, the artwork and the cast will be, u
 A profile tab moves the same way under the tab strip, which answers at once; a list that takes longer
 holds one row of placeholder cards. The scrolling column keeps its scrollbar's room at every height, so
 a page growing past the screen never moves sideways.
+
+A page opens at its top; a move that replaces the entry on the same page (a season, a profile tab, a
+filter or an order) leaves it where it is. Back, Forward and a reload open a page where it was left,
+kept for each history entry for the length of the tab's session (`src/scrollMemory.js`); the column
+scrolls rather than the window, so the browser's own restoring is switched off. A page come back to is
+held at its place for two and a half seconds while its reads and shelves fill in under it, until the
+person scrolls, presses or types. A list read a page at a time comes back with every page it held,
+asking the API nothing, and after a reload reads as many pages again at once (`usePaged` in
+`src/data.js`). On a television, focus returns to the control the page was left by, which brings the
+page back to it.
 
 Every page but Home carries a breadcrumb trail above it (krystal's `Breadcrumbs`), read from the
 address a level at a time: Home, the section, then the film, show, list, season or profile tab, each
