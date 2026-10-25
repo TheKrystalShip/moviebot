@@ -15,7 +15,7 @@ namespace TheKrystalShip.MovieBot.Catalogue.Data;
 /// </summary>
 public static class Schema
 {
-    private static readonly string[] Steps = [Tables, Fingerprints, Cards, CardGenres];
+    private static readonly string[] Steps = [Tables, Fingerprints, Cards, CardGenres, Lookups];
 
     public static int Version => Steps.Length;
 
@@ -32,6 +32,15 @@ public static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string Lookups = """
+        -- A title by its Wikidata item: what a title page's follows and followed-by lists join through.
+        CREATE INDEX titles_wikidata ON titles (wikidata_id);
+
+        -- The planner's statistics. Without them it takes listed = 1 for a selective filter, and starts
+        -- a lookup by id or a narrow filter from every listed title. CatalogueDatabase keeps them current.
+        ANALYZE;
+        """;
 
     private const string CardGenres = """
         -- The genres a card shows, comma-joined: IMDb's, or the film database's for a title IMDb has none

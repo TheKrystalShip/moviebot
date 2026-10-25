@@ -4,17 +4,24 @@ namespace TheKrystalShip.MovieBot.Api.Catalogue;
 
 /// <summary>
 /// Every listed entry's facet values, held in memory and read again every <see cref="Every"/>. A list
-/// that narrows nothing but the filter drawer's picks names every entry before its picks, and its
-/// facets are counted from these rather than from a scan of the whole catalogue per request; any
-/// other list's are counted from the titles it names. A catalogue that cannot be read leaves the last
-/// rows held.
+/// that narrows nothing but the filter drawer's picks and a range of votes names the entries in that
+/// range before its picks, and its facets are counted from these rather than from a scan of the whole
+/// catalogue per request; any other list's are counted from the titles it names. A catalogue that
+/// cannot be read leaves the last rows held.
 /// </summary>
 public sealed class FacetIndex(CatalogueQueries queries, CatalogueState state, TimeProvider clock, ILogger<FacetIndex> logger) : BackgroundService
 {
     private static readonly TimeSpan Every = TimeSpan.FromMinutes(10);
     private IReadOnlyList<FacetRow>? _rows;
 
-    public Facets Facets(TitleQuery query) => CatalogueQueries.Count(query, query.Narrows ? queries.FacetRows(query) : Rows());
+    public Facets Facets(TitleQuery query)
+    {
+        if ((query with { MinVotes = null, MaxVotes = null }).Narrows) return CatalogueQueries.Count(query, queries.FacetRows(query));
+        var rows = query.MinVotes is null && query.MaxVotes is null
+            ? Rows()
+            : Rows().Where(r => r.Votes >= (query.MinVotes ?? int.MinValue) && r.Votes <= (query.MaxVotes ?? int.MaxValue)).ToList();
+        return CatalogueQueries.Count(query, rows);
+    }
 
     private IReadOnlyList<FacetRow> Rows() => _rows ?? Refresh();
 

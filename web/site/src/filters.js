@@ -56,11 +56,11 @@ export function apiPicks(picks) {
 }
 
 /**
- * What Discover's filter asks the catalogue for the drawer's picks: films and shows unless a kind is
- * picked, with a hundred votes behind each, so what nobody has seen is not listed; the floor stays the
- * same with a rating picked, so the rating's options measure the answer a pick gives.
+ * What Discover's filter asks the catalogue for beside the drawer's picks: nothing, so films and shows
+ * unless a kind is picked. The catalogue lists a title only once enough people have rated it, so the
+ * filter needs no floor of its own, and its facets are counted from the rows the API holds.
  */
-export const FILTER_BASE = { minVotes: "100" };
+export const FILTER_BASE = {};
 
 /**
  * The address at `path` with `picks` in place of the picks it held, every other parameter kept. `extra`

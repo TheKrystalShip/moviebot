@@ -89,6 +89,19 @@ public sealed class CatalogueEndpointTests(SessionFixture fixture) : IClassFixtu
         Assert.Equal(CatalogueQueries.FacetSections, facets.Sections.Select(s => s.Id));
     }
 
+    [Theory]
+    [InlineData("minVotes=400000")]
+    [InlineData("maxVotes=400000")]
+    [InlineData("minVotes=1&maxVotes=400000")]
+    public async Task Facets_held_in_memory_count_a_range_of_votes_as_the_list_does(string votes)
+    {
+        var facets = await Get<Facets>($"/api/catalogue/facets?kind=film&{votes}");
+        var list = await Get<CardPage>($"/api/catalogue/titles?kind=film&{votes}&size=50");
+
+        Assert.Equal(list.Total, facets.Total);
+        Assert.InRange(facets.Total, 1, 5); // Some films, not every film.
+    }
+
     [Fact]
     public async Task A_title_s_page_holds_what_the_catalogue_does_and_one_it_does_not_list_is_not_found()
     {

@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] - 2026-10-25
+
+### Fixed
+- Discover, a title's page and the shelves no longer take seconds: the catalogue keeps the planner's
+  statistics and an index on each title's Wikidata item, and a keyword, company, person or fact filter
+  drives the list query while a range of votes is checked on each title. On hotbox, Discover for a person
+  part way through franchises takes tens of milliseconds, a title's page 20 ms, and the background pass
+  over every shared shelf 17 s.
+- A Discover shelf or the filter sets no votes floor at or under 300, which the catalogue's own admission
+  line already keeps; the filter's facets with a range of votes are counted from the rows the API holds.
+- Discover answers within a minute of the catalogue becoming readable when the API started before it.
+
 ## [4.0.0] - 2026-10-25
 
 ### Changed

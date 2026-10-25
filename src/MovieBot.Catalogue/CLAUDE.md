@@ -57,6 +57,12 @@ the `Tmdb` section's, from the environment.
   list is that query's filters, values a filter does not take are refused, and every value is bound,
   never written into SQL. A reader answers listed entries alone. The person's joins (`you`, `Only`,
   `Except`) are the caller's. No project that references the store alone can reach a source.
+- **The reader's plans rest on the planner's statistics** (`sqlite_stat1`). Without them SQLite takes
+  `listed = 1` for a selective condition and starts a lookup by id from every listed title, a few hundred
+  milliseconds each. The schema step that makes the file runs `ANALYZE`, and `CatalogueDatabase` runs
+  `PRAGMA optimize` whenever it opens the file. A change to the schema or to `CatalogueQueries` is timed
+  against hotbox's file with the API's own SQLite (Microsoft.Data.Sqlite's bundle), not the host's
+  `sqlite3`, which is a different version and plans differently.
 - **Wikidata is asked by IMDb id, many at a time**, with `Cinema/<version> (<Contact>)` in the
   User-Agent and at most `WikidataAtOnce` questions in flight; after a `429` nothing is asked until the
   time it named. Where several items name one IMDb id, the lowest-numbered is the title's.

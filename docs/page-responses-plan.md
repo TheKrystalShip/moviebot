@@ -65,27 +65,20 @@ Request counts are the API requests a page makes on desktop before scrolling, on
 the library holds. The cards already carry that (`you.inLibrary`, `you.libraryId`), so `useWhere` reads
 both whole lists for nothing on every page that shows cards.
 
-The user's warm load of Discover on hotbox (the HAR), and the same routes measured by hand:
+The user's warm load of Discover on hotbox (the HAR), each route's cause as measured, and the time
+after the fixes in 4.0.1 (§4·d):
 
-| Request (hotbox, warm) | Time | Why |
-|---|---|---|
-| `/api/catalogue/discover`, the user | **3,168 ms** | the per-person part of the page (below); as `claude`, who has watched nothing, it is 30 ms |
-| `/api/catalogue/facets?minVotes=100` | **1,528 ms** | `minVotes` makes the query `Narrows`, so `FacetIndex` counts it in SQL over every title it names instead of from the rows it holds; `FacetRow` carries no votes |
-| `/api/catalogue/titles?kind=film&keyword=k3335&minVotes=100&unwatched=true&size=12` | **1,062 ms** | with `minVotes` SQLite searches `titles_votes` (every listed title with 100 votes) and checks each for the keyword, instead of starting from the keyword's titles: 36 ms without `minVotes` on hotrod, 240 ms with it |
-| `/api/catalogue/titles/{id}` × 4 (the spotlight) | **870–960 ms each** | not yet measured statement by statement; 180 ms on hotrod over the same data |
-| `/api/catalogue/titles` (a shelf, a ranking, `similarTo`, `here`, `inLibrary`) | 7–80 ms | |
-| `/api/films/{id}/availability` | 35–50 ms when the tracker's answer is kept, 0.5–2 s when it is asked | |
-| everything of the shell, `/api/me/wants`, images | under 50 ms | |
-
-**Discover's per-person part** (`DiscoverIndex.PageAsync`, `SeriesHead`) is what differs between the
-user and `claude`. The likeliest cost: for every franchise the person is part way through, `SeriesHead`
-reads the next film's card with a query of its own (`queries.CardsOf([next])`), and the person's rows
-(`Because you watched`, `Popular here`, `Ready to watch`, `New releases`) each run a list query and a
-count per request. Measure before fixing: time `PageAsync`'s parts for a person with a long history
-(the scratch site's viewer can be given one through `verify/mobile/stage.mjs`'s pattern).
+| Request (hotbox, warm) | Then | Cause | Now |
+|---|---|---|---|
+| `/api/catalogue/discover`, the user | **3,168 ms** | `SeriesHead` reads the next film's card for each franchise the person is part way through (`CardsOf`), and each read searched every listed title: the catalogue had no planner statistics, so SQLite took `listed = 1` for selective and started from a `listed` index instead of the IMDb id's | `CardsOf` 2 ms; the page 25 ms as `claude` |
+| `/api/catalogue/facets?minVotes=100` | **1,528 ms** | `minVotes` made the query `Narrows`, so the facets were counted in SQL | the filter base sets no floor; a votes range is counted from `FacetIndex`'s rows; 260 ms, all of it the count over every row |
+| `/api/catalogue/titles?kind=film&keyword=k3335&minVotes=100&…` | **1,062 ms** | the votes index drove the query and each title was checked for the keyword | 20 ms: the keyword's titles drive it |
+| `/api/catalogue/titles/{id}` × 4 (the spotlight) | **870–960 ms each** | the follows and followed-by lists join `titles` by Wikidata item, which had no index: 300 ms each | 20 ms |
+| `/api/films/{id}/availability` | 35–50 ms when the tracker's answer is kept, 0.5–2 s when it is asked | | |
+| everything of the shell, `/api/me/wants`, images | under 50 ms | | |
 
 **Cold start.** `DiscoverIndex` reads every shared shelf's head and every franchise's titles in a
-background pass, 139 shelves and 400 franchises in **~100 s** on hotbox. Until the first pass after a
+background pass, 139 shelves and 400 franchises in **17 s** on hotbox. Until the first pass after a
 restart has run, `/api/catalogue/discover` and `/franchises` wait for it (`DiscoverIndex.Current`), which
 is the 8 s the HAR shows: it was taken seconds after a redeploy. The 7.6 s of `/api/me/wants` in the
 same HAR was the same cold start (the torrent client's first answer); warm it is 14 ms.
@@ -135,30 +128,33 @@ answers. Krystal's `createStore`/`useStore` are already used for this kind of st
 
 ### 4·d Before the page routes: the slow things
 
-1. **Discover's per-person part, 3.2 s** for a person with a history (§3): measure `PageAsync`'s parts,
-   then prepare what is the same for everybody in the background pass (each franchise's cards, not only
-   its ids) and keep per-request work to joins in memory.
-2. **`minVotes` and the facets, 1.5 s**: give `FacetRow` the title's votes, and answer `minVotes` (and
-   `maxVotes`) from the rows `FacetIndex` holds, so Discover's filter base (`FILTER_BASE`, `minVotes=100`)
-   counts in memory. Count which other parameters push a query off the index, and treat them the same way.
-3. **A selective filter beside `minVotes`, 1 s**: write the keyword, company, person and franchise
-   filters so they drive the query (`t.id IN (SELECT title_id FROM title_keywords WHERE keyword_id = …)`
-   or a `CROSS JOIN` from them, as ordered lists do), or keep `votes` from being chosen (`+t.votes`).
-   Check every Discover shelf's query plan, since each is a list query with a count.
-4. **A title page takes ~900 ms on hotbox.** `CatalogueQueries.Title` runs about twenty statements (card,
-   names, companies, keywords, cast, crew, facts, franchises, follows, seasons, similar titles' cards).
-   Time each on hotbox's catalogue (a `VACUUM INTO` snapshot taken there, §7) and fix the slow ones, as
-   ordered id lists were fixed in 4.0.0 (`CROSS JOIN` from the list; see `CatalogueQueries.Query`). The
-   catalogue is written continuously while it fills, so measure with the service running.
-5. **The first Discover pass after a restart takes ~100 s.** Either keep the last pass on disk in the
-   API's state directory and load it at start (it is the same for everybody, so it is safe to show while
-   the next is read), or make the pass fast enough not to matter, or both. Measure which shelves cost
-   the time first: each head is a list query with a count.
+Done in 4.0.1, measured on hotbox (§3): the catalogue keeps planner statistics (a schema step runs
+`ANALYZE`; `CatalogueDatabase` runs `PRAGMA optimize` on open) and an index on `titles.wikidata_id`; a
+keyword, company, person or fact filter drives the list query (`t.id IN (SELECT …)`); a votes range is
+never searched by (`+t.votes`); no shelf and not the filter base sets a votes floor at or under 300,
+since the catalogue lists nothing under 100 but what a ranking admits; `FacetIndex` counts a votes range
+from its rows; the first Discover pass is tried again every 30 s until it has been read. The 137 shared
+shelves' lists took 51.6 s one after another, and take 17 s; the background pass took ~115 s, and
+takes 17 s.
+
+What is left, slowest first:
+
+1. **The genre shelves, 0.4–0.65 s each** (`kind=film&genre=Drama&notGenre=Animation,Family`): a genre
+   names a large share of the catalogue, so its `EXISTS` on `title_genres` is checked on every listed
+   film. `titles.genres` is on the row; counting and ordering from rows held in memory, as the facets
+   are, or a covering index for the broad lists are the two ways. Measure both as below.
+2. **The facets, 260 ms**, all of it `CatalogueQueries.Count` over every held row; the section masks
+   can be counted once per pass for the unpicked query, the one Discover asks.
+3. **A broad list, ~150 ms** (`kind=film`), most of it reading full rows to order them; the same
+   remedy as 1.
+
+**Measuring a query as the API runs it**: the API's SQLite is the one Microsoft.Data.Sqlite bundles
+(3.49), whose plans differ from the `sqlite3` on the hosts (3.53). A console program on the same package,
+published on hotrod and run on hotbox against the live file read-only, gives the API's plan and time.
 
 ## 5. Order of work
 
-1. The slow requests of 4·d, each measured before and after on hotbox, in that order. Discover's own
-   requests are a few seconds of server time today; no page route fixes that.
+1. What is left of 4·d, each measured before and after on hotbox, in that order.
 2. `/api/pages/discover` with the shared shelves' cards from the background pass, and the site's Discover
    (web and TV: `pages/Discover.jsx`, `pages/DiscoverShelves.jsx`, `heroes.js`, `components/Spotlight.jsx`,
    `tv/pages/TvDiscover.jsx`, `tv/pages/TvDiscoverShelves.jsx`) drawn from it, the spotlight included.

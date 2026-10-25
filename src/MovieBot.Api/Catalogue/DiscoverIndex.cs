@@ -55,6 +55,9 @@ public sealed class DiscoverIndex(CatalogueQueries queries, CatalogueState state
 {
     private static readonly TimeSpan Every = TimeSpan.FromMinutes(30);
 
+    /// <summary>How soon a pass is tried again while none has been read, the catalogue unreadable or refused: Discover waits on the first.</summary>
+    private static readonly TimeSpan Retry = TimeSpan.FromSeconds(30);
+
     /// <summary>How many posters a head carries: as many as a tile shows.</summary>
     private const int Posters = 4;
 
@@ -103,8 +106,8 @@ public sealed class DiscoverIndex(CatalogueQueries queries, CatalogueState state
         void Add(string section, string id, string title, string icon, string query, ShelfSeason? season = null) =>
             shelves.Add(new DiscoverShelf(section, id, title, icon, query) { Season = season });
 
-        Add("for-you", "spooky-season", "Spooky season", "ghost", "kind=film&keyword=k3335&minVotes=100", new ShelfSeason(10, 1, 10, 31));
-        Add("for-you", "christmas", "Christmas movies", "gift", "kind=film&keyword=k207317&minVotes=200", new ShelfSeason(12, 1, 12, 26));
+        Add("for-you", "spooky-season", "Spooky season", "ghost", "kind=film&keyword=k3335", new ShelfSeason(10, 1, 10, 31));
+        Add("for-you", "christmas", "Christmas movies", "gift", "kind=film&keyword=k207317", new ShelfSeason(12, 1, 12, 26));
         Add("for-you", "valentines", "Valentine's", "heart", "kind=film&genre=Romance&minRating=7&minVotes=1000", new ShelfSeason(2, 1, 2, 14));
         Add("for-you", "summer-blockbusters", "Summer blockbusters", "sun", "kind=film&genre=Action,Adventure&minVotes=5000", new ShelfSeason(6, 21, 8, 31));
         Add("for-you", "trending-films", "Popular movies this week", "flame", "ranking=trending-films");
@@ -119,7 +122,7 @@ public sealed class DiscoverIndex(CatalogueQueries queries, CatalogueState state
         Add("moods", "mind-benders", "Mind-benders", "brain", "kind=film&anyKeyword=k326438,k157171,k374835,k12565&minRating=7&minVotes=1000");
         Add("moods", "edge-of-your-seat", "Edge of your seat", "heart-pulse", "kind=film&genre=Thriller&minRating=7&minVotes=2000");
         Add("moods", "feel-good", "Feel-good", "sun", "kind=film&genre=Comedy,Drama&notGenre=Horror,Thriller,Crime,War&minRating=7.2&minVotes=1500");
-        Add("moods", "good-cry", "Have a good cry", "droplets", "kind=film&keyword=k156924&minVotes=50");
+        Add("moods", "good-cry", "Have a good cry", "droplets", "kind=film&keyword=k156924");
         Add("moods", "laugh-out-loud", "Laugh out loud", "laugh", $"kind=film&genre=Comedy&{ForChildren}&minRating=7&minVotes=2000");
         Add("moods", "short-and-sweet", "Short and sweet", "timer", "kind=film&minRuntime=60&maxRuntime=90&minRating=7&minVotes=1000");
         Add("moods", "epic-weekend", "Epic weekend", "hourglass", "kind=film&minRuntime=150&minRating=7.5&minVotes=2000&sort=rating");
@@ -127,7 +130,7 @@ public sealed class DiscoverIndex(CatalogueQueries queries, CatalogueState state
         Add("moods", "comfort-shows", "Comfort shows", "sofa", "kind=show&genre=Comedy&notGenre=Animation&minRating=7.5&minVotes=500");
 
         Add("movies", "top-rated", "Top rated of all time", "trophy", "kind=film&minVotes=5000&sort=rating");
-        Add("movies", "hidden-gems", "Hidden gems", "gem", "kind=film&minRating=7.3&minVotes=300&maxVotes=1500&notGenre=Documentary,Music,Animation&sort=rating");
+        Add("movies", "hidden-gems", "Hidden gems", "gem", "kind=film&minRating=7.3&maxVotes=1500&notGenre=Documentary,Music,Animation&sort=rating");
         Add("movies", "classics", "Classics", "film", "kind=film&to=1979&minVotes=1000&sort=rating");
         foreach (var decade in new[] { 1970, 1980, 1990, 2000, 2010, 2020 })
         {
@@ -137,18 +140,18 @@ public sealed class DiscoverIndex(CatalogueQueries queries, CatalogueState state
 
         Add("shows", "top-rated-shows", "Top rated series", "trophy", "kind=show&minVotes=2000&sort=rating");
         Add("shows", "binge-worthy", "Binge-worthy", "list-video", "kind=show&status=Ended&notGenre=Animation&minRating=8&minVotes=500&sort=rating");
-        Add("shows", "miniseries", "Miniseries", "layers", "kind=show&maxSeasons=1&status=Ended&minRating=7.5&minVotes=200&sort=rating");
-        Add("shows", "crime-series", "Crime series", "siren", "kind=show&genre=Crime&notGenre=Documentary&minVotes=300");
-        Add("shows", "sci-fi-fantasy-series", "Sci-fi and fantasy series", "rocket", "kind=show&anyGenre=Sci-Fi,Fantasy&notGenre=Animation&minVotes=300");
-        Add("shows", "sitcoms", "Sitcoms", "laugh", "kind=show&genre=Comedy&keyword=k193171&minVotes=200");
-        Add("shows", "true-crime", "True crime", "fingerprint", "kind=show&genre=Documentary&keyword=k33722&minVotes=20");
-        Add("shows", "k-dramas", "K-dramas", "drama", "kind=show&language=ko&genre=Drama&minVotes=100");
-        foreach (var (id, name, network, votes) in new[]
+        Add("shows", "miniseries", "Miniseries", "layers", "kind=show&maxSeasons=1&status=Ended&minRating=7.5&sort=rating");
+        Add("shows", "crime-series", "Crime series", "siren", "kind=show&genre=Crime&notGenre=Documentary");
+        Add("shows", "sci-fi-fantasy-series", "Sci-fi and fantasy series", "rocket", "kind=show&anyGenre=Sci-Fi,Fantasy&notGenre=Animation");
+        Add("shows", "sitcoms", "Sitcoms", "laugh", "kind=show&genre=Comedy&keyword=k193171");
+        Add("shows", "true-crime", "True crime", "fingerprint", "kind=show&genre=Documentary&keyword=k33722");
+        Add("shows", "k-dramas", "K-dramas", "drama", "kind=show&language=ko&genre=Drama");
+        foreach (var (id, name, network, floor) in new[]
                  {
-                     ("hbo", "HBO", 49, 200), ("netflix", "Netflix originals", 213, 500), ("apple-tv", "Apple TV", 2552, 100),
-                     ("prime-video", "Prime Video", 1024, 100), ("disney-plus", "Disney+", 2739, 100), ("bbc-one", "BBC One", 4, 100), ("fx", "FX", 88, 100),
+                     ("hbo", "HBO", 49, ""), ("netflix", "Netflix originals", 213, "&minVotes=500"), ("apple-tv", "Apple TV", 2552, ""),
+                     ("prime-video", "Prime Video", 1024, ""), ("disney-plus", "Disney+", 2739, ""), ("bbc-one", "BBC One", 4, ""), ("fx", "FX", 88, ""),
                  })
-            Add("shows", id, name, "tv", $"kind=show&company=s{network}&minVotes={votes}");
+            Add("shows", id, name, "tv", $"kind=show&company=s{network}{floor}");
 
         foreach (var (id, name, icon, genre) in new[]
                  {
@@ -159,7 +162,7 @@ public sealed class DiscoverIndex(CatalogueQueries queries, CatalogueState state
                      ("war", "War", "shield", "War"), ("western", "Western", "mountain", "Western"), ("history", "History", "landmark", "History"),
                      ("animation", "Animation", "palette", "Animation"), ("documentary", "Documentary", "video", "Documentary"), ("music", "Music", "music", "Music"),
                  })
-            Add("genres", id, name, icon, $"kind=film&genre={genre}{(genre == "Animation" ? "" : "&" + ForChildren)}&minVotes=300");
+            Add("genres", id, name, icon, $"kind=film&genre={genre}{(genre == "Animation" ? "" : "&" + ForChildren)}");
 
         foreach (var (id, name, icon, keyword) in new[]
                  {
@@ -172,7 +175,7 @@ public sealed class DiscoverIndex(CatalogueQueries queries, CatalogueState state
                      ("musicals", "Musicals", "music", 4344), ("superheroes", "Superheroes", "zap", 9715), ("mockumentaries", "Mockumentaries", "video", 11800),
                      ("spies", "Spies", "eye", 470),
                  })
-            Add("themes", id, name, icon, $"kind=film&keyword=k{keyword}&minVotes=200");
+            Add("themes", id, name, icon, $"kind=film&keyword=k{keyword}");
         Add("themes", "neo-noir", "Neo-noir", "moon", "fact=P136:Q2421031&sort=votes");
         Add("themes", "film-noir", "Film noir", "moon", "fact=P136:Q185867&sort=votes");
         Add("themes", "spaghetti-westerns", "Spaghetti westerns", "mountain", "fact=P136:Q212781&sort=votes");
@@ -194,14 +197,14 @@ public sealed class DiscoverIndex(CatalogueQueries queries, CatalogueState state
         foreach (var (id, name, item) in new[] { ("paris", "Paris", "Q90"), ("new-york", "New York", "Q60"), ("london", "London", "Q84"), ("tokyo", "Tokyo", "Q1490") })
             Add("places", $"set-in-{id}", $"Set in {name}", "map-pin", $"fact=P840:{item}&sort=votes");
 
-        Add("world", "korean", "Korean cinema", "globe", "kind=film&language=ko&minVotes=300");
-        Add("world", "japanese", "Japanese cinema", "globe", "kind=film&language=ja&notGenre=Animation&minVotes=300");
-        Add("world", "french", "French cinema", "globe", "kind=film&language=fr&minVotes=300");
-        Add("world", "italian-classics", "Italian classics", "globe", "kind=film&language=it&to=1979&minVotes=200&sort=rating");
-        Add("world", "german", "German cinema", "globe", "kind=film&language=de&minVotes=300");
-        Add("world", "nordic-noir", "Nordic noir", "globe", "kind=film&language=sv,da,no,fi,is&anyGenre=Crime,Thriller&minVotes=100");
-        Add("world", "bollywood", "Bollywood", "globe", "kind=film&language=hi&minVotes=100");
-        Add("world", "chinese", "Chinese and Hong Kong cinema", "globe", "kind=film&language=zh,cn&minVotes=200");
+        Add("world", "korean", "Korean cinema", "globe", "kind=film&language=ko");
+        Add("world", "japanese", "Japanese cinema", "globe", "kind=film&language=ja&notGenre=Animation");
+        Add("world", "french", "French cinema", "globe", "kind=film&language=fr");
+        Add("world", "italian-classics", "Italian classics", "globe", "kind=film&language=it&to=1979&sort=rating");
+        Add("world", "german", "German cinema", "globe", "kind=film&language=de");
+        Add("world", "nordic-noir", "Nordic noir", "globe", "kind=film&language=sv,da,no,fi,is&anyGenre=Crime,Thriller");
+        Add("world", "bollywood", "Bollywood", "globe", "kind=film&language=hi");
+        Add("world", "chinese", "Chinese and Hong Kong cinema", "globe", "kind=film&language=zh,cn");
 
         foreach (var (id, name, company) in new[]
                  {
@@ -209,7 +212,7 @@ public sealed class DiscoverIndex(CatalogueQueries queries, CatalogueState state
                      ("aardman", "Aardman", 297), ("marvel-studios", "Marvel Studios", 420), ("disney-animation", "Walt Disney Animation Studios", 6125),
                      ("neon", "Neon", 90733),
                  })
-            Add("studios", id, name, "building", $"kind=film&company=s{company}&minVotes=50");
+            Add("studios", id, name, "building", $"kind=film&company=s{company}");
 
         return shelves;
     }
@@ -227,6 +230,9 @@ public sealed class DiscoverIndex(CatalogueQueries queries, CatalogueState state
 
     /// <summary>What the background pass last read, or the first pass once it has.</summary>
     private Task<Shared> Current() => _shared is { } shared ? Task.FromResult(shared) : _first.Task;
+
+    /// <summary>Completes once a first pass has been read.</summary>
+    internal Task FirstRead => _first.Task;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -250,7 +256,7 @@ public sealed class DiscoverIndex(CatalogueQueries queries, CatalogueState state
                         logger.LogWarning("The Discover shelves could not be read: {Reason}", ex.Message);
                     }
                 }
-                await Task.Delay(Every, clock, stoppingToken);
+                await Task.Delay(_shared is null ? Retry : Every, clock, stoppingToken);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

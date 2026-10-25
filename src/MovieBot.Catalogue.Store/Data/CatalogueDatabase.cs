@@ -6,7 +6,8 @@ namespace TheKrystalShip.MovieBot.Catalogue.Data;
 /// The catalogue, one SQLite file (<see cref="Schema"/>), written by this service alone and read by the
 /// API. Each read opens a pooled connection and each change is one immediate transaction, one at a
 /// time. The file is in write-ahead mode, so a reader never waits on a write and never sees half of
-/// one: a layer and the entry built from it land together.
+/// one: a layer and the entry built from it land together. Opening it brings the planner's statistics
+/// up to date for every table whose size has moved since they were taken.
 /// </summary>
 public sealed class CatalogueDatabase
 {
@@ -29,6 +30,7 @@ public sealed class CatalogueDatabase
         using var connection = Open();
         connection.Execute("PRAGMA journal_mode = WAL;");
         Schema.Apply(connection);
+        connection.Execute("PRAGMA optimize = 0x10002;");
     }
 
     public string Path { get; }

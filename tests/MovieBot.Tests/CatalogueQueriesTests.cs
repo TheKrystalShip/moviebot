@@ -227,6 +227,17 @@ public sealed class CatalogueQueriesTests : IDisposable
         Assert.Equal(plot, CatalogueQueries.Plot(overview));
 
     [Fact]
+    public void The_catalogue_holds_the_planner_s_statistics_and_finds_a_title_by_its_wikidata_item()
+    {
+        var (statistics, plan) = _database.Read(c => (
+            c.Count("SELECT count(*) FROM sqlite_stat1 WHERE tbl = 'titles'"),
+            string.Join(" ", c.Query("EXPLAIN QUERY PLAN SELECT id FROM titles WHERE wikidata_id = 'Q1'", r => r.GetString(3)))));
+
+        Assert.True(statistics > 0);
+        Assert.Contains("titles_wikidata", plan);
+    }
+
+    [Fact]
     public void A_reader_says_when_the_catalogue_cannot_be_read()
     {
         Assert.Null(new CatalogueReader(_database.Path).Problem());

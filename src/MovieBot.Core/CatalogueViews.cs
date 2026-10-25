@@ -129,8 +129,8 @@ public sealed record CardPage(List<TitleCard> Titles, int Total, int? Next);
 
 public sealed record FacetOption(string Value, string? Label, int Count);
 
-/// <summary>What a title is counted by in each facet section.</summary>
-public sealed record FacetRow(string ImdbId, string Kind, string? Category, int? Year, int? Runtime, double? Rating, string? Language, string[] Genres);
+/// <summary>What a title is counted by in each facet section, and its votes, which a list's floor or ceiling of votes is checked against.</summary>
+public sealed record FacetRow(string ImdbId, string Kind, string? Category, int? Year, int? Runtime, double? Rating, string? Language, string[] Genres, int? Votes = null);
 
 public sealed record FacetSection(string Id, List<FacetOption> Options);
 

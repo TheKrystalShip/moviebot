@@ -58,9 +58,9 @@ public sealed class CatalogueQueries(CatalogueReader reader)
         var offered = Select(query, skip: "*");
         if (offered is null) return [];
         return c.Query($"""
-            SELECT t.imdb_id, t.kind, t.category, t.year, t.runtime, t.rating, t.original_language, t.genres {offered.From} WHERE {offered.Where}
+            SELECT t.imdb_id, t.kind, t.category, t.year, t.runtime, t.rating, t.original_language, t.genres, t.votes {offered.From} WHERE {offered.Where}
             """, r => new FacetRow(r.GetString(0), r.GetString(1), r.GetStringOrNull(2), r.GetIntOrNull(3), r.GetIntOrNull(4), r.GetDoubleOrNull(5),
-                r.GetStringOrNull(6), r.GetString(7) is { Length: > 0 } g ? g.Split(',') : []), offered.Args);
+                r.GetStringOrNull(6), r.GetString(7) is { Length: > 0 } g ? g.Split(',') : [], r.GetIntOrNull(8)), offered.Args);
     });
 
     /// <summary>
@@ -230,12 +230,14 @@ public sealed class CatalogueQueries(CatalogueReader reader)
             where.Add($"t.original_language IN ({string.Join(", ", q.Languages.Select(l => Bind(l)))})");
         if (q.Countries.Count > 0)
             where.Add($"EXISTS (SELECT 1 FROM title_countries x WHERE x.title_id = t.id AND x.country IN ({string.Join(", ", q.Countries.Select(x => Bind(x)))}))");
+        // A keyword, a company, a person or a fact names a few hundred titles at most, so its titles drive
+        // the query: checked title by title, it would read every listed title a broad filter beside it keeps.
         foreach (var keyword in q.Keywords)
-            where.Add($"EXISTS (SELECT 1 FROM title_keywords x WHERE x.title_id = t.id AND x.keyword_id = {Bind(keyword)})");
+            where.Add($"t.id IN (SELECT x.title_id FROM title_keywords x WHERE x.keyword_id = {Bind(keyword)})");
         if (q.AnyKeywords.Count > 0)
-            where.Add($"EXISTS (SELECT 1 FROM title_keywords x WHERE x.title_id = t.id AND x.keyword_id IN ({string.Join(", ", q.AnyKeywords.Select(x => Bind(x)))}))");
+            where.Add($"t.id IN (SELECT x.title_id FROM title_keywords x WHERE x.keyword_id IN ({string.Join(", ", q.AnyKeywords.Select(x => Bind(x)))}))");
         if (q.Companies.Count > 0)
-            where.Add($"EXISTS (SELECT 1 FROM title_companies x WHERE x.title_id = t.id AND x.company_id IN ({string.Join(", ", q.Companies.Select(x => Bind(x)))}))");
+            where.Add($"t.id IN (SELECT x.title_id FROM title_companies x WHERE x.company_id IN ({string.Join(", ", q.Companies.Select(x => Bind(x)))}))");
         foreach (var person in q.People)
         {
             var department = q.Role switch
@@ -245,16 +247,18 @@ public sealed class CatalogueQueries(CatalogueReader reader)
                 "writing" => " AND x.department = 'Writing'",
                 _ => "",
             };
-            where.Add($"EXISTS (SELECT 1 FROM credits x WHERE x.title_id = t.id AND x.person_id = {Bind(person)}{department})");
+            where.Add($"t.id IN (SELECT x.title_id FROM credits x WHERE x.person_id = {Bind(person)}{department})");
         }
         if (Picks("rating") && q.MinRating is { } minRating) where.Add($"t.rating >= {Bind(minRating)}");
-        if (q.MinVotes is { } minVotes) where.Add($"t.votes >= {Bind(minVotes)}");
-        if (q.MaxVotes is { } maxVotes) where.Add($"t.votes <= {Bind(maxVotes)}");
+        // A range of votes is checked on each title, never searched by (the unary plus): most listed
+        // titles pass any floor a shelf sets, and started from the votes index a list reads every one.
+        if (q.MinVotes is { } minVotes) where.Add($"+t.votes >= {Bind(minVotes)}");
+        if (q.MaxVotes is { } maxVotes) where.Add($"+t.votes <= {Bind(maxVotes)}");
         if (q.MaxRating is { } maxRating) where.Add($"t.rating <= {Bind(maxRating)}");
         if (q.Status is not null) where.Add($"t.status = {Bind(q.Status)}");
         if (q.MaxSeasons is { } maxSeasons) where.Add($"t.seasons <= {Bind(maxSeasons)}");
         foreach (var (property, item) in q.Facts)
-            where.Add($"EXISTS (SELECT 1 FROM title_facts x WHERE x.title_id = t.id AND x.property = {Bind(property)} AND x.item = {Bind(item)})");
+            where.Add($"t.id IN (SELECT x.title_id FROM title_facts x WHERE x.property = {Bind(property)} AND x.item = {Bind(item)})");
         if (q.Except is { Count: > 0 } except) where.Add($"t.imdb_id NOT IN (SELECT value FROM json_each({Bind(JsonSerializer.Serialize(except.ToArray(), StoreJson.Default.StringArray))}))");
 
         var order = q.Order switch
