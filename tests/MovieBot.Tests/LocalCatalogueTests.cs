@@ -297,6 +297,33 @@ public sealed class LocalCatalogueTests : IDisposable
     }
 
     [Fact]
+    public void A_franchise_Wikidata_files_twice_is_one_universe_and_its_collections_are_its_parts_alone()
+    {
+        Import(FastBasics, FastRatings);
+        var fast = TitleId("tt0232500");
+        var two = TitleId("tt0322259");
+        Layer().Keep(fast, new TmdbRef(9799, "film"), Fast(), []);
+        Layer().Keep(two, new TmdbRef(584, "film"), JsonNode.Parse(TwoFast().ToJsonString()
+            .Replace("\"id\":9485", "\"id\":1111").Replace("The Fast and the Furious Collection", "Another Collection"))!, []);
+
+        // The same two titles name a fictional universe and, under a higher number, a media franchise.
+        var wikidata = new WikidataWorker(null!, Database, Builder, Options.Create(new CatalogueOptions()), _clock, NullLogger<WikidataWorker>.Instance);
+        List<WikidataClaim> Claims() => [new("P1434", "Q2", "Fast universe", null), new("P8345", "Q9", "Fast & Furious", null)];
+        wikidata.Keep([(fast, "tt0232500"), (two, "tt0322259")], new Dictionary<string, (string, List<WikidataClaim>)>
+        {
+            ["tt0232500"] = ("Q155476", Claims()),
+            ["tt0322259"] = ("Q222867", Claims()),
+        });
+
+        Assert.Equal(1, Database.Write(Universes.Build));
+        var queries = new CatalogueQueries(new CatalogueReader(Path.Combine(_dir, CatalogueDatabase.FileName)));
+        var universe = Assert.Single(queries.Franchises(1, 20, minTitles: 1).Franchises);
+        Assert.Equal(("Q9", "Fast & Furious", 2), (universe.Id, universe.Name, universe.Titles));
+        Assert.Equal(["c1111", "c9485"], queries.Franchise("Q9")!.Parts.Select(p => p.Id).Order());
+        Assert.Equal(["c1111", "c9485"], queries.Franchises(1, 20, "collection", minTitles: 1).Franchises.Select(f => f.Id).Order());
+    }
+
+    [Fact]
     public void Similar_titles_are_the_recommendations_the_catalogue_lists_whenever_it_gains_them()
     {
         Import(FastBasics, FastRatings);

@@ -49,6 +49,10 @@ the `Tmdb` section's, from the environment.
 - **Franchises are TMDB's collections; Wikidata adds universes** (`Entries/Universes`): an item listed
   titles name as their fictional universe or media franchise, when they span two collections or more or
   hold films and shows both. A series claim only numbers a title, since editors file lists under it too.
+  An item whose titles another item holds every one of is not a universe, so a franchise Wikidata files
+  twice (media franchise and fictional universe) or in parts is one universe; of two holding the same
+  titles, the media franchise is kept. The franchise list leaves out a collection a listed universe holds
+  whole: it is that universe's part.
   The universes and `fact_items` (each Wikidata item a filter takes, with how many titles name it) are
   built whole when the service starts and after every Wikidata pass.
 - **The catalogue is read through `MovieBot.Catalogue.Store`** (`CatalogueReader`, `CatalogueQueries`),

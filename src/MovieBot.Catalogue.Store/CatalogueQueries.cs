@@ -552,7 +552,9 @@ public sealed class CatalogueQueries(CatalogueReader reader)
 
     /// <summary>
     /// The franchises with at least <paramref name="minTitles"/> listed titles, the most voted first, a page
-    /// at a time; <paramref name="kind"/> is <c>collection</c> or <c>universe</c> for one kind alone.
+    /// at a time; <paramref name="kind"/> is <c>collection</c> or <c>universe</c> for one kind alone. Of both
+    /// kinds, a collection whose listed titles a listed universe holds every one of is listed as that
+    /// universe's part alone.
     /// </summary>
     public FranchisePage Franchises(int page, int size, string? kind = null, int minTitles = 2) => reader.Read(c =>
     {
@@ -560,6 +562,14 @@ public sealed class CatalogueQueries(CatalogueReader reader)
         const string Grouped = """
             FROM franchises f JOIN franchise_titles ft ON ft.franchise_id = f.id JOIN titles t ON t.id = ft.title_id AND t.listed = 1
             WHERE ($source IS NULL OR f.source = $source)
+              AND ($source IS NOT NULL OR NOT EXISTS (
+                  SELECT 1 FROM franchise_parts pa WHERE pa.collection_id = f.id
+                  AND (SELECT count(*) FROM franchise_titles u JOIN titles ut ON ut.id = u.title_id AND ut.listed = 1
+                       WHERE u.franchise_id = pa.universe_id) >= $min
+                  AND NOT EXISTS (
+                      SELECT 1 FROM franchise_titles x JOIN titles xt ON xt.id = x.title_id AND xt.listed = 1
+                      WHERE x.franchise_id = f.id
+                      AND NOT EXISTS (SELECT 1 FROM franchise_titles u WHERE u.franchise_id = pa.universe_id AND u.title_id = x.title_id))))
             GROUP BY f.id HAVING count(t.id) >= $min
             """;
         var total = (int)c.Count($"SELECT count(*) FROM (SELECT f.id {Grouped})", ("$source", source), ("$min", minTitles));

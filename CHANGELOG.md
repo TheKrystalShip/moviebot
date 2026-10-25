@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.1] - 2026-10-25
+
+### Fixed
+- A franchise Wikidata files twice, as a media franchise and as its fictional universe, or files in
+  parts, is one universe: an item whose listed titles another item holds every one of is not a
+  universe, and of two holding the same titles the media franchise is kept (Wizarding World and Harry
+  Potter universe, Alien and Alien universe, Star Wars and Star Wars universe).
+- The franchise list leaves out a collection a listed universe holds whole; the universe's page lists it
+  as a part, and its own page and list stand. The Marvel Cinematic Universe is listed once, its
+  Avengers, Iron Man, Thor and Captain America collections inside it.
+
 ## [4.2.0] - 2026-10-25
 
 ### Added
