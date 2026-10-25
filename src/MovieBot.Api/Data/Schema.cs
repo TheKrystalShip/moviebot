@@ -18,7 +18,7 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles, Franchises, Catalogued];
+    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles, Franchises, Catalogued, TabBar];
 
     public static int Version => Steps.Length;
 
@@ -35,6 +35,12 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string TabBar = """
+        -- The four page ids a person keeps in their phone's tab bar, comma-joined in slot order; null is the
+        -- site's own choice.
+        ALTER TABLE viewer_preferences ADD COLUMN tab_bar TEXT;
+        """;
 
     private const string Catalogued = """
         -- What the film database, IMDb and Wikidata said is the catalogue's (moviebot-catalogue), which

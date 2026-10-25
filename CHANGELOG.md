@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.4.0] - 2026-10-26
+
+### Added
+- A person's preferences keep the four pages they put in their phone's tab bar (`tabBar`, four
+  distinct page ids), read and written through `/api/me/preferences` and pushed to their other open
+  devices with the rest of the record.
+
 ## [4.3.3] - 2026-10-25
 
 ### Fixed

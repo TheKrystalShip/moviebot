@@ -34,6 +34,13 @@ public sealed record ViewerPreferences
     public SubtitleStyle? SubtitleStyle { get; init; }
 
     /// <summary>
+    /// The four pages the person keeps in their phone's tab bar, left to right around the locked middle
+    /// one, as the site's page ids, or null for the site's own choice. The API holds the shape of an id,
+    /// not the site's pages: an id the site does not route is the site's to read as its default.
+    /// </summary>
+    public IReadOnlyList<string>? TabBar { get; init; }
+
+    /// <summary>
     /// Where this record stands in the order the person's writes were kept, on what a write answers and
     /// what a push carries; absent on a read. Never stored, and never taken from a request.
     /// </summary>
@@ -41,6 +48,12 @@ public sealed record ViewerPreferences
 
     /// <summary>The tallest picture a height may name: 8K.</summary>
     public const int MaxHeight = 4320;
+
+    /// <summary>How many pages the tab bar's free slots hold.</summary>
+    public const int TabBarSlots = 4;
+
+    /// <summary>The longest a page id is.</summary>
+    public const int MaxTabIdLength = 64;
 
     /// <summary>
     /// Why these cannot be kept, or null. A quality is Auto (absent) or a height; it is the person's
@@ -50,7 +63,15 @@ public sealed record ViewerPreferences
     /// </summary>
     public string? Refusal() =>
         HeightRefusal("qualityHeight", QualityHeight) ?? HeightRefusal("offlineQualityHeight", OfflineQualityHeight)
-        ?? SubtitleStyle?.Refusal();
+        ?? SubtitleStyle?.Refusal() ?? TabBarRefusal();
+
+    private string? TabBarRefusal() =>
+        TabBar is null || (TabBar.Count == TabBarSlots && TabBar.Distinct(StringComparer.Ordinal).Count() == TabBarSlots && TabBar.All(IsTabId))
+            ? null
+            : $"tabBar is absent for the site's own, or {TabBarSlots} distinct ids of 1 to {MaxTabIdLength} characters of a-z, 0-9 and -.";
+
+    private static bool IsTabId(string? id) =>
+        id is { Length: >= 1 and <= MaxTabIdLength } && id.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-');
 
     private static string? HeightRefusal(string name, int? height) =>
         height is { } value && value is <= 0 or > MaxHeight
@@ -63,6 +84,7 @@ public sealed record ViewerPreferences
         SubtitleLanguage = string.IsNullOrWhiteSpace(SubtitleLanguage) ? null : SubtitleLanguage.Trim(),
         AudioLanguage = string.IsNullOrWhiteSpace(AudioLanguage) ? null : AudioLanguage.Trim(),
         SubtitleStyle = SubtitleStyle?.Normalised(),
+        TabBar = TabBar is null ? null : [.. TabBar],
         Revision = null,
     };
 }
@@ -145,7 +167,7 @@ public sealed class PreferenceStore(CinemaDatabase database)
     private const string Columns =
         "subtitle_language, audio_language, quality_height, offline_quality_height, skip_intros, style_size, "
         + "style_font, style_bold, style_text_color, style_edge, style_edge_color, style_background_color, "
-        + "style_background_opacity, style_position";
+        + "style_background_opacity, style_position, tab_bar";
 
     /// <summary>Somebody who never set anything has the defaults, which are all nulls.</summary>
     public ViewerPreferences For(string userId) =>
@@ -161,12 +183,13 @@ public sealed class PreferenceStore(CinemaDatabase database)
             c.Execute(
                 $"INSERT OR REPLACE INTO viewer_preferences (user_id, {Columns}) VALUES "
                 + "($user, $subtitle, $audio, $quality, $offline, $skip, $size, $font, $bold, $text, $edge, $edgeColor, "
-                + "$background, $opacity, $position)",
+                + "$background, $opacity, $position, $tabBar)",
                 ("$user", userId), ("$subtitle", stored.SubtitleLanguage), ("$audio", stored.AudioLanguage),
                 ("$quality", stored.QualityHeight), ("$offline", stored.OfflineQualityHeight), ("$skip", stored.SkipIntros),
                 ("$size", style?.Size), ("$font", style?.Font), ("$bold", style?.Bold), ("$text", style?.TextColor),
                 ("$edge", style?.Edge), ("$edgeColor", style?.EdgeColor), ("$background", style?.BackgroundColor),
-                ("$opacity", style?.BackgroundOpacity), ("$position", style?.Position));
+                ("$opacity", style?.BackgroundOpacity), ("$position", style?.Position),
+                ("$tabBar", stored.TabBar is null ? null : string.Join(',', stored.TabBar)));
             return Revisions.Next("p:" + userId);
         });
         return stored with { Revision = revision };
@@ -194,6 +217,7 @@ public sealed class PreferenceStore(CinemaDatabase database)
             OfflineQualityHeight = r.GetIntOrNull(3),
             SkipIntros = r.GetBool(4),
             SubtitleStyle = style == new SubtitleStyle() ? null : style,
+            TabBar = r.GetStringOrNull(14)?.Split(','),
         };
     }
 }

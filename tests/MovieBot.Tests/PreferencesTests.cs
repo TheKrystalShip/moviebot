@@ -152,6 +152,45 @@ public sealed class PreferencesTests(SessionFixture fixture) : IClassFixture<Ses
     }
 
     [Fact]
+    public async Task A_tab_bar_is_kept_in_order_and_follows_the_person()
+    {
+        Assert.Null((await Read(As("7010", site: true)))?.TabBar);
+
+        using var put = await As("7010", site: true).PutAsJsonAsync("/api/me/preferences",
+            new ViewerPreferences { TabBar = ["movies", "discover", "assistant", "me-2"] });
+        put.EnsureSuccessStatusCode();
+
+        Assert.Equal(["movies", "discover", "assistant", "me-2"], (await Read(As("7010", site: false)))?.TabBar);
+        Assert.Null((await Read(As("7011", site: true)))?.TabBar);
+
+        using var cleared = await As("7010", site: true).PutAsJsonAsync("/api/me/preferences", new ViewerPreferences());
+        cleared.EnsureSuccessStatusCode();
+        Assert.Null((await Read(As("7010", site: true)))?.TabBar);
+    }
+
+    [Theory]
+    [InlineData("a", "b", "c")]
+    [InlineData("a", "b", "c", "d", "e")]
+    [InlineData("a", "b", "c", "a")]
+    [InlineData("a", "b", "c", "Me")]
+    [InlineData("a", "b", "c", "me_2")]
+    [InlineData("a", "b", "c", "")]
+    [InlineData("a", "b", "c", "x,y")]
+    [InlineData("a", "b", "c", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    public async Task A_tab_bar_that_is_not_four_distinct_ids_is_refused_and_keeps_what_was_there(params string[] ids)
+    {
+        var client = As("7012" + string.Join('.', ids).Length + ids.Length, site: true);
+        string[] kept = ["movies", "discover", "assistant", "me"];
+        using var first = await client.PutAsJsonAsync("/api/me/preferences", new ViewerPreferences { TabBar = kept });
+        first.EnsureSuccessStatusCode();
+
+        using var put = await client.PutAsJsonAsync("/api/me/preferences", new ViewerPreferences { TabBar = ids });
+
+        Assert.Equal(HttpStatusCode.BadRequest, put.StatusCode);
+        Assert.Equal(kept, (await Read(client))?.TabBar);
+    }
+
+    [Fact]
     public async Task The_service_key_names_nobody()
     {
         using var response = await fixture.CreateServiceClient().GetAsync("/api/me/preferences");
