@@ -11,7 +11,7 @@ import { navigate, linkProps } from "../router.js";
 import { SORTED, useSort } from "../sorts.js";
 import { orderOf, sortOf } from "../orders.js";
 import { Empty, Failed } from "../components/Film.jsx";
-import { CardsSkeleton, FoundCard } from "../components/TitleCards.jsx";
+import { CardsSkeleton, FoundCard, SkeletonCard } from "../components/TitleCards.jsx";
 import { ViewAll } from "../components/ViewAll.jsx";
 import { counted } from "../counts.js";
 
@@ -208,12 +208,10 @@ function SeriesGrid() {
   if (series.error && !series.data) return <Failed error={series.error} onRetry={series.reload} />;
   if (!series.titles) return <CardsSkeleton count={8} />;
   return (
-    <>
-      <div className="kc-browse-grid">
-        {series.titles.map((h) => <ShelfTile key={h.id} head={h} series size={narrow ? "sm" : "md"} />)}
-      </div>
-      <MoreCards paged={series} />
-    </>
+    <div className="kc-browse-grid">
+      {series.titles.map((h) => <ShelfTile key={h.id} head={h} series size={narrow ? "sm" : "md"} />)}
+      <MoreCards paged={series} card={<Skeleton h="auto" r={4} style={{ aspectRatio: narrow ? "25 / 16" : "16 / 9" }} />} />
+    </div>
   );
 }
 
@@ -250,11 +248,13 @@ export function useDiscoverOrder(query, sorts, { listed, filtering }) {
 }
 
 /**
- * The next page of a grid, read as its end comes near: a plain skeleton of cards while it is read, and
- * the failure with a retry when it cannot be. `paged` is what `usePaged` returned for the grid.
+ * The next page of a grid, read as its end comes near, drawn as the grid's last cells: while it is read,
+ * placeholder `card`s fill what is left of the last row and one row more, so the titles land where
+ * their placeholders stood; when it cannot be read, the failure with a retry spans the grid. `paged` is
+ * what `usePaged` returned for the grid.
  */
-export function MoreCards({ paged }) {
-  const { next, loadingMore, moreError, loadMore } = paged;
+export function MoreCards({ paged, card = <SkeletonCard /> }) {
+  const { next, loadingMore, moreError, loadMore, titles } = paged;
   const ref = React.useRef(null);
   const latest = React.useRef(loadMore);
   latest.current = loadMore;
@@ -273,12 +273,24 @@ export function MoreCards({ paged }) {
     return () => watcher.disconnect();
   }, [idle, next]);
 
+  // Measured from the grid as laid out, since its column count follows its width and it may hold
+  // cards besides `titles`.
+  const [cells, setCells] = React.useState(0);
+  React.useLayoutEffect(() => {
+    const grid = ref.current && ref.current.parentElement;
+    if (!grid || !loadingMore) return;
+    const across = getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length || 1;
+    const held = grid.querySelectorAll(":scope > :not([data-more])").length;
+    setCells((across - (held % across)) % across + across);
+  }, [loadingMore, titles]);
+
   if (!next) return null;
   return (
-    <div ref={ref} style={{ minHeight: 1 }}>
-      {loadingMore && <CardsSkeleton count={6} row />}
-      {moreError && <Failed error={moreError} onRetry={loadMore} />}
-    </div>
+    <>
+      <span ref={ref} className="kc-more-sentinel" data-more="" aria-hidden="true" />
+      {loadingMore && Array.from({ length: cells }, (_, i) => <div key={i} data-more="" aria-hidden="true">{card}</div>)}
+      {moreError && <div className="kc-more-failed" data-more=""><Failed error={moreError} onRetry={loadMore} /></div>}
+    </>
   );
 }
 
@@ -300,9 +312,13 @@ export function ListPage({ query, sort, picks, where, head, empty = "Nothing her
       {list.error && !list.data && <Failed error={list.error} onRetry={list.reload} />}
       {!list.titles && !list.error && <CardsSkeleton count={12} />}
       {list.titles && (list.titles.length > 0
-        ? <div className="kc-grid">{list.titles.map((t) => <FoundCard key={t.kind + t.id} found={t} {...where(t)} />)}</div>
+        ? (
+          <div className="kc-grid">
+            {list.titles.map((t) => <FoundCard key={t.kind + t.id} found={t} {...where(t)} />)}
+            <MoreCards paged={list} />
+          </div>
+        )
         : <Empty icon={icon} title={filtered ? "Nothing matches" : empty} />)}
-      <MoreCards paged={list} />
     </section>
   );
 }

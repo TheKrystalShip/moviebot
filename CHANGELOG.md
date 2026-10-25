@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.3] - 2026-10-25
+
+### Fixed
+- A grid that reads its next page as it is scrolled (a genre, a list, search results, the franchises)
+  draws the page's placeholders in the gaps left on its last row before starting a new one, so the
+  titles land where their placeholders stood.
+
 ## [4.3.2] - 2026-10-25
 
 ### Fixed

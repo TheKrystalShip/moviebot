@@ -186,8 +186,10 @@ function Search({ q, picks, narrowed, hideWatched, where }) {
       {ask && ask.question && ask.message && <p className="kc-note">{ask.message}</p>}
       {questionTitles.length > 0 && (
         <>
-          <div className="kc-grid">{questionTitles.map((t) => <FoundCard key={t.kind + t.id} found={t} {...where(t)} />)}</div>
-          <MoreCards paged={answers} />
+          <div className="kc-grid">
+            {questionTitles.map((t) => <FoundCard key={t.kind + t.id} found={t} {...where(t)} />)}
+            <MoreCards paged={answers} />
+          </div>
         </>
       )}
       {best && <BestMatch key={best.id} found={best} {...where(best)} shelf={showsHere.get(best.id)} />}
@@ -198,8 +200,8 @@ function Search({ q, picks, narrowed, hideWatched, where }) {
             {(narrowed ? titles : rest).map((t) => <FoundCard key={t.kind + t.id} found={t} {...where(t)} />)}
             {!narrowed && libraryFilms.map((t) => <FilmCard key={t.id} title={t} />)}
             {!narrowed && libraryShows.map((s) => <ShowCard key={s.imdbId || s.firstTitleId} show={s} />)}
+            <MoreCards paged={found} />
           </div>
-          <MoreCards paged={found} />
         </section>
       )}
       {answered && everything === 0 && <Empty icon="search" title="Nothing by that name" />}

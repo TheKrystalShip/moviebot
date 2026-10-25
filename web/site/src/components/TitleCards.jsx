@@ -16,15 +16,20 @@ import { useWantRibbon } from "./WantButton.jsx";
 export function CardsSkeleton({ count = 6, row = false }) {
   return (
     <div className={"kc-grid" + (row ? " kc-grid--row" : "")} aria-hidden="true">
-      {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="k-skeleton-card">
-          <Skeleton className="k-skeleton-card__art" h="auto" r={0} style={{ aspectRatio: "2 / 3" }} />
-          <div className="kc-card-skel__foot">
-            <Skeleton h={30} />
-            <Skeleton w="70%" h={12} />
-          </div>
-        </div>
-      ))}
+      {Array.from({ length: count }, (_, i) => <SkeletonCard key={i} />)}
+    </div>
+  );
+}
+
+/** One poster card while it is read, at the card's own height. */
+export function SkeletonCard() {
+  return (
+    <div className="k-skeleton-card">
+      <Skeleton className="k-skeleton-card__art" h="auto" r={0} style={{ aspectRatio: "2 / 3" }} />
+      <div className="kc-card-skel__foot">
+        <Skeleton h={30} />
+        <Skeleton w="70%" h={12} />
+      </div>
     </div>
   );
 }
